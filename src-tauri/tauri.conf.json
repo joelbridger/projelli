@@ -1,0 +1,83 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "Projelli",
+  "version": "0.1.0",
+  "identifier": "com.projelli.app",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Projelli",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true,
+        "transparent": false,
+        "visible": true,
+        "focus": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "shortDescription": "Local-first workspace for solo founders",
+    "longDescription": "Projelli is a local-first, artifact-driven workspace application for solo founders building businesses with AI assistance. Unlike chat-based AI tools, Projelli produces and manages persistent business documents while keeping the human founder in control of all decisions.",
+    "publisher": "Projelli",
+    "copyright": "Copyright 2025 Projelli",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": null,
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "installMode": "currentUser",
+        "languages": ["English"],
+        "displayLanguageSelector": false
+      },
+      "wix": {
+        "language": "en-US"
+      }
+    },
+    "resources": [],
+    "externalBin": [],
+    "createUpdaterArtifacts": false
+  },
+  "plugins": {
+    "fs": {
+      "scope": {
+        "allow": ["$HOME/**", "$DOCUMENT/**", "$DESKTOP/**", "$DOWNLOAD/**"],
+        "deny": [
+          "$HOME/.*",
+          "$HOME/Library/**",
+          "$HOME/AppData/**",
+          "C:\\Windows\\**",
+          "/etc/**",
+          "/usr/**",
+          "/bin/**",
+          "/sbin/**"
+        ]
+      }
+    }
+  }
+}
