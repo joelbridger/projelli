@@ -5,6 +5,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Play, Pause, Mic, Save, Scissors, StopCircle, Trash2, Crop } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { saveFile } from '@/utils/saveFile';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.js';
 
@@ -505,36 +506,25 @@ function writeString(view: DataView, offset: number, string: string) {
 }
 
 /**
- * Download file with save dialog
+ * Download file with save dialog (cross-platform: browser & Tauri)
  */
 async function downloadFileWithDialog(blob: Blob, filename: string, mimeType: string) {
   try {
-    if ('showSaveFilePicker' in window) {
-      const ext = filename.split('.').pop()?.toLowerCase() || 'wav';
-      const handle = await (window as any).showSaveFilePicker({
-        suggestedName: filename,
-        types: [
-          {
-            description: 'Audio Files',
-            accept: { [mimeType]: [`.${ext}`] },
-          },
-        ],
-      });
+    const ext = filename.split('.').pop()?.toLowerCase() || 'wav';
 
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-    } else {
-      // Fallback
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    }
+    // Convert Blob to ArrayBuffer
+    const arrayBuffer = await blob.arrayBuffer();
+
+    // Use cross-platform saveFile utility
+    await saveFile(arrayBuffer, {
+      suggestedName: filename,
+      types: [
+        {
+          description: 'Audio Files',
+          accept: { [mimeType]: [`.${ext}`] },
+        },
+      ],
+    });
   } catch (error) {
     if (error instanceof Error && error.name !== 'AbortError') {
       console.error('Failed to download file:', error);

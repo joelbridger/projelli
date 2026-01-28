@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { openExternal } from '@/utils/openExternal';
 import { ExternalLink, Key } from 'lucide-react';
 
 interface ApiKeyHelpDialogProps {
@@ -38,7 +39,7 @@ export function ApiKeyHelpDialog({ open, onOpenChange }: ApiKeyHelpDialogProps) 
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.open('https://console.anthropic.com/', '_blank')}
+                onClick={() => openExternal('https://console.anthropic.com/')}
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Open Console
@@ -70,7 +71,7 @@ export function ApiKeyHelpDialog({ open, onOpenChange }: ApiKeyHelpDialogProps) 
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.open('https://platform.openai.com/api-keys', '_blank')}
+                onClick={() => openExternal('https://platform.openai.com/api-keys')}
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Open Platform
@@ -101,7 +102,7 @@ export function ApiKeyHelpDialog({ open, onOpenChange }: ApiKeyHelpDialogProps) 
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => window.open('https://aistudio.google.com/app/apikey', '_blank')}
+                onClick={() => openExternal('https://aistudio.google.com/app/apikey')}
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Open AI Studio

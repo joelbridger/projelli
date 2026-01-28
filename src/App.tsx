@@ -28,6 +28,7 @@ import { AudioRecorderModal } from '@/components/audio/AudioRecorderModal';
 import { Button } from '@/components/ui/button';
 import { Command, Moon, Sun } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { saveFile } from '@/utils/saveFile';
 import { useEditorStore } from '@/stores/editorStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import type { WorkspaceService } from '@/modules/workspace/WorkspaceService';
@@ -605,34 +606,18 @@ function App() {
       try {
         const content = await workspaceServiceRef.current.readFile(path);
 
-        // Try to use File System Access API for "Save As" dialog
-        if ('showSaveFilePicker' in window) {
-          const handle = await (window as any).showSaveFilePicker({
-            suggestedName: name,
-            types: [
-              {
-                description: 'Text Files',
-                accept: {
-                  'text/plain': ['.txt', '.md', '.markdown', '.json'],
-                },
+        // Use cross-platform saveFile utility (works in both browser and Tauri)
+        await saveFile(content, {
+          suggestedName: name,
+          types: [
+            {
+              description: 'Text Files',
+              accept: {
+                'text/plain': ['.txt', '.md', '.markdown', '.json'],
               },
-            ],
-          });
-          const writable = await handle.createWritable();
-          await writable.write(content);
-          await writable.close();
-        } else {
-          // Fallback to traditional download for browsers without File System Access API
-          const blob = new Blob([content], { type: 'text/plain' });
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = name;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(url);
-        }
+            },
+          ],
+        });
       } catch (error) {
         // User cancelled or error occurred
         if (error instanceof Error && error.name !== 'AbortError') {

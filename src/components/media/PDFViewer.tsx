@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { openExternal } from '@/utils/openExternal';
 import { Button } from '@/components/ui/button';
 import {
   ZoomIn,
@@ -81,11 +82,8 @@ export function PDFViewer({ src, fileName = 'document.pdf', className }: PDFView
   }, [blobUrl, src, fileName]);
 
   const handleOpenExternal = useCallback(() => {
-    if (blobUrl) {
-      window.open(blobUrl, '_blank');
-    } else {
-      window.open(src, '_blank');
-    }
+    const url = blobUrl || src;
+    openExternal(url);
   }, [blobUrl, src]);
 
   return (

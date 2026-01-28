@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { openExternal } from '@/utils/openExternal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -193,7 +194,7 @@ export function SourceFileEditor({
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => window.open(sourceCard.url, '_blank')}
+                onClick={() => openExternal(sourceCard.url)}
                 title="Open URL in new tab"
               >
                 <ExternalLink className="h-4 w-4" />
@@ -226,7 +227,7 @@ export function SourceFileEditor({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => window.open(sourceCard.url, '_blank')}
+                    onClick={() => openExternal(sourceCard.url)}
                     className="gap-2"
                   >
                     <ExternalLink className="h-4 w-4" />

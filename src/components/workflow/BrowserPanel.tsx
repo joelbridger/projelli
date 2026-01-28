@@ -18,6 +18,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { openExternal } from '@/utils/openExternal';
 
 interface BrowserTab {
   id: string;
@@ -489,7 +490,7 @@ export function BrowserPanel({ className, initialUrl }: BrowserPanelProps) {
                 <Button
                   size="sm"
                   className="mt-3"
-                  onClick={() => window.open(activeTab.url, '_blank')}
+                  onClick={() => openExternal(activeTab.url)}
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
                   Open in External Browser

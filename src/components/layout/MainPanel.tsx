@@ -24,6 +24,7 @@ import { useEditorStore } from '@/stores/editorStore';
 import { Button } from '@/components/ui/button';
 import { FileText, List, Link2, PanelRightClose, FileSpreadsheet, FileType, Presentation, X, Save, History, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { saveFile } from '@/utils/saveFile';
 
 /**
  * Check if a file is a whiteboard file
@@ -61,74 +62,59 @@ function shouldVersionFile(extension: string | undefined): boolean {
 }
 
 /**
- * Download a file with save dialog (using File System Access API if available)
+ * Download a file with save dialog (cross-platform: browser & Tauri)
  */
 async function downloadFileWithDialog(content: string | Blob, filename: string, mimeType: string) {
   try {
-    // Try to use File System Access API for "Save As" dialog
-    if ('showSaveFilePicker' in window) {
-      // Determine file types based on extension
-      const ext = filename.split('.').pop()?.toLowerCase();
-      const types: any[] = [];
+    // Determine file types based on extension
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const types: any[] = [];
 
-      if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
-        types.push({
-          description: 'Spreadsheet Files',
-          accept: {
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-            'application/vnd.ms-excel': ['.xls'],
-            'text/csv': ['.csv'],
-          },
-        });
-      } else if (ext === 'pptx' || ext === 'ppt') {
-        types.push({
-          description: 'Presentation Files',
-          accept: {
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
-            'application/vnd.ms-powerpoint': ['.ppt'],
-          },
-        });
-      } else if (ext === 'docx' || ext === 'doc') {
-        types.push({
-          description: 'Word Documents',
-          accept: {
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-            'application/msword': ['.doc'],
-          },
-        });
-      } else {
-        types.push({
-          description: 'All Files',
-          accept: { [mimeType]: [`.${ext}`] },
-        });
-      }
-
-      const handle = await (window as any).showSaveFilePicker({
-        suggestedName: filename,
-        types,
+    if (ext === 'xlsx' || ext === 'xls' || ext === 'csv') {
+      types.push({
+        description: 'Spreadsheet Files',
+        accept: {
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+          'application/vnd.ms-excel': ['.xls'],
+          'text/csv': ['.csv'],
+        },
       });
-
-      const writable = await handle.createWritable();
-
-      if (content instanceof Blob) {
-        await writable.write(content);
-      } else {
-        await writable.write(content);
-      }
-
-      await writable.close();
+    } else if (ext === 'pptx' || ext === 'ppt') {
+      types.push({
+        description: 'Presentation Files',
+        accept: {
+          'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+          'application/vnd.ms-powerpoint': ['.ppt'],
+        },
+      });
+    } else if (ext === 'docx' || ext === 'doc') {
+      types.push({
+        description: 'Word Documents',
+        accept: {
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+          'application/msword': ['.doc'],
+        },
+      });
     } else {
-      // Fallback to traditional download
-      const blob = content instanceof Blob ? content : new Blob([content], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      types.push({
+        description: 'All Files',
+        accept: { [mimeType]: [`.${ext}`] },
+      });
     }
+
+    // Convert Blob to ArrayBuffer if needed
+    let saveContent: string | ArrayBuffer;
+    if (content instanceof Blob) {
+      saveContent = await content.arrayBuffer();
+    } else {
+      saveContent = content;
+    }
+
+    // Use cross-platform saveFile utility
+    await saveFile(saveContent, {
+      suggestedName: filename,
+      types,
+    });
   } catch (error) {
     // User cancelled or error occurred
     if (error instanceof Error && error.name !== 'AbortError') {

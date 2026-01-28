@@ -23,6 +23,7 @@ import {
   Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { saveFile } from '@/utils/saveFile';
 import type { MarkdownEditorRef } from './MarkdownEditor';
 
 interface FormattingToolbarProps {
@@ -170,34 +171,18 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
     if (!fileContent || !fileName) return;
 
     try {
-      // Try to use File System Access API for "Save As" dialog
-      if ('showSaveFilePicker' in window) {
-        const handle = await window.showSaveFilePicker({
-          suggestedName: fileName,
-          types: [
-            {
-              description: 'Text Files',
-              accept: {
-                'text/plain': ['.txt', '.md', '.markdown'],
-              },
+      // Use cross-platform saveFile utility (browser & Tauri)
+      await saveFile(fileContent, {
+        suggestedName: fileName,
+        types: [
+          {
+            description: 'Text Files',
+            accept: {
+              'text/plain': ['.txt', '.md', '.markdown'],
             },
-          ],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(fileContent);
-        await writable.close();
-      } else {
-        // Fallback to traditional download for browsers without File System Access API
-        const blob = new Blob([fileContent], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }
+          },
+        ],
+      });
     } catch (error) {
       // User cancelled or error occurred
       if (error instanceof Error && error.name !== 'AbortError') {
