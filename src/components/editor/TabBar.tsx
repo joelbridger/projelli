@@ -2,7 +2,7 @@
 // Displays open file tabs with close buttons, dirty indicators, drag-to-reorder, and tab groups
 
 import { useCallback, useState, useRef } from 'react';
-import { X, FileText, GripVertical, ChevronDown, ChevronRight, Edit2, Trash2, FileJson, FileImage, FileVideo, PenTool, Music, MoreHorizontal, MessageSquare, Settings, Globe } from 'lucide-react';
+import { X, FileText, GripVertical, FileJson, FileImage, FileVideo, PenTool, Music, MoreHorizontal, MessageSquare, Settings, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -78,8 +78,8 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     createTabGroup,
     renameTabGroup,
     deleteTabGroup,
-    toggleGroupCollapsed,
     moveTabToGroup,
+    ungroupTab,
   } = useEditorStore();
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -95,6 +95,8 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const [editingTabName, setEditingTabName] = useState('');
   const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [showGroupManager, setShowGroupManager] = useState(false);
+  const [openDropdownGroupId, setOpenDropdownGroupId] = useState<string | null>(null);
+  const [dragOverDropdownIndex, setDragOverDropdownIndex] = useState<number | null>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Calculate max tabs per row (approximate based on typical tab width of 150px)
@@ -159,6 +161,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     setDragOverTabBar(false);
     setDragIntent(null);
     setDropPosition(null);
+    setDragOverDropdownIndex(null);
     // Clear hover timer if drag ends
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current);
@@ -256,6 +259,11 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           }
 
           reorderTabs(fromIndex, finalToIndex);
+
+          // If the dragged tab was grouped, ungroup it when reordering
+          if (draggedTab.groupId) {
+            ungroupTab(draggedTab.path);
+          }
         } else {
           // GROUP: Drop on middle of tab - create or join a group
 
@@ -415,13 +423,13 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
 
       // If tab is in a group, remove it from the group
       if (draggedTab?.groupId) {
-        moveTabToGroup(draggedTab.path, null);
+        ungroupTab(draggedTab.path);
       }
     }
 
     setDraggedIndex(null);
     setDragOverIndex(null);
-  }, [openTabs, moveTabToGroup]);
+  }, [openTabs, ungroupTab]);
 
   if (openTabs.length === 0) {
     return null;
@@ -505,11 +513,13 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     );
   };
 
-  const renderGroupChip = (group: typeof tabGroups[0], tabs: typeof openTabs) => {
+  const renderGroupHeader = (group: typeof tabGroups[0], tabs: typeof openTabs) => {
     const isGroupDragOver = dragOverGroupId === group.id;
+    const isOpen = openDropdownGroupId === group.id;
+
     return (
       <div
-        key={group.id}
+        key={`group-${group.id}`}
         data-group-chip
         className={cn(
           "flex items-center gap-1 px-2 py-1.5 border-r min-w-0 transition-colors h-9",
@@ -519,7 +529,12 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         onDragLeave={handleGroupDragLeave}
         onDrop={(e) => handleGroupDrop(e, group.id)}
       >
-        <DropdownMenu>
+        <DropdownMenu
+          open={isOpen}
+          onOpenChange={(open) => {
+            setOpenDropdownGroupId(open ? group.id : null);
+          }}
+        >
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
@@ -529,12 +544,11 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                 e.stopPropagation();
                 handleGroupDoubleClick(group.id, group.name);
               }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
             >
-              {group.collapsed ? (
-                <ChevronRight className="h-3.5 w-3.5" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5" />
-              )}
               <span className="text-sm font-medium truncate max-w-24">{group.name}</span>
               <span className="text-xs text-muted-foreground font-medium">({tabs.length})</span>
             </Button>
@@ -546,20 +560,70 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                 <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
                   Files in group
                 </div>
-                {tabs.map((tab) => {
+                {tabs.map((tab, idx) => {
                   const tabIndex = openTabs.indexOf(tab);
+                  const isDraggingThis = draggedIndex === tabIndex;
+                  const isDragOverThis = dragOverDropdownIndex === idx && !isDraggingThis;
+
                   return (
                     <DropdownMenuItem
                       key={tab.path}
                       onClick={() => handleTabClick(tab.path)}
-                      className="gap-2 cursor-move"
+                      className={cn(
+                        "gap-2 cursor-move",
+                        isDraggingThis && "opacity-50",
+                        isDragOverThis && "bg-primary/20"
+                      )}
                       onDragStart={(e) => {
                         e.stopPropagation();
                         handleDragStart(e as any, tabIndex);
+                        // Delay dropdown close to allow drag ghost to be created
+                        requestAnimationFrame(() => {
+                          setOpenDropdownGroupId(null);
+                        });
                       }}
                       onDragEnd={(e) => {
                         e.stopPropagation();
                         handleDragEnd();
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDragOverDropdownIndex(idx);
+                      }}
+                      onDragLeave={(e) => {
+                        e.stopPropagation();
+                        setDragOverDropdownIndex(null);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDragOverDropdownIndex(null);
+
+                        const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                        if (!isNaN(fromIndex) && fromIndex !== tabIndex) {
+                          const draggedTab = openTabs[fromIndex];
+                          const targetTab = openTabs[tabIndex];
+
+                          // Reorder within the same group
+                          if (draggedTab && targetTab && draggedTab.groupId === targetTab.groupId) {
+                            // Find positions within the group's tab array
+                            const groupTabs = tabs;
+                            const fromGroupIndex = groupTabs.findIndex(t => t.path === draggedTab.path);
+                            const toGroupIndex = groupTabs.findIndex(t => t.path === targetTab.path);
+
+                            if (fromGroupIndex !== -1 && toGroupIndex !== -1) {
+                              // Calculate actual indices in openTabs array
+                              const fromTab = groupTabs[fromGroupIndex];
+                              const toTab = groupTabs[toGroupIndex];
+                              if (fromTab && toTab) {
+                                const actualFromIndex = openTabs.indexOf(fromTab);
+                                const actualToIndex = openTabs.indexOf(toTab);
+                                reorderTabs(actualFromIndex, actualToIndex);
+                              }
+                            }
+                          }
+                        }
                       }}
                       draggable
                     >
@@ -578,15 +642,10 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
               </>
             )}
             {/* Group actions */}
-            <DropdownMenuItem onClick={() => toggleGroupCollapsed(group.id)}>
-              {group.collapsed ? 'Expand Group' : 'Collapse Group'}
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => handleGroupDoubleClick(group.id, group.name)}>
-              <Edit2 className="h-3.5 w-3.5 mr-2" />
               Rename Group
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleGroupDelete(group.id)}>
-              <Trash2 className="h-3.5 w-3.5 mr-2" />
+            <DropdownMenuItem onClick={() => handleGroupDelete(group.id)} className="text-destructive">
               Delete Group
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -628,7 +687,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           if (item.type === 'group') {
             const group = item.data as typeof tabGroups[0];
             const groupTabs = openTabs.filter((tab) => tab.groupId === group.id);
-            return renderGroupChip(group, groupTabs);
+            return renderGroupHeader(group, groupTabs);
           } else {
             const tab = item.data as typeof openTabs[0];
             return renderTab(tab, openTabs.indexOf(tab));
@@ -685,15 +744,20 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                   );
                 } else {
                   const group = item.data as typeof tabGroups[0];
+                  const groupTabs = openTabs.filter(t => t.groupId === group.id);
                   return (
                     <DropdownMenuItem
                       key={group.id}
-                      onClick={() => toggleGroupCollapsed(group.id)}
+                      onClick={() => {
+                        // Activate first tab in group
+                        if (groupTabs[0]) {
+                          handleTabClick(groupTabs[0].path);
+                        }
+                      }}
                       className="gap-2 font-medium"
                     >
-                      {group.collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                       <span className="truncate">{group.name}</span>
-                      <span className="text-xs text-muted-foreground ml-auto">({openTabs.filter(t => t.groupId === group.id).length})</span>
+                      <span className="text-xs text-muted-foreground ml-auto">({groupTabs.length})</span>
                     </DropdownMenuItem>
                   );
                 }

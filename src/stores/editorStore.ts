@@ -76,6 +76,7 @@ interface EditorState {
   deleteTabGroup: (groupId: string) => void;
   toggleGroupCollapsed: (groupId: string) => void;
   moveTabToGroup: (tabPath: string, groupId: string | null) => void;
+  ungroupTab: (tabPath: string) => void;
 }
 
 export const useEditorStore = create<EditorState>()(
@@ -355,6 +356,23 @@ export const useEditorStore = create<EditorState>()(
       );
 
       // Auto-cleanup: Remove empty tab groups after move
+      const tabGroupIds = new Set(updatedTabs.map(t => t.groupId).filter(Boolean));
+      const cleanedTabGroups = state.tabGroups.filter(group => tabGroupIds.has(group.id));
+
+      return {
+        openTabs: updatedTabs,
+        tabGroups: cleanedTabGroups,
+      };
+    });
+  },
+
+  ungroupTab: (tabPath) => {
+    set((state) => {
+      const updatedTabs = state.openTabs.map((tab) =>
+        tab.path === tabPath ? { ...tab, groupId: null } : tab
+      );
+
+      // Auto-cleanup: Remove empty tab groups
       const tabGroupIds = new Set(updatedTabs.map(t => t.groupId).filter(Boolean));
       const cleanedTabGroups = state.tabGroups.filter(group => tabGroupIds.has(group.id));
 

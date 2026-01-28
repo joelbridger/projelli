@@ -123,7 +123,7 @@ export function AIAssistantPane({
 
   return (
     <div className={cn(
-      'flex flex-col h-full w-80 border-l bg-card',
+      'flex flex-col h-full w-full bg-card',
       className
     )}>
       {/* Header - Fixed */}

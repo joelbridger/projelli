@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Iteration 7 - Tab Group Bug Fixes (2026-01-28)
+**Status: 2/2 CRITICAL BUGS FIXED ✅**
+
+### Fixed
+- **[P1] Tab Group Drag-and-Drop - Cannot Drag Tabs Out of Groups** (TabBar.tsx, editorStore.ts) ✅
+  - **Bug 1**: Grouped tabs were rendered inline on tab bar instead of hidden in dropdown
+  - **Bug 2**: Dropdown menu closed before drag could start, preventing tab extraction
+  - **Root Cause**:
+    - Tabs in groups remained visible on tab bar with visual indicators (Bug 1)
+    - Dropdown portal/overlay blocked mouse events during drag (Bug 2)
+  - **Solution**:
+    - Reverted to dropdown-only rendering: grouped tabs now hidden in group dropdown menus
+    - Added `requestAnimationFrame` delay before closing dropdown to allow drag ghost creation
+    - Removed chevron icons and collapse/expand functionality (groups now show dropdown on click)
+    - Added `ungroupTab` action to editorStore for proper cleanup
+  - **Behavior Now**:
+    - Click group → dropdown opens showing all tabs in that group
+    - Drag tab from dropdown → dropdown closes after one frame, tab follows cursor
+    - Drop on tab bar → ungroups tab and adds to main bar
+    - Drop on another group header → moves tab to that group
+    - Reorder within dropdown → tabs maintain group membership
+  - Files modified:
+    - `TabBar.tsx` (lines 5, 70-83, 96-98, 156-168, 508-651)
+    - `editorStore.ts` (lines 79, 351-367)
+
+- **[P1] AI Assistant "Models" Tab Cut Off** (AIAssistantPane.tsx) ✅
+  - **Root Cause**: Component had fixed width `w-80` (320px) but sidebar container was only `w-64` (256px)
+  - **Solution**: Changed component width from `w-80` to `w-full` to fill sidebar's available width
+  - **Result**: All 3 tabs (Chats, Keys, Models) now fully visible within 256px sidebar
+  - Files modified: `AIAssistantPane.tsx` (line 126)
+
+### Technical Details
+- **Drag Timing Fix**: Using `requestAnimationFrame()` ensures browser creates drag ghost before dropdown closes
+- **Visual Feedback**: Group headers highlight with `bg-primary/20` when drag-over
+- **Dropdown Control**: Controlled `open` state prevents premature closing during interaction
+- **Auto-cleanup**: Empty groups automatically removed when last tab is ungrouped or moved
+- **Type Safety**: Fixed TypeScript strict mode compatibility for `groupId: null` vs `undefined`
+
+### Testing & Verification (Iteration 7 - 2026-01-28)
+- **Typecheck**: ✅ Passed (`npx tsc --noEmit`)
+- **Tests**: ✅ All 131 tests passed
+- **Build**: ✅ Production build succeeded
+- **Manual Testing**:
+  - ✅ Drag tab from group dropdown to tab bar (ungroups)
+  - ✅ Drag tab from group dropdown to another group (moves)
+  - ✅ Reorder tabs within group dropdown
+  - ✅ All 3 AI Assistant tabs visible (Chats, Keys, Models)
+
 ### Iteration 6 - Test Mode Implementation + .txt Toolbar Bug Fix (2026-01-27)
 **Status: 6/6 FEATURES VERIFIED & FIXED ✅**
 **Test Mode: Playwright Automated Testing ENABLED ✅**
