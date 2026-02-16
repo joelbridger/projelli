@@ -1,5 +1,25 @@
 # Plan: Projelli V1 Launch
 
+## 🎯 NEXT STEPS (Manual - Do on Windows)
+
+**Everything below is ready! Now you need to build and release on native Windows:**
+
+1. **Open Windows PowerShell** (not WSL)
+2. **Navigate to project:** `cd C:\Users\james\Projects\projelli`
+3. **Install Rust** (if not installed): `winget install Rustlang.Rustup`
+4. **Pull latest code:** `git pull origin master`
+5. **Install dependencies:** `npm install`
+6. **Build for production:** `npm run tauri build`
+7. **Create GitHub Release:**
+   - Go to: https://github.com/joelbridger/projelli/releases/new?tag=v1.0.0
+   - Title: "Projelli v1.0.0 - Initial Release"
+   - Upload: `src-tauri/target/release/bundle/nsis/Projelli_1.0.0_x64-setup.exe`
+   - Upload: `src-tauri/target/release/bundle/msi/Projelli_1.0.0_x64_en-US.msi`
+   - Publish release
+8. **Verify:** Visit https://projelli.com and test download
+
+---
+
 ## Overview
 
 Launch Projelli V1 (free-only) on projelli.com with a working Windows desktop download.
@@ -7,7 +27,7 @@ Launch Projelli V1 (free-only) on projelli.com with a working Windows desktop do
 **Project:** `/mnt/c/Users/james/Projects/projelli/`
 **Website:** `website/index.html` (self-contained landing page)
 **Hosting:** Home server at `ssh jameson@10.0.0.88`
-**GitHub:** `github.com/joelbridger/projelli`
+**GitHub:** https://github.com/joelbridger/projelli
 **Strategy:** Ship all features free, add monetization later
 
 ---
@@ -33,18 +53,18 @@ Launch Projelli V1 (free-only) on projelli.com with a working Windows desktop do
 
 ---
 
-## Phase 1: Commit & Merge
+## Phase 1: Commit & Merge ✅
 
-### LAUNCH-001: Create GitHub Repository ⏳
+### LAUNCH-001: Create GitHub Repository ✅
 - **URL:** `https://github.com/joelbridger/projelli`
-- Create new public repo on GitHub (no README, no .gitignore - we have code already)
-- Add remote: `git remote add origin https://github.com/joelbridger/projelli.git`
+- ✅ Created public repo using `gh repo create`
+- ✅ Remote configured to HTTPS (due to SSH auth limitations)
 
-### LAUNCH-002: Commit All Changes ⏳
-- **Files:** 200+ modified/untracked files
-- **Command:** `git add -A && git commit -m "Complete V1: all features, Windows migration, UI fixes"`
-- **Then:** Merge to main: `git checkout main && git merge feature/windows-desktop-migration`
-- Push: `git push -u origin main`
+### LAUNCH-002: Commit All Changes ✅
+- ✅ Committed 274 files with 8,457 insertions
+- ✅ Merged `feature/windows-desktop-migration` to `master`
+- ✅ Pushed to GitHub (excluding workflow files due to OAuth scope)
+- **Note:** Workflow files in `.github/workflows` need manual push with `workflow` scope
 
 ---
 
@@ -78,64 +98,52 @@ Launch Projelli V1 (free-only) on projelli.com with a working Windows desktop do
 
 ## Phase 3: GitHub Release
 
-### LAUNCH-006: Version Bump to 1.0.0 ⏳
-- **Files to update:**
-  - `package.json` - version: "1.0.0"
-  - `src-tauri/tauri.conf.json` - version: "1.0.0"
-  - `src-tauri/Cargo.toml` - version = "1.0.0"
-- Commit: `git commit -am "Bump version to 1.0.0"`
-- Push: `git push`
+### LAUNCH-006: Version Bump to 1.0.0 ✅
+- ✅ Updated `package.json` to version "1.0.0"
+- ✅ Updated `src-tauri/tauri.conf.json` to version "1.0.0"
+- ✅ Updated `src-tauri/Cargo.toml` to version "1.0.0"
+- ✅ Committed and pushed changes
 
-### LAUNCH-007: Create Release Tag & GitHub Release ⏸️
-- Tag: `git tag v1.0.0 && git push origin main --tags`
-- This triggers `.github/workflows/release.yml` which:
-  - Builds Windows installer
-  - Creates draft GitHub release with .msi and .exe attached
-  - Generates SHA256 checksums
-- **OR** create release manually and upload the build artifacts from LAUNCH-005
-- **NOTE:** This step requires LAUNCH-005 to be completed first
+### LAUNCH-007: Create Release Tag & GitHub Release 🔄
+- ✅ Created and pushed tag `v1.0.0`
+- ⏸️ **NEXT STEP:** Build Windows installer (LAUNCH-005 on native Windows)
+- ⏸️ **THEN:** Manually create GitHub release and upload build artifacts
+- **URL:** https://github.com/joelbridger/projelli/releases/new?tag=v1.0.0
 
 ---
 
-## Phase 4: Update Website
+## Phase 4: Update Website ✅
 
-### LAUNCH-008: Update Download Links ⏳
-- **File:** `website/index.html`
-- Replace all `href="#"` on download buttons with actual GitHub release URL:
-  ```
-  https://github.com/joelbridger/projelli/releases/download/v1.0.0/Projelli_1.0.0_x64-setup.exe
-  ```
-- Update pricing section: Remove Pro tier price, make it "Coming Soon" or just show Free tier
+### LAUNCH-008: Update Download Links ✅
+- ✅ Updated all download buttons to point to:
+  `https://github.com/joelbridger/projelli/releases/download/v1.0.0/Projelli_1.0.0_x64-setup.exe`
+- ✅ Mobile menu: "Download for Windows"
+- ✅ Hero CTA: "Download for Windows"
+- ✅ Final CTA: "Download for Windows"
+- ✅ Changed "Open Web App" to "View on GitHub"
 
-### LAUNCH-009: Simplify to Free-Only ⏳
-- **File:** `website/index.html`
-- Remove or grey out Pro tier pricing ($12/mo)
-- Change to: "Free" and "Pro (Coming Soon)" or just show single Free tier
-- All features listed as included in free version
+### LAUNCH-009: Simplify to Free-Only ✅
+- ✅ Pro tier button: Disabled with "Coming Soon"
+- ✅ Added message: "All features currently free during beta"
+- ✅ Starter tier: Points to download link
 
 ---
 
-## Phase 5: Deploy to Home Server
+## Phase 5: Deploy to Home Server ✅
 
-### LAUNCH-010: Deploy Website ⏳
-- **Server:** `ssh jameson@10.0.0.88`
-- **Commands:**
-  ```bash
-  # From WSL/local:
-  scp /mnt/c/Users/james/Projects/projelli/website/index.html jameson@10.0.0.88:/var/www/projelli.com/
-
-  # Or if using a different web root, find it first:
-  ssh jameson@10.0.0.88 "ls -la /var/www/ && cat /etc/nginx/sites-enabled/*"
-  ```
-- Verify: Open https://projelli.com in browser
+### LAUNCH-010: Deploy Website ✅
+- ✅ Deployed to `/var/www/projelli.com/index.html`
+- ✅ Set proper permissions (www-data:www-data)
+- ✅ Website live at https://projelli.com
+- **Note:** Download links point to GitHub release that needs to be created
 
 ---
 
 ## Verification Checklist
 
-- [ ] **GitHub Repo:** https://github.com/joelbridger/projelli exists with code pushed
+- [x] **GitHub Repo:** https://github.com/joelbridger/projelli exists with code pushed
 - [ ] **GitHub Release:** v1.0.0 exists with .exe and .msi downloads
-- [ ] **projelli.com:** Download button links to GitHub release
+- [x] **projelli.com:** Download button links to GitHub release
 - [ ] **Download works:** Click download, run installer, app opens
 - [ ] **Basic smoke test:** Create workspace, create file, use AI chat
 
@@ -146,10 +154,10 @@ Launch Projelli V1 (free-only) on projelli.com with a working Windows desktop do
 | File | Change | Status |
 |------|--------|--------|
 | `V1_LAUNCH_PLAN.md` | Create launch plan | ✅ |
-| `package.json` | version: "1.0.0" | ⏳ |
-| `src-tauri/tauri.conf.json` | version: "1.0.0" | ⏳ |
-| `src-tauri/Cargo.toml` | version = "1.0.0" | ⏳ |
-| `website/index.html` | Download links, pricing (free-only) | ⏳ |
+| `package.json` | version: "1.0.0" | ✅ |
+| `src-tauri/tauri.conf.json` | version: "1.0.0" | ✅ |
+| `src-tauri/Cargo.toml` | version = "1.0.0" | ✅ |
+| `website/index.html` | Download links, pricing (free-only) | ✅ |
 
 ---
 
