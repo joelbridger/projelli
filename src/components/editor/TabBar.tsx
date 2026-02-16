@@ -4,6 +4,8 @@
 import { useCallback, useState, useRef } from 'react';
 import { X, FileText, GripVertical, FileJson, FileImage, FileVideo, PenTool, Music, MoreHorizontal, MessageSquare, Settings, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -99,6 +101,9 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const [dragOverDropdownIndex, setDragOverDropdownIndex] = useState<number | null>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Confirmation dialog
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
+
   // Calculate max tabs per row (approximate based on typical tab width of 150px)
   const MAX_TABS_PER_ROW = 10;
   const MAX_VISIBLE_ROWS = 2;
@@ -115,8 +120,14 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
       const tab = openTabs.find((t) => t.path === path);
 
       if (tab?.isDirty) {
-        const shouldClose = window.confirm(
-          `"${tab.name}" has unsaved changes. Do you want to close it without saving?`
+        const shouldClose = await confirm(
+          `"${tab.name}" has unsaved changes. Do you want to close it without saving?`,
+          {
+            title: 'Unsaved Changes',
+            variant: 'destructive',
+            confirmLabel: 'Close Without Saving',
+            cancelLabel: 'Keep Open',
+          }
         );
         if (!shouldClose) {
           return;
@@ -125,7 +136,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
 
       closeTab(path);
     },
-    [openTabs, closeTab]
+    [openTabs, closeTab, confirm]
   );
 
   const handleMiddleClick = useCallback(
@@ -338,11 +349,16 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     setRenameGroupValue('');
   }, []);
 
-  const handleGroupDelete = useCallback((groupId: string) => {
-    if (window.confirm('Delete this tab group? Tabs will remain open.')) {
+  const handleGroupDelete = useCallback(async (groupId: string) => {
+    const confirmed = await confirm('Delete this tab group? Tabs will remain open.', {
+      title: 'Delete Tab Group',
+      variant: 'destructive',
+      confirmLabel: 'Delete Group',
+    });
+    if (confirmed) {
       deleteTabGroup(groupId);
     }
-  }, [deleteTabGroup]);
+  }, [deleteTabGroup, confirm]);
 
   const handleGroupDragOver = useCallback((e: React.DragEvent, groupId: string) => {
     e.preventDefault();
@@ -813,6 +829,9 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
 }

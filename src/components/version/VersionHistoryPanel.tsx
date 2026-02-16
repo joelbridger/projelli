@@ -7,6 +7,8 @@ import { History, RotateCcw, Trash2, Download, X, Clock, FileText, GitCompare } 
 import { getVersionService, type FileVersion } from '@/modules/versioning/VersionService';
 import { DiffViewer } from '@/components/editor/DiffViewer';
 import { cn } from '@/lib/utils';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 
 interface VersionHistoryPanelProps {
   filePath: string;
@@ -30,6 +32,7 @@ export function VersionHistoryPanel({
   const [previewContent, setPreviewContent] = useState<string>('');
   const [previewMode, setPreviewMode] = useState<'diff' | 'raw'>('diff');
   const versionService = getVersionService();
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   // Load versions on mount
   useEffect(() => {
@@ -38,18 +41,27 @@ export function VersionHistoryPanel({
   }, [filePath]);
 
   const handleRestore = useCallback(
-    (version: FileVersion) => {
-      if (window.confirm(`Restore file to version from ${formatDate(version.timestamp)}?`)) {
+    async (version: FileVersion) => {
+      const confirmed = await confirm(`Restore file to version from ${formatDate(version.timestamp)}?`, {
+        title: 'Restore Version',
+        confirmLabel: 'Restore',
+      });
+      if (confirmed) {
         onRestore(version.content);
         onClose();
       }
     },
-    [onRestore, onClose]
+    [onRestore, onClose, confirm]
   );
 
   const handleDelete = useCallback(
-    (versionId: string) => {
-      if (window.confirm('Delete this version?')) {
+    async (versionId: string) => {
+      const confirmed = await confirm('Delete this version?', {
+        title: 'Delete Version',
+        variant: 'destructive',
+        confirmLabel: 'Delete',
+      });
+      if (confirmed) {
         versionService.deleteVersion(filePath, versionId);
         const updatedVersions = versionService.getVersions(filePath);
         setVersions(updatedVersions);
@@ -59,7 +71,7 @@ export function VersionHistoryPanel({
         }
       }
     },
-    [filePath, selectedVersion]
+    [filePath, selectedVersion, confirm]
   );
 
   const handlePreview = useCallback((version: FileVersion) => {
@@ -267,6 +279,9 @@ export function VersionHistoryPanel({
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
 }

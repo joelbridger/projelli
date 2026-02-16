@@ -10,7 +10,7 @@ import {
   Bot,
   Key,
   MessageSquare,
-  ChevronRight,
+  PanelRightClose,
   Trash2,
   Check,
   Eye,
@@ -132,7 +132,7 @@ export function AIAssistantPane({
           <Bot className="h-4 w-4 shrink-0" />
           <span className="text-sm font-medium truncate">AI Assistant</span>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {onOpenAIRules && (
             <Button
               variant="ghost"
@@ -145,8 +145,14 @@ export function AIAssistantPane({
               Rules
             </Button>
           )}
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={onClose}>
-            <ChevronRight className="h-4 w-4" />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 shrink-0"
+            onClick={onClose}
+            title="Close AI Assistant pane"
+          >
+            <PanelRightClose className="h-4 w-4" />
           </Button>
         </div>
       </div>

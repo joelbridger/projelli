@@ -54,6 +54,10 @@ import { useTrash } from '@/hooks/useTrash';
 import { useSourceCards } from '@/hooks/useSourceCards';
 import { useAIChatFiles } from '@/hooks/useAIChatFiles';
 import { useApiKeys } from '@/hooks/useApiKeys';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { usePromptDialog } from '@/hooks/usePromptDialog';
+import { PromptDialog } from '@/components/common/PromptDialog';
 
 function App() {
   // Test mode: bypass workspace selector for E2E tests
@@ -109,6 +113,12 @@ function App() {
     setTrashItems,
     setTrashStats,
   } = useTrash({ rootPath, workspaceServiceRef });
+
+  // Confirmation dialogs
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
+
+  // Prompt dialogs
+  const { prompt, dialogProps: promptDialogProps } = usePromptDialog();
 
   // Auto-expand all folders when file tree is first loaded or changes
   useEffect(() => {
@@ -276,7 +286,11 @@ function App() {
   const handleDelete = useCallback(
     async (path: string) => {
       const fileName = path.split('/').pop() ?? 'unknown';
-      const confirmed = window.confirm(`Are you sure you want to delete "${fileName}"?`);
+      const confirmed = await confirm(`Are you sure you want to delete "${fileName}"?`, {
+        title: 'Delete File',
+        variant: 'destructive',
+        confirmLabel: 'Delete',
+      });
       if (!confirmed || !workspaceServiceRef.current || !rootPath) return;
 
       try {
@@ -337,7 +351,7 @@ function App() {
         console.error('Failed to delete:', error);
       }
     },
-    [setFileTree, rootPath, closeTabsByPath, trashItems, saveTrashMetadata, setTrashStats]
+    [setFileTree, rootPath, closeTabsByPath, trashItems, saveTrashMetadata, setTrashStats, setTrashItems, confirm]
   );
 
   // AI Chat Files Management (must be defined after handleDelete and handleFileOpen)
@@ -510,7 +524,10 @@ function App() {
   // Handle create new file
   const handleCreateFile = useCallback(
     async (parentPath: string) => {
-      const name = window.prompt('Enter file name:');
+      const name = await prompt('Enter file name:', '', {
+        title: 'Create File',
+        placeholder: 'myfile.txt',
+      });
       if (!name || !workspaceServiceRef.current) return;
 
       const filePath = `${parentPath}/${name}`;
@@ -523,13 +540,16 @@ function App() {
         console.error('Failed to create file:', error);
       }
     },
-    [setFileTree, handleFileOpen]
+    [setFileTree, handleFileOpen, prompt]
   );
 
   // Handle create new folder
   const handleCreateFolder = useCallback(
     async (parentPath: string) => {
-      const name = window.prompt('Enter folder name:');
+      const name = await prompt('Enter folder name:', '', {
+        title: 'Create Folder',
+        placeholder: 'my-folder',
+      });
       if (!name || !workspaceServiceRef.current) return;
 
       const folderPath = `${parentPath}/${name}`;
@@ -547,14 +567,16 @@ function App() {
         console.error('Failed to create folder:', error);
       }
     },
-    [setFileTree]
+    [setFileTree, prompt]
   );
 
   // Handle rename (prompts user)
   const handleRename = useCallback(
     async (path: string) => {
       const currentName = path.split('/').pop() ?? '';
-      const newName = window.prompt('Enter new name:', currentName);
+      const newName = await prompt('Enter new name:', currentName, {
+        title: 'Rename',
+      });
       if (!newName || newName === currentName || !workspaceServiceRef.current) return;
 
       try {
@@ -565,7 +587,7 @@ function App() {
         console.error('Failed to rename:', error);
       }
     },
-    [setFileTree]
+    [setFileTree, prompt]
   );
 
   // Handle rename with provided name (for tab double-click)
@@ -680,7 +702,10 @@ function App() {
   // Handle create file at root
   const handleCreateFileAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
-    const name = window.prompt('Enter file name:');
+    const name = await prompt('Enter file name:', '', {
+      title: 'Create File',
+      placeholder: 'myfile.txt',
+    });
     if (!name) return;
 
     const filePath = `${rootPath}/${name}`;
@@ -692,12 +717,15 @@ function App() {
     } catch (error) {
       console.error('Failed to create file:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
   // Handle create markdown file at root (goes to docs folder)
   const handleCreateMarkdownAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
-    const name = window.prompt('Enter file name (without extension):');
+    const name = await prompt('Enter file name (without extension):', '', {
+      title: 'Create Markdown File',
+      placeholder: 'my-document',
+    });
     if (!name) return;
 
     const fileName = name.endsWith('.md') ? name : `${name}.md`;
@@ -710,12 +738,15 @@ function App() {
     } catch (error) {
       console.error('Failed to create markdown file:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
   // Handle create plain text file at root (goes to docs folder)
   const handleCreateTextFileAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
-    const name = window.prompt('Enter file name (without extension):');
+    const name = await prompt('Enter file name (without extension):', '', {
+      title: 'Create Text File',
+      placeholder: 'my-notes',
+    });
     if (!name) return;
 
     const fileName = name.endsWith('.txt') ? name : `${name}.txt`;
@@ -728,12 +759,15 @@ function App() {
     } catch (error) {
       console.error('Failed to create text file:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
   // Handle create source file in Research folder
   const handleCreateSourceFileAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
-    const title = window.prompt('Enter source title:');
+    const title = await prompt('Enter source title:', '', {
+      title: 'Create Source File',
+      placeholder: 'Source Title',
+    });
     if (!title) return;
 
     // Create filename from exact title + .source extension
@@ -770,12 +804,15 @@ function App() {
     } catch (error) {
       console.error('Failed to create source file:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
   // Handle create folder at root
   const handleCreateFolderAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
-    const name = window.prompt('Enter folder name:');
+    const name = await prompt('Enter folder name:', '', {
+      title: 'Create Folder',
+      placeholder: 'my-folder',
+    });
     if (!name) return;
 
     const folderPath = `${rootPath}/${name}`;
@@ -792,12 +829,14 @@ function App() {
     } catch (error) {
       console.error('Failed to create folder:', error);
     }
-  }, [rootPath, setFileTree]);
+  }, [rootPath, setFileTree, prompt]);
 
   // Handle create whiteboard
   const handleCreateWhiteboard = useCallback(
     async (parentPath: string) => {
-      const name = window.prompt('Enter whiteboard name:', 'My Whiteboard');
+      const name = await prompt('Enter whiteboard name:', 'My Whiteboard', {
+        title: 'Create Whiteboard',
+      });
       if (!name || !workspaceServiceRef.current) return;
 
       // Add .whiteboard extension if not present
@@ -813,13 +852,15 @@ function App() {
         console.error('Failed to create whiteboard:', error);
       }
     },
-    [setFileTree, handleFileOpen]
+    [setFileTree, handleFileOpen, prompt]
   );
 
   // Handle create whiteboard at root (goes to whiteboards folder)
   const handleCreateWhiteboardAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
-    const name = window.prompt('Enter whiteboard name:', 'My Whiteboard');
+    const name = await prompt('Enter whiteboard name:', 'My Whiteboard', {
+      title: 'Create Whiteboard',
+    });
     if (!name) return;
 
     // Add .whiteboard extension if not present
@@ -834,7 +875,7 @@ function App() {
     } catch (error) {
       console.error('Failed to create whiteboard:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
   // Handle open grid view
   const handleOpenGridView = useCallback(() => {
@@ -1193,8 +1234,11 @@ This file contains rules and guidelines for AI assistants in this workspace.
         id: 'browser.open',
         label: 'Open Browser Tab',
         category: 'view',
-        action: () => {
-          const url = prompt('Enter URL:');
+        action: async () => {
+          const url = await prompt('Enter URL:', '', {
+            title: 'Open Browser Tab',
+            placeholder: 'https://example.com',
+          });
           if (url) {
             handleOpenBrowserTab(url);
           }
@@ -1450,6 +1494,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
         onClose={() => setShowAudioRecorder(false)}
         onSave={handleSaveAudioRecording}
       />
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog {...confirmDialogProps} />
+
+      {/* Prompt Dialog */}
+      <PromptDialog {...promptDialogProps} />
     </div>
   );
 }

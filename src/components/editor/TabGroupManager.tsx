@@ -5,6 +5,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Plus, Edit2, Trash2, FolderOpen, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import {
   Dialog,
   DialogContent,
@@ -35,6 +37,9 @@ export function TabGroupManager({ open, onClose }: TabGroupManagerProps) {
   const [editingGroupName, setEditingGroupName] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
+  // Confirmation dialog
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
+
   // Auto-focus the rename input when editing starts
   useEffect(() => {
     if (editingGroupId && renameInputRef.current) {
@@ -62,11 +67,16 @@ export function TabGroupManager({ open, onClose }: TabGroupManagerProps) {
     }
   }, [editingGroupId, editingGroupName, renameTabGroup]);
 
-  const handleDeleteGroup = useCallback((groupId: string) => {
-    if (window.confirm('Delete this tab group? Tabs will remain open.')) {
+  const handleDeleteGroup = useCallback(async (groupId: string) => {
+    const confirmed = await confirm('Delete this tab group? Tabs will remain open.', {
+      title: 'Delete Tab Group',
+      variant: 'destructive',
+      confirmLabel: 'Delete Group',
+    });
+    if (confirmed) {
       deleteTabGroup(groupId);
     }
-  }, [deleteTabGroup]);
+  }, [deleteTabGroup, confirm]);
 
   const handleToggleTabInGroup = useCallback((tabPath: string, currentGroupId: string | null | undefined, targetGroupId: string) => {
     if (currentGroupId === targetGroupId) {
@@ -250,6 +260,9 @@ export function TabGroupManager({ open, onClose }: TabGroupManagerProps) {
           <Button onClick={onClose}>Close</Button>
         </DialogFooter>
       </DialogContent>
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog {...confirmDialogProps} />
     </Dialog>
   );
 }

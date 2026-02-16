@@ -188,7 +188,7 @@ export function CommandPalette({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="p-0 max-w-lg overflow-hidden">
+      <DialogContent className="p-0 max-w-lg overflow-hidden [&>button]:hidden">
         {/* Search input */}
         <div className="flex items-center gap-2 px-4 py-3 border-b">
           <Search className="h-4 w-4 text-muted-foreground flex-shrink-0" />

@@ -42,17 +42,24 @@ export async function saveFile(
       const { writeFile, writeTextFile } = await import('@tauri-apps/plugin-fs');
 
       // Show save dialog
-      const filePath = await save({
-        defaultPath: options.suggestedName,
-        // Convert browser types to Tauri filters
-        filters: options.types?.map(type => {
-          const [mimeType, extensions] = Object.entries(type.accept)[0];
+      const saveOptions: { defaultPath?: string; filters?: Array<{ name: string; extensions: string[] }> } = {};
+
+      if (options.suggestedName) {
+        saveOptions.defaultPath = options.suggestedName;
+      }
+
+      if (options.types) {
+        saveOptions.filters = options.types.map(type => {
+          const firstEntry = Object.entries(type.accept)[0];
+          const [mimeType, extensions] = firstEntry || ['', []];
           return {
             name: type.description || mimeType || 'All Files',
             extensions: extensions || ['*'],
           };
-        }),
-      });
+        });
+      }
+
+      const filePath = await save(saveOptions);
 
       if (!filePath) {
         // User cancelled
@@ -79,10 +86,17 @@ export async function saveFile(
         throw new Error('File System Access API is not supported in this browser');
       }
 
-      const handle = await window.showSaveFilePicker({
-        suggestedName: options.suggestedName,
-        types: options.types,
-      });
+      const pickerOptions: SaveFilePickerOptions = {};
+
+      if (options.suggestedName) {
+        pickerOptions.suggestedName = options.suggestedName;
+      }
+
+      if (options.types) {
+        pickerOptions.types = options.types;
+      }
+
+      const handle = await window.showSaveFilePicker(pickerOptions);
 
       const writable = await handle.createWritable();
 

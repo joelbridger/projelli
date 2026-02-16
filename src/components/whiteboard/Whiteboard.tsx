@@ -5,6 +5,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { useConfirmDialog } from '@/hooks/useConfirmDialog';
+import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import {
   Pencil,
   Type,
@@ -108,6 +110,9 @@ export function Whiteboard({ onSave, initialData, className }: WhiteboardProps) 
   const [panOffset, setPanOffset] = useState<Point>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState<Point>({ x: 0, y: 0 });
+
+  // Confirmation dialog
+  const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   // Load initial data
   useEffect(() => {
@@ -1202,13 +1207,18 @@ export function Whiteboard({ onSave, initialData, className }: WhiteboardProps) 
     };
   }, [zoom, panOffset]);
 
-  const handleClear = useCallback(() => {
-    if (window.confirm('Clear the whiteboard?')) {
+  const handleClear = useCallback(async () => {
+    const confirmed = await confirm('Clear the whiteboard?', {
+      title: 'Clear Whiteboard',
+      variant: 'destructive',
+      confirmLabel: 'Clear',
+    });
+    if (confirmed) {
       setUndoStack(prev => [...prev, elements]);
       setRedoStack([]);
       setElements([]);
     }
-  }, [elements]);
+  }, [elements, confirm]);
 
   // Manual save handler
   const _handleSave = useCallback(async () => {
@@ -1839,6 +1849,9 @@ export function Whiteboard({ onSave, initialData, className }: WhiteboardProps) 
           );
         })()}
       </div>
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
 }
