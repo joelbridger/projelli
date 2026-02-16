@@ -2,19 +2,24 @@
 
 ## 🎯 NEXT STEPS (Manual - Do on Windows)
 
-**Everything below is ready! Now you need to build and release on native Windows:**
+**✅ TypeScript error FIXED! Missing workspace module added to repo.**
+
+**Now build and release on native Windows:**
 
 1. **Open Windows PowerShell** (not WSL)
 2. **Navigate to project:** `cd C:\Users\james\Projects\projelli`
-3. **Install Rust** (if not installed): `winget install Rustlang.Rustup`
-4. **Pull latest code:** `git pull origin master`
+3. **Pull latest code:** `git pull origin master` ⬅️ **IMPORTANT: Pulls the fix!**
+4. **Install Rust** (if not installed): `winget install Rustlang.Rustup`
 5. **Install dependencies:** `npm install`
 6. **Build for production:** `npm run tauri build`
+   - First build may take 10-15 minutes (compiling Rust dependencies)
+   - Output: `src-tauri/target/release/bundle/nsis/Projelli_1.0.0_x64-setup.exe`
+   - Output: `src-tauri/target/release/bundle/msi/Projelli_1.0.0_x64_en-US.msi`
 7. **Create GitHub Release:**
    - Go to: https://github.com/joelbridger/projelli/releases/new?tag=v1.0.0
    - Title: "Projelli v1.0.0 - Initial Release"
-   - Upload: `src-tauri/target/release/bundle/nsis/Projelli_1.0.0_x64-setup.exe`
-   - Upload: `src-tauri/target/release/bundle/msi/Projelli_1.0.0_x64_en-US.msi`
+   - Description: "First public release of Projelli - Local-first AI workspace"
+   - Upload both installers (.exe and .msi)
    - Publish release
 8. **Verify:** Visit https://projelli.com and test download
 
@@ -65,6 +70,15 @@ Launch Projelli V1 (free-only) on projelli.com with a working Windows desktop do
 - ✅ Merged `feature/windows-desktop-migration` to `master`
 - ✅ Pushed to GitHub (excluding workflow files due to OAuth scope)
 - **Note:** Workflow files in `.github/workflows` need manual push with `workflow` scope
+
+### LAUNCH-002b: Fix Build Issues ✅
+- ❌ **Issue found:** TypeScript error in PathValidator.ts (line 192)
+- ❌ **Critical issue:** Entire `src/modules/workspace/` module was missing from Git!
+  - Cause: `.gitignore` had `workspace/` which caught both user data AND source code
+- ✅ **Fixed:** Updated `.gitignore` to `/workspace/` (root-level only)
+- ✅ **Fixed:** Added 14 missing workspace files (3,844 lines of code!)
+- ✅ **Fixed:** TypeScript strict null check in PathValidator.ts
+- ✅ Pushed all fixes to GitHub
 
 ---
 
