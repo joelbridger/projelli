@@ -28,7 +28,6 @@ interface AIChatStore {
   clearAllSessions: () => void;
   setDraftInput: (chatId: string, draft: string) => void;
   clearDraftInput: (chatId: string) => void;
-  getDraftInput: (chatId: string) => string;
 }
 
 export const useAIChatStore = create<AIChatStore>()(
@@ -194,10 +193,6 @@ export const useAIChatStore = create<AIChatStore>()(
         });
       },
 
-      getDraftInput: (chatId) => {
-        // Note: This is accessed via getState() not as a reactive selector
-        return '';
-      },
     }),
     {
       name: 'ai-chat-storage', // localStorage key
