@@ -1,6 +1,6 @@
 [package]
 name = "projelli"
-version = "1.0.0"
+version = "1.0.1"
 description = "Local-first workspace for solo founders building businesses with AI assistance"
 authors = ["Projelli Team"]
 license = "MIT"

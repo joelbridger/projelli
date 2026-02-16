@@ -10,7 +10,6 @@ import {
   Bot,
   Key,
   MessageSquare,
-  PanelRightClose,
   Trash2,
   Check,
   Eye,
@@ -39,7 +38,6 @@ interface AIAssistantPaneProps {
   onOpenChat: (chatFile: AIChatFile) => void;
   onDeleteChat: (chatId: string) => void;
   onOpenAIRules?: () => void;
-  onClose: () => void;
   className?: string;
 }
 
@@ -52,7 +50,6 @@ export function AIAssistantPane({
   onOpenChat,
   onDeleteChat,
   onOpenAIRules,
-  onClose,
   className,
 }: AIAssistantPaneProps) {
   const [activeTab, setActiveTab] = useState<'chats' | 'keys' | 'settings'>('chats');
@@ -145,15 +142,6 @@ export function AIAssistantPane({
               Rules
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0 shrink-0"
-            onClick={onClose}
-            title="Close AI Assistant pane"
-          >
-            <PanelRightClose className="h-4 w-4" />
-          </Button>
         </div>
       </div>
 

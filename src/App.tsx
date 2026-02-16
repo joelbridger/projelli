@@ -1416,7 +1416,6 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onOpenChat={handleOpenChat}
               onDeleteChat={handleDeleteChat}
               onOpenAIRules={handleOpenAIRules}
-              onClose={() => {/* No-op since it's now in sidebar */}}
             />
           }
           researchContent={

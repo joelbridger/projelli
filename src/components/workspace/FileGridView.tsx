@@ -28,9 +28,10 @@ export function FileGridView({
   onMove,
   className,
 }: FileGridViewProps) {
-  const { fileTree } = useWorkspaceStore();
+  const { fileTree, rootPath } = useWorkspaceStore();
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
+  const [dragOverBreadcrumbIndex, setDragOverBreadcrumbIndex] = useState<number | null>(null);
 
   // Get current folder contents
   const currentContents = useMemo(() => {
@@ -121,6 +122,48 @@ export function FileGridView({
     setDragOverPath(null);
   }, []);
 
+  // Breadcrumb drag handlers - allow dropping files onto breadcrumbs to move them
+  const handleBreadcrumbDragOver = useCallback(
+    (e: React.DragEvent, breadcrumbIndex: number) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setDragOverBreadcrumbIndex(breadcrumbIndex);
+    },
+    []
+  );
+
+  const handleBreadcrumbDragLeave = useCallback(() => {
+    setDragOverBreadcrumbIndex(null);
+  }, []);
+
+  const handleBreadcrumbDrop = useCallback(
+    async (e: React.DragEvent, breadcrumbIndex: number) => {
+      e.preventDefault();
+      const sourcePath = e.dataTransfer.getData('text/plain');
+
+      if (sourcePath && onMove && rootPath) {
+        // Build target path from breadcrumb segments
+        let targetPath: string;
+        if (breadcrumbIndex === -1) {
+          // Dropping on "Root" - move to root folder
+          targetPath = rootPath;
+        } else {
+          // Dropping on a specific breadcrumb segment
+          targetPath = rootPath + '/' + currentPath.slice(0, breadcrumbIndex + 1).join('/');
+        }
+
+        // Don't move to same location
+        const sourceDir = sourcePath.substring(0, sourcePath.lastIndexOf('/'));
+        if (sourceDir !== targetPath) {
+          await onMove(sourcePath, targetPath);
+        }
+      }
+
+      setDragOverBreadcrumbIndex(null);
+    },
+    [onMove, rootPath, currentPath]
+  );
+
   const handleDrop = useCallback(
     async (e: React.DragEvent, targetNode: FileNode) => {
       e.preventDefault();
@@ -142,13 +185,19 @@ export function FileGridView({
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
-      {/* Breadcrumb Navigation */}
+      {/* Breadcrumb Navigation - supports drag-drop to move files */}
       <div className="flex items-center gap-1 px-4 py-3 border-b bg-muted/30">
         <Button
           variant="ghost"
           size="sm"
           onClick={() => handleBreadcrumbClick(-1)}
-          className="h-7 px-2 gap-1"
+          onDragOver={(e) => handleBreadcrumbDragOver(e, -1)}
+          onDragLeave={handleBreadcrumbDragLeave}
+          onDrop={(e) => handleBreadcrumbDrop(e, -1)}
+          className={cn(
+            "h-7 px-2 gap-1 transition-colors",
+            dragOverBreadcrumbIndex === -1 && "bg-primary/20 border-primary"
+          )}
         >
           <Home className="h-4 w-4" />
           <span className="text-sm">Root</span>
@@ -161,7 +210,13 @@ export function FileGridView({
               variant="ghost"
               size="sm"
               onClick={() => handleBreadcrumbClick(index)}
-              className="h-7 px-2"
+              onDragOver={(e) => handleBreadcrumbDragOver(e, index)}
+              onDragLeave={handleBreadcrumbDragLeave}
+              onDrop={(e) => handleBreadcrumbDrop(e, index)}
+              className={cn(
+                "h-7 px-2 transition-colors",
+                dragOverBreadcrumbIndex === index && "bg-primary/20 border-primary"
+              )}
             >
               <span className="text-sm">{segment}</span>
             </Button>

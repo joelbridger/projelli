@@ -11,22 +11,30 @@ import type {
 
 // Claude model pricing (per 1K tokens)
 const CLAUDE_PRICING: Record<string, { input: number; output: number }> = {
+  // Latest models (Claude 4 series)
+  'claude-opus-4-5-20251101': { input: 0.015, output: 0.075 },  // Latest Opus
+  'claude-sonnet-4-5-20250514': { input: 0.003, output: 0.015 },
+  'claude-haiku-4-20250514': { input: 0.00025, output: 0.00125 },
+  // Legacy models
+  'claude-sonnet-4-20250514': { input: 0.003, output: 0.015 },
+  'claude-opus-4-20250514': { input: 0.015, output: 0.075 },
+  'claude-3-5-sonnet-20241022': { input: 0.003, output: 0.015 },
   'claude-3-opus-20240229': { input: 0.015, output: 0.075 },
   'claude-3-sonnet-20240229': { input: 0.003, output: 0.015 },
   'claude-3-haiku-20240307': { input: 0.00025, output: 0.00125 },
-  'claude-3-5-sonnet-20241022': { input: 0.003, output: 0.015 },
-  'claude-sonnet-4-20250514': { input: 0.003, output: 0.015 },
-  'claude-opus-4-20250514': { input: 0.015, output: 0.075 },
 };
 
 // Latency estimates in ms
 const LATENCY_ESTIMATES: Record<string, number> = {
+  'claude-opus-4-5-20251101': 25000,  // Latest Opus
+  'claude-sonnet-4-5-20250514': 8000,
+  'claude-haiku-4-20250514': 2000,
+  'claude-sonnet-4-20250514': 8000,
+  'claude-opus-4-20250514': 30000,
+  'claude-3-5-sonnet-20241022': 8000,
   'claude-3-opus-20240229': 30000,
   'claude-3-sonnet-20240229': 10000,
   'claude-3-haiku-20240307': 2000,
-  'claude-3-5-sonnet-20241022': 8000,
-  'claude-sonnet-4-20250514': 8000,
-  'claude-opus-4-20250514': 30000,
 };
 
 export interface ClaudeProviderConfig {
@@ -39,11 +47,25 @@ export interface ClaudeProviderConfig {
 }
 
 /**
+ * Check if we're running in Tauri desktop app
+ */
+function isTauriApp(): boolean {
+  return typeof window !== 'undefined' && '__TAURI__' in window;
+}
+
+/**
  * Get the appropriate base URL for Anthropic API
- * Uses proxy in development to bypass CORS, direct URL otherwise
+ * - Tauri app: Direct API URL (Tauri handles CORS)
+ * - Dev browser: Vite proxy to bypass CORS
+ * - Production browser: Direct URL (would need backend proxy in real deployment)
  */
 function getAnthropicBaseUrl(configBaseUrl?: string): string {
   if (configBaseUrl) return configBaseUrl;
+
+  // Tauri desktop app - direct API access (no CORS issues)
+  if (isTauriApp()) {
+    return 'https://api.anthropic.com';
+  }
 
   // In development (browser), use Vite proxy to bypass CORS
   // The proxy is configured in vite.config.ts to forward /api/anthropic to api.anthropic.com
@@ -51,7 +73,7 @@ function getAnthropicBaseUrl(configBaseUrl?: string): string {
     return '/api/anthropic';
   }
 
-  // In production or non-browser environments, use direct URL
+  // In production browser, use direct URL
   return 'https://api.anthropic.com';
 }
 
@@ -128,7 +150,7 @@ export class ClaudeProvider implements Provider {
 
   constructor(config: ClaudeProviderConfig) {
     this.apiKey = config.apiKey;
-    this.model = config.model ?? 'claude-sonnet-4-20250514';
+    this.model = config.model ?? 'claude-sonnet-4-5-20250514';
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getAnthropicBaseUrl(config.baseUrl);
     this.aiRules = config.aiRules;
@@ -386,21 +408,30 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 
-        // Detect CORS errors and provide helpful guidance
+        // Detect network/CORS errors and provide helpful guidance
         if (lastError.message.includes('Failed to fetch') ||
             lastError.message.includes('NetworkError') ||
             lastError.name === 'TypeError') {
-          // Check if we're on the wrong port
-          const currentPort = typeof window !== 'undefined' ? window.location.port : '';
-          if (currentPort && currentPort !== '5173') {
+
+          // In Tauri app, this is likely a network connectivity issue
+          if (isTauriApp()) {
             throw new Error(
-              `CORS Error: You're accessing the app on port ${currentPort}. ` +
-              `For AI features to work, you must run "npm run dev" and access the app at http://localhost:5173. ` +
-              `The Vite dev server provides the necessary CORS proxy for API calls.`
+              'Network error: Unable to connect to Claude API. ' +
+              'Please check your internet connection and verify your API key is correct.'
             );
           }
+
+          // In browser dev mode, check if we're on the wrong port
+          const currentPort = typeof window !== 'undefined' ? window.location.port : '';
+          if (import.meta.env.DEV && currentPort && currentPort !== '5173') {
+            throw new Error(
+              `CORS Error: You're accessing the app on port ${currentPort}. ` +
+              `For AI features to work, run "npm run dev" and access the app at http://localhost:5173.`
+            );
+          }
+
           throw new Error(
-            'Failed to fetch: Network error or CORS issue. Make sure you\'re running the app with "npm run dev" at http://localhost:5173.'
+            'Network error: Unable to connect to Claude API. Please check your internet connection.'
           );
         }
 
