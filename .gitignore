@@ -54,7 +54,8 @@ Thumbs.db
 .DS_Store
 
 # Workspace files (user data - not committed)
-workspace/
+# Note: Leading slash means only match at project root, not in subdirectories
+/workspace/
 *.workspace.json
 
 # SQLite databases (local data)
