@@ -26,6 +26,7 @@ interface AIChatStore {
   setError: (chatId: string, error?: string) => void;
   removeSession: (chatId: string) => void;
   clearAllSessions: () => void;
+  updateLastMessage: (chatId: string, content: string) => void;
   setDraftInput: (chatId: string, draft: string) => void;
   clearDraftInput: (chatId: string) => void;
 }
@@ -146,6 +147,30 @@ export const useAIChatStore = create<AIChatStore>()(
 
       clearAllSessions: () => {
         set({ sessions: {} });
+      },
+
+      updateLastMessage: (chatId, content) => {
+        set((state) => {
+          const session = state.sessions[chatId];
+          if (!session || session.messages.length === 0) return state;
+
+          const updatedMessages = [...session.messages];
+          updatedMessages[updatedMessages.length - 1] = {
+            ...updatedMessages[updatedMessages.length - 1]!,
+            content,
+          };
+
+          return {
+            sessions: {
+              ...state.sessions,
+              [chatId]: {
+                ...session,
+                messages: updatedMessages,
+                lastUpdated: new Date().toISOString(),
+              },
+            },
+          };
+        });
       },
 
       setDraftInput: (chatId, draft) => {

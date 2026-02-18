@@ -53,6 +53,8 @@
       "timestampUrl": null,
       "nsis": {
         "installerIcon": "icons/icon.ico",
+        "headerImage": "icons/installer-header.bmp",
+        "sidebarImage": "icons/installer-sidebar.bmp",
         "installMode": "currentUser",
         "languages": ["English"],
         "displayLanguageSelector": false

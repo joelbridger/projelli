@@ -6,6 +6,7 @@ import type {
   ProviderMetadata,
   ProviderResponse,
   SendOptions,
+  StreamOptions,
   OutputSchema,
   StructuredOutputOptions,
 } from './Provider';
@@ -142,6 +143,22 @@ export class MockProvider implements Provider {
       latency: response.delay ?? this.simulatedLatency,
       model: this.model,
     };
+  }
+
+  async sendMessageStreaming(prompt: string, options: StreamOptions): Promise<ProviderResponse> {
+    const { onChunk, signal, ...sendOpts } = options;
+    const response = await this.sendMessage(prompt, sendOpts);
+
+    // Simulate streaming by emitting content word by word
+    const words = response.content.split(' ');
+    for (const word of words) {
+      if (signal?.aborted) break;
+      const chunk = word + ' ';
+      onChunk(chunk);
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+
+    return response;
   }
 
   async toolCall<T>(

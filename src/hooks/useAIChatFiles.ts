@@ -19,7 +19,7 @@ interface UseAIChatFilesReturn {
   setChatFiles: React.Dispatch<React.SetStateAction<AIChatFile[]>>;
   loadChatFiles: () => Promise<AIChatFile[]>;
   saveChatFile: (chatData: AIChatFile) => Promise<void>;
-  handleCreateNewChat: (provider: 'anthropic' | 'openai' | 'google') => Promise<void>;
+  handleCreateNewChat: (provider: 'anthropic' | 'openai' | 'google', model?: string) => Promise<void>;
   handleOpenChat: (chatFile: AIChatFile) => Promise<void>;
   handleDeleteChat: (chatId: string) => Promise<void>;
 }
@@ -132,7 +132,7 @@ export function useAIChatFiles({
 
   // Handle creating new chat
   const handleCreateNewChat = useCallback(
-    async (provider: 'anthropic' | 'openai' | 'google') => {
+    async (provider: 'anthropic' | 'openai' | 'google', model?: string) => {
       if (!rootPath) return;
 
       const now = new Date();
@@ -152,6 +152,7 @@ export function useAIChatFiles({
         updated: timestamp,
         messages: [],
         provider, // Store provider for future reference
+        ...(model ? { model } : {}),
       };
 
       await saveChatFile(newChat);

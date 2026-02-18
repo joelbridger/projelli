@@ -36,7 +36,7 @@ interface AIAssistantPaneProps {
   modelLists?: Record<string, ModelInfo[]>;
   onSaveApiKey: (provider: 'anthropic' | 'openai' | 'google', key: string) => void;
   onDeleteApiKey: (provider: 'anthropic' | 'openai' | 'google') => void;
-  onCreateNewChat: (provider: 'anthropic' | 'openai' | 'google') => void;
+  onCreateNewChat: (provider: 'anthropic' | 'openai' | 'google', model?: string) => void;
   onOpenChat: (chatFile: AIChatFile) => void;
   onDeleteChat: (chatId: string) => void;
   onOpenAIRules?: () => void;
@@ -233,7 +233,7 @@ export function AIAssistantPane({
                     variant="outline"
                     size="sm"
                     className="h-8 text-xs w-full justify-start"
-                    onClick={() => onCreateNewChat(provider)}
+                    onClick={() => onCreateNewChat(provider, selectedModels[provider])}
                     disabled={!hasApiKey(provider)}
                     title={hasApiKey(provider) ? `New ${getProviderShortLabel(provider)} chat` : 'Add API key first'}
                   >

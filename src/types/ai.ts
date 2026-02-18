@@ -30,4 +30,5 @@ export interface AIChatFile {
   updated: string; // ISO datetime
   messages: ChatMessage[];
   provider?: 'anthropic' | 'openai' | 'google'; // Optional: which AI provider
+  model?: string; // Optional: specific model ID (e.g. 'claude-sonnet-4-5-20250514')
 }
