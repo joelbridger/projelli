@@ -121,6 +121,7 @@
 | `src/stores/editorStore.ts` | Open tabs, pane layout |
 | `src/stores/workflowStore.ts` | Running workflows, history |
 | `src/stores/settingsStore.ts` | User preferences |
+| `src/stores/aiChatStore.ts` | AI chat sessions, streaming message updates, draft input persistence |
 
 ### Type Definitions
 
@@ -168,12 +169,23 @@ interface Command {
 **Provider Interface for Models:**
 ```typescript
 interface Provider {
-  sendMessage(prompt: string, options?: SendOptions): Promise<string>;
-  toolCall(tool: string, params: unknown): Promise<unknown>;
-  structuredOutput<T>(prompt: string, schema: Schema): Promise<T>;
-  getMetadata(): { model: string; costEstimate: number; latencyEstimate: number };
+  sendMessage(prompt: string, options?: SendOptions): Promise<ProviderResponse>;
+  sendMessageStreaming?(prompt: string, options: StreamOptions): Promise<ProviderResponse>;
+  toolCall?(tool: string, params: Record<string, unknown>, options?: SendOptions): Promise<unknown>;
+  structuredOutput<T>(prompt: string, options: StructuredOutputOptions): Promise<T>;
+  getMetadata(): ProviderMetadata;
 }
+
+// StreamOptions extends SendOptions with:
+// - onChunk: (chunk: string) => void  — called for each text token
+// - signal?: AbortSignal              — allows cancelling mid-stream
 ```
+
+**AI Chat Provider Selection:**
+- Each `.aichat` file stores `provider` and `model` fields
+- `AIChatViewer` reads these to instantiate the correct provider (Claude/OpenAI/Gemini)
+- Users select their model in the AI Assistant "Models" tab before creating a new chat
+- Streaming is used by default; tokens appear in real-time with a Stop button
 
 **FSBackend Abstraction:**
 ```typescript
