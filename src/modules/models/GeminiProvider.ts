@@ -36,18 +36,16 @@ export interface GeminiProviderConfig {
 
 /**
  * Get the appropriate base URL for Gemini API
- * Uses proxy in development to bypass CORS, direct URL otherwise
+ * Uses proxy in development (browser or Tauri) to bypass CORS, direct URL otherwise
  */
 function getGeminiBaseUrl(configBaseUrl?: string): string {
   if (configBaseUrl) return configBaseUrl;
 
-  // In development (browser), use Vite proxy to bypass CORS
-  // The proxy is configured in vite.config.ts to forward /api/google to generativelanguage.googleapis.com
+  // In development (browser OR Tauri dev), use Vite proxy to bypass CORS
   if (typeof window !== 'undefined' && import.meta.env.DEV) {
     return '/api/google';
   }
 
-  // In production or non-browser environments, use direct URL
   return 'https://generativelanguage.googleapis.com';
 }
 

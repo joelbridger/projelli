@@ -41,18 +41,16 @@ export interface OpenAIProviderConfig {
 
 /**
  * Get the appropriate base URL for OpenAI API
- * Uses proxy in development to bypass CORS, direct URL otherwise
+ * Uses proxy in development (browser or Tauri) to bypass CORS, direct URL otherwise
  */
 function getOpenAIBaseUrl(configBaseUrl?: string): string {
   if (configBaseUrl) return configBaseUrl;
 
-  // In development (browser), use Vite proxy to bypass CORS
-  // The proxy is configured in vite.config.ts to forward /api/openai to api.openai.com
+  // In development (browser OR Tauri dev), use Vite proxy to bypass CORS
   if (typeof window !== 'undefined' && import.meta.env.DEV) {
     return '/api/openai';
   }
 
-  // In production or non-browser environments, use direct URL
   return 'https://api.openai.com';
 }
 

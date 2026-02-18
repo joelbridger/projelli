@@ -56,25 +56,20 @@ function isTauriApp(): boolean {
 
 /**
  * Get the appropriate base URL for Anthropic API
- * - Tauri app: Direct API URL (Tauri handles CORS)
- * - Dev browser: Vite proxy to bypass CORS
+ * - Dev mode (browser or Tauri): Vite proxy to bypass CORS
+ * - Production Tauri: Direct API URL
  * - Production browser: Direct URL (would need backend proxy in real deployment)
  */
 function getAnthropicBaseUrl(configBaseUrl?: string): string {
   if (configBaseUrl) return configBaseUrl;
 
-  // Tauri desktop app - direct API access (no CORS issues)
-  if (isTauriApp()) {
-    return 'https://api.anthropic.com';
-  }
-
-  // In development (browser), use Vite proxy to bypass CORS
+  // In development (browser OR Tauri dev), always use Vite proxy to bypass CORS
   // The proxy is configured in vite.config.ts to forward /api/anthropic to api.anthropic.com
   if (typeof window !== 'undefined' && import.meta.env.DEV) {
     return '/api/anthropic';
   }
 
-  // In production browser, use direct URL
+  // In production (Tauri or browser), use direct URL
   return 'https://api.anthropic.com';
 }
 
