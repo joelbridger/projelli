@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Bug Fixes (2026-02-18)
+
+### Fixed
+- **Workspace switching not working** - Selecting a different workspace or creating a new project while inside a project would not actually switch to it
+  - Root cause: `handleWorkspaceSelected` in App.tsx created a local `rootPath` variable but never called `setRootPath()` to update the Zustand store
+  - Added `setRootPath(newRootPath)` call and close all stale tabs from the previous workspace on switch
+  - Files modified: `src/App.tsx`
+
+- **Invalid default Claude model ID** - Workflows errored with "Claude API error: model: claude-sonnet-4-5-20250514"
+  - Changed ClaudeProvider default model from `claude-sonnet-4-5-20250514` to `claude-sonnet-4-6`
+  - Updated pricing and latency tables with current model IDs (claude-sonnet-4-6, claude-opus-4-6, claude-haiku-4-5)
+  - Files modified: `src/modules/models/ClaudeProvider.ts`
+
+- **Outdated fallback model lists** - Hardcoded model dropdowns showed deprecated/invalid model IDs
+  - Updated Anthropic fallbacks to use valid API model IDs (claude-sonnet-4-6, claude-opus-4-6, claude-haiku-4-5-20251001)
+  - Updated OpenAI fallbacks to include gpt-4o and gpt-4o-mini as primary options
+  - Updated Google fallbacks to include gemini-2.0-flash
+  - Files modified: `src/components/ai/AIAssistantPane.tsx`, `src/modules/models/ModelListService.ts`
+
 ### Streaming AI Responses & Model Wiring (2026-02-18)
 
 ### Added
