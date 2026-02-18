@@ -2,13 +2,16 @@
 // Displays full chat history and allows continuing conversations
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Send, Download, Mic, MicOff } from 'lucide-react';
+import { Send, Square, Download, Mic, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { AIChatFile, ChatMessage } from '@/types/ai';
 import type { AuditEntry } from '@/types/audit';
+import type { Provider } from '@/modules/models/Provider';
 import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
+import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
+import { GeminiProvider } from '@/modules/models/GeminiProvider';
 import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
 import { useAIChatStore, getDraftInput } from '@/stores/aiChatStore';
 
@@ -84,7 +87,7 @@ function chatToMarkdown(chat: AIChatFile): string {
 
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, className }: AIChatViewerProps) {
   // Use global store for chat state (persists across navigation)
-  const { sessions, initSession, addMessage, setLoading, setDraftInput, clearDraftInput } = useAIChatStore();
+  const { sessions, initSession, addMessage, updateLastMessage, setLoading, setDraftInput, clearDraftInput } = useAIChatStore();
   const chatId = chatData.id;
   const session = sessions[chatId];
 
@@ -94,6 +97,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const [aiRules, setAiRules] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Initialize session on mount if it doesn't exist
   useEffect(() => {
@@ -164,249 +168,174 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     clearDraftInput(chatId); // Clear saved draft after sending
     setLoading(chatId, true);
 
-    // Call Claude API with actual integration
+    // Call AI provider with streaming
     (async () => {
       try {
-        // Find valid Claude API key
-        const claudeKey = apiKeys.find(k => k.provider === 'anthropic' && k.isValid);
+        // Determine provider from chat data, fallback to anthropic
+        const chatProvider = chatData.provider ?? 'anthropic';
+        const chatModel = chatData.model;
 
-        if (!claudeKey) {
-          throw new Error('No valid Claude API key found. Please add your API key in the settings.');
+        // Find valid API key for the chat's provider
+        const apiKey = apiKeys.find(k => k.provider === chatProvider && k.isValid);
+
+        if (!apiKey) {
+          const providerNames: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' };
+          throw new Error(`No valid ${providerNames[chatProvider] ?? chatProvider} API key found. Please add your API key in the settings.`);
         }
 
-        // Initialize Claude provider with AI Rules
-        const provider = new ClaudeProvider({
-          apiKey: claudeKey.key,
-          model: 'claude-sonnet-4-20250514',
-          ...(aiRules ? { aiRules } : {}),
-        });
+        // Create the appropriate provider
+        let provider: Provider;
+        const rulesOpt = aiRules ? { aiRules } : {};
 
-        // Register file access tools if workspace is available
-        if (workspaceServiceRef?.current && rootPath) {
-          const toolExecutor = async (toolName: string, params: Record<string, unknown>) => {
-            if (!workspaceServiceRef.current || !rootPath) {
-              throw new Error('Workspace not initialized');
-            }
+        switch (chatProvider) {
+          case 'openai':
+            provider = new OpenAIProvider({
+              apiKey: apiKey.key,
+              ...(chatModel ? { model: chatModel } : {}),
+              ...rulesOpt,
+            });
+            break;
+          case 'google':
+            provider = new GeminiProvider({
+              apiKey: apiKey.key,
+              ...(chatModel ? { model: chatModel } : {}),
+              ...rulesOpt,
+            });
+            break;
+          case 'anthropic':
+          default: {
+            const claude = new ClaudeProvider({
+              apiKey: apiKey.key,
+              ...(chatModel ? { model: chatModel } : {}),
+              ...rulesOpt,
+            });
 
-            switch (toolName) {
-              case 'read_file': {
-                const relativePath = params['path'] as string;
-                const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-
-                // Validate path is within workspace root
-                if (!filePath.startsWith(rootPath)) {
-                  throw new Error('Access denied: path outside workspace');
+            // Register file access tools if workspace is available (Claude only — it supports tool use)
+            if (workspaceServiceRef?.current && rootPath) {
+              const toolExecutor = async (toolName: string, params: Record<string, unknown>) => {
+                if (!workspaceServiceRef.current || !rootPath) {
+                  throw new Error('Workspace not initialized');
                 }
 
-                try {
-                  const content = await workspaceServiceRef.current.readFile(filePath);
-                  return { content, path: relativePath };
-                } catch (error) {
-                  throw new Error(`Failed to read file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
-                }
-              }
-
-              case 'list_files': {
-                const relativePath = (params['path'] as string) || '.';
-                const dirPath = relativePath === '.' || relativePath === ''
-                  ? rootPath
-                  : `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-
-                // Validate path is within workspace root
-                if (!dirPath.startsWith(rootPath)) {
-                  throw new Error('Access denied: path outside workspace');
-                }
-
-                try {
-                  const entries = await workspaceServiceRef.current.list(dirPath);
-                  return {
-                    entries: entries.map((e: any) => ({
-                      name: e.name,
-                      type: e.type,
-                      path: relativePath === '.' || relativePath === '' ? e.name : `${relativePath}/${e.name}`,
-                      extension: e.extension
-                    })),
-                    path: relativePath
-                  };
-                } catch (error) {
-                  throw new Error(`Failed to list directory "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
-                }
-              }
-
-              case 'search_files': {
-                const query = params['query'] as string;
-
-                try {
-                  // Get full file tree and search through it
-                  const fileTree = await workspaceServiceRef.current.getFileTree();
-
-                  const searchResults: Array<{ name: string; path: string; type: string }> = [];
-
-                  const searchNode = (nodes: any[], parentPath = '') => {
-                    for (const node of nodes) {
-                      const nodePath = parentPath ? `${parentPath}/${node.name}` : node.name;
-
-                      // Check if name matches query (case-insensitive, supports wildcards)
-                      const pattern = query.replace(/\*/g, '.*').replace(/\?/g, '.');
-                      const regex = new RegExp(pattern, 'i');
-
-                      if (regex.test(node.name)) {
-                        searchResults.push({
-                          name: node.name,
-                          path: nodePath,
-                          type: node.type
-                        });
-                      }
-
-                      // Recursively search children
-                      if (node.children) {
-                        searchNode(node.children, nodePath);
-                      }
+                switch (toolName) {
+                  case 'read_file': {
+                    const relativePath = params['path'] as string;
+                    const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
+                    if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+                    try {
+                      const content = await workspaceServiceRef.current.readFile(filePath);
+                      return { content, path: relativePath };
+                    } catch (error) {
+                      throw new Error(`Failed to read file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
                     }
-                  };
-
-                  searchNode(fileTree);
-
-                  return { results: searchResults, query };
-                } catch (error) {
-                  throw new Error(`Failed to search files: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                  }
+                  case 'list_files': {
+                    const relativePath = (params['path'] as string) || '.';
+                    const dirPath = relativePath === '.' || relativePath === '' ? rootPath : `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
+                    if (!dirPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+                    try {
+                      const entries = await workspaceServiceRef.current.list(dirPath);
+                      return {
+                        entries: entries.map((e: any) => ({
+                          name: e.name, type: e.type,
+                          path: relativePath === '.' || relativePath === '' ? e.name : `${relativePath}/${e.name}`,
+                          extension: e.extension
+                        })),
+                        path: relativePath
+                      };
+                    } catch (error) {
+                      throw new Error(`Failed to list directory "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }
+                  case 'search_files': {
+                    const query = params['query'] as string;
+                    try {
+                      const fileTree = await workspaceServiceRef.current.getFileTree();
+                      const searchResults: Array<{ name: string; path: string; type: string }> = [];
+                      const searchNode = (nodes: any[], parentPath = '') => {
+                        for (const node of nodes) {
+                          const nodePath = parentPath ? `${parentPath}/${node.name}` : node.name;
+                          const pattern = query.replace(/\*/g, '.*').replace(/\?/g, '.');
+                          const regex = new RegExp(pattern, 'i');
+                          if (regex.test(node.name)) searchResults.push({ name: node.name, path: nodePath, type: node.type });
+                          if (node.children) searchNode(node.children, nodePath);
+                        }
+                      };
+                      searchNode(fileTree);
+                      return { results: searchResults, query };
+                    } catch (error) {
+                      throw new Error(`Failed to search files: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }
+                  case 'write_file': {
+                    const relativePath = params['path'] as string;
+                    const content = params['content'] as string;
+                    const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
+                    if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+                    try {
+                      const exists = await workspaceServiceRef.current.exists(filePath);
+                      const action = exists ? 'file_update' : 'file_create';
+                      const actionLabel = exists ? 'updated' : 'created';
+                      await workspaceServiceRef.current.writeFile(filePath, content);
+                      onFileTreeChange?.();
+                      onAuditLog?.({ action, description: `AI ${actionLabel} file: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath, contentLength: content.length }, outputs: { success: true }, userDecision: 'auto', metadata: { tool: 'write_file' } });
+                      return { path: relativePath, message: 'File written successfully' };
+                    } catch (error) {
+                      throw new Error(`Failed to write file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }
+                  case 'create_folder': {
+                    const relativePath = params['path'] as string;
+                    const folderPath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
+                    if (!folderPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+                    try {
+                      await workspaceServiceRef.current.mkdir(folderPath);
+                      onFileTreeChange?.();
+                      onAuditLog?.({ action: 'file_create', description: `AI created folder: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: true }, userDecision: 'auto', metadata: { tool: 'create_folder', type: 'folder' } });
+                      return { path: relativePath, message: 'Folder created successfully' };
+                    } catch (error) {
+                      throw new Error(`Failed to create folder "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }
+                  case 'move_file': {
+                    const fromPath = params['from'] as string;
+                    const toPath = params['to'] as string;
+                    const fullFromPath = `${rootPath}/${fromPath}`.replace(/\/+/g, '/');
+                    const fullToPath = `${rootPath}/${toPath}`.replace(/\/+/g, '/');
+                    if (!fullFromPath.startsWith(rootPath) || !fullToPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+                    try {
+                      await workspaceServiceRef.current.move(fullFromPath, fullToPath);
+                      onFileTreeChange?.();
+                      onAuditLog?.({ action: 'file_move', description: `AI moved file: ${fromPath} → ${toPath}`, model: chatModel ?? chatProvider, inputs: { from: fromPath, to: toPath }, outputs: { success: true }, userDecision: 'auto', metadata: { tool: 'move_file' } });
+                      return { from: fromPath, to: toPath, message: 'File moved successfully' };
+                    } catch (error) {
+                      throw new Error(`Failed to move file from "${fromPath}" to "${toPath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }
+                  case 'delete_file': {
+                    const relativePath = params['path'] as string;
+                    const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
+                    if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+                    try {
+                      await workspaceServiceRef.current.delete(filePath);
+                      onFileTreeChange?.();
+                      onAuditLog?.({ action: 'file_delete', description: `AI deleted file: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: true, movedToTrash: true }, userDecision: 'auto', metadata: { tool: 'delete_file' } });
+                      return { path: relativePath, message: 'File deleted successfully (moved to trash)' };
+                    } catch (error) {
+                      throw new Error(`Failed to delete file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+                    }
+                  }
+                  default:
+                    throw new Error(`Unknown tool: ${toolName}`);
                 }
-              }
+              };
 
-              case 'write_file': {
-                const relativePath = params['path'] as string;
-                const content = params['content'] as string;
-                const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-
-                // Validate path is within workspace root
-                if (!filePath.startsWith(rootPath)) {
-                  throw new Error('Access denied: path outside workspace');
-                }
-
-                try {
-                  // Check if file exists to determine if this is create or update
-                  const exists = await workspaceServiceRef.current.exists(filePath);
-                  const action = exists ? 'file_update' : 'file_create';
-                  const actionLabel = exists ? 'updated' : 'created';
-
-                  await workspaceServiceRef.current.writeFile(filePath, content);
-                  onFileTreeChange?.(); // Notify that file tree changed
-
-                  // Log to audit
-                  onAuditLog?.({
-                    action,
-                    description: `AI ${actionLabel} file: ${relativePath}`,
-                    model: 'claude-3.5-sonnet',
-                    inputs: { path: relativePath, contentLength: content.length },
-                    outputs: { success: true },
-                    userDecision: 'auto',
-                    metadata: { tool: 'write_file' },
-                  });
-
-                  return { path: relativePath, message: 'File written successfully' };
-                } catch (error) {
-                  throw new Error(`Failed to write file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
-                }
-              }
-
-              case 'create_folder': {
-                const relativePath = params['path'] as string;
-                const folderPath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-
-                // Validate path is within workspace root
-                if (!folderPath.startsWith(rootPath)) {
-                  throw new Error('Access denied: path outside workspace');
-                }
-
-                try {
-                  await workspaceServiceRef.current.mkdir(folderPath);
-                  onFileTreeChange?.(); // Notify that file tree changed
-
-                  // Log to audit
-                  onAuditLog?.({
-                    action: 'file_create',
-                    description: `AI created folder: ${relativePath}`,
-                    model: 'claude-3.5-sonnet',
-                    inputs: { path: relativePath },
-                    outputs: { success: true },
-                    userDecision: 'auto',
-                    metadata: { tool: 'create_folder', type: 'folder' },
-                  });
-
-                  return { path: relativePath, message: 'Folder created successfully' };
-                } catch (error) {
-                  throw new Error(`Failed to create folder "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
-                }
-              }
-
-              case 'move_file': {
-                const fromPath = params['from'] as string;
-                const toPath = params['to'] as string;
-                const fullFromPath = `${rootPath}/${fromPath}`.replace(/\/+/g, '/');
-                const fullToPath = `${rootPath}/${toPath}`.replace(/\/+/g, '/');
-
-                // Validate paths are within workspace root
-                if (!fullFromPath.startsWith(rootPath) || !fullToPath.startsWith(rootPath)) {
-                  throw new Error('Access denied: path outside workspace');
-                }
-
-                try {
-                  await workspaceServiceRef.current.move(fullFromPath, fullToPath);
-                  onFileTreeChange?.(); // Notify that file tree changed
-
-                  // Log to audit
-                  onAuditLog?.({
-                    action: 'file_move',
-                    description: `AI moved file: ${fromPath} → ${toPath}`,
-                    model: 'claude-3.5-sonnet',
-                    inputs: { from: fromPath, to: toPath },
-                    outputs: { success: true },
-                    userDecision: 'auto',
-                    metadata: { tool: 'move_file' },
-                  });
-
-                  return { from: fromPath, to: toPath, message: 'File moved successfully' };
-                } catch (error) {
-                  throw new Error(`Failed to move file from "${fromPath}" to "${toPath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
-                }
-              }
-
-              case 'delete_file': {
-                const relativePath = params['path'] as string;
-                const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-
-                // Validate path is within workspace root
-                if (!filePath.startsWith(rootPath)) {
-                  throw new Error('Access denied: path outside workspace');
-                }
-
-                try {
-                  await workspaceServiceRef.current.delete(filePath);
-                  onFileTreeChange?.(); // Notify that file tree changed
-
-                  // Log to audit
-                  onAuditLog?.({
-                    action: 'file_delete',
-                    description: `AI deleted file: ${relativePath}`,
-                    model: 'claude-3.5-sonnet',
-                    inputs: { path: relativePath },
-                    outputs: { success: true, movedToTrash: true },
-                    userDecision: 'auto',
-                    metadata: { tool: 'delete_file' },
-                  });
-
-                  return { path: relativePath, message: 'File deleted successfully (moved to trash)' };
-                } catch (error) {
-                  throw new Error(`Failed to delete file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
-                }
-              }
-
-              default:
-                throw new Error(`Unknown tool: ${toolName}`);
+              claude.setTools(FILE_ACCESS_TOOLS, toolExecutor);
             }
-          };
 
-          provider.setTools(FILE_ACCESS_TOOLS, toolExecutor);
+            provider = claude;
+            break;
+          }
         }
 
         // Build conversation history into system prompt
@@ -414,62 +343,99 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
         ).join('\n\n');
 
-        // Build system prompt (AI Rules are now handled by provider)
         const systemPrompt = conversationContext
           ? `You are a helpful AI assistant. Here is the conversation history:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
           : 'You are a helpful AI assistant.';
 
-        // Send message to Claude
-        const response = await provider.sendMessage(userMessage.content, {
-          systemPrompt,
-          maxTokens: 4096,
-        });
+        // Use streaming if available
+        if (provider.sendMessageStreaming) {
+          const abortController = new AbortController();
+          abortControllerRef.current = abortController;
 
-        const assistantMessage: ChatMessage = {
-          role: 'assistant',
-          content: response.content,
-          timestamp: new Date().toISOString(),
-        };
-
-        // Add assistant message to store (persists immediately)
-        addMessage(chatId, assistantMessage);
-        const finalMessages = [...updatedMessages, assistantMessage];
-
-        // Save to file
-        if (onSave) {
-          const updatedChat: AIChatFile = {
-            ...chatData,
-            updated: new Date().toISOString(),
-            messages: finalMessages,
+          // Add a placeholder assistant message that we'll update as chunks arrive
+          const streamingMessage: ChatMessage = {
+            role: 'assistant',
+            content: '',
+            timestamp: new Date().toISOString(),
           };
-          onSave(updatedChat);
+          addMessage(chatId, streamingMessage);
+
+          let accumulated = '';
+
+          try {
+            await provider.sendMessageStreaming(userMessage.content, {
+              systemPrompt,
+              maxTokens: 4096,
+              onChunk: (chunk: string) => {
+                accumulated += chunk;
+                // Update the last message in the store with accumulated content
+                updateLastMessage(chatId, accumulated);
+              },
+              signal: abortController.signal,
+            });
+          } catch (err) {
+            if (err instanceof DOMException && err.name === 'AbortError') {
+              // User cancelled — keep whatever was streamed so far
+              accumulated += '\n\n*(Response stopped by user)*';
+              updateLastMessage(chatId, accumulated);
+            } else {
+              throw err;
+            }
+          } finally {
+            abortControllerRef.current = null;
+          }
+
+          const finalMessages = [...updatedMessages, { ...streamingMessage, content: accumulated }];
+
+          if (onSave) {
+            onSave({ ...chatData, updated: new Date().toISOString(), messages: finalMessages });
+          }
+        } else {
+          // Fallback to non-streaming
+          const response = await provider.sendMessage(userMessage.content, {
+            systemPrompt,
+            maxTokens: 4096,
+          });
+
+          const assistantMessage: ChatMessage = {
+            role: 'assistant',
+            content: response.content,
+            timestamp: new Date().toISOString(),
+          };
+
+          addMessage(chatId, assistantMessage);
+          const finalMessages = [...updatedMessages, assistantMessage];
+
+          if (onSave) {
+            onSave({ ...chatData, updated: new Date().toISOString(), messages: finalMessages });
+          }
         }
       } catch (error) {
         console.error('AI chat error:', error);
         const errorMessage: ChatMessage = {
           role: 'assistant',
-          content: `❌ Error: ${error instanceof Error ? error.message : 'Failed to get response from AI. Please check your API key and try again.'}`,
+          content: `Error: ${error instanceof Error ? error.message : 'Failed to get response from AI. Please check your API key and try again.'}`,
           timestamp: new Date().toISOString(),
         };
 
-        // Add error message to store (persists immediately)
         addMessage(chatId, errorMessage);
         const finalMessages = [...updatedMessages, errorMessage];
 
-        // Save error state
         if (onSave) {
-          const updatedChat: AIChatFile = {
-            ...chatData,
-            updated: new Date().toISOString(),
-            messages: finalMessages,
-          };
-          onSave(updatedChat);
+          onSave({ ...chatData, updated: new Date().toISOString(), messages: finalMessages });
         }
       } finally {
         setLoading(chatId, false);
       }
     })();
-  }, [inputValue, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog]);
+  }, [inputValue, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules]);
+
+  const handleStop = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -619,8 +585,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           </div>
         ))}
         {isLoading && (
-          <div data-testid="chat-loading-indicator" className="flex items-start gap-2">
-            <span className="text-xs font-medium text-muted-foreground">Assistant</span>
+          <div data-testid="chat-loading-indicator" className="flex items-center gap-2">
             <div className="bg-muted rounded-lg px-4 py-2">
               <div className="flex gap-1">
                 <span className="animate-bounce">●</span>
@@ -628,6 +593,16 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                 <span className="animate-bounce delay-200">●</span>
               </div>
             </div>
+            <Button
+              data-testid="chat-stop-button"
+              variant="outline"
+              size="sm"
+              onClick={handleStop}
+              className="h-7 gap-1 text-xs"
+            >
+              <Square className="h-3 w-3" />
+              Stop
+            </Button>
           </div>
         )}
         <div ref={messagesEndRef} />

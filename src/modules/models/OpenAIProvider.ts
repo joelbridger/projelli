@@ -5,6 +5,7 @@ import type {
   Provider,
   ProviderResponse,
   SendOptions,
+  StreamOptions,
   StructuredOutputOptions,
   ProviderMetadata,
 } from './Provider';
@@ -179,6 +180,109 @@ export class OpenAIProvider implements Provider {
       cost,
       model: response.model,
       stopReason: response.choices[0]?.finish_reason ?? 'unknown',
+    };
+  }
+
+  /**
+   * Send a message and stream the response
+   */
+  async sendMessageStreaming(
+    prompt: string,
+    options: StreamOptions
+  ): Promise<ProviderResponse> {
+    const { onChunk, signal, ...sendOpts } = options;
+
+    const messages: OpenAIMessage[] = [];
+
+    let systemPrompt = sendOpts.systemPrompt || '';
+    if (this.aiRules) {
+      systemPrompt = this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
+    }
+    if (systemPrompt) {
+      messages.push({ role: 'system', content: systemPrompt });
+    }
+    messages.push({ role: 'user', content: prompt });
+
+    const request: OpenAIRequest & { stream: boolean } = {
+      model: this.model,
+      messages,
+      stream: true,
+    };
+
+    if (sendOpts.maxTokens) request.max_tokens = sendOpts.maxTokens;
+    if (sendOpts.temperature !== undefined) request.temperature = sendOpts.temperature;
+    if (sendOpts.stopSequences) request.stop = sendOpts.stopSequences;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${this.apiKey}`,
+    };
+    if (this.organization) headers['OpenAI-Organization'] = this.organization;
+
+    const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(request),
+      ...(signal ? { signal } : {}),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json() as OpenAIError;
+      throw new Error(`OpenAI API error: ${errorBody.error?.message ?? `HTTP ${response.status}`}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let stopReason = '';
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (!data || data === '[DONE]') continue;
+
+          try {
+            const event = JSON.parse(data);
+            const delta = event.choices?.[0]?.delta;
+            if (delta?.content) {
+              fullContent += delta.content;
+              onChunk(delta.content);
+            }
+            if (event.choices?.[0]?.finish_reason) {
+              stopReason = event.choices[0].finish_reason;
+            }
+          } catch {
+            // skip unparseable lines
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    // Estimate tokens since streaming doesn't always include usage
+    const inputTokens = Math.ceil(prompt.length / 4);
+    const outputTokens = Math.ceil(fullContent.length / 4);
+    const cost = this.calculateCost(inputTokens, outputTokens);
+
+    return {
+      content: fullContent,
+      usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+      cost,
+      model: this.model,
+      stopReason,
     };
   }
 

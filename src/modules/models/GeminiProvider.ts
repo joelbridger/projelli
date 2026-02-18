@@ -5,6 +5,7 @@ import type {
   Provider,
   ProviderResponse,
   SendOptions,
+  StreamOptions,
   StructuredOutputOptions,
   ProviderMetadata,
 } from './Provider';
@@ -178,6 +179,101 @@ export class GeminiProvider implements Provider {
         outputTokens: response.usageMetadata.candidatesTokenCount,
         totalTokens: response.usageMetadata.totalTokenCount,
       },
+      cost,
+      model: this.model,
+    };
+  }
+
+  /**
+   * Send a message and stream the response
+   */
+  async sendMessageStreaming(
+    prompt: string,
+    options: StreamOptions
+  ): Promise<ProviderResponse> {
+    const { onChunk, signal, ...sendOpts } = options;
+
+    const contents: GeminiContent[] = [{ role: 'user', parts: [{ text: prompt }] }];
+    const request: GeminiRequest = { contents };
+
+    let systemInstruction = sendOpts.systemPrompt || '';
+    if (this.aiRules) {
+      systemInstruction = this.aiRules + (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
+    }
+    if (systemInstruction) {
+      request.systemInstruction = { parts: [{ text: systemInstruction }] };
+    }
+
+    const generationConfig: GeminiRequest['generationConfig'] = {};
+    if (sendOpts.maxTokens) generationConfig.maxOutputTokens = sendOpts.maxTokens;
+    if (sendOpts.temperature !== undefined) generationConfig.temperature = sendOpts.temperature;
+    if (sendOpts.stopSequences) generationConfig.stopSequences = sendOpts.stopSequences;
+    if (Object.keys(generationConfig).length > 0) request.generationConfig = generationConfig;
+
+    const url = `${this.baseUrl}/v1beta/models/${this.model}:streamGenerateContent?key=${this.apiKey}&alt=sse`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      ...(signal ? { signal } : {}),
+    });
+
+    if (!response.ok) {
+      const errorData: GeminiError = await response.json();
+      throw new Error(`Gemini API error: ${errorData.error.message} (${errorData.error.status})`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let totalTokens = 0;
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (!data) continue;
+
+          try {
+            const event = JSON.parse(data);
+            const text = event.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) {
+              fullContent += text;
+              onChunk(text);
+            }
+            if (event.usageMetadata) {
+              inputTokens = event.usageMetadata.promptTokenCount ?? inputTokens;
+              outputTokens = event.usageMetadata.candidatesTokenCount ?? outputTokens;
+              totalTokens = event.usageMetadata.totalTokenCount ?? totalTokens;
+            }
+          } catch {
+            // skip unparseable lines
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const cost = this.calculateCost(inputTokens, outputTokens);
+
+    return {
+      content: fullContent,
+      usage: { inputTokens, outputTokens, totalTokens },
       cost,
       model: this.model,
     };

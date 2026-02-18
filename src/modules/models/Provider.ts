@@ -53,6 +53,19 @@ export interface ProviderResponse {
 }
 
 /**
+ * Callback for streaming text chunks
+ */
+export type StreamCallback = (chunk: string) => void;
+
+/**
+ * Options for streaming messages
+ */
+export interface StreamOptions extends SendOptions {
+  onChunk: StreamCallback;
+  signal?: AbortSignal;
+}
+
+/**
  * Options for structured output
  */
 export interface StructuredOutputOptions {
@@ -117,6 +130,11 @@ export interface Provider {
    * Send a message and get a response
    */
   sendMessage(prompt: string, options?: SendOptions): Promise<ProviderResponse>;
+
+  /**
+   * Send a message and stream the response chunks
+   */
+  sendMessageStreaming?(prompt: string, options: StreamOptions): Promise<ProviderResponse>;
 
   /**
    * Call a tool function

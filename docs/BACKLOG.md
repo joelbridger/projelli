@@ -1,12 +1,131 @@
 # Business OS - Technical Backlog
 
 > **Last Updated:** 2026-02-18
-> **Total Tickets:** 42
-> **Status Summary:** 0 TODO | 0 IN_PROGRESS | 42 DONE
+> **Total Tickets:** 46
+> **Status Summary:** 0 TODO | 0 IN_PROGRESS | 46 DONE
 
 ---
 
 ## Future Enhancements
+
+---
+
+### FIX-001: Install Missing @radix-ui/react-alert-dialog Dependency
+**Status:** DONE
+**Priority:** P0
+**Estimated Size:** XS
+**Dependencies:** None
+
+**Description:**
+The confirm/prompt dialog feature merged in v1.0.1 uses `@radix-ui/react-alert-dialog` but the package was never added to `package.json`. TypeScript fails to compile `src/components/ui/alert-dialog.tsx`.
+
+**Implementation:**
+- Run `npm install @radix-ui/react-alert-dialog`
+- Verify `npx tsc --noEmit` passes cleanly
+
+**Acceptance Criteria:**
+- [ ] Zero TypeScript errors from alert-dialog import
+- [ ] App builds successfully
+
+---
+
+### WIN-003: Custom Windows Installer Branding
+**Status:** DONE
+**Priority:** P3
+**Estimated Size:** S
+**Dependencies:** None
+**GitHub Issue:** #9
+
+**Description:**
+The NSIS Windows installer uses default styling. Create branded header (150x57px) and sidebar (164x314px) BMP images using Projelli's pink bean logo and colors, then configure them in `tauri.conf.json`.
+
+**Implementation:**
+- Create `src-tauri/icons/installer-header.bmp` (150x57px) with Projelli logo and brand colors
+- Create `src-tauri/icons/installer-sidebar.bmp` (164x314px) with Projelli logo and brand colors
+- Update `src-tauri/tauri.conf.json` NSIS section to reference both images
+
+**Files to Create:**
+- `src-tauri/icons/installer-header.bmp`
+- `src-tauri/icons/installer-sidebar.bmp`
+
+**Files to Modify:**
+- `src-tauri/tauri.conf.json`
+
+**Acceptance Criteria:**
+- [ ] Header image displays in installer top banner
+- [ ] Sidebar image displays on installer welcome/finish pages
+- [ ] `npm run tauri build` succeeds
+- [ ] Installer looks professional with Projelli branding
+
+---
+
+### AI-003: Streaming AI Chat Responses
+**Status:** DONE
+**Priority:** P1
+**Estimated Size:** L
+**Dependencies:** FIX-001
+
+**Description:**
+AI chat currently blocks waiting for the full response before displaying anything. Implement streaming so tokens appear in real-time as the AI generates them. This dramatically improves perceived responsiveness.
+
+**Implementation:**
+1. Add `sendMessageStreaming()` method to Provider interface with an `onToken` callback
+2. Implement streaming in ClaudeProvider: `stream: true` in request body, parse SSE `content_block_delta` events
+3. Implement streaming in OpenAIProvider: `stream: true`, parse SSE `chat.completion.chunk` events
+4. Implement streaming in GeminiProvider: `streamGenerateContent` endpoint, parse streaming JSON
+5. Update AIChatViewer to call `sendMessageStreaming()` and update the assistant message progressively
+6. Add abort/cancel support via AbortController so users can stop generation
+
+**Files to Modify:**
+- `src/modules/models/Provider.ts` — Add `sendMessageStreaming` to interface
+- `src/modules/models/ClaudeProvider.ts` — Implement SSE streaming
+- `src/modules/models/OpenAIProvider.ts` — Implement SSE streaming
+- `src/modules/models/GeminiProvider.ts` — Implement streaming
+- `src/modules/models/MockProvider.ts` — Add mock streaming
+- `src/components/ai/AIChatViewer.tsx` — Use streaming API, show tokens live, add stop button
+
+**Acceptance Criteria:**
+- [ ] Assistant responses appear token-by-token in real-time
+- [ ] User can cancel/stop a streaming response mid-generation
+- [ ] All three providers (Claude, OpenAI, Gemini) support streaming
+- [ ] Non-streaming fallback works if streaming fails
+- [ ] Token usage and cost still tracked accurately
+
+---
+
+### AI-004: Wire Selected Model to Chat Creation
+**Status:** DONE
+**Priority:** P1
+**Estimated Size:** M
+**Dependencies:** AI-003
+
+**Description:**
+The model selected in the AI Assistant "Models" tab is currently ignored. The chat always uses a hardcoded `claude-sonnet-4-20250514` regardless of what the user picks. Wire the selected model through the full chain: AIAssistantPane → chat file → AIChatViewer → provider.
+
+Additionally, the provider selection is broken — all chats use ClaudeProvider even when the user starts an OpenAI or Gemini chat.
+
+**Implementation:**
+1. Add `model` field to `AIChatFile` interface in `src/types/ai.ts`
+2. Update `AIAssistantPane.onCreateNewChat` callback to pass both provider and selected model
+3. Update `useAIChatFiles.handleCreateNewChat` to accept and store the model in the chat file
+4. Update `AIChatViewer` to read the provider and model from the chat file
+5. Update `AIChatViewer` to instantiate the correct provider (Claude/OpenAI/Gemini) based on the chat's provider field
+6. Pass the model from the chat file to the provider constructor
+
+**Files to Modify:**
+- `src/types/ai.ts` — Add `model?: string` and `provider` to AIChatFile
+- `src/components/ai/AIAssistantPane.tsx` — Pass selectedModel to onCreateNewChat
+- `src/hooks/useAIChatFiles.ts` — Accept and store model in chat creation
+- `src/components/ai/AIChatViewer.tsx` — Use correct provider and model from chat file
+- `src/components/layout/MainPanel.tsx` — Pass model info to AIChatViewer
+- `src/App.tsx` — Update onCreateNewChat callback signature
+
+**Acceptance Criteria:**
+- [ ] Selecting "GPT-4 Turbo" and creating an OpenAI chat actually uses GPT-4 Turbo
+- [ ] Selecting "Gemini 1.5 Pro" and creating a Google chat actually uses Gemini 1.5 Pro
+- [ ] Model selection persists in the .aichat file
+- [ ] Reopening a saved chat uses the same model it was created with
+- [ ] Each provider's API is called correctly (not always Claude)
 
 ---
 

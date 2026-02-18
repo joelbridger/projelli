@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Streaming AI Responses & Model Wiring (2026-02-18)
+
+### Added
+- **Streaming AI Chat Responses (AI-003)** - AI responses now appear token-by-token in real-time instead of blocking until complete
+  - Added `sendMessageStreaming()` method to Provider interface with `onChunk` callback and `AbortSignal` support
+  - Implemented SSE streaming in ClaudeProvider (Anthropic `content_block_delta` events)
+  - Implemented SSE streaming in OpenAIProvider (`chat.completion.chunk` events)
+  - Implemented SSE streaming in GeminiProvider (`streamGenerateContent` endpoint with `alt=sse`)
+  - Added mock streaming in MockProvider (word-by-word simulation)
+  - Added `updateLastMessage()` to `aiChatStore.ts` for progressive message updates during streaming
+  - Added Stop button (Square icon) visible during streaming to cancel generation via AbortController
+  - Non-streaming fallback preserved for providers that don't support it
+  - Files modified: `Provider.ts`, `ClaudeProvider.ts`, `OpenAIProvider.ts`, `GeminiProvider.ts`, `MockProvider.ts`, `AIChatViewer.tsx`, `aiChatStore.ts`
+
+- **Wire Selected Model to Chat Creation (AI-004)** - Users can now actually chat with the model they select
+  - Added `model?: string` field to `AIChatFile` type in `src/types/ai.ts`
+  - AIAssistantPane now passes the selected model ID when creating new chats
+  - `useAIChatFiles.handleCreateNewChat` stores the model in the `.aichat` file
+  - AIChatViewer reads the `provider` and `model` from the chat file to instantiate the correct provider (Claude/OpenAI/Gemini)
+  - Previously all chats used hardcoded `ClaudeProvider` with `claude-sonnet-4-20250514` — now each provider and model works correctly
+  - Files modified: `ai.ts`, `AIAssistantPane.tsx`, `useAIChatFiles.ts`, `AIChatViewer.tsx`
+
+- **Custom Windows Installer Branding (WIN-003)** - NSIS installer now shows Projelli branding
+  - Created `src-tauri/icons/installer-header.bmp` (150x57px) and `installer-sidebar.bmp` (164x314px) with brand colors
+  - Updated `tauri.conf.json` NSIS config with `headerImage` and `sidebarImage`
+
+### Fixed
+- **Missing @radix-ui/react-alert-dialog dependency (FIX-001)** - Installed the missing package that caused TypeScript compilation failures
+
 ### Auto-Update AI Model Lists on Startup (2026-02-18)
 
 ### Added

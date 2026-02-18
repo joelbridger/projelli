@@ -5,6 +5,7 @@ import type {
   Provider,
   ProviderResponse,
   SendOptions,
+  StreamOptions,
   StructuredOutputOptions,
   ProviderMetadata,
 } from './Provider';
@@ -276,6 +277,119 @@ export class ClaudeProvider implements Provider {
       cost,
       model: response.model,
       stopReason: response.stop_reason,
+    };
+  }
+
+  /**
+   * Send a message and stream the response
+   */
+  async sendMessageStreaming(
+    prompt: string,
+    options: StreamOptions
+  ): Promise<ProviderResponse> {
+    const { onChunk, signal, ...sendOpts } = options;
+
+    const messages: ClaudeMessage[] = [{ role: 'user', content: prompt }];
+
+    const request: ClaudeRequest & { stream: boolean } = {
+      model: this.model,
+      max_tokens: sendOpts.maxTokens ?? 4096,
+      messages,
+      stream: true,
+    };
+
+    let systemPrompt = sendOpts.systemPrompt || '';
+    if (this.aiRules) {
+      systemPrompt = this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
+    }
+    if (systemPrompt) {
+      request.system = systemPrompt;
+    }
+    if (sendOpts.temperature !== undefined) {
+      request.temperature = sendOpts.temperature;
+    }
+    if (sendOpts.stopSequences) {
+      request.stop_sequences = sendOpts.stopSequences;
+    }
+
+    const response = await fetch(`${this.baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': this.apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(request),
+      ...(signal ? { signal } : {}),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json() as { error?: { message?: string } };
+      throw new Error(`Claude API error: ${errorBody.error?.message ?? `HTTP ${response.status}`}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder();
+    let fullContent = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let stopReason = '';
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6).trim();
+          if (!data || data === '[DONE]') continue;
+
+          try {
+            const event = JSON.parse(data);
+
+            if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+              const text = event.delta.text ?? '';
+              fullContent += text;
+              onChunk(text);
+            } else if (event.type === 'message_start' && event.message?.usage) {
+              inputTokens = event.message.usage.input_tokens ?? 0;
+            } else if (event.type === 'message_delta') {
+              if (event.usage) {
+                outputTokens = event.usage.output_tokens ?? 0;
+              }
+              if (event.delta?.stop_reason) {
+                stopReason = event.delta.stop_reason;
+              }
+            }
+          } catch {
+            // skip unparseable lines
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    const cost = this.calculateCost(inputTokens, outputTokens);
+
+    return {
+      content: fullContent,
+      usage: {
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+      },
+      cost,
+      model: this.model,
+      stopReason,
     };
   }
 
