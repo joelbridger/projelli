@@ -31,7 +31,8 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { saveFile } from '@/utils/saveFile';
 import { useEditorStore } from '@/stores/editorStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
-import type { WorkspaceService } from '@/modules/workspace/WorkspaceService';
+import { createWorkspaceService, type WorkspaceService } from '@/modules/workspace/WorkspaceService';
+import { createFSBackend } from '@/modules/workspace/BackendFactory';
 import type { WorkflowTemplate, WorkflowExecution, InterviewQuestion } from '@/types/workflow';
 import type { TrashedItem } from '@/modules/history/TrashService';
 import type { SourceCard } from '@/types/research';
@@ -515,6 +516,18 @@ function App() {
     }
   }, [loadTrashMetadata, loadSourceCards, loadChatFiles]);
 
+
+  // Handle opening a recent project directly by path (Tauri only)
+  const handleOpenRecentProject = useCallback(async (workspacePath: string) => {
+    try {
+      const backend = await createFSBackend(workspacePath);
+      const service = createWorkspaceService();
+      await service.initialize(backend, workspacePath);
+      await handleWorkspaceSelected(service);
+    } catch (err) {
+      console.error('[App] Failed to open recent project:', err);
+    }
+  }, [handleWorkspaceSelected]);
 
   // Handle revealing a folder in the Files tab
   const handleRevealInFolder = useCallback((_path: string) => {
@@ -1374,6 +1387,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
           <ProjectManager
             currentProjectName={currentProjectName}
             onSwitchProject={() => setShowWorkspaceSelector(true)}
+            onOpenRecentProject={handleOpenRecentProject}
             recentProjects={recentWorkspaces}
           />
         </div>

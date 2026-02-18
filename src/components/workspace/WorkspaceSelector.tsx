@@ -173,6 +173,36 @@ export function WorkspaceSelector({ open, onWorkspaceSelected }: WorkspaceSelect
     }
   };
 
+  const handleOpenRecent = async (workspacePath: string) => {
+    if (!isTauri) return; // Browser mode can't reopen by path
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const backend = await createFSBackend(workspacePath);
+      const service = createWorkspaceService();
+      const workspace = await service.initialize(backend, workspacePath);
+
+      setRootPath(workspace.rootPath);
+      const fileTree = await service.getFileTree();
+      setFileTree(fileTree);
+      expandAllFolders();
+
+      addRecentWorkspace({
+        path: workspace.rootPath,
+        name: workspace.name,
+        lastOpened: new Date(),
+      });
+
+      onWorkspaceSelected(service);
+    } catch (err) {
+      console.error('[WorkspaceSelector] Failed to open recent workspace:', err);
+      setError(err instanceof Error ? err.message : 'Failed to open workspace');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleDateString(undefined, {
       month: 'short',
@@ -246,11 +276,13 @@ export function WorkspaceSelector({ open, onWorkspaceSelected }: WorkspaceSelect
                       <li key={workspace.path}>
                         <button
                           className="w-full px-3 py-2 text-left hover:bg-muted/50 transition-colors"
-                          disabled={isLoading}
+                          disabled={isLoading || !isTauri}
+                          onClick={() => handleOpenRecent(workspace.path)}
                         >
                           <div className="font-medium text-sm">{workspace.name}</div>
                           <div className="text-xs text-muted-foreground">
                             {formatDate(workspace.lastOpened)}
+                            {!isTauri && ' · Re-select folder to reopen'}
                           </div>
                         </button>
                       </li>
@@ -258,9 +290,11 @@ export function WorkspaceSelector({ open, onWorkspaceSelected }: WorkspaceSelect
                   </ul>
                 </CardContent>
               </Card>
-              <p className="text-xs text-muted-foreground">
-                Note: Recent workspaces require re-selecting the folder due to browser security.
-              </p>
+              {!isTauri && (
+                <p className="text-xs text-muted-foreground">
+                  Note: Recent workspaces require re-selecting the folder due to browser security.
+                </p>
+              )}
             </div>
           )}
         </div>

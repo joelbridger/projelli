@@ -26,6 +26,7 @@ import {
   Pencil,
   Clock,
 } from 'lucide-react';
+import { isTauriEnvironment } from '@/modules/workspace/BackendFactory';
 
 interface RecentWorkspace {
   path: string;
@@ -36,6 +37,7 @@ interface RecentWorkspace {
 interface ProjectManagerProps {
   currentProjectName: string;
   onSwitchProject: () => void;
+  onOpenRecentProject?: (path: string) => void;
   onRenameProject?: (newName: string) => Promise<void>;
   recentProjects?: RecentWorkspace[];
 }
@@ -43,9 +45,11 @@ interface ProjectManagerProps {
 export function ProjectManager({
   currentProjectName,
   onSwitchProject,
+  onOpenRecentProject,
   onRenameProject,
   recentProjects = [],
 }: ProjectManagerProps) {
+  const isTauri = isTauriEnvironment();
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [newName, setNewName] = useState(currentProjectName);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -111,7 +115,8 @@ export function ProjectManager({
                 <DropdownMenuItem
                   key={project.path}
                   className="flex items-center justify-between"
-                  disabled // Due to browser security, recent workspaces need re-selection
+                  disabled={!isTauri}
+                  onClick={() => isTauri && onOpenRecentProject?.(project.path)}
                 >
                   <span className="truncate">{project.name}</span>
                   <span className="text-xs text-muted-foreground ml-2">
@@ -119,9 +124,11 @@ export function ProjectManager({
                   </span>
                 </DropdownMenuItem>
               ))}
-              <p className="px-2 py-1 text-xs text-muted-foreground">
-                Re-select folder to reopen
-              </p>
+              {!isTauri && (
+                <p className="px-2 py-1 text-xs text-muted-foreground">
+                  Re-select folder to reopen
+                </p>
+              )}
             </>
           )}
         </DropdownMenuContent>

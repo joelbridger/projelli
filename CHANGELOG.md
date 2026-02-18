@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Bug Fixes (2026-02-18)
 
 ### Fixed
+- **Recent projects clickable in Tauri desktop mode** - Recent workspaces were greyed out with "Re-select folder to reopen" even on desktop where direct filesystem access is available
+  - In Tauri mode, recent projects in both the WorkspaceSelector and ProjectManager dropdown now open directly by path (no dialog needed)
+  - Browser security note only shown in browser mode where it actually applies
+  - Added `handleOpenRecentProject` handler in App.tsx that opens a workspace directly by stored path
+  - Files modified: `WorkspaceSelector.tsx`, `ProjectManager.tsx`, `App.tsx`
+
 - **Workspace switching not working** - Selecting a different workspace or creating a new project while inside a project would not actually switch to it
   - Root cause: `handleWorkspaceSelected` in App.tsx created a local `rootPath` variable but never called `setRootPath()` to update the Zustand store
   - Added `setRootPath(newRootPath)` call and close all stale tabs from the previous workspace on switch
