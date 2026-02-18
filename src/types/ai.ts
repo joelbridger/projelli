@@ -29,4 +29,5 @@ export interface AIChatFile {
   created: string; // ISO datetime
   updated: string; // ISO datetime
   messages: ChatMessage[];
+  provider?: 'anthropic' | 'openai' | 'google'; // Optional: which AI provider
 }

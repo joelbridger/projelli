@@ -105,6 +105,7 @@ export function SplitPane({
               className="h-6 w-6 p-0 opacity-0 hover:opacity-100 transition-opacity"
               onClick={() => onClose(0)}
               title="Close pane"
+              aria-label="Close pane"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -140,6 +141,7 @@ export function SplitPane({
               className="h-6 w-6 p-0 opacity-0 hover:opacity-100 transition-opacity"
               onClick={() => onClose(1)}
               title="Close pane"
+              aria-label="Close pane"
             >
               <X className="h-4 w-4" />
             </Button>

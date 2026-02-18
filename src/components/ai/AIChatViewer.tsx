@@ -10,7 +10,7 @@ import type { AIChatFile, ChatMessage } from '@/types/ai';
 import type { AuditEntry } from '@/types/audit';
 import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
-import { useAIChatStore } from '@/stores/aiChatStore';
+import { useAIChatStore, getDraftInput } from '@/stores/aiChatStore';
 
 interface APIKey {
   provider: string;
@@ -84,11 +84,12 @@ function chatToMarkdown(chat: AIChatFile): string {
 
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, className }: AIChatViewerProps) {
   // Use global store for chat state (persists across navigation)
-  const { sessions, initSession, addMessage, setLoading } = useAIChatStore();
+  const { sessions, initSession, addMessage, setLoading, setDraftInput, clearDraftInput } = useAIChatStore();
   const chatId = chatData.id;
   const session = sessions[chatId];
 
-  const [inputValue, setInputValue] = useState('');
+  // Initialize input with saved draft (persists across navigation)
+  const [inputValue, setInputValue] = useState(() => getDraftInput(chatId));
   const [isRecording, setIsRecording] = useState(false);
   const [aiRules, setAiRules] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -134,6 +135,19 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Save draft input to store (debounced) - persists across navigation
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (inputValue.trim()) {
+        setDraftInput(chatId, inputValue);
+      } else {
+        clearDraftInput(chatId);
+      }
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [inputValue, chatId, setDraftInput, clearDraftInput]);
+
   const handleSendMessage = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
 
@@ -147,6 +161,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     addMessage(chatId, userMessage);
     const updatedMessages = [...messages, userMessage];
     setInputValue('');
+    clearDraftInput(chatId); // Clear saved draft after sending
     setLoading(chatId, true);
 
     // Call Claude API with actual integration
@@ -551,16 +566,17 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   }, [chatData, messages, onExport]);
 
   return (
-    <div className={cn('flex flex-col h-full', className)}>
+    <div data-testid="ai-chat-viewer" className={cn('flex flex-col h-full', className)}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div>
-          <h2 className="text-lg font-semibold">{chatData.title}</h2>
-          <p className="text-xs text-muted-foreground">
+          <h2 data-testid="chat-title" className="text-lg font-semibold">{chatData.title}</h2>
+          <p data-testid="chat-created-date" className="text-xs text-muted-foreground">
             Created {new Date(chatData.created).toLocaleDateString()}
           </p>
         </div>
         <Button
+          data-testid="chat-export-button"
           variant="outline"
           size="sm"
           onClick={handleExport}
@@ -572,10 +588,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div data-testid="chat-messages" className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg, idx) => (
           <div
             key={idx}
+            data-testid={`chat-message-${idx}`}
+            data-role={msg.role}
             className={cn(
               'flex flex-col gap-1',
               msg.role === 'user' ? 'items-end' : 'items-start'
@@ -601,7 +619,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           </div>
         ))}
         {isLoading && (
-          <div className="flex items-start gap-2">
+          <div data-testid="chat-loading-indicator" className="flex items-start gap-2">
             <span className="text-xs font-medium text-muted-foreground">Assistant</span>
             <div className="bg-muted rounded-lg px-4 py-2">
               <div className="flex gap-1">
@@ -616,9 +634,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       </div>
 
       {/* Input */}
-      <div className="border-t p-4">
+      <div data-testid="chat-input-area" className="border-t p-4">
         <div className="flex gap-2">
           <Textarea
+            data-testid="chat-input"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -628,6 +647,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           />
           <div className="flex flex-col gap-2 shrink-0">
             <Button
+              data-testid="chat-voice-button"
               onClick={toggleVoiceRecording}
               disabled={isLoading}
               size="icon"
@@ -639,6 +659,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             </Button>
           </div>
           <Button
+            data-testid="chat-send-button"
             onClick={handleSendMessage}
             disabled={!inputValue.trim() || isLoading}
             size="icon"

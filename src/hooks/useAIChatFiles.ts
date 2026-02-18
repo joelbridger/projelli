@@ -120,19 +120,30 @@ export function useAIChatFiles({
     [rootPath, workspaceServiceRef, loadChatFiles]
   );
 
+  // Get provider display name
+  const getProviderDisplayName = (provider: 'anthropic' | 'openai' | 'google'): string => {
+    switch (provider) {
+      case 'anthropic': return 'Claude';
+      case 'openai': return 'ChatGPT';
+      case 'google': return 'Gemini';
+      default: return 'AI';
+    }
+  };
+
   // Handle creating new chat
   const handleCreateNewChat = useCallback(
-    async (_provider: 'anthropic' | 'openai' | 'google') => {
+    async (provider: 'anthropic' | 'openai' | 'google') => {
       if (!rootPath) return;
 
       const now = new Date();
       const timestamp = now.toISOString();
       const chatId = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-      // Create filename with date and time: YYYY-MM-DD_HH-MM-SS
-      const dateStr = now.toISOString().split('T')[0]; // e.g., "2026-01-26"
-      const timeStr = now.toISOString().split('T')[1]?.split('.')[0]?.replace(/:/g, '-'); // e.g., "14-30-15"
-      const title = `${dateStr}_${timeStr}`;
+      // Generate sequential title like "Claude Chat 1", "ChatGPT Chat 2"
+      const providerName = getProviderDisplayName(provider);
+      const existingChats = chatFiles.filter(c => c.title.startsWith(`${providerName} Chat`));
+      const nextNumber = existingChats.length + 1;
+      const title = `${providerName} Chat ${nextNumber}`;
 
       const newChat: AIChatFile = {
         id: chatId,
@@ -140,16 +151,18 @@ export function useAIChatFiles({
         created: timestamp,
         updated: timestamp,
         messages: [],
+        provider, // Store provider for future reference
       };
 
       await saveChatFile(newChat);
 
       // Open the chat file in the main panel (in date folder)
+      const dateStr = now.toISOString().split('T')[0];
       const filename = `${title}.aichat`;
       const filePath = `${rootPath}/AI Chats/${dateStr}/${filename}`;
       await handleFileOpen(filePath, filename);
     },
-    [rootPath, saveChatFile, handleFileOpen]
+    [rootPath, saveChatFile, handleFileOpen, chatFiles]
   );
 
   // Handle opening chat

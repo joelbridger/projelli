@@ -11,6 +11,7 @@ export interface ChatSession {
   isLoading: boolean;
   error?: string;
   lastUpdated: string;
+  draftInput?: string; // Unsent message draft
 }
 
 interface AIChatStore {
@@ -25,6 +26,8 @@ interface AIChatStore {
   setError: (chatId: string, error?: string) => void;
   removeSession: (chatId: string) => void;
   clearAllSessions: () => void;
+  setDraftInput: (chatId: string, draft: string) => void;
+  clearDraftInput: (chatId: string) => void;
 }
 
 export const useAIChatStore = create<AIChatStore>()(
@@ -144,10 +147,62 @@ export const useAIChatStore = create<AIChatStore>()(
       clearAllSessions: () => {
         set({ sessions: {} });
       },
+
+      setDraftInput: (chatId, draft) => {
+        set((state) => {
+          const session = state.sessions[chatId];
+          if (!session) {
+            // Create a minimal session to store the draft
+            return {
+              sessions: {
+                ...state.sessions,
+                [chatId]: {
+                  chatId,
+                  messages: [],
+                  isLoading: false,
+                  lastUpdated: new Date().toISOString(),
+                  draftInput: draft,
+                },
+              },
+            };
+          }
+          return {
+            sessions: {
+              ...state.sessions,
+              [chatId]: {
+                ...session,
+                draftInput: draft,
+              },
+            },
+          };
+        });
+      },
+
+      clearDraftInput: (chatId) => {
+        set((state) => {
+          const session = state.sessions[chatId];
+          if (!session) return state;
+
+          const { draftInput: _, ...sessionWithoutDraft } = session;
+          return {
+            sessions: {
+              ...state.sessions,
+              [chatId]: sessionWithoutDraft as ChatSession,
+            },
+          };
+        });
+      },
+
     }),
     {
       name: 'ai-chat-storage', // localStorage key
-      version: 1,
+      version: 2, // Bump version for new field
     }
   )
 );
+
+// Helper function to get draft input (non-reactive)
+export function getDraftInput(chatId: string): string {
+  const session = useAIChatStore.getState().sessions[chatId];
+  return session?.draftInput || '';
+}

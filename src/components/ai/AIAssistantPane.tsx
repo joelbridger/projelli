@@ -10,7 +10,6 @@ import {
   Bot,
   Key,
   MessageSquare,
-  ChevronRight,
   Trash2,
   Check,
   Eye,
@@ -41,7 +40,6 @@ interface AIAssistantPaneProps {
   onOpenChat: (chatFile: AIChatFile) => void;
   onDeleteChat: (chatId: string) => void;
   onOpenAIRules?: () => void;
-  onClose: () => void;
   className?: string;
 }
 
@@ -80,7 +78,6 @@ export function AIAssistantPane({
   onOpenChat,
   onDeleteChat,
   onOpenAIRules,
-  onClose,
   className,
 }: AIAssistantPaneProps) {
   const [activeTab, setActiveTab] = useState<'chats' | 'keys' | 'settings'>('chats');
@@ -150,7 +147,7 @@ export function AIAssistantPane({
   };
 
   return (
-    <div className={cn(
+    <div data-testid="ai-assistant-pane" className={cn(
       'flex flex-col h-full w-full bg-card',
       className
     )}>
@@ -158,11 +155,12 @@ export function AIAssistantPane({
       <div className="flex items-center justify-between border-b px-3 py-2 shrink-0">
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium truncate">AI Assistant</span>
+          <span data-testid="ai-assistant-title" className="text-sm font-medium truncate">AI Assistant</span>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {onOpenAIRules && (
             <Button
+              data-testid="ai-rules-button"
               variant="ghost"
               size="sm"
               className="h-6 px-2 text-xs gap-1 shrink-0"
@@ -173,15 +171,13 @@ export function AIAssistantPane({
               Rules
             </Button>
           )}
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 shrink-0" onClick={onClose}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
         </div>
       </div>
 
       {/* Tab Buttons - Fixed */}
       <div className="flex border-b shrink-0">
         <button
+          data-testid="ai-tab-chats"
           onClick={() => setActiveTab('chats')}
           className={cn(
             'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2',
@@ -194,6 +190,7 @@ export function AIAssistantPane({
           <span className="truncate">Chats</span>
         </button>
         <button
+          data-testid="ai-tab-keys"
           onClick={() => setActiveTab('keys')}
           className={cn(
             'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2',
@@ -206,6 +203,7 @@ export function AIAssistantPane({
           <span className="truncate">Keys</span>
         </button>
         <button
+          data-testid="ai-tab-models"
           onClick={() => setActiveTab('settings')}
           className={cn(
             'flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-colors border-b-2',
@@ -231,6 +229,7 @@ export function AIAssistantPane({
                 {(['anthropic', 'openai', 'google'] as const).map(provider => (
                   <Button
                     key={provider}
+                    data-testid={`new-chat-${provider}`}
                     variant="outline"
                     size="sm"
                     className="h-8 text-xs w-full justify-start"
@@ -258,6 +257,7 @@ export function AIAssistantPane({
                   {chatFiles.map(chatFile => (
                     <div
                       key={chatFile.id}
+                      data-testid={`chat-item-${chatFile.id}`}
                       className="p-3 hover:bg-muted/50 cursor-pointer group"
                       onClick={() => onOpenChat(chatFile)}
                     >
@@ -265,10 +265,12 @@ export function AIAssistantPane({
                         <FileText className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2 min-w-0">
-                            <h4 className="text-sm font-medium truncate min-w-0">{chatFile.title}</h4>
+                            <h4 data-testid={`chat-title-${chatFile.id}`} className="text-sm font-medium truncate min-w-0">{chatFile.title}</h4>
                             <Button
+                              data-testid={`delete-chat-${chatFile.id}`}
                               variant="ghost"
                               size="sm"
+                              aria-label="Delete chat"
                               className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 shrink-0"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -308,6 +310,7 @@ export function AIAssistantPane({
             {/* Help button */}
             <div className="flex justify-end">
               <Button
+                data-testid="api-key-help-button"
                 variant="ghost"
                 size="sm"
                 className="h-7 px-2 text-xs gap-1 shrink-0"
@@ -358,6 +361,7 @@ export function AIAssistantPane({
                     <div className="space-y-1.5">
                       <div className="flex gap-1.5 min-w-0">
                         <Input
+                          data-testid={`api-key-input-${provider}`}
                           type={showKeys[provider] ? 'text' : 'password'}
                           value={keyInputs[provider]}
                           onChange={(e) => setKeyInputs(prev => ({ ...prev, [provider]: e.target.value }))}
@@ -374,6 +378,7 @@ export function AIAssistantPane({
                         </Button>
                       </div>
                       <Button
+                        data-testid={`api-key-save-${provider}`}
                         size="sm"
                         className="h-8 w-full"
                         onClick={() => handleSaveKey(provider)}
@@ -407,6 +412,7 @@ export function AIAssistantPane({
             <div className="space-y-2">
               <label className="text-sm font-medium block truncate">Claude (Anthropic)</label>
               <select
+                data-testid="model-select-anthropic"
                 value={selectedModels['anthropic']}
                 onChange={(e) => setSelectedModels(prev => ({ ...prev, anthropic: e.target.value }))}
                 disabled={!hasApiKey('anthropic')}
@@ -454,6 +460,7 @@ export function AIAssistantPane({
             <div className="space-y-2 border-t pt-4">
               <label className="text-sm font-medium block truncate">ChatGPT (OpenAI)</label>
               <select
+                data-testid="model-select-openai"
                 value={selectedModels['openai']}
                 onChange={(e) => setSelectedModels(prev => ({ ...prev, openai: e.target.value }))}
                 disabled={!hasApiKey('openai')}
@@ -501,6 +508,7 @@ export function AIAssistantPane({
             <div className="space-y-2 border-t pt-4">
               <label className="text-sm font-medium block truncate">Gemini (Google)</label>
               <select
+                data-testid="model-select-google"
                 value={selectedModels['google']}
                 onChange={(e) => setSelectedModels(prev => ({ ...prev, google: e.target.value }))}
                 disabled={!hasApiKey('google')}

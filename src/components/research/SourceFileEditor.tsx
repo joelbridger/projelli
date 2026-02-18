@@ -52,6 +52,19 @@ export function SourceFileEditor({
     }
   }, [sourceCard?.url]);
 
+  // Timeout-based error detection for iframe loading
+  useEffect(() => {
+    if (sourceCard?.url && imageLoading && !imageError) {
+      const timeoutId = setTimeout(() => {
+        setImageLoading(false);
+        setImageError(true);
+      }, 5000); // 5 second timeout
+
+      return () => clearTimeout(timeoutId);
+    }
+    return undefined;
+  }, [sourceCard?.url, imageLoading, imageError]);
+
   const handleFieldChange = useCallback((field: keyof SourceCard, value: string) => {
     setSourceCard(prev => {
       if (!prev) return null;
@@ -207,7 +220,7 @@ export function SourceFileEditor({
         {sourceCard.url && (
           <div className="space-y-2">
             <Label>Website Preview</Label>
-            <div className="relative border rounded-lg overflow-hidden bg-muted/30 min-h-[300px]">
+            <div className="relative border rounded-lg overflow-hidden bg-muted/30 min-h-[120px]">
               {imageLoading && !imageError && (
                 <div className="absolute inset-0 flex items-center justify-center bg-muted/50">
                   <div className="flex flex-col items-center gap-2">
@@ -217,21 +230,22 @@ export function SourceFileEditor({
                 </div>
               )}
               {imageError ? (
-                <div className="flex flex-col items-center justify-center h-[300px] bg-muted text-muted-foreground p-6">
-                  <ExternalLink className="h-8 w-8 mb-3 opacity-50" />
-                  <p className="text-sm font-medium mb-2">Preview not available</p>
-                  <p className="text-xs text-center max-w-md mb-4 text-muted-foreground">
-                    This website blocks iframe embedding (X-Frame-Options header).
-                    Many sites do this for security reasons.
-                  </p>
+                <div className="flex items-center justify-center gap-3 py-4 px-6 bg-muted text-muted-foreground">
+                  <ExternalLink className="h-5 w-5 flex-shrink-0 opacity-50" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">Preview unavailable</p>
+                    <p className="text-xs text-muted-foreground">
+                      Site blocks iframe embedding
+                    </p>
+                  </div>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => openExternal(sourceCard.url)}
-                    className="gap-2"
+                    className="gap-2 flex-shrink-0"
                   >
-                    <ExternalLink className="h-4 w-4" />
-                    Open in Browser
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Open
                   </Button>
                 </div>
               ) : (
@@ -245,7 +259,7 @@ export function SourceFileEditor({
                     setImageError(true);
                   }}
                   sandbox="allow-scripts allow-same-origin"
-                  style={{ display: imageLoading ? 'none' : 'block', minHeight: '400px' }}
+                  style={{ display: imageLoading ? 'none' : 'block', minHeight: '300px' }}
                 />
               )}
             </div>

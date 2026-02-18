@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projelli — Your AI-Powered Workspace for Complex Projects</title>
+  <meta name="description" content="Master complexity with AI. Projelli is the local-first workspace where you organize businesses, finances, hobbies, gaming strategies, and any complex project — all offline, all yours.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    /* CSS Variables */
+    :root {
+      /* Colors */
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+
+      --accent-blue: #3B82F6;
+      --accent-purple: #8B5CF6;
+      --accent-pink: #EC4899;
+      --accent-green: #10B981;
+      --accent-amber: #F59E0B;
+      --accent-teal: #14B8A6;
+
+      /* Gradients */
+      --gradient-hero: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 50%, #EC4899 100%);
+      --gradient-cta: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%);
+      --gradient-purple-pink: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+
+      /* Spacing */
+      --section-padding: 100px;
+      --container-max: 1200px;
+
+      /* Transitions */
+      --transition-normal: 0.3s ease;
+      --transition-slow: 0.6s ease;
+    }
+
+    /* Reset & Base */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      position: relative;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.05;
+      background-image:
+        url('data:image/svg+xml;utf8,<svg width="30" height="45" viewBox="0 0 478 727" xmlns="http://www.w3.org/2000/svg"><path d="M236.565 0C373.994 0 478.215 124.076 454.667 259.652L443.272 325.261C438.907 350.393 438.907 376.091 443.272 401.223L454.667 466.832C478.214 602.41 373.993 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0Z" fill="%23FF7C6E"/></svg>'),
+        url('data:image/svg+xml;utf8,<svg width="30" height="45" viewBox="0 0 478 727" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(45 239 363.5)"><path d="M236.565 0C373.994 0 478.215 124.076 454.667 259.652L443.272 325.261C438.907 350.393 438.907 376.091 443.272 401.223L454.667 466.832C478.214 602.41 373.993 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0Z" fill="%23FF7C6E"/></g></svg>'),
+        url('data:image/svg+xml;utf8,<svg width="30" height="45" viewBox="0 0 478 727" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-30 239 363.5)"><path d="M236.565 0C373.994 0 478.215 124.076 454.667 259.652L443.272 325.261C438.907 350.393 438.907 376.091 443.272 401.223L454.667 466.832C478.214 602.41 373.993 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0Z" fill="%23FF7C6E"/></g></svg>'),
+        url('data:image/svg+xml;utf8,<svg width="30" height="45" viewBox="0 0 478 727" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(90 239 363.5)"><path d="M236.565 0C373.994 0 478.215 124.076 454.667 259.652L443.272 325.261C438.907 350.393 438.907 376.091 443.272 401.223L454.667 466.832C478.214 602.41 373.993 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0Z" fill="%23FF7C6E"/></g></svg>'),
+        url('data:image/svg+xml;utf8,<svg width="30" height="45" viewBox="0 0 478 727" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(15 239 363.5)"><path d="M236.565 0C373.994 0 478.215 124.076 454.667 259.652L443.272 325.261C438.907 350.393 438.907 376.091 443.272 401.223L454.667 466.832C478.214 602.41 373.993 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0Z" fill="%23FF7C6E"/></g></svg>'),
+        url('data:image/svg+xml;utf8,<svg width="30" height="45" viewBox="0 0 478 727" xmlns="http://www.w3.org/2000/svg"><g transform="rotate(-60 239 363.5)"><path d="M236.565 0C373.994 0 478.215 124.076 454.667 259.652L443.272 325.261C438.907 350.393 438.907 376.091 443.272 401.223L454.667 466.832C478.214 602.41 373.993 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0Z" fill="%23FF7C6E"/></g></svg>');
+      background-size: 30px 45px, 30px 45px, 30px 45px, 30px 45px, 30px 45px, 30px 45px;
+      background-position: 0 0, 100px 50px, 50px 150px, 150px 100px, 200px 0, 25px 200px;
+      background-repeat: repeat;
+    }
+
+    main {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Skip Link */
+    .skip-link {
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: var(--text-heading);
+      color: white;
+      padding: 8px 16px;
+      text-decoration: none;
+      z-index: 10000;
+    }
+    .skip-link:focus {
+      top: 0;
+    }
+
+    /* Container */
+    .container {
+      width: 100%;
+      max-width: var(--container-max);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Navigation */
+    .nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-bottom: 1px solid transparent;
+      transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+    }
+
+    .nav.scrolled {
+      border-bottom-color: var(--border-gray);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 72px;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      text-decoration: none;
+      color: var(--text-heading);
+      font-weight: 700;
+      font-size: 20px;
+    }
+
+    .nav-logo svg {
+      height: 28px;
+      width: auto;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 500;
+      transition: color var(--transition-normal);
+      position: relative;
+    }
+
+    .nav-links a:hover {
+      color: var(--text-heading);
+    }
+
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--gradient-cta);
+      transform: scaleX(0);
+      transition: transform var(--transition-normal);
+    }
+
+    .nav-links a:hover::after {
+      transform: scaleX(1);
+    }
+
+    .nav-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 24px;
+      border-radius: 9999px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all var(--transition-normal);
+      cursor: pointer;
+      border: none;
+      white-space: nowrap;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-body);
+    }
+
+    .btn-ghost:hover {
+      background: var(--bg-surface);
+    }
+
+    .btn-primary {
+      background: var(--gradient-cta);
+      color: white;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--text-body);
+      border: 1px solid var(--border-gray);
+    }
+
+    .btn-outline:hover {
+      border-color: var(--accent-blue);
+      background: rgba(59, 130, 246, 0.05);
+    }
+
+    .btn-lg {
+      padding: 14px 32px;
+      font-size: 16px;
+    }
+
+    .mobile-menu-btn {
+      display: none;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+    }
+
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      top: 72px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(20px);
+      padding: 24px;
+      transform: translateX(100%);
+      transition: transform var(--transition-normal);
+      z-index: 999;
+    }
+
+    .mobile-menu.open {
+      transform: translateX(0);
+    }
+
+    .mobile-menu nav {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .mobile-menu a {
+      text-decoration: none;
+      color: var(--text-heading);
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    /* Hero Section */
+    .hero {
+      padding-top: 120px;
+      padding-bottom: 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-glow {
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      filter: blur(100px);
+      opacity: 0.08;
+      pointer-events: none;
+    }
+
+    .hero-glow.blue {
+      background: var(--accent-blue);
+      top: -200px;
+      left: -100px;
+    }
+
+    .hero-glow.purple {
+      background: var(--accent-purple);
+      bottom: -200px;
+      right: -100px;
+    }
+
+    .hero-inner {
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-content {
+      text-align: center;
+      max-width: 900px;
+      margin: 0 auto 60px;
+    }
+
+    .hero h1 {
+      font-size: 4rem;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      color: var(--text-heading);
+      margin-bottom: 24px;
+    }
+
+    .gradient-text {
+      background: var(--gradient-hero);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-subtitle {
+      font-size: 1.25rem;
+      color: var(--text-body);
+      margin-bottom: 40px;
+      max-width: 700px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .hero-ctas {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* App Mockup */
+    .app-mockup {
+      max-width: 1000px;
+      margin: 0 auto;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1), 0 0 40px rgba(59, 130, 246, 0.08);
+      background: white;
+      border: 1px solid var(--border-gray);
+    }
+
+    .mockup-titlebar {
+      height: 40px;
+      background: #F8FAFC;
+      border-bottom: 1px solid var(--border-gray);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 8px;
+    }
+
+    .mockup-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .mockup-dot:nth-child(1) { background: #FF5F57; }
+    .mockup-dot:nth-child(2) { background: #FEBC2E; }
+    .mockup-dot:nth-child(3) { background: #28C840; }
+
+    .mockup-body {
+      display: flex;
+      height: 500px;
+      background: white;
+    }
+
+    .mockup-sidebar {
+      width: 220px;
+      background: #F8FAFC;
+      border-right: 1px solid var(--border-gray);
+      padding: 16px;
+      font-size: 13px;
+    }
+
+    .mockup-folder {
+      padding: 6px 8px;
+      margin-bottom: 4px;
+      border-radius: 6px;
+      color: var(--text-body);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mockup-folder.active {
+      background: white;
+      color: var(--accent-blue);
+      font-weight: 600;
+    }
+
+    .mockup-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .mockup-tabs {
+      height: 40px;
+      background: white;
+      border-bottom: 1px solid var(--border-gray);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .mockup-tab {
+      padding: 6px 12px;
+      border-radius: 6px 6px 0 0;
+      background: var(--bg-surface);
+      color: var(--text-body);
+    }
+
+    .mockup-tab.active {
+      background: white;
+      color: var(--accent-blue);
+      border-bottom: 2px solid var(--accent-blue);
+    }
+
+    .mockup-editor {
+      flex: 1;
+      padding: 24px;
+      color: var(--text-body);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .mockup-editor h2 {
+      font-size: 24px;
+      color: var(--text-heading);
+      margin-bottom: 16px;
+      font-weight: 700;
+    }
+
+    .mockup-editor p {
+      margin-bottom: 12px;
+      opacity: 0.7;
+    }
+
+    /* Section Styles */
+    section {
+      padding: var(--section-padding) 0;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .eyebrow {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent-blue);
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    h2 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      line-height: 1.2;
+      margin-bottom: 16px;
+    }
+
+    .section-header p {
+      font-size: 1.125rem;
+      color: var(--text-body);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    /* Social Proof */
+    .social-proof {
+      padding: 48px 0;
+      border-top: 1px solid var(--border-gray);
+      border-bottom: 1px solid var(--border-gray);
+    }
+
+    .stats-row {
+      display: flex;
+      justify-content: center;
+      gap: 64px;
+      flex-wrap: wrap;
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+
+    /* Features Grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    .feature-card {
+      background: white;
+      border: 1px solid var(--border-gray);
+      border-radius: 16px;
+      padding: 32px;
+      transition: all var(--transition-normal);
+    }
+
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+      border-color: rgba(59, 130, 246, 0.2);
+    }
+
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .feature-icon svg {
+      width: 24px;
+      height: 24px;
+      stroke: white;
+    }
+
+    .feature-icon.blue { background: var(--accent-blue); }
+    .feature-icon.green { background: var(--accent-green); }
+    .feature-icon.purple { background: var(--accent-purple); }
+    .feature-icon.amber { background: var(--accent-amber); }
+    .feature-icon.pink { background: var(--accent-pink); }
+    .feature-icon.teal { background: var(--accent-teal); }
+
+    .feature-card h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-heading);
+      margin-bottom: 12px;
+    }
+
+    .feature-card p {
+      font-size: 0.9375rem;
+      color: var(--text-body);
+      line-height: 1.6;
+    }
+
+    /* Feature Showcase */
+    .feature-showcase {
+      background: var(--bg-surface);
+    }
+
+    .feature-row {
+      display: flex;
+      align-items: center;
+      gap: 80px;
+      margin-bottom: 100px;
+    }
+
+    .feature-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .feature-row.reverse {
+      flex-direction: row-reverse;
+    }
+
+    .feature-text {
+      flex: 1;
+    }
+
+    .feature-text h2 {
+      text-align: left;
+      margin-bottom: 16px;
+    }
+
+    .feature-text p {
+      margin-bottom: 24px;
+      font-size: 1rem;
+    }
+
+    .feature-list {
+      list-style: none;
+    }
+
+    .feature-list li {
+      padding: 8px 0;
+      padding-left: 28px;
+      position: relative;
+      font-size: 0.9375rem;
+    }
+
+    .feature-list li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: var(--accent-green);
+      font-weight: 700;
+    }
+
+    .feature-visual {
+      flex: 1;
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      border: 1px solid var(--border-gray);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+    }
+
+    /* Workflow Templates */
+    .workflows {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.03) 0%, rgba(139, 92, 246, 0.03) 50%, rgba(236, 72, 153, 0.03) 100%);
+    }
+
+    .workflows-scroll {
+      display: flex;
+      gap: 24px;
+      overflow-x: auto;
+      padding: 8px 0 32px;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    .workflows-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .workflow-card {
+      flex: 0 0 280px;
+      background: white;
+      border: 1px solid var(--border-gray);
+      border-radius: 16px;
+      padding: 24px;
+      scroll-snap-align: start;
+      transition: all var(--transition-normal);
+    }
+
+    .workflow-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+    }
+
+    .workflow-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      font-size: 20px;
+    }
+
+    .workflow-card h3 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-heading);
+      margin-bottom: 8px;
+    }
+
+    .workflow-card p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .workflow-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .workflow-tag {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--accent-blue);
+      font-weight: 500;
+    }
+
+    /* How It Works */
+    .how-it-works {
+      background: white;
+    }
+
+    .steps-row {
+      display: flex;
+      justify-content: center;
+      gap: 64px;
+      position: relative;
+    }
+
+    .step {
+      flex: 0 0 300px;
+      text-align: center;
+    }
+
+    .step-number {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--gradient-cta);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 0 auto 24px;
+      box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+    }
+
+    .step h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-heading);
+      margin-bottom: 12px;
+    }
+
+    .step p {
+      font-size: 0.9375rem;
+      color: var(--text-body);
+    }
+
+    /* Pricing */
+    .pricing {
+      background: var(--bg-surface);
+    }
+
+    .pricing-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 32px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .pricing-card {
+      background: white;
+      border: 1px solid var(--border-gray);
+      border-radius: 16px;
+      padding: 40px;
+      position: relative;
+    }
+
+    .pricing-card.featured {
+      border-top: 3px solid;
+      border-image: var(--gradient-cta) 1;
+      box-shadow: 0 12px 32px rgba(59, 130, 246, 0.15);
+    }
+
+    .pricing-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--gradient-cta);
+      color: white;
+      padding: 4px 16px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .pricing-name {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-heading);
+      margin-bottom: 8px;
+    }
+
+    .pricing-price {
+      font-size: 3rem;
+      font-weight: 800;
+      color: var(--text-heading);
+      margin-bottom: 8px;
+    }
+
+    .pricing-price span {
+      font-size: 1rem;
+      font-weight: 400;
+      color: var(--text-muted);
+    }
+
+    .pricing-description {
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      font-size: 0.9375rem;
+    }
+
+    .pricing-features {
+      list-style: none;
+      margin-bottom: 32px;
+    }
+
+    .pricing-features li {
+      padding: 10px 0;
+      padding-left: 28px;
+      position: relative;
+      font-size: 0.9375rem;
+      color: var(--text-body);
+    }
+
+    .pricing-features li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: var(--accent-green);
+      font-weight: 700;
+    }
+
+    /* CTA Section */
+    .cta-section {
+      background: white;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-glow {
+      position: absolute;
+      width: 800px;
+      height: 800px;
+      border-radius: 50%;
+      background: var(--gradient-hero);
+      filter: blur(120px);
+      opacity: 0.1;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      animation: pulse-glow 8s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.08; transform: translate(-50%, -50%) scale(1); }
+      50% { opacity: 0.12; transform: translate(-50%, -50%) scale(1.05); }
+    }
+
+    .cta-content {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    /* Footer */
+    .footer {
+      background: var(--text-heading);
+      color: white;
+      padding: 64px 0 32px;
+    }
+
+    .footer-top {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 48px;
+      margin-bottom: 48px;
+    }
+
+    .footer-brand {
+      max-width: 300px;
+    }
+
+    .footer-brand svg {
+      height: 28px;
+      margin-bottom: 16px;
+    }
+
+    .footer-brand p {
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+
+    .footer-column h4 {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 16px;
+    }
+
+    .footer-column ul {
+      list-style: none;
+    }
+
+    .footer-column li {
+      margin-bottom: 10px;
+    }
+
+    .footer-column a {
+      color: rgba(255, 255, 255, 0.7);
+      text-decoration: none;
+      font-size: 0.9375rem;
+      transition: color var(--transition-normal);
+    }
+
+    .footer-column a:hover {
+      color: white;
+    }
+
+    .footer-bottom {
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding-top: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.875rem;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* Animations */
+    .animate-on-scroll {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity var(--transition-slow), transform var(--transition-slow);
+    }
+
+    .animate-on-scroll.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .feature-row {
+        gap: 48px;
+      }
+
+      .footer-top {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .nav-links,
+      .nav-actions .btn-ghost {
+        display: none;
+      }
+
+      .mobile-menu-btn {
+        display: block;
+      }
+
+      .mobile-menu {
+        display: block;
+      }
+
+      .hero h1 {
+        font-size: 2.25rem;
+      }
+
+      .hero-subtitle {
+        font-size: 1rem;
+      }
+
+      .hero-ctas {
+        flex-direction: column;
+      }
+
+      .mockup-body {
+        height: 400px;
+      }
+
+      .mockup-sidebar {
+        display: none;
+      }
+
+      h2 {
+        font-size: 1.75rem;
+      }
+
+      .section-header p {
+        font-size: 1rem;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .feature-row {
+        flex-direction: column !important;
+        gap: 40px;
+      }
+
+      .steps-row {
+        flex-direction: column;
+        gap: 48px;
+      }
+
+      .pricing-cards {
+        grid-template-columns: 1fr;
+      }
+
+      .footer-top {
+        grid-template-columns: 1fr;
+        gap: 32px;
+      }
+
+      .footer-bottom {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- Navigation -->
+  <header class="nav" id="nav">
+    <div class="container nav-inner">
+      <a href="#" class="nav-logo">
+        <svg width="140" height="30" viewBox="0 0 2697 727" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M236.565 0C373.994 0 478.215 124.076 454.667 259.652L443.272 325.261C438.907 350.393 438.907 376.091 443.272 401.223L454.667 466.832C478.214 602.41 373.993 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0Z" fill="#FF7C6E"/>
+          <path d="M288.008 720.487C271.55 724.395 254.34 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0C254.339 0 271.549 2.09148 288.007 5.99776C206.645 25.3475 141.289 89.8628 122.897 174.581C95.9067 298.903 95.9067 427.581 122.897 551.903C141.291 636.622 206.646 701.138 288.008 720.487Z" fill="#FF6554"/>
+          <path d="M339.552 102.656C339.552 124.462 321.875 142.139 300.069 142.139C278.263 142.139 260.586 124.462 260.586 102.656C260.586 80.8499 278.263 63.173 300.069 63.173C321.875 63.173 339.552 80.8499 339.552 102.656ZM363.242 157.931C350.16 157.931 339.552 168.538 339.552 181.621C339.552 194.705 350.158 205.312 363.242 205.312C376.324 205.312 386.932 194.705 386.932 181.621C386.932 168.538 376.324 157.931 363.242 157.931Z" fill="#FFA69F"/>
+          <path d="M2601.16 522.463V205.311H2686.11V522.463H2601.16ZM2643.95 161.892C2628.85 161.892 2616.26 157.487 2606.19 148.677C2596.55 139.448 2591.72 127.911 2591.72 114.067C2591.72 100.223 2596.55 88.8963 2606.19 80.0865C2616.26 70.8573 2628.85 66.2426 2643.95 66.2426C2659.47 66.2426 2672.06 70.8573 2681.71 80.0865C2691.78 88.8963 2696.81 100.223 2696.81 114.067C2696.81 127.911 2691.78 139.448 2681.71 148.677C2672.06 157.487 2659.47 161.892 2643.95 161.892Z" fill="#111F35"/>
+          <path d="M2431.51 522.463V69.389H2516.46V522.463H2431.51Z" fill="#111F35"/>
+          <path d="M2263.74 522.463V69.389H2348.7V522.463H2263.74Z" fill="#111F35"/>
+          <path d="M2037.48 530.014C2005.6 530.014 1977.28 523.302 1952.53 509.878C1928.2 496.034 1909.11 476.946 1895.27 452.614C1881.84 427.863 1875.13 399.336 1875.13 367.033C1875.13 333.892 1881.84 304.736 1895.27 279.565C1909.11 253.975 1928.2 234.048 1952.53 219.784C1976.86 205.101 2005.18 197.76 2037.48 197.76C2068.95 197.76 2096.42 204.682 2119.92 218.526C2143.41 232.37 2161.66 251.038 2174.66 274.531C2187.67 298.023 2194.17 324.663 2194.17 354.448C2194.17 358.643 2194.17 363.467 2194.17 368.921C2194.17 373.955 2193.75 379.199 2192.91 384.653H1935.54V333.053H2108.59C2107.33 312.497 2099.99 296.345 2086.57 284.599C2073.56 272.853 2057.2 266.979 2037.48 266.979C2023.22 266.979 2010 270.336 1997.84 277.048C1985.67 283.34 1976.02 293.199 1968.89 306.623C1962.18 320.048 1958.82 337.038 1958.82 357.594V375.843C1958.82 393.043 1961.97 408.146 1968.26 421.151C1974.98 433.736 1984.2 443.594 1995.95 450.726C2007.7 457.438 2021.33 460.794 2036.85 460.794C2052.38 460.794 2065.17 457.438 2075.24 450.726C2085.73 444.014 2093.49 435.414 2098.52 424.926H2185.36C2179.49 444.643 2169.63 462.473 2155.79 478.414C2141.94 494.355 2124.95 506.941 2104.81 516.17C2084.68 525.399 2062.23 530.014 2037.48 530.014Z" fill="#111F35"/>
+          <path d="M1652.74 660.902V588.536H1678.54C1691.96 588.536 1701.4 585.81 1706.86 580.356C1712.73 574.902 1715.67 566.092 1715.67 553.927V205.311H1800.62V553.297C1800.62 579.307 1796 600.073 1786.77 615.595C1777.96 631.536 1765.38 643.073 1749.02 650.205C1732.66 657.336 1713.36 660.902 1691.12 660.902H1652.74ZM1758.46 161.892C1742.93 161.892 1730.35 157.487 1720.7 148.677C1711.05 139.448 1706.23 127.911 1706.23 114.067C1706.23 100.223 1711.05 88.8963 1720.7 80.0865C1730.35 70.8573 1742.93 66.2426 1758.46 66.2426C1773.98 66.2426 1786.56 70.8573 1796.21 80.0865C1805.86 88.8963 1810.69 100.223 1810.69 114.067C1810.69 127.911 1805.86 139.448 1796.21 148.677C1786.56 157.487 1773.98 161.892 1758.46 161.892Z" fill="#111F35"/>
+          <path d="M1478.21 530.014C1448 530.014 1420.74 523.092 1396.4 509.248C1372.49 494.985 1353.4 475.477 1339.14 450.726C1325.3 425.555 1318.38 396.819 1318.38 364.516C1318.38 331.375 1325.3 302.428 1339.14 277.677C1353.4 252.506 1372.7 232.999 1397.03 219.155C1421.37 204.892 1448.63 197.76 1478.84 197.76C1509.46 197.76 1536.73 204.892 1560.64 219.155C1584.98 232.999 1604.06 252.506 1617.91 277.677C1632.17 302.428 1639.3 331.165 1639.3 363.887C1639.3 396.609 1632.17 425.555 1617.91 450.726C1604.06 475.477 1584.98 494.985 1560.64 509.248C1536.31 523.092 1508.83 530.014 1478.21 530.014ZM1478.21 456.39C1492.47 456.39 1505.06 453.033 1515.97 446.321C1527.29 439.609 1536.1 429.331 1542.4 415.487C1549.11 401.643 1552.46 384.443 1552.46 363.887C1552.46 343.331 1549.11 326.341 1542.4 312.916C1536.1 299.072 1527.29 288.794 1515.97 282.082C1505.06 274.95 1492.68 271.384 1478.84 271.384C1465.41 271.384 1453.04 274.95 1441.71 282.082C1430.39 288.794 1421.37 299.072 1414.65 312.916C1408.36 326.341 1405.21 343.331 1405.21 363.887C1405.21 384.443 1408.36 401.643 1414.65 415.487C1421.37 429.331 1430.18 439.609 1441.08 446.321C1452.41 453.033 1464.79 456.39 1478.21 456.39Z" fill="#111F35"/>
+          <path d="M1075.88 522.463V205.311H1151.39L1159.57 263.833C1167.12 249.989 1176.56 238.243 1187.89 228.594C1199.63 218.945 1212.85 211.394 1227.53 205.94C1242.63 200.487 1259.2 197.76 1277.24 197.76V287.745H1248.3C1235.71 287.745 1223.96 289.214 1213.06 292.15C1202.57 295.087 1193.34 299.911 1185.37 306.623C1177.4 312.916 1171.31 321.726 1167.12 333.053C1162.92 344.38 1160.83 358.643 1160.83 375.843V522.463H1075.88Z" fill="#111F35"/>
+          <path d="M663.532 660.902V205.311H739.044L748.483 249.36C755.195 240.131 763.166 231.74 772.395 224.189C781.625 216.218 792.532 209.926 805.117 205.311C818.122 200.277 833.225 197.76 850.425 197.76C880.21 197.76 906.43 205.101 929.083 219.784C951.737 234.467 969.566 254.394 982.571 279.565C995.996 304.316 1002.71 332.633 1002.71 364.516C1002.71 396.399 995.996 424.926 982.571 450.097C969.147 474.848 951.108 494.356 928.454 508.619C905.801 522.882 880 530.014 851.054 530.014C827.561 530.014 807.215 525.819 790.015 517.429C773.234 508.619 759.39 496.663 748.483 481.56V660.902H663.532ZM830.917 455.76C847.698 455.76 862.381 451.985 874.966 444.433C887.971 436.882 898.04 426.185 905.171 412.341C912.303 398.497 915.869 382.555 915.869 364.516C915.869 346.477 912.303 330.536 905.171 316.692C898.04 302.428 887.971 291.521 874.966 283.97C862.381 275.999 847.698 272.014 830.917 272.014C814.556 272.014 799.873 275.999 786.869 283.97C774.283 291.521 764.215 302.219 756.664 316.062C749.532 329.906 745.966 345.848 745.966 363.887C745.966 381.926 749.532 398.077 756.664 412.341C764.215 426.185 774.283 436.882 786.869 444.433C799.873 451.985 814.556 455.76 830.917 455.76Z" fill="#111F35"/>
+        </svg>
+      </a>
+
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#workflows">Templates</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#pricing">Pricing</a>
+      </nav>
+
+      <div class="nav-actions">
+        <a href="#" class="btn btn-ghost">Sign In</a>
+        <a href="#pricing" class="btn btn-primary">Get Started Free</a>
+      </div>
+
+      <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle menu">
+        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M3 12h18M3 6h18M3 18h18"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="mobile-menu" id="mobile-menu">
+      <nav>
+        <a href="#features">Features</a>
+        <a href="#workflows">Templates</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#pricing">Pricing</a>
+        <a href="https://github.com/joelbridger/projelli/releases/download/v1.0.0/Projelli_1.0.0_x64-setup.exe" class="btn btn-primary" style="margin-top: 24px;">Download for Windows</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero-glow blue"></div>
+      <div class="hero-glow purple"></div>
+
+      <div class="container hero-inner">
+        <div class="hero-content">
+          <h1>
+            Impossible project?<br>
+            <span class="gradient-text">Not anymore.</span>
+          </h1>
+
+          <p class="hero-subtitle">
+            Projelli is the AI-powered workspace for managing life's complex projects—from starting a business to organizing your finances, mastering gaming strategies, or diving deep into your hobbies. All local, all yours.
+          </p>
+
+          <div class="hero-ctas">
+            <a href="#pricing" class="btn btn-primary btn-lg">Download for Free</a>
+            <a href="https://github.com/joelbridger/projelli" class="btn btn-outline btn-lg">View on GitHub</a>
+          </div>
+        </div>
+
+        <!-- App Mockup -->
+        <div class="app-mockup">
+          <div class="mockup-titlebar">
+            <div class="mockup-dot"></div>
+            <div class="mockup-dot"></div>
+            <div class="mockup-dot"></div>
+          </div>
+
+          <div class="mockup-body">
+            <div class="mockup-sidebar">
+              <div class="mockup-folder active">📁 My Projects</div>
+              <div class="mockup-folder">📄 Startup Ideas.md</div>
+              <div class="mockup-folder">📄 D&D Campaign.md</div>
+              <div class="mockup-folder">📄 Financial Plan.md</div>
+              <div class="mockup-folder">📁 Research Notes</div>
+              <div class="mockup-folder">📁 Templates</div>
+            </div>
+
+            <div class="mockup-main">
+              <div class="mockup-tabs">
+                <div class="mockup-tab active">Startup Ideas.md</div>
+                <div class="mockup-tab">D&D Campaign.md</div>
+              </div>
+
+              <div class="mockup-editor">
+                <h2>Project Overview</h2>
+                <p>Complex projects need more than scattered notes across ChatGPT, Notion, and Google Docs...</p>
+                <p>Whether you're starting a business, organizing your finances, planning a D&D campaign, or mastering a new skill...</p>
+                <p>Projelli keeps everything connected in one workspace—with AI that actually remembers your context.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Social Proof -->
+    <section class="social-proof">
+      <div class="container">
+        <div class="stats-row">
+          <div class="stat-item">
+            <div class="stat-value">15+</div>
+            <div class="stat-label">Project Templates</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">3</div>
+            <div class="stat-label">AI Models</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">100%</div>
+            <div class="stat-label">Offline Capable</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">0</div>
+            <div class="stat-label">Cloud Dependencies</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Grid -->
+    <section class="features" id="features">
+      <div class="container">
+        <div class="section-header">
+          <span class="eyebrow">FEATURES</span>
+          <h2>Everything you need to master complexity</h2>
+          <p>From your first idea to a fully-realized plan, Projelli keeps all your complex projects organized in one connected workspace.</p>
+        </div>
+
+        <div class="features-grid">
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon blue">
+              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+            <h3>AI Chat That Creates</h3>
+            <p>Have a conversation with AI that produces real documents. Your chat isn't throwaway—it creates persistent artifacts you can edit, refine, and build on for any project.</p>
+          </div>
+
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon green">
+              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            <h3>Local-First & Private</h3>
+            <p>Your data never leaves your machine. Work offline, on a plane, in a cabin—Projelli works everywhere, with zero cloud dependency.</p>
+          </div>
+
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon purple">
+              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+            </div>
+            <h3>Markdown Editor</h3>
+            <p>A powerful editor with wiki-links, backlinks, split panes, and live preview. Connect your ideas like a second brain.</p>
+          </div>
+
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon amber">
+              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+            </div>
+            <h3>Version History</h3>
+            <p>Every change tracked. Undo, redo, and diff preview let you confidently iterate without fear of losing work.</p>
+          </div>
+
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon pink">
+              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                <polyline points="2 17 12 22 22 17"/>
+                <polyline points="2 12 12 17 22 12"/>
+              </svg>
+            </div>
+            <h3>Multi-Model AI</h3>
+            <p>Bring your own keys for Claude, OpenAI, or Gemini. Switch models per conversation. You're never locked in.</p>
+          </div>
+
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon teal">
+              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+              </svg>
+            </div>
+            <h3>Research & Citations</h3>
+            <p>Ground your business decisions in real data. The built-in research system tracks sources and citations alongside your documents.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Feature Showcase -->
+    <section class="feature-showcase">
+      <div class="container">
+        <div class="feature-row animate-on-scroll">
+          <div class="feature-visual">
+            <h3 style="margin-bottom: 16px; font-size: 1.125rem;">💬 AI Chat Interface</h3>
+            <div style="background: #F8FAFC; padding: 16px; border-radius: 12px; margin-bottom: 12px;">
+              <div style="font-size: 13px; color: #94A3B8; margin-bottom: 8px;">You:</div>
+              <div style="font-size: 14px; line-height: 1.6;">Help me plan a D&D campaign with connected storylines, NPCs, and world-building.</div>
+            </div>
+            <div style="background: rgba(59, 130, 246, 0.05); padding: 16px; border-radius: 12px; border-left: 3px solid #3B82F6;">
+              <div style="font-size: 13px; color: #3B82F6; margin-bottom: 8px; font-weight: 600;">AI:</div>
+              <div style="font-size: 14px; line-height: 1.6;">I'll help you build a comprehensive campaign structure. Let's start with your campaign overview...</div>
+              <div style="margin-top: 12px; padding: 12px; background: white; border-radius: 8px; border: 1px solid #E2E8F0; font-size: 13px;">
+                ✓ Created: <strong>Campaign Overview.md</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="feature-text">
+            <span class="eyebrow">AI WORKSPACE</span>
+            <h2>Chat that creates, not just answers</h2>
+            <p>Unlike throwaway AI chats, every Projelli conversation produces persistent documents—project plans, research notes, strategy guides, and more. Edit them inline, version them, link them together.</p>
+            <ul class="feature-list">
+              <li>Artifacts persist as editable documents</li>
+              <li>Full audit trail of every AI action</li>
+              <li>Refine outputs with follow-up prompts</li>
+              <li>Export to Markdown or PDF</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="feature-row reverse animate-on-scroll">
+          <div class="feature-visual">
+            <h3 style="margin-bottom: 16px; font-size: 1.125rem;">🔗 Connected Knowledge</h3>
+            <div style="font-size: 14px; line-height: 1.8; color: #475569;">
+              <p style="margin-bottom: 12px;">The main villain uses <span style="background: rgba(59, 130, 246, 0.1); color: #3B82F6; padding: 2px 6px; border-radius: 4px;">[[Shadow Magic]]</span> from the <span style="background: rgba(59, 130, 246, 0.1); color: #3B82F6; padding: 2px 6px; border-radius: 4px;">[[Forbidden Archive]]</span>.</p>
+              <div style="margin-top: 16px; padding: 12px; background: #F8FAFC; border-radius: 8px; border-left: 3px solid #10B981; font-size: 13px;">
+                <div style="color: #10B981; font-weight: 600; margin-bottom: 6px;">Backlinks (2)</div>
+                <div>← <a href="#" style="color: #3B82F6; text-decoration: none;">NPC: The Archivist.md</a></div>
+                <div>← <a href="#" style="color: #3B82F6; text-decoration: none;">Quest 3: The Ritual.md</a></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="feature-text">
+            <span class="eyebrow">CONNECTED KNOWLEDGE</span>
+            <h2>A workspace that thinks like you do</h2>
+            <p>Every document in Projelli can link to every other. Wiki-style linking, automatic backlinks, and full-text search mean you never lose a thought. Split panes let you reference one document while writing another.</p>
+            <ul class="feature-list">
+              <li>[[Wiki-links]] between any documents</li>
+              <li>Automatic backlink discovery</li>
+              <li>Split-pane editing</li>
+              <li>Full-text search across everything</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="feature-row animate-on-scroll">
+          <div class="feature-visual">
+            <div style="text-align: center; padding: 40px 20px;">
+              <div style="width: 80px; height: 80px; margin: 0 auto 24px; border-radius: 50%; background: rgba(16, 185, 129, 0.1); display: flex; align-items: center; justify-content: center;">
+                <svg width="40" height="40" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+              </div>
+              <h3 style="font-size: 1.5rem; color: #111F35; margin-bottom: 12px;">100% Local</h3>
+              <p style="color: #475569; font-size: 15px; line-height: 1.6;">Your data never leaves your machine. Built on Tauri with SQLite and local file storage.</p>
+              <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                <span style="padding: 6px 12px; background: rgba(16, 185, 129, 0.1); color: #10B981; border-radius: 9999px; font-size: 12px; font-weight: 600;">No Cloud</span>
+                <span style="padding: 6px 12px; background: rgba(16, 185, 129, 0.1); color: #10B981; border-radius: 9999px; font-size: 12px; font-weight: 600;">No Account</span>
+                <span style="padding: 6px 12px; background: rgba(16, 185, 129, 0.1); color: #10B981; border-radius: 9999px; font-size: 12px; font-weight: 600;">Full Privacy</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="feature-text">
+            <span class="eyebrow">LOCAL-FIRST</span>
+            <h2>Your data, your machine, your rules</h2>
+            <p>Projelli stores everything locally using SQLite and the file system. No accounts required, no data synced to someone else's server. Built on Tauri for native desktop performance with a tiny footprint.</p>
+            <ul class="feature-list">
+              <li>SQLite + local file storage</li>
+              <li>Works fully offline</li>
+              <li>No account or sign-up required</li>
+              <li>Native desktop app via Tauri (Rust)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Workflow Templates -->
+    <section class="workflows" id="workflows">
+      <div class="container">
+        <div class="section-header">
+          <span class="eyebrow">TEMPLATES</span>
+          <h2>15+ guided templates for any project</h2>
+          <p>From starting a business to mastering a hobby, Projelli's guided templates help you organize any complex project with AI assistance.</p>
+        </div>
+
+        <div class="workflows-scroll">
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(59, 130, 246, 0.1);">🚀</div>
+            <h3>New Business</h3>
+            <p>Launch a startup from scratch with vision, strategy, and planning.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Vision</span>
+              <span class="workflow-tag">Business Plan</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(16, 185, 129, 0.1);">💰</div>
+            <h3>Financial Planning</h3>
+            <p>Organize budgets, investments, and long-term financial goals.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Budget</span>
+              <span class="workflow-tag">Goals</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(139, 92, 246, 0.1);">🎮</div>
+            <h3>Gaming Strategy</h3>
+            <p>Plan D&D campaigns, game guides, or competitive strategies.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Campaign</span>
+              <span class="workflow-tag">Strategy</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(236, 72, 153, 0.1);">🎨</div>
+            <h3>Hobby Deep Dive</h3>
+            <p>Master photography, woodworking, cooking, or any craft.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Skills</span>
+              <span class="workflow-tag">Projects</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(245, 158, 11, 0.1);">📚</div>
+            <h3>Learning Path</h3>
+            <p>Structure your journey to learn anything—languages, skills, subjects.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Curriculum</span>
+              <span class="workflow-tag">Resources</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(14, 165, 233, 0.1);">🏠</div>
+            <h3>Home Project</h3>
+            <p>Plan renovations, organize moves, or manage household tasks.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Planning</span>
+              <span class="workflow-tag">Checklists</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(6, 182, 212, 0.1);">✈️</div>
+            <h3>Travel Planning</h3>
+            <p>Research destinations, build itineraries, track expenses.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Itinerary</span>
+              <span class="workflow-tag">Budget</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(99, 102, 241, 0.1);">🔬</div>
+            <h3>Research Project</h3>
+            <p>Organize academic research, citations, and findings.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Notes</span>
+              <span class="workflow-tag">Sources</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(239, 68, 68, 0.1);">🎯</div>
+            <h3>Goal Setting</h3>
+            <p>Define personal goals, track habits, and plan milestones.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Goals</span>
+              <span class="workflow-tag">Tracking</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(234, 179, 8, 0.1);">🎉</div>
+            <h3>Event Planning</h3>
+            <p>Organize weddings, parties, conferences, or gatherings.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Timeline</span>
+              <span class="workflow-tag">Vendors</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(244, 63, 94, 0.1);">✍️</div>
+            <h3>Creative Project</h3>
+            <p>Write novels, compose music, or produce creative works.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Outline</span>
+              <span class="workflow-tag">Ideas</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(16, 185, 129, 0.1);">💪</div>
+            <h3>Health & Fitness</h3>
+            <p>Plan workouts, track nutrition, organize wellness goals.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Routines</span>
+              <span class="workflow-tag">Progress</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(139, 92, 246, 0.1);">🌱</div>
+            <h3>Life Organization</h3>
+            <p>Declutter, systematize routines, and optimize daily life.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Systems</span>
+              <span class="workflow-tag">Habits</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(59, 130, 246, 0.1);">🛠️</div>
+            <h3>Career Development</h3>
+            <p>Plan job searches, build skills, track networking.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Resume</span>
+              <span class="workflow-tag">Network</span>
+            </div>
+          </div>
+
+          <div class="workflow-card animate-on-scroll">
+            <div class="workflow-icon" style="background: rgba(245, 158, 11, 0.1);">🧠</div>
+            <h3>Knowledge Base</h3>
+            <p>Build your personal wiki for any interest or expertise area.</p>
+            <div class="workflow-tags">
+              <span class="workflow-tag">Wiki</span>
+              <span class="workflow-tag">Links</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="how-it-works" id="how-it-works">
+      <div class="container">
+        <div class="section-header">
+          <span class="eyebrow">HOW IT WORKS</span>
+          <h2>From idea to organized project in three steps</h2>
+          <p>No learning curve. No setup. Just open Projelli and start organizing.</p>
+        </div>
+
+        <div class="steps-row">
+          <div class="step animate-on-scroll">
+            <div class="step-number">1</div>
+            <h3>Pick a Template</h3>
+            <p>Choose from 15+ guided templates—or start from scratch. Each template knows what documents you need and helps you create them.</p>
+          </div>
+
+          <div class="step animate-on-scroll">
+            <div class="step-number">2</div>
+            <h3>Chat with AI</h3>
+            <p>Describe your project in natural language. Projelli's AI asks the right questions and produces real, editable documents tailored to your needs.</p>
+          </div>
+
+          <div class="step animate-on-scroll">
+            <div class="step-number">3</div>
+            <h3>Refine & Connect</h3>
+            <p>Edit your documents in the Markdown editor, link them together with wiki-links, and iterate with AI until your project is fully organized.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="pricing" id="pricing">
+      <div class="container">
+        <div class="section-header">
+          <span class="eyebrow">PRICING</span>
+          <h2>Start free. Go Pro when you're ready.</h2>
+          <p>Everything you need to organize your first projects is free. Upgrade for all templates and multi-model AI.</p>
+        </div>
+
+        <div class="pricing-cards">
+          <div class="pricing-card animate-on-scroll">
+            <div class="pricing-name">Starter</div>
+            <div class="pricing-price">$0<span> / forever</span></div>
+            <div class="pricing-description">Perfect for getting started with your first projects.</div>
+            <ul class="pricing-features">
+              <li>Core workspace & editor</li>
+              <li>5 project templates</li>
+              <li>1 AI model connection</li>
+              <li>Local file storage</li>
+              <li>Version history</li>
+            </ul>
+            <a href="https://github.com/joelbridger/projelli/releases/download/v1.0.0/Projelli_1.0.0_x64-setup.exe" class="btn btn-outline btn-lg" style="width: 100%;">Download Free</a>
+          </div>
+
+          <div class="pricing-card featured animate-on-scroll">
+            <div class="pricing-badge">MOST POPULAR</div>
+            <div class="pricing-name">Pro</div>
+            <div class="pricing-price">$12<span> / month</span></div>
+            <div class="pricing-description">Everything you need to organize unlimited complex projects.</div>
+            <ul class="pricing-features">
+              <li>Everything in Starter, plus:</li>
+              <li>All 15+ project templates</li>
+              <li>Multi-model AI (Claude, OpenAI, Gemini)</li>
+              <li>Whiteboard & audio tools</li>
+              <li>Research & citations system</li>
+              <li>Priority updates</li>
+            </ul>
+            <button class="btn btn-primary btn-lg" style="width: 100%; opacity: 0.6; cursor: not-allowed;" disabled>Coming Soon</button>
+            <div style="text-align: center; margin-top: 12px; font-size: 13px; color: var(--text-muted);">All features currently free during beta</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Final CTA -->
+    <section class="cta-section">
+      <div class="cta-glow"></div>
+      <div class="container">
+        <div class="cta-content">
+          <h2>Ready to master your complex projects?</h2>
+          <p style="font-size: 1.125rem; color: var(--text-body); margin-bottom: 40px;">Join people organizing businesses, hobbies, finances, and more—locally, securely, and with full control.</p>
+          <a href="https://github.com/joelbridger/projelli/releases/download/v1.0.0/Projelli_1.0.0_x64-setup.exe" class="btn btn-primary btn-lg" style="font-size: 18px; padding: 18px 48px;">Download for Windows</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-top">
+        <div class="footer-brand">
+          <svg width="140" height="30" viewBox="0 0 2697 727" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M236.565 0C373.994 0 478.215 124.076 454.667 259.652L443.272 325.261C438.907 350.393 438.907 376.091 443.272 401.223L454.667 466.832C478.214 602.41 373.993 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0Z" fill="#FF7C6E"/>
+            <path d="M288.008 720.487C271.55 724.395 254.34 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0C254.339 0 271.549 2.09148 288.007 5.99776C206.645 25.3475 141.289 89.8628 122.897 174.581C95.9067 298.903 95.9067 427.581 122.897 551.903C141.291 636.622 206.646 701.138 288.008 720.487Z" fill="#FF6554"/>
+            <path d="M339.552 102.656C339.552 124.462 321.875 142.139 300.069 142.139C278.263 142.139 260.586 124.462 260.586 102.656C260.586 80.8499 278.263 63.173 300.069 63.173C321.875 63.173 339.552 80.8499 339.552 102.656ZM363.242 157.931C350.16 157.931 339.552 168.538 339.552 181.621C339.552 194.705 350.158 205.312 363.242 205.312C376.324 205.312 386.932 194.705 386.932 181.621C386.932 168.538 376.324 157.931 363.242 157.931Z" fill="#FFA69F"/>
+            <path d="M2601.16 522.463V205.311H2686.11V522.463H2601.16ZM2643.95 161.892C2628.85 161.892 2616.26 157.487 2606.19 148.677C2596.55 139.448 2591.72 127.911 2591.72 114.067C2591.72 100.223 2596.55 88.8963 2606.19 80.0865C2616.26 70.8573 2628.85 66.2426 2643.95 66.2426C2659.47 66.2426 2672.06 70.8573 2681.71 80.0865C2691.78 88.8963 2696.81 100.223 2696.81 114.067C2696.81 127.911 2691.78 139.448 2681.71 148.677C2672.06 157.487 2659.47 161.892 2643.95 161.892Z" fill="white"/>
+            <path d="M2431.51 522.463V69.389H2516.46V522.463H2431.51Z" fill="white"/>
+            <path d="M2263.74 522.463V69.389H2348.7V522.463H2263.74Z" fill="white"/>
+            <path d="M2037.48 530.014C2005.6 530.014 1977.28 523.302 1952.53 509.878C1928.2 496.034 1909.11 476.946 1895.27 452.614C1881.84 427.863 1875.13 399.336 1875.13 367.033C1875.13 333.892 1881.84 304.736 1895.27 279.565C1909.11 253.975 1928.2 234.048 1952.53 219.784C1976.86 205.101 2005.18 197.76 2037.48 197.76C2068.95 197.76 2096.42 204.682 2119.92 218.526C2143.41 232.37 2161.66 251.038 2174.66 274.531C2187.67 298.023 2194.17 324.663 2194.17 354.448C2194.17 358.643 2194.17 363.467 2194.17 368.921C2194.17 373.955 2193.75 379.199 2192.91 384.653H1935.54V333.053H2108.59C2107.33 312.497 2099.99 296.345 2086.57 284.599C2073.56 272.853 2057.2 266.979 2037.48 266.979C2023.22 266.979 2010 270.336 1997.84 277.048C1985.67 283.34 1976.02 293.199 1968.89 306.623C1962.18 320.048 1958.82 337.038 1958.82 357.594V375.843C1958.82 393.043 1961.97 408.146 1968.26 421.151C1974.98 433.736 1984.2 443.594 1995.95 450.726C2007.7 457.438 2021.33 460.794 2036.85 460.794C2052.38 460.794 2065.17 457.438 2075.24 450.726C2085.73 444.014 2093.49 435.414 2098.52 424.926H2185.36C2179.49 444.643 2169.63 462.473 2155.79 478.414C2141.94 494.355 2124.95 506.941 2104.81 516.17C2084.68 525.399 2062.23 530.014 2037.48 530.014Z" fill="white"/>
+            <path d="M1652.74 660.902V588.536H1678.54C1691.96 588.536 1701.4 585.81 1706.86 580.356C1712.73 574.902 1715.67 566.092 1715.67 553.927V205.311H1800.62V553.297C1800.62 579.307 1796 600.073 1786.77 615.595C1777.96 631.536 1765.38 643.073 1749.02 650.205C1732.66 657.336 1713.36 660.902 1691.12 660.902H1652.74ZM1758.46 161.892C1742.93 161.892 1730.35 157.487 1720.7 148.677C1711.05 139.448 1706.23 127.911 1706.23 114.067C1706.23 100.223 1711.05 88.8963 1720.7 80.0865C1730.35 70.8573 1742.93 66.2426 1758.46 66.2426C1773.98 66.2426 1786.56 70.8573 1796.21 80.0865C1805.86 88.8963 1810.69 100.223 1810.69 114.067C1810.69 127.911 1805.86 139.448 1796.21 148.677C1786.56 157.487 1773.98 161.892 1758.46 161.892Z" fill="white"/>
+            <path d="M1478.21 530.014C1448 530.014 1420.74 523.092 1396.4 509.248C1372.49 494.985 1353.4 475.477 1339.14 450.726C1325.3 425.555 1318.38 396.819 1318.38 364.516C1318.38 331.375 1325.3 302.428 1339.14 277.677C1353.4 252.506 1372.7 232.999 1397.03 219.155C1421.37 204.892 1448.63 197.76 1478.84 197.76C1509.46 197.76 1536.73 204.892 1560.64 219.155C1584.98 232.999 1604.06 252.506 1617.91 277.677C1632.17 302.428 1639.3 331.165 1639.3 363.887C1639.3 396.609 1632.17 425.555 1617.91 450.726C1604.06 475.477 1584.98 494.985 1560.64 509.248C1536.31 523.092 1508.83 530.014 1478.21 530.014ZM1478.21 456.39C1492.47 456.39 1505.06 453.033 1515.97 446.321C1527.29 439.609 1536.1 429.331 1542.4 415.487C1549.11 401.643 1552.46 384.443 1552.46 363.887C1552.46 343.331 1549.11 326.341 1542.4 312.916C1536.1 299.072 1527.29 288.794 1515.97 282.082C1505.06 274.95 1492.68 271.384 1478.84 271.384C1465.41 271.384 1453.04 274.95 1441.71 282.082C1430.39 288.794 1421.37 299.072 1414.65 312.916C1408.36 326.341 1405.21 343.331 1405.21 363.887C1405.21 384.443 1408.36 401.643 1414.65 415.487C1421.37 429.331 1430.18 439.609 1441.08 446.321C1452.41 453.033 1464.79 456.39 1478.21 456.39Z" fill="white"/>
+            <path d="M1075.88 522.463V205.311H1151.39L1159.57 263.833C1167.12 249.989 1176.56 238.243 1187.89 228.594C1199.63 218.945 1212.85 211.394 1227.53 205.94C1242.63 200.487 1259.2 197.76 1277.24 197.76V287.745H1248.3C1235.71 287.745 1223.96 289.214 1213.06 292.15C1202.57 295.087 1193.34 299.911 1185.37 306.623C1177.4 312.916 1171.31 321.726 1167.12 333.053C1162.92 344.38 1160.83 358.643 1160.83 375.843V522.463H1075.88Z" fill="white"/>
+            <path d="M663.532 660.902V205.311H739.044L748.483 249.36C755.195 240.131 763.166 231.74 772.395 224.189C781.625 216.218 792.532 209.926 805.117 205.311C818.122 200.277 833.225 197.76 850.425 197.76C880.21 197.76 906.43 205.101 929.083 219.784C951.737 234.467 969.566 254.394 982.571 279.565C995.996 304.316 1002.71 332.633 1002.71 364.516C1002.71 396.399 995.996 424.926 982.571 450.097C969.147 474.848 951.108 494.356 928.454 508.619C905.801 522.882 880 530.014 851.054 530.014C827.561 530.014 807.215 525.819 790.015 517.429C773.234 508.619 759.39 496.663 748.483 481.56V660.902H663.532ZM830.917 455.76C847.698 455.76 862.381 451.985 874.966 444.433C887.971 436.882 898.04 426.185 905.171 412.341C912.303 398.497 915.869 382.555 915.869 364.516C915.869 346.477 912.303 330.536 905.171 316.692C898.04 302.428 887.971 291.521 874.966 283.97C862.381 275.999 847.698 272.014 830.917 272.014C814.556 272.014 799.873 275.999 786.869 283.97C774.283 291.521 764.215 302.219 756.664 316.062C749.532 329.906 745.966 345.848 745.966 363.887C745.966 381.926 749.532 398.077 756.664 412.341C764.215 426.185 774.283 436.882 786.869 444.433C799.873 451.985 814.556 455.76 830.917 455.76Z" fill="white"/>
+          </svg>
+          <p>The AI-powered workspace for organizing life's complex projects with confidence.</p>
+        </div>
+
+        <div class="footer-column">
+          <h4>Product</h4>
+          <ul>
+            <li><a href="#features">Features</a></li>
+            <li><a href="#workflows">Templates</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="#">Changelog</a></li>
+            <li><a href="#">Roadmap</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-column">
+          <h4>Resources</h4>
+          <ul>
+            <li><a href="#">Documentation</a></li>
+            <li><a href="#">Getting Started</a></li>
+            <li><a href="#">API Keys Guide</a></li>
+            <li><a href="#">Blog</a></li>
+            <li><a href="#">Community</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-column">
+          <h4>Legal</h4>
+          <ul>
+            <li><a href="#">Privacy Policy</a></li>
+            <li><a href="#">Terms of Service</a></li>
+            <li><a href="#">License</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>&copy; 2026 Projelli. All rights reserved.</div>
+        <div>Built with Tauri, React, and too much coffee.</div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Navigation scroll effect
+    const nav = document.getElementById('nav');
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 60) {
+        nav.classList.add('scrolled');
+      } else {
+        nav.classList.remove('scrolled');
+      }
+    });
+
+    // Mobile menu toggle
+    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+    const mobileMenu = document.getElementById('mobile-menu');
+
+    mobileMenuBtn.addEventListener('click', () => {
+      mobileMenu.classList.toggle('open');
+    });
+
+    // Close mobile menu when clicking a link
+    mobileMenu.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', () => {
+        mobileMenu.classList.remove('open');
+      });
+    });
+
+    // Scroll animations
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, observerOptions);
+
+    // Observe all animated elements
+    document.querySelectorAll('.animate-on-scroll').forEach((el, index) => {
+      el.style.transitionDelay = `${index * 0.1}s`;
+      observer.observe(el);
+    });
+
+    // Smooth scrolling for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        const href = this.getAttribute('href');
+        if (href !== '#') {
+          e.preventDefault();
+          const target = document.querySelector(href);
+          if (target) {
+            const offsetTop = target.offsetTop - 72; // Account for fixed nav
+            window.scrollTo({
+              top: offsetTop,
+              behavior: 'smooth'
+            });
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>

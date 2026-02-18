@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Projelli",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "identifier": "com.projelli.app",
   "build": {
     "frontendDist": "../dist",
@@ -10,6 +10,7 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "Projelli",
@@ -23,7 +24,8 @@
         "decorations": true,
         "transparent": false,
         "visible": true,
-        "focus": true
+        "focus": true,
+        "dragDropEnabled": false
       }
     ],
     "security": {
@@ -63,21 +65,6 @@
     "externalBin": [],
     "createUpdaterArtifacts": false
   },
-  "plugins": {
-    "fs": {
-      "scope": {
-        "allow": ["$HOME/**", "$DOCUMENT/**", "$DESKTOP/**", "$DOWNLOAD/**"],
-        "deny": [
-          "$HOME/.*",
-          "$HOME/Library/**",
-          "$HOME/AppData/**",
-          "C:\\Windows\\**",
-          "/etc/**",
-          "/usr/**",
-          "/bin/**",
-          "/sbin/**"
-        ]
-      }
-    }
-  }
+  "plugins": {}
+
 }

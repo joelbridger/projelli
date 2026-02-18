@@ -5,17 +5,30 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { FolderOpen, File, Edit } from 'lucide-react';
 
+/**
+ * Extract project name from full path
+ * Returns the last folder name, not the full path
+ */
+function getProjectName(path: string | null): string {
+  if (!path) return 'No workspace';
+  // Handle both Windows (backslash) and Unix (forward slash) paths
+  const segments = path.replace(/\\/g, '/').split('/').filter(Boolean);
+  return segments[segments.length - 1] || path;
+}
+
 export function StatusBar() {
   const { rootPath } = useWorkspaceStore();
   const { openTabs, activeTabPath } = useEditorStore();
   const activeTab = openTabs.find((t) => t.path === activeTabPath);
 
+  const projectName = getProjectName(rootPath);
+
   return (
-    <div className="flex items-center h-6 px-2 border-t bg-card text-xs text-muted-foreground">
+    <div data-testid="status-bar" className="flex items-center h-6 px-2 border-t bg-card text-xs text-muted-foreground">
       {/* Workspace info */}
-      <div className="flex items-center gap-1">
+      <div data-testid="status-bar-project" className="flex items-center gap-1" title={rootPath || undefined}>
         <FolderOpen className="h-3 w-3" />
-        <span className="truncate max-w-[200px]">{rootPath ?? 'No workspace'}</span>
+        <span data-testid="status-bar-project-name" className="truncate max-w-[200px]">{projectName}</span>
       </div>
 
       <div className="flex-1" />
@@ -23,13 +36,13 @@ export function StatusBar() {
       {/* Active file info */}
       {activeTab && (
         <>
-          <div className="flex items-center gap-1 mr-4">
+          <div data-testid="status-bar-active-file" className="flex items-center gap-1 mr-4">
             <File className="h-3 w-3" />
-            <span className="truncate max-w-[200px]">{activeTab.name}</span>
+            <span data-testid="status-bar-file-name" className="truncate max-w-[200px]">{activeTab.name}</span>
           </div>
 
           {activeTab.isDirty && (
-            <div className="flex items-center gap-1 text-amber-500">
+            <div data-testid="status-bar-modified" className="flex items-center gap-1 text-amber-500">
               <Edit className="h-3 w-3" />
               <span>Modified</span>
             </div>
@@ -38,7 +51,7 @@ export function StatusBar() {
       )}
 
       {/* Tab count */}
-      <div className="ml-4">
+      <div data-testid="status-bar-tab-count" className="ml-4">
         {openTabs.length} file{openTabs.length !== 1 ? 's' : ''} open
       </div>
     </div>

@@ -1,12 +1,15 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Business OS default permissions for workspace operations",
+  "description": "Projelli default permissions for workspace operations",
   "windows": [
     "main"
   ],
   "permissions": [
     "core:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "shell:default",
     "fs:default",
     "fs:allow-read",
     "fs:allow-write",
@@ -14,6 +17,32 @@
     "fs:allow-mkdir",
     "fs:allow-remove",
     "fs:allow-rename",
-    "fs:allow-copy-file"
+    "fs:allow-copy-file",
+    "fs:allow-read-dir",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-write-file",
+    "fs:allow-stat",
+    "fs:allow-lstat",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOWNLOAD/**" },
+        { "path": "C:\\Users\\**" },
+        { "path": "$APPDATA\\**" },
+        { "path": "$LOCALAPPDATA\\**" }
+      ],
+      "deny": [
+        { "path": "$HOME/Library/**" },
+        { "path": "C:\\Windows\\**" },
+        { "path": "/etc/**" },
+        { "path": "/usr/**" },
+        { "path": "/bin/**" },
+        { "path": "/sbin/**" }
+      ]
+    }
   ]
 }
