@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Auto-Update AI Model Lists on Startup (2026-02-18)
+
+### Added
+- **Dynamic Model List Fetching** - AI model dropdowns now auto-populate from provider APIs instead of being hardcoded
+  - On startup, fetches available models from Anthropic, OpenAI, and Google APIs for providers with valid keys
+  - 24-hour localStorage cache (`projelli_models_{provider}`) prevents redundant API calls
+  - Graceful fallback chain: fresh API response → stale cache → hardcoded defaults
+  - 10-second fetch timeout via AbortController prevents UI blocking
+  - New files created:
+    - `src/modules/models/ModelListService.ts` - Core service with `getModels()`, `refreshModels()`, `clearModelCache()`, `getDefaultModels()`
+    - `src/modules/models/fetchUtils.ts` - Shared `getProviderBaseUrl()` utility for dev proxy / production URL resolution
+    - `src/hooks/useModelList.ts` - React hook wrapping ModelListService with loading state and per-provider refresh/clear
+  - Files modified:
+    - `src/components/ai/AIAssistantPane.tsx` - Added `modelLists` prop, replaced 3 hardcoded `<option>` blocks with dynamic rendering
+    - `src/App.tsx` - Wired `useModelList` hook, wrapped API key save/delete handlers to trigger model refresh/clear
+
+- **Per-Provider API Fetch Logic:**
+  - **Anthropic:** `GET /v1/models` with `x-api-key` + `anthropic-version` + `anthropic-dangerous-direct-browser-access` headers, filters to `claude` models
+  - **OpenAI:** `GET /v1/models` with Bearer auth, filters to `gpt-` / `o1-` / `o3-` / `o4-` prefixed models
+  - **Google:** `GET /v1beta/models?key=` filters to `gemini` models with `generateContent` support
+
+- **Reactive Model Updates:**
+  - Saving an API key triggers `refreshModels()` (bypasses cache) and immediately updates the dropdown
+  - Deleting an API key triggers `clearModelCache()` and reverts the dropdown to hardcoded defaults
+
 ### Iteration 7 - Tab Group Bug Fixes (2026-01-28)
 **Status: 2/2 CRITICAL BUGS FIXED ✅**
 

@@ -94,6 +94,9 @@
 | `src/modules/models/Provider.ts` | Model adapter interface |
 | `src/modules/models/ClaudeProvider.ts` | Anthropic API adapter |
 | `src/modules/models/OpenAIProvider.ts` | OpenAI API adapter |
+| `src/modules/models/ModelListService.ts` | Auto-fetch available models from provider APIs with 24h cache |
+| `src/modules/models/fetchUtils.ts` | Shared provider base URL resolution (dev proxy / production) |
+| `src/hooks/useModelList.ts` | React hook for dynamic model list fetching and caching |
 | `src/modules/audit/AuditService.ts` | Append-only action log |
 | `src/modules/research/SourceCardService.ts` | Citation management |
 | `src/modules/analysis/DocSummaryService.ts` | Document summarization |
@@ -307,7 +310,7 @@ projelli/
 │   │   ├── editor/                 # EditorService, WikiLinkParser, BacklinkIndex
 │   │   ├── history/                # HistoryService, CommandStack, TrashService
 │   │   ├── workflow/               # WorkflowEngine, RunRecordService, templates/
-│   │   ├── models/                 # Provider, ClaudeProvider, OpenAIProvider, KeychainService
+│   │   ├── models/                 # Provider, ClaudeProvider, OpenAIProvider, ModelListService, fetchUtils
 │   │   ├── research/               # SourceCardService, CitationParser
 │   │   ├── analysis/               # DocSummaryService, ContradictionDetector
 │   │   ├── search/                 # SearchService, IndexBuilder

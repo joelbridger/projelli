@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { ApiKeyHelpDialog } from '@/components/common/ApiKeyHelpDialog';
 import type { AIChatFile } from '@/types/ai';
+import type { ModelInfo } from '@/modules/models/ModelListService';
 
 interface APIKey {
   provider: 'anthropic' | 'openai' | 'google';
@@ -32,6 +33,7 @@ interface APIKey {
 interface AIAssistantPaneProps {
   apiKeys: APIKey[];
   chatFiles: AIChatFile[];
+  modelLists?: Record<string, ModelInfo[]>;
   onSaveApiKey: (provider: 'anthropic' | 'openai' | 'google', key: string) => void;
   onDeleteApiKey: (provider: 'anthropic' | 'openai' | 'google') => void;
   onCreateNewChat: (provider: 'anthropic' | 'openai' | 'google') => void;
@@ -41,9 +43,35 @@ interface AIAssistantPaneProps {
   className?: string;
 }
 
+// Inline fallback arrays matching the original hardcoded options
+const FALLBACK_ANTHROPIC: ModelInfo[] = [
+  { id: 'claude-opus-4-5', displayName: 'Claude Opus 4.5', provider: 'anthropic' },
+  { id: 'claude-sonnet-4-5', displayName: 'Claude Sonnet 4.5', provider: 'anthropic' },
+  { id: 'claude-sonnet-4', displayName: 'Claude Sonnet 4', provider: 'anthropic' },
+  { id: 'claude-3-opus', displayName: 'Claude 3 Opus', provider: 'anthropic' },
+  { id: 'claude-3-sonnet', displayName: 'Claude 3 Sonnet', provider: 'anthropic' },
+  { id: 'claude-3-haiku', displayName: 'Claude 3 Haiku', provider: 'anthropic' },
+];
+
+const FALLBACK_OPENAI: ModelInfo[] = [
+  { id: 'gpt-4-turbo', displayName: 'GPT-4 Turbo', provider: 'openai' },
+  { id: 'gpt-4', displayName: 'GPT-4', provider: 'openai' },
+  { id: 'gpt-4-32k', displayName: 'GPT-4 32K', provider: 'openai' },
+  { id: 'gpt-3.5-turbo', displayName: 'GPT-3.5 Turbo', provider: 'openai' },
+  { id: 'gpt-3.5-turbo-16k', displayName: 'GPT-3.5 Turbo 16K', provider: 'openai' },
+];
+
+const FALLBACK_GOOGLE: ModelInfo[] = [
+  { id: 'gemini-pro', displayName: 'Gemini Pro', provider: 'google' },
+  { id: 'gemini-ultra', displayName: 'Gemini Ultra', provider: 'google' },
+  { id: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro', provider: 'google' },
+  { id: 'gemini-1.5-flash', displayName: 'Gemini 1.5 Flash', provider: 'google' },
+];
+
 export function AIAssistantPane({
   apiKeys,
   chatFiles,
+  modelLists,
   onSaveApiKey,
   onDeleteApiKey,
   onCreateNewChat,
@@ -390,12 +418,9 @@ export function AIAssistantPane({
                 disabled={!hasApiKey('anthropic')}
                 className="w-full h-8 text-xs px-2 border rounded-md bg-background"
               >
-                <option value="claude-opus-4-5">Claude Opus 4.5</option>
-                <option value="claude-sonnet-4-5">Claude Sonnet 4.5</option>
-                <option value="claude-sonnet-4">Claude Sonnet 4</option>
-                <option value="claude-3-opus">Claude 3 Opus</option>
-                <option value="claude-3-sonnet">Claude 3 Sonnet</option>
-                <option value="claude-3-haiku">Claude 3 Haiku</option>
+                {(modelLists?.['anthropic'] ?? FALLBACK_ANTHROPIC).map(m => (
+                  <option key={m.id} value={m.id}>{m.displayName}</option>
+                ))}
               </select>
               {hasApiKey('anthropic') && (
                 <div className="space-y-2 pt-1">
@@ -441,11 +466,9 @@ export function AIAssistantPane({
                 disabled={!hasApiKey('openai')}
                 className="w-full h-8 text-xs px-2 border rounded-md bg-background"
               >
-                <option value="gpt-4-turbo">GPT-4 Turbo</option>
-                <option value="gpt-4">GPT-4</option>
-                <option value="gpt-4-32k">GPT-4 32K</option>
-                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                <option value="gpt-3.5-turbo-16k">GPT-3.5 Turbo 16K</option>
+                {(modelLists?.['openai'] ?? FALLBACK_OPENAI).map(m => (
+                  <option key={m.id} value={m.id}>{m.displayName}</option>
+                ))}
               </select>
               {hasApiKey('openai') && (
                 <div className="space-y-2 pt-1">
@@ -491,10 +514,9 @@ export function AIAssistantPane({
                 disabled={!hasApiKey('google')}
                 className="w-full h-8 text-xs px-2 border rounded-md bg-background"
               >
-                <option value="gemini-pro">Gemini Pro</option>
-                <option value="gemini-ultra">Gemini Ultra</option>
-                <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
-                <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                {(modelLists?.['google'] ?? FALLBACK_GOOGLE).map(m => (
+                  <option key={m.id} value={m.id}>{m.displayName}</option>
+                ))}
               </select>
               {hasApiKey('google') && (
                 <div className="space-y-2 pt-1">
