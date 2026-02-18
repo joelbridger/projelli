@@ -522,6 +522,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           size="sm"
           className="h-5 w-5 p-0 ml-1 rounded-sm hover:bg-muted"
           onClick={(e) => handleTabClose(e, tab.path)}
+          aria-label="Close tab"
         >
           <X className="h-3 w-3" />
         </Button>

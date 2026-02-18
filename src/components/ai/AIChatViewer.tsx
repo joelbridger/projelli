@@ -566,16 +566,17 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   }, [chatData, messages, onExport]);
 
   return (
-    <div className={cn('flex flex-col h-full', className)}>
+    <div data-testid="ai-chat-viewer" className={cn('flex flex-col h-full', className)}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div>
-          <h2 className="text-lg font-semibold">{chatData.title}</h2>
-          <p className="text-xs text-muted-foreground">
+          <h2 data-testid="chat-title" className="text-lg font-semibold">{chatData.title}</h2>
+          <p data-testid="chat-created-date" className="text-xs text-muted-foreground">
             Created {new Date(chatData.created).toLocaleDateString()}
           </p>
         </div>
         <Button
+          data-testid="chat-export-button"
           variant="outline"
           size="sm"
           onClick={handleExport}
@@ -587,10 +588,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div data-testid="chat-messages" className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg, idx) => (
           <div
             key={idx}
+            data-testid={`chat-message-${idx}`}
+            data-role={msg.role}
             className={cn(
               'flex flex-col gap-1',
               msg.role === 'user' ? 'items-end' : 'items-start'
@@ -616,7 +619,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           </div>
         ))}
         {isLoading && (
-          <div className="flex items-start gap-2">
+          <div data-testid="chat-loading-indicator" className="flex items-start gap-2">
             <span className="text-xs font-medium text-muted-foreground">Assistant</span>
             <div className="bg-muted rounded-lg px-4 py-2">
               <div className="flex gap-1">
@@ -631,9 +634,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       </div>
 
       {/* Input */}
-      <div className="border-t p-4">
+      <div data-testid="chat-input-area" className="border-t p-4">
         <div className="flex gap-2">
           <Textarea
+            data-testid="chat-input"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -643,6 +647,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           />
           <div className="flex flex-col gap-2 shrink-0">
             <Button
+              data-testid="chat-voice-button"
               onClick={toggleVoiceRecording}
               disabled={isLoading}
               size="icon"
@@ -654,6 +659,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             </Button>
           </div>
           <Button
+            data-testid="chat-send-button"
             onClick={handleSendMessage}
             disabled={!inputValue.trim() || isLoading}
             size="icon"

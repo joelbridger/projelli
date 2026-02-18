@@ -642,6 +642,7 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
                   if (showVersionHistory) setShowVersionHistory(false);
                 }}
                 title="Close panel"
+                aria-label="Close panel"
               >
                 <PanelRightClose className="h-4 w-4" />
               </Button>

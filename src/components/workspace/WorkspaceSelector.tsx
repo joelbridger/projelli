@@ -201,6 +201,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected }: WorkspaceSelect
 
           <div className="grid grid-cols-2 gap-3">
             <Button
+              data-testid="open-existing-workspace"
               variant="outline"
               className="h-auto py-4 flex flex-col items-center gap-2"
               onClick={handleSelectFolder}
@@ -216,6 +217,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected }: WorkspaceSelect
             </Button>
 
             <Button
+              data-testid="new-workspace"
               variant="outline"
               className="h-auto py-4 flex flex-col items-center gap-2"
               onClick={handleCreateWorkspace}

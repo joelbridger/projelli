@@ -67,6 +67,7 @@ export function Sidebar({
 
   return (
     <div
+      data-testid="sidebar"
       className={cn(
         'flex flex-col border-r bg-card transition-all duration-200',
         isCollapsed ? 'w-12' : 'w-64',
@@ -81,10 +82,12 @@ export function Sidebar({
           </span>
         )}
         <Button
+          data-testid="sidebar-collapse-button"
           variant="ghost"
           size="sm"
           className="h-6 w-6 p-0 ml-auto"
           onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {isCollapsed ? (
             <ChevronRight className="h-4 w-4" />
@@ -102,6 +105,7 @@ export function Sidebar({
         {tabs.map((tab) => (
           <Button
             key={tab.id}
+            data-testid={`sidebar-tab-${tab.id}`}
             variant={activeTab === tab.id ? 'secondary' : 'ghost'}
             size="sm"
             className={cn(
@@ -119,7 +123,7 @@ export function Sidebar({
 
       {/* Content area */}
       {!isCollapsed && (
-        <div className="flex-1 overflow-hidden">
+        <div data-testid="sidebar-content" className="flex-1 overflow-hidden">
           {activeTab === 'files' && fileTreeContent}
           {activeTab === 'search' && searchContent}
           {activeTab === 'workflows' && workflowContent}

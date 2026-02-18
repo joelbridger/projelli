@@ -184,10 +184,11 @@ export function FileGridView({
   );
 
   return (
-    <div className={cn('flex flex-col h-full', className)}>
+    <div data-testid="file-grid-view" className={cn('flex flex-col h-full', className)}>
       {/* Breadcrumb Navigation - supports drag-drop to move files */}
-      <div className="flex items-center gap-1 px-4 py-3 border-b bg-muted/30">
+      <div data-testid="breadcrumb-nav" className="flex items-center gap-1 px-4 py-3 border-b bg-muted/30">
         <Button
+          data-testid="breadcrumb-root"
           variant="ghost"
           size="sm"
           onClick={() => handleBreadcrumbClick(-1)}
@@ -207,6 +208,7 @@ export function FileGridView({
           <div key={index} className="flex items-center gap-1">
             <ChevronRight className="h-4 w-4 text-muted-foreground" />
             <Button
+              data-testid={`breadcrumb-${index}`}
               variant="ghost"
               size="sm"
               onClick={() => handleBreadcrumbClick(index)}
@@ -239,6 +241,7 @@ export function FileGridView({
             {currentContents.map((node) => (
               <div
                 key={node.path}
+                data-testid={`grid-item-${node.name}`}
                 draggable
                 onDragStart={(e) => handleDragStart(e, node)}
                 onDragOver={(e) => handleDragOver(e, node)}

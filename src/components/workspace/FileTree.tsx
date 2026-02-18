@@ -205,12 +205,13 @@ export function FileTree({
   }, [selectedPaths, onDownload, fileTree]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div data-testid="file-tree" className="flex flex-col h-full">
       {/* Toolbar with create buttons */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b flex-wrap">
+      <div data-testid="file-tree-toolbar" className="flex items-center gap-1 px-2 py-1.5 border-b flex-wrap">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
+              data-testid="new-file-button"
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs"
@@ -245,6 +246,7 @@ export function FileTree({
           </DropdownMenuContent>
         </DropdownMenu>
         <Button
+          data-testid="new-folder-button"
           variant="ghost"
           size="sm"
           className="h-7 px-2 text-xs"
@@ -277,6 +279,7 @@ export function FileTree({
               input.click();
             }}
             title="Upload files to selected folder or root"
+            data-testid="upload-button"
           >
             <Upload className="h-3.5 w-3.5 mr-1" />
             Upload
@@ -289,6 +292,7 @@ export function FileTree({
             className="h-7 px-2 text-xs"
             onClick={onOpenGridView}
             title="Open grid view"
+            data-testid="grid-view-button"
           >
             <Grid3x3 className="h-3.5 w-3.5 mr-1" />
             Grid View
@@ -395,6 +399,7 @@ export function FileTree({
       {rootPath && (
         <div className="border-t px-2 py-2">
           <Button
+            data-testid="open-on-desktop"
             variant="ghost"
             size="sm"
             className="w-full justify-start h-8 text-xs"
@@ -721,6 +726,7 @@ function FileTreeItem({
             <Button
               variant="ghost"
               size="sm"
+              aria-label="File options"
               className={cn(
                 "h-6 w-6 p-0 flex-shrink-0",
                 !isHovered && !isMenuOpen && "opacity-0 pointer-events-none"
