@@ -1,12 +1,59 @@
 # Business OS - Technical Backlog
 
-> **Last Updated:** 2026-01-26
-> **Total Tickets:** 41
-> **Status Summary:** 0 TODO | 0 IN_PROGRESS | 41 DONE
+> **Last Updated:** 2026-02-18
+> **Total Tickets:** 42
+> **Status Summary:** 0 TODO | 0 IN_PROGRESS | 42 DONE
 
 ---
 
 ## Future Enhancements
+
+---
+
+### AI-002: Auto-Update AI Model Lists on Startup
+**Status:** DONE
+**Priority:** P2
+**Phase:** N/A
+**Estimated Size:** M
+**Dependencies:** None
+**Completed:** 2026-02-18
+
+**Description:**
+AI model dropdowns in the Models tab were hardcoded. When new models released (e.g., Claude Opus 4.6), users had to wait for an app update. This ticket added automatic fetching of available models from each provider's API on startup, with 24-hour caching and graceful fallback to hardcoded defaults on failure.
+
+**Implementation Details:**
+- Created `ModelListService.ts` with `getModels()`, `refreshModels()`, `clearModelCache()`, `getDefaultModels()`
+- Created `fetchUtils.ts` with shared `getProviderBaseUrl()` for dev proxy / production URL resolution
+- Created `useModelList.ts` React hook wrapping the service with loading state
+- Modified `AIAssistantPane.tsx` to accept `modelLists` prop and render options dynamically
+- Modified `App.tsx` to wire the hook and trigger refresh/clear on API key save/delete
+
+**Per-Provider Fetch Logic:**
+- **Anthropic:** `GET /v1/models` with `x-api-key`, `anthropic-version`, `anthropic-dangerous-direct-browser-access` headers. Filters to `claude` models.
+- **OpenAI:** `GET /v1/models` with `Authorization: Bearer`. Filters to `gpt-`/`o1-`/`o3-`/`o4-` models.
+- **Google:** `GET /v1beta/models?key=`. Filters to `gemini` models with `generateContent` support.
+
+**Cache Strategy:**
+- localStorage key: `projelli_models_{provider}`, JSON `{ models, fetchedAt }`
+- 24-hour TTL, 10-second fetch timeout via AbortController
+- Fallback chain: fresh API → stale cache → hardcoded defaults
+- Failures are never cached
+
+**Files Created:**
+- `src/modules/models/ModelListService.ts`
+- `src/modules/models/fetchUtils.ts`
+- `src/hooks/useModelList.ts`
+
+**Files Modified:**
+- `src/components/ai/AIAssistantPane.tsx`
+- `src/App.tsx`
+
+**Acceptance Criteria:**
+- [x] App launches and model dropdowns auto-populate from live API when keys are present
+- [x] Cached models load instantly on subsequent launches (no API call within 24h)
+- [x] Deleting API key reverts dropdown to hardcoded defaults
+- [x] Network failure shows cached or fallback models (no crash)
+- [x] TypeScript compiles cleanly (no new errors introduced)
 
 ---
 

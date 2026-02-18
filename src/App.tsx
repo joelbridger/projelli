@@ -54,6 +54,7 @@ import { useTrash } from '@/hooks/useTrash';
 import { useSourceCards } from '@/hooks/useSourceCards';
 import { useAIChatFiles } from '@/hooks/useAIChatFiles';
 import { useApiKeys } from '@/hooks/useApiKeys';
+import { useModelList } from '@/hooks/useModelList';
 
 function App() {
   // Test mode: bypass workspace selector for E2E tests
@@ -92,7 +93,31 @@ function App() {
   const { runHistory, completeRun } = useWorkflowStore();
 
   // API key management
-  const { apiKeys, handleSaveApiKey, handleDeleteApiKey } = useApiKeys();
+  const { apiKeys, handleSaveApiKey: rawSaveApiKey, handleDeleteApiKey: rawDeleteApiKey } = useApiKeys();
+
+  // Model list auto-fetching
+  const validKeyEntries = useMemo(
+    () => apiKeys.filter(k => k.isValid).map(k => ({ provider: k.provider, key: k.key })),
+    [apiKeys]
+  );
+  const { models: modelLists, refreshProvider, clearProvider } = useModelList(validKeyEntries);
+
+  // Wrap API key handlers to also update model lists
+  const handleSaveApiKey = useCallback(
+    (provider: 'anthropic' | 'openai' | 'google', key: string) => {
+      rawSaveApiKey(provider, key);
+      refreshProvider(provider, key);
+    },
+    [rawSaveApiKey, refreshProvider]
+  );
+
+  const handleDeleteApiKey = useCallback(
+    (provider: 'anthropic' | 'openai' | 'google') => {
+      rawDeleteApiKey(provider);
+      clearProvider(provider);
+    },
+    [rawDeleteApiKey, clearProvider]
+  );
 
   // Trash management
   const {
@@ -1366,6 +1391,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
             <AIAssistantPane
               apiKeys={apiKeys}
               chatFiles={chatFiles}
+              modelLists={modelLists}
               onSaveApiKey={handleSaveApiKey}
               onDeleteApiKey={handleDeleteApiKey}
               onCreateNewChat={handleCreateNewChat}
