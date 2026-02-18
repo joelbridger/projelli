@@ -394,13 +394,23 @@ function App() {
     workspaceServiceRef.current = service;
     setShowWorkspaceSelector(false);
 
-    const rootPath = service.getRootPath();
+    const newRootPath = service.getRootPath();
+    if (newRootPath) {
+      setRootPath(newRootPath);
+    }
+
+    // Close all open tabs from the previous workspace
+    const { openTabs: prevTabs } = useEditorStore.getState();
+    for (const tab of prevTabs) {
+      useEditorStore.getState().closeTab(tab.path);
+    }
+
     let isNewWorkspace = false;
 
     // Create default folders if they don't exist
     try {
       // Create docs folder
-      const docsPath = `${rootPath}/docs`;
+      const docsPath = `${newRootPath}/docs`;
       const docsExists = await service.exists(docsPath);
       if (!docsExists) {
         await service.mkdir(docsPath);
@@ -409,7 +419,7 @@ function App() {
       }
 
       // Create whiteboards folder
-      const whiteboardsPath = `${rootPath}/whiteboards`;
+      const whiteboardsPath = `${newRootPath}/whiteboards`;
       const whiteboardsExists = await service.exists(whiteboardsPath);
       if (!whiteboardsExists) {
         await service.mkdir(whiteboardsPath);
@@ -418,7 +428,7 @@ function App() {
       }
 
       // Create AI Chats folder
-      const aiChatsPath = `${rootPath}/AI Chats`;
+      const aiChatsPath = `${newRootPath}/AI Chats`;
       const aiChatsExists = await service.exists(aiChatsPath);
       if (!aiChatsExists) {
         await service.mkdir(aiChatsPath);
@@ -427,7 +437,7 @@ function App() {
       }
 
       // Create Research folder
-      const researchPath = `${rootPath}/Research`;
+      const researchPath = `${newRootPath}/Research`;
       const researchExists = await service.exists(researchPath);
       if (!researchExists) {
         await service.mkdir(researchPath);
@@ -436,7 +446,7 @@ function App() {
       }
 
       // Create Audio Recordings folder
-      const audioPath = `${rootPath}/Audio Recordings`;
+      const audioPath = `${newRootPath}/Audio Recordings`;
       const audioExists = await service.exists(audioPath);
       if (!audioExists) {
         await service.mkdir(audioPath);
@@ -485,7 +495,7 @@ function App() {
     setChatFiles(chats);
 
     // Handle folder expansion: new workspaces expand all, existing load saved state
-    if (rootPath) {
+    if (newRootPath) {
       if (isNewWorkspace) {
         // New workspace - expand all folders by default
         // File tree is now loaded, so we can expand immediately
@@ -495,7 +505,7 @@ function App() {
       } else {
         // Existing workspace - load saved expansion state, but also expand all as default
         const { loadExpandedPaths, expandAllFolders } = useWorkspaceStore.getState();
-        const loaded = loadExpandedPaths(rootPath);
+        const loaded = loadExpandedPaths(newRootPath);
         // If no saved state exists, expand all folders
         if (!loaded || useWorkspaceStore.getState().expandedPaths.size === 0) {
           expandAllFolders();

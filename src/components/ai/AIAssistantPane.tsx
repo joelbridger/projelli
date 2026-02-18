@@ -45,25 +45,21 @@ interface AIAssistantPaneProps {
 
 // Inline fallback arrays matching the original hardcoded options
 const FALLBACK_ANTHROPIC: ModelInfo[] = [
-  { id: 'claude-opus-4-5', displayName: 'Claude Opus 4.5', provider: 'anthropic' },
-  { id: 'claude-sonnet-4-5', displayName: 'Claude Sonnet 4.5', provider: 'anthropic' },
-  { id: 'claude-sonnet-4', displayName: 'Claude Sonnet 4', provider: 'anthropic' },
-  { id: 'claude-3-opus', displayName: 'Claude 3 Opus', provider: 'anthropic' },
-  { id: 'claude-3-sonnet', displayName: 'Claude 3 Sonnet', provider: 'anthropic' },
-  { id: 'claude-3-haiku', displayName: 'Claude 3 Haiku', provider: 'anthropic' },
+  { id: 'claude-sonnet-4-6', displayName: 'Claude Sonnet 4.6', provider: 'anthropic' },
+  { id: 'claude-opus-4-6', displayName: 'Claude Opus 4.6', provider: 'anthropic' },
+  { id: 'claude-haiku-4-5-20251001', displayName: 'Claude Haiku 4.5', provider: 'anthropic' },
+  { id: 'claude-sonnet-4-5-20250514', displayName: 'Claude Sonnet 4.5', provider: 'anthropic' },
 ];
 
 const FALLBACK_OPENAI: ModelInfo[] = [
+  { id: 'gpt-4o', displayName: 'GPT-4o', provider: 'openai' },
+  { id: 'gpt-4o-mini', displayName: 'GPT-4o Mini', provider: 'openai' },
   { id: 'gpt-4-turbo', displayName: 'GPT-4 Turbo', provider: 'openai' },
   { id: 'gpt-4', displayName: 'GPT-4', provider: 'openai' },
-  { id: 'gpt-4-32k', displayName: 'GPT-4 32K', provider: 'openai' },
-  { id: 'gpt-3.5-turbo', displayName: 'GPT-3.5 Turbo', provider: 'openai' },
-  { id: 'gpt-3.5-turbo-16k', displayName: 'GPT-3.5 Turbo 16K', provider: 'openai' },
 ];
 
 const FALLBACK_GOOGLE: ModelInfo[] = [
-  { id: 'gemini-pro', displayName: 'Gemini Pro', provider: 'google' },
-  { id: 'gemini-ultra', displayName: 'Gemini Ultra', provider: 'google' },
+  { id: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash', provider: 'google' },
   { id: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro', provider: 'google' },
   { id: 'gemini-1.5-flash', displayName: 'Gemini 1.5 Flash', provider: 'google' },
 ];

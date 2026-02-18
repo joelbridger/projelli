@@ -12,10 +12,11 @@ import type {
 
 // Claude model pricing (per 1K tokens)
 const CLAUDE_PRICING: Record<string, { input: number; output: number }> = {
-  // Latest models (Claude 4 series)
-  'claude-opus-4-5-20251101': { input: 0.015, output: 0.075 },  // Latest Opus
+  // Current models (Claude 4.5/4.6 series)
+  'claude-opus-4-6': { input: 0.015, output: 0.075 },
+  'claude-sonnet-4-6': { input: 0.003, output: 0.015 },
+  'claude-haiku-4-5-20251001': { input: 0.00025, output: 0.00125 },
   'claude-sonnet-4-5-20250514': { input: 0.003, output: 0.015 },
-  'claude-haiku-4-20250514': { input: 0.00025, output: 0.00125 },
   // Legacy models
   'claude-sonnet-4-20250514': { input: 0.003, output: 0.015 },
   'claude-opus-4-20250514': { input: 0.015, output: 0.075 },
@@ -27,9 +28,10 @@ const CLAUDE_PRICING: Record<string, { input: number; output: number }> = {
 
 // Latency estimates in ms
 const LATENCY_ESTIMATES: Record<string, number> = {
-  'claude-opus-4-5-20251101': 25000,  // Latest Opus
+  'claude-opus-4-6': 25000,
+  'claude-sonnet-4-6': 8000,
+  'claude-haiku-4-5-20251001': 2000,
   'claude-sonnet-4-5-20250514': 8000,
-  'claude-haiku-4-20250514': 2000,
   'claude-sonnet-4-20250514': 8000,
   'claude-opus-4-20250514': 30000,
   'claude-3-5-sonnet-20241022': 8000,
@@ -146,7 +148,7 @@ export class ClaudeProvider implements Provider {
 
   constructor(config: ClaudeProviderConfig) {
     this.apiKey = config.apiKey;
-    this.model = config.model ?? 'claude-sonnet-4-5-20250514';
+    this.model = config.model ?? 'claude-sonnet-4-6';
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getAnthropicBaseUrl(config.baseUrl);
     this.aiRules = config.aiRules;
