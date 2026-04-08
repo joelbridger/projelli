@@ -1,6 +1,6 @@
 # Projelli Backlog
 
-> **Last updated:** 2026-04-08
+> **Last updated:** 2026-04-08 (marathon session: Phases 0 → 5 advance work)
 > **Plan:** See `PROJELLI_BUSINESS_PLAN.md` for the full 8-week roadmap and reasoning behind each ticket.
 > **How to use:** Tickets are organized by week of the launch roadmap. Within each week, work top to bottom. Use status `TODO` / `IN PROGRESS` / `DONE` / `BLOCKED`. When something is `BLOCKED`, name what's blocking it.
 
@@ -36,40 +36,48 @@ Pushed 3 commits (`8bfa637`, `fa80df4`, `069c6e5`) to `joelbridger/projelli`, th
 ### W1-08 — Resolve push credentials — DONE
 Authenticated `gh` CLI as joelbridger account on the server. Both joelbridger and scottdaly accounts now coexist in `~/.config/gh/hosts.yml`. joelbridger has admin access on the (now transferred) `projelli/projelli` repo via org ownership.
 
-### W1-09 — Write minimum-viable legal docs — TODO
+### W1-09 — Write minimum-viable legal docs — DONE
+_Privacy, Terms, EULA written and live at /legal/{privacy,terms,eula}.html. Customized for local-first BYOK paid software, US (Texas) jurisdiction, 14-day refund._
 Privacy Policy, Terms of Service, EULA. Templates from TermsFeed or Iubenda (~$30/yr) are fine for v1. Customize for: local-first BYOK, no data collection, no PII storage, US jurisdiction.
 - Output: `website/legal/privacy.html`, `website/legal/terms.html`, `website/legal/eula.html`
 - Wire into footer links on landing page
 
-### W1-10 — Write Getting Started doc + API Keys Guide + FAQ — TODO
+### W1-10 — Write Getting Started doc + API Keys Guide + FAQ — DONE
+_Getting Started, API Keys Guide, FAQ written and live at /docs/{getting-started,api-keys,faq}.html._
 Three separate Markdown pages served from the live site.
 - `website/docs/getting-started.html` — install, first workspace, first AI chat
 - `website/docs/api-keys.html` — how to get a Claude/OpenAI/Gemini key, where to paste, how it's stored
 - `website/docs/faq.html` — common questions, privacy, billing, refund policy
 
-### W1-11 — Set up `support@projelli.com` — TODO
+### W1-11 — Set up `support@projelli.com` — DONE
+_Brevo registered projelli.com sender, DNS configured (DKIM + SPF + DMARC), CF Email Routing enabled with catch-all → jamesondaines@outlook.com. Brevo verified the domain. noreply@projelli.com sender created._
 Same pattern as the other 4 sites: CF Email Routing inbound → `jamesondaines@outlook.com`, Brevo outbound for any automated mail. See `~/.claude/projects/-home-jameson/memory/project_email_architecture.md`.
 
-### W1-12 — Replace footer placeholder `#` links — TODO
+### W1-12 — Replace footer placeholder `#` links — DONE
+_Footer rewritten with Docs and Legal columns. All # placeholder links replaced._
 The live homepage footer has 8 placeholder links (Documentation, Getting Started, API Keys Guide, Blog, Community, Privacy Policy, Terms of Service, License). Replace with real links once W1-09 + W1-10 are done.
 
 ### W1-13 — Update Plausible goals — TODO
+_Plausible goals (Download click, GitHub click, Buy click) — requires browser access to dashboard. Punted to next session._
 Add conversion goals to the Plausible dashboard for projelli.com:
 - `Download click` (anyone who clicks a download CTA)
 - `GitHub click`
 - `Buy click` (later, when Buy button exists)
 
-### W1-14 — Run trademark search — TODO
+### W1-14 — Run trademark search — DONE
+_USPTO TESS + Google searches show no conflicts. Documented in docs/reference/TRADEMARK_SEARCH.md. Formal filing deferred to month 2 of revenue._
 USPTO TESS search for "projelli" in classes 9 + 42. Google search for any conflicts. Free, ~30 minutes. Document results in `docs/reference/TRADEMARK_SEARCH.md`. If clean → defer filing to Month 2 of revenue.
 
-### W1-15 — Update CLAUDE.md for current state — TODO
+### W1-15 — Update CLAUDE.md for current state — DONE
+_CLAUDE.md prelude rewritten to point at PROJELLI_BUSINESS_PLAN.md and document the new file layout. Flags Jameson as non-developer._
 The repo's `CLAUDE.md` was written during the v1 dev phase. Update to reflect:
 - Server-resident, canonical at `~/projelli/`
 - Linked to `PROJELLI_BUSINESS_PLAN.md` as the operating contract
 - Pointers to key files and the new `docs/` layout
 - Note that Jameson is not a developer — explain things in plain language
 
-### W1-16 — Set up `projelli` org profile — TODO
+### W1-16 — Set up `projelli` org profile — DONE
+_Org metadata set via API: description, blog (projelli.com), email (support@projelli.com). Profile README at github.com/projelli/.github/profile/README.md._
 Add a bio, logo (the pink-bean Projelli logo), website link, and a public profile README at `github.com/projelli/.github`. README should explain what Projelli is, who built it (Jameson Daines), and link to projelli.com. ~10 min.
 
 ---
@@ -104,14 +112,16 @@ Once approved, create a Developer ID Application certificate, export as .p12, ba
 ### W3-03 — Wire macOS notarization into the workflow — TODO
 Update `.github/workflows/release.yml` to sign + notarize the .dmg. Test on a real Mac (borrow one if needed).
 
-### W3-04 — Build the 3 missing templates — TODO
+### W3-04 — Build the 3 missing templates — DONE
+_Built InvestorUpdate, BoardMeetingPrep, FirstHirePlaybook in src/modules/workflow/templates/. Registered in src/modules/workflow/index.ts. TypeScript clean._
 Add to `src/modules/workflow/templates/`:
 - `InvestorUpdate.ts` — monthly recurring update doc structure
 - `BoardMeetingPrep.ts` — agenda, metrics review, decisions queue
 - `FirstHirePlaybook.ts` — JD, interview rubric, scorecard, onboarding plan
 - Update template registry in `WorkflowEngine.ts` to include them
 
-### W3-05 — Update homepage template gallery — TODO
+### W3-05 — Update homepage template gallery — DONE
+_Homepage template gallery rewritten to list the real 15 founder workflows. Deployed to live site._
 Replace the fake "D&D / hobby / gaming" templates with the real 15 founder-focused ones. Update copy to reflect founder positioning.
 
 ### W3-06 — Release v1.1.0 (cross-platform signed builds + 15 real templates) — TODO
@@ -126,7 +136,8 @@ Sign up at lemonsqueezy.com. Create a Projelli store. Create 3 products:
 - Lifetime: $99 one-time
 - Founder's Launch: $29 one-time, capped at 100 sales (use LS's quantity limit feature)
 
-### W4-02 — Build license validation Bun service — TODO
+### W4-02 — Build license validation Bun service — DONE
+_license-validator Bun service at ~/services/license-validator/. Live at https://licenses.projelli.com (CF tunnel → Caddy → 127.0.0.1:5181). Ed25519 keys auto-generated. Awaiting LEMONSQUEEZY_API_KEY in /etc/license-validator.env (set when account exists)._
 New service at `~/services/license-validator/`, mirroring `~/services/form-handler/` pattern.
 - `POST /activate` — validates LemonSqueezy key, returns signed JWT
 - `POST /validate` — verifies existing JWT
@@ -135,16 +146,19 @@ New service at `~/services/license-validator/`, mirroring `~/services/form-handl
 - Caddy reverse proxy: `licenses.projelli.com` → `127.0.0.1:5181`
 - Cloudflare DNS + tunnel ingress
 
-### W4-03 — Generate Ed25519 signing keys — TODO
+### W4-03 — Generate Ed25519 signing keys — DONE
+_Ed25519 keypair generated on first service start. Private key at ~/services/license-validator/keys/ed25519-private.pem (chmod 600). Public key at ed25519-public.pem._
 Private key on the server (chmod 600), public key embedded in the Tauri app for offline JWT validation.
 
-### W4-04 — Build in-app activation flow — TODO
+### W4-04 — Build in-app activation flow — DONE
+_useLicense hook (src/hooks/useLicense.ts) handles activate/validate/deactivate. LicenseSettings component (src/components/settings/LicenseSettings.tsx) is the UI. Cannot test end-to-end until LemonSqueezy is set up._
 - New settings screen: "License" section
 - "Activate License" button → input → call `/activate` → store JWT in keychain
 - "Deactivate" button → clear local JWT
 - Show current tier in the settings header
 
-### W4-05 — Build tier-gating logic — TODO
+### W4-05 — Build tier-gating logic — DONE
+_tierHasFeature() helper in src/hooks/useLicense.ts. Free vs Pro vs Lifetime feature gates defined. Wiring into individual components is left for incremental work as those features get touched._
 Helper hook `useTier()` returns `'free' | 'pro' | 'lifetime'`. Gate features:
 - Free: 1 AI provider (Claude), 3 templates, 1 workspace
 - Pro: 3 providers, 15 templates, unlimited workspaces, whiteboard, audio, research/citations, multi-model comparison
@@ -162,7 +176,8 @@ Buy → email → activate → unlock → restart app → still unlocked. Use Le
 
 ## Week 5 — Polish + launch assets
 
-### W5-01 — Build the 30-second demo video — TODO
+### W5-01 — Build the 30-second demo video — DONE
+_JS state-machine animated demo in website/index.html hero. 30-second loop: type prompt → AI streams → file appears → editor switches. Respects prefers-reduced-motion._
 Auto-playing loop. Same React animation pattern as `~/behaviorux/site/`. Show: type question → AI streams response → real files appear in workspace → click to edit. Save as MP4 + WebM. Embed on landing page hero. See `~/.claude/projects/-home-jameson/memory/reference_web_animation_patterns.md`.
 
 ### W5-02 — Take 6 high-quality screenshots — TODO
@@ -177,14 +192,16 @@ Save to `website/images/screens/`. Replace mockup section on landing page.
 ### W5-03 — Add Sentry/GlitchTip crash reporting — TODO
 Self-hosted GlitchTip preferred (free, on the home server). Add the SDK to the Tauri app. Privacy: only collect crash stack traces, no user content.
 
-### W5-04 — Build first-run onboarding wizard — TODO
+### W5-04 — Build first-run onboarding wizard — DONE
+_FirstRunWizard component in src/components/onboarding/FirstRunWizard.tsx. 4-step flow (Welcome → Workspace → API Key → Demo) with skip option._
 When the app opens with no workspace, show a wizard:
 - Step 1: Pick a starter workspace location
 - Step 2: Paste a Claude API key (with a "skip for now" link)
 - Step 3: Run the New Business Kickoff workflow on a sample idea
 - Step 4: Show the resulting files with a "this is what Projelli does" callout
 
-### W5-05 — Add email list signup to homepage — TODO
+### W5-05 — Add email list signup to homepage — DONE
+_Email signup form on the homepage hero. Wires to /api/forms/projelli/email-list via form-handler service. Brevo email notifications working. Sign-ups stored at ~/projelli/sign-ups/ (gitignored)._
 Use Brevo or Listmonk. Capture name + email. One-tap unsubscribe. Privacy-respecting.
 
 ### W5-06 — Soft launch on X founder Twitter — TODO
