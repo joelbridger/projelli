@@ -16,3 +16,10 @@ export {
   type KeyboardShortcut,
   type UseKeyboardShortcutsOptions,
 } from './useKeyboardShortcuts';
+
+export {
+  useLicense,
+  tierHasFeature,
+  type LicenseTier,
+  type LicenseState,
+} from './useLicense';

@@ -506,6 +506,245 @@
       opacity: 0.7;
     }
 
+    /* Email signup form */
+    .email-signup {
+      display: flex;
+      gap: 8px;
+      margin-top: 24px;
+      max-width: 480px;
+    }
+
+    .email-signup-input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid var(--border-gray);
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--text-heading);
+      background: white;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .email-signup-input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .email-signup-btn {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      background: var(--text-heading);
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s ease, transform 0.1s ease;
+      white-space: nowrap;
+    }
+
+    .email-signup-btn:hover {
+      background: #1e2a3d;
+    }
+
+    .email-signup-btn:active {
+      transform: scale(0.97);
+    }
+
+    .email-signup-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .email-signup-note {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    .email-signup-note.success {
+      color: var(--accent-green);
+      font-weight: 500;
+    }
+
+    .email-signup-note.error {
+      color: #ef4444;
+    }
+
+    /* Animated Demo additions */
+    .mockup-title-text {
+      flex: 1;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .mockup-file {
+      padding: 6px 12px;
+      font-size: 13px;
+      color: var(--text-body);
+      cursor: pointer;
+      border-radius: 6px;
+      margin-bottom: 2px;
+      transition: background 0.3s ease, color 0.3s ease, transform 0.4s ease, opacity 0.4s ease;
+    }
+
+    .mockup-file.active {
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--accent-blue);
+      font-weight: 500;
+    }
+
+    .mockup-file.new-file {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+
+    .mockup-file.new-file.appearing {
+      opacity: 1;
+      transform: translateY(0);
+      animation: file-flash 1.2s ease;
+    }
+
+    @keyframes file-flash {
+      0%, 100% { background: transparent; }
+      50% { background: rgba(16, 185, 129, 0.2); }
+    }
+
+    .mockup-chat {
+      flex: 0 0 240px;
+      border-left: 1px solid var(--border-gray);
+      background: var(--bg-surface);
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+    }
+
+    .chat-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .chat-msg {
+      font-size: 12px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      line-height: 1.4;
+      animation: msg-fade-in 0.4s ease;
+    }
+
+    .chat-msg.user {
+      background: rgba(59, 130, 246, 0.08);
+      color: var(--text-body);
+      border-left: 2px solid var(--accent-blue);
+    }
+
+    .chat-msg.ai {
+      background: rgba(139, 92, 246, 0.08);
+      color: var(--text-body);
+      border-left: 2px solid var(--accent-purple);
+    }
+
+    @keyframes msg-fade-in {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chat-input-row {
+      display: flex;
+      gap: 6px;
+      margin-top: 12px;
+      align-items: center;
+    }
+
+    .chat-input {
+      flex: 1;
+      background: white;
+      border: 1px solid var(--border-gray);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 12px;
+      color: var(--text-heading);
+      min-height: 32px;
+    }
+
+    .chat-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 12px;
+      background: var(--accent-blue);
+      vertical-align: middle;
+      animation: blink 1s steps(2) infinite;
+      margin-left: 1px;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    .chat-send {
+      background: var(--accent-blue);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      width: 32px;
+      height: 32px;
+      font-size: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .chat-send.pulse {
+      animation: send-pulse 0.6s ease;
+    }
+
+    @keyframes send-pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.2); }
+    }
+
+    .ai-thinking {
+      display: inline-block;
+    }
+
+    .ai-thinking::after {
+      content: '';
+      animation: thinking-dots 1.2s steps(4) infinite;
+    }
+
+    @keyframes thinking-dots {
+      0% { content: ''; }
+      25% { content: '.'; }
+      50% { content: '..'; }
+      75% { content: '...'; }
+    }
+
+    @media (max-width: 1024px) {
+      .mockup-chat {
+        display: none;
+      }
+    }
+
     /* Section Styles */
     section {
       padding: var(--section-padding) 0;
@@ -1173,37 +1412,61 @@
             <a href="#pricing" class="btn btn-primary btn-lg">Download for Free</a>
             <a href="https://github.com/projelli/projelli" class="btn btn-outline btn-lg">View on GitHub</a>
           </div>
+
+          <!-- Email list signup -->
+          <form id="email-signup-form" class="email-signup">
+            <input
+              type="email"
+              name="email"
+              placeholder="your@email.com"
+              required
+              class="email-signup-input"
+              aria-label="Email address"
+            />
+            <button type="submit" class="email-signup-btn">Get launch updates</button>
+          </form>
+          <p class="email-signup-note" id="email-signup-note">Pricing locks in for the first 100 buyers. Be one of them.</p>
         </div>
 
-        <!-- App Mockup -->
-        <div class="app-mockup">
+        <!-- Animated App Demo -->
+        <div class="app-mockup" id="demo-mockup">
           <div class="mockup-titlebar">
             <div class="mockup-dot"></div>
             <div class="mockup-dot"></div>
             <div class="mockup-dot"></div>
+            <div class="mockup-title-text">Projelli — My SaaS Launch</div>
           </div>
 
           <div class="mockup-body">
-            <div class="mockup-sidebar">
-              <div class="mockup-folder active">📁 My Projects</div>
-              <div class="mockup-folder">📄 Startup Ideas.md</div>
-              <div class="mockup-folder">📄 D&D Campaign.md</div>
-              <div class="mockup-folder">📄 Financial Plan.md</div>
-              <div class="mockup-folder">📁 Research Notes</div>
-              <div class="mockup-folder">📁 Templates</div>
+            <div class="mockup-sidebar" id="demo-sidebar">
+              <div class="mockup-folder">📁 My SaaS Launch</div>
+              <div class="mockup-file" data-file="vision">📄 VISION.md</div>
+              <div class="mockup-file" data-file="prd">📄 PRD.md</div>
+              <div class="mockup-file new-file" data-file="launch-plan">📄 LAUNCH_PLAN.md</div>
             </div>
 
             <div class="mockup-main">
               <div class="mockup-tabs">
-                <div class="mockup-tab active">Startup Ideas.md</div>
-                <div class="mockup-tab">D&D Campaign.md</div>
+                <div class="mockup-tab active" id="demo-active-tab">VISION.md</div>
               </div>
 
-              <div class="mockup-editor">
-                <h2>Project Overview</h2>
-                <p>You know that one project you keep in six tabs, three notebooks, and a folder on the desktop you mean to clean up...</p>
-                <p>This is the one. The startup idea. The campaign. The half-built spreadsheet. The book you said you were going to write.</p>
-                <p>Projelli keeps the whole thing in one workspace, with an AI that remembers the pieces you already told it about.</p>
+              <div class="mockup-editor" id="demo-editor">
+                <h2>Vision</h2>
+                <p>A local-first project planner for indie founders who want AI as a co-pilot, not a replacement.</p>
+                <p>Every conversation produces real files. Nothing lives in someone else's cloud.</p>
+              </div>
+            </div>
+
+            <div class="mockup-chat" id="demo-chat">
+              <div class="chat-label">AI Chat</div>
+              <div class="chat-messages" id="demo-chat-messages">
+                <!-- Messages injected by JS -->
+              </div>
+              <div class="chat-input-row">
+                <div class="chat-input" id="demo-chat-input">
+                  <span id="demo-typed-text"></span><span class="chat-cursor"></span>
+                </div>
+                <button class="chat-send" id="demo-send-btn">↑</button>
               </div>
             </div>
           </div>
@@ -1812,6 +2075,216 @@
         }
       });
     });
+
+    // ============================================================
+    // Email list signup form
+    // ============================================================
+    (function() {
+      const form = document.getElementById('email-signup-form');
+      const note = document.getElementById('email-signup-note');
+      if (!form || !note) return;
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData(form);
+        const email = (fd.get('email') || '').toString().trim();
+        if (!email) return;
+
+        const submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+        note.textContent = 'Adding you to the list…';
+        note.className = 'email-signup-note';
+
+        try {
+          const res = await fetch('/api/forms/projelli/email-list', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, source: 'hero-form' }),
+          });
+          const data = await res.json();
+          if (res.ok && data.ok) {
+            note.textContent = data.message || "You're on the list. We'll email you when v1.1 ships.";
+            note.classList.add('success');
+            form.reset();
+          } else {
+            note.textContent = data.error || 'Something went wrong. Please try again.';
+            note.classList.add('error');
+          }
+        } catch (err) {
+          note.textContent = 'Network error. Please try again.';
+          note.classList.add('error');
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
+        }
+      });
+    })();
+
+    // ============================================================
+    // Hero animated demo
+    // ============================================================
+    // 30-second loop showing the magic moment: user types a question →
+    // AI streams a response → a new file appears in the workspace →
+    // the editor switches to show the new file. Then loops.
+    //
+    // Implemented as a JS state machine driving CSS class toggles.
+    // Respects prefers-reduced-motion: skips the animation entirely
+    // and shows a static end state.
+    // ============================================================
+    (function() {
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      const typedTextEl = document.getElementById('demo-typed-text');
+      const sendBtn = document.getElementById('demo-send-btn');
+      const chatMessagesEl = document.getElementById('demo-chat-messages');
+      const newFileEl = document.querySelector('.mockup-file.new-file');
+      const visionFileEl = document.querySelector('.mockup-file[data-file="vision"]');
+      const activeTabEl = document.getElementById('demo-active-tab');
+      const editorEl = document.getElementById('demo-editor');
+
+      if (!typedTextEl || !sendBtn || !chatMessagesEl) return; // mockup not present
+
+      const userPrompt = 'Plan my SaaS launch in 8 weeks';
+      const aiResponseLines = [
+        "I'll outline an 8-week launch plan for your SaaS.",
+        "Creating LAUNCH_PLAN.md with milestones...",
+      ];
+
+      const visionContent = `<h2>Vision</h2>
+        <p>A local-first project planner for indie founders who want AI as a co-pilot, not a replacement.</p>
+        <p>Every conversation produces real files. Nothing lives in someone else's cloud.</p>`;
+
+      const launchPlanContent = `<h2>Launch Plan — 8 Weeks</h2>
+        <p><strong>Week 1-2:</strong> Polish, legal docs, support email, GitHub Actions CI</p>
+        <p><strong>Week 3:</strong> macOS code signing + notarization, missing templates</p>
+        <p><strong>Week 4:</strong> LemonSqueezy + license validation</p>
+        <p><strong>Week 5:</strong> Demo video, screenshots, soft launch</p>`;
+
+      let activeTimeouts = [];
+
+      function clearTimers() {
+        activeTimeouts.forEach(t => clearTimeout(t));
+        activeTimeouts = [];
+      }
+
+      function defer(fn, delay) {
+        const id = setTimeout(fn, delay);
+        activeTimeouts.push(id);
+      }
+
+      function reset() {
+        clearTimers();
+        typedTextEl.textContent = '';
+        chatMessagesEl.innerHTML = '';
+        newFileEl.classList.remove('appearing');
+        visionFileEl.classList.add('active');
+        newFileEl.classList.remove('active');
+        activeTabEl.textContent = 'VISION.md';
+        editorEl.innerHTML = visionContent;
+      }
+
+      function typewriter(text, el, charDelay, onDone) {
+        let i = 0;
+        function tick() {
+          if (i <= text.length) {
+            el.textContent = text.slice(0, i);
+            i++;
+            defer(tick, charDelay);
+          } else if (onDone) {
+            onDone();
+          }
+        }
+        tick();
+      }
+
+      function addMessage(role, text, className) {
+        const div = document.createElement('div');
+        div.className = `chat-msg ${role}`;
+        if (className) div.classList.add(className);
+        div.textContent = text;
+        chatMessagesEl.appendChild(div);
+        return div;
+      }
+
+      function streamMessage(role, lines, onDone) {
+        const div = addMessage(role, '');
+        let lineIdx = 0;
+        let charIdx = 0;
+        let acc = '';
+        function tick() {
+          if (lineIdx >= lines.length) {
+            if (onDone) onDone();
+            return;
+          }
+          const line = lines[lineIdx];
+          if (charIdx < line.length) {
+            acc += line[charIdx];
+            div.textContent = acc;
+            charIdx++;
+            defer(tick, 18);
+          } else {
+            acc += '\n\n';
+            div.textContent = acc.trim();
+            lineIdx++;
+            charIdx = 0;
+            defer(tick, 200);
+          }
+        }
+        tick();
+      }
+
+      function runCycle() {
+        reset();
+        // Step 1: Type the prompt
+        defer(() => {
+          typewriter(userPrompt, typedTextEl, 60, () => {
+            // Step 2: Click send (pulse)
+            defer(() => {
+              sendBtn.classList.add('pulse');
+              defer(() => sendBtn.classList.remove('pulse'), 600);
+              // Step 3: Add the user message and clear input
+              addMessage('user', userPrompt);
+              typedTextEl.textContent = '';
+              // Step 4: AI thinking + streaming response
+              defer(() => {
+                streamMessage('ai', aiResponseLines, () => {
+                  // Step 5: New file appears in tree
+                  defer(() => {
+                    newFileEl.classList.add('appearing');
+                    // Step 6: Switch active file/tab to the new one
+                    defer(() => {
+                      visionFileEl.classList.remove('active');
+                      newFileEl.classList.add('active');
+                      activeTabEl.textContent = 'LAUNCH_PLAN.md';
+                      editorEl.style.opacity = '0';
+                      defer(() => {
+                        editorEl.innerHTML = launchPlanContent;
+                        editorEl.style.opacity = '1';
+                      }, 250);
+                    }, 800);
+                  }, 400);
+                });
+              }, 400);
+            }, 400);
+          });
+        }, 800);
+
+        // Loop after ~28 seconds
+        defer(runCycle, 28000);
+      }
+
+      if (reducedMotion) {
+        // Static end state
+        addMessage('user', userPrompt);
+        addMessage('ai', aiResponseLines.join('\n\n'));
+        newFileEl.classList.add('appearing', 'active');
+        visionFileEl.classList.remove('active');
+        activeTabEl.textContent = 'LAUNCH_PLAN.md';
+        editorEl.innerHTML = launchPlanContent;
+      } else {
+        // Start the loop after the page settles
+        defer(runCycle, 1200);
+      }
+    })();
   </script>
 </body>
 </html>
