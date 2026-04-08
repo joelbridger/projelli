@@ -1,0 +1,37 @@
+# Normalize all text files to LF on checkout
+# Stops the CRLF→LF noise from polluting diffs after the Windows→server move
+* text=auto eol=lf
+
+# Force binary handling for assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.bmp binary
+*.svg binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.exe binary
+*.msi binary
+*.dmg binary
+*.app binary
+*.zip binary
+*.tar binary
+*.tar.gz binary
+*.tgz binary
+
+# Force LF on shell scripts and configuration files even on Windows checkouts
+*.sh text eol=lf
+*.bash text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Windows-specific files keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
