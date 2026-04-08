@@ -8,7 +8,7 @@ This guide explains how to continue developing, testing, and updating Projelli a
 
 ## 📁 Repository Structure
 
-- **GitHub:** https://github.com/joelbridger/projelli
+- **GitHub:** https://github.com/projelli/projelli
 - **Website:** https://projelli.com (served from home server)
 - **Development:** WSL2 for code editing, native Windows for building
 - **Branch Strategy:** `master` branch for production releases
@@ -113,7 +113,7 @@ npm run tauri build
 ```
 
 **Step 3: Create GitHub Release**
-- Go to: https://github.com/joelbridger/projelli/releases/new
+- Go to: https://github.com/projelli/projelli/releases/new
 - Select tag: `v1.0.1`
 - Title: "Projelli v1.0.1 - [Brief description]"
 - Description: List of changes/fixes
@@ -291,7 +291,7 @@ grep '"version"' package.json | head -1
 ```
 
 ### See All Releases
-Visit: https://github.com/joelbridger/projelli/releases
+Visit: https://github.com/projelli/projelli/releases
 
 ---
 

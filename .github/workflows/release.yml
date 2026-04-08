@@ -5,7 +5,7 @@ name: Release Tauri builds
 # then publishes them as a draft GitHub Release.
 #
 # After the workflow finishes:
-#   1. Go to https://github.com/joelbridger/projelli/releases
+#   1. Go to https://github.com/projelli/projelli/releases
 #   2. Find the draft release
 #   3. Edit the description with the changelog from CHANGELOG.md
 #   4. Click "Publish release"

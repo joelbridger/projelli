@@ -67,7 +67,7 @@ The chosen positioning, pricing, distribution, and tech stack are all spelled ou
 - No support channel
 - No documentation site (footer "Docs / Getting Started / API Keys Guide" links are also `#`)
 - Marketing claims "15+ project templates" but the homepage describes templates that don't exist; the 12 templates that DO exist are all founder-focused and the homepage doesn't surface them
-- GitHub repo on `joelbridger/projelli`, not Jameson's main brand-recognized account
+- ~~GitHub repo on `joelbridger/projelli`~~ → moved to `projelli/projelli` (GitHub Organization, owned by Jameson's joelbridger account) on 2026-04-08
 
 **Operational gaps**
 - v1.0.1 ghost release: `package.json` says version `1.0.1`, but no v1.0.1 GitHub release exists. The website still links to v1.0.0. Users can't get the fixes that have been written.
@@ -154,15 +154,25 @@ Jameson asked Claude to make every call. Each row below is a decision, the reaso
 
 ---
 
-### Decision 3: GitHub repo — stays at `joelbridger/projelli` (RESOLVED 2026-04-08)
+### Decision 3: GitHub repo — moved to `projelli/projelli` org (REVISED 2026-04-08)
 
-**Decision:** Repo stays at `github.com/joelbridger/projelli`. No transfer.
+**Final decision:** Repo lives at **`github.com/projelli/projelli`**, a GitHub Organization (Free plan) owned by Jameson's `joelbridger` personal account.
 
-**Resolution:** Jameson confirmed that `joelbridger` IS his secondary GitHub account, not an unknown third party. The original concern (an unrecognizable handle eroding trust) doesn't apply since this is Jameson under an alias. Transferring would break existing release URLs (5+2 downloads worth of links), break any inbound SEO/links, and create work for zero customer-facing benefit.
+**History of this decision:**
+1. Original assessment: assume `joelbridger` is unknown → recommend transfer to brand-recognized personal account
+2. Board input: `joelbridger` is actually Jameson's main account → recommendation revised to "stay at joelbridger" to avoid breaking release URLs
+3. Board follow-up: Jameson asked for a CEO call between (a) keep at joelbridger, (b) move to a `jamesondaines` personal account, or (c) create a new `projelli` account
+4. **Final CEO call: create a `projelli` GitHub Organization.** The org structure is the cleanest commercial arrangement — it decouples the product from any individual person, signals "real product" to PH/HN/buyers, and future-proofs LLC formation, contributors, hires, and any eventual sale.
 
-**Implication for branding:** When customers click "View on GitHub" from the homepage, the profile should be enriched: add a clear bio ("Projelli — local-first AI workspace for founders. Built by Jameson Daines."), pin the projelli repo, link back to projelli.com, add a profile picture. This is ~10 minutes of work and gives the same credibility benefit as a transfer.
+**Transfer executed 2026-04-08:**
+- New `projelli` org created (Free plan, owned by joelbridger account)
+- Existing `joelbridger/projelli` repo transferred via GitHub API
+- Old `joelbridger/projelli/*` URLs auto-301-redirect to new `projelli/projelli/*` URLs (so the existing v1.0.0 download links remain functional)
+- Local git remote updated to `https://github.com/projelli/projelli.git`
+- All marketing copy and docs updated to use the canonical `projelli/projelli` URLs
+- Server's `gh` CLI now authenticated as `joelbridger` (alongside the existing `scottdaly` token), so push works from the server
 
-**Open infra issue:** The server's `gh` CLI is logged in as `scottdaly` (Jameson's other account, also his) with read-only access to `joelbridger/projelli`. To enable git push from the server, Jameson needs to either (a) run `gh auth login` interactively as joelbridger, or (b) add scottdaly as a collaborator on the repo. Neither is hard; tracked separately.
+**Implication for branding:** Public-facing GitHub URL is `projelli/projelli`. Jameson is identified as the founder in the README and via the org's profile README at `github.com/projelli/.github`. The org structure also makes it natural to add a logo, bio, support email, and pinned repos at the org level rather than per-person.
 
 ---
 
@@ -441,7 +451,7 @@ At $5K/mo revenue, Projelli's gross margin is ~94%. Compare to a SaaS with infra
 
 - [ ] Add `.gitattributes` (`* text=auto eol=lf`) and normalize CRLF→LF in one commit
 - [ ] Commit the 5 files of real uncommitted work (tab persistence + open-in-explorer)
-- [ ] Push everything to `joelbridger/projelli` (or Jameson's main account if transferred)
+- [x] Push everything to `projelli/projelli` (transferred from joelbridger/projelli on 2026-04-08)
 - [ ] Reorganize docs into `docs/reference/`, `docs/operations/`, `docs/features/`, `docs/quality/`, `docs/archive/`
 - [ ] Sync `website/index.html` with the live `/var/www/projelli.com/index.html` (live is canonical)
 - [ ] Create `infra/deploy.sh` for future website deploys
@@ -579,13 +589,8 @@ These are the only items NOT decided. Jameson's input is required before they're
 ### Q5: Overall green light — RESOLVED 2026-04-08
 **Answer:** Yes. Jameson is ready to own a paid software product (taxes, refunds, support, ownership).
 
-### Newly opened — Q6: Server git push credentials
-The server's `gh` CLI is logged in as `scottdaly` (Jameson's other account) with read-only access to `joelbridger/projelli`. To enable git push from the server, Jameson needs to do ONE of:
-- (a) Run `! gh auth login` from this session interactively as `joelbridger`
-- (b) Add `scottdaly` as a collaborator on `joelbridger/projelli` in repo settings
-- (c) Push from his Windows machine
-
-**Recommendation:** (a) is the cleanest — one interactive auth flow and push works forever from the server. **Required to unblock pushing the Phase 0 work.**
+### Q6: Server git push credentials — RESOLVED 2026-04-08
+**Answer:** Jameson ran `gh auth login` in another terminal as `joelbridger`. Server's `gh` CLI now has both `joelbridger` (active) and `scottdaly` (secondary) tokens. Push works. Repo subsequently transferred to the new `projelli` org and remote URL updated.
 
 ---
 

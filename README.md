@@ -3,7 +3,7 @@
 > **Local-first AI workspace where every chat becomes a real file.**
 > Built for indie founders who want AI as a co-pilot, not a replacement.
 
-[**projelli.com**](https://projelli.com) • [Download](https://github.com/joelbridger/projelli/releases) • [Business plan](./PROJELLI_BUSINESS_PLAN.md)
+[**projelli.com**](https://projelli.com) • [Download](https://github.com/projelli/projelli/releases) • [Business plan](./PROJELLI_BUSINESS_PLAN.md)
 
 ---
 
@@ -28,7 +28,7 @@ The pitch in one sentence: it's Obsidian for the AI era, built for founders, sol
 
 ## Install (current state)
 
-**Windows:** Download the latest `.exe` from [Releases](https://github.com/joelbridger/projelli/releases). The installer is currently **unsigned** (Windows SmartScreen will warn you "unrecognized app" — click "More info" → "Run anyway"). This will be fixed in Week 2 of the launch ramp once code signing is in place.
+**Windows:** Download the latest `.exe` from [Releases](https://github.com/projelli/projelli/releases). The installer is currently **unsigned** (Windows SmartScreen will warn you "unrecognized app" — click "More info" → "Run anyway"). This will be fixed in Week 2 of the launch ramp once code signing is in place.
 
 **macOS / Linux:** Not yet shipped. Coming in Week 3.
 
@@ -136,7 +136,7 @@ Privacy policy: [https://projelli.com/legal/privacy](https://projelli.com/legal/
 ## Support
 
 - **Email:** `support@projelli.com` (live in Week 1)
-- **Issues:** [GitHub Issues](https://github.com/joelbridger/projelli/issues)
+- **Issues:** [GitHub Issues](https://github.com/projelli/projelli/issues)
 
 ## License
 

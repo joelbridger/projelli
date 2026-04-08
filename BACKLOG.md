@@ -30,14 +30,11 @@ Won't actually run until pushed and a tag is created.
 ### W1-06 — Write a real `README.md` — TODO
 Public-facing repo intro. What is Projelli, install, dev setup, link to business plan.
 
-### W1-07 — Push everything to `joelbridger/projelli` — BLOCKED
-**Blocked by:** Server's `gh` CLI is logged in as `scottdaly` with read-only access. Need Jameson to either run `! gh auth login` as joelbridger OR add scottdaly as collaborator on the repo.
+### W1-07 — Push everything to `projelli/projelli` — DONE
+Pushed 3 commits (`8bfa637`, `fa80df4`, `069c6e5`) to `joelbridger/projelli`, then transferred the repo to the new `projelli` org. Old URLs auto-redirect.
 
-### W1-08 — Resolve push credentials — TODO (Jameson action required)
-Pick one:
-- (a) Run `! gh auth login` from this Claude session as `joelbridger` (recommended, ~30 sec)
-- (b) Add `scottdaly` as a collaborator on `github.com/joelbridger/projelli` in repo settings
-- (c) Push from your Windows machine
+### W1-08 — Resolve push credentials — DONE
+Authenticated `gh` CLI as joelbridger account on the server. Both joelbridger and scottdaly accounts now coexist in `~/.config/gh/hosts.yml`. joelbridger has admin access on the (now transferred) `projelli/projelli` repo via org ownership.
 
 ### W1-09 — Write minimum-viable legal docs — TODO
 Privacy Policy, Terms of Service, EULA. Templates from TermsFeed or Iubenda (~$30/yr) are fine for v1. Customize for: local-first BYOK, no data collection, no PII storage, US jurisdiction.
@@ -72,8 +69,8 @@ The repo's `CLAUDE.md` was written during the v1 dev phase. Update to reflect:
 - Pointers to key files and the new `docs/` layout
 - Note that Jameson is not a developer — explain things in plain language
 
-### W1-16 — Enrich joelbridger GitHub profile — TODO
-Add a bio, profile picture, link back to projelli.com, pin the projelli repo, add a README to the joelbridger profile that introduces Projelli. ~10 min of work, gives the same credibility benefit as a transfer.
+### W1-16 — Set up `projelli` org profile — TODO
+Add a bio, logo (the pink-bean Projelli logo), website link, and a public profile README at `github.com/projelli/.github`. README should explain what Projelli is, who built it (Jameson Daines), and link to projelli.com. ~10 min.
 
 ---
 
