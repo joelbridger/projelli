@@ -1,0 +1,112 @@
+name: Release Tauri builds
+
+# Triggered on tag push (e.g. `git tag v1.0.2 && git push --tags`).
+# Builds Tauri installers for Windows, macOS (Intel + Apple Silicon), and Linux,
+# then publishes them as a draft GitHub Release.
+#
+# After the workflow finishes:
+#   1. Go to https://github.com/joelbridger/projelli/releases
+#   2. Find the draft release
+#   3. Edit the description with the changelog from CHANGELOG.md
+#   4. Click "Publish release"
+#
+# Required GitHub Secrets (set under Settings → Secrets and variables → Actions):
+#
+#   For macOS code signing + notarization (set in Week 3 once Apple Developer is approved):
+#     APPLE_CERTIFICATE                base64-encoded .p12 of your Developer ID Application cert
+#     APPLE_CERTIFICATE_PASSWORD       password used when exporting the .p12
+#     APPLE_SIGNING_IDENTITY           e.g. "Developer ID Application: Jameson Daines (TEAMID)"
+#     APPLE_ID                         your Apple ID email
+#     APPLE_PASSWORD                   app-specific password for notarization
+#     APPLE_TEAM_ID                    your Apple Developer team ID
+#
+#   For Windows code signing (set in Week 2 once Azure Trusted Signing or SSL.com cert is procured):
+#     WINDOWS_CERTIFICATE              base64-encoded .pfx (if using a traditional cert)
+#     WINDOWS_CERTIFICATE_PASSWORD     password for the .pfx
+#     (OR if using Azure Trusted Signing, swap to a different signing step — see comments below)
+#
+# Until secrets are configured, builds will succeed but installers will be UNSIGNED.
+# Unsigned installers still work but trigger SmartScreen / Gatekeeper warnings.
+
+on:
+  push:
+    tags:
+      - 'v*'  # e.g. v1.0.2, v1.1.0-beta.1
+  workflow_dispatch:  # allow manual triggering for testing
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'  # Apple Silicon
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'  # Intel
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS signing + notarization (no-op until secrets are set in Week 3)
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows signing (no-op until secrets are set in Week 2)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Projelli ${{ github.ref_name }}'
+          releaseBody: |
+            Auto-generated release. See `CHANGELOG.md` for changes.
+
+            ## Downloads
+            - **Windows:** `.exe` installer
+            - **macOS Apple Silicon:** `.dmg`
+            - **macOS Intel:** `.dmg`
+            - **Linux:** `.AppImage` or `.deb`
+
+            ⚠️ Until code signing is enabled, expect SmartScreen (Windows) or Gatekeeper (macOS) warnings on first install.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
