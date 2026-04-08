@@ -25,6 +25,8 @@ interface WorkspaceState {
   loadExpandedPaths: (rootPath: string) => boolean;
   saveExpandedPaths: (rootPath: string) => void;
   addRecentWorkspace: (workspace: RecentWorkspace) => void;
+  saveRecentWorkspaces: () => void;
+  loadRecentWorkspaces: () => void;
   clearWorkspace: () => void;
 
   // Multi-select actions
@@ -131,12 +133,47 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   addRecentWorkspace: (workspace) => {
-    set((state) => ({
-      recentWorkspaces: [
+    set((state) => {
+      const updated = [
         workspace,
         ...state.recentWorkspaces.filter((w) => w.path !== workspace.path),
-      ].slice(0, 10),
-    }));
+      ].slice(0, 10);
+      // Persist to localStorage
+      try {
+        localStorage.setItem('projelli_recent_workspaces', JSON.stringify(updated));
+        console.log(`[RecentWorkspaces] Saved ${updated.length} recent workspaces, latest: ${workspace.name}`);
+      } catch (error) {
+        console.error('Failed to save recent workspaces:', error);
+      }
+      return { recentWorkspaces: updated };
+    });
+  },
+
+  saveRecentWorkspaces: () => {
+    const state = get();
+    try {
+      localStorage.setItem('projelli_recent_workspaces', JSON.stringify(state.recentWorkspaces));
+    } catch (error) {
+      console.error('Failed to save recent workspaces:', error);
+    }
+  },
+
+  loadRecentWorkspaces: () => {
+    const stored = localStorage.getItem('projelli_recent_workspaces');
+    console.log(`[RecentWorkspaces] Loading from localStorage, found: ${!!stored}`);
+    if (stored) {
+      try {
+        const workspaces = JSON.parse(stored) as Array<{ path: string; name: string; lastOpened: string }>;
+        // Restore Date objects from serialized strings
+        const restored = workspaces.map((w) => ({
+          ...w,
+          lastOpened: new Date(w.lastOpened),
+        }));
+        set({ recentWorkspaces: restored });
+      } catch (error) {
+        console.error('Failed to load recent workspaces:', error);
+      }
+    }
   },
 
   clearWorkspace: () => {

@@ -93,7 +93,7 @@ function App() {
     return (savedTheme === 'dark' || savedTheme === 'light') ? savedTheme : 'light';
   });
 
-  const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders } = useWorkspaceStore();
+  const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore();
   const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, toggleBacklinks, splitPane, closeSplit, isSplit } = useEditorStore();
   const { runHistory, completeRun } = useWorkflowStore();
 
@@ -240,6 +240,11 @@ function App() {
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Load recent workspaces from localStorage on mount
+  useEffect(() => {
+    loadRecentWorkspaces();
+  }, [loadRecentWorkspaces]);
 
   // Derive whiteboard files from file tree
   const whiteboardFiles = useMemo(() => {
@@ -392,18 +397,21 @@ function App() {
 
   // Handle workspace selection
   const handleWorkspaceSelected = useCallback(async (service: WorkspaceService) => {
+    // Save previous workspace's tab state before switching
+    const prevRootPath = useWorkspaceStore.getState().rootPath;
+    if (prevRootPath) {
+      useEditorStore.getState().saveWorkspaceState(prevRootPath);
+    }
+
+    // Clear current tab state
+    useEditorStore.getState().clearTabState();
+
     workspaceServiceRef.current = service;
     setShowWorkspaceSelector(false);
 
     const newRootPath = service.getRootPath();
     if (newRootPath) {
       setRootPath(newRootPath);
-    }
-
-    // Close all open tabs from the previous workspace
-    const { openTabs: prevTabs } = useEditorStore.getState();
-    for (const tab of prevTabs) {
-      useEditorStore.getState().closeTab(tab.path);
     }
 
     let isNewWorkspace = false;
@@ -512,6 +520,18 @@ function App() {
           expandAllFolders();
           console.log('No saved expansion state, expanding all folders');
         }
+      }
+
+      // Restore saved tab state for this workspace
+      try {
+        await useEditorStore.getState().restoreWorkspaceState(
+          newRootPath,
+          (path: string) => service.readFile(path),
+          (path: string) => service.readFileBinary(path)
+        );
+        console.log('Restored workspace tab state');
+      } catch (error) {
+        console.error('Failed to restore workspace tab state:', error);
       }
     }
   }, [loadTrashMetadata, loadSourceCards, loadChatFiles]);

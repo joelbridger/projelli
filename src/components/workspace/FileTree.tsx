@@ -146,11 +146,10 @@ export function FileTree({
     try {
       // Check if we're in Tauri environment
       if (typeof window !== 'undefined' && '__TAURI__' in window) {
-        // Use Tauri v2 shell plugin to open folder
-        const { open } = await import('@tauri-apps/plugin-shell');
-        // If a folder is selected, open that folder; otherwise open root
+        // Use custom Tauri command to open in system file explorer
+        const { invoke } = await import('@tauri-apps/api/core');
         const pathToOpen = selectedPath || rootPath;
-        await open(pathToOpen);
+        await invoke('open_in_explorer', { path: pathToOpen });
       } else {
         // Fallback for browser - just show an alert
         alert('This feature is only available in the desktop app.');

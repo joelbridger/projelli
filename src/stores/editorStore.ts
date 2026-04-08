@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/utils/file-utils';
 
 interface OpenTab {
   path: string;
@@ -27,6 +27,18 @@ interface PaneLayout {
   direction: 'horizontal' | 'vertical';
   sizes: number[];
   panes: (string | PaneLayout)[];
+}
+
+interface PersistedTabState {
+  tabs: { path: string; name: string; groupId?: string | null; type?: string; metadata?: object }[];
+  activeTabPath: string | null;
+  tabGroups: TabGroup[];
+  nextGroupId: number;
+  isSplit: boolean;
+  splitDirection: 'horizontal' | 'vertical';
+  secondaryTabPath: string | null;
+  showOutline: boolean;
+  showBacklinks: boolean;
 }
 
 interface EditorState {
@@ -77,11 +89,19 @@ interface EditorState {
   toggleGroupCollapsed: (groupId: string) => void;
   moveTabToGroup: (tabPath: string, groupId: string | null) => void;
   ungroupTab: (tabPath: string) => void;
+
+  // Workspace tab persistence actions
+  saveWorkspaceState: (rootPath: string) => void;
+  restoreWorkspaceState: (
+    rootPath: string,
+    readFile: (path: string) => Promise<string>,
+    readFileBinary: (path: string) => Promise<ArrayBuffer>
+  ) => Promise<void>;
+  clearTabState: () => void;
 }
 
 export const useEditorStore = create<EditorState>()(
-  persist(
-    (set) => ({
+  (set, get) => ({
   openTabs: [],
   activeTabPath: null,
   layout: null,
@@ -382,14 +402,213 @@ export const useEditorStore = create<EditorState>()(
       };
     });
   },
-    }),
-    {
-      name: 'editor-storage', // localStorage key
-      // Only persist tab groups, not open tabs or active state
-      partialize: (state) => ({
-        tabGroups: state.tabGroups,
-        nextGroupId: state.nextGroupId,
-      }),
+
+  // Workspace tab persistence actions
+  saveWorkspaceState: (rootPath) => {
+    const state = get();
+    const persisted: PersistedTabState = {
+      tabs: state.openTabs.map((t) => ({
+        path: t.path,
+        name: t.name,
+        groupId: t.groupId ?? null,
+        type: t.type ?? 'file',
+        metadata: t.metadata ?? {},
+      })),
+      activeTabPath: state.activeTabPath,
+      tabGroups: state.tabGroups,
+      nextGroupId: state.nextGroupId,
+      isSplit: state.isSplit,
+      splitDirection: state.splitDirection,
+      secondaryTabPath: state.secondaryTabPath,
+      showOutline: state.showOutline,
+      showBacklinks: state.showBacklinks,
+    };
+    try {
+      const json = JSON.stringify(persisted);
+      localStorage.setItem(`workspace_tabs_${rootPath}`, json);
+      console.log(`[TabPersist] Saved ${persisted.tabs.length} tabs for workspace: ${rootPath}`);
+    } catch (error) {
+      console.error('Failed to save workspace tab state:', error);
     }
-  )
+  },
+
+  restoreWorkspaceState: async (rootPath, readFile, readFileBinary) => {
+    const key = `workspace_tabs_${rootPath}`;
+    const stored = localStorage.getItem(key);
+    console.log(`[TabPersist] Restoring tabs for workspace: ${rootPath}, found saved data: ${!!stored}`);
+    if (!stored) return;
+
+    let persisted: PersistedTabState;
+    try {
+      persisted = JSON.parse(stored) as PersistedTabState;
+    } catch (error) {
+      console.error('Failed to parse workspace tab state:', error);
+      return;
+    }
+
+    // Re-open each tab by reading content from disk
+    const restoredTabs: OpenTab[] = [];
+    const castMetadata = (m: object | undefined): OpenTab['metadata'] | undefined =>
+      m as OpenTab['metadata'] | undefined;
+
+    for (const tab of persisted.tabs) {
+      const meta = castMetadata(tab.metadata);
+      try {
+        // Browser tabs don't need file content
+        if (tab.type === 'browser') {
+          restoredTabs.push({
+            path: tab.path,
+            name: tab.name,
+            content: '',
+            isDirty: false,
+            groupId: tab.groupId ?? null,
+            type: 'browser',
+            ...(meta ? { metadata: meta } : {}),
+          });
+          continue;
+        }
+
+        // Whiteboard tabs - read content from disk
+        if (tab.type === 'whiteboard') {
+          const content = await readFile(tab.path);
+          restoredTabs.push({
+            path: tab.path,
+            name: tab.name,
+            content,
+            isDirty: false,
+            groupId: tab.groupId ?? null,
+            type: 'whiteboard',
+            ...(meta ? { metadata: meta } : {}),
+          });
+          continue;
+        }
+
+        // Binary files (images, etc.)
+        if (isBinaryFile(tab.name)) {
+          const buffer = await readFileBinary(tab.path);
+          const mimeType = getMimeType(tab.name);
+          const dataUrl = arrayBufferToDataUrl(buffer, mimeType);
+          restoredTabs.push({
+            path: tab.path,
+            name: tab.name,
+            content: dataUrl,
+            isDirty: false,
+            groupId: tab.groupId ?? null,
+            type: (tab.type as OpenTab['type']) || 'file',
+            ...(meta ? { metadata: meta } : {}),
+          });
+          continue;
+        }
+
+        // Regular text files
+        const content = await readFile(tab.path);
+        restoredTabs.push({
+          path: tab.path,
+          name: tab.name,
+          content,
+          isDirty: false,
+          groupId: tab.groupId ?? null,
+          type: (tab.type as OpenTab['type']) || 'file',
+          ...(meta ? { metadata: meta } : {}),
+        });
+      } catch {
+        // File no longer exists or can't be read — silently skip
+        console.debug(`Skipping tab for missing/unreadable file: ${tab.path}`);
+      }
+    }
+
+    // Guard against race condition: check rootPath still matches
+    const { useWorkspaceStore } = await import('./workspaceStore');
+    if (useWorkspaceStore.getState().rootPath !== rootPath) {
+      return;
+    }
+
+    // Validate activeTabPath and secondaryTabPath still exist in restored tabs
+    const restoredPaths = new Set(restoredTabs.map((t) => t.path));
+    const activeTabPath = persisted.activeTabPath && restoredPaths.has(persisted.activeTabPath)
+      ? persisted.activeTabPath
+      : restoredTabs[0]?.path ?? null;
+    const secondaryTabPath = persisted.secondaryTabPath && restoredPaths.has(persisted.secondaryTabPath)
+      ? persisted.secondaryTabPath
+      : null;
+
+    // Clean tab groups to only include groups with existing tabs
+    const restoredGroupIds = new Set(restoredTabs.map((t) => t.groupId).filter(Boolean));
+    const cleanedTabGroups = persisted.tabGroups.filter((group) => restoredGroupIds.has(group.id));
+
+    set({
+      openTabs: restoredTabs,
+      activeTabPath,
+      tabGroups: cleanedTabGroups,
+      nextGroupId: persisted.nextGroupId,
+      isSplit: secondaryTabPath ? persisted.isSplit : false,
+      splitDirection: persisted.splitDirection,
+      secondaryTabPath,
+      showOutline: persisted.showOutline,
+      showBacklinks: persisted.showBacklinks,
+    });
+  },
+
+  clearTabState: () => {
+    set({
+      openTabs: [],
+      activeTabPath: null,
+      tabGroups: [],
+      nextGroupId: 1,
+      isSplit: false,
+      splitDirection: 'horizontal',
+      secondaryTabPath: null,
+      showOutline: false,
+      showBacklinks: false,
+      layout: null,
+    });
+  },
+  })
 );
+
+// Debounced auto-save subscription
+// Watches tab layout changes and persists to localStorage per-workspace
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+
+useEditorStore.subscribe((state, prevState) => {
+  // Only trigger on layout-relevant changes, not content-only changes
+  const changed =
+    state.openTabs !== prevState.openTabs ||
+    state.activeTabPath !== prevState.activeTabPath ||
+    state.tabGroups !== prevState.tabGroups ||
+    state.isSplit !== prevState.isSplit ||
+    state.splitDirection !== prevState.splitDirection ||
+    state.secondaryTabPath !== prevState.secondaryTabPath ||
+    state.showOutline !== prevState.showOutline ||
+    state.showBacklinks !== prevState.showBacklinks;
+
+  if (!changed) {
+    return;
+  }
+
+  console.log(`[TabPersist] Tab state changed, scheduling save (tabs: ${state.openTabs.length})`);
+
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+  }
+
+  saveTimeout = setTimeout(async () => {
+    try {
+      const { useWorkspaceStore } = await import('./workspaceStore');
+      const rootPath = useWorkspaceStore.getState().rootPath;
+      console.log(`[TabPersist] Auto-save firing, rootPath: ${rootPath}`);
+      if (rootPath) {
+        useEditorStore.getState().saveWorkspaceState(rootPath);
+      }
+    } catch (error) {
+      console.error('[TabPersist] Failed to auto-save workspace tab state:', error);
+    }
+  }, 500);
+});
+
+// Clean up old global persist key (one-time migration)
+try {
+  localStorage.removeItem('editor-storage');
+} catch {
+  // Ignore
+}
