@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Keys Guide — Projelli</title>
+  <meta name="description" content="How to get and use Claude, OpenAI, and Gemini API keys with Projelli.">
+  <link rel="canonical" href="https://projelli.com/docs/api-keys">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 2.25rem; color: #111F35; margin-bottom: 8px; font-weight: 800; }
+    h2 { font-size: 1.5rem; color: #111F35; margin-top: 48px; margin-bottom: 16px; font-weight: 700; }
+    h3 { font-size: 1.125rem; color: #111F35; margin-top: 24px; margin-bottom: 8px; font-weight: 600; }
+    p, ul, ol { margin-bottom: 16px; font-size: 1rem; }
+    ul, ol { padding-left: 24px; }
+    li { margin-bottom: 8px; }
+    strong { color: #111F35; font-weight: 600; }
+    a { color: #3B82F6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta { color: #94A3B8; font-size: 0.875rem; margin-bottom: 32px; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; }
+    .provider { background: #F8FAFC; padding: 24px; margin: 24px 0; border-radius: 8px; border: 1px solid #E2E8F0; }
+    .provider h3 { margin-top: 0; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #E2E8F0; font-size: 0.9375rem; }
+    th { color: #111F35; font-weight: 600; background: #F8FAFC; }
+    .highlight { background: #FEF3C7; border-left: 3px solid #F59E0B; padding: 16px 20px; margin: 24px 0; border-radius: 4px; font-size: 0.9375rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back">← Back to Projelli</a>
+    <h1>API Keys Guide</h1>
+    <p class="meta">How to get API keys for Claude, OpenAI, and Gemini, and what they cost.</p>
+
+    <p>Projelli is a "bring your own key" (BYOK) tool. You sign up for an account directly with one or more AI providers, get an API key, and paste it into Projelli. This means:</p>
+    <ul>
+      <li><strong>Your data stays private.</strong> AI requests go from your computer directly to the provider — Projelli is never in the loop.</li>
+      <li><strong>You pay the provider directly.</strong> Projelli doesn't mark up AI usage. You pay whatever the provider charges, no middleman.</li>
+      <li><strong>You control your usage.</strong> Set spending limits at the provider level. Switch providers or models any time.</li>
+    </ul>
+
+    <p>You only need ONE provider to use Projelli. Most people start with Claude. You can add others later.</p>
+
+    <div class="highlight">
+      <strong>Where keys are stored:</strong> Projelli stores your API keys in your operating system's secure keychain — Keychain on Mac, Credential Manager on Windows, Secret Service on Linux. They're never written to a plain file, never logged, never sent anywhere except directly to the provider when you make a request. If you uninstall Projelli, your keys are removed from the keychain along with the app.
+    </div>
+
+    <h2>Anthropic (Claude)</h2>
+
+    <div class="provider">
+      <h3>Recommended for: long-form writing, document drafting, following complex instructions</h3>
+      <ol>
+        <li>Go to <a href="https://console.anthropic.com/">console.anthropic.com</a> and sign up (free)</li>
+        <li>Add a payment method (you'll be billed only for actual usage)</li>
+        <li>Click <strong>API Keys</strong> in the sidebar</li>
+        <li>Click <strong>Create Key</strong>, give it a name like "Projelli", and copy the key (it starts with <code>sk-ant-</code>)</li>
+        <li>In Projelli, go to <strong>Settings → API Keys → Anthropic</strong>, paste the key, and click Save</li>
+      </ol>
+      <p><strong>Cost:</strong> Claude Sonnet (the default model) costs about $3 per million input tokens and $15 per million output tokens. A typical New Business Kickoff workflow run costs around $0.05-$0.20. Heavy daily use is usually $5-$15/month.</p>
+      <p><strong>Free credits:</strong> Anthropic gives new accounts $5 in free credits. That's enough for ~50 workflow runs.</p>
+    </div>
+
+    <h2>OpenAI (ChatGPT / GPT-4)</h2>
+
+    <div class="provider">
+      <h3>Recommended for: structured data extraction, JSON output, image-related tasks</h3>
+      <ol>
+        <li>Go to <a href="https://platform.openai.com/">platform.openai.com</a> and sign up (free)</li>
+        <li>Add a payment method</li>
+        <li>Click <strong>API Keys</strong> in the sidebar (or go to <a href="https://platform.openai.com/api-keys">platform.openai.com/api-keys</a>)</li>
+        <li>Click <strong>Create new secret key</strong>, give it a name like "Projelli", copy the key (it starts with <code>sk-</code>)</li>
+        <li>In Projelli, go to <strong>Settings → API Keys → OpenAI</strong>, paste the key, and click Save</li>
+      </ol>
+      <p><strong>Cost:</strong> GPT-4o costs about $2.50 per million input tokens and $10 per million output tokens. Comparable to Claude Sonnet for typical workflows. GPT-4o-mini is much cheaper (~$0.15 / $0.60) and fine for less demanding tasks.</p>
+      <p><strong>Note:</strong> An OpenAI <em>API</em> account is separate from a ChatGPT <em>Plus</em> subscription. If you pay $20/mo for ChatGPT Plus, that does NOT give you API access — you need to set up billing separately on platform.openai.com.</p>
+    </div>
+
+    <h2>Google AI (Gemini)</h2>
+
+    <div class="provider">
+      <h3>Recommended for: very long context windows, free tier for hobby use</h3>
+      <ol>
+        <li>Go to <a href="https://aistudio.google.com/app/apikey">aistudio.google.com/app/apikey</a> (sign in with a Google account)</li>
+        <li>Click <strong>Create API key</strong></li>
+        <li>Copy the key</li>
+        <li>In Projelli, go to <strong>Settings → API Keys → Google</strong>, paste the key, and click Save</li>
+      </ol>
+      <p><strong>Cost:</strong> Gemini 2.0 Flash has a generous free tier (up to 15 requests/minute and 1500 requests/day at no charge). Beyond that, paid usage is roughly $0.075 per million input tokens — the cheapest of the three. Worth using as a "draft" model and switching to Claude or GPT for the final pass.</p>
+    </div>
+
+    <h2>How to choose</h2>
+
+    <table>
+      <tr>
+        <th>If you want…</th>
+        <th>Use…</th>
+      </tr>
+      <tr>
+        <td>Best writing quality, long-form output</td>
+        <td>Claude (Sonnet or Opus)</td>
+      </tr>
+      <tr>
+        <td>Reliable structured output, JSON, code</td>
+        <td>GPT-4o</td>
+      </tr>
+      <tr>
+        <td>Cheapest, free tier for low-volume use</td>
+        <td>Gemini Flash</td>
+      </tr>
+      <tr>
+        <td>Multiple perspectives on the same prompt</td>
+        <td>All three (Projelli supports multi-model comparison)</td>
+      </tr>
+    </table>
+
+    <h2>Setting spending limits</h2>
+
+    <p>All three providers let you set hard spending caps on your account. We strongly recommend setting one — usage-based AI billing can get expensive fast if something runs in a loop.</p>
+    <ul>
+      <li><strong>Anthropic:</strong> Console → Plans & Billing → Cost limits</li>
+      <li><strong>OpenAI:</strong> platform.openai.com → Settings → Limits → Set monthly budget</li>
+      <li><strong>Google:</strong> Google Cloud Console → Billing → Budgets & alerts</li>
+    </ul>
+    <p>A reasonable starting limit is $10/month per provider. Adjust up if you find yourself hitting it often.</p>
+
+    <h2>What if my key gets compromised?</h2>
+
+    <p>If you suspect your API key has been exposed (committed to a public git repo, shared in a screenshot, etc.):</p>
+    <ol>
+      <li>Go to your provider's API keys page</li>
+      <li>Revoke the compromised key</li>
+      <li>Create a new key</li>
+      <li>Update Projelli with the new key (Settings → API Keys)</li>
+    </ol>
+    <p>Compromised keys can be used to run up charges on your account, so revoke immediately if there's any doubt.</p>
+
+    <h2>Why bring your own key instead of paying Projelli?</h2>
+
+    <p>This is a deliberate design choice. By having you bring your own key:</p>
+    <ul>
+      <li><strong>Your privacy is real.</strong> If we routed AI calls through our servers, we'd be a man-in-the-middle who could (in theory) read your prompts. We don't want to be in that position. With BYOK, the cryptography goes user → provider, end of story.</li>
+      <li><strong>No usage caps from us.</strong> You're limited only by your own provider account.</li>
+      <li><strong>You don't pay markup.</strong> The provider's prices are what you pay.</li>
+      <li><strong>You can use models we haven't enabled yet.</strong> When Anthropic releases a new Claude model, you can use it as soon as it's in their API — no waiting for us to update.</li>
+    </ul>
+    <p>The downside is the small setup hurdle. Once it's done, it's done — you don't think about it again.</p>
+  </div>
+</body>
+</html>

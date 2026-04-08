@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Projelli — a local-first AI workspace for the projects in your life</title>
-  <meta name="description" content="Projelli is an AI workspace for the complex projects that live on the side of your life. Local-first, offline, your files stay on your machine.">
+  <title>Projelli — a local-first AI workspace by Jameson Daines</title>
+  <meta name="description" content="Projelli is a local-first AI workspace for the complex projects in your life — built by Jameson Daines, a Senior Product Designer with eight years in health-tech. Offline, BYOK, your files stay on your machine.">
   <link rel="canonical" href="https://projelli.com/">
   <meta name="robots" content="index, follow">
   <meta name="author" content="Jameson Daines">
@@ -12,8 +12,8 @@
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://projelli.com/">
-  <meta property="og:title" content="Projelli — a local-first AI workspace for the projects in your life">
-  <meta property="og:description" content="Projelli is an AI workspace for the complex projects that live on the side of your life. Local-first, offline, your files stay on your machine.">
+  <meta property="og:title" content="Projelli — a local-first AI workspace by Jameson Daines">
+  <meta property="og:description" content="Projelli is a local-first AI workspace for the complex projects in your life — built by Jameson Daines. Offline, BYOK, your files stay on your machine.">
   <meta property="og:site_name" content="Projelli">
   <meta property="og:image" content="https://projelli.com/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -21,8 +21,8 @@
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Projelli — a local-first AI workspace for the projects in your life">
-  <meta name="twitter:description" content="Projelli is an AI workspace for the complex projects that live on the side of your life. Local-first, offline, your files stay on your machine.">
+  <meta name="twitter:title" content="Projelli — a local-first AI workspace by Jameson Daines">
+  <meta name="twitter:description" content="Projelli is a local-first AI workspace for the complex projects in your life — built by Jameson Daines. Offline, BYOK, your files stay on your machine.">
   <meta name="twitter:image" content="https://projelli.com/og-image.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -31,6 +31,19 @@
 
   <!-- Plausible Analytics (self-hosted at analytics.jamesondaines.com) -->
   <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+
+  <!-- JSON-LD entity graph: Person + SoftwareApplication + Organization. The
+       Person block is identical across every site Jameson owns and is what
+       teaches Google "these properties all describe one person." -->
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"Person","name":"Jameson Daines","givenName":"Jameson","familyName":"Daines","url":"https://jamesondaines.com","image":"https://jamesondaines.com/images/shared/headshot.png","jobTitle":"Senior Product Designer","description":"Health product designer with eight years of experience designing healthcare and wearable products for Samsung, AstraZeneca, Tesla, and others.","alumniOf":[{"@type":"CollegeOrUniversity","name":"University College London"}],"knowsAbout":["Health Product Design","Behavior Change Design","Human Factors Engineering","UX Research","Wearable Health"],"sameAs":["https://jamesondaines.com","https://behaviorux.com","https://healthfulinnovation.com","https://heardify.me","https://projelli.com","https://www.linkedin.com/in/jamesondaines/","https://github.com/joelbridger"]}
+  </script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Projelli","operatingSystem":"Windows, macOS","applicationCategory":"ProductivityApplication","url":"https://projelli.com","downloadUrl":"https://github.com/projelli/projelli/releases","description":"Projelli is a local-first AI workspace for the complex projects in your life. Every chat conversation produces persistent Markdown files. Bring your own API key, your data never leaves your machine.","creator":{"@type":"Person","name":"Jameson Daines","url":"https://jamesondaines.com"},"offers":{"@type":"Offer","price":"0","priceCurrency":"USD","availability":"https://schema.org/InStock"}}
+  </script>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"Organization","name":"Projelli","url":"https://projelli.com","logo":"https://projelli.com/og-image.png","founder":{"@type":"Person","name":"Jameson Daines","url":"https://jamesondaines.com"},"sameAs":["https://jamesondaines.com","https://github.com/projelli/projelli","https://www.linkedin.com/in/jamesondaines/"]}
+  </script>
 
   <style>
     /* CSS Variables */
@@ -1401,158 +1414,159 @@
       <div class="container">
         <div class="section-header">
           <span class="eyebrow">TEMPLATES</span>
-          <h2>15+ templates for the projects people actually work on</h2>
-          <p>Startup plans, campaign prep, travel itineraries, career moves. The templates know roughly what documents you need and help you fill them in with AI.</p>
+          <h2>15 founder workflows, ready to run</h2>
+          <p>Each one is an interview-driven workflow that asks you the right questions and produces the documents you actually need. No staring at blank pages.</p>
         </div>
 
         <div class="workflows-scroll">
           <div class="workflow-card animate-on-scroll">
             <div class="workflow-icon" style="background: rgba(59, 130, 246, 0.1);">🚀</div>
-            <h3>New Business</h3>
-            <p>Work through the early days of a startup: vision, strategy, and the first 90-day plan.</p>
+            <h3>New Business Kickoff</h3>
+            <p>Vision, PRD, and Lean Canvas from one founder interview. The fastest way to get a fuzzy idea into shape.</p>
             <div class="workflow-tags">
               <span class="workflow-tag">Vision</span>
-              <span class="workflow-tag">Business Plan</span>
+              <span class="workflow-tag">PRD</span>
+              <span class="workflow-tag">Lean Canvas</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(16, 185, 129, 0.1);">💰</div>
-            <h3>Financial Planning</h3>
-            <p>Get budgets, investments, and long-term goals into one place you can actually look at.</p>
+            <div class="workflow-icon" style="background: rgba(16, 185, 129, 0.1);">📊</div>
+            <h3>Competitor Analysis</h3>
+            <p>Map the landscape, find the gaps, and understand where you actually win against existing alternatives.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Budget</span>
-              <span class="workflow-tag">Goals</span>
+              <span class="workflow-tag">Research</span>
+              <span class="workflow-tag">Positioning</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(139, 92, 246, 0.1);">🎮</div>
-            <h3>Gaming Strategy</h3>
-            <p>Plan a D&amp;D campaign, build out a strategy guide, or keep notes on the ranked ladder.</p>
+            <div class="workflow-icon" style="background: rgba(139, 92, 246, 0.1);">👤</div>
+            <h3>Customer Persona</h3>
+            <p>Who are you really building for? Get specific about the person, their problems, and their day.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Campaign</span>
-              <span class="workflow-tag">Strategy</span>
+              <span class="workflow-tag">Customer</span>
+              <span class="workflow-tag">Research</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(236, 72, 153, 0.1);">🎨</div>
-            <h3>Hobby Deep Dive</h3>
-            <p>Get serious about photography, woodworking, cooking, or whatever you are into this year.</p>
+            <div class="workflow-icon" style="background: rgba(236, 72, 153, 0.1);">💰</div>
+            <h3>Pricing Strategy</h3>
+            <p>Work out what to charge, how to package it, and how to talk about it without sounding cheap or scary.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Skills</span>
-              <span class="workflow-tag">Projects</span>
+              <span class="workflow-tag">Pricing</span>
+              <span class="workflow-tag">Packaging</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(245, 158, 11, 0.1);">📚</div>
-            <h3>Learning Path</h3>
-            <p>Build a plan for learning a language, a skill, or a whole subject you keep meaning to get to.</p>
+            <div class="workflow-icon" style="background: rgba(245, 158, 11, 0.1);">🚢</div>
+            <h3>Go-to-Market Plan</h3>
+            <p>Channels, tactics, and the first six months of distribution. Concrete enough to actually execute on Monday.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Curriculum</span>
-              <span class="workflow-tag">Resources</span>
+              <span class="workflow-tag">GTM</span>
+              <span class="workflow-tag">Distribution</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(14, 165, 233, 0.1);">🏠</div>
-            <h3>Home Project</h3>
-            <p>Plan a renovation, a move, or the kind of household project that keeps getting pushed to next weekend.</p>
+            <div class="workflow-icon" style="background: rgba(14, 165, 233, 0.1);">🎤</div>
+            <h3>Pitch Deck</h3>
+            <p>An outline and narrative for the deck, structured the way investors actually want to hear it.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Planning</span>
-              <span class="workflow-tag">Checklists</span>
+              <span class="workflow-tag">Investors</span>
+              <span class="workflow-tag">Narrative</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(6, 182, 212, 0.1);">✈️</div>
-            <h3>Travel Planning</h3>
-            <p>Pick a destination, build an itinerary, track what you spent when you got back.</p>
+            <div class="workflow-icon" style="background: rgba(6, 182, 212, 0.1);">📝</div>
+            <h3>Content Strategy</h3>
+            <p>Pick the channels, the cadence, and the topics. Stop posting random stuff and start building something.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Itinerary</span>
-              <span class="workflow-tag">Budget</span>
+              <span class="workflow-tag">Marketing</span>
+              <span class="workflow-tag">SEO</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(99, 102, 241, 0.1);">🔬</div>
-            <h3>Research Project</h3>
-            <p>Keep sources, citations, and half-formed ideas in one place you can search later.</p>
+            <div class="workflow-icon" style="background: rgba(99, 102, 241, 0.1);">💬</div>
+            <h3>User Interviews</h3>
+            <p>Scripts, screeners, and outreach for talking to users. The interview prep that makes the actual call useful.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Notes</span>
-              <span class="workflow-tag">Sources</span>
+              <span class="workflow-tag">Research</span>
+              <span class="workflow-tag">Discovery</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
             <div class="workflow-icon" style="background: rgba(239, 68, 68, 0.1);">🎯</div>
-            <h3>Goal Setting</h3>
-            <p>Write down the goals you are not going to forget about this time, the habits behind them, and the milestones.</p>
+            <h3>MVP Scope</h3>
+            <p>What's in the first version, what gets cut, and what to ship next. The brutal scope conversation, on paper.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Goals</span>
-              <span class="workflow-tag">Tracking</span>
+              <span class="workflow-tag">Scope</span>
+              <span class="workflow-tag">Roadmap</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(234, 179, 8, 0.1);">🎉</div>
-            <h3>Event Planning</h3>
-            <p>Plan a wedding, a party, a conference, or any gathering that needs a vendor list and a timeline.</p>
+            <div class="workflow-icon" style="background: rgba(234, 179, 8, 0.1);">📈</div>
+            <h3>Financial Model</h3>
+            <p>A simple spreadsheet model: cost structure, runway, scenarios. Enough to make a decision, not so much that you avoid building it.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Timeline</span>
-              <span class="workflow-tag">Vendors</span>
+              <span class="workflow-tag">Finance</span>
+              <span class="workflow-tag">Runway</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(244, 63, 94, 0.1);">✍️</div>
-            <h3>Creative Project</h3>
-            <p>Outline a novel, work on an album, or manage the rest of whatever creative project is eating your evenings.</p>
+            <div class="workflow-icon" style="background: rgba(244, 63, 94, 0.1);">🌐</div>
+            <h3>Landing Page Copy</h3>
+            <p>Headline variants, sections, FAQs, and CTAs. The copy that goes on the homepage when you finally write it.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Outline</span>
-              <span class="workflow-tag">Ideas</span>
+              <span class="workflow-tag">Copy</span>
+              <span class="workflow-tag">Marketing</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(16, 185, 129, 0.1);">💪</div>
-            <h3>Health &amp; Fitness</h3>
-            <p>Put workouts, nutrition, and whatever else you are trying to build into a habit on one page.</p>
+            <div class="workflow-icon" style="background: rgba(16, 185, 129, 0.1);">🔄</div>
+            <h3>Weekly Review</h3>
+            <p>What got done, what didn't, what to focus on next week. The 15-minute Friday ritual that compounds.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Routines</span>
-              <span class="workflow-tag">Progress</span>
+              <span class="workflow-tag">Review</span>
+              <span class="workflow-tag">Planning</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(139, 92, 246, 0.1);">🌱</div>
-            <h3>Life Organization</h3>
-            <p>Clean out the digital junk drawer, set up a routine you can live with, and make space for the stuff that matters.</p>
+            <div class="workflow-icon" style="background: rgba(139, 92, 246, 0.1);">📨</div>
+            <h3>Investor Update</h3>
+            <p>Monthly or quarterly update with metrics, wins, losses, and asks. Honest, brief, and actually useful.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Systems</span>
-              <span class="workflow-tag">Habits</span>
+              <span class="workflow-tag">Investors</span>
+              <span class="workflow-tag">Communication</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(59, 130, 246, 0.1);">🛠️</div>
-            <h3>Career Development</h3>
-            <p>Run a job search, sharpen a skill, or keep track of who you met at that last conference.</p>
+            <div class="workflow-icon" style="background: rgba(59, 130, 246, 0.1);">🪑</div>
+            <h3>Board Meeting Prep</h3>
+            <p>Time-boxed agenda, pre-read briefing, decisions queue. Walk in with a plan and walk out with a vote.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Resume</span>
-              <span class="workflow-tag">Network</span>
+              <span class="workflow-tag">Governance</span>
+              <span class="workflow-tag">Strategy</span>
             </div>
           </div>
 
           <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(245, 158, 11, 0.1);">🧠</div>
-            <h3>Knowledge Base</h3>
-            <p>Build a personal wiki for a subject you want to get deep in, and make it easy to find your own notes later.</p>
+            <div class="workflow-icon" style="background: rgba(245, 158, 11, 0.1);">🤝</div>
+            <h3>First Hire Playbook</h3>
+            <p>Job description, interview rubric, and 30/60/90 onboarding plan. The full hiring kit for hire #1.</p>
             <div class="workflow-tags">
-              <span class="workflow-tag">Wiki</span>
-              <span class="workflow-tag">Links</span>
+              <span class="workflow-tag">Hiring</span>
+              <span class="workflow-tag">Team</span>
             </div>
           </div>
         </div>
@@ -1634,6 +1648,22 @@
       </div>
     </section>
 
+    <!-- Built by Jameson Daines -->
+    <section style="padding: 80px 24px; background: var(--bg-surface);">
+      <div class="container" style="max-width: 880px; text-align: center;">
+        <p style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.18em; color: var(--text-muted); margin-bottom: 14px;">Built by</p>
+        <h2 style="font-size: 2rem; color: var(--text-heading); margin-bottom: 18px; font-weight: 700;">Jameson Daines</h2>
+        <p style="font-size: 1.0625rem; line-height: 1.7; color: var(--text-body); max-width: 60ch; margin: 0 auto 28px;">
+          Projelli is built by <a href="https://jamesondaines.com" target="_blank" rel="noopener" style="color: var(--accent-blue); font-weight: 600;">Jameson Daines</a>, a Senior Product Designer with eight years of experience designing health products at Samsung, AstraZeneca, and Tesla. He runs a few other things on the side too &mdash; <a href="https://behaviorux.com" target="_blank" rel="noopener" style="color: var(--accent-blue);">BehaviorUX</a> (a behavior change canvas), <a href="https://healthfulinnovation.com" target="_blank" rel="noopener" style="color: var(--accent-blue);">Healthful</a> (an AI design copilot), and <a href="https://heardify.me" target="_blank" rel="noopener" style="color: var(--accent-blue);">Heardify</a> (student mental health).
+        </p>
+        <div style="display: flex; gap: 24px; justify-content: center; flex-wrap: wrap;">
+          <a href="https://jamesondaines.com" target="_blank" rel="noopener" style="color: var(--text-body); text-decoration: none; font-weight: 500;">jamesondaines.com →</a>
+          <a href="https://www.linkedin.com/in/jamesondaines/" target="_blank" rel="noopener" style="color: var(--text-body); text-decoration: none; font-weight: 500;">LinkedIn →</a>
+          <a href="https://github.com/joelbridger" target="_blank" rel="noopener" style="color: var(--text-body); text-decoration: none; font-weight: 500;">GitHub →</a>
+        </div>
+      </div>
+    </section>
+
     <!-- Final CTA -->
     <section class="cta-section">
       <div class="cta-glow"></div>
@@ -1665,7 +1695,7 @@
             <path d="M1075.88 522.463V205.311H1151.39L1159.57 263.833C1167.12 249.989 1176.56 238.243 1187.89 228.594C1199.63 218.945 1212.85 211.394 1227.53 205.94C1242.63 200.487 1259.2 197.76 1277.24 197.76V287.745H1248.3C1235.71 287.745 1223.96 289.214 1213.06 292.15C1202.57 295.087 1193.34 299.911 1185.37 306.623C1177.4 312.916 1171.31 321.726 1167.12 333.053C1162.92 344.38 1160.83 358.643 1160.83 375.843V522.463H1075.88Z" fill="white"/>
             <path d="M663.532 660.902V205.311H739.044L748.483 249.36C755.195 240.131 763.166 231.74 772.395 224.189C781.625 216.218 792.532 209.926 805.117 205.311C818.122 200.277 833.225 197.76 850.425 197.76C880.21 197.76 906.43 205.101 929.083 219.784C951.737 234.467 969.566 254.394 982.571 279.565C995.996 304.316 1002.71 332.633 1002.71 364.516C1002.71 396.399 995.996 424.926 982.571 450.097C969.147 474.848 951.108 494.356 928.454 508.619C905.801 522.882 880 530.014 851.054 530.014C827.561 530.014 807.215 525.819 790.015 517.429C773.234 508.619 759.39 496.663 748.483 481.56V660.902H663.532ZM830.917 455.76C847.698 455.76 862.381 451.985 874.966 444.433C887.971 436.882 898.04 426.185 905.171 412.341C912.303 398.497 915.869 382.555 915.869 364.516C915.869 346.477 912.303 330.536 905.171 316.692C898.04 302.428 887.971 291.521 874.966 283.97C862.381 275.999 847.698 272.014 830.917 272.014C814.556 272.014 799.873 275.999 786.869 283.97C774.283 291.521 764.215 302.219 756.664 316.062C749.532 329.906 745.966 345.848 745.966 363.887C745.966 381.926 749.532 398.077 756.664 412.341C764.215 426.185 774.283 436.882 786.869 444.433C799.873 451.985 814.556 455.76 830.917 455.76Z" fill="white"/>
           </svg>
-          <p>An AI workspace for the messy projects on the side of your life. Local-first and your own.</p>
+          <p>An AI workspace for the messy projects on the side of your life. Local-first and your own. Built by <a href="https://jamesondaines.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Jameson Daines</a>.</p>
         </div>
 
         <div class="footer-column">
@@ -1674,34 +1704,45 @@
             <li><a href="#features">Features</a></li>
             <li><a href="#workflows">Templates</a></li>
             <li><a href="#pricing">Pricing</a></li>
-            <li><a href="#">Changelog</a></li>
-            <li><a href="#">Roadmap</a></li>
+            <li><a href="https://github.com/projelli/projelli/releases" target="_blank" rel="noopener">Releases</a></li>
+            <li><a href="https://github.com/projelli/projelli" target="_blank" rel="noopener">GitHub</a></li>
           </ul>
         </div>
 
         <div class="footer-column">
-          <h4>Resources</h4>
+          <h4>Docs</h4>
           <ul>
-            <li><a href="#">Documentation</a></li>
-            <li><a href="#">Getting Started</a></li>
-            <li><a href="#">API Keys Guide</a></li>
-            <li><a href="#">Blog</a></li>
-            <li><a href="#">Community</a></li>
+            <li><a href="/docs/getting-started">Getting Started</a></li>
+            <li><a href="/docs/api-keys">API Keys Guide</a></li>
+            <li><a href="/docs/faq">FAQ</a></li>
+            <li><a href="mailto:support@projelli.com">support@projelli.com</a></li>
           </ul>
         </div>
 
         <div class="footer-column">
           <h4>Legal</h4>
           <ul>
-            <li><a href="#">Privacy Policy</a></li>
-            <li><a href="#">Terms of Service</a></li>
-            <li><a href="#">License</a></li>
+            <li><a href="/legal/privacy">Privacy</a></li>
+            <li><a href="/legal/terms">Terms</a></li>
+            <li><a href="/legal/eula">License (EULA)</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-column">
+          <h4>By Jameson Daines</h4>
+          <ul>
+            <li><a href="https://jamesondaines.com" target="_blank" rel="noopener">Portfolio</a></li>
+            <li><a href="https://behaviorux.com" target="_blank" rel="noopener">BehaviorUX</a></li>
+            <li><a href="https://healthfulinnovation.com" target="_blank" rel="noopener">Healthful</a></li>
+            <li><a href="https://heardify.me" target="_blank" rel="noopener">Heardify</a></li>
+            <li><a href="https://www.linkedin.com/in/jamesondaines/" target="_blank" rel="noopener">LinkedIn</a></li>
+            <li><a href="https://github.com/joelbridger" target="_blank" rel="noopener">GitHub profile</a></li>
           </ul>
         </div>
       </div>
 
       <div class="footer-bottom">
-        <div>&copy; 2026 Projelli. All rights reserved.</div>
+        <div>&copy; 2026 Projelli by Jameson Daines.</div>
         <div>Built with Tauri, React, and too much coffee.</div>
       </div>
     </div>

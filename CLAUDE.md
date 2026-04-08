@@ -1,30 +1,56 @@
-# Projelli - Claude Code Project Context
+# Projelli — Claude Code Project Context
 
-## Quick Reference
+> **Read this first if you're a future Claude session working in this repo.**
+>
+> **Operating contract:** Read `~/projelli/PROJELLI_BUSINESS_PLAN.md` BEFORE doing anything substantive. It's the strategic plan, the 8-week launch roadmap, and the record of every CEO-level decision made on Jameson's behalf. Don't override its decisions without explicit board input.
+>
+> **Current state:** Read `~/projelli/BACKLOG.md` for the live week-by-week task list, what's done, what's in flight, and what's blocked.
+>
+> **User profile:** Jameson is **NOT a developer**. He's a Senior Product Designer at Wheel Health. Explain technical concepts in plain language. Don't assume he can read code. Don't dump stack traces on him — translate them. The persistent project memory file at `~/.claude/projects/-home-jameson/memory/project_projelli.md` has the full user/project context.
+
+## Where things live
+
+| Item | Path | Notes |
+|---|---|---|
+| **Canonical source** | `/home/jameson/projelli/` | Server-resident, mirrors jameworld/behaviorux/portfolio pattern |
+| **GitHub** | `github.com/projelli/projelli` | Org owned by joelbridger account; transferred from joelbridger/projelli on 2026-04-08 |
+| **Live website** | `https://projelli.com` → `/var/www/projelli.com/index.html` | System Caddy on `:8080`, Cloudflare tunnel `d4e16129` |
+| **Deploy script** | `~/projelli/infra/deploy.sh` | rsync website/ → /var/www/projelli.com + CF cache purge |
+| **Business plan** | `~/projelli/PROJELLI_BUSINESS_PLAN.md` | Operating contract |
+| **Backlog** | `~/projelli/BACKLOG.md` | Week-by-week tickets |
+| **Docs** | `~/projelli/docs/{reference,operations,quality,archive}/` | Mirrors jameworld convention |
+| **CI** | `~/projelli/.github/workflows/release.yml` | Tauri matrix build for Win/Mac/Linux on git tag |
+
+## Quick Reference (development)
 
 | Item | Value |
 |------|-------|
-| **Start Command** | `npm run dev` (browser) or `npm run tauri dev` (desktop) |
-| **Build Command** | `npm run build` or `npm run tauri build` |
+| **Start Command** | `npm run dev` (browser) or `npm run tauri:dev` (desktop) |
+| **Build Command** | `npm run build` or `npm run tauri:build` |
 | **Test Command** | `npm run test` |
 | **Port** | 5173 (Vite default) |
 | **TypeScript** | Strict mode enabled |
-| **Target Platform** | Browser (prototype) → Windows desktop (Tauri) |
+| **Target Platforms** | Windows (live v1.0.0), macOS (Week 3), Linux (post-launch) |
 
 ---
 
-## Project Overview
+## What Projelli is
 
-**Projelli** is a local-first, artifact-driven workspace application for solo founders building businesses with AI assistance. **Projelli provides an integrated AI chat interface that produces and manages persistent business documents** (Vision, PRD, Lean Canvas, competitor matrices, pricing hypotheses) while keeping the human founder in control of all decisions.
+**Projelli** is a local-first AI workspace for indie founders. Every AI chat conversation produces real Markdown files in a real folder on the user's hard drive. The product combines a CodeMirror 6 editor (with wiki-links, backlinks, version history, split panes) with an AI chat interface (Claude/OpenAI/Gemini, BYOK, streaming) and 12+ founder-focused workflow templates.
 
-**Core Thesis:** This is an **artifact-driven workspace WITH integrated AI chat**. Every chat interaction produces or modifies persistent documents. AI proposes, user approves all destructive actions. Unlike standalone chat tools where conversations are the end product, Projelli ensures all interactions create tangible artifacts.
+**The pitch in one sentence:** *Obsidian for the AI era, built for founders, sold once.*
+
+**The differentiator:** local-first + BYOK + chat-as-artifacts. Your data stays on your machine. Your API keys live in your OS keychain. AI requests go directly from your machine to the provider, never via Projelli's servers.
+
+**Pricing (post-Week 4):** $0 free / $49 one-time Pro / $99 one-time Lifetime / $29 Founder's Launch (first 100 buyers). Sold via LemonSqueezy.
 
 **Key Principles:**
-- **Local-first**: Everything works offline (except optional web research)
-- **Artifact-driven with AI chat**: Every chat interaction produces persistent, versioned documents
-- **User-in-control**: AI proposes, user decides; all destructive ops require confirmation
-- **Reproducible**: Every workflow run is replayable (inputs, prompts, tool results saved)
-- **Auditable**: Append-only log of all AI actions
+- **Local-first** — works offline (except for AI calls)
+- **Chat creates artifacts** — every AI interaction produces persistent, editable documents
+- **User in control** — AI proposes, user decides; destructive ops need confirmation
+- **Reproducible** — every workflow run is replayable
+- **Auditable** — append-only log of all AI actions
+- **BYOK forever** — Projelli never holds AI keys, never sees user data, never charges for inference
 
 ---
 

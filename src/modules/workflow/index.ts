@@ -17,6 +17,9 @@ export { MVPScope } from './templates/MVPScope';
 export { FinancialModel } from './templates/FinancialModel';
 export { LandingPage } from './templates/LandingPage';
 export { WeeklyReviewWorkflow } from './templates/WeeklyReviewWorkflow';
+export { InvestorUpdate } from './templates/InvestorUpdate';
+export { BoardMeetingPrep } from './templates/BoardMeetingPrep';
+export { FirstHirePlaybook } from './templates/FirstHirePlaybook';
 
 // All workflows collection
 import { NewBusinessKickoff } from './templates/NewBusinessKickoff';
@@ -31,6 +34,9 @@ import { MVPScope } from './templates/MVPScope';
 import { FinancialModel } from './templates/FinancialModel';
 import { LandingPage } from './templates/LandingPage';
 import { WeeklyReviewWorkflow } from './templates/WeeklyReviewWorkflow';
+import { InvestorUpdate } from './templates/InvestorUpdate';
+import { BoardMeetingPrep } from './templates/BoardMeetingPrep';
+import { FirstHirePlaybook } from './templates/FirstHirePlaybook';
 
 export const allWorkflows = [
   NewBusinessKickoff,
@@ -45,4 +51,7 @@ export const allWorkflows = [
   FinancialModel,
   LandingPage,
   WeeklyReviewWorkflow,
+  InvestorUpdate,
+  BoardMeetingPrep,
+  FirstHirePlaybook,
 ];
