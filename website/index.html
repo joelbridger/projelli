@@ -1059,6 +1059,35 @@
       margin: 0 auto;
     }
 
+    .pricing-cards-three {
+      max-width: 1100px;
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    @media (max-width: 1024px) {
+      .pricing-cards-three {
+        grid-template-columns: 1fr;
+        max-width: 480px;
+      }
+    }
+
+    .founders-banner {
+      max-width: 760px;
+      margin: 0 auto 40px;
+      padding: 16px 24px;
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+      border: 1px solid rgba(236, 72, 153, 0.25);
+      border-radius: 12px;
+      text-align: center;
+      font-size: 0.9375rem;
+      color: var(--text-body);
+      line-height: 1.6;
+    }
+
+    .founders-banner strong {
+      color: var(--text-heading);
+    }
+
     .pricing-card {
       background: white;
       border: 1px solid var(--border-gray);
@@ -1872,42 +1901,70 @@
       <div class="container">
         <div class="section-header">
           <span class="eyebrow">PRICING</span>
-          <h2>Free to start. Pro if you want the rest.</h2>
-          <p>The free version handles your first few projects. Pro adds the rest of the templates and the multi-model AI.</p>
+          <h2>Pay once. Own it.</h2>
+          <p>No subscriptions. No usage limits. No surprises. Bring your own API keys for Claude, OpenAI, or Gemini and pay your AI provider directly — Projelli takes nothing out of your inference budget.</p>
         </div>
 
-        <div class="pricing-cards">
+        <div class="founders-banner">
+          <strong>🔥 Founder's Launch:</strong> the first 100 buyers get the Lifetime tier for <strong>$29</strong> instead of $99. Once 100 sell, this tier disappears for good.
+        </div>
+
+        <div class="pricing-cards pricing-cards-three">
+          <!-- Free tier -->
           <div class="pricing-card animate-on-scroll">
-            <div class="pricing-name">Starter</div>
+            <div class="pricing-name">Free</div>
             <div class="pricing-price">$0<span> / forever</span></div>
-            <div class="pricing-description">Enough to get a couple of projects running.</div>
+            <div class="pricing-description">Try Projelli for free. No account, no signup, no card.</div>
             <ul class="pricing-features">
-              <li>Core workspace and editor</li>
-              <li>5 project templates</li>
-              <li>1 AI model connection</li>
-              <li>Local file storage</li>
-              <li>Version history</li>
+              <li>Core editor + workspace</li>
+              <li>Wiki-links, backlinks, version history</li>
+              <li>1 AI provider (Claude only)</li>
+              <li>3 starter templates</li>
+              <li>1 workspace</li>
             </ul>
-            <a href="https://github.com/projelli/projelli/releases/download/v1.0.0/Projelli_1.0.0_x64-setup.exe" class="btn btn-outline btn-lg" style="width: 100%;">Download Free</a>
+            <a href="https://github.com/projelli/projelli/releases/latest" class="btn btn-outline btn-lg" style="width: 100%;">Download Free</a>
           </div>
 
+          <!-- Founder's Launch tier (highlighted) -->
           <div class="pricing-card featured animate-on-scroll">
-            <div class="pricing-badge">MOST POPULAR</div>
-            <div class="pricing-name">Pro</div>
-            <div class="pricing-price">$12<span> / month</span></div>
-            <div class="pricing-description">The rest of the templates, the multi-model AI, and all the extras.</div>
+            <div class="pricing-badge">FOUNDER'S LAUNCH</div>
+            <div class="pricing-name">Lifetime <span style="font-size: 0.75em; color: var(--text-muted); font-weight: 400;">— first 100 buyers</span></div>
+            <div class="pricing-price">$29<span> one-time</span></div>
+            <div class="pricing-description">Lifetime tier at the founder price. Locked to the first 100 buyers.</div>
             <ul class="pricing-features">
-              <li>Everything in Starter, plus:</li>
-              <li>All 15+ project templates</li>
-              <li>Multi-model AI (Claude, OpenAI, Gemini)</li>
-              <li>Whiteboard and audio tools</li>
-              <li>Research and citations system</li>
-              <li>Priority updates</li>
+              <li>Everything in Pro</li>
+              <li><strong>Updates forever</strong></li>
+              <li>Early access to new features</li>
+              <li>Commercial use license</li>
+              <li>Priority support</li>
             </ul>
-            <button class="btn btn-primary btn-lg" style="width: 100%; opacity: 0.6; cursor: not-allowed;" disabled>Coming Soon</button>
-            <div style="text-align: center; margin-top: 12px; font-size: 13px; color: var(--text-muted);">Everything is free during beta</div>
+            <a href="https://projelli.lemonsqueezy.com/checkout/buy/33cd497b-bffd-404c-910e-f8dd1f4453bd" class="btn btn-primary btn-lg" style="width: 100%;">Get Lifetime — $29</a>
+            <div style="text-align: center; margin-top: 12px; font-size: 13px; color: var(--text-muted);">After 100 sales, this tier becomes $99.</div>
+          </div>
+
+          <!-- Pro tier -->
+          <div class="pricing-card animate-on-scroll">
+            <div class="pricing-name">Pro</div>
+            <div class="pricing-price">$49<span> one-time</span></div>
+            <div class="pricing-description">The full experience, with 1 year of updates included.</div>
+            <ul class="pricing-features">
+              <li>All 3 AI providers</li>
+              <li><strong>All 15 founder templates</strong></li>
+              <li>Unlimited workspaces</li>
+              <li>Whiteboard, audio, research citations</li>
+              <li>Multi-model comparison</li>
+              <li>1 year of updates</li>
+            </ul>
+            <a href="https://projelli.lemonsqueezy.com/checkout/buy/9a5a7f48-0ffe-448a-a1af-889af99a0f47" class="btn btn-outline btn-lg" style="width: 100%;">Get Pro — $49</a>
           </div>
         </div>
+
+        <p style="text-align: center; color: var(--text-muted); font-size: 14px; margin-top: 32px;">
+          Past the first 100 founders? Get the regular <a href="https://projelli.lemonsqueezy.com/checkout/buy/fbd4cf73-c234-4da9-b55a-31231496ced0" style="color: var(--accent-blue); text-decoration: underline;">Lifetime tier for $99</a> — same deal, just no founder discount.
+        </p>
+        <p style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 12px;">
+          14-day refund, no questions asked. Sold via <a href="https://www.lemonsqueezy.com/" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">LemonSqueezy</a> as merchant of record (handles tax for you).
+        </p>
       </div>
     </section>
 
