@@ -103,10 +103,25 @@ jobs:
           AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
           AZURE_TRUSTED_SIGNING_CERT_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERT_PROFILE }}
         run: |
+          # Find AzureSignTool's full path. dotnet tool install --global puts it at
+          # $env:USERPROFILE\.dotnet\tools\AzureSignTool.exe but we look it up via
+          # Get-Command in case the location ever changes. Fallback to the conventional path.
+          $astCommand = Get-Command AzureSignTool -ErrorAction SilentlyContinue
+          if ($astCommand) {
+            $azureSignToolPath = $astCommand.Source
+          } else {
+            $azureSignToolPath = "$env:USERPROFILE\.dotnet\tools\AzureSignTool.exe"
+          }
+          if (-not (Test-Path $azureSignToolPath)) {
+            Write-Error "AzureSignTool.exe not found at $azureSignToolPath"
+            exit 1
+          }
+          Write-Host "Found AzureSignTool at: $azureSignToolPath"
+
           $configPath = "src-tauri/tauri.conf.json"
           $config = Get-Content $configPath -Raw | ConvertFrom-Json
           $config.bundle.windows.signCommand = @{
-            cmd = "AzureSignTool"
+            cmd = $azureSignToolPath
             args = @(
               "sign",
               "-kvu", $env:AZURE_TRUSTED_SIGNING_ENDPOINT,
@@ -122,7 +137,7 @@ jobs:
             )
           }
           $config | ConvertTo-Json -Depth 20 | Set-Content $configPath
-          Write-Host "Patched tauri.conf.json with Azure signing credentials"
+          Write-Host "Patched tauri.conf.json with Azure signing credentials and AzureSignTool path"
 
       - name: Install frontend dependencies
         run: npm ci
