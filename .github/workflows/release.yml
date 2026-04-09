@@ -1,8 +1,17 @@
 name: Release Tauri builds
 
 # Triggered on tag push (e.g. `git tag v1.0.2 && git push --tags`).
-# Builds Tauri installers for Windows, macOS (Intel + Apple Silicon), and Linux,
-# then publishes them as a draft GitHub Release.
+# Builds Tauri installers for Windows, macOS (Intel + Apple Silicon), and Linux.
+# Mac and Linux use tauri-action which builds + signs + uploads in one step.
+# Windows is a separate job that builds unsigned, then signs via Microsoft's
+# official azure/trusted-signing-action, then uploads via gh CLI.
+#
+# Why Windows is separate:
+# Tauri 2's signCommand process spawn on Windows can't reliably find any
+# executable we point it at — both bare names (PATH search broken) and
+# absolute paths (CreateProcess errors) failed across 9 attempts. Microsoft's
+# official action sidesteps this by signing the artifacts AFTER Tauri builds
+# them.
 #
 # After the workflow finishes:
 #   1. Go to https://github.com/projelli/projelli/releases
@@ -10,7 +19,7 @@ name: Release Tauri builds
 #   3. Edit the description with the changelog from CHANGELOG.md
 #   4. Click "Publish release"
 #
-# All required GitHub Secrets are wired in as of 2026-04-09.
+# All required GitHub Secrets (set 2026-04-09):
 #
 #   macOS code signing + notarization:
 #     APPLE_CERTIFICATE                base64-encoded .p12 of Developer ID Application cert
@@ -27,10 +36,6 @@ name: Release Tauri builds
 #     AZURE_TRUSTED_SIGNING_ENDPOINT   region endpoint, e.g. https://eus.codesigning.azure.net/
 #     AZURE_TRUSTED_SIGNING_ACCOUNT    artifact signing account name (projelli-signing)
 #     AZURE_TRUSTED_SIGNING_CERT_PROFILE  certificate profile name (projelli-public-trust)
-#
-# Tauri's signCommand in tauri.conf.json invokes AzureSignTool to sign each
-# .exe and .msi using the service principal. Cert lives in Azure — never
-# downloaded to the runner.
 
 on:
   push:
@@ -39,6 +44,7 @@ on:
   workflow_dispatch:  # allow manual triggering for testing
 
 jobs:
+  # Mac + Linux jobs: tauri-action handles build + sign (Mac) + upload
   build:
     permissions:
       contents: write
@@ -51,8 +57,6 @@ jobs:
           - platform: 'macos-latest'  # Intel
             args: '--target x86_64-apple-darwin'
           - platform: 'ubuntu-22.04'
-            args: ''
-          - platform: 'windows-latest'
             args: ''
 
     runs-on: ${{ matrix.platform }}
@@ -81,68 +85,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
 
-      # Windows-only: install AzureSignTool so Tauri's signCommand can invoke it
-      - name: Install AzureSignTool (Windows only)
-        if: matrix.platform == 'windows-latest'
-        run: dotnet tool install --global AzureSignTool
-
-      # Bake Azure credentials into tauri.conf.json on the Windows runner.
-      # We use the object-form signCommand (cmd + args array) so Tauri's
-      # process spawn doesn't go through shell parsing — args are passed
-      # to AzureSignTool literally. This avoids all the shell escaping
-      # nonsense (backslashes eaten by shell_words, %VAR% not expanded,
-      # cmd.exe not on PATH, etc).
-      - name: Patch tauri.conf.json with Azure signing credentials (Windows only)
-        if: matrix.platform == 'windows-latest'
-        shell: pwsh
-        env:
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
-          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
-          AZURE_TRUSTED_SIGNING_CERT_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERT_PROFILE }}
-        run: |
-          # Find AzureSignTool's full path. dotnet tool install --global puts it at
-          # $env:USERPROFILE\.dotnet\tools\AzureSignTool.exe but we look it up via
-          # Get-Command in case the location ever changes. Fallback to the conventional path.
-          $astCommand = Get-Command AzureSignTool -ErrorAction SilentlyContinue
-          if ($astCommand) {
-            $azureSignToolPath = $astCommand.Source
-          } else {
-            $azureSignToolPath = "$env:USERPROFILE\.dotnet\tools\AzureSignTool.exe"
-          }
-          if (-not (Test-Path $azureSignToolPath)) {
-            Write-Error "AzureSignTool.exe not found at $azureSignToolPath"
-            exit 1
-          }
-          Write-Host "Found AzureSignTool at: $azureSignToolPath"
-
-          $configPath = "src-tauri/tauri.conf.json"
-          $config = Get-Content $configPath -Raw | ConvertFrom-Json
-          $config.bundle.windows.signCommand = @{
-            cmd = $azureSignToolPath
-            args = @(
-              "sign",
-              "-kvu", $env:AZURE_TRUSTED_SIGNING_ENDPOINT,
-              "-kvc", $env:AZURE_TRUSTED_SIGNING_CERT_PROFILE,
-              "-kvi", $env:AZURE_CLIENT_ID,
-              "-kvs", $env:AZURE_CLIENT_SECRET,
-              "-kvt", $env:AZURE_TENANT_ID,
-              "-tr", "http://timestamp.acs.microsoft.com",
-              "-td", "sha256",
-              "-fd", "sha256",
-              "-du", "https://projelli.com",
-              "%1"
-            )
-          }
-          $config | ConvertTo-Json -Depth 20 | Set-Content $configPath
-          Write-Host "Patched tauri.conf.json with Azure signing credentials and AzureSignTool path"
-
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build Tauri app
+      - name: Build Tauri app (Mac/Linux)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -153,16 +99,6 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows code signing via Azure Trusted/Artifact Signing.
-          # tauri.conf.json's bundle.windows.signCommand picks these up via
-          # AzureSignTool which authenticates with the service principal and
-          # signs each .exe / .msi. Cert lives in Azure — never on the runner.
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
-          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
-          AZURE_TRUSTED_SIGNING_CERT_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERT_PROFILE }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Projelli ${{ github.ref_name }}'
@@ -177,3 +113,100 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  # Windows job: separate from the matrix because we don't use Tauri's
+  # signCommand. Build with raw npm + sign with Microsoft's official action
+  # + upload via gh CLI.
+  build-windows:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build Tauri app (unsigned)
+        run: npm run tauri build
+
+      - name: List built artifacts
+        shell: pwsh
+        run: |
+          Write-Host "=== NSIS bundles ==="
+          Get-ChildItem -Path src-tauri/target/release/bundle/nsis -Recurse -ErrorAction SilentlyContinue | Format-Table FullName,Length
+          Write-Host "=== MSI bundles ==="
+          Get-ChildItem -Path src-tauri/target/release/bundle/msi -Recurse -ErrorAction SilentlyContinue | Format-Table FullName,Length
+
+      - name: Sign Windows artifacts with Azure Trusted Signing
+        uses: azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_TRUSTED_SIGNING_CERT_PROFILE }}
+          files-folder: src-tauri/target/release/bundle
+          files-folder-filter: exe,msi
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Wait for tauri-action to create the draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # The tauri-action job (Mac/Linux) creates the draft release on first
+          # successful upload. We poll for up to 30 minutes for it to exist.
+          $tag = "${{ github.ref_name }}"
+          $maxAttempts = 60
+          $attempt = 0
+          while ($attempt -lt $maxAttempts) {
+            $exists = gh release view $tag --repo projelli/projelli 2>$null
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Draft release exists for $tag"
+              break
+            }
+            $attempt++
+            Write-Host "Waiting for draft release... attempt $attempt/$maxAttempts"
+            Start-Sleep -Seconds 30
+          }
+          if ($attempt -eq $maxAttempts) {
+            Write-Host "Draft release didn't appear in time. Creating it ourselves."
+            gh release create $tag --draft --title "Projelli $tag" --notes "Auto-generated release. See CHANGELOG.md for changes." --repo projelli/projelli
+          }
+
+      - name: Upload signed Windows artifacts to release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $files = @()
+          $files += Get-ChildItem -Path src-tauri/target/release/bundle/nsis -Filter *.exe -Recurse -ErrorAction SilentlyContinue
+          $files += Get-ChildItem -Path src-tauri/target/release/bundle/msi -Filter *.msi -Recurse -ErrorAction SilentlyContinue
+          if ($files.Count -eq 0) {
+            Write-Error "No signed artifacts found to upload"
+            exit 1
+          }
+          foreach ($f in $files) {
+            Write-Host "Uploading $($f.FullName) to release $tag"
+            gh release upload $tag $f.FullName --clobber --repo projelli/projelli
+          }
