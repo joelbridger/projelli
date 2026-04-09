@@ -10,23 +10,27 @@ name: Release Tauri builds
 #   3. Edit the description with the changelog from CHANGELOG.md
 #   4. Click "Publish release"
 #
-# Required GitHub Secrets (set under Settings → Secrets and variables → Actions):
+# All required GitHub Secrets are wired in as of 2026-04-09.
 #
-#   For macOS code signing + notarization (set in Week 3 once Apple Developer is approved):
-#     APPLE_CERTIFICATE                base64-encoded .p12 of your Developer ID Application cert
+#   macOS code signing + notarization:
+#     APPLE_CERTIFICATE                base64-encoded .p12 of Developer ID Application cert
 #     APPLE_CERTIFICATE_PASSWORD       password used when exporting the .p12
-#     APPLE_SIGNING_IDENTITY           e.g. "Developer ID Application: Jameson Daines (TEAMID)"
-#     APPLE_ID                         your Apple ID email
+#     APPLE_SIGNING_IDENTITY           "Developer ID Application: Jameson Daines (7HCXDCS279)"
+#     APPLE_ID                         jamesondaines@outlook.com
 #     APPLE_PASSWORD                   app-specific password for notarization
-#     APPLE_TEAM_ID                    your Apple Developer team ID
+#     APPLE_TEAM_ID                    7HCXDCS279
 #
-#   For Windows code signing (set in Week 2 once Azure Trusted Signing or SSL.com cert is procured):
-#     WINDOWS_CERTIFICATE              base64-encoded .pfx (if using a traditional cert)
-#     WINDOWS_CERTIFICATE_PASSWORD     password for the .pfx
-#     (OR if using Azure Trusted Signing, swap to a different signing step — see comments below)
+#   Windows code signing via Azure Trusted/Artifact Signing:
+#     AZURE_TENANT_ID                  Entra tenant ID
+#     AZURE_CLIENT_ID                  service principal app id (projelli-github-actions)
+#     AZURE_CLIENT_SECRET              service principal client secret
+#     AZURE_TRUSTED_SIGNING_ENDPOINT   region endpoint, e.g. https://eus.codesigning.azure.net/
+#     AZURE_TRUSTED_SIGNING_ACCOUNT    artifact signing account name (projelli-signing)
+#     AZURE_TRUSTED_SIGNING_CERT_PROFILE  certificate profile name (projelli-public-trust)
 #
-# Until secrets are configured, builds will succeed but installers will be UNSIGNED.
-# Unsigned installers still work but trigger SmartScreen / Gatekeeper warnings.
+# Tauri's signCommand in tauri.conf.json invokes AzureSignTool to sign each
+# .exe and .msi using the service principal. Cert lives in Azure — never
+# downloaded to the runner.
 
 on:
   push:
@@ -77,6 +81,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
 
+      # Windows-only: install AzureSignTool so Tauri's signCommand can invoke it
+      - name: Install AzureSignTool (Windows only)
+        if: matrix.platform == 'windows-latest'
+        run: dotnet tool install --global AzureSignTool
+
       - name: Install frontend dependencies
         run: npm ci
 
@@ -84,16 +93,23 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS signing + notarization (no-op until secrets are set in Week 3)
+          # macOS signing + notarization
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows signing (no-op until secrets are set in Week 2)
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Windows code signing via Azure Trusted/Artifact Signing.
+          # tauri.conf.json's bundle.windows.signCommand picks these up via
+          # AzureSignTool which authenticates with the service principal and
+          # signs each .exe / .msi. Cert lives in Azure — never on the runner.
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          AZURE_TRUSTED_SIGNING_CERT_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERT_PROFILE }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Projelli ${{ github.ref_name }}'
@@ -101,12 +117,10 @@ jobs:
             Auto-generated release. See `CHANGELOG.md` for changes.
 
             ## Downloads
-            - **Windows:** `.exe` installer
-            - **macOS Apple Silicon:** `.dmg`
-            - **macOS Intel:** `.dmg`
+            - **Windows:** `.exe` installer (signed via Azure Artifact Signing)
+            - **macOS Apple Silicon:** `.dmg` (signed + notarized by Apple)
+            - **macOS Intel:** `.dmg` (signed + notarized by Apple)
             - **Linux:** `.AppImage` or `.deb`
-
-            ⚠️ Until code signing is enabled, expect SmartScreen (Windows) or Gatekeeper (macOS) warnings on first install.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
