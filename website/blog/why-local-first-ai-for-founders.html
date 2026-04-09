@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Why local-first AI matters for indie founders — Projelli</title>
+  <meta name="description" content="Local-first sounds technical. It's actually about who owns your business plan, your customer interviews, and your strategy docs. Here's why it matters more for founders than for anyone else.">
+  <link rel="canonical" href="https://projelli.com/blog/why-local-first-ai-for-founders">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://projelli.com/blog/why-local-first-ai-for-founders">
+  <meta property="og:title" content="Why local-first AI matters for indie founders">
+  <meta property="og:description" content="Local-first sounds technical. It's actually about who owns your business plan.">
+  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      padding: 60px 24px 100px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">← All posts</a>
+
+    <h1>Why local-first AI matters for indie founders</h1>
+    <p class="meta">By Jameson Daines · 2026-04-__ · 9 min read</p>
+
+    <p>I'm going to make a claim that sounds dramatic: if you're an indie founder using ChatGPT or Notion AI to plan your business, the documents that matter most to you are sitting in someone else's hands. Not in a "they're spying on you" sense. In the literal "you do not own a copy you can move" sense.</p>
+
+    <p>I'm not writing this to scare anyone. I'm writing it because I built a tool — Projelli — that's premised on the opposite arrangement, and I want to explain why that arrangement is the right one for the specific group of people I built it for.</p>
+
+    <h2>What "local-first" actually means</h2>
+
+    <p>The term gets thrown around loosely. Some people use it to mean "works offline." Some people use it to mean "the cache is local but the source of truth is the cloud." The definition I'm using here is the strict one from the original Ink &amp; Switch paper: <strong>your data lives on your device, in a format you control, and the network is optional</strong>.</p>
+
+    <p>Concretely, for a tool to be local-first:</p>
+
+    <ol>
+      <li>The files live on your hard drive in a format you can read with any other tool.</li>
+      <li>The app works fully without an internet connection.</li>
+      <li>If the company shuts down tomorrow, your data is still yours and still usable.</li>
+      <li>Sync (if it exists) is opt-in and you control where it goes.</li>
+    </ol>
+
+    <p>By that definition, almost no AI tool today is local-first. Notion AI isn't. ChatGPT isn't. Claude.ai isn't. Reflect isn't. Tana isn't. Mem.ai isn't. Cursor is local-first for the code files but not for the chat history. Obsidian is local-first for the notes but its AI features are community plugins that vary in design.</p>
+
+    <p>That's not a coincidence. Local-first is harder to build than cloud-first. The economics push everyone toward subscription SaaS in someone else's data center.</p>
+
+    <h2>Why it matters more for founders than for anyone else</h2>
+
+    <p>A regular knowledge worker losing access to their notes is annoying. A founder losing access to their business plan, financial model, customer interviews, and pricing strategy is a different kind of problem.</p>
+
+    <p>Here's the founder-specific case for local-first, in five points.</p>
+
+    <h3>1. Your business documents are uniquely high-value AND uniquely irreplaceable</h3>
+
+    <p>If you lose your meeting notes from last Tuesday, you can mostly reconstruct them. If you lose the customer interview transcript from your first 5 design partners — the one that contains the exact phrases they used to describe their pain — you can't rebuild that. Those words, captured in that moment, are the source material for everything downstream: your positioning, your copy, your roadmap, your sales script.</p>
+
+    <p>The same is true for your financial model assumptions, your pricing experiments, your pitch deck iterations, and your competitor analysis notes. Each of these documents represents thinking you did once and shouldn't have to do again. And every one of them lives in some tool's cloud database in 2026.</p>
+
+    <h3>2. You don't have an IT department to migrate you off when a vendor changes the rules</h3>
+
+    <p>Notion changed their pricing in 2023. Notion AI was added at $10/user/month on top of the base plan. Reflect raised prices. Tana adjusted their tiers. ChatGPT moved features behind Plus and Pro. Every cloud SaaS will eventually do this — it's the model. As an indie founder you absorb the price change quietly, or you spend a weekend exporting and migrating to the next thing.</p>
+
+    <p>When your data lives on your hard drive in plain Markdown, the vendor's pricing decisions don't reach you. You can stay on the version you bought, or migrate at your own pace, or fork your workflow into two tools without losing anything.</p>
+
+    <h3>3. You're the security team</h3>
+
+    <p>I work at a health-tech company. I take security and privacy seriously because my day job demands it. But even setting aside healthcare-specific concerns, I'm uncomfortable with the idea that my early-stage business plan — which contains the actual idea, the actual market gap, the actual customer pain point I think nobody has noticed — sits in an LLM provider's training-data-eligible content store.</p>
+
+    <p>I know providers say they don't train on customer data. I believe most of them. The exact moment I stop believing them is the moment I read the post-mortem on the breach that happened anyway. Every cloud vendor has a non-zero probability of an incident in the next 5 years. Local-first is the only architecture where that risk is structurally zero, because the data isn't there to leak.</p>
+
+    <h3>4. The "network optional" property matters more than you think</h3>
+
+    <p>I do my best work on planes, in cabins, and at coffee shops with bad Wi-Fi. The number of times I've opened a cloud-only app and gotten a "no connection" screen, or hit a feature that depends on a server round-trip and just... waited, is more than zero. Every one of those moments is a small tax on my creative work.</p>
+
+    <p>A local-first app is fast all the time, because the data is right there. The only network round-trip in Projelli is the AI request itself, which goes directly from your machine to your chosen provider. Everything else is local.</p>
+
+    <h3>5. You can ACTUALLY back it up</h3>
+
+    <p>Backing up a Notion workspace is a nightmare. Backing up a Tana graph is a nightmare. Backing up a ChatGPT conversation history is hilariously absent. You can export, but exports are lossy and one-way and you have to remember to do them.</p>
+
+    <p>A folder of Markdown files on your hard drive backs up automatically. iCloud, Dropbox, OneDrive, rsync, Time Machine, Backblaze, a USB drive, a git repo — all of these work transparently because they're designed to handle files in folders. Local-first puts your data in a format that the entire 50-year tradition of computing knows how to back up.</p>
+
+    <h2>The trade-off (because there is one)</h2>
+
+    <p>I'd be lying if I pretended local-first had no downsides. The honest tradeoff list:</p>
+
+    <ul>
+      <li><strong>No real-time collaboration.</strong> Two people can't edit the same document at the same time. If your business has a co-founder you collaborate with synchronously all day, this is a real cost.</li>
+      <li><strong>Sync is on you.</strong> If you want your workspace on your laptop AND your desktop, you put the folder in Dropbox or iCloud. The local-first tool doesn't do it for you. (Though most tools that DO sync are worse at it than Dropbox, so this might be an upgrade.)</li>
+      <li><strong>You manage your own backups.</strong> See above. Most people benefit from being made to think about this once, but it's a real responsibility.</li>
+      <li><strong>The product is harder to build.</strong> This shows up as fewer mature local-first AI tools on the market. The economics push founders toward cloud SaaS.</li>
+      <li><strong>BYOK setup friction.</strong> Bringing your own API key is a 5-minute setup that some users will find too hard. It's the right call for privacy but it costs you the casual try-it-and-see audience.</li>
+    </ul>
+
+    <p>For a team of 50 collaborating in real time on shared documents, none of this is worth it. For a solo indie founder running 3 side projects in their evenings, all 5 of the trade-offs are either inverted (the "downside" is actually a feature) or trivial.</p>
+
+    <h2>The specific moment local-first wins for a founder</h2>
+
+    <p>Here's the exact use case I built Projelli for. See if it sounds familiar.</p>
+
+    <p>It's a Saturday morning. You have 3 hours before your kids wake up. You want to make progress on the new business idea you've been thinking about for a month. You open ChatGPT, start a fresh conversation, and ask for help structuring the market opportunity. The AI gives you a great response. You ask follow-up questions. Two hours later, you have a 4,000-word conversation that contains the actual nucleus of a business — assumptions, hypotheses, the customer profile, the competitive frame, three pricing options.</p>
+
+    <p>The next Saturday, you open ChatGPT and you can't find that conversation. You search. You scroll. Eventually you find it, but it's wedged between two unrelated threads. You start a new conversation referencing what you remember, but the AI doesn't have the context, so the new conversation is shallower than the old one. You try copy-pasting the relevant parts of the old conversation into the new one, but the formatting breaks and you lose the threading.</p>
+
+    <p>By week three, you've started keeping notes in a separate Notion doc. By week five, the Notion doc and the ChatGPT history have diverged. By week eight, you can't find any of it.</p>
+
+    <p>That's the loop I lived in for a year before I built Projelli. Every founder I've described it to has nodded immediately. It's not a problem with ChatGPT — ChatGPT is a great chat tool. It's a problem with the SHAPE of the workflow: the document and the conversation that created it should live in the same place, on your machine, in a format that doesn't depend on any one company being around in five years.</p>
+
+    <h2>What the BYOK part adds</h2>
+
+    <p>Local-first solves the data ownership problem. BYOK (bring your own key) solves the data flow problem. Together they make a stronger claim.</p>
+
+    <p>BYOK means: I have an Anthropic account with my own API key. I paste the key into the local app. The app stores it in my OS keychain (Keychain on Mac, Credential Manager on Windows). When I make an AI request, the request goes from my computer directly to Anthropic's API endpoint. The vendor of the local app is never in the request path.</p>
+
+    <p>This matters because it eliminates an entire category of vendor risk. The local-first vendor cannot leak your AI conversations because the local-first vendor never sees them. The only thing my server (the Projelli license validator) ever sees is your license key on activation. Beyond that, my server has zero visibility into anything you do in the app.</p>
+
+    <p>The cost of BYOK is the setup friction — creating an API account is a 5-minute hurdle that some people won't cross. The benefit is a privacy story that's structurally airtight, not just promised.</p>
+
+    <h2>Local-first doesn't mean anti-AI</h2>
+
+    <p>One last thing, because the takes I've seen on local-first sometimes lean luddite. I'm not arguing against AI. I love AI. I use Claude every single day for both my day job and my side projects. AI is the most interesting thing that's happened to my workflow in a decade.</p>
+
+    <p>The argument is about <em>where the data lives</em>, not about whether AI is involved. AI can be just as useful when it's reading and writing files on your hard drive as when it's reading and writing to a cloud database. The user experience is identical. The only thing that changes is who has a copy of your business plan.</p>
+
+    <p>That's the case for local-first AI for indie founders. It's not about being old-fashioned. It's about being the kind of founder whose business plan, financial model, and customer research live somewhere you can find them in five years, regardless of whose servers are still running.</p>
+
+    <a href="https://projelli.com/#pricing" class="cta">See Projelli — local-first AI workspace for indie founders</a>
+
+    <p style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-gray); color: var(--text-muted); font-size: 0.9375rem;">
+      <em>Jameson Daines builds Projelli on weekends and evenings around a Senior Product Designer day job. <a href="/blog/how-i-built-projelli-in-8-weeks">Read about the 8-week launch</a> or get Projelli at <a href="https://projelli.com">projelli.com</a>.</em>
+    </p>
+  </div>
+</body>
+</html>
