@@ -51,7 +51,7 @@
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
       "timestampUrl": "http://timestamp.acs.microsoft.com",
-      "signCommand": "C:\\Windows\\System32\\cmd.exe /c sign-windows.cmd %1",
+      "signCommand": "C:/Windows/System32/cmd.exe /c sign-windows.cmd %1",
       "nsis": {
         "installerIcon": "icons/icon.ico",
         "headerImage": "icons/installer-header.bmp",
