@@ -86,6 +86,44 @@ jobs:
         if: matrix.platform == 'windows-latest'
         run: dotnet tool install --global AzureSignTool
 
+      # Bake Azure credentials into tauri.conf.json on the Windows runner.
+      # We use the object-form signCommand (cmd + args array) so Tauri's
+      # process spawn doesn't go through shell parsing — args are passed
+      # to AzureSignTool literally. This avoids all the shell escaping
+      # nonsense (backslashes eaten by shell_words, %VAR% not expanded,
+      # cmd.exe not on PATH, etc).
+      - name: Patch tauri.conf.json with Azure signing credentials (Windows only)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          AZURE_TRUSTED_SIGNING_CERT_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_CERT_PROFILE }}
+        run: |
+          $configPath = "src-tauri/tauri.conf.json"
+          $config = Get-Content $configPath -Raw | ConvertFrom-Json
+          $config.bundle.windows.signCommand = @{
+            cmd = "AzureSignTool"
+            args = @(
+              "sign",
+              "-kvu", $env:AZURE_TRUSTED_SIGNING_ENDPOINT,
+              "-kvc", $env:AZURE_TRUSTED_SIGNING_CERT_PROFILE,
+              "-kvi", $env:AZURE_CLIENT_ID,
+              "-kvs", $env:AZURE_CLIENT_SECRET,
+              "-kvt", $env:AZURE_TENANT_ID,
+              "-tr", "http://timestamp.acs.microsoft.com",
+              "-td", "sha256",
+              "-fd", "sha256",
+              "-du", "https://projelli.com",
+              "%1"
+            )
+          }
+          $config | ConvertTo-Json -Depth 20 | Set-Content $configPath
+          Write-Host "Patched tauri.conf.json with Azure signing credentials"
+
       - name: Install frontend dependencies
         run: npm ci
 

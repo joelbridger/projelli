@@ -51,7 +51,22 @@
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
       "timestampUrl": "http://timestamp.acs.microsoft.com",
-      "signCommand": "C:/Windows/System32/cmd.exe /c sign-windows.cmd %1",
+      "signCommand": {
+        "cmd": "AzureSignTool",
+        "args": [
+          "sign",
+          "-kvu", "PLACEHOLDER_OVERRIDDEN_BY_CI",
+          "-kvc", "PLACEHOLDER_OVERRIDDEN_BY_CI",
+          "-kvi", "PLACEHOLDER_OVERRIDDEN_BY_CI",
+          "-kvs", "PLACEHOLDER_OVERRIDDEN_BY_CI",
+          "-kvt", "PLACEHOLDER_OVERRIDDEN_BY_CI",
+          "-tr", "http://timestamp.acs.microsoft.com",
+          "-td", "sha256",
+          "-fd", "sha256",
+          "-du", "https://projelli.com",
+          "%1"
+        ]
+      },
       "nsis": {
         "installerIcon": "icons/icon.ico",
         "headerImage": "icons/installer-header.bmp",
