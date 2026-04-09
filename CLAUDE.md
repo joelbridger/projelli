@@ -6,7 +6,11 @@
 >
 > **Current state:** Read `~/projelli/BACKLOG.md` for the live week-by-week task list, what's done, what's in flight, and what's blocked.
 >
+> **If you're working on marketing:** Read `~/projelli/docs/features/MARKETING_PLAYBOOK.md` first. It's the index doc that ties together all 8 marketing artifacts (competitive analysis, launch packages for PH/HN/IH, email sequences, newsletter outreach, press kit, blog drafts) and walks through the critical-path timeline from pre-launch to post-launch. **Don't write any new marketing content without checking what's already there** — the launch packages have pre-staged FAQ replies and reply templates that should be reused, not duplicated.
+>
 > **User profile:** Jameson is **NOT a developer**. He's a Senior Product Designer at Wheel Health. Explain technical concepts in plain language. Don't assume he can read code. Don't dump stack traces on him — translate them. The persistent project memory file at `~/.claude/projects/-home-jameson/memory/project_projelli.md` has the full user/project context.
+>
+> **Voice rules for any user-facing copy:** Every marketing artifact in `docs/features/` and `website/blog/` was written under the rules in `~/.claude/projects/-home-jameson/memory/feedback_marketing_copy_voice.md` and `~/.claude/projects/-home-jameson/memory/reference_ai_writing_tells.md`. The short version: first-person singular always, contractions, specific concrete nouns over abstractions, no "leverage / delve / seamless / transform / empower / elevate / unlock", no italicized fragments at sentence ends, no "It's not X, it's Y" parallelism, uneven sentence length, occasional informal fragments. If in doubt, read the homepage at projelli.com (audited 2026-04-08) for the canonical voice reference.
 
 ## Where things live
 
@@ -16,9 +20,18 @@
 | **GitHub** | `github.com/projelli/projelli` | Org owned by joelbridger account; transferred from joelbridger/projelli on 2026-04-08 |
 | **Live website** | `https://projelli.com` → `/var/www/projelli.com/index.html` | System Caddy on `:8080`, Cloudflare tunnel `d4e16129` |
 | **Deploy script** | `~/projelli/infra/deploy.sh` | rsync website/ → /var/www/projelli.com + CF cache purge |
-| **Business plan** | `~/projelli/PROJELLI_BUSINESS_PLAN.md` | Operating contract |
-| **Backlog** | `~/projelli/BACKLOG.md` | Week-by-week tickets |
-| **Docs** | `~/projelli/docs/{reference,operations,quality,archive}/` | Mirrors jameworld convention |
+| **Business plan** | `~/projelli/PROJELLI_BUSINESS_PLAN.md` | Operating contract — every CEO decision lives here |
+| **Backlog** | `~/projelli/BACKLOG.md` | Week-by-week tickets, includes marketing asset inventory section |
+| **Board action items** | `~/projelli/BOARD_ACTION_ITEMS.md` | Engineering / financial / identity work that needs Jameson's hands (Azure signing, Apple Developer, LemonSqueezy, etc.) |
+| **Marketing playbook** | `~/projelli/docs/features/MARKETING_PLAYBOOK.md` | **Index of all 8 marketing artifacts + critical-path launch timeline. Read first before any marketing work.** |
+| **Marketing action pack** | `~/projelli/docs/features/JAMESON_ACTION_PACK.md` | The 8 marketing tasks only Jameson can do (PH hunters, beta testers, screenshots, demo video, X posts, etc.) with pre-staged drafts. Complementary to BOARD_ACTION_ITEMS.md, not a duplicate. |
+| **Competitive landscape** | `~/projelli/docs/reference/COMPETITIVE_LANDSCAPE.md` | Side-by-side vs Notion AI / Obsidian / ChatGPT / Reflect / Tana / etc. with reply paragraphs ready for PH/HN comments. |
+| **Launch packages** | `~/projelli/docs/features/PRODUCT_HUNT_LAUNCH.md`, `SHOW_HN_LAUNCH.md`, `INDIE_HACKERS_LAUNCH.md` | Per-channel launch playbooks with title variants, reply templates, anti-patterns. |
+| **Email sequences** | `~/projelli/docs/features/EMAIL_SEQUENCES.md` | 10 plain-text emails covering signup → purchase → retention → refund → re-engagement. |
+| **Newsletter outreach** | `~/projelli/docs/features/NEWSLETTER_OUTREACH.md` | 15+ targets + cold pitch template + tracking spreadsheet structure. |
+| **Press kit** | `~/projelli/website/press-kit/` | Live at projelli.com/press-kit/ — founder bio (3 lengths), fact sheet, brand colors, screenshot slots, demo video links. |
+| **Blog** | `~/projelli/website/blog/` | Live at projelli.com/blog/ — 3 publishable posts as of 2026-04-09 (8-week launch story, why local-first, picking templates). |
+| **Docs** | `~/projelli/docs/{reference,operations,features,quality,archive}/` | Mirrors jameworld convention. `features/` holds marketing playbook + launch packages. |
 | **CI** | `~/projelli/.github/workflows/release.yml` | Tauri matrix build for Win/Mac/Linux on git tag |
 
 ## Quick Reference (development)

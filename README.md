@@ -3,7 +3,7 @@
 > **Local-first AI workspace where every chat becomes a real file.**
 > Built for indie founders who want AI as a co-pilot, not a replacement.
 
-[**projelli.com**](https://projelli.com) • [Download](https://github.com/projelli/projelli/releases) • [Business plan](./PROJELLI_BUSINESS_PLAN.md)
+[**projelli.com**](https://projelli.com) • [Download](https://github.com/projelli/projelli/releases) • [Press kit](https://projelli.com/press-kit/) • [Blog](https://projelli.com/blog/) • [Business plan](./PROJELLI_BUSINESS_PLAN.md)
 
 ---
 
@@ -77,12 +77,18 @@ projelli/
 ├── src-tauri/                      — Rust backend
 ├── tests/                          — Vitest + Playwright test suites
 ├── website/                        — marketing site (deploys to projelli.com)
+│   ├── index.html                  — homepage
+│   ├── docs/                       — public user docs (Getting Started, FAQ, API Keys)
+│   ├── legal/                      — Privacy / Terms / EULA
+│   ├── press-kit/                  — press resources for journalists
+│   └── blog/                       — blog posts
 ├── infra/
 │   └── deploy.sh                   — website deploy script
 ├── docs/
 │   ├── README.md                   — docs index
-│   ├── reference/                  — architecture, vision, ADRs
+│   ├── reference/                  — architecture, vision, ADRs, competitive landscape
 │   ├── operations/                 — runbooks
+│   ├── features/                   — marketing playbook + launch packages
 │   ├── quality/                    — testing docs
 │   └── archive/                    — historical / superseded docs
 └── .github/workflows/
