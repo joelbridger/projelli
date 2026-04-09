@@ -51,7 +51,7 @@
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
       "timestampUrl": "http://timestamp.acs.microsoft.com",
-      "signCommand": "AzureSignTool sign -kvu %AZURE_TRUSTED_SIGNING_ENDPOINT% -kvc %AZURE_TRUSTED_SIGNING_CERT_PROFILE% -kvi %AZURE_CLIENT_ID% -kvs %AZURE_CLIENT_SECRET% -kvt %AZURE_TENANT_ID% -tr http://timestamp.acs.microsoft.com -td sha256 -fd sha256 -du https://projelli.com %1",
+      "signCommand": "cmd /c \"%CD%\\sign-windows.cmd\" %1",
       "nsis": {
         "installerIcon": "icons/icon.ico",
         "headerImage": "icons/installer-header.bmp",
