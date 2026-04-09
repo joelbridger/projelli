@@ -21,51 +21,55 @@ The remaining items below are **pure capital + identity work** that only Jameson
 
 ## Action items, in priority order
 
-### 1. Procure Windows code signing certificate (~$10/mo or $160/yr)
+### 1. Windows code signing — IN PROGRESS (2026-04-08)
 
-**Why it matters:** Without this, the Windows installer triggers SmartScreen warnings on every install. Conversion drops massively. This is #1 because it blocks shipping a sellable Windows release.
+**Status:** ✅ Azure Artifact Signing account created 2026-04-08 (Microsoft renamed "Trusted Signing" → "Artifact Signing"). Identity Validation Request submitted, status: **In Progress**. Microsoft typically takes 1-3 business days.
 
-**Path A (recommended): Azure Trusted Signing — ~$10/month**
-1. Go to https://azure.microsoft.com/en-us/products/trusted-signing
-2. Sign up for an Azure account if you don't have one (free trial available, no charge for the first year on most services)
-3. Enable Trusted Signing
-4. Verify your identity (Microsoft does the OV verification for you — typically 1-3 business days)
-5. Once approved, you'll get a signing endpoint + credentials
-6. Send the credentials to Claude — Claude will wire them into the GitHub Actions workflow
+**Validation details:**
+- Account: `projelli-signing` (in resource group `projelli-rg`, region East US)
+- Account email: `microsoft@projelli.com`
+- Identity validation ID: `03efa33b-7e76-41f9-b862-10473e3b3757`
+- Subject Name (cert): Jameson Daines (Individual Validation)
+- Plan: Basic (~$10/mo)
 
-**Path B (fallback): SSL.com OV cert — ~$160/year**
-1. Go to https://www.ssl.com/certificates/microsoft-authenticode/
-2. Buy a 1-year OV (Organization Validation) Authenticode cert (~$160-200)
-3. Complete the OV verification (proof of identity, organization documents)
-4. Download the .pfx file and password
-5. Send both to Claude
+**Once Microsoft approves identity (1-3 days), Jameson needs to send Claude:**
+1. **Subscription ID** (visible in Azure portal → Subscriptions)
+2. **Tenant ID** (visible in Azure portal → Microsoft Entra ID → Overview)
+3. **Endpoint URL** for the signing account (visible in the Artifact Signing account → Overview)
+4. **Certificate Profile Name** (visible in the account → Certificate Profiles, after validation completes)
+5. Set up a service principal for GitHub Actions to use (Claude will give exact steps)
 
-**Time:** 30 min for the application + 1-3 business days for verification.
-**Spend:** $10/mo (Azure) or $160/yr (SSL.com). Both within the approved budget.
+Claude will then wire Azure Artifact Signing into `.github/workflows/release.yml`.
 
 ---
 
-### 2. Apple Developer Program enrollment ($99/year)
+### 2. Apple Developer Program enrollment — ✅ COMPLETE (2026-04-09)
 
-**Why it matters:** Required for macOS builds. Without it, the Mac app triggers Gatekeeper warnings on first run. This is #2 because Mac users are 70%+ of indie hackers.
+**Status:** Enrolled, approved (same-day, faster than typical), and credentials wired. Personal Apple ID `jamesondaines@outlook.com`, Individual enrollment, Team ID `7HCXDCS279`, $99/yr renewing 2027-04-08.
 
-**Steps:**
-1. Go to https://developer.apple.com/programs/enroll/
-2. Sign in with your Apple ID (or create one)
-3. Choose "Individual" enrollment (not "Organization" — much faster)
-4. Pay $99
-5. Apple verifies your identity (typically 5-7 business days)
-6. Once approved, send Claude:
-   - Your Team ID
-   - An app-specific password (https://appleid.apple.com/account/manage → App-Specific Passwords)
-   - Generate a Developer ID Application certificate via Xcode or developer.apple.com/account/resources/certificates
-   - Export the cert as a .p12 file with a password
-   - Send the .p12 + password to Claude
+**Cert generation: done server-side, no Mac involved.** Jameson's work MacBook never touched anything. Process:
+1. OpenSSL generated private key + CSR on the server
+2. Jameson uploaded CSR to Apple Developer portal in his browser
+3. Apple returned `.cer` file
+4. Jameson scp'd the `.cer` to the server
+5. OpenSSL combined .cer + private key into `.p12` with auto-generated password
+6. All credentials pushed to GitHub Secrets via `gh secret set`
 
-Claude will then wire the macOS signing + notarization into the GitHub Actions workflow.
+**GitHub Secrets set on projelli/projelli:**
+- `APPLE_CERTIFICATE` (base64 of .p12)
+- `APPLE_CERTIFICATE_PASSWORD`
+- `APPLE_SIGNING_IDENTITY` = "Developer ID Application: Jameson Daines (7HCXDCS279)"
+- `APPLE_ID` = jamesondaines@outlook.com
+- `APPLE_PASSWORD` (app-specific notarization password)
+- `APPLE_TEAM_ID` = 7HCXDCS279
 
-**Time:** 15 min for the application + 5-7 days for approval.
-**Spend:** $99/yr. Within the approved budget.
+**Files on the server:**
+- `~/.projelli-certs/projelli-developer-id.key` (private key, chmod 600)
+- `~/.projelli-certs/developerID_application.cer` (Apple-issued cert)
+- `~/.projelli-certs/projelli-developer-id.p12` (combined, chmod 600)
+- `~/.projelli-secrets` (credential values, chmod 600)
+
+**The `.github/workflows/release.yml` workflow already references these secrets** — macOS signing + notarization will activate automatically on the next git tag push. No further manual steps needed for Apple. ✅
 
 ---
 
