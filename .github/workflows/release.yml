@@ -92,13 +92,22 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS signing + notarization
+          # macOS signing. NOTE: notarization env vars (APPLE_ID, APPLE_PASSWORD,
+          # APPLE_TEAM_ID) are INTENTIONALLY omitted because Apple's notary service
+          # has been degraded since March 2026 with submissions stuck in 'In
+          # Progress' for 8-24+ hours. Without these env vars, Tauri signs the .app
+          # and .dmg with the Developer ID cert but skips the notarization step.
+          # Users installing unnotarized Mac builds will see a Gatekeeper warning
+          # on first open and must right-click → Open to bypass.
+          #
+          # TO RE-ENABLE NOTARIZATION once Apple's service recovers:
+          #   Uncomment the three APPLE_* env vars below and re-run the workflow.
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Projelli ${{ github.ref_name }}'
@@ -107,8 +116,8 @@ jobs:
 
             ## Downloads
             - **Windows:** `.exe` installer (signed via Azure Artifact Signing)
-            - **macOS Apple Silicon:** `.dmg` (signed + notarized by Apple)
-            - **macOS Intel:** `.dmg` (signed + notarized by Apple)
+            - **macOS Apple Silicon:** `.dmg` (signed with Developer ID, unnotarized — Gatekeeper warning on first open)
+            - **macOS Intel:** `.dmg` (signed with Developer ID, unnotarized — Gatekeeper warning on first open)
             - **Linux:** `.AppImage` or `.deb`
           releaseDraft: true
           prerelease: false
