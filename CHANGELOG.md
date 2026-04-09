@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2-rc.1] - 2026-04-09
+
+First fully-signed cross-platform test release. Validates the GitHub Actions
+release pipeline end-to-end. Pre-release; draft on GitHub.
+
+### Added
+- **GitHub Actions cross-platform release pipeline** (`.github/workflows/release.yml`)
+  - Mac (ARM + Intel) + Linux jobs use `tauri-apps/tauri-action@v0`
+  - Windows job is separate (`build-windows`): builds unsigned via raw `npm run tauri build`,
+    then uses Microsoft's official `azure/trusted-signing-action@v0.5.1` to sign the .exe
+    and .msi, then uploads via `gh release upload`
+  - Triggered on `git tag v*` push
+  - Produces 9 signed installer artifacts on every release
+- **Apple Developer ID signing** for macOS builds
+  - Cert generated server-side via OpenSSL (no Mac required)
+  - Tauri 2 + tauri-action handles the .app and .dmg signing
+- **Azure Trusted Signing** for Windows builds
+  - Service principal `projelli-github-actions` with role `Trusted Signing Certificate Profile Signer`
+  - Cert profile `projelli-public-trust` (Public Trust type)
+  - .exe and .msi signed by Microsoft Trusted Root Program cert (no SmartScreen warning)
+- **`.gitattributes`** to normalize line endings to LF (stops CRLF noise from Windows-authored repo)
+- **`infra/deploy.sh`** for website deploys (rsync + ownership + Cloudflare cache purge)
+- **`docs/` reorganization** mirroring the jameworld convention (`reference/`, `operations/`, `quality/`, `archive/`)
+
+### Fixed (during the 12-attempt CI debugging journey)
+- **`@rollup/rollup-linux-x64-gnu` was a hard dep** in package.json — now properly handled as a peer optional dependency
+- **Tauri npm vs Rust crate version mismatch** — pinned all `@tauri-apps/*` packages to match Rust crate minor versions
+- **`bundle.targets: ["msi", "nsis"]`** restricted Tauri to Windows-only formats — changed to `"all"`
+- **MSI bundler rejected `-rc.1` pre-release suffix** — versions must be numeric-only for MSI
+
+### Known issues
+- **Mac builds are signed but NOT notarized** — Apple's notarization service has been degraded
+  since late March 2026 (multiple developer forum reports of submissions stuck "In Progress" for
+  8-24+ hours). To install a Mac build: right-click the .app → Open → Open. After the first
+  open, macOS trusts the app for all future launches. Notarization will be re-enabled in the
+  workflow when Apple's service recovers — see comment in `.github/workflows/release.yml`.
+
 ### Bug Fixes (2026-02-18)
 
 ### Fixed
