@@ -106,22 +106,33 @@ Once Jameson sends the credentials, Claude will:
 
 ---
 
-### 4. Trigger the first GitHub Actions release
+### 4. First signed test release — ✅ COMPLETE (2026-04-09)
 
-**Why it matters:** The CI workflow is in `.github/workflows/release.yml` but hasn't been run yet. Pushing a tag triggers a full Win+Mac+Linux build. The first run will probably reveal small issues (missing config, etc.) that need fixing — better to find them now.
+**Status:** 12 CI attempts, all 4 platforms building cleanly on attempt 12 (run id `24194263726`).
 
-**Steps:**
-1. From this Claude session, ask Claude to push a test tag:
-   ```
-   tag a test release v1.0.2-test and watch the actions
-   ```
-2. Claude will run `git tag v1.0.2-test && git push origin v1.0.2-test` and then monitor the Actions run via `gh run list` and `gh run view`
-3. If anything fails, Claude diagnoses and fixes
-4. Once a clean test build runs, the tag can be deleted and a real `v1.0.2` tag created
+**v1.0.2-rc.1 draft release has 9 signed artifacts:**
+- `Projelli_1.0.2_x64-setup.exe` (Windows, signed via Azure Trusted Signing)
+- `Projelli_1.0.2_x64_en-US.msi` (Windows, signed via Azure Trusted Signing)
+- `Projelli_1.0.2_aarch64.dmg` (Mac ARM, signed with Developer ID, **not notarized**)
+- `Projelli_1.0.2_x64.dmg` (Mac Intel, signed with Developer ID, **not notarized**)
+- `Projelli_aarch64.app.tar.gz` + `Projelli_x64.app.tar.gz` (Mac app bundles)
+- `Projelli_1.0.2_amd64.AppImage` + `Projelli_1.0.2_amd64.deb` + `Projelli-1.0.2-1.x86_64.rpm` (Linux)
 
-This requires no Jameson hands at all — just authorization to do it. Claude is waiting on Jameson to say "do the test release."
+Draft release URL: https://github.com/projelli/projelli/releases
 
-**Time:** ~5 minutes of Jameson saying yes; ~30 minutes of Claude work to debug whatever the first run reveals.
+**Issues resolved during the 12 attempts** (preserved here so we don't repeat them):
+1. `@rollup/rollup-linux-x64-gnu` was a hard dep → removed
+2. `@tauri-apps/*` npm packages were ahead of Rust crates → tilde-pinned
+3. `bundle.targets: ["msi", "nsis"]` hid non-Windows installers → changed to `"all"`
+4. Mac PKCS12 import failed → regenerated .p12 with `openssl -legacy`
+5-9. Tauri's `signCommand` process spawn on Windows was fundamentally broken → pivoted to separate `build-windows` job using Microsoft's `azure/trusted-signing-action@v0.5.1`
+10. MSI bundler rejected `-rc.1` pre-release suffix → dropped to plain `1.0.2`
+11. Mac notarization failed with "Internet connection appears to be offline" after 49 minutes → **Apple's notary service has been degraded since March 2026** (multiple dev forum reports)
+12. **Mac notarization DISABLED** in the workflow — Mac builds are signed with Developer ID but unnotarized. Re-enable by uncommenting the 3 `APPLE_ID`/`APPLE_PASSWORD`/`APPLE_TEAM_ID` env vars in `.github/workflows/release.yml` when Apple's service recovers. Check https://developer.apple.com/system-status/ for "Notarization" status.
+
+**What users experience with unnotarized Mac builds:** Gatekeeper shows a warning on first open ("Projelli can't be opened because Apple cannot check it for malicious software"). To install: right-click the .app → Open → Open. After the first open, macOS trusts it for all future launches. The app is still cryptographically signed by Jameson's Developer ID cert.
+
+**For the real v1.0.2 launch release:** Check Apple's status. If notary is still down, ship unnotarized with a FAQ note. If notary is back, re-enable the env vars and re-tag.
 
 ---
 
