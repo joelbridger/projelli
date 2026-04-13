@@ -47,6 +47,8 @@ const DEFAULT_ANTHROPIC: ModelInfo[] = [
   { id: 'claude-opus-4-6', displayName: 'Claude Opus 4.6', provider: 'anthropic' },
   { id: 'claude-haiku-4-5-20251001', displayName: 'Claude Haiku 4.5', provider: 'anthropic' },
   { id: 'claude-sonnet-4-5-20250514', displayName: 'Claude Sonnet 4.5', provider: 'anthropic' },
+  { id: 'claude-3-5-sonnet-20241022', displayName: 'Claude 3.5 Sonnet', provider: 'anthropic' },
+  { id: 'claude-3-haiku-20240307', displayName: 'Claude 3 Haiku', provider: 'anthropic' },
 ];
 
 const DEFAULT_OPENAI: ModelInfo[] = [
