@@ -48,7 +48,7 @@ This is the comment Jameson posts as the founder, immediately after the listing 
 
 > Hi Product Hunt,
 >
-> I'm Jameson. I've been a Senior Product Designer at Wheel Health for the last few years, building digital health products. On weekends and evenings, I've been running too many side projects — and using ChatGPT for all of them.
+> I'm Jameson. I'm a Senior Product Designer at a health-tech company — been in the space for about eight years. On weekends and evenings, I've been running too many side projects — and using ChatGPT for all of them.
 >
 > The problem I kept hitting: I'd have a great two-hour conversation with Claude about my pricing strategy, and a week later I couldn't find it. Or I'd have it, but it was tangled up with the conversation I had two days later about the launch plan, and the conversation from Tuesday about the customer interview script. Everything I cared about was buried in chat history I couldn't search, organize, or back up.
 >
@@ -58,7 +58,7 @@ This is the comment Jameson posts as the founder, immediately after the listing 
 >
 > Pricing is one-time. $49 for Pro, $99 for Lifetime, and the first 100 launch buyers get the Lifetime tier for $29. No subscription. No data goes to my servers. No AI markup — you pay your provider directly.
 >
-> Honest things to flag up front: Windows is solid (v1.0 has been live since February). Mac just got cross-platform CI working a few weeks ago and the first signed Mac build is coming this week. Linux is post-launch. The free tier limits you to one AI provider and three templates so there's a real reason to upgrade — but it's a real free tier, not a 7-day trial dressed up.
+> Honest things to flag up front: Windows, Mac, and Linux all ship today — signed cross-platform builds via GitHub Actions. Mac builds are signed but not yet notarized (Apple's notary service has been flaky, so first-open requires a right-click → Open). The free tier limits you to one AI provider and three templates so there's a real reason to upgrade — but it's a real free tier, not a 7-day trial dressed up.
 >
 > I'm here all day to answer questions. The most useful thing you can do for me right now is tell me where it doesn't make sense yet. Thanks for taking a look 🙏
 
@@ -109,7 +109,7 @@ PH gallery is the second-most-important field after the maker comment. Each imag
 | ☐ | LemonSqueezy products fully published (waiting on Stripe verification) | External |
 | ☐ | Email list sent the launch teaser (T-3 days) | Claude |
 | ☐ | X / LinkedIn launch posts scheduled for 6am PT on launch day | Jameson |
-| ☐ | Wheel Health colleagues/team given a heads-up (per the courtesy plan) | Jameson |
+| ☐ | Day-job colleagues given a heads-up (per the courtesy plan) | Jameson |
 
 ---
 
@@ -123,7 +123,7 @@ PH gallery is the second-most-important field after the maker comment. Each imag
 | **12:15 am** | Jameson sends email blast to email list with PH link + Founder's Launch reminder | Claude (drafts), Jameson (sends) |
 | **12:30 am** | Jameson + Claude monitor PH comments, reply to every single one within 5 min | Both |
 | **6:00 am** | Second X post — "what people are saying so far" with screenshots of the best PH comments | Jameson |
-| **8:00 am** | LinkedIn comment in Wheel Health team channel (not a launch announcement, just "btw I shipped a thing this morning") | Jameson |
+| **8:00 am** | LinkedIn comment in day-job team channel (not a launch announcement, just "btw I shipped a thing this morning") | Jameson |
 | **9:00 am** | Submit Show HN post (peak HN traffic is 9am-noon PT). See SHOW_HN_LAUNCH.md | Jameson |
 | **10:00 am** | DM 5-10 indie hacker friends asking for an honest comment on PH (not an upvote ask) | Jameson |
 | **12:00 pm** | Lunchtime stretch: post in r/SideProject, r/Entrepreneur, r/EntrepreneurRideAlong | Jameson |
@@ -153,7 +153,7 @@ These are the actual comments that will show up in the first 6 hours. Pre-drafte
 
 ### 4. "What about Linux?"
 
-> Coming, but not in v1. Mac is launching alongside Windows this month. Linux is on the post-launch roadmap because honestly the math is brutal — Linux is ~3% of indie hacker buyers and the build/test/notarize cost is the same as the other two combined. If demand from this thread is loud enough, I'll move it up.
+> Shipping today. .deb, .rpm, and .AppImage are all in the release. The CI pipeline builds all three platforms on every tagged release. Linux was originally planned for post-launch but it fell out of the cross-platform CI basically for free once I had the GitHub Actions workflow running.
 
 ### 5. "Why should I trust you not to upload my data?"
 

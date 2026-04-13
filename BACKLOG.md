@@ -286,7 +286,7 @@ A second Claude session ran in parallel with the engineering work and produced t
 ### Web pages (in `website/`)
 - **W5-08** Press kit web page — `website/press-kit/index.html` — DONE (logo files, screenshot slots, founder bio, fact sheet, brand colors)
 - **W7-10** Blog directory + 3 posts — `website/blog/` — DONE
-  - `how-i-built-projelli-in-8-weeks.html` (12 min read, the 8-week launch story)
+  - `how-i-built-projelli-in-8-weeks.html` (12 min read, the 8-week launch story) — **DRAFT ONLY: do NOT publish until after launch day when placeholders can be filled with real numbers**
   - `why-local-first-ai-for-founders.html` (9 min read, the local-first case)
   - `picking-the-15-founder-templates.html` (10 min read, template selection criteria)
 
