@@ -1416,7 +1416,7 @@
         <a href="#how-it-works">How It Works</a>
         <a href="#pricing">Pricing</a>
         <a href="/blog/">Blog</a>
-        <a href="https://github.com/projelli/projelli/releases/download/v1.0.2/Projelli_1.0.2_x64-setup.exe" class="btn btn-primary" style="margin-top: 24px;">Download for Windows</a>
+        <a href="https://github.com/projelli/projelli/releases/latest" class="btn btn-primary" style="margin-top: 24px;">Download</a>
       </nav>
     </div>
   </header>
@@ -1992,7 +1992,10 @@
         <div class="cta-content">
           <h2>Ready to get that project out of six tabs?</h2>
           <p style="font-size: 1.125rem; color: var(--text-body); margin-bottom: 40px;">Projelli is free to download. Your files stay on your computer, and the app runs without an account.</p>
-          <a href="https://github.com/projelli/projelli/releases/download/v1.0.2/Projelli_1.0.2_x64-setup.exe" class="btn btn-primary btn-lg" style="font-size: 18px; padding: 18px 48px;">Download for Windows</a>
+          <a id="cta-download" href="https://github.com/projelli/projelli/releases/latest" class="btn btn-primary btn-lg" style="font-size: 18px; padding: 18px 48px;">Download for Free</a>
+          <div style="margin-top: 16px; font-size: 0.875rem; color: var(--text-muted);">
+            <a href="https://github.com/projelli/projelli/releases/latest" style="color: inherit; text-decoration: underline;">All platforms</a> — Windows, Mac (Apple Silicon + Intel), Linux
+          </div>
         </div>
       </div>
     </section>
@@ -2342,6 +2345,29 @@
       } else {
         // Start the loop after the page settles
         defer(runCycle, 1200);
+      }
+    })();
+  </script>
+
+  <!-- Platform-aware download button -->
+  <script>
+    (function() {
+      var el = document.getElementById('cta-download');
+      if (!el) return;
+      var ua = navigator.userAgent;
+      var v = '1.0.2';
+      var base = 'https://github.com/projelli/projelli/releases/download/v' + v + '/';
+      if (/Windows/.test(ua)) {
+        el.href = base + 'Projelli_' + v + '_x64-setup.exe';
+        el.textContent = 'Download for Windows';
+      } else if (/Mac/.test(ua)) {
+        el.href = /arm64|aarch64/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+          ? base + 'Projelli_' + v + '_aarch64.dmg'
+          : base + 'Projelli_' + v + '_x64.dmg';
+        el.textContent = 'Download for Mac';
+      } else if (/Linux/.test(ua)) {
+        el.href = base + 'Projelli_' + v + '_amd64.AppImage';
+        el.textContent = 'Download for Linux';
       }
     })();
   </script>
