@@ -1268,8 +1268,8 @@
     /* Animations */
     .animate-on-scroll {
       opacity: 0;
-      transform: translateY(30px);
-      transition: opacity var(--transition-slow), transform var(--transition-slow);
+      transform: translateY(20px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
     }
 
     .animate-on-scroll.is-visible {
@@ -2098,11 +2098,6 @@
     });
 
     // Scroll animations
-    const observerOptions = {
-      threshold: 0.1,
-      rootMargin: '0px 0px -50px 0px'
-    };
-
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
@@ -2110,11 +2105,15 @@
           observer.unobserve(entry.target);
         }
       });
-    }, observerOptions);
+    }, { threshold: 0.05 });
 
-    // Observe all animated elements
-    document.querySelectorAll('.animate-on-scroll').forEach((el, index) => {
-      el.style.transitionDelay = `${index * 0.1}s`;
+    // Stagger siblings that share a parent, not globally
+    document.querySelectorAll('.animate-on-scroll').forEach(el => {
+      var siblings = el.parentElement.querySelectorAll(':scope > .animate-on-scroll');
+      if (siblings.length > 1) {
+        var idx = Array.prototype.indexOf.call(siblings, el);
+        el.style.transitionDelay = (idx * 0.06) + 's';
+      }
       observer.observe(el);
     });
 
