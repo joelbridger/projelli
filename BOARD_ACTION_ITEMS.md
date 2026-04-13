@@ -73,13 +73,14 @@ Claude will then wire Azure Artifact Signing into `.github/workflows/release.yml
 
 ---
 
-### 3. Set up LemonSqueezy account + create products — ✅ COMPLETE (2026-04-09), STRIPE PENDING
+### 3. Set up LemonSqueezy account + create products — ✅ COMPLETE (2026-04-13, STRIPE APPROVED)
 
-**Status:** ✅ LemonSqueezy account created, 3 products set up, webhook wired, credentials in `/etc/license-validator.env`, Buy URLs live on homepage. Store ID `340394`, webhook ID 89126.
+**Status:** ✅ FULLY LIVE. LemonSqueezy store `projelli` (ID `340394`) approved by Stripe on 2026-04-13. Account rep: Ankith. Test mode can be turned off. **Buy buttons on projelli.com are now accepting real payments.** All 3 product variants (Pro $49, Lifetime $99, Founder's Launch $29) should be active.
 
-**Stripe merchant approval:** PENDING. LemonSqueezy sent follow-up identity verification questions on ~2026-04-12; Jameson replied with all requested info (pricing details, personal social media links, etc.) on 2026-04-13. Variants show "pending" status because Stripe is still reviewing. **Expected to auto-resolve once Stripe activates.** If no update by 2026-04-18, Jameson should email LemonSqueezy support at help@lemonsqueezy.com asking for a status update on the Stripe review.
-
-**Once Stripe activates:** Buy buttons start accepting real payments immediately. No further action needed from Jameson or Claude — everything is already wired.
+**Important from LemonSqueezy's approval email:**
+- "Everything must be download ready the second the buyer clicks purchase" — this is satisfied (v1.0.2 is live on GitHub Releases).
+- "If you test purchases, please use the test mode. Avoid using your real card — as payment processors might construe this as money laundering."
+- Test mode should be used for any test purchases, NOT real cards.
 
 ---
 
