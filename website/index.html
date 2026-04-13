@@ -2346,5 +2346,21 @@
       }
     })();
   </script>
+
+  <!-- Plausible custom event triggers (goals: Download click, GitHub click, Buy click) -->
+  <script>
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a');
+      if (!link) return;
+      var href = link.href || '';
+      if (href.indexOf('/releases/download/') !== -1 || href.indexOf('/releases/latest') !== -1) {
+        plausible('Download click');
+      } else if (href.indexOf('github.com/projelli') !== -1 && href.indexOf('/releases') === -1) {
+        plausible('GitHub click');
+      } else if (href.indexOf('lemonsqueezy.com/checkout') !== -1) {
+        plausible('Buy click');
+      }
+    });
+  </script>
 </body>
 </html>
