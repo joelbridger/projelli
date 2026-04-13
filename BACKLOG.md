@@ -269,6 +269,46 @@ One blog post per week on `/blog`. 1500 words. SEO-keyword-targeted ("local-firs
 
 ---
 
+## Marketing assets — produced 2026-04-09 by parallel session
+
+A second Claude session ran in parallel with the engineering work and produced the full marketing surface area for the launch. **All of these are DRAFTS that need Jameson voice review before going public.**
+
+### Strategy + reference (in `docs/`)
+- **W1-17** Competitive analysis matrix — `docs/reference/COMPETITIVE_LANDSCAPE.md` — DONE
+- **W6-06** Product Hunt launch package — `docs/features/PRODUCT_HUNT_LAUNCH.md` — DONE (title variants, maker comment, 12 FAQ replies, hunter pitch DM, day-of timeline)
+- **W6-07** Show HN launch package — `docs/features/SHOW_HN_LAUNCH.md` — DONE (HN-format title, technical/honest body, 15 FAQ replies, submit timing)
+- **W7-08** IndieHackers narrative post — `docs/features/INDIE_HACKERS_LAUNCH.md` — DONE ("8 weeks to first paying customer" format)
+- **W4-09** Email sequences — `docs/features/EMAIL_SEQUENCES.md` — DONE (10 emails: welcome, teaser, launch, post-purchase, day-1, week-1, month-1, refund, re-engagement)
+- **W7-09** Newsletter outreach plan — `docs/features/NEWSLETTER_OUTREACH.md` — DONE (15+ targets, cold pitch template, follow-up template)
+- **W1-18** Marketing playbook index — `docs/features/MARKETING_PLAYBOOK.md` — DONE (ties all marketing docs together)
+- **W1-19** Action pack for Jameson — `docs/features/JAMESON_ACTION_PACK.md` — DONE (pre-staged drafts for the 8 things only Jameson can do)
+
+### Web pages (in `website/`)
+- **W5-08** Press kit web page — `website/press-kit/index.html` — DONE (logo files, screenshot slots, founder bio, fact sheet, brand colors)
+- **W7-10** Blog directory + 3 posts — `website/blog/` — DONE
+  - `how-i-built-projelli-in-8-weeks.html` (12 min read, the 8-week launch story) — **DRAFT ONLY: do NOT publish until after launch day when placeholders can be filled with real numbers**
+  - `why-local-first-ai-for-founders.html` (9 min read, the local-first case)
+  - `picking-the-15-founder-templates.html` (10 min read, template selection criteria)
+
+### Pending: things only Jameson can do (see `JAMESON_ACTION_PACK.md`)
+- **A.** Decide build-in-public yes/no
+- **B.** DM 8-10 PH hunters with personalized pitches
+- **C.** Recruit 10-20 beta testers via warm and cold DMs
+- **D.** Take 6 product screenshots on Windows
+- **E.** Record 30-second demo video
+- **F.** Decide personal vs brand X account for Projelli content
+- **G.** Set up 3 Plausible conversion goals (5 min, browser only)
+- **H.** Post 5 build-in-public tweets to start the launch ramp
+
+### Pending: dependent on Jameson actions
+- Add `Download click`, `GitHub click`, `Buy click` event triggers to homepage JS (after G)
+- Generate beta tester license keys via LemonSqueezy + save to CSV (after C)
+- Compress demo video to MP4 + GIF + upload to YouTube unlisted (after E)
+- Add nav links to `/blog` and `/press-kit` in homepage header + footer (anytime; small change)
+- Schedule launch day timing once hunter is confirmed (after B)
+
+---
+
 ## Backlog (post-launch, prioritized later)
 
 - Linux builds (AppImage + .deb + Flatpak)
