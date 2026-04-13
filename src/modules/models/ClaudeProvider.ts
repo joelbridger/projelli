@@ -9,7 +9,7 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
 } from './Provider';
-import { getCorsSafeFetch } from './fetchUtils';
+import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 
 // Claude model pricing (per 1K tokens)
 const CLAUDE_PRICING: Record<string, { input: number; output: number }> = {
@@ -323,7 +323,7 @@ export class ClaudeProvider implements Provider {
     });
 
     if (!response.ok) {
-      const errorBody = await response.json() as { error?: { message?: string } };
+      const errorBody = await safeJsonParse<{ error?: { message?: string } }>(response);
       throw new Error(`Claude API error: ${errorBody.error?.message ?? `HTTP ${response.status}`}`);
     }
 
@@ -501,7 +501,7 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
         });
 
         if (!response.ok) {
-          const errorBody = (await response.json()) as ClaudeError;
+          const errorBody = await safeJsonParse<ClaudeError>(response);
           const errorMessage =
             errorBody.error?.message ?? `HTTP ${response.status}`;
 
@@ -518,7 +518,7 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
           throw new Error(`Claude API error: ${errorMessage}`);
         }
 
-        return (await response.json()) as ClaudeResponse;
+        return await safeJsonParse<ClaudeResponse>(response);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 

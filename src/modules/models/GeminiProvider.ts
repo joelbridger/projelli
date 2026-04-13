@@ -9,7 +9,7 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
 } from './Provider';
-import { getCorsSafeFetch } from './fetchUtils';
+import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 
 // Gemini model pricing (per 1K tokens) - as of 2024
 const GEMINI_PRICING: Record<string, { input: number; output: number }> = {
@@ -110,7 +110,7 @@ export class GeminiProvider implements Provider {
 
   constructor(config: GeminiProviderConfig) {
     this.apiKey = config.apiKey;
-    this.model = config.model ?? 'gemini-1.5-pro';
+    this.model = config.model ?? 'gemini-2.5-flash';
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getGeminiBaseUrl(config.baseUrl);
     this.aiRules = config.aiRules;
@@ -220,7 +220,7 @@ export class GeminiProvider implements Provider {
     });
 
     if (!response.ok) {
-      const errorData: GeminiError = await response.json();
+      const errorData = await safeJsonParse<GeminiError>(response);
       throw new Error(`Gemini API error: ${errorData.error.message} (${errorData.error.status})`);
     }
 
@@ -333,11 +333,11 @@ export class GeminiProvider implements Provider {
       });
 
       if (!response.ok) {
-        const errorData: GeminiError = await response.json();
+        const errorData = await safeJsonParse<GeminiError>(response);
         throw new Error(`Gemini API error: ${errorData.error.message} (${errorData.error.status})`);
       }
 
-      const data: GeminiResponse = await response.json();
+      const data = await safeJsonParse<GeminiResponse>(response);
 
       // Check for blocked content
       if (data.promptFeedback?.blockReason) {

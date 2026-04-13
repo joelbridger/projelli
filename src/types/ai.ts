@@ -17,6 +17,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string; // ISO datetime
+  isError?: boolean;
 }
 
 /**

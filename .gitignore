@@ -9,6 +9,7 @@ dist-ssr
 .DS_Store
 # Editor directories and files
 .env
+.env.test
 # Environment files
 .env.*.local
 .env.local

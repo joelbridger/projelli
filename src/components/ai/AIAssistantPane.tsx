@@ -20,6 +20,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { ApiKeyHelpDialog } from '@/components/common/ApiKeyHelpDialog';
+import { getCorsSafeFetch, getProviderBaseUrl } from '@/modules/models/fetchUtils';
 import type { AIChatFile } from '@/types/ai';
 import type { ModelInfo } from '@/modules/models/ModelListService';
 
@@ -59,7 +60,7 @@ const FALLBACK_OPENAI: ModelInfo[] = [
 ];
 
 const FALLBACK_GOOGLE: ModelInfo[] = [
-  { id: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash', provider: 'google' },
+  { id: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash', provider: 'google' },
   { id: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro', provider: 'google' },
   { id: 'gemini-1.5-flash', displayName: 'Gemini 1.5 Flash', provider: 'google' },
 ];
@@ -81,16 +82,16 @@ export function AIAssistantPane({
 
   // Model selection state
   const [selectedModels, setSelectedModels] = useState<Record<string, string>>({
-    anthropic: 'claude-opus-4-5',
-    openai: 'gpt-4-turbo',
-    google: 'gemini-pro',
+    anthropic: 'claude-3-haiku-20240307',
+    openai: 'gpt-4o-mini',
+    google: 'gemini-2.5-flash',
   });
 
-  // Model options state
-  const [modelOptions, setModelOptions] = useState<Record<string, Record<string, boolean>>>({
-    anthropic: { thinking: false, webSearch: false },
-    openai: { webSearch: false, planning: false },
-    google: { webSearch: false },
+  // API key validation state
+  const [keyStatus, setKeyStatus] = useState<Record<string, { state: 'idle' | 'testing' | 'success' | 'error'; message?: string }>>({
+    anthropic: { state: 'idle' },
+    openai: { state: 'idle' },
+    google: { state: 'idle' },
   });
 
   // API Key form state
@@ -104,21 +105,47 @@ export function AIAssistantPane({
     openai: false,
     google: false,
   });
-  const [savingKey, setSavingKey] = useState<string | null>(null);
-
-  const handleSaveKey = useCallback((provider: 'anthropic' | 'openai' | 'google') => {
-    const key = keyInputs[provider];
-    if (!key) return;
-
-    setSavingKey(provider);
-    onSaveApiKey(provider, key);
-    setKeyInputs(prev => ({ ...prev, [provider]: '' }));
-    setSavingKey(null);
-  }, [keyInputs, onSaveApiKey]);
-
   const handleDeleteKey = useCallback((provider: 'anthropic' | 'openai' | 'google') => {
     onDeleteApiKey(provider);
   }, [onDeleteApiKey]);
+
+  const testApiKey = useCallback(async (provider: 'anthropic' | 'openai' | 'google', key: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const safeFetch = await getCorsSafeFetch();
+      const baseUrl = getProviderBaseUrl(provider);
+
+      if (provider === 'anthropic') {
+        const resp = await safeFetch(`${baseUrl}/v1/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({ model: 'claude-3-haiku-20240307', max_tokens: 1, messages: [{ role: 'user', content: 'test' }] }),
+        });
+        if (resp.ok) return { ok: true };
+        if (resp.status === 401) return { ok: false, error: 'Invalid API key' };
+        return { ok: false, error: `API returned ${resp.status}` };
+      }
+
+      if (provider === 'openai') {
+        const resp = await safeFetch(`${baseUrl}/v1/models`, {
+          headers: { Authorization: `Bearer ${key}` },
+        });
+        if (resp.ok) return { ok: true };
+        if (resp.status === 401) return { ok: false, error: 'Invalid API key' };
+        return { ok: false, error: `API returned ${resp.status}` };
+      }
+
+      if (provider === 'google') {
+        const resp = await safeFetch(`${baseUrl}/v1beta/models?key=${key}`);
+        if (resp.ok) return { ok: true };
+        if (resp.status === 400 || resp.status === 403) return { ok: false, error: 'Invalid API key' };
+        return { ok: false, error: `API returned ${resp.status}` };
+      }
+
+      return { ok: false, error: 'Unknown provider' };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : 'Network error' };
+    }
+  }, []);
 
   const getProviderLabel = (provider: string) => {
     switch (provider) {
@@ -377,11 +404,31 @@ export function AIAssistantPane({
                         data-testid={`api-key-save-${provider}`}
                         size="sm"
                         className="h-8 w-full"
-                        onClick={() => handleSaveKey(provider)}
-                        disabled={!keyInputs[provider] || savingKey === provider}
+                        onClick={async () => {
+                          const key = keyInputs[provider];
+                          if (!key) return;
+                          setKeyStatus(prev => ({ ...prev, [provider]: { state: 'testing' } }));
+                          const result = await testApiKey(provider, key);
+                          if (result.ok) {
+                            setKeyStatus(prev => ({ ...prev, [provider]: { state: 'success', message: 'Connected!' } }));
+                            onSaveApiKey(provider, key);
+                            setKeyInputs(prev => ({ ...prev, [provider]: '' }));
+                            // Clear success after 3s
+                            setTimeout(() => setKeyStatus(prev => ({ ...prev, [provider]: { state: 'idle' } })), 3000);
+                          } else {
+                            setKeyStatus(prev => ({ ...prev, [provider]: { state: 'error', message: result.error ?? 'Unknown error' } }));
+                          }
+                        }}
+                        disabled={!keyInputs[provider] || keyStatus[provider]?.state === 'testing'}
                       >
-                        {savingKey === provider ? 'Saving...' : 'Save'}
+                        {keyStatus[provider]?.state === 'testing' ? 'Testing...' : 'Save'}
                       </Button>
+                      {keyStatus[provider]?.state === 'error' && (
+                        <p className="text-xs text-red-600 dark:text-red-400">{keyStatus[provider].message}</p>
+                      )}
+                      {keyStatus[provider]?.state === 'success' && (
+                        <p className="text-xs text-green-600 dark:text-green-400">{keyStatus[provider].message}</p>
+                      )}
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground break-words">
@@ -418,38 +465,6 @@ export function AIAssistantPane({
                   <option key={m.id} value={m.id}>{m.displayName}</option>
                 ))}
               </select>
-              {hasApiKey('anthropic') && (
-                <div className="space-y-2 pt-1">
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={modelOptions['anthropic']?.['thinking'] || false}
-                      onChange={(e) =>
-                        setModelOptions(prev => ({
-                          ...prev,
-                          anthropic: { ...prev['anthropic'], thinking: e.target.checked }
-                        }))
-                      }
-                      className="rounded shrink-0"
-                    />
-                    <span className="text-xs">Extended Thinking Mode</span>
-                  </label>
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={modelOptions['anthropic']?.['webSearch'] || false}
-                      onChange={(e) =>
-                        setModelOptions(prev => ({
-                          ...prev,
-                          anthropic: { ...prev['anthropic'], webSearch: e.target.checked }
-                        }))
-                      }
-                      className="rounded shrink-0"
-                    />
-                    <span className="text-xs">Web Search</span>
-                  </label>
-                </div>
-              )}
             </div>
 
             {/* OpenAI / ChatGPT */}
@@ -466,38 +481,6 @@ export function AIAssistantPane({
                   <option key={m.id} value={m.id}>{m.displayName}</option>
                 ))}
               </select>
-              {hasApiKey('openai') && (
-                <div className="space-y-2 pt-1">
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={modelOptions['openai']?.['webSearch'] || false}
-                      onChange={(e) =>
-                        setModelOptions(prev => ({
-                          ...prev,
-                          openai: { ...prev['openai'], webSearch: e.target.checked }
-                        }))
-                      }
-                      className="rounded shrink-0"
-                    />
-                    <span className="text-xs">Web Search (Browsing)</span>
-                  </label>
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={modelOptions['openai']?.['planning'] || false}
-                      onChange={(e) =>
-                        setModelOptions(prev => ({
-                          ...prev,
-                          openai: { ...prev['openai'], planning: e.target.checked }
-                        }))
-                      }
-                      className="rounded shrink-0"
-                    />
-                    <span className="text-xs">Planning Mode</span>
-                  </label>
-                </div>
-              )}
             </div>
 
             {/* Google / Gemini */}
@@ -514,24 +497,6 @@ export function AIAssistantPane({
                   <option key={m.id} value={m.id}>{m.displayName}</option>
                 ))}
               </select>
-              {hasApiKey('google') && (
-                <div className="space-y-2 pt-1">
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={modelOptions['google']?.['webSearch'] || false}
-                      onChange={(e) =>
-                        setModelOptions(prev => ({
-                          ...prev,
-                          google: { ...prev['google'], webSearch: e.target.checked }
-                        }))
-                      }
-                      className="rounded shrink-0"
-                    />
-                    <span className="text-xs">Web Search (Grounding)</span>
-                  </label>
-                </div>
-              )}
             </div>
 
             <div className="pt-4 border-t">

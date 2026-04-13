@@ -9,7 +9,7 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
 } from './Provider';
-import { getCorsSafeFetch } from './fetchUtils';
+import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 
 // OpenAI model pricing (per 1K tokens)
 const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
@@ -227,7 +227,7 @@ export class OpenAIProvider implements Provider {
     });
 
     if (!response.ok) {
-      const errorBody = await response.json() as OpenAIError;
+      const errorBody = await safeJsonParse<OpenAIError>(response);
       throw new Error(`OpenAI API error: ${errorBody.error?.message ?? `HTTP ${response.status}`}`);
     }
 
@@ -414,7 +414,7 @@ Respond ONLY with the JSON object.`;
         });
 
         if (!response.ok) {
-          const errorBody = (await response.json()) as OpenAIError;
+          const errorBody = await safeJsonParse<OpenAIError>(response);
           const errorMessage = errorBody.error?.message ?? `HTTP ${response.status}`;
 
           // Check for rate limiting
@@ -430,7 +430,7 @@ Respond ONLY with the JSON object.`;
           throw new Error(`OpenAI API error: ${errorMessage}`);
         }
 
-        return (await response.json()) as OpenAIResponse;
+        return await safeJsonParse<OpenAIResponse>(response);
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
 

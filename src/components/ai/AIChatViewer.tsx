@@ -12,7 +12,7 @@ import type { Provider } from '@/modules/models/Provider';
 import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
 import { GeminiProvider } from '@/modules/models/GeminiProvider';
-import { isTauriProductionBuild } from '@/modules/models/fetchUtils';
+import { isTauriProductionBuild, parseApiError } from '@/modules/models/fetchUtils';
 import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
 import { useAIChatStore, getDraftInput } from '@/stores/aiChatStore';
 
@@ -414,10 +414,34 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         }
       } catch (error) {
         console.error('AI chat error:', error);
+
+        let errorContent: string;
+
+        if (error instanceof Error) {
+          // Try to extract status code from error message pattern "HTTP NNN" or "API error"
+          const statusMatch = error.message.match(/HTTP (\d{3})/);
+          const statusCode = statusMatch?.[1] ? parseInt(statusMatch[1], 10) : null;
+
+          if (statusCode) {
+            const parsed = parseApiError(
+              (chatData.provider ?? 'anthropic') as 'anthropic' | 'openai' | 'google',
+              statusCode,
+              error.message,
+              chatData.model,
+            );
+            errorContent = `${parsed.message}\n${parsed.guidance}`;
+          } else {
+            errorContent = error.message;
+          }
+        } else {
+          errorContent = 'Failed to get response. Check your API key and try again.';
+        }
+
         const errorMessage: ChatMessage = {
           role: 'assistant',
-          content: `Error: ${error instanceof Error ? error.message : 'Failed to get response from AI. Please check your API key and try again.'}`,
+          content: errorContent,
           timestamp: new Date().toISOString(),
+          isError: true,
         };
 
         addMessage(chatId, errorMessage);
@@ -580,10 +604,23 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                 'max-w-[85%] min-w-0 rounded-lg px-4 py-2 break-words overflow-wrap-anywhere',
                 msg.role === 'user'
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted'
+                  : msg.isError
+                    ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200'
+                    : 'bg-muted'
               )}
               dangerouslySetInnerHTML={{ __html: renderMessage(msg.content) }}
             />
+            {msg.isError && idx === messages.length - 1 && (
+              <button
+                className="mt-1 text-xs text-muted-foreground hover:text-foreground underline"
+                onClick={() => {
+                  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+                  if (lastUserMsg) setInputValue(lastUserMsg.content);
+                }}
+              >
+                Retry last message
+              </button>
+            )}
           </div>
         ))}
         {isLoading && (

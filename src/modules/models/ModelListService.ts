@@ -1,7 +1,7 @@
 // Model List Service
 // Fetches available models from provider APIs, caches for 24h, falls back to hardcoded defaults
 
-import { getProviderBaseUrl, getCorsSafeFetch, type ProviderType } from './fetchUtils';
+import { getProviderBaseUrl, getCorsSafeFetch, safeJsonParse, type ProviderType } from './fetchUtils';
 
 export interface ModelInfo {
   id: string;
@@ -59,7 +59,7 @@ const DEFAULT_OPENAI: ModelInfo[] = [
 ];
 
 const DEFAULT_GOOGLE: ModelInfo[] = [
-  { id: 'gemini-2.0-flash', displayName: 'Gemini 2.0 Flash', provider: 'google' },
+  { id: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash', provider: 'google' },
   { id: 'gemini-1.5-pro', displayName: 'Gemini 1.5 Pro', provider: 'google' },
   { id: 'gemini-1.5-flash', displayName: 'Gemini 1.5 Flash', provider: 'google' },
 ];
@@ -113,7 +113,7 @@ async function fetchAnthropicModels(apiKey: string): Promise<ModelInfo[]> {
     },
   });
   if (!resp.ok) throw new Error(`Anthropic API ${resp.status}`);
-  const data = await resp.json() as { data: Array<{ id: string; display_name?: string }> };
+  const data = await safeJsonParse<{ data: Array<{ id: string; display_name?: string }> }>(resp);
   return (data.data ?? [])
     .filter((m) => m.id.includes('claude'))
     .map((m) => ({
@@ -132,7 +132,7 @@ async function fetchOpenAIModels(apiKey: string): Promise<ModelInfo[]> {
     },
   });
   if (!resp.ok) throw new Error(`OpenAI API ${resp.status}`);
-  const data = await resp.json() as { data: Array<{ id: string }> };
+  const data = await safeJsonParse<{ data: Array<{ id: string }> }>(resp);
   const prefixes = ['gpt-', 'o1-', 'o3-', 'o4-'];
   return (data.data ?? [])
     .filter((m) => prefixes.some((p) => m.id.startsWith(p)))
@@ -150,13 +150,13 @@ async function fetchGoogleModels(apiKey: string): Promise<ModelInfo[]> {
     method: 'GET',
   });
   if (!resp.ok) throw new Error(`Google API ${resp.status}`);
-  const data = await resp.json() as {
+  const data = await safeJsonParse<{
     models: Array<{
       name: string;
       displayName?: string;
       supportedGenerationMethods?: string[];
     }>;
-  };
+  }>(resp);
   return (data.models ?? [])
     .filter((m) => {
       const id = m.name.replace('models/', '');
