@@ -40,6 +40,16 @@ function shouldUseTauriHttp(): boolean {
   );
 }
 
+/**
+ * Whether the current environment requires the Tauri HTTP plugin.
+ * When true, streaming (SSE/ReadableStream) is NOT supported because the
+ * plugin's Response doesn't implement ReadableStream the same way as the
+ * browser's native fetch. Providers should fall back to non-streaming mode.
+ */
+export function isTauriProductionBuild(): boolean {
+  return shouldUseTauriHttp();
+}
+
 // Cache the plugin's fetch function so we only dynamically import once
 let tauriFetchFn: typeof globalThis.fetch | null = null;
 

@@ -12,6 +12,7 @@ import type { Provider } from '@/modules/models/Provider';
 import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
 import { GeminiProvider } from '@/modules/models/GeminiProvider';
+import { isTauriProductionBuild } from '@/modules/models/fetchUtils';
 import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
 import { useAIChatStore, getDraftInput } from '@/stores/aiChatStore';
 
@@ -347,8 +348,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           ? `You are a helpful AI assistant. Here is the conversation history:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
           : 'You are a helpful AI assistant.';
 
-        // Use streaming if available
-        if (provider.sendMessageStreaming) {
+        // Use streaming if available (disabled in production Tauri builds
+        // because tauri-plugin-http doesn't support ReadableStream/SSE)
+        if (provider.sendMessageStreaming && !isTauriProductionBuild()) {
           const abortController = new AbortController();
           abortControllerRef.current = abortController;
 
