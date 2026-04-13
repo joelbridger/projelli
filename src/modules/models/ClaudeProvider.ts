@@ -9,6 +9,7 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
 } from './Provider';
+import { getCorsSafeFetch } from './fetchUtils';
 
 // Claude model pricing (per 1K tokens)
 const CLAUDE_PRICING: Record<string, { input: number; output: number }> = {
@@ -309,7 +310,8 @@ export class ClaudeProvider implements Provider {
       request.stop_sequences = sendOpts.stopSequences;
     }
 
-    const response = await fetch(`${this.baseUrl}/v1/messages`, {
+    const safeFetch = await getCorsSafeFetch();
+    const response = await safeFetch(`${this.baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -487,7 +489,8 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
-        const response = await fetch(`${this.baseUrl}/v1/messages`, {
+        const safeFetch = await getCorsSafeFetch();
+        const response = await safeFetch(`${this.baseUrl}/v1/messages`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

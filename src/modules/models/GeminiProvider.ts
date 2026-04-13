@@ -9,6 +9,7 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
 } from './Provider';
+import { getCorsSafeFetch } from './fetchUtils';
 
 // Gemini model pricing (per 1K tokens) - as of 2024
 const GEMINI_PRICING: Record<string, { input: number; output: number }> = {
@@ -210,7 +211,8 @@ export class GeminiProvider implements Provider {
 
     const url = `${this.baseUrl}/v1beta/models/${this.model}:streamGenerateContent?key=${this.apiKey}&alt=sse`;
 
-    const response = await fetch(url, {
+    const safeFetch = await getCorsSafeFetch();
+    const response = await safeFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
@@ -321,7 +323,8 @@ export class GeminiProvider implements Provider {
     const url = `${this.baseUrl}/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
 
     try {
-      const response = await fetch(url, {
+      const safeFetch = await getCorsSafeFetch();
+      const response = await safeFetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

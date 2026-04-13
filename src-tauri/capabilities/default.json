@@ -25,6 +25,14 @@
     "fs:allow-stat",
     "fs:allow-lstat",
     {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://api.anthropic.com/**" },
+        { "url": "https://api.openai.com/**" },
+        { "url": "https://generativelanguage.googleapis.com/**" }
+      ]
+    },
+    {
       "identifier": "fs:scope",
       "allow": [
         { "path": "$HOME/**" },

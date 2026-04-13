@@ -1,6 +1,15 @@
 // Type declarations for Tauri plugins
 // These are only used when running in Tauri environment
 
+declare module '@tauri-apps/plugin-http' {
+  /**
+   * Tauri HTTP plugin's fetch function.
+   * Same API as the standard Fetch API, but executes via Rust
+   * to bypass browser CORS restrictions in production Tauri builds.
+   */
+  export function fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+}
+
 declare module '@tauri-apps/plugin-fs' {
   export function readTextFile(path: string, options?: { baseDir?: number }): Promise<string>;
   export function readFile(path: string, options?: { baseDir?: number }): Promise<Uint8Array>;

@@ -9,6 +9,7 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
 } from './Provider';
+import { getCorsSafeFetch } from './fetchUtils';
 
 // OpenAI model pricing (per 1K tokens)
 const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
@@ -217,7 +218,8 @@ export class OpenAIProvider implements Provider {
     };
     if (this.organization) headers['OpenAI-Organization'] = this.organization;
 
-    const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+    const safeFetch = await getCorsSafeFetch();
+    const response = await safeFetch(`${this.baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers,
       body: JSON.stringify(request),
@@ -404,7 +406,8 @@ Respond ONLY with the JSON object.`;
           headers['OpenAI-Organization'] = this.organization;
         }
 
-        const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+        const safeFetch = await getCorsSafeFetch();
+        const response = await safeFetch(`${this.baseUrl}/v1/chat/completions`, {
           method: 'POST',
           headers,
           body: JSON.stringify(request),

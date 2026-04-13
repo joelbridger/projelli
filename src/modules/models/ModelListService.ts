@@ -1,7 +1,7 @@
 // Model List Service
 // Fetches available models from provider APIs, caches for 24h, falls back to hardcoded defaults
 
-import { getProviderBaseUrl, type ProviderType } from './fetchUtils';
+import { getProviderBaseUrl, getCorsSafeFetch, type ProviderType } from './fetchUtils';
 
 export interface ModelInfo {
   id: string;
@@ -76,7 +76,8 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    const safeFetch = await getCorsSafeFetch();
+    return await safeFetch(url, { ...init, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
