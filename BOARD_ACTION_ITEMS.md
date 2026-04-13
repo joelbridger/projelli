@@ -73,36 +73,13 @@ Claude will then wire Azure Artifact Signing into `.github/workflows/release.yml
 
 ---
 
-### 3. Set up LemonSqueezy account + create products
+### 3. Set up LemonSqueezy account + create products — ✅ COMPLETE (2026-04-09), STRIPE PENDING
 
-**Why it matters:** This is what actually takes money. Until LemonSqueezy is set up, the Buy button on the website can't go live.
+**Status:** ✅ LemonSqueezy account created, 3 products set up, webhook wired, credentials in `/etc/license-validator.env`, Buy URLs live on homepage. Store ID `340394`, webhook ID 89126.
 
-**Steps:**
-1. Go to https://www.lemonsqueezy.com/ → Sign up
-2. Complete the merchant onboarding (business name, tax info, bank account for payouts)
-   - You can set this up as an individual sole proprietor — no LLC required for v1
-   - LemonSqueezy is the merchant of record, so they handle VAT/sales tax for you
-3. Create a Store called "Projelli"
-4. Create 3 products:
-   - **"Projelli Pro"** — One-time, $49 USD. Description: "All AI providers, all 15 templates, unlimited workspaces. 1 year of updates."
-   - **"Projelli Lifetime"** — One-time, $99 USD. Description: "Everything in Pro + updates forever + commercial use license."
-   - **"Projelli Founder's Launch"** — One-time, $29 USD. Same as Lifetime but with a quantity cap of 100. Description: "Lifetime tier at the launch price. First 100 buyers only."
-5. For each product, enable **License Keys** (Settings → License Keys → enable, set activation limit to 3 devices per key)
-6. Get your API key: Settings → API → Create API Key → copy it
-7. Get your Store ID: visible in the URL of your store
-8. Set up a webhook: Settings → Webhooks → Add webhook
-   - URL: `https://licenses.projelli.com/webhook`
-   - Events: `subscription_cancelled`, `order_refunded`, `license_key_updated`
-   - Copy the webhook signing secret
-9. Send Claude: API key, store ID, webhook secret, and the 3 product Buy URLs (you'll get these from each product's "Share" button)
+**Stripe merchant approval:** PENDING. LemonSqueezy sent follow-up identity verification questions on ~2026-04-12; Jameson replied with all requested info (pricing details, personal social media links, etc.) on 2026-04-13. Variants show "pending" status because Stripe is still reviewing. **Expected to auto-resolve once Stripe activates.** If no update by 2026-04-18, Jameson should email LemonSqueezy support at help@lemonsqueezy.com asking for a status update on the Stripe review.
 
-Once Jameson sends the credentials, Claude will:
-- Set them in `/etc/license-validator.env` and restart the service
-- Update the homepage Pricing section to point at the real Buy URLs
-- Test the full money flow end-to-end with a $0 test product (LemonSqueezy supports this)
-
-**Time:** 30-60 min for the setup + identity verification.
-**Spend:** $0 to set up. LemonSqueezy takes ~5% per sale.
+**Once Stripe activates:** Buy buttons start accepting real payments immediately. No further action needed from Jameson or Claude — everything is already wired.
 
 ---
 
