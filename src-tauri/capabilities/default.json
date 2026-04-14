@@ -35,21 +35,24 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        { "path": "$HOME/**" },
-        { "path": "$DOCUMENT/**" },
-        { "path": "$DESKTOP/**" },
-        { "path": "$DOWNLOAD/**" },
-        { "path": "C:\\Users\\**" },
-        { "path": "$APPDATA\\**" },
-        { "path": "$LOCALAPPDATA\\**" }
+        { "path": "**" },
+        { "path": "**/*" },
+        { "path": "C:\\**" },
+        { "path": "D:\\**" },
+        { "path": "E:\\**" },
+        { "path": "F:\\**" },
+        { "path": "G:\\**" },
+        { "path": "/**" }
       ],
       "deny": [
-        { "path": "$HOME/Library/**" },
         { "path": "C:\\Windows\\**" },
+        { "path": "C:\\Program Files\\**" },
+        { "path": "C:\\Program Files (x86)\\**" },
         { "path": "/etc/**" },
-        { "path": "/usr/**" },
+        { "path": "/usr/bin/**" },
         { "path": "/bin/**" },
-        { "path": "/sbin/**" }
+        { "path": "/sbin/**" },
+        { "path": "$HOME/Library/Keychains/**" }
       ]
     }
   ]
