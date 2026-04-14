@@ -353,9 +353,10 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
       if (isImage) {
         return <ImageViewer src={tab.content} alt={tab.name} />;
       }
-      if (isVideo) {
-        return <VideoViewer src={tab.content} />;
-      }
+      // Audio check runs BEFORE video — .webm and .ogg are containers
+      // that can hold audio OR video, but in Projelli they're used for
+      // audio recording. Route to WaveformEditor first so recorded audio
+      // gets the waveform + edit tools, not a bare HTML5 video player.
       if (isAudio) {
         return (
           <WaveformEditor
@@ -364,6 +365,9 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
             className="h-full"
           />
         );
+      }
+      if (isVideo) {
+        return <VideoViewer src={tab.content} />;
       }
       if (isPDF) {
         return <PDFViewer src={tab.content} fileName={tab.name} />;
