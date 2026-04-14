@@ -203,7 +203,23 @@ export class ClaudeProvider implements Provider {
       request.tools = this.tools;
     }
 
+    console.log('[ClaudeProvider DIAGNOSTIC] sendMessage request:', {
+      model: request.model,
+      hasTools: !!request.tools,
+      toolCount: request.tools?.length ?? 0,
+      toolNames: request.tools?.map(t => t.name) ?? [],
+      hasSystem: !!request.system,
+      systemPreview: request.system?.slice(0, 150),
+      messageCount: request.messages.length,
+    });
+
     let response = await this.makeRequest(request);
+
+    console.log('[ClaudeProvider DIAGNOSTIC] Initial response:', {
+      stop_reason: response.stop_reason,
+      contentBlockTypes: response.content.map(c => c.type),
+      hasToolUse: response.content.some(c => c.type === 'tool_use'),
+    });
     let totalInputTokens = response.usage.input_tokens;
     let totalOutputTokens = response.usage.output_tokens;
 

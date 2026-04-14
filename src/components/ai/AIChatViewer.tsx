@@ -212,6 +212,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             });
 
             // Register file access tools if workspace is available (Claude only — it supports tool use)
+            console.log('[AIChat DIAGNOSTIC] Workspace check:', {
+              hasWorkspaceService: !!workspaceServiceRef?.current,
+              rootPath,
+              hasRootPath: !!rootPath,
+              willRegisterTools: !!(workspaceServiceRef?.current && rootPath),
+            });
             if (workspaceServiceRef?.current && rootPath) {
               const toolExecutor = async (toolName: string, params: Record<string, unknown>) => {
                 if (!workspaceServiceRef.current || !rootPath) {
@@ -332,6 +338,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               };
 
               claude.setTools(FILE_ACCESS_TOOLS, toolExecutor);
+              console.log('[AIChat DIAGNOSTIC] Tools registered on Claude provider:', FILE_ACCESS_TOOLS.length, 'tools');
+            } else {
+              console.warn('[AIChat DIAGNOSTIC] Tools NOT registered — workspace service or rootPath missing');
             }
 
             provider = claude;
