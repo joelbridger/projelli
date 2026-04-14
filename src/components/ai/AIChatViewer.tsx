@@ -344,9 +344,18 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
         ).join('\n\n');
 
-        const systemPrompt = conversationContext
-          ? `You are a helpful AI assistant. Here is the conversation history:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
+        const hasWorkspace = workspaceServiceRef?.current && rootPath;
+        const workspaceInstructions = hasWorkspace
+          ? `You are running inside Projelli, a local-first workspace app. The user's active workspace folder is "${rootPath}". You have direct access to this workspace via tools: read_file, write_file, create_folder, move_file, delete_file, list_files, search_files. When the user asks you to create, edit, organize, or look at files, USE THESE TOOLS directly — do not refuse, do not ask the user to create the file themselves, and do not pretend you can't access files. You CAN. All file paths should be relative to the workspace root. When creating .md files (documentation, notes, plans, etc.), just write them directly using write_file. After creating or modifying files, briefly confirm what you did.\n\n`
+          : '';
+
+        const baseRole = hasWorkspace
+          ? `${workspaceInstructions}You are a helpful AI assistant with full read/write access to the user's workspace.`
           : 'You are a helpful AI assistant.';
+
+        const systemPrompt = conversationContext
+          ? `${baseRole} Here is the conversation history so far:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
+          : baseRole;
 
         // Use streaming if available (disabled in production Tauri builds
         // because tauri-plugin-http doesn't support ReadableStream/SSE)
