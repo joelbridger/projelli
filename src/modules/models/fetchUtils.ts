@@ -175,14 +175,25 @@ export class ApiResponseParseError extends Error {
  * full raw body for diagnostic display in the UI.
  */
 export async function safeJsonParse<T>(response: Response): Promise<T> {
-  const text = await response.text();
+  const rawText = await response.text();
+
+  // Defense: the Tauri HTTP plugin occasionally appends a trailing
+  // null byte (0x00) or other control character to the response body
+  // when reading it back through IPC. JSON.parse then fails with
+  // "Unexpected non-whitespace character after JSON at position N"
+  // where N is the final byte. Strip trailing C0 control characters
+  // (except the whitespace ones \t \n \r which JSON.parse accepts)
+  // before parsing.
+  const text = rawText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]+$/g, '').trim();
+
   try {
     return JSON.parse(text) as T;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Unknown parse error';
     console.error('[safeJsonParse] Parse failed:', errMsg);
-    console.error('[safeJsonParse] Body length:', text.length);
-    console.error('[safeJsonParse] FULL response body:', text);
-    throw new ApiResponseParseError(text, errMsg);
+    console.error('[safeJsonParse] Raw body length:', rawText.length);
+    console.error('[safeJsonParse] Cleaned body length:', text.length);
+    console.error('[safeJsonParse] FULL raw response body:', rawText);
+    throw new ApiResponseParseError(rawText, errMsg);
   }
 }
