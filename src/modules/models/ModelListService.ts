@@ -12,10 +12,13 @@ export interface ModelInfo {
 interface CacheEntry {
   models: ModelInfo[];
   fetchedAt: number;
+  cacheVersion?: number;
 }
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const FETCH_TIMEOUT_MS = 10_000; // 10 seconds
+// Bump this when model filter logic changes so old caches are invalidated
+const CACHE_VERSION = 2;
 
 function cacheKey(provider: ProviderType): string {
   return `projelli_models_${provider}`;
@@ -25,14 +28,17 @@ function readCache(provider: ProviderType): CacheEntry | null {
   try {
     const raw = localStorage.getItem(cacheKey(provider));
     if (!raw) return null;
-    return JSON.parse(raw) as CacheEntry;
+    const entry = JSON.parse(raw) as CacheEntry;
+    // Invalidate caches from older versions (e.g. when filter rules change)
+    if (entry.cacheVersion !== CACHE_VERSION) return null;
+    return entry;
   } catch {
     return null;
   }
 }
 
 function writeCache(provider: ProviderType, models: ModelInfo[]): void {
-  const entry: CacheEntry = { models, fetchedAt: Date.now() };
+  const entry: CacheEntry = { models, fetchedAt: Date.now(), cacheVersion: CACHE_VERSION };
   localStorage.setItem(cacheKey(provider), JSON.stringify(entry));
 }
 
