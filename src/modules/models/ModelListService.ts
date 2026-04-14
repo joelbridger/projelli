@@ -134,8 +134,14 @@ async function fetchOpenAIModels(apiKey: string): Promise<ModelInfo[]> {
   if (!resp.ok) throw new Error(`OpenAI API ${resp.status}`);
   const data = await safeJsonParse<{ data: Array<{ id: string }> }>(resp);
   const prefixes = ['gpt-', 'o1-', 'o3-', 'o4-'];
+  // Exclude specialized models that aren't for text chat
+  const excludeSubstrings = [
+    'audio', 'realtime', 'tts', 'transcribe',
+    'image', 'embedding', 'moderation', 'search',
+  ];
   return (data.data ?? [])
     .filter((m) => prefixes.some((p) => m.id.startsWith(p)))
+    .filter((m) => !excludeSubstrings.some((bad) => m.id.toLowerCase().includes(bad)))
     .map((m) => ({
       id: m.id,
       displayName: deriveOpenAIDisplayName(m.id),
@@ -157,11 +163,20 @@ async function fetchGoogleModels(apiKey: string): Promise<ModelInfo[]> {
       supportedGenerationMethods?: string[];
     }>;
   }>(resp);
+  // Exclude specialized Gemini variants not suited for text chat:
+  // image generation ("Nano Banana" = gemini-*-flash-image), TTS,
+  // audio, embeddings, vision-only, and experimental live preview.
+  const excludeSubstrings = [
+    'image', 'tts', 'audio', 'embedding',
+    'aqa', 'vision', 'learnlm', 'native-audio',
+  ];
   return (data.models ?? [])
     .filter((m) => {
-      const id = m.name.replace('models/', '');
-      return id.includes('gemini') &&
-        (m.supportedGenerationMethods ?? []).includes('generateContent');
+      const id = m.name.replace('models/', '').toLowerCase();
+      if (!id.includes('gemini')) return false;
+      if (!(m.supportedGenerationMethods ?? []).includes('generateContent')) return false;
+      if (excludeSubstrings.some((bad) => id.includes(bad))) return false;
+      return true;
     })
     .map((m) => ({
       id: m.name.replace('models/', ''),
