@@ -829,6 +829,28 @@ function App() {
     }
   }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
+  // Handle create rich text file at root (goes to docs folder)
+  const handleCreateRichTextFileAtRoot = useCallback(async () => {
+    if (!workspaceServiceRef.current || !rootPath) return;
+    const name = await prompt('Enter file name (without extension):', '', {
+      title: 'Create Rich Text File',
+      placeholder: 'my-document',
+    });
+    if (!name) return;
+
+    const fileName = name.endsWith('.rt') || name.endsWith('.rtf') ? name : `${name}.rt`;
+    const filePath = `${rootPath}/docs/${fileName}`;
+    try {
+      // Default to an empty paragraph so Tiptap has a valid starting state
+      await workspaceServiceRef.current.writeFile(filePath, '<p></p>');
+      const fileTree = await workspaceServiceRef.current.getFileTree();
+      setFileTree(fileTree);
+      await handleFileOpen(filePath, fileName);
+    } catch (error) {
+      console.error('Failed to create rich text file:', error);
+    }
+  }, [rootPath, setFileTree, handleFileOpen, prompt]);
+
   // Handle create source file in Research folder
   const handleCreateSourceFileAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
@@ -1453,6 +1475,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onCreateFileAtRoot={handleCreateFileAtRoot}
               onCreateMarkdownAtRoot={handleCreateMarkdownAtRoot}
               onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
+              onCreateRichTextFileAtRoot={handleCreateRichTextFileAtRoot}
               onCreateSourceFileAtRoot={handleCreateSourceFileAtRoot}
               onCreateFolderAtRoot={handleCreateFolderAtRoot}
               onUploadFiles={handleUploadFiles}

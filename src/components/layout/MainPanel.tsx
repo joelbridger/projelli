@@ -5,7 +5,7 @@ import { useCallback, useRef, useState } from 'react';
 import { TabBar } from '@/components/editor/TabBar';
 import { MarkdownEditor, type MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
-import { PlainTextEditor } from '@/components/editor/PlainTextEditor';
+import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { FormattingToolbar } from '@/components/editor/FormattingToolbar';
 import { SplitPane, SplitPaneControls } from '@/components/editor/SplitPane';
 import { OutlinePanel } from '@/components/editor/OutlinePanel';
@@ -434,7 +434,7 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
       // Check if it's a markdown or text file for formatting support
       // .txt files now get full formatting toolbar (bold, italic, headers, etc.)
       const isMarkdown = extension === 'md' || extension === 'markdown' || extension === 'txt' || !extension;
-      const isRichText = extension === 'rtf';
+      const isRichText = extension === 'rtf' || extension === 'rt';
 
       if (isPreviewMode && isMarkdown && !isSecondary) {
         return (
@@ -445,10 +445,10 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
         );
       }
 
-      // Use plain text editor only for rich text format files
+      // Use WYSIWYG rich text editor for .rt and .rtf files
       if (isRichText) {
         return (
-          <PlainTextEditor
+          <RichTextEditor
             initialContent={tab.content}
             onChange={onContentChange}
             className="h-full"

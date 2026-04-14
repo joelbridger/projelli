@@ -50,6 +50,7 @@ interface FileTreeProps {
   onCreateFileAtRoot?: (extension?: string) => void;
   onCreateMarkdownAtRoot?: () => void;
   onCreateTextFileAtRoot?: () => void;
+  onCreateRichTextFileAtRoot?: () => void;
   onCreateSourceFileAtRoot?: () => void;
   onCreateFolderAtRoot?: () => void;
   onUploadFiles?: (files: FileList, targetFolder?: string) => Promise<void>;
@@ -69,6 +70,7 @@ export function FileTree({
   onDownload,
   onCreateMarkdownAtRoot,
   onCreateTextFileAtRoot,
+  onCreateRichTextFileAtRoot,
   onCreateSourceFileAtRoot,
   onCreateFolderAtRoot,
   onUploadFiles,
@@ -229,6 +231,10 @@ export function FileTree({
             <DropdownMenuItem onClick={onCreateTextFileAtRoot}>
               <File className="h-3.5 w-3.5 mr-2" />
               Plain Text (.txt)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onCreateRichTextFileAtRoot}>
+              <FileText className="h-3.5 w-3.5 mr-2 text-indigo-500" />
+              Rich Text (.rt)
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreateSourceFileAtRoot}>
               <BookOpen className="h-3.5 w-3.5 mr-2" />
@@ -668,6 +674,9 @@ function FileTreeItem({
         return <FileText className="h-4 w-4 text-green-500" />;
       case 'txt':
         return <FileText className="h-4 w-4 text-blue-500" />;
+      case 'rt':
+      case 'rtf':
+        return <FileText className="h-4 w-4 text-indigo-500" />;
       default:
         return <File className="h-4 w-4 text-muted-foreground" />;
     }
