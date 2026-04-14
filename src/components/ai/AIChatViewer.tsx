@@ -368,7 +368,16 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
         // Use streaming if available (disabled in production Tauri builds
         // because tauri-plugin-http doesn't support ReadableStream/SSE)
-        if (provider.sendMessageStreaming && !isTauriProductionBuild()) {
+        // Use streaming only when no tools are registered. The streaming code
+        // path in the providers doesn't include `tools` in the API request, so
+        // streaming + tools would leave the model without access to file ops
+        // (and it would hallucinate tool calls as text). Non-streaming works
+        // with tools correctly. Also disabled in production Tauri builds
+        // because tauri-plugin-http doesn't support ReadableStream/SSE.
+        const useStreaming = provider.sendMessageStreaming
+          && !isTauriProductionBuild()
+          && !hasWorkspace;
+        if (useStreaming) {
           const abortController = new AbortController();
           abortControllerRef.current = abortController;
 
@@ -383,7 +392,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           let accumulated = '';
 
           try {
-            await provider.sendMessageStreaming(userMessage.content, {
+            await provider.sendMessageStreaming!(userMessage.content, {
               systemPrompt,
               maxTokens: 4096,
               onChunk: (chunk: string) => {
