@@ -184,25 +184,170 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           throw new Error(`No valid ${providerNames[chatProvider] ?? chatProvider} API key found. Please add your API key in the settings.`);
         }
 
+        // Build a provider-agnostic tool executor up front. Any provider
+        // that supports tool calling (Claude, OpenAI, Gemini) registers
+        // the same closure below via its setTools method.
+        const hasWorkspaceForTools = !!(workspaceServiceRef?.current && rootPath);
+        console.log('[AIChat DIAGNOSTIC] Workspace check:', {
+          hasWorkspaceService: !!workspaceServiceRef?.current,
+          rootPath,
+          hasRootPath: !!rootPath,
+          willRegisterTools: hasWorkspaceForTools,
+        });
+
+        const toolExecutor = async (toolName: string, params: Record<string, unknown>) => {
+          if (!workspaceServiceRef?.current || !rootPath) {
+            throw new Error('Workspace not initialized');
+          }
+
+          switch (toolName) {
+            case 'read_file': {
+              const relativePath = params['path'] as string;
+              const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
+              if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              try {
+                const content = await workspaceServiceRef.current.readFile(filePath);
+                return { content, path: relativePath };
+              } catch (error) {
+                throw new Error(`Failed to read file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }
+            case 'list_files': {
+              const relativePath = (params['path'] as string) || '.';
+              const dirPath = relativePath === '.' || relativePath === '' ? rootPath : `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
+              if (!dirPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              try {
+                const entries = await workspaceServiceRef.current.list(dirPath);
+                return {
+                  entries: entries.map((e: any) => ({
+                    name: e.name, type: e.type,
+                    path: relativePath === '.' || relativePath === '' ? e.name : `${relativePath}/${e.name}`,
+                    extension: e.extension
+                  })),
+                  path: relativePath
+                };
+              } catch (error) {
+                throw new Error(`Failed to list directory "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }
+            case 'search_files': {
+              const query = params['query'] as string;
+              try {
+                const fileTree = await workspaceServiceRef.current.getFileTree();
+                const searchResults: Array<{ name: string; path: string; type: string }> = [];
+                const searchNode = (nodes: any[], parentPath = '') => {
+                  for (const node of nodes) {
+                    const nodePath = parentPath ? `${parentPath}/${node.name}` : node.name;
+                    const pattern = query.replace(/\*/g, '.*').replace(/\?/g, '.');
+                    const regex = new RegExp(pattern, 'i');
+                    if (regex.test(node.name)) searchResults.push({ name: node.name, path: nodePath, type: node.type });
+                    if (node.children) searchNode(node.children, nodePath);
+                  }
+                };
+                searchNode(fileTree);
+                return { results: searchResults, query };
+              } catch (error) {
+                throw new Error(`Failed to search files: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }
+            case 'write_file': {
+              const relativePath = params['path'] as string;
+              const content = params['content'] as string;
+              const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
+              if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              try {
+                const exists = await workspaceServiceRef.current.exists(filePath);
+                const action = exists ? 'file_update' : 'file_create';
+                const actionLabel = exists ? 'updated' : 'created';
+                await workspaceServiceRef.current.writeFile(filePath, content);
+                onFileTreeChange?.();
+                onAuditLog?.({ action, description: `AI ${actionLabel} file: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath, contentLength: content.length }, outputs: { success: true }, userDecision: 'auto', metadata: { tool: 'write_file' } });
+                return { path: relativePath, message: 'File written successfully' };
+              } catch (error) {
+                throw new Error(`Failed to write file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }
+            case 'create_folder': {
+              const relativePath = params['path'] as string;
+              const folderPath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
+              if (!folderPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              try {
+                await workspaceServiceRef.current.mkdir(folderPath);
+                onFileTreeChange?.();
+                onAuditLog?.({ action: 'file_create', description: `AI created folder: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: true }, userDecision: 'auto', metadata: { tool: 'create_folder', type: 'folder' } });
+                return { path: relativePath, message: 'Folder created successfully' };
+              } catch (error) {
+                throw new Error(`Failed to create folder "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }
+            case 'move_file': {
+              const fromPath = params['from'] as string;
+              const toPath = params['to'] as string;
+              const fullFromPath = `${rootPath}/${fromPath}`.replace(/\/+/g, '/');
+              const fullToPath = `${rootPath}/${toPath}`.replace(/\/+/g, '/');
+              if (!fullFromPath.startsWith(rootPath) || !fullToPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              try {
+                await workspaceServiceRef.current.move(fullFromPath, fullToPath);
+                onFileTreeChange?.();
+                onAuditLog?.({ action: 'file_move', description: `AI moved file: ${fromPath} → ${toPath}`, model: chatModel ?? chatProvider, inputs: { from: fromPath, to: toPath }, outputs: { success: true }, userDecision: 'auto', metadata: { tool: 'move_file' } });
+                return { from: fromPath, to: toPath, message: 'File moved successfully' };
+              } catch (error) {
+                throw new Error(`Failed to move file from "${fromPath}" to "${toPath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }
+            case 'delete_file': {
+              const relativePath = params['path'] as string;
+              const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
+              if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
+              try {
+                await workspaceServiceRef.current.delete(filePath);
+                onFileTreeChange?.();
+                onAuditLog?.({ action: 'file_delete', description: `AI deleted file: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: true, movedToTrash: true }, userDecision: 'auto', metadata: { tool: 'delete_file' } });
+                return { path: relativePath, message: 'File deleted successfully (moved to trash)' };
+              } catch (error) {
+                throw new Error(`Failed to delete file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }
+            default:
+              throw new Error(`Unknown tool: ${toolName}`);
+          }
+        };
+
         // Create the appropriate provider
         let provider: Provider;
         const rulesOpt = aiRules ? { aiRules } : {};
 
         switch (chatProvider) {
-          case 'openai':
-            provider = new OpenAIProvider({
+          case 'openai': {
+            const openai = new OpenAIProvider({
               apiKey: apiKey.key,
               ...(chatModel ? { model: chatModel } : {}),
               ...rulesOpt,
             });
+            if (hasWorkspaceForTools) {
+              openai.setTools(FILE_ACCESS_TOOLS, toolExecutor);
+              console.log('[AIChat DIAGNOSTIC] Tools registered on OpenAI provider:', FILE_ACCESS_TOOLS.length, 'tools');
+            } else {
+              console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on OpenAI — workspace service or rootPath missing');
+            }
+            provider = openai;
             break;
-          case 'google':
-            provider = new GeminiProvider({
+          }
+          case 'google': {
+            const gemini = new GeminiProvider({
               apiKey: apiKey.key,
               ...(chatModel ? { model: chatModel } : {}),
               ...rulesOpt,
             });
+            if (hasWorkspaceForTools) {
+              gemini.setTools(FILE_ACCESS_TOOLS, toolExecutor);
+              console.log('[AIChat DIAGNOSTIC] Tools registered on Gemini provider:', FILE_ACCESS_TOOLS.length, 'tools');
+            } else {
+              console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on Gemini — workspace service or rootPath missing');
+            }
+            provider = gemini;
             break;
+          }
           case 'anthropic':
           default: {
             const claude = new ClaudeProvider({
@@ -210,139 +355,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               ...(chatModel ? { model: chatModel } : {}),
               ...rulesOpt,
             });
-
-            // Register file access tools if workspace is available (Claude only — it supports tool use)
-            console.log('[AIChat DIAGNOSTIC] Workspace check:', {
-              hasWorkspaceService: !!workspaceServiceRef?.current,
-              rootPath,
-              hasRootPath: !!rootPath,
-              willRegisterTools: !!(workspaceServiceRef?.current && rootPath),
-            });
-            if (workspaceServiceRef?.current && rootPath) {
-              const toolExecutor = async (toolName: string, params: Record<string, unknown>) => {
-                if (!workspaceServiceRef.current || !rootPath) {
-                  throw new Error('Workspace not initialized');
-                }
-
-                switch (toolName) {
-                  case 'read_file': {
-                    const relativePath = params['path'] as string;
-                    const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-                    if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
-                    try {
-                      const content = await workspaceServiceRef.current.readFile(filePath);
-                      return { content, path: relativePath };
-                    } catch (error) {
-                      throw new Error(`Failed to read file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
-                    }
-                  }
-                  case 'list_files': {
-                    const relativePath = (params['path'] as string) || '.';
-                    const dirPath = relativePath === '.' || relativePath === '' ? rootPath : `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-                    if (!dirPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
-                    try {
-                      const entries = await workspaceServiceRef.current.list(dirPath);
-                      return {
-                        entries: entries.map((e: any) => ({
-                          name: e.name, type: e.type,
-                          path: relativePath === '.' || relativePath === '' ? e.name : `${relativePath}/${e.name}`,
-                          extension: e.extension
-                        })),
-                        path: relativePath
-                      };
-                    } catch (error) {
-                      throw new Error(`Failed to list directory "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
-                    }
-                  }
-                  case 'search_files': {
-                    const query = params['query'] as string;
-                    try {
-                      const fileTree = await workspaceServiceRef.current.getFileTree();
-                      const searchResults: Array<{ name: string; path: string; type: string }> = [];
-                      const searchNode = (nodes: any[], parentPath = '') => {
-                        for (const node of nodes) {
-                          const nodePath = parentPath ? `${parentPath}/${node.name}` : node.name;
-                          const pattern = query.replace(/\*/g, '.*').replace(/\?/g, '.');
-                          const regex = new RegExp(pattern, 'i');
-                          if (regex.test(node.name)) searchResults.push({ name: node.name, path: nodePath, type: node.type });
-                          if (node.children) searchNode(node.children, nodePath);
-                        }
-                      };
-                      searchNode(fileTree);
-                      return { results: searchResults, query };
-                    } catch (error) {
-                      throw new Error(`Failed to search files: ${error instanceof Error ? error.message : 'Unknown error'}`);
-                    }
-                  }
-                  case 'write_file': {
-                    const relativePath = params['path'] as string;
-                    const content = params['content'] as string;
-                    const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-                    if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
-                    try {
-                      const exists = await workspaceServiceRef.current.exists(filePath);
-                      const action = exists ? 'file_update' : 'file_create';
-                      const actionLabel = exists ? 'updated' : 'created';
-                      await workspaceServiceRef.current.writeFile(filePath, content);
-                      onFileTreeChange?.();
-                      onAuditLog?.({ action, description: `AI ${actionLabel} file: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath, contentLength: content.length }, outputs: { success: true }, userDecision: 'auto', metadata: { tool: 'write_file' } });
-                      return { path: relativePath, message: 'File written successfully' };
-                    } catch (error) {
-                      throw new Error(`Failed to write file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
-                    }
-                  }
-                  case 'create_folder': {
-                    const relativePath = params['path'] as string;
-                    const folderPath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-                    if (!folderPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
-                    try {
-                      await workspaceServiceRef.current.mkdir(folderPath);
-                      onFileTreeChange?.();
-                      onAuditLog?.({ action: 'file_create', description: `AI created folder: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: true }, userDecision: 'auto', metadata: { tool: 'create_folder', type: 'folder' } });
-                      return { path: relativePath, message: 'Folder created successfully' };
-                    } catch (error) {
-                      throw new Error(`Failed to create folder "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
-                    }
-                  }
-                  case 'move_file': {
-                    const fromPath = params['from'] as string;
-                    const toPath = params['to'] as string;
-                    const fullFromPath = `${rootPath}/${fromPath}`.replace(/\/+/g, '/');
-                    const fullToPath = `${rootPath}/${toPath}`.replace(/\/+/g, '/');
-                    if (!fullFromPath.startsWith(rootPath) || !fullToPath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
-                    try {
-                      await workspaceServiceRef.current.move(fullFromPath, fullToPath);
-                      onFileTreeChange?.();
-                      onAuditLog?.({ action: 'file_move', description: `AI moved file: ${fromPath} → ${toPath}`, model: chatModel ?? chatProvider, inputs: { from: fromPath, to: toPath }, outputs: { success: true }, userDecision: 'auto', metadata: { tool: 'move_file' } });
-                      return { from: fromPath, to: toPath, message: 'File moved successfully' };
-                    } catch (error) {
-                      throw new Error(`Failed to move file from "${fromPath}" to "${toPath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
-                    }
-                  }
-                  case 'delete_file': {
-                    const relativePath = params['path'] as string;
-                    const filePath = `${rootPath}/${relativePath}`.replace(/\/+/g, '/');
-                    if (!filePath.startsWith(rootPath)) throw new Error('Access denied: path outside workspace');
-                    try {
-                      await workspaceServiceRef.current.delete(filePath);
-                      onFileTreeChange?.();
-                      onAuditLog?.({ action: 'file_delete', description: `AI deleted file: ${relativePath}`, model: chatModel ?? chatProvider, inputs: { path: relativePath }, outputs: { success: true, movedToTrash: true }, userDecision: 'auto', metadata: { tool: 'delete_file' } });
-                      return { path: relativePath, message: 'File deleted successfully (moved to trash)' };
-                    } catch (error) {
-                      throw new Error(`Failed to delete file "${relativePath}": ${error instanceof Error ? error.message : 'Unknown error'}`);
-                    }
-                  }
-                  default:
-                    throw new Error(`Unknown tool: ${toolName}`);
-                }
-              };
-
+            if (hasWorkspaceForTools) {
               claude.setTools(FILE_ACCESS_TOOLS, toolExecutor);
               console.log('[AIChat DIAGNOSTIC] Tools registered on Claude provider:', FILE_ACCESS_TOOLS.length, 'tools');
             } else {
-              console.warn('[AIChat DIAGNOSTIC] Tools NOT registered — workspace service or rootPath missing');
+              console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on Claude — workspace service or rootPath missing');
             }
-
             provider = claude;
             break;
           }

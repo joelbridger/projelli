@@ -55,9 +55,50 @@ function getOpenAIBaseUrl(configBaseUrl?: string): string {
   return 'https://api.openai.com';
 }
 
+interface OpenAIToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
 interface OpenAIMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string | null;
+  tool_calls?: OpenAIToolCall[];
+  tool_call_id?: string;
+}
+
+/**
+ * Claude-style tool definition (input schema), used as the input format
+ * to setTools() so the registration surface matches what Claude expects.
+ */
+interface ClaudeStyleTool {
+  name: string;
+  description: string;
+  input_schema: {
+    type: string;
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+/**
+ * OpenAI-native tool definition as sent in the API request.
+ */
+interface OpenAITool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: string;
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
+  };
 }
 
 interface OpenAIRequest {
@@ -67,6 +108,7 @@ interface OpenAIRequest {
   temperature?: number;
   stop?: string[];
   response_format?: { type: 'json_object' | 'text' };
+  tools?: OpenAITool[];
 }
 
 interface OpenAIUsage {
@@ -79,7 +121,8 @@ interface OpenAIChoice {
   index: number;
   message: {
     role: string;
-    content: string;
+    content: string | null;
+    tool_calls?: OpenAIToolCall[];
   };
   finish_reason: string;
 }
@@ -112,6 +155,8 @@ export class OpenAIProvider implements Provider {
   private readonly baseUrl: string;
   private readonly organization: string | undefined;
   private readonly aiRules: string | undefined;
+  private tools: OpenAITool[] = [];
+  private toolExecutor?: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>;
 
   constructor(config: OpenAIProviderConfig) {
     this.apiKey = config.apiKey;
@@ -120,6 +165,26 @@ export class OpenAIProvider implements Provider {
     this.baseUrl = getOpenAIBaseUrl(config.baseUrl);
     this.organization = config.organization ?? undefined;
     this.aiRules = config.aiRules;
+  }
+
+  /**
+   * Set available tools for OpenAI to use via function calling.
+   * Accepts Claude-style tool definitions (with `input_schema`) and converts
+   * them to OpenAI's function-calling format internally.
+   */
+  setTools(
+    tools: ClaudeStyleTool[],
+    executor: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>
+  ): void {
+    this.tools = tools.map((t) => ({
+      type: 'function' as const,
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: t.input_schema,
+      },
+    }));
+    this.toolExecutor = executor;
   }
 
   /**
@@ -160,21 +225,92 @@ export class OpenAIProvider implements Provider {
       request.stop = options.stopSequences;
     }
 
-    const response = await this.makeRequest(request);
+    // Add tools if available
+    if (this.tools.length > 0) {
+      request.tools = this.tools;
+    }
+
+    let response = await this.makeRequest(request);
+
+    let totalInputTokens = response.usage.prompt_tokens;
+    let totalOutputTokens = response.usage.completion_tokens;
+
+    // Handle tool call loops: keep going while the model asks for tool calls
+    while (
+      response.choices[0]?.finish_reason === 'tool_calls' &&
+      this.toolExecutor &&
+      response.choices[0].message.tool_calls &&
+      response.choices[0].message.tool_calls.length > 0
+    ) {
+      const assistantMessage = response.choices[0].message;
+      const toolCalls = assistantMessage.tool_calls ?? [];
+
+      // Append the assistant's tool_calls message to the conversation
+      messages.push({
+        role: 'assistant',
+        content: assistantMessage.content ?? null,
+        tool_calls: toolCalls,
+      });
+
+      // Execute each tool call and append its result as a 'tool' message
+      for (const toolCall of toolCalls) {
+        const toolName = toolCall.function.name;
+        let params: Record<string, unknown> = {};
+        try {
+          params = toolCall.function.arguments
+            ? (JSON.parse(toolCall.function.arguments) as Record<string, unknown>)
+            : {};
+        } catch (parseError) {
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify({
+              error: `Failed to parse tool arguments JSON: ${
+                parseError instanceof Error ? parseError.message : String(parseError)
+              }`,
+            }),
+          });
+          continue;
+        }
+
+        try {
+          const result = await this.toolExecutor(toolName, params);
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(result),
+          });
+        } catch (error) {
+          messages.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            content: JSON.stringify({
+              error: error instanceof Error ? error.message : String(error),
+            }),
+          });
+        }
+      }
+
+      // Send follow-up request with tool results attached
+      const nextRequest: OpenAIRequest = {
+        ...request,
+        messages,
+      };
+      response = await this.makeRequest(nextRequest);
+      totalInputTokens += response.usage.prompt_tokens;
+      totalOutputTokens += response.usage.completion_tokens;
+    }
 
     const textContent = response.choices[0]?.message.content ?? '';
 
-    const cost = this.calculateCost(
-      response.usage.prompt_tokens,
-      response.usage.completion_tokens
-    );
+    const cost = this.calculateCost(totalInputTokens, totalOutputTokens);
 
     return {
       content: textContent,
       usage: {
-        inputTokens: response.usage.prompt_tokens,
-        outputTokens: response.usage.completion_tokens,
-        totalTokens: response.usage.total_tokens,
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        totalTokens: totalInputTokens + totalOutputTokens,
       },
       cost,
       model: response.model,

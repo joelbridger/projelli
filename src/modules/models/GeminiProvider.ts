@@ -50,9 +50,54 @@ function getGeminiBaseUrl(configBaseUrl?: string): string {
   return 'https://generativelanguage.googleapis.com';
 }
 
+/**
+ * A Gemini content "part" can be either text, a functionCall issued by the
+ * model, or a functionResponse supplied by the caller. Fields are mutually
+ * exclusive per part.
+ */
+interface GeminiPart {
+  text?: string;
+  functionCall?: {
+    name: string;
+    args: Record<string, unknown>;
+  };
+  functionResponse?: {
+    name: string;
+    response: Record<string, unknown>;
+  };
+}
+
 interface GeminiContent {
   role: 'user' | 'model';
-  parts: Array<{ text: string }>;
+  parts: GeminiPart[];
+}
+
+/**
+ * Claude-style tool definition (input schema), used as the input format
+ * to setTools() so the registration surface matches what Claude expects.
+ */
+interface ClaudeStyleTool {
+  name: string;
+  description: string;
+  input_schema: {
+    type: string;
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+/**
+ * Gemini-native function declaration format as sent in the API request
+ * (inside a single tools[].functionDeclarations array).
+ */
+interface GeminiFunctionDeclaration {
+  name: string;
+  description: string;
+  parameters: {
+    type: string;
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
 }
 
 interface GeminiRequest {
@@ -65,6 +110,9 @@ interface GeminiRequest {
   systemInstruction?: {
     parts: Array<{ text: string }>;
   };
+  tools?: Array<{
+    functionDeclarations: GeminiFunctionDeclaration[];
+  }>;
 }
 
 interface GeminiUsageMetadata {
@@ -75,7 +123,7 @@ interface GeminiUsageMetadata {
 
 interface GeminiCandidate {
   content: {
-    parts: Array<{ text: string }>;
+    parts: GeminiPart[];
     role: string;
   };
   finishReason: string;
@@ -107,6 +155,8 @@ export class GeminiProvider implements Provider {
   private readonly maxRetries: number;
   private readonly baseUrl: string;
   private readonly aiRules: string | undefined;
+  private tools: GeminiFunctionDeclaration[] = [];
+  private toolExecutor?: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>;
 
   constructor(config: GeminiProviderConfig) {
     this.apiKey = config.apiKey;
@@ -114,6 +164,23 @@ export class GeminiProvider implements Provider {
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getGeminiBaseUrl(config.baseUrl);
     this.aiRules = config.aiRules;
+  }
+
+  /**
+   * Set available tools for Gemini to use via function calling.
+   * Accepts Claude-style tool definitions (with `input_schema`) and converts
+   * them to Gemini's functionDeclarations format internally.
+   */
+  setTools(
+    tools: ClaudeStyleTool[],
+    executor: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>
+  ): void {
+    this.tools = tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      parameters: t.input_schema,
+    }));
+    this.toolExecutor = executor;
   }
 
   /**
@@ -162,21 +229,92 @@ export class GeminiProvider implements Provider {
       request.generationConfig = generationConfig;
     }
 
-    const response = await this.makeRequest(request);
+    // Add tools if available
+    if (this.tools.length > 0) {
+      request.tools = [{ functionDeclarations: this.tools }];
+    }
 
-    const textContent = response.candidates[0]?.content.parts[0]?.text ?? '';
+    let response = await this.makeRequest(request);
+    let totalInputTokens = response.usageMetadata.promptTokenCount;
+    let totalOutputTokens = response.usageMetadata.candidatesTokenCount;
 
-    const cost = this.calculateCost(
-      response.usageMetadata.promptTokenCount,
-      response.usageMetadata.candidatesTokenCount
-    );
+    // Handle function-call loops. Keep going while the model's response
+    // contains functionCall parts. When all parts are text, we're done.
+    // Safety cap prevents infinite loops if a tool never terminates.
+    const MAX_TOOL_ITERATIONS = 16;
+    for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
+      const candidate = response.candidates[0];
+      if (!candidate) break;
+      const parts = candidate.content.parts;
+      const functionCallParts = parts.filter((p) => p.functionCall !== undefined);
+      if (functionCallParts.length === 0 || !this.toolExecutor) break;
+
+      // Append the model's response (containing functionCall parts) to the history
+      contents.push({
+        role: 'model',
+        parts,
+      });
+
+      // Execute each function call and build a single user turn containing
+      // functionResponse parts (one per call).
+      const responseParts: GeminiPart[] = [];
+      for (const part of functionCallParts) {
+        const call = part.functionCall;
+        if (!call) continue;
+        try {
+          const result = await this.toolExecutor(call.name, call.args);
+          responseParts.push({
+            functionResponse: {
+              name: call.name,
+              // Gemini requires the response to be a JSON object — wrap scalar
+              // results so the API accepts them.
+              response:
+                result && typeof result === 'object' && !Array.isArray(result)
+                  ? (result as Record<string, unknown>)
+                  : { result },
+            },
+          });
+        } catch (error) {
+          responseParts.push({
+            functionResponse: {
+              name: call.name,
+              response: {
+                error: error instanceof Error ? error.message : String(error),
+              },
+            },
+          });
+        }
+      }
+
+      contents.push({
+        role: 'user',
+        parts: responseParts,
+      });
+
+      // Send follow-up request. Tools and system prompt are preserved because
+      // we spread the original request.
+      const nextRequest: GeminiRequest = {
+        ...request,
+        contents,
+      };
+      response = await this.makeRequest(nextRequest);
+      totalInputTokens += response.usageMetadata.promptTokenCount;
+      totalOutputTokens += response.usageMetadata.candidatesTokenCount;
+    }
+
+    // Collect all text parts from the final response
+    const textContent = (response.candidates[0]?.content.parts ?? [])
+      .map((p) => p.text ?? '')
+      .join('');
+
+    const cost = this.calculateCost(totalInputTokens, totalOutputTokens);
 
     return {
       content: textContent,
       usage: {
-        inputTokens: response.usageMetadata.promptTokenCount,
-        outputTokens: response.usageMetadata.candidatesTokenCount,
-        totalTokens: response.usageMetadata.totalTokenCount,
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        totalTokens: totalInputTokens + totalOutputTokens,
       },
       cost,
       model: this.model,
