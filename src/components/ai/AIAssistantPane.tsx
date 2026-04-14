@@ -288,7 +288,23 @@ export function AIAssistantPane({
                         <FileText className="h-4 w-4 text-purple-500 mt-0.5 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2 min-w-0">
-                            <h4 data-testid={`chat-title-${chatFile.id}`} className="text-sm font-medium truncate min-w-0">{chatFile.title}</h4>
+                            <div className="flex items-baseline gap-2 min-w-0 flex-1">
+                              <h4 data-testid={`chat-title-${chatFile.id}`} className="text-sm font-medium truncate min-w-0">{chatFile.title}</h4>
+                              {chatFile.model && (
+                                <span
+                                  data-testid={`chat-model-${chatFile.id}`}
+                                  className="text-[10px] text-muted-foreground font-normal whitespace-nowrap shrink-0"
+                                  title={chatFile.model}
+                                >
+                                  {(() => {
+                                    const provider = chatFile.provider;
+                                    const list = provider && modelLists?.[provider];
+                                    const match = list?.find(m => m.id === chatFile.model);
+                                    return match?.displayName ?? chatFile.model;
+                                  })()}
+                                </span>
+                              )}
+                            </div>
                             <Button
                               data-testid={`delete-chat-${chatFile.id}`}
                               variant="ghost"

@@ -582,7 +582,18 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div>
-          <h2 data-testid="chat-title" className="text-lg font-semibold">{chatData.title}</h2>
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <h2 data-testid="chat-title" className="text-lg font-semibold">{chatData.title}</h2>
+            {chatData.model && (
+              <span
+                data-testid="chat-header-model"
+                className="text-xs text-muted-foreground font-normal"
+                title={`Provider: ${chatData.provider ?? 'unknown'}`}
+              >
+                {chatData.model}
+              </span>
+            )}
+          </div>
           <p data-testid="chat-created-date" className="text-xs text-muted-foreground">
             Created {new Date(chatData.created).toLocaleDateString()}
           </p>
