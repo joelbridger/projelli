@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat shouldn't disappear when you close the tab | Projelli</title>
+  <meta name="description" content="I kept having great AI conversations about my business and losing them a week later. I designed Projelli around fixing that. Here's the mechanics and the reasoning behind it.">
+  <link rel="canonical" href="https://projelli.com/blog/chat-shouldnt-disappear-when-you-close-the-tab">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://projelli.com/blog/chat-shouldnt-disappear-when-you-close-the-tab">
+  <meta property="og:title" content="Chat shouldn't disappear when you close the tab">
+  <meta property="og:description" content="I kept having great AI conversations about my business and losing them a week later. Here's how I fixed it.">
+  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      padding: 60px 24px 100px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #FF7C6E 0%, #FF6554 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">← All posts</a>
+
+    <h1>Chat shouldn't disappear when you close the tab</h1>
+    <p class="meta">By Jameson Daines · 2026-04-14 · 8 min read</p>
+
+    <p>Last March I spent a Sunday afternoon working through pricing for a project. Three hours of back-and-forth with Claude. I'd throw a price at it, we'd argue about whether the audience would pay that, I'd counter with a competitor comparison, it would push back on my positioning. By the end I had a pricing model I actually believed in, with the reasoning spelled out, plus a list of three tests I wanted to run before committing.</p>
+
+    <p>I closed the tab. I remember thinking, briefly, "I should save that somewhere."</p>
+
+    <p>I did not save it somewhere.</p>
+
+    <p>Three weeks later I was writing the pricing section of a pitch document and I could not, for the life of me, reconstruct the reasoning. I remembered the conclusion. I didn't remember why. The conversation was technically still in my Claude history, four pages deep, but when I found it, half the context had collapsed. You know how thinking works when it's fresh versus when you're trying to repeat it a month later. The second version is always worse.</p>
+
+    <p>That was the specific moment I stopped treating AI chat as a productivity tool and started treating it as a broken one.</p>
+
+    <h2>The bug isn't the AI. It's the container.</h2>
+
+    <p>I want to be clear about what I think is wrong here. The AI responses were fine. Claude wasn't the problem. The model I was talking to is honestly better than most humans I've ever had strategic conversations with. The problem is that the conversation lived in a tab.</p>
+
+    <p>A tab is ephemeral. Browsers crash tabs. Sessions expire. You open a new laptop and your chat history is on the old one, or on the web but not in the app, or synced to one device but not the other. Every chat tool I've used has some version of this exact failure.</p>
+
+    <p>The deeper problem is that even when the chat DOES persist, it persists in the wrong format. A chat log is a stream. Linear, timestamped, flat. You can read it back but you can't do much with it. You can't attach it to a project folder, you can't fork it, you can't diff two versions of the same conversation, you can't search it the way you search real documents.</p>
+
+    <p>Meanwhile, the actual output of a good strategic chat is a document. A pricing model. A competitor analysis. A roadmap. A positioning statement. These things want to be files. Real files, with names and folders and revision history and the ability to open them in any text editor on earth. Instead they're stuck inside a scrollback buffer that belongs to whichever vendor you happened to be chatting with that day.</p>
+
+    <h2>Three conversations I've had that should have been files</h2>
+
+    <p>Let me name three specific workflows where this bites the hardest. I've had all three and I've lost all three at different points.</p>
+
+    <h3>Pricing strategy</h3>
+
+    <p>The Sunday afternoon I described above. A pricing conversation is iterative. You propose, you get pushback, you revise, you steel-man the opposition, you end up with a defensible structure. The valuable artifact at the end isn't the final number, it's the reasoning trail that led to the number. Next month when you're considering a discount for one customer segment, you want to re-open that reasoning and see whether the discount breaks any of the assumptions you made. That's only possible if the reasoning is saved somewhere you can actually re-open.</p>
+
+    <h3>Product roadmap</h3>
+
+    <p>Every few months I sit down with an AI and try to re-prioritize what I'm going to build. It's a conversation that involves a lot of "if X then we should probably also do Y, but if Z then Y becomes less important." By the end I have a ranked list with rationale attached to each item. Two months later I re-prioritize again, and I want to diff the new ranking against the old one and see what changed and why. In a chat tool this is impossible. In a folder of files with version history, it's one command.</p>
+
+    <h3>Competitive analysis</h3>
+
+    <p>I wrote a 4,000-word competitive analysis of Notion, Obsidian, Reflect, Tana, and a dozen others in one long chat. Direct quotes from product pages, feature comparisons, my hot takes on each tool's strengths and weaknesses. Six weeks later, Tana shipped a major new feature and I wanted to revisit my notes. The conversation was buried deep in a pile of unrelated chats, with no way to cross-link it to the other research I'd done on the same question.</p>
+
+    <h2>What persistence actually needs to mean</h2>
+
+    <p>When I started designing Projelli I had a list of requirements for what "chat persistence" had to mean before it counted. These are the ones that ended up as non-negotiable:</p>
+
+    <blockquote>
+      <p><strong>1. The chat is a real file.</strong> Not a database row. Not a cached session. A file on your hard drive with a name you picked, in a format (Markdown) you can read in any other tool.</p>
+      <p><strong>2. The file can link to other files.</strong> If my pricing conversation references my customer research, I want to be able to write <code>[[customer-research]]</code> in the chat file and have it be a real link I can click.</p>
+      <p><strong>3. Every edit is versioned.</strong> If I revise the reasoning a month from now, I can still see what I originally thought.</p>
+      <p><strong>4. The chat and the documents it produces live in the same folder.</strong> Not in two different tools. Not in a chat app plus a notes app with manual copy-paste between them.</p>
+    </blockquote>
+
+    <p>These sound obvious when I list them out. None of the AI tools I was using in early 2025 did all four. Most did zero.</p>
+
+    <h2>How Projelli does this</h2>
+
+    <p>In Projelli, every AI chat is a <code>.aichat</code> file in your workspace. It's just a Markdown file with a small amount of metadata at the top (which provider, which model, the chat history as a structured list). You can open it in any text editor. If Projelli goes away tomorrow, the files stay on your disk and you can still read them.</p>
+
+    <p>When the chat produces something worth saving as its own document, say a pricing model or a roadmap, that document is also a real file. It lives next to the chat file. You can link between them with wiki-links: writing <code>[[pricing-v2]]</code> in any file creates a clickable link to <code>pricing-v2.md</code>, and the editor tracks backlinks automatically, so you can always see which chats or documents reference a given file.</p>
+
+    <p>Version history is on by default for every Markdown file. Every meaningful edit creates a new version. Open the version history panel and you can see the document as it was 3 days ago, 3 weeks ago, 3 months ago. Roll back if you want. Diff against the current version if you want.</p>
+
+    <p>The whole thing is a folder. If you want to back it up, you put the folder in Dropbox or iCloud or on a USB stick. If you want to stop using Projelli, you still have every conversation and every document in plain Markdown, and every other note-taking app on earth knows how to read that.</p>
+
+    <h2>The philosophical part, briefly</h2>
+
+    <p>There's a version of this argument that's purely practical. I lose too much work to ephemeral chat tools, so I built one that doesn't. That's enough to justify the product for me.</p>
+
+    <p>But there's a bigger thing happening. The current generation of AI tools treats conversations as disposable. Generated, consumed, thrown away. That's fine for "help me write this email" or "summarize this article." It's catastrophic when the conversation is the actual thinking that will shape the next year of your business.</p>
+
+    <p>Strategic thinking is expensive. You don't want to re-do it every three months because the infrastructure you did it in evaporated. You want to build on it. Build on top of it, extend it, revise it when new information arrives. That requires a container that lasts longer than a browser session and a format that outlives any one tool.</p>
+
+    <p>The conversations you have with an AI about your business are some of the most valuable writing you'll ever do. They deserve to be saved in the same kind of place you save everything else you care about: a folder on your hard drive that's been there for years and will be there for years to come.</p>
+
+    <p>If you want to see the shape of this in practice, grab Projelli at <a href="https://projelli.com">projelli.com</a>. The free tier includes unlimited chats with full persistence. The Pro tier at $49 adds the founder templates and workflow features, but the core "your chats are real files" part is free forever.</p>
+
+    <a href="https://projelli.com/#pricing" class="cta">See Projelli, the local-first AI workspace for indie founders</a>
+
+    <p style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-gray); color: var(--text-muted); font-size: 0.9375rem;">
+      <em>Jameson Daines builds Projelli on weekends and evenings around a Senior Product Designer day job. <a href="/blog/why-local-first-ai-for-founders">Read about why local-first matters for founders</a> or get Projelli at <a href="https://projelli.com">projelli.com</a>.</em>
+    </p>
+  </div>
+</body>
+</html>

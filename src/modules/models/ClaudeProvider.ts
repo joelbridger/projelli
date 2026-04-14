@@ -317,6 +317,7 @@ export class ClaudeProvider implements Provider {
         'Content-Type': 'application/json',
         'x-api-key': this.apiKey,
         'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify(request),
       ...(signal ? { signal } : {}),
@@ -496,6 +497,7 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
             'Content-Type': 'application/json',
             'x-api-key': this.apiKey,
             'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
           },
           body: JSON.stringify(request),
         });

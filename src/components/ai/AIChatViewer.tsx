@@ -12,7 +12,7 @@ import type { Provider } from '@/modules/models/Provider';
 import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
 import { GeminiProvider } from '@/modules/models/GeminiProvider';
-import { isTauriProductionBuild, parseApiError } from '@/modules/models/fetchUtils';
+import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/modules/models/fetchUtils';
 import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
 import { useAIChatStore, getDraftInput } from '@/stores/aiChatStore';
 
@@ -416,8 +416,18 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         console.error('AI chat error:', error);
 
         let errorContent: string;
+        let errorDiagnostic: string | undefined;
 
-        if (error instanceof Error) {
+        if (error instanceof ApiResponseParseError) {
+          // The response came back but couldn't be parsed as JSON.
+          // This is the Tauri HTTP plugin compatibility bug — show the user
+          // a clear message and capture the full body for diagnostic copy.
+          errorContent =
+            `Could not parse the response from the AI provider. ` +
+            `This is a known issue when running in the desktop app. ` +
+            `Click "Copy diagnostic info" below and share it so we can fix it.`;
+          errorDiagnostic = error.toDiagnostic();
+        } else if (error instanceof Error) {
           // Try to extract status code from error message pattern "HTTP NNN" or "API error"
           const statusMatch = error.message.match(/HTTP (\d{3})/);
           const statusCode = statusMatch?.[1] ? parseInt(statusMatch[1], 10) : null;
@@ -442,6 +452,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           content: errorContent,
           timestamp: new Date().toISOString(),
           isError: true,
+          ...(errorDiagnostic ? { errorDiagnostic } : {}),
         };
 
         addMessage(chatId, errorMessage);
@@ -611,15 +622,43 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               dangerouslySetInnerHTML={{ __html: renderMessage(msg.content) }}
             />
             {msg.isError && idx === messages.length - 1 && (
-              <button
-                className="mt-1 text-xs text-muted-foreground hover:text-foreground underline"
-                onClick={() => {
-                  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
-                  if (lastUserMsg) setInputValue(lastUserMsg.content);
-                }}
-              >
-                Retry last message
-              </button>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <button
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                  onClick={() => {
+                    const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+                    if (lastUserMsg) {
+                      setInputValue(lastUserMsg.content);
+                      // Trigger send on the next tick so state is committed first
+                      setTimeout(() => handleSendMessage(), 0);
+                    }
+                  }}
+                >
+                  ↻ Retry last message
+                </button>
+                {msg.errorDiagnostic && (
+                  <button
+                    className="text-xs text-muted-foreground hover:text-foreground underline"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(msg.errorDiagnostic ?? '');
+                        // Brief visual feedback by changing the button text
+                        const target = document.activeElement as HTMLButtonElement | null;
+                        if (target) {
+                          const original = target.textContent;
+                          target.textContent = '✓ Copied to clipboard';
+                          setTimeout(() => { target.textContent = original; }, 2000);
+                        }
+                      } catch (err) {
+                        console.error('Clipboard copy failed:', err);
+                        alert('Could not copy. The diagnostic was logged to the developer console (Ctrl+Shift+I).');
+                      }
+                    }}
+                  >
+                    📋 Copy diagnostic info
+                  </button>
+                )}
+              </div>
             )}
           </div>
         ))}

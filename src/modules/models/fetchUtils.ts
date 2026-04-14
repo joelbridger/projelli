@@ -121,22 +121,68 @@ export function parseApiError(
 }
 
 /**
+ * Custom error thrown when a JSON response body fails to parse.
+ * Carries the full raw body and parse error for diagnostic display.
+ */
+export class ApiResponseParseError extends Error {
+  rawBody: string;
+  parseErrorMessage: string;
+  bodyLength: number;
+
+  constructor(rawBody: string, parseErrorMessage: string) {
+    const preview = rawBody.slice(0, 80);
+    super(
+      `Could not parse API response (${parseErrorMessage}). ` +
+      `Body length: ${rawBody.length} chars. Preview: "${preview}${rawBody.length > 80 ? '...' : ''}"`
+    );
+    this.name = 'ApiResponseParseError';
+    this.rawBody = rawBody;
+    this.parseErrorMessage = parseErrorMessage;
+    this.bodyLength = rawBody.length;
+  }
+
+  /**
+   * Return a diagnostic blob suitable for clipboard copy / sharing.
+   * Strips obvious API-key-like patterns to avoid accidental leakage.
+   */
+  toDiagnostic(): string {
+    const lines: string[] = [];
+    lines.push('=== Projelli API Parse Error Diagnostic ===');
+    lines.push(`Time: ${new Date().toISOString()}`);
+    lines.push(`Parse error: ${this.parseErrorMessage}`);
+    lines.push(`Body length: ${this.bodyLength} chars`);
+    lines.push('');
+    lines.push('--- FULL RAW BODY ---');
+    // Redact anything resembling API keys
+    const redacted = this.rawBody
+      .replace(/sk-[A-Za-z0-9_-]{20,}/g, 'sk-***REDACTED***')
+      .replace(/AIza[0-9A-Za-z_-]{30,}/g, 'AIza***REDACTED***');
+    lines.push(redacted);
+    lines.push('--- END BODY ---');
+    return lines.join('\n');
+  }
+}
+
+/**
  * Safely parse a JSON response body.
  *
  * Uses .text() + JSON.parse() instead of .json() because the
  * tauri-plugin-http's Response.json() behaves differently from the
  * browser's native Response.json(). The text-then-parse approach
  * works identically in both environments.
+ *
+ * Throws ApiResponseParseError on parse failure, which carries the
+ * full raw body for diagnostic display in the UI.
  */
 export async function safeJsonParse<T>(response: Response): Promise<T> {
   const text = await response.text();
   try {
     return JSON.parse(text) as T;
   } catch (err) {
-    console.error('[safeJsonParse] Failed to parse response body:', text.slice(0, 500));
-    const preview = text.slice(0, 120);
-    throw new Error(
-      `Failed to parse API response. Body preview: "${preview}${text.length > 120 ? '...' : ''}"`
-    );
+    const errMsg = err instanceof Error ? err.message : 'Unknown parse error';
+    console.error('[safeJsonParse] Parse failed:', errMsg);
+    console.error('[safeJsonParse] Body length:', text.length);
+    console.error('[safeJsonParse] FULL response body:', text);
+    throw new ApiResponseParseError(text, errMsg);
   }
 }

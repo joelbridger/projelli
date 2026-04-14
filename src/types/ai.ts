@@ -18,6 +18,8 @@ export interface ChatMessage {
   content: string;
   timestamp: string; // ISO datetime
   isError?: boolean;
+  /** Diagnostic info for parse errors — full raw response body, redacted */
+  errorDiagnostic?: string;
 }
 
 /**

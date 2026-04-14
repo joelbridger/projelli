@@ -117,7 +117,7 @@ export function AIAssistantPane({
       if (provider === 'anthropic') {
         const resp = await safeFetch(`${baseUrl}/v1/messages`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+          headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
           body: JSON.stringify({ model: 'claude-3-haiku-20240307', max_tokens: 1, messages: [{ role: 'user', content: 'test' }] }),
         });
         if (resp.ok) return { ok: true };
