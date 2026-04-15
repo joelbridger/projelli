@@ -2,7 +2,7 @@
 // Contains file tree, workflow panel, research, whiteboard, and other tools
 // Settings have been moved to the AI Assistant pane on the right
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -49,6 +49,7 @@ export function Sidebar({
 }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [internalActiveTab, setInternalActiveTab] = useState<SidebarTab>('files');
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   // Use controlled tab if provided, otherwise use internal state
   const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
@@ -64,6 +65,40 @@ export function Sidebar({
     { id: 'audit', icon: <History className="h-4 w-4" />, label: 'AI Audit' },
     { id: 'trash', icon: <Trash2 className="h-4 w-4" />, label: 'Trash' },
   ];
+
+  const focusTabByIndex = (index: number) => {
+    const wrapped = (index + tabs.length) % tabs.length;
+    const tab = tabs[wrapped];
+    if (!tab) return;
+    const button = tabRefs.current[tab.id];
+    button?.focus();
+  };
+
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
+    switch (event.key) {
+      case 'ArrowDown':
+      case 'ArrowRight':
+        event.preventDefault();
+        focusTabByIndex(currentIndex + 1);
+        break;
+      case 'ArrowUp':
+      case 'ArrowLeft':
+        event.preventDefault();
+        focusTabByIndex(currentIndex - 1);
+        break;
+      case 'Home':
+        event.preventDefault();
+        focusTabByIndex(0);
+        break;
+      case 'End':
+        event.preventDefault();
+        focusTabByIndex(tabs.length - 1);
+        break;
+    }
+  };
+
+  const panelId = (id: SidebarTab) => `sidebar-panel-${id}`;
+  const tabId = (id: SidebarTab) => `sidebar-tab-${id}`;
 
   return (
     <div
@@ -97,33 +132,59 @@ export function Sidebar({
         </Button>
       </div>
 
-      {/* Tab navigation - clean vertical list */}
-      <div className={cn(
-        'flex flex-col border-b',
-        isCollapsed ? 'items-center py-1' : 'py-1'
-      )}>
-        {tabs.map((tab) => (
-          <Button
-            key={tab.id}
-            data-testid={`sidebar-tab-${tab.id}`}
-            variant={activeTab === tab.id ? 'secondary' : 'ghost'}
-            size="sm"
-            className={cn(
-              'justify-start h-8 rounded-none',
-              isCollapsed ? 'w-10 px-0 justify-center' : 'w-full px-3'
-            )}
-            onClick={() => setActiveTab(tab.id)}
-            title={tab.label}
-          >
-            {tab.icon}
-            {!isCollapsed && <span className="ml-2 text-sm">{tab.label}</span>}
-          </Button>
-        ))}
+      {/* Tab navigation — ARIA tablist with arrow-key navigation */}
+      <div
+        role="tablist"
+        aria-orientation="vertical"
+        aria-label="Sidebar sections"
+        className={cn(
+          'flex flex-col border-b',
+          isCollapsed ? 'items-center py-1' : 'py-1'
+        )}
+      >
+        {tabs.map((tab, index) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <Button
+              key={tab.id}
+              ref={(el) => {
+                tabRefs.current[tab.id] = el;
+              }}
+              id={tabId(tab.id)}
+              data-testid={`sidebar-tab-${tab.id}`}
+              role="tab"
+              aria-selected={isActive}
+              aria-controls={panelId(tab.id)}
+              tabIndex={isActive ? 0 : -1}
+              variant={isActive ? 'secondary' : 'ghost'}
+              size="sm"
+              className={cn(
+                'justify-start h-8 rounded-none',
+                isCollapsed ? 'w-10 px-0 justify-center' : 'w-full px-3'
+              )}
+              onClick={() => setActiveTab(tab.id)}
+              onKeyDown={(e) => handleTabKeyDown(e, index)}
+              title={tab.label}
+            >
+              {tab.icon}
+              {!isCollapsed && <span className="ml-2 text-sm">{tab.label}</span>}
+            </Button>
+          );
+        })}
       </div>
 
-      {/* Content area */}
+      {/* Content area — the active panel. Inactive panels are unmounted to keep
+          existing conditional-rendering behaviour, but we still render the
+          container with tabpanel semantics for screen readers. */}
       {!isCollapsed && (
-        <div data-testid="sidebar-content" className="flex-1 overflow-hidden">
+        <div
+          data-testid="sidebar-content"
+          role="tabpanel"
+          id={panelId(activeTab)}
+          aria-labelledby={tabId(activeTab)}
+          tabIndex={0}
+          className="flex-1 overflow-hidden focus:outline-none"
+        >
           {activeTab === 'files' && fileTreeContent}
           {activeTab === 'search' && searchContent}
           {activeTab === 'workflows' && workflowContent}
