@@ -430,6 +430,69 @@ function parseCsv(buffer: ArrayBuffer): SheetModel {
 }
 
 /**
+ * Create a blank spreadsheet of the given extension.
+ *
+ * For `.xlsx` / `.xls`, this returns a workbook with a single empty sheet
+ * named `Sheet1`, sized 10 columns × 20 rows of empty strings. That gives
+ * users a visible grid to start typing into without having to think about
+ * adding rows or columns.
+ *
+ * For `.csv`, we can't store multiple rows/cells in a useful empty layout,
+ * so we just return a single newline byte. This keeps the file non-zero
+ * (some OS file explorers and editors get confused by empty files) while
+ * keeping the viewer visually empty.
+ */
+export function createBlankSpreadsheet(extension: SpreadsheetExtension): Uint8Array {
+  if (extension === 'csv') {
+    // Single newline so the file is non-empty but the viewer shows a blank grid.
+    return new TextEncoder().encode('\n');
+  }
+
+  // Build a 10-column × 20-row empty grid as the starting canvas.
+  const COLS = 10;
+  const ROWS = 20;
+  const rows: (SheetCell | null)[][] = [];
+  for (let r = 0; r < ROWS; r++) {
+    const row: (SheetCell | null)[] = [];
+    for (let c = 0; c < COLS; c++) {
+      // Null cells keep serialization tight — SheetJS will write nothing for
+      // them but the `!ref` range still reports A1:J20 so the viewer renders
+      // the full grid.
+      row.push(null);
+    }
+    rows.push(row);
+  }
+
+  const model: SheetModel = {
+    sheets: [
+      {
+        name: 'Sheet1',
+        rows,
+        merges: [],
+        columnCount: COLS,
+      },
+    ],
+    activeSheetIndex: 0,
+    sourceExtension: extension,
+  };
+
+  // serializeXlsx only writes cells that are present, but the !ref range is
+  // computed from sheet.rows dimensions, so the grid size will be encoded even
+  // though all cells are null. We force a single empty string at A1 so
+  // SheetJS emits the sheet-data section; otherwise some readers (including
+  // SheetJS itself) treat it as a zero-cell sheet and display just "A1".
+  const sheet = model.sheets[0];
+  if (sheet) {
+    const firstRow = sheet.rows[0];
+    if (firstRow) {
+      firstRow[0] = { display: '', raw: '' };
+    }
+  }
+
+  return serializeSpreadsheet(model, extension);
+}
+
+/**
  * Convert a 0-based column index to its Excel letter representation:
  * 0 → "A", 25 → "Z", 26 → "AA", 701 → "ZZ", 702 → "AAA".
  */

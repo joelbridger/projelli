@@ -28,6 +28,9 @@ import {
   ExternalLink,
   Trash2,
   X,
+  Table,
+  FileSpreadsheet,
+  FileType,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -58,6 +61,9 @@ interface FileTreeProps {
   onCreateWhiteboardAtRoot?: () => void;
   onOpenGridView?: () => void;
   onCreateAudioAtRoot?: () => void;
+  onCreateSpreadsheetAtRoot?: () => void;
+  onCreateCsvAtRoot?: () => void;
+  onCreateDocxAtRoot?: () => void;
 }
 
 export function FileTree({
@@ -78,6 +84,9 @@ export function FileTree({
   onCreateWhiteboardAtRoot,
   onOpenGridView,
   onCreateAudioAtRoot,
+  onCreateSpreadsheetAtRoot,
+  onCreateCsvAtRoot,
+  onCreateDocxAtRoot,
 }: FileTreeProps) {
   const {
     fileTree,
@@ -212,7 +221,7 @@ export function FileTree({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
-              data-testid="new-file-button"
+              data-testid="new-file-menu-trigger"
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs"
@@ -223,8 +232,11 @@ export function FileTree({
               <ChevronDown className="h-3 w-3 ml-1" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-40">
-            <DropdownMenuItem onClick={onCreateMarkdownAtRoot}>
+          <DropdownMenuContent align="start" className="w-48">
+            <DropdownMenuItem
+              data-testid="new-file-type-markdown"
+              onClick={onCreateMarkdownAtRoot}
+            >
               <FileText className="h-3.5 w-3.5 mr-2" />
               Markdown (.md)
             </DropdownMenuItem>
@@ -236,6 +248,34 @@ export function FileTree({
               <FileText className="h-3.5 w-3.5 mr-2 text-indigo-500" />
               Rich Text (.rt)
             </DropdownMenuItem>
+            {onCreateDocxAtRoot && (
+              <DropdownMenuItem
+                data-testid="new-file-type-docx"
+                onClick={onCreateDocxAtRoot}
+              >
+                <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
+                Word Document (.docx)
+              </DropdownMenuItem>
+            )}
+            {onCreateSpreadsheetAtRoot && (
+              <DropdownMenuItem
+                data-testid="new-file-type-xlsx"
+                onClick={onCreateSpreadsheetAtRoot}
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 mr-2 text-emerald-600" />
+                Spreadsheet (.xlsx)
+              </DropdownMenuItem>
+            )}
+            {onCreateCsvAtRoot && (
+              <DropdownMenuItem
+                data-testid="new-file-type-csv"
+                onClick={onCreateCsvAtRoot}
+              >
+                <Table className="h-3.5 w-3.5 mr-2 text-emerald-500" />
+                CSV (.csv)
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onCreateSourceFileAtRoot}>
               <BookOpen className="h-3.5 w-3.5 mr-2" />
               Source (.source)

@@ -52,6 +52,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/utils/file-utils';
+import {
+  createBlankSpreadsheet,
+  spreadsheetBytesToDataUrl,
+} from '@/utils/spreadsheet-io';
+import { createBlankDocx, docxBytesToDataUrl } from '@/utils/docx-io';
 import { useTrash } from '@/hooks/useTrash';
 import { useSourceCards } from '@/hooks/useSourceCards';
 import { useAIChatFiles } from '@/hooks/useAIChatFiles';
@@ -950,6 +955,86 @@ function App() {
     }
   }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
+  // Handle create blank spreadsheet file at root (goes to docs folder)
+  const handleCreateSpreadsheetAtRoot = useCallback(async () => {
+    if (!workspaceServiceRef.current || !rootPath) return;
+    const name = await prompt('Enter file name (without extension):', '', {
+      title: 'Create Spreadsheet',
+      placeholder: 'my-sheet',
+    });
+    if (!name) return;
+
+    const fileName = name.endsWith('.xlsx') ? name : `${name}.xlsx`;
+    const filePath = `${rootPath}/docs/${fileName}`;
+    try {
+      const bytes = createBlankSpreadsheet('xlsx');
+      // ArrayBuffer copy so callers don't hold onto the typed array view.
+      const buffer = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(buffer).set(bytes);
+      await workspaceServiceRef.current.writeFileBinary(filePath, buffer);
+      const fileTree = await workspaceServiceRef.current.getFileTree();
+      setFileTree(fileTree);
+      // Open tab with the data URL (matches the shape MainPanel expects for
+      // binary document types).
+      const dataUrl = spreadsheetBytesToDataUrl(bytes, 'xlsx');
+      openFile(filePath, fileName, dataUrl);
+    } catch (error) {
+      console.error('Failed to create spreadsheet:', error);
+    }
+  }, [rootPath, setFileTree, openFile, prompt]);
+
+  // Handle create blank CSV file at root (goes to docs folder)
+  const handleCreateCsvAtRoot = useCallback(async () => {
+    if (!workspaceServiceRef.current || !rootPath) return;
+    const name = await prompt('Enter file name (without extension):', '', {
+      title: 'Create CSV File',
+      placeholder: 'my-data',
+    });
+    if (!name) return;
+
+    const fileName = name.endsWith('.csv') ? name : `${name}.csv`;
+    const filePath = `${rootPath}/docs/${fileName}`;
+    try {
+      const bytes = createBlankSpreadsheet('csv');
+      // CSV is text but we use the binary write path so both tabs and disk
+      // see exactly the same bytes.
+      const buffer = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(buffer).set(bytes);
+      await workspaceServiceRef.current.writeFileBinary(filePath, buffer);
+      const fileTree = await workspaceServiceRef.current.getFileTree();
+      setFileTree(fileTree);
+      const dataUrl = spreadsheetBytesToDataUrl(bytes, 'csv');
+      openFile(filePath, fileName, dataUrl);
+    } catch (error) {
+      console.error('Failed to create CSV file:', error);
+    }
+  }, [rootPath, setFileTree, openFile, prompt]);
+
+  // Handle create blank .docx file at root (goes to docs folder)
+  const handleCreateDocxAtRoot = useCallback(async () => {
+    if (!workspaceServiceRef.current || !rootPath) return;
+    const name = await prompt('Enter file name (without extension):', '', {
+      title: 'Create Word Document',
+      placeholder: 'my-document',
+    });
+    if (!name) return;
+
+    const fileName = name.endsWith('.docx') ? name : `${name}.docx`;
+    const filePath = `${rootPath}/docs/${fileName}`;
+    try {
+      const bytes = await createBlankDocx();
+      const buffer = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(buffer).set(bytes);
+      await workspaceServiceRef.current.writeFileBinary(filePath, buffer);
+      const fileTree = await workspaceServiceRef.current.getFileTree();
+      setFileTree(fileTree);
+      const dataUrl = docxBytesToDataUrl(bytes);
+      openFile(filePath, fileName, dataUrl);
+    } catch (error) {
+      console.error('Failed to create Word document:', error);
+    }
+  }, [rootPath, setFileTree, openFile, prompt]);
+
   // Handle create source file in Research folder
   const handleCreateSourceFileAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
@@ -1575,6 +1660,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onCreateMarkdownAtRoot={handleCreateMarkdownAtRoot}
               onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
               onCreateRichTextFileAtRoot={handleCreateRichTextFileAtRoot}
+              onCreateSpreadsheetAtRoot={handleCreateSpreadsheetAtRoot}
+              onCreateCsvAtRoot={handleCreateCsvAtRoot}
+              onCreateDocxAtRoot={handleCreateDocxAtRoot}
               onCreateSourceFileAtRoot={handleCreateSourceFileAtRoot}
               onCreateFolderAtRoot={handleCreateFolderAtRoot}
               onUploadFiles={handleUploadFiles}

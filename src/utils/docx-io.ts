@@ -451,6 +451,14 @@ function textRunProps(fmt: TextFormatting): TextRunProps {
 }
 
 /**
+ * Create a blank `.docx` with a single empty paragraph. Used by the
+ * "New Word document" entry in the file-tree create menu.
+ */
+export async function createBlankDocx(): Promise<Uint8Array> {
+  return serializeDocx('<p></p>', 'blank.docx');
+}
+
+/**
  * Bundle docx bytes back into a data URL for the editor tab's `content`.
  */
 export function docxBytesToDataUrl(bytes: Uint8Array): string {

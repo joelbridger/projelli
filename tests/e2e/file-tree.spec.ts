@@ -44,7 +44,7 @@ test.describe('File Tree', () => {
       const fileTree = page.getByTestId('file-tree');
       await expect(fileTree).toBeVisible();
 
-      await expect(page.getByTestId('new-file-button')).toBeVisible();
+      await expect(page.getByTestId('new-file-menu-trigger')).toBeVisible();
       await expect(page.getByTestId('new-folder-button')).toBeVisible();
     });
 
