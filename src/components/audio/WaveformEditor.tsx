@@ -152,6 +152,7 @@ export function WaveformEditor({
 
     wavesurfer.on('ready', () => {
       setDuration(wavesurfer.getDuration());
+      console.log('[WaveformEditor] ready fired. filename:', filename, 'isReloadingFromBuffer:', isReloadingFromBufferRef.current);
       // Seed history with the initial buffer, unless we just triggered
       // a reload from an in-memory buffer (which manages history itself).
       if (!isReloadingFromBufferRef.current) {
@@ -160,6 +161,7 @@ export function WaveformEditor({
           // Check session cache: if the user previously edited this file
           // and switched tabs, restore their work.
           const cached = sessionCache.get(filename);
+          console.log('[WaveformEditor] cache lookup for', filename, '→', cached ? `${cached.history.length} history entries` : 'MISS');
           if (cached && cached.history.length > 0) {
             setHistory(cached.history);
             setHistoryIndex(cached.historyIndex);
@@ -168,6 +170,7 @@ export function WaveformEditor({
             // Replay the cached current buffer into the waveform
             const currentBuf = cached.history[cached.historyIndex];
             if (currentBuf && currentBuf !== buf) {
+              console.log('[WaveformEditor] restoring cached buffer for', filename);
               // Reload from cache — fire-and-forget, flag prevents re-seed
               void reloadWaveformFromBuffer(currentBuf);
             }
@@ -208,7 +211,16 @@ export function WaveformEditor({
     wavesurferRef.current = wavesurfer;
 
     return () => {
-      wavesurfer.destroy();
+      // Always destroy the CURRENT wavesurfer (which may have been
+      // replaced by reloadWaveformFromBuffer).
+      if (wavesurferRef.current) {
+        try {
+          wavesurferRef.current.destroy();
+        } catch {
+          // ignore
+        }
+        wavesurferRef.current = null;
+      }
       if (currentUrlRef.current) {
         URL.revokeObjectURL(currentUrlRef.current);
         currentUrlRef.current = null;
@@ -234,9 +246,17 @@ export function WaveformEditor({
   /**
    * Convert an AudioBuffer to a WAV blob, create an object URL, and feed it
    * back into wavesurfer. Frees any prior blob URL.
+   *
+   * We fully destroy and recreate the wavesurfer instance each time rather
+   * than calling .load() on the existing one. Calling .load() repeatedly in
+   * wavesurfer v7 causes a progressive audio quality degradation (muffled,
+   * distant sound) — likely because the internal MediaElement pipeline gets
+   * into a bad state after repeated source swaps. Recreating the instance
+   * fully resets the pipeline.
    */
   const reloadWaveformFromBuffer = useCallback(async (newBuffer: AudioBuffer): Promise<void> => {
-    if (!wavesurferRef.current) return;
+    if (!waveformRef.current) return;
+
     const blob = await audioBufferToWav(newBuffer);
     const url = URL.createObjectURL(blob);
     // Free previous buffer-derived URL, if any.
@@ -244,12 +264,62 @@ export function WaveformEditor({
       URL.revokeObjectURL(currentUrlRef.current);
     }
     currentUrlRef.current = url;
-    // Clear regions; selection no longer maps onto the new buffer.
-    if (regionsPluginRef.current) {
-      regionsPluginRef.current.clearRegions();
+
+    // Destroy the old wavesurfer instance entirely.
+    if (wavesurferRef.current) {
+      try {
+        wavesurferRef.current.destroy();
+      } catch {
+        // ignore destroy errors
+      }
+      wavesurferRef.current = null;
     }
+
+    // Create a fresh wavesurfer instance with the new audio.
+    const regions = RegionsPlugin.create();
+    regionsPluginRef.current = regions;
+
+    const ws = WaveSurfer.create({
+      container: waveformRef.current,
+      waveColor: '#4a5568',
+      progressColor: '#3b82f6',
+      cursorColor: '#ef4444',
+      barWidth: 2,
+      barRadius: 3,
+      cursorWidth: 2,
+      height: 128,
+      barGap: 2,
+      normalize: true,
+      plugins: [regions],
+    });
+
+    ws.on('ready', () => {
+      setDuration(ws.getDuration());
+      isReloadingFromBufferRef.current = false;
+    });
+    ws.on('audioprocess', () => {
+      setCurrentTime(ws.getCurrentTime());
+    });
+    ws.on('seeking', () => {
+      setCurrentTime(ws.getCurrentTime());
+    });
+    ws.on('finish', () => {
+      setIsPlaying(false);
+    });
+
+    regions.on('region-created', () => {
+      setHasSelection(regions.getRegions().length > 0);
+    });
+    regions.on('region-removed', () => {
+      setHasSelection(regions.getRegions().length > 0);
+    });
+    regions.on('region-updated', () => {
+      setHasSelection(regions.getRegions().length > 0);
+    });
+
     isReloadingFromBufferRef.current = true;
-    await wavesurferRef.current.load(url);
+    await ws.load(url);
+    wavesurferRef.current = ws;
     setDuration(newBuffer.length / newBuffer.sampleRate);
   }, []);
 
@@ -295,6 +365,7 @@ export function WaveformEditor({
     if (history.length === 1 && historyIndex === 0 && !clipboard) {
       // Nothing edited — don't populate cache
       sessionCache.delete(filename);
+      console.log('[WaveformEditor] cache cleared for', filename, '(no edits yet)');
       return;
     }
     sessionCache.set(filename, {
@@ -302,6 +373,7 @@ export function WaveformEditor({
       historyIndex,
       clipboard,
     });
+    console.log('[WaveformEditor] cache saved for', filename, '- history length:', history.length, 'index:', historyIndex);
   }, [filename, history, historyIndex, clipboard]);
 
   const togglePlayPause = useCallback(() => {
