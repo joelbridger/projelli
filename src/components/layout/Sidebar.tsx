@@ -55,15 +55,22 @@ export function Sidebar({
   const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
   const setActiveTab = onTabChange || setInternalActiveTab;
 
-  const tabs: { id: SidebarTab; icon: React.ReactNode; label: string }[] = [
-    { id: 'files', icon: <FolderTree className="h-4 w-4" />, label: 'Files' },
-    { id: 'search', icon: <Search className="h-4 w-4" />, label: 'Search' },
-    { id: 'workflows', icon: <Workflow className="h-4 w-4" />, label: 'Workflows' },
-    { id: 'ai-assistant', icon: <Bot className="h-4 w-4" />, label: 'AI Assistant' },
-    { id: 'research', icon: <BookOpen className="h-4 w-4" />, label: 'Research' },
-    { id: 'whiteboard', icon: <PenTool className="h-4 w-4" />, label: 'Whiteboard' },
-    { id: 'audit', icon: <History className="h-4 w-4" />, label: 'AI Audit' },
-    { id: 'trash', icon: <Trash2 className="h-4 w-4" />, label: 'Trash' },
+  // UX-11: Icons are defined as Lucide components, not JSX, so we can apply
+  // the monochrome inactive / accent active pattern uniformly. Previously the
+  // icons were pre-baked as JSX, which meant any stray `className` on one of
+  // them would stick (e.g. a `text-orange-*` leftover from a copy-paste).
+  // Now every tab icon inherits the same `currentColor` stroke from the
+  // Button's `text-muted-foreground` (inactive) or `text-foreground` (active)
+  // class, so no tab can look permanently tinted relative to the others.
+  const tabs: { id: SidebarTab; Icon: typeof FolderTree; label: string }[] = [
+    { id: 'files', Icon: FolderTree, label: 'Files' },
+    { id: 'search', Icon: Search, label: 'Search' },
+    { id: 'workflows', Icon: Workflow, label: 'Workflows' },
+    { id: 'ai-assistant', Icon: Bot, label: 'AI Assistant' },
+    { id: 'research', Icon: BookOpen, label: 'Research' },
+    { id: 'whiteboard', Icon: PenTool, label: 'Whiteboard' },
+    { id: 'audit', Icon: History, label: 'AI Audit' },
+    { id: 'trash', Icon: Trash2, label: 'Trash' },
   ];
 
   const focusTabByIndex = (index: number) => {
@@ -144,6 +151,7 @@ export function Sidebar({
       >
         {tabs.map((tab, index) => {
           const isActive = activeTab === tab.id;
+          const Icon = tab.Icon;
           return (
             <Button
               key={tab.id}
@@ -160,13 +168,22 @@ export function Sidebar({
               size="sm"
               className={cn(
                 'justify-start h-8 rounded-none',
-                isCollapsed ? 'w-10 px-0 justify-center' : 'w-full px-3'
+                isCollapsed ? 'w-10 px-0 justify-center' : 'w-full px-3',
+                // UX-11: force inactive tabs to muted foreground so any leftover
+                // color on a specific icon (e.g. a PenTool whiteboard accent)
+                // can't stick. Active tab gets `text-foreground` from the
+                // `secondary` Button variant.
+                !isActive && 'text-muted-foreground'
               )}
               onClick={() => setActiveTab(tab.id)}
               onKeyDown={(e) => handleTabKeyDown(e, index)}
               title={tab.label}
             >
-              {tab.icon}
+              <Icon
+                data-testid={`sidebar-tab-${tab.id}-icon`}
+                aria-hidden="true"
+                className="h-4 w-4"
+              />
               {!isCollapsed && <span className="ml-2 text-sm">{tab.label}</span>}
             </Button>
           );
