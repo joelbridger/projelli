@@ -94,16 +94,183 @@ export async function parseSpreadsheet(
 }
 
 /**
- * Stub for serialization (Phase 3 / edit path).
- * Phase 1 is read-only; the signature exists so the call site can stabilize.
+ * Serialize a `SheetModel` back into a binary representation suitable for
+ * writing to disk. Routes to SheetJS for xlsx/xls and PapaParse for csv.
+ *
+ * Formulas: cells whose `formula` field is set are preserved as formulas in
+ * the output workbook. SheetJS will evaluate them to cached values when
+ * another program opens the file — it does not compute formulas itself, so
+ * the cell's `display` value is stored as the cached value alongside.
  */
 export function serializeSpreadsheet(
-  _model: SheetModel,
-  _extension: SpreadsheetExtension
+  model: SheetModel,
+  extension: SpreadsheetExtension
 ): Uint8Array {
-  throw new Error(
-    'serializeSpreadsheet is not implemented yet — comes online with the edit path in a later phase.'
+  if (extension === 'csv') {
+    return serializeCsv(model);
+  }
+  return serializeXlsx(model, extension);
+}
+
+function serializeXlsx(model: SheetModel, extension: 'xlsx' | 'xls'): Uint8Array {
+  const wb = XLSX.utils.book_new();
+
+  for (const sheet of model.sheets) {
+    const ws: XLSX.WorkSheet = {};
+
+    // Determine dimensions from the widest row; empty sheets still need a `!ref`.
+    const rowCount = sheet.rows.length;
+    const colCount = sheet.rows.reduce((max, row) => Math.max(max, row.length), 0) || sheet.columnCount;
+
+    for (let r = 0; r < rowCount; r++) {
+      const row = sheet.rows[r] ?? [];
+      for (let c = 0; c < colCount; c++) {
+        const cell = row[c];
+        if (!cell) continue;
+        const addr = XLSX.utils.encode_cell({ r, c });
+        ws[addr] = sheetCellToXlsxCell(cell);
+      }
+    }
+
+    if (rowCount === 0 || colCount === 0) {
+      ws['!ref'] = 'A1:A1';
+    } else {
+      ws['!ref'] = XLSX.utils.encode_range({
+        s: { r: 0, c: 0 },
+        e: { r: Math.max(rowCount - 1, 0), c: Math.max(colCount - 1, 0) },
+      });
+    }
+
+    if (sheet.merges.length > 0) {
+      ws['!merges'] = sheet.merges.map((m) => ({
+        s: { r: m.startRow, c: m.startCol },
+        e: { r: m.endRow, c: m.endCol },
+      }));
+    }
+
+    if (sheet.columnWidths && sheet.columnWidths.length > 0) {
+      ws['!cols'] = sheet.columnWidths.map((wch) => ({ wch }));
+    }
+    if (sheet.rowHeights && sheet.rowHeights.length > 0) {
+      ws['!rows'] = sheet.rowHeights.map((hpt) => ({ hpt }));
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws, sheet.name);
+  }
+
+  // XLSX.write returns an ArrayBuffer when `type: 'array'`. Wrap in Uint8Array
+  // so callers get the same shape regardless of the target extension.
+  const written = XLSX.write(wb, {
+    bookType: extension,
+    type: 'array',
+  }) as ArrayBuffer;
+  return new Uint8Array(written);
+}
+
+/**
+ * Convert a SheetCell into the XLSX cell object SheetJS expects.
+ * - Formulas carry the `f` string; cached value stored alongside.
+ * - Plain values pick the right `t` (type) based on the raw typeof.
+ */
+function sheetCellToXlsxCell(cell: SheetCell): XLSX.CellObject {
+  const out: XLSX.CellObject = { t: 's', v: '' };
+
+  if (cell.formula && cell.formula.length > 0) {
+    // SheetJS uses `f` without the leading `=`.
+    out.f = cell.formula;
+    // Stash cached value + type so other readers see the same value we showed.
+    if (typeof cell.raw === 'number') {
+      out.t = 'n';
+      out.v = cell.raw;
+    } else if (typeof cell.raw === 'boolean') {
+      out.t = 'b';
+      out.v = cell.raw;
+    } else if (cell.raw instanceof Date) {
+      out.t = 'd';
+      out.v = cell.raw;
+    } else if (cell.raw == null) {
+      out.t = 's';
+      out.v = cell.display ?? '';
+    } else {
+      out.t = 's';
+      out.v = String(cell.raw);
+    }
+    return out;
+  }
+
+  if (cell.raw == null) {
+    // Null cells shouldn't have been stored — treat as empty string.
+    out.t = 's';
+    out.v = cell.display ?? '';
+    return out;
+  }
+
+  if (typeof cell.raw === 'number') {
+    out.t = 'n';
+    out.v = cell.raw;
+  } else if (typeof cell.raw === 'boolean') {
+    out.t = 'b';
+    out.v = cell.raw;
+  } else if (cell.raw instanceof Date) {
+    out.t = 'd';
+    out.v = cell.raw;
+  } else {
+    out.t = 's';
+    out.v = String(cell.raw);
+  }
+  return out;
+}
+
+function serializeCsv(model: SheetModel): Uint8Array {
+  // CSVs carry a single sheet (PapaParse has no concept of tabs). Prefer the
+  // active sheet; fall back to the first sheet if no active is set.
+  const sheet = model.sheets[model.activeSheetIndex] ?? model.sheets[0];
+  if (!sheet) {
+    return new TextEncoder().encode('');
+  }
+
+  const rows: string[][] = sheet.rows.map((row) =>
+    row.map((cell) => {
+      if (!cell) return '';
+      if (cell.formula) {
+        // CSV can't carry formulas — preserve the `=` prefix so re-opening
+        // in Excel re-interprets it as a formula.
+        return `=${cell.formula}`;
+      }
+      return cell.display ?? '';
+    })
   );
+
+  const csv = Papa.unparse(rows);
+  // UTF-8 bytes for the whole string, newline-terminated so Excel is happy.
+  return new TextEncoder().encode(`${csv}\n`);
+}
+
+/**
+ * Bundle a serialized spreadsheet back into a data URL suitable for storage
+ * in the editor tab's `content` field. MIME type must match the extension.
+ */
+export function spreadsheetBytesToDataUrl(
+  bytes: Uint8Array,
+  extension: SpreadsheetExtension
+): string {
+  const mime = spreadsheetMimeType(extension);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i] as number);
+  }
+  return `data:${mime};base64,${btoa(binary)}`;
+}
+
+function spreadsheetMimeType(extension: SpreadsheetExtension): string {
+  switch (extension) {
+    case 'xlsx':
+      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    case 'xls':
+      return 'application/vnd.ms-excel';
+    case 'csv':
+      return 'text/csv';
+  }
 }
 
 // ---------------------------------------------------------------------------

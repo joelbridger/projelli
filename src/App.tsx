@@ -30,6 +30,7 @@ import { Command, Moon, Sun } from 'lucide-react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { saveFile } from '@/utils/saveFile';
 import { useEditorStore } from '@/stores/editorStore';
+import { useFileBackupStore } from '@/stores/fileBackupStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { createWorkspaceService, type WorkspaceService } from '@/modules/workspace/WorkspaceService';
 import { createFSBackend } from '@/modules/workspace/BackendFactory';
@@ -251,9 +252,80 @@ function App() {
         return `${baseRole}${buildOpenFilesPromptBlock(files)}`;
       };
 
-      // Note: workspaceServiceRef stays null in test mode
-      // Tests will work with localStorage and component state
-      console.log('Test mode enabled: Mock workspace initialized with 2 demo tabs');
+      // Expose the editor store so document-editing tests can inspect
+      // `isDirty` and `content` without racing the React tree. Also expose
+      // the backup store so tests can verify a backup was (or wasn't)
+      // written for a given path.
+      (window as unknown as {
+        __editorStore?: typeof useEditorStore;
+      }).__editorStore = useEditorStore;
+      (window as unknown as {
+        __fileBackupStore?: typeof useFileBackupStore;
+      }).__fileBackupStore = useFileBackupStore;
+
+      // Install a mock workspace service for document-editing tests so the
+      // FIRST-edit backup path exercises the real write-binary call through
+      // MainPanel. The mock is an in-memory key/value map with a small set of
+      // pre-seeded files (populated on first use by tests via __mockWrite).
+      if (!workspaceServiceRef.current) {
+        const mockFs = new Map<string, ArrayBuffer>();
+        const textEncoder = new TextEncoder();
+        const mockService = {
+          async exists(path: string): Promise<boolean> {
+            return mockFs.has(path);
+          },
+          async readFile(path: string): Promise<string> {
+            const buf = mockFs.get(path);
+            if (!buf) throw new Error(`Not found: ${path}`);
+            return new TextDecoder().decode(buf);
+          },
+          async readFileBinary(path: string): Promise<ArrayBuffer> {
+            const buf = mockFs.get(path);
+            if (!buf) throw new Error(`Not found: ${path}`);
+            return buf;
+          },
+          async writeFile(path: string, content: string): Promise<void> {
+            const bytes = textEncoder.encode(content);
+            // Copy into a detached ArrayBuffer so callers can't mutate the
+            // map's stored buffer.
+            const copy = new ArrayBuffer(bytes.byteLength);
+            new Uint8Array(copy).set(bytes);
+            mockFs.set(path, copy);
+          },
+          async writeFileBinary(path: string, content: ArrayBuffer): Promise<void> {
+            const copy = new ArrayBuffer(content.byteLength);
+            new Uint8Array(copy).set(new Uint8Array(content));
+            mockFs.set(path, copy);
+          },
+          async getFileTree() {
+            return [];
+          },
+          async stat(path: string) {
+            return { type: 'file' as const, size: mockFs.get(path)?.byteLength ?? 0 };
+          },
+          async delete(path: string) {
+            mockFs.delete(path);
+          },
+        };
+        workspaceServiceRef.current = mockService as unknown as WorkspaceService;
+        (window as unknown as {
+          __mockWorkspaceFs?: {
+            list: () => string[];
+            has: (p: string) => boolean;
+            seed: (p: string, bytes: ArrayBuffer) => void;
+          };
+        }).__mockWorkspaceFs = {
+          list: () => Array.from(mockFs.keys()),
+          has: (p: string) => mockFs.has(p),
+          seed: (p: string, bytes: ArrayBuffer) => {
+            const copy = new ArrayBuffer(bytes.byteLength);
+            new Uint8Array(copy).set(new Uint8Array(bytes));
+            mockFs.set(p, copy);
+          },
+        };
+      }
+
+      console.log('Test mode enabled: Mock workspace initialized with 2 demo tabs + mock FS');
     }
   }, [IS_TEST_MODE, rootPath, setRootPath, openFile]);
 

@@ -1,0 +1,420 @@
+// DOCX Editor
+// WYSIWYG editor for `.docx` files. Uses mammoth to extract HTML from the
+// incoming bytes, feeds that into TipTap, and serializes back to .docx on
+// change via `docx` + DOMParser in `utils/docx-io`.
+//
+// This is a sibling to `DocxViewer` (read-only renderer). MainPanel picks
+// the editor when `onContentChange` is provided, falls back to viewer for
+// read-only contexts.
+//
+// Limitations (shown to user via a dismissible banner on mount):
+//   - Tables, images, headers/footers, and other advanced formatting are not
+//     preserved when saving. Mammoth extracts plain HTML; the docx package
+//     re-renders it. The banner warns + reminds users a backup was written.
+
+import { useEffect, useRef, useState } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
+import Link from '@tiptap/extension-link';
+import Placeholder from '@tiptap/extension-placeholder';
+import {
+  AlertTriangle,
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  Heading1,
+  Heading2,
+  Heading3,
+  List,
+  ListOrdered,
+  Code,
+  Link as LinkIcon,
+  Undo,
+  Redo,
+  X,
+  FileType,
+} from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import {
+  extractDocxText,
+  serializeDocx,
+  docxBytesToDataUrl,
+} from '@/utils/docx-io';
+
+interface DocxEditorProps {
+  src: string;
+  fileName: string;
+  className?: string;
+  onContentChange: (newDataUrl: string) => void;
+  /** Called once per file/session before the first serialization push so the
+   *  parent can write a backup of the original bytes. */
+  onFirstEdit?: () => Promise<void> | void;
+}
+
+export function DocxEditor({
+  src,
+  fileName,
+  className,
+  onContentChange,
+  onFirstEdit,
+}: DocxEditorProps) {
+  const [initialHtml, setInitialHtml] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
+
+  const onChangeRef = useRef(onContentChange);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const firstEditFiredRef = useRef(false);
+  // Track the last URL we pushed upstream so an incoming `src` round-trip
+  // doesn't cause us to re-parse our own serialization (which would lose
+  // editor state like the cursor position).
+  const lastPushedUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    onChangeRef.current = onContentChange;
+  }, [onContentChange]);
+
+  // Extract HTML from the incoming .docx bytes on mount / src change.
+  useEffect(() => {
+    if (src === lastPushedUrlRef.current) {
+      // Echo of our own serialization — ignore.
+      return;
+    }
+    let cancelled = false;
+    setError(null);
+    setInitialHtml(null);
+    extractDocxText(src)
+      .then((result) => {
+        if (cancelled) return;
+        setInitialHtml(result.html.length > 0 ? result.html : '<p></p>');
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'Unknown error.';
+        setError(message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({}),
+      Underline,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: {
+          class: 'text-blue-500 underline',
+          rel: 'noopener noreferrer',
+          target: '_blank',
+        },
+      }),
+      Placeholder.configure({
+        placeholder: 'Start writing...',
+      }),
+    ],
+    content: initialHtml ?? '<p></p>',
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-full',
+        'data-testid': 'docx-editor-content',
+      },
+    },
+    onUpdate: ({ editor: currentEditor }) => {
+      // Debounce serialization so rapid typing doesn't thrash the disk.
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      const html = currentEditor.getHTML();
+      debounceTimerRef.current = setTimeout(async () => {
+        try {
+          // Fire first-edit hook (for backup write) BEFORE the first push.
+          if (!firstEditFiredRef.current) {
+            firstEditFiredRef.current = true;
+            try {
+              await onFirstEdit?.();
+            } catch (err) {
+              console.warn('[DocxEditor] onFirstEdit failed:', err);
+            }
+          }
+          const bytes = await serializeDocx(html, fileName);
+          const dataUrl = docxBytesToDataUrl(bytes);
+          lastPushedUrlRef.current = dataUrl;
+          onChangeRef.current(dataUrl);
+        } catch (err) {
+          console.error('[DocxEditor] serialize failed:', err);
+        }
+      }, 2000);
+    },
+  }, [initialHtml !== null]);
+
+  // When the extracted HTML arrives (after mount or src change), push it
+  // into the editor so the first render has real content rather than the
+  // placeholder paragraph.
+  useEffect(() => {
+    if (!editor || initialHtml === null) return;
+    const current = editor.getHTML();
+    if (current !== initialHtml) {
+      editor.commands.setContent(initialHtml, { emitUpdate: false });
+    }
+  }, [editor, initialHtml]);
+
+  // Cleanup debounce on unmount.
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleSetLink = () => {
+    if (!editor) return;
+    const previousUrl = editor.getAttributes('link')['href'] as string | undefined;
+    const url = window.prompt('Enter URL (leave empty to remove link):', previousUrl ?? '');
+    if (url === null) return;
+    if (url === '') {
+      editor.chain().focus().extendMarkRange('link').unsetLink().run();
+      return;
+    }
+    const safeUrl = /^(https?:\/\/|mailto:|\/)/i.test(url) ? url : `https://${url}`;
+    editor.chain().focus().extendMarkRange('link').setLink({ href: safeUrl }).run();
+  };
+
+  if (error) {
+    return (
+      <div
+        data-testid="docx-editor-error"
+        className={cn(
+          'flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground',
+          className
+        )}
+      >
+        <AlertTriangle className="h-10 w-10 text-destructive opacity-70" />
+        <div>
+          <p className="text-sm font-medium text-foreground">Couldn't open {fileName}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!editor || initialHtml === null) {
+    return (
+      <div
+        data-testid="docx-editor-loading"
+        className={cn(
+          'flex h-full flex-col items-center justify-center gap-2 text-muted-foreground',
+          className
+        )}
+      >
+        <FileType className="h-10 w-10 animate-pulse opacity-50" />
+        <p className="text-sm">Opening {fileName}...</p>
+      </div>
+    );
+  }
+
+  const toolbarButton = (opts: {
+    icon: React.ElementType;
+    label: string;
+    isActive?: boolean;
+    onClick: () => void;
+    disabled?: boolean;
+  }) => {
+    const Icon = opts.icon;
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className={cn(
+          'h-8 w-8 p-0',
+          opts.isActive && 'bg-accent text-accent-foreground'
+        )}
+        title={opts.label}
+        aria-label={opts.label}
+        aria-pressed={opts.isActive}
+        disabled={opts.disabled}
+        onClick={opts.onClick}
+      >
+        <Icon className="h-4 w-4" />
+      </Button>
+    );
+  };
+
+  return (
+    <div
+      data-testid="docx-editor"
+      className={cn('h-full flex flex-col', className)}
+    >
+      {!isBannerDismissed && (
+        <div
+          data-testid="docx-editor-banner"
+          className="flex items-start gap-2 border-b bg-yellow-50 dark:bg-yellow-900/30 px-3 py-2 text-xs text-yellow-900 dark:text-yellow-100"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+          <p className="flex-1">
+            Some advanced formatting (tables, images, page headers) may not be
+            preserved when saving. A backup of the original file is created
+            before your first edit.
+          </p>
+          <Button
+            data-testid="docx-editor-banner-dismiss"
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 -mr-1 -my-1"
+            onClick={() => setIsBannerDismissed(true)}
+            aria-label="Dismiss notice"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
+      <div
+        data-testid="docx-editor-toolbar"
+        className="flex items-center gap-0.5 flex-wrap border-b px-2 py-1 bg-background"
+      >
+        {toolbarButton({
+          icon: Bold,
+          label: 'Bold (Ctrl+B)',
+          isActive: editor.isActive('bold'),
+          onClick: () => editor.chain().focus().toggleBold().run(),
+        })}
+        {toolbarButton({
+          icon: Italic,
+          label: 'Italic (Ctrl+I)',
+          isActive: editor.isActive('italic'),
+          onClick: () => editor.chain().focus().toggleItalic().run(),
+        })}
+        {toolbarButton({
+          icon: UnderlineIcon,
+          label: 'Underline (Ctrl+U)',
+          isActive: editor.isActive('underline'),
+          onClick: () => editor.chain().focus().toggleUnderline().run(),
+        })}
+        {toolbarButton({
+          icon: Strikethrough,
+          label: 'Strikethrough',
+          isActive: editor.isActive('strike'),
+          onClick: () => editor.chain().focus().toggleStrike().run(),
+        })}
+        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+        {toolbarButton({
+          icon: Heading1,
+          label: 'Heading 1',
+          isActive: editor.isActive('heading', { level: 1 }),
+          onClick: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
+        })}
+        {toolbarButton({
+          icon: Heading2,
+          label: 'Heading 2',
+          isActive: editor.isActive('heading', { level: 2 }),
+          onClick: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+        })}
+        {toolbarButton({
+          icon: Heading3,
+          label: 'Heading 3',
+          isActive: editor.isActive('heading', { level: 3 }),
+          onClick: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
+        })}
+        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+        {toolbarButton({
+          icon: List,
+          label: 'Bullet List',
+          isActive: editor.isActive('bulletList'),
+          onClick: () => editor.chain().focus().toggleBulletList().run(),
+        })}
+        {toolbarButton({
+          icon: ListOrdered,
+          label: 'Numbered List',
+          isActive: editor.isActive('orderedList'),
+          onClick: () => editor.chain().focus().toggleOrderedList().run(),
+        })}
+        {toolbarButton({
+          icon: Code,
+          label: 'Inline Code',
+          isActive: editor.isActive('code'),
+          onClick: () => editor.chain().focus().toggleCode().run(),
+        })}
+        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+        {toolbarButton({
+          icon: LinkIcon,
+          label: 'Link',
+          isActive: editor.isActive('link'),
+          onClick: handleSetLink,
+        })}
+        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+        {toolbarButton({
+          icon: Undo,
+          label: 'Undo',
+          onClick: () => editor.chain().focus().undo().run(),
+          disabled: !editor.can().undo(),
+        })}
+        {toolbarButton({
+          icon: Redo,
+          label: 'Redo',
+          onClick: () => editor.chain().focus().redo().run(),
+          disabled: !editor.can().redo(),
+        })}
+      </div>
+
+      <div
+        className="flex-1 overflow-auto px-6 py-4 cursor-text bg-background"
+        onClick={() => {
+          if (!editor.isFocused) editor.chain().focus().run();
+        }}
+      >
+        <EditorContent editor={editor} className="h-full" />
+      </div>
+
+      {/* Reuse styles similar to RichTextEditor so TipTap output renders
+          visibly without @tailwindcss/typography in the bundle. */}
+      <style>{`
+        .ProseMirror { outline: none; min-height: 100%; }
+        .ProseMirror h1 { font-size: 1.875rem; font-weight: bold; margin: 1rem 0 0.5rem; }
+        .ProseMirror h2 { font-size: 1.5rem; font-weight: bold; margin: 1rem 0 0.5rem; }
+        .ProseMirror h3 { font-size: 1.25rem; font-weight: bold; margin: 1rem 0 0.5rem; }
+        .ProseMirror p { margin: 0.5rem 0; line-height: 1.6; }
+        .ProseMirror ul { list-style-type: disc; padding-left: 1.5rem; margin: 0.5rem 0; }
+        .ProseMirror ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }
+        .ProseMirror li { margin: 0.25rem 0; }
+        .ProseMirror li > p { margin: 0; }
+        .ProseMirror blockquote {
+          border-left: 3px solid #94a3b8;
+          padding-left: 1rem;
+          color: #64748b;
+          margin: 0.5rem 0;
+          font-style: italic;
+        }
+        .ProseMirror code {
+          background: #f1f5f9;
+          padding: 2px 4px;
+          border-radius: 3px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+          font-size: 0.875em;
+        }
+        .ProseMirror strong { font-weight: bold; }
+        .ProseMirror em { font-style: italic; }
+        .ProseMirror u { text-decoration: underline; }
+        .ProseMirror s { text-decoration: line-through; }
+        .ProseMirror a { color: #3b82f6; text-decoration: underline; cursor: pointer; }
+        .ProseMirror p.is-editor-empty:first-child::before {
+          color: #94a3b8;
+          content: attr(data-placeholder);
+          float: left;
+          height: 0;
+          pointer-events: none;
+        }
+      `}</style>
+    </div>
+  );
+}
+
+export default DocxEditor;

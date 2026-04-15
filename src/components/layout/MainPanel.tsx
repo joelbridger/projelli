@@ -13,13 +13,16 @@ import { BacklinksPanel } from '@/components/editor/BacklinksPanel';
 import { ImageViewer, VideoViewer, isImageFile, isVideoFile } from '@/components/media/MediaViewer';
 import { PDFViewer, isPDFFile, isSpreadsheetFile, isPresentationFile, isWordFile } from '@/components/media/PDFViewer';
 
-// Heavy doc libraries (xlsx ~500KB, docx-preview ~300KB, mammoth ~200KB) are
-// lazy-loaded so markdown-only users don't download them up front.
+// Heavy doc libraries (xlsx ~500KB, docx-preview ~300KB, mammoth ~200KB,
+// docx ~500KB) are lazy-loaded so markdown-only users don't download them up
+// front. DocxViewer is still exported for read-only contexts but MainPanel
+// uses DocxEditor (which also wraps viewer fallbacks) whenever the user can
+// edit the file.
 const SpreadsheetViewer = lazy(() =>
   import('@/components/media/SpreadsheetViewer').then((m) => ({ default: m.SpreadsheetViewer }))
 );
-const DocxViewer = lazy(() =>
-  import('@/components/media/DocxViewer').then((m) => ({ default: m.DocxViewer }))
+const DocxEditor = lazy(() =>
+  import('@/components/media/DocxEditor').then((m) => ({ default: m.DocxEditor }))
 );
 import { Whiteboard } from '@/components/whiteboard/Whiteboard';
 import { SourceFileEditor } from '@/components/research/SourceFileEditor';
@@ -30,6 +33,11 @@ import { VersionHistoryPanel } from '@/components/version/VersionHistoryPanel';
 import { BrowserPanel } from '@/components/workflow/BrowserPanel';
 import { getVersionService } from '@/modules/versioning/VersionService';
 import { useEditorStore } from '@/stores/editorStore';
+import {
+  useFileBackupStore,
+  computeBackupPath,
+  formatBackupTimestamp,
+} from '@/stores/fileBackupStore';
 import { Button } from '@/components/ui/button';
 import { FileText, List, Link2, PanelRightClose, FileType, Presentation, X, Save, History, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -181,6 +189,49 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
   // Version history state
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const versionService = getVersionService();
+
+  // First-edit backup hook. For binary formats (.xlsx/.docx) we write a
+  // snapshot of the original on-disk bytes to a `.backup-YYYYMMDD-HHMMSS.ext`
+  // sibling BEFORE the user's first edit hits disk. Subsequent edits this
+  // session skip — one backup per file per session is the contract.
+  const hasBackup = useFileBackupStore((s) => s.hasBackup);
+  const markBackedUp = useFileBackupStore((s) => s.markBackedUp);
+
+  const writeBackupIfNeeded = useCallback(
+    async (path: string) => {
+      if (hasBackup(path)) return;
+      const service = workspaceServiceRef?.current;
+      if (!service) {
+        // No workspace service (e.g. test mode with a synthetic tab) — nothing
+        // to back up to. Still mark it so we don't repeatedly attempt the
+        // backup on every edit.
+        markBackedUp(path);
+        return;
+      }
+      try {
+        // Does the original file exist on disk? If not (e.g. a test tab that
+        // was openFile'd directly into memory), there's nothing to back up.
+        const exists = await service.exists(path);
+        if (!exists) {
+          markBackedUp(path);
+          return;
+        }
+        const originalBytes = await service.readFileBinary(path);
+        const timestamp = formatBackupTimestamp();
+        const backupPath = computeBackupPath(path, timestamp);
+        await service.writeFileBinary(backupPath, originalBytes);
+        markBackedUp(path);
+        // Refresh tree so the new backup file shows up in the sidebar.
+        onFileTreeChange?.();
+      } catch (err) {
+        console.warn('[MainPanel] Failed to write backup for', path, err);
+        // Mark anyway — repeated failed attempts would keep spamming the
+        // console and still not help the user.
+        markBackedUp(path);
+      }
+    },
+    [hasBackup, markBackedUp, workspaceServiceRef, onFileTreeChange]
+  );
 
   const handleContentChange = useCallback(
     (content: string) => {
@@ -384,7 +435,12 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
       if (isSpreadsheet) {
         return (
           <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
-            <SpreadsheetViewer src={tab.content} fileName={tab.name} />
+            <SpreadsheetViewer
+              src={tab.content}
+              fileName={tab.name}
+              onContentChange={onContentChange}
+              onFirstEdit={() => writeBackupIfNeeded(tab.path)}
+            />
           </Suspense>
         );
       }
@@ -417,7 +473,12 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
         if (extension?.toLowerCase() === 'docx') {
           return (
             <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
-              <DocxViewer src={tab.content} fileName={tab.name} />
+              <DocxEditor
+                src={tab.content}
+                fileName={tab.name}
+                onContentChange={onContentChange}
+                onFirstEdit={() => writeBackupIfNeeded(tab.path)}
+              />
             </Suspense>
           );
         }
