@@ -15,8 +15,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
   AlertTriangle,
@@ -104,15 +102,15 @@ export function DocxEditor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({}),
-      Underline,
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-        HTMLAttributes: {
-          class: 'text-blue-500 underline',
-          rel: 'noopener noreferrer',
-          target: '_blank',
+      StarterKit.configure({
+        link: {
+          openOnClick: false,
+          autolink: true,
+          HTMLAttributes: {
+            class: 'text-blue-500 underline',
+            rel: 'noopener noreferrer',
+            target: '_blank',
+          },
         },
       }),
       Placeholder.configure({

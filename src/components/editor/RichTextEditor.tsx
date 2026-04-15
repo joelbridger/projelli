@@ -5,8 +5,6 @@
 import { useEffect, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Underline from '@tiptap/extension-underline';
-import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
   Bold,
@@ -66,18 +64,17 @@ export function RichTextEditor({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
-        // StarterKit includes: bold, italic, strike, heading, bulletList, orderedList,
-        // listItem, blockquote, code, codeBlock, history, paragraph, text, hardBreak, dropcursor,
-        // gapcursor, horizontalRule
-      }),
-      Underline,
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-        HTMLAttributes: {
-          class: 'text-blue-500 underline',
-          rel: 'noopener noreferrer',
-          target: '_blank',
+        // StarterKit v3 includes link + underline among the defaults. Configure
+        // link inline here instead of stacking a standalone @tiptap/extension-link,
+        // which triggers "Duplicate extension names" console warnings.
+        link: {
+          openOnClick: false,
+          autolink: true,
+          HTMLAttributes: {
+            class: 'text-blue-500 underline',
+            rel: 'noopener noreferrer',
+            target: '_blank',
+          },
         },
       }),
       Placeholder.configure({
