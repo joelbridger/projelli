@@ -1,8 +1,8 @@
 // Tab Bar Component
 // Displays open file tabs with close buttons, dirty indicators, drag-to-reorder, and tab groups
 
-import { useCallback, useState, useRef } from 'react';
-import { X, FileText, GripVertical, FileJson, FileImage, FileVideo, PenTool, Music, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff } from 'lucide-react';
+import { useCallback, useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { X, FileText, GripVertical, FileJson, FileImage, FileVideo, PenTool, Music, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -155,20 +155,84 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const [renameGroupValue, setRenameGroupValue] = useState('');
   const [editingTabPath, setEditingTabPath] = useState<string | null>(null);
   const [editingTabName, setEditingTabName] = useState('');
-  const [showOverflowMenu, setShowOverflowMenu] = useState(false);
   const [showGroupManager, setShowGroupManager] = useState(false);
   const [openDropdownGroupId, setOpenDropdownGroupId] = useState<string | null>(null);
   const [dragOverDropdownIndex, setDragOverDropdownIndex] = useState<number | null>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Horizontal scroll state for the tab-strip overflow arrows
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
   // Confirmation dialog
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
 
-  // Calculate max tabs per row (approximate based on typical tab width of 150px)
-  const MAX_TABS_PER_ROW = 10;
-  const MAX_VISIBLE_ROWS = 2;
-  const MAX_VISIBLE_TABS = MAX_TABS_PER_ROW * MAX_VISIBLE_ROWS;
+  // Track whether the tab strip can scroll left / right so the arrow buttons
+  // only render when there's something to scroll to. Runs on mount, on tab
+  // count change, on window resize, and on the strip's own scroll event.
+  const updateScrollButtons = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
+    const maxScrollLeft = el.scrollWidth - el.clientWidth;
+    // 1px tolerance for fractional pixel scrollLeft values in some browsers.
+    setCanScrollLeft(el.scrollLeft > 1);
+    setCanScrollRight(el.scrollLeft < maxScrollLeft - 1);
+  }, []);
 
+  const scrollTabs = useCallback((dir: 'left' | 'right') => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // Scroll by roughly one-tab width (160 ≈ midpoint of 120–200 range)
+    const delta = dir === 'left' ? -200 : 200;
+    el.scrollBy({ left: delta, behavior: 'smooth' });
+  }, []);
+
+  // Wire scroll/resize observers. useLayoutEffect so we read sizes after
+  // layout but before paint.
+  useLayoutEffect(() => {
+    updateScrollButtons();
+  }, [updateScrollButtons, openTabs.length, tabGroups.length]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const onScroll = () => updateScrollButtons();
+    el.addEventListener('scroll', onScroll, { passive: true });
+
+    const ro = new ResizeObserver(() => updateScrollButtons());
+    ro.observe(el);
+
+    window.addEventListener('resize', onScroll);
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+      ro.disconnect();
+    };
+  }, [updateScrollButtons]);
+
+  // When the active tab changes (e.g. user clicked the overflow list or
+  // opened a new file), scroll it into view so users don't have to hunt for
+  // it in the strip.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !activeTabPath) return;
+    // Query within the scroll container so we don't match similar IDs from
+    // the overflow dropdown.
+    const idx = openTabs.findIndex((t) => t.path === activeTabPath);
+    if (idx < 0) return;
+    const children = el.children;
+    const child = children.item(idx) as HTMLElement | null;
+    if (!child) return;
+    // scrollIntoView with inline:'nearest' avoids jumpy behavior when the
+    // active tab is already visible.
+    child.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  }, [activeTabPath, openTabs]);
 
   const handleTabClick = useCallback((path: string) => {
     setActiveTab(path);
@@ -530,7 +594,8 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         onDragLeave={handleDragLeave}
         onDrop={(e) => handleDrop(e, index)}
         className={cn(
-          'flex items-center gap-1 px-3 py-1.5 border-r cursor-pointer text-sm transition-colors min-w-0 h-9 relative',
+          'flex items-center gap-1 px-3 py-1.5 border-r cursor-pointer text-sm transition-colors h-9 relative flex-shrink-0 snap-start',
+          'min-w-[120px] max-w-[200px]',
           isActive
             ? 'bg-background text-foreground'
             : 'text-muted-foreground hover:bg-muted/50',
@@ -562,10 +627,10 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
             autoFocus
-            className="truncate max-w-[120px] px-1 py-0 bg-background border rounded"
+            className="truncate flex-1 min-w-0 px-1 py-0 bg-background border rounded"
           />
         ) : (
-          <span className="truncate max-w-[120px]">{removeExtension(tab.name)}</span>
+          <span className="truncate flex-1 min-w-0">{removeExtension(tab.name)}</span>
         )}
         <AIContextChip path={tab.path} />
         {tab.isDirty && (
@@ -600,7 +665,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         key={`group-${group.id}`}
         data-group-chip
         className={cn(
-          "flex items-center gap-1 px-2 py-1.5 border-r min-w-0 transition-colors h-9",
+          "flex items-center gap-1 px-2 py-1.5 border-r min-w-0 transition-colors h-9 flex-shrink-0 snap-start",
           isGroupDragOver ? "bg-primary/20 border-primary" : "bg-muted/30"
         )}
         onDragOver={(e) => handleGroupDragOver(e, group.id)}
@@ -747,57 +812,113 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     renderItems.push({ type: 'tab', data: tab });
   });
 
-  const visibleItems = renderItems.slice(0, MAX_VISIBLE_TABS);
-  const overflowItems = renderItems.slice(MAX_VISIBLE_TABS);
-
   return (
-    <div className="border-b bg-muted/30">
+    <div className="border-b bg-muted/30" data-testid="tab-bar-root">
       <div
         className={cn(
-          "flex flex-wrap items-start relative transition-colors",
+          "flex items-stretch relative transition-colors",
           dragOverTabBar && "bg-primary/10 ring-2 ring-primary/50 ring-inset"
         )}
         onDragOver={handleTabBarDragOver}
         onDragLeave={handleTabBarDragLeave}
         onDrop={handleTabBarDrop}
       >
-        {visibleItems.map((item) => {
-          if (item.type === 'group') {
-            const group = item.data as typeof tabGroups[0];
-            const groupTabs = openTabs.filter((tab) => tab.groupId === group.id);
-            return renderGroupHeader(group, groupTabs);
-          } else {
-            const tab = item.data as typeof openTabs[0];
-            return renderTab(tab, openTabs.indexOf(tab));
-          }
-        })}
+        {/* Left scroll arrow — only visible when scrolled right */}
+        {canScrollLeft && (
+          <Button
+            data-testid="tab-bar-scroll-left"
+            variant="ghost"
+            size="sm"
+            className="h-9 px-1.5 border-r flex-shrink-0"
+            onClick={() => scrollTabs('left')}
+            title="Scroll tabs left"
+            aria-label="Scroll tabs left"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+        )}
 
-        {/* Tab Group Manager Button */}
+        {/* Horizontally scrollable tab strip. Mouse wheel → horizontal scroll
+            via onWheel. scroll-snap keeps tabs aligned to their left edge. */}
+        <div
+          ref={scrollRef}
+          data-testid="tab-bar-scroll"
+          className={cn(
+            "flex items-stretch flex-1 min-w-0 overflow-x-auto overflow-y-hidden",
+            "[scrollbar-width:thin]",
+            "[scroll-snap-type:x_proximity]"
+          )}
+          onWheel={(e) => {
+            // Vertical wheel → horizontal scroll (standard on tab bars). Only
+            // intercept when the scroll container actually has horizontal
+            // overflow, otherwise let the event bubble so nothing breaks on
+            // narrow dev viewports.
+            const el = scrollRef.current;
+            if (!el) return;
+            if (el.scrollWidth <= el.clientWidth) return;
+            // If the user is using shift+wheel or a trackpad with horizontal
+            // intent, deltaX is non-zero and the browser handles it for us.
+            if (e.deltaY !== 0 && Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
+              el.scrollLeft += e.deltaY;
+            }
+          }}
+        >
+          {renderItems.map((item) => {
+            if (item.type === 'group') {
+              const group = item.data as typeof tabGroups[0];
+              const groupTabs = openTabs.filter((tab) => tab.groupId === group.id);
+              return renderGroupHeader(group, groupTabs);
+            } else {
+              const tab = item.data as typeof openTabs[0];
+              return renderTab(tab, openTabs.indexOf(tab));
+            }
+          })}
+        </div>
+
+        {/* Right scroll arrow — only visible when there's more to the right */}
+        {canScrollRight && (
+          <Button
+            data-testid="tab-bar-scroll-right"
+            variant="ghost"
+            size="sm"
+            className="h-9 px-1.5 border-l flex-shrink-0"
+            onClick={() => scrollTabs('right')}
+            title="Scroll tabs right"
+            aria-label="Scroll tabs right"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        )}
+
+        {/* Tab Group Manager Button (stays outside scroll, always visible) */}
         <Button
           variant="ghost"
           size="sm"
-          className="h-9 px-2 border-r"
+          className="h-9 px-2 border-l flex-shrink-0"
           onClick={() => setShowGroupManager(true)}
           title="Manage Tab Groups"
         >
           <Settings className="h-3.5 w-3.5" />
         </Button>
 
-        {/* Overflow Menu */}
-        {overflowItems.length > 0 && (
-          <DropdownMenu open={showOverflowMenu} onOpenChange={setShowOverflowMenu}>
+        {/* All-tabs overflow menu — useful even when tabs fit, as a quick jump
+            list. Rendered outside scroll so it's always reachable. */}
+        {renderItems.length > 0 && (
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
+                data-testid="tab-bar-overflow"
                 variant="ghost"
                 size="sm"
-                className="h-9 px-2 border-r text-xs gap-1"
+                className="h-9 px-2 border-l flex-shrink-0"
+                title="All open tabs"
+                aria-label="All open tabs"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
-                +{overflowItems.length} more
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-h-[300px] overflow-y-auto">
-              {overflowItems.map((item) => {
+              {renderItems.map((item) => {
                 if (item.type === 'tab') {
                   const tab = item.data as typeof openTabs[0];
                   return (
