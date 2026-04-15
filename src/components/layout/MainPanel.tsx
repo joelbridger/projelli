@@ -65,6 +65,7 @@ import { markdownToDocxBytes } from '@/utils/docx-io';
 import { markdownToPptxBytes } from '@/utils/pptx-io';
 import { detectLibreOffice, convertDocToDocx } from '@/utils/tauri-commands';
 import { isTauriEnvironment } from '@/modules/workspace/BackendFactory';
+import { withShortcut } from '@/utils/shortcuts';
 
 /**
  * Check if a file is a whiteboard file
@@ -628,7 +629,7 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
               size="sm"
               className="h-6 px-2 ml-2 text-xs flex items-center gap-1"
               onClick={handleCloseSplit}
-              title="Close split view"
+              title={withShortcut('Close split view', ['Ctrl', '\\'])}
             >
               <X className="h-3 w-3" />
               Close
@@ -684,7 +685,10 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
         </div>
         <div className="flex items-center gap-1 px-2 border-l">
           {/* Auto-save indicator */}
-          <span className="text-xs text-muted-foreground flex items-center gap-1 mr-2">
+          <span
+            className="text-xs text-muted-foreground flex items-center gap-1 mr-2"
+            title={withShortcut('Auto-save is on. Force save now', ['Ctrl', 'S'])}
+          >
             <Save className="h-3 w-3" />
             Auto-save
           </span>
@@ -813,7 +817,8 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
             size="sm"
             className={cn('h-7 w-7 p-0', showOutline && 'bg-accent')}
             onClick={toggleOutline}
-            title="Toggle outline panel (Ctrl+Shift+O)"
+            title={withShortcut('Toggle outline panel', ['Ctrl', 'Shift', 'O'])}
+            aria-label={withShortcut('Toggle outline panel', ['Ctrl', 'Shift', 'O'])}
           >
             <List className="h-4 w-4" />
           </Button>
@@ -822,7 +827,8 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
             size="sm"
             className={cn('h-7 w-7 p-0', showBacklinks && 'bg-accent')}
             onClick={toggleBacklinks}
-            title="Toggle backlinks panel (Ctrl+Shift+B)"
+            title={withShortcut('Toggle backlinks panel', ['Ctrl', 'Shift', 'B'])}
+            aria-label={withShortcut('Toggle backlinks panel', ['Ctrl', 'Shift', 'B'])}
           >
             <Link2 className="h-4 w-4" />
           </Button>

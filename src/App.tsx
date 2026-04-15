@@ -17,6 +17,7 @@ import { StatusBar } from '@/components/layout/StatusBar';
 import { WorkflowPanel } from '@/components/workflow/WorkflowPanel';
 import { InterviewForm } from '@/components/workflow/InterviewForm';
 import { CommandPalette, getDefaultCommands, type PaletteCommand } from '@/components/common/CommandPalette';
+import { ShortcutsOverlay } from '@/components/ShortcutsOverlay';
 import { SourceCardPanel } from '@/components/research/SourceCardPanel';
 import { SearchPanel } from '@/components/search/SearchPanel';
 import { AuditLog } from '@/components/common/AuditLog';
@@ -78,6 +79,7 @@ function App() {
 
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showShortcutsOverlay, setShowShortcutsOverlay] = useState(false);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
@@ -1621,6 +1623,22 @@ This file contains rules and guidelines for AI assistants in this workspace.
         setSidebarActiveTab('ai-assistant');
         return;
       }
+
+      // Keyboard shortcuts overlay: `?` (literal character, matches any
+      // layout — on US keyboards it's Shift+/; using e.key === '?' avoids
+      // worrying about layout-specific key codes).
+      // Do not trigger when focus is inside an editable element.
+      if (e.key === '?' && !isMod && !e.altKey) {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName?.toLowerCase();
+        const editable = target?.isContentEditable;
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || editable) {
+          return;
+        }
+        e.preventDefault();
+        setShowShortcutsOverlay(true);
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -1810,6 +1828,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
         open={showCommandPalette}
         onOpenChange={setShowCommandPalette}
         commands={commands}
+      />
+
+      {/* Keyboard Shortcuts Overlay (UX-10) */}
+      <ShortcutsOverlay
+        open={showShortcutsOverlay}
+        onOpenChange={setShowShortcutsOverlay}
       />
 
       {/* Audio Recorder Modal */}
