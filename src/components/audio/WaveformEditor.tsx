@@ -61,6 +61,20 @@ function bufferBytes(buffer: AudioBuffer): number {
   return buffer.length * buffer.numberOfChannels * 4;
 }
 
+/**
+ * Module-level session cache for edited audio buffers, keyed by filename.
+ * Persists across tab switches so a user can click away from a file and
+ * come back to find their edits intact. Cleared on app reload.
+ *
+ * Each entry stores the full history stack so undo/redo survives too.
+ */
+interface SessionAudioState {
+  history: AudioBuffer[];
+  historyIndex: number;
+  clipboard: AudioBuffer | null;
+}
+const sessionCache = new Map<string, SessionAudioState>();
+
 export function WaveformEditor({
   audioSrc,
   filename,
@@ -143,9 +157,25 @@ export function WaveformEditor({
       if (!isReloadingFromBufferRef.current) {
         const buf = wavesurfer.getDecodedData();
         if (buf) {
-          setHistory([buf]);
-          setHistoryIndex(0);
-          historyIndexRef.current = 0;
+          // Check session cache: if the user previously edited this file
+          // and switched tabs, restore their work.
+          const cached = sessionCache.get(filename);
+          if (cached && cached.history.length > 0) {
+            setHistory(cached.history);
+            setHistoryIndex(cached.historyIndex);
+            historyIndexRef.current = cached.historyIndex;
+            setClipboard(cached.clipboard);
+            // Replay the cached current buffer into the waveform
+            const currentBuf = cached.history[cached.historyIndex];
+            if (currentBuf && currentBuf !== buf) {
+              // Reload from cache — fire-and-forget, flag prevents re-seed
+              void reloadWaveformFromBuffer(currentBuf);
+            }
+          } else {
+            setHistory([buf]);
+            setHistoryIndex(0);
+            historyIndexRef.current = 0;
+          }
         }
       }
       isReloadingFromBufferRef.current = false;
@@ -256,6 +286,23 @@ export function WaveformEditor({
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex >= 0 && historyIndex < history.length - 1;
+
+  // Persist state to session cache so edits survive tab switches within
+  // the same app session. If the only entry is the original buffer (nothing
+  // has been edited), clear the cache so we don't hold the memory forever.
+  useEffect(() => {
+    if (history.length === 0) return;
+    if (history.length === 1 && historyIndex === 0 && !clipboard) {
+      // Nothing edited — don't populate cache
+      sessionCache.delete(filename);
+      return;
+    }
+    sessionCache.set(filename, {
+      history,
+      historyIndex,
+      clipboard,
+    });
+  }, [filename, history, historyIndex, clipboard]);
 
   const togglePlayPause = useCallback(() => {
     if (wavesurferRef.current) {
@@ -991,24 +1038,29 @@ function formatDuration(seconds: number): string {
  * Convert AudioBuffer to WAV blob
  */
 async function audioBufferToWav(audioBuffer: AudioBuffer): Promise<Blob> {
+  // Write as 32-bit float WAV (format code 3, "IEEE float") — LOSSLESS
+  // roundtrip of Float32 AudioBuffer samples. Using 16-bit PCM here
+  // quantizes every edit, and after N edits the accumulated loss makes
+  // the audio sound "filtered" and distant.
   const numberOfChannels = audioBuffer.numberOfChannels;
-  const length = audioBuffer.length * numberOfChannels * 2;
-  const buffer = new ArrayBuffer(44 + length);
+  const bytesPerSample = 4; // 32-bit float
+  const dataLength = audioBuffer.length * numberOfChannels * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataLength);
   const view = new DataView(buffer);
 
   writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + length, true);
+  view.setUint32(4, 36 + dataLength, true);
   writeString(view, 8, 'WAVE');
   writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
+  view.setUint32(16, 16, true);              // fmt chunk size
+  view.setUint16(20, 3, true);               // format code 3 = IEEE float
   view.setUint16(22, numberOfChannels, true);
   view.setUint32(24, audioBuffer.sampleRate, true);
-  view.setUint32(28, audioBuffer.sampleRate * numberOfChannels * 2, true);
-  view.setUint16(32, numberOfChannels * 2, true);
-  view.setUint16(34, 16, true);
+  view.setUint32(28, audioBuffer.sampleRate * numberOfChannels * bytesPerSample, true); // byte rate
+  view.setUint16(32, numberOfChannels * bytesPerSample, true); // block align
+  view.setUint16(34, 32, true);              // 32 bits per sample
   writeString(view, 36, 'data');
-  view.setUint32(40, length, true);
+  view.setUint32(40, dataLength, true);
 
   const channels: Float32Array[] = [];
   for (let i = 0; i < numberOfChannels; i++) {
@@ -1018,9 +1070,9 @@ async function audioBufferToWav(audioBuffer: AudioBuffer): Promise<Blob> {
   let offset = 44;
   for (let i = 0; i < audioBuffer.length; i++) {
     for (let channel = 0; channel < numberOfChannels; channel++) {
-      const sample = Math.max(-1, Math.min(1, channels[channel]![i]!));
-      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
-      offset += 2;
+      const sample = channels[channel]![i]!;
+      view.setFloat32(offset, sample, true);
+      offset += 4;
     }
   }
 
