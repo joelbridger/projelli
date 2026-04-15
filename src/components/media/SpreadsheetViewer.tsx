@@ -5,7 +5,7 @@
 // double-click or Enter/F2 to edit, Tab/Enter to commit, Esc to cancel.
 // Formula cells show a small `ƒ` indicator and edit the formula string itself.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ExternalLink,
@@ -194,6 +194,9 @@ export function SpreadsheetViewer({
           }}
         />
       )}
+      {editable && (
+        <FormulaBar sheet={activeSheet} selected={selected} />
+      )}
       <SheetGrid
         sheet={activeSheet}
         editable={editable}
@@ -229,6 +232,85 @@ export function SpreadsheetViewer({
           setSelected(moveSelection(activeSheet, selected, dir));
         }}
       />
+      {editable && <SelectionSummary sheet={activeSheet} selected={selected} />}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Formula bar — shows `[A1]  =B2*1.1` above the grid when a cell is selected.
+// Read-only for now; the inline cell editor is the only way to change values.
+// ---------------------------------------------------------------------------
+
+interface FormulaBarProps {
+  sheet: SheetData;
+  selected: CellPos | null;
+}
+
+function FormulaBar({ sheet, selected }: FormulaBarProps) {
+  // Always render so the grid's vertical position is stable; when no cell
+  // is selected, show an empty cell-reference box and blank content. If the
+  // bar only rendered when `selected` was non-null, the first click would
+  // shift the grid down by the bar's height, causing the second click of a
+  // dblclick to land on the wrong cell.
+  const cell = selected ? sheet.rows[selected.row]?.[selected.col] ?? null : null;
+  const ref = selected ? `${columnIndexToLetter(selected.col)}${selected.row + 1}` : '';
+  const content = cell?.formula
+    ? `=${cell.formula}`
+    : cell?.display ?? '';
+
+  return (
+    <div
+      data-testid="spreadsheet-formula-bar"
+      className="flex items-center border-b bg-background px-2 py-1 gap-2 text-xs font-mono"
+    >
+      <span
+        data-testid="spreadsheet-formula-bar-ref"
+        className="inline-flex items-center justify-center min-w-[48px] px-2 py-0.5 rounded-sm bg-muted text-muted-foreground font-medium"
+      >
+        {ref || '\u00A0'}
+      </span>
+      <span
+        data-testid="spreadsheet-formula-bar-content"
+        className="flex-1 truncate"
+        title={content || undefined}
+      >
+        {content}
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Selection summary — below the grid, shows "Value: 10000" for a single
+// selected numeric cell. Keeps the app status bar clean for other file types.
+// ---------------------------------------------------------------------------
+
+interface SelectionSummaryProps {
+  sheet: SheetData;
+  selected: CellPos | null;
+}
+
+function SelectionSummary({ sheet, selected }: SelectionSummaryProps) {
+  const cell = selected ? sheet.rows[selected.row]?.[selected.col] ?? null : null;
+
+  let numeric: number | null = null;
+  if (cell) {
+    if (typeof cell.raw === 'number' && Number.isFinite(cell.raw)) {
+      numeric = cell.raw;
+    } else if (typeof cell.raw === 'string') {
+      const asNum = Number(cell.raw);
+      if (!Number.isNaN(asNum) && cell.raw.trim() !== '') numeric = asNum;
+    }
+  }
+
+  // Always render the footer so the grid height is stable (see FormulaBar).
+  return (
+    <div
+      data-testid="spreadsheet-selection-summary"
+      className="flex justify-end border-t bg-muted/30 px-3 py-1 text-xs font-mono text-muted-foreground min-h-[22px]"
+    >
+      {numeric !== null ? `Value: ${numeric}` : '\u00A0'}
     </div>
   );
 }
@@ -405,7 +487,7 @@ interface SheetGridProps {
   onCommitEdit: (pos: CellPos, value: string, nextMove: 'down' | 'right' | 'stay') => void;
   onCancelEdit: () => void;
   onDeleteCell: (pos: CellPos) => void;
-  onMoveSelection: (dir: 'up' | 'down' | 'left' | 'right') => void;
+  onMoveSelection: (dir: 'up' | 'down' | 'left' | 'right' | 'home' | 'end' | 'pageup' | 'pagedown' | 'top' | 'bottom') => void;
 }
 
 function SheetGrid({
@@ -426,18 +508,28 @@ function SheetGrid({
   // Pre-compute merge lookup tables once per sheet.
   const mergeMaps = useMemo(() => buildMergeMaps(sheet.merges), [sheet.merges]);
 
-  // Per-column widths: prefer workbook-declared widths (`wch`) converted to px;
-  // fall back to the default. The conversion factor (~7px/char) is the
-  // standard Excel approximation for the default 11pt Calibri.
-  const columnWidthsPx = useMemo(() => {
-    const widths: number[] = [];
-    for (let c = 0; c < colCount; c++) {
-      const wch = sheet.columnWidths?.[c];
-      const px = typeof wch === 'number' ? Math.max(40, Math.round(wch * 7)) : DEFAULT_COL_WIDTH_PX;
-      widths.push(px);
-    }
-    return widths;
-  }, [sheet.columnWidths, colCount]);
+  // Per-column widths. Initialized from content auto-sizing on first load and
+  // whenever the sheet changes, but stored in state so drag-to-resize can
+  // override per-column values. `userOverrides` tracks columns the user
+  // explicitly resized so later auto-size passes don't clobber them.
+  const [columnWidthsPx, setColumnWidthsPx] = useState<number[]>(() =>
+    computeAutoWidths(sheet, colCount)
+  );
+  const userOverridesRef = useRef<Set<number>>(new Set());
+  const lastSheetRef = useRef<SheetData | null>(null);
+
+  useEffect(() => {
+    // Re-compute auto widths when the sheet changes, preserving any columns
+    // the user has explicitly dragged. Cheap — runs O(rows × cols) once per
+    // sheet switch, capped at the sheet's actual size.
+    if (lastSheetRef.current === sheet) return;
+    lastSheetRef.current = sheet;
+    const fresh = computeAutoWidths(sheet, colCount);
+    setColumnWidthsPx((prev) => {
+      // Keep overrides, pull in new auto values for the rest.
+      return fresh.map((w, i) => (userOverridesRef.current.has(i) ? prev[i] ?? w : w));
+    });
+  }, [sheet, colCount]);
 
   const totalWidthPx = useMemo(
     () => ROW_HEADER_WIDTH_PX + columnWidthsPx.reduce((sum, w) => sum + w, 0),
@@ -446,6 +538,41 @@ function SheetGrid({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const shouldVirtualize = rowCount > VIRTUALIZE_ROW_THRESHOLD;
+
+  // Drag-to-resize state. Tracked via a ref so the mousemove handler reads
+  // the latest values without triggering re-renders per pixel.
+  const resizeRef = useRef<{ colIndex: number; startX: number; startWidth: number } | null>(null);
+
+  const onResizeStart = useCallback(
+    (colIndex: number, e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startWidth = columnWidthsPx[colIndex] ?? DEFAULT_COL_WIDTH_PX;
+      resizeRef.current = { colIndex, startX: e.clientX, startWidth };
+
+      const onMove = (ev: MouseEvent) => {
+        const r = resizeRef.current;
+        if (!r) return;
+        const delta = ev.clientX - r.startX;
+        const next = Math.max(40, r.startWidth + delta);
+        setColumnWidthsPx((prev) => {
+          const out = prev.slice();
+          out[r.colIndex] = next;
+          return out;
+        });
+      };
+      const onUp = () => {
+        const r = resizeRef.current;
+        if (r) userOverridesRef.current.add(r.colIndex);
+        resizeRef.current = null;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    },
+    [columnWidthsPx]
+  );
 
   const virtualizer = useVirtualizer({
     count: rowCount,
@@ -461,6 +588,8 @@ function SheetGrid({
     (e: React.KeyboardEvent<HTMLDivElement>) => {
       if (!editable || editingValue !== null) return;
       if (!selected) return;
+
+      const ctrlOrMeta = e.ctrlKey || e.metaKey;
 
       switch (e.key) {
         case 'ArrowUp':
@@ -479,6 +608,22 @@ function SheetGrid({
           e.preventDefault();
           onMoveSelection('right');
           break;
+        case 'Home':
+          e.preventDefault();
+          onMoveSelection(ctrlOrMeta ? 'top' : 'home');
+          break;
+        case 'End':
+          e.preventDefault();
+          onMoveSelection(ctrlOrMeta ? 'bottom' : 'end');
+          break;
+        case 'PageUp':
+          e.preventDefault();
+          onMoveSelection('pageup');
+          break;
+        case 'PageDown':
+          e.preventDefault();
+          onMoveSelection('pagedown');
+          break;
         case 'Enter':
         case 'F2': {
           e.preventDefault();
@@ -493,8 +638,10 @@ function SheetGrid({
           onDeleteCell(selected);
           break;
         default:
-          // Any printable character starts editing with that character.
-          if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          // Any printable character (no modifier) starts editing with that
+          // character. Ctrl/Meta-prefixed keys (Ctrl+C etc) pass through to
+          // the browser.
+          if (e.key.length === 1 && !ctrlOrMeta && !e.altKey) {
             e.preventDefault();
             onStartEdit(selected, e.key);
           }
@@ -504,20 +651,39 @@ function SheetGrid({
   );
 
   const headerRow = (
-    <div className="sticky top-0 z-20 flex bg-muted text-xs font-medium text-muted-foreground">
+    <div
+      role="row"
+      className="sticky top-0 z-20 flex bg-muted text-xs font-medium text-muted-foreground"
+    >
       <div
         className="sticky left-0 z-30 flex shrink-0 items-center justify-center border-b border-r bg-muted"
         style={{ width: ROW_HEADER_WIDTH_PX, height: ROW_HEIGHT_PX }}
       />
-      {columnWidthsPx.map((width, c) => (
-        <div
-          key={c}
-          className="flex shrink-0 items-center justify-center border-b border-r bg-muted px-1"
-          style={{ width, height: ROW_HEIGHT_PX }}
-        >
-          {columnIndexToLetter(c)}
-        </div>
-      ))}
+      {columnWidthsPx.map((width, c) => {
+        const letter = columnIndexToLetter(c);
+        return (
+          <div
+            key={c}
+            role="columnheader"
+            data-testid={`spreadsheet-column-header-${letter}`}
+            className="relative flex shrink-0 items-center justify-center border-b border-r bg-muted px-1"
+            style={{ width, height: ROW_HEIGHT_PX }}
+          >
+            {letter}
+            {/* Drag-to-resize handle: 4px-wide invisible strip on the right
+                edge. Pointer cursor + mousedown kicks off the resize loop. */}
+            <div
+              data-testid={`spreadsheet-column-resize-${letter}`}
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={`Resize column ${letter}`}
+              className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-blue-500/40"
+              style={{ zIndex: 10 }}
+              onMouseDown={(e) => onResizeStart(c, e)}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 
@@ -547,6 +713,10 @@ function SheetGrid({
       className="flex-1 overflow-auto bg-background outline-none"
       tabIndex={0}
       onKeyDown={handleGridKeyDown}
+      role="grid"
+      aria-rowcount={rowCount + 1 /* +1 for the header row */}
+      aria-colcount={colCount + 1 /* +1 for the row-number column */}
+      aria-readonly={!editable}
     >
       <div style={{ width: totalWidthPx, position: 'relative' }} className="font-mono text-xs">
         {headerRow}
@@ -629,9 +799,15 @@ function SheetRow({
   onCancelEdit,
 }: SheetRowProps) {
   return (
-    <div className="flex border-b" style={{ height: ROW_HEIGHT_PX }}>
+    <div
+      role="row"
+      aria-rowindex={rowIndex + 2 /* +2: header is row 1, data starts at 2 */}
+      className="flex border-b"
+      style={{ height: ROW_HEIGHT_PX }}
+    >
       {/* Row number — sticky left so it stays visible when scrolling horizontally. */}
       <div
+        role="rowheader"
         className="sticky left-0 z-10 flex shrink-0 items-center justify-center border-r bg-muted text-xs font-medium text-muted-foreground"
         style={{ width: ROW_HEADER_WIDTH_PX, height: ROW_HEIGHT_PX }}
       >
@@ -722,6 +898,8 @@ function Cell({
   onCancelEdit,
 }: CellProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const textSpanRef = useRef<HTMLSpanElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -729,6 +907,17 @@ function Cell({
       inputRef.current.select();
     }
   }, [isEditing]);
+
+  // Detect whether the display text is being ellipsized. If so, supply a
+  // `title` attribute so the browser shows a native tooltip on hover with
+  // the full text. Checking `scrollWidth > clientWidth` after layout is the
+  // idiomatic way to detect CSS ellipsis overflow.
+  useLayoutEffect(() => {
+    const el = textSpanRef.current;
+    if (!el) return;
+    const next = el.scrollWidth > el.clientWidth + 1; // 1px tolerance
+    setIsTruncated((prev) => (prev === next ? prev : next));
+  }, [cell?.display, width]);
 
   const testId = `spreadsheet-cell-${rowIndex}-${colIndex}`;
   const displayText = cell?.display ?? '';
@@ -739,6 +928,10 @@ function Cell({
       <div
         data-testid={testId}
         data-selected="true"
+        role="gridcell"
+        aria-rowindex={rowIndex + 2}
+        aria-colindex={colIndex + 2}
+        aria-readonly={false}
         className="flex shrink-0 items-center overflow-visible border-r p-0"
         style={{
           width,
@@ -772,20 +965,36 @@ function Cell({
     );
   }
 
+  // Prefer the richer formula tooltip when the cell has one; otherwise fall
+  // back to the full display text when it's truncated, and skip the tooltip
+  // entirely when the text fits (avoids noisy hover for short cells).
+  const titleText = cell?.formula
+    ? `=${cell.formula}`
+    : isTruncated
+    ? displayText
+    : undefined;
+
+  const cellStyle: CSSProperties = {
+    width,
+    height,
+    ...(isMerged ? { position: 'relative', zIndex: 1 } : null),
+  };
+
   return (
     <div
       data-testid={testId}
+      role="gridcell"
+      aria-rowindex={rowIndex + 2}
+      aria-colindex={colIndex + 2}
+      aria-selected={isSelected || undefined}
+      aria-readonly={true}
       {...(isSelected ? { 'data-testid-suffix': 'selected' } : {})}
       className={cn(
         'flex shrink-0 items-center overflow-hidden border-r px-1 py-0.5 cursor-cell',
         isSelected && 'ring-2 ring-blue-500 ring-inset z-10 relative'
       )}
-      style={{
-        width,
-        height,
-        ...(isMerged ? { position: 'relative', zIndex: 1 } : null),
-      }}
-      title={cell?.formula ? `=${cell.formula}` : cell?.display ?? undefined}
+      style={cellStyle}
+      {...(titleText !== undefined ? { title: titleText } : {})}
       onClick={() => {
         if (editable) onSelect({ row: rowIndex, col: colIndex });
       }}
@@ -804,7 +1013,7 @@ function Cell({
           Cell {columnIndexToLetter(colIndex)}{rowIndex + 1} selected
         </span>
       )}
-      <span className="truncate">{displayText}</span>
+      <span ref={textSpanRef} className="truncate">{displayText}</span>
       {hasFormula && (
         <span
           className="ml-1 text-[9px] text-blue-500 italic font-serif"
@@ -1113,11 +1322,47 @@ function deleteCol(
   return next;
 }
 
+/**
+ * Compute per-column widths from content length. Caps at 300px per column
+ * so one giant cell doesn't push the rest off-screen, with a 60px floor so
+ * narrow numeric columns still have breathing room. Prefers workbook-
+ * declared `columnWidths` (in Excel chars) when present.
+ */
+function computeAutoWidths(sheet: SheetData, colCount: number): number[] {
+  const widths: number[] = [];
+  for (let c = 0; c < colCount; c++) {
+    // If the workbook has an explicit width, respect that. The conversion
+    // factor (~7px/char) is the standard Excel approximation for 11pt Calibri.
+    const wch = sheet.columnWidths?.[c];
+    if (typeof wch === 'number') {
+      widths.push(Math.max(60, Math.min(300, Math.round(wch * 7))));
+      continue;
+    }
+
+    // Otherwise, scan the column's cells to find the longest display string
+    // and size off that. 8px/char is roughly the average width of the
+    // monospace `font-mono text-xs` we use for the grid.
+    let longest = 0;
+    for (const row of sheet.rows) {
+      const cell = row[c];
+      if (!cell) continue;
+      // Account for the "ƒ" formula indicator being rendered alongside.
+      const extra = cell.formula ? 2 : 0;
+      const len = (cell.display?.length ?? 0) + extra;
+      if (len > longest) longest = len;
+    }
+    const px = Math.max(60, Math.min(300, longest * 8 + 16 /* padding */));
+    widths.push(longest === 0 ? DEFAULT_COL_WIDTH_PX : px);
+  }
+  return widths;
+}
+
 function moveSelection(
   sheet: SheetData,
   from: CellPos,
-  dir: 'up' | 'down' | 'left' | 'right'
+  dir: 'up' | 'down' | 'left' | 'right' | 'home' | 'end' | 'pageup' | 'pagedown' | 'top' | 'bottom'
 ): CellPos {
+  const PAGE = 10;
   switch (dir) {
     case 'up':
       return { row: Math.max(0, from.row - 1), col: from.col };
@@ -1127,6 +1372,42 @@ function moveSelection(
       return { row: from.row, col: Math.max(0, from.col - 1) };
     case 'right':
       return { row: from.row, col: Math.min(sheet.columnCount - 1, from.col + 1) };
+    case 'home':
+      // Home → A of the current row
+      return { row: from.row, col: 0 };
+    case 'end': {
+      // End → last populated column of the current row
+      const row = sheet.rows[from.row];
+      if (!row) return { row: from.row, col: Math.max(0, sheet.columnCount - 1) };
+      let lastPopulated = 0;
+      for (let c = 0; c < row.length; c++) {
+        if (row[c] !== null) lastPopulated = c;
+      }
+      return { row: from.row, col: lastPopulated };
+    }
+    case 'pageup':
+      return { row: Math.max(0, from.row - PAGE), col: from.col };
+    case 'pagedown':
+      return { row: Math.min(sheet.rows.length - 1, from.row + PAGE), col: from.col };
+    case 'top':
+      return { row: 0, col: 0 };
+    case 'bottom': {
+      // Ctrl+End → bottom-right populated cell. Scan from the bottom-right
+      // inward for the last non-null cell.
+      let lastRow = 0;
+      let lastCol = 0;
+      for (let r = 0; r < sheet.rows.length; r++) {
+        const row = sheet.rows[r];
+        if (!row) continue;
+        for (let c = 0; c < row.length; c++) {
+          if (row[c] !== null) {
+            if (r > lastRow) lastRow = r;
+            if (c > lastCol) lastCol = c;
+          }
+        }
+      }
+      return { row: lastRow, col: lastCol };
+    }
   }
 }
 
