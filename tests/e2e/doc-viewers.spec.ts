@@ -131,7 +131,10 @@ test.describe('Document Viewers (Phase 1)', () => {
     );
   });
 
-  test('renders a .docx file inside the shadow-rooted viewer', async ({ page }) => {
+  test('renders a .docx file inside the editable TipTap surface', async ({ page }) => {
+    // Phase 3: the docx route became editable, so MainPanel wires in
+    // DocxEditor (TipTap) by default. The content is extracted via mammoth
+    // and rendered inside the editor's contenteditable surface.
     const dataUrl = readFixtureAsDataUrl('test.docx', MIME.docx);
     await openFixtureTab(page, {
       path: '/test-workspace/fixtures/test.docx',
@@ -139,15 +142,12 @@ test.describe('Document Viewers (Phase 1)', () => {
       content: dataUrl,
     });
 
-    const viewer = page.getByTestId('docx-viewer');
-    await expect(viewer).toBeVisible({ timeout: 20_000 });
+    const editor = page.getByTestId('docx-editor');
+    await expect(editor).toBeVisible({ timeout: 20_000 });
 
-    // Playwright's getByText pierces the open shadow root that docx-preview
-    // mounts into — both headings should be reachable through the host element.
-    await expect(viewer.getByText('Investor Update — January')).toBeVisible({
-      timeout: 20_000,
-    });
-    await expect(viewer.getByText('Next Steps')).toBeVisible();
+    const content = page.getByTestId('docx-editor-content');
+    await expect(content).toContainText('Investor Update', { timeout: 20_000 });
+    await expect(content).toContainText('Next Steps');
   });
 
   test('shows the docx error state when given invalid bytes', async ({ page }) => {
@@ -159,7 +159,7 @@ test.describe('Document Viewers (Phase 1)', () => {
       content: garbage,
     });
 
-    await expect(page.getByTestId('docx-error')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('docx-editor-error')).toBeVisible({ timeout: 20_000 });
   });
 
   test('legacy .doc files show a friendly fallback with download button', async ({ page }) => {
