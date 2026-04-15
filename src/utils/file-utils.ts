@@ -18,7 +18,7 @@ export function isBinaryFile(name: string): boolean {
     // Audio
     'mp3', 'wav', 'm4a',
     // Documents
-    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'rtf',
     // Archives
     'zip', 'rar', '7z', 'tar', 'gz',
   ];
@@ -79,6 +79,7 @@ export function getMimeType(name: string): string {
     xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     ppt: 'application/vnd.ms-powerpoint',
     pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    rtf: 'application/rtf',
     // Archives
     zip: 'application/zip',
     rar: 'application/x-rar-compressed',

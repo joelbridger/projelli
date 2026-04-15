@@ -1,4 +1,4 @@
-// Generate test fixture documents (.xlsx, .csv, .docx, .pptx) for the
+// Generate test fixture documents (.xlsx, .csv, .docx, .pptx, .rtf) for the
 // document-viewer Playwright suite. Re-run any time the suite needs fresh
 // fixtures:
 //   node tests/fixtures/generate.mjs
@@ -187,13 +187,39 @@ async function buildPptx() {
 }
 
 // ---------------------------------------------------------------------------
+// .rtf — minimal hand-written RTF with bold, italic, and a bulleted list
+// ---------------------------------------------------------------------------
+
+function buildRtf() {
+  // Hand-rolled RTF 1.x. We want this fixture to exercise:
+  //   - plain text
+  //   - \b bold
+  //   - \i italic
+  //   - \pntext bulleted list with literal \bullet char
+  //   - escaped braces (none needed here) and \par paragraph breaks
+  const rtf =
+    '{\\rtf1\\ansi\\ansicpg1252\\deff0{\\fonttbl{\\f0\\fnil\\fcharset0 Arial;}}\n' +
+    '\\viewkind4\\uc1\\pard\\f0\\fs22 ' +
+    'This is a simple RTF document. ' +
+    '{\\b bold text} and {\\i italic text} should survive the round-trip.\\par\n' +
+    '\\pard ' +
+    'A second paragraph with plain text to verify paragraph breaks.\\par\n' +
+    '{\\pntext\\f0\\bullet\\tab}First bullet item.\\par\n' +
+    '{\\pntext\\f0\\bullet\\tab}Second bullet item.\\par\n' +
+    '{\\pntext\\f0\\bullet\\tab}Third bullet item.\\par\n' +
+    '}';
+  writeFileSync(join(here, 'test.rtf'), rtf, 'ascii');
+}
+
+// ---------------------------------------------------------------------------
 
 buildXlsx();
 buildCsv();
 await buildDocx();
 await buildPptx();
+buildRtf();
 
 console.log(
-  'Wrote test.xlsx, test.csv, test.docx, test.pptx to',
+  'Wrote test.xlsx, test.csv, test.docx, test.pptx, test.rtf to',
   here
 );

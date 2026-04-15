@@ -26,6 +26,7 @@
 import { parseSpreadsheet, type SpreadsheetExtension, type SheetData } from './spreadsheet-io';
 import { extractDocxText } from './docx-io';
 import { extractPptxText } from './pptx-io';
+import { extractRtfText } from './rtf-io';
 
 /** Character cap before AI-bound text is truncated. ~50k Claude tokens. */
 export const MAX_EXTRACTED_CHARS = 200_000;
@@ -37,6 +38,7 @@ export type ExtractedSourceKind =
   | 'spreadsheet'
   | 'docx'
   | 'pptx'
+  | 'rtf'
   | 'text';
 
 export interface ExtractedContext {
@@ -126,10 +128,14 @@ export async function extractForAI(
     } else if (ext === 'md' || ext === 'markdown' || ext === 'txt') {
       rawText = content;
       sourceKind = 'text';
-    } else if (ext === 'rt' || ext === 'rtf') {
-      // TipTap persists `.rt` files as HTML. Strip tags down to plain text
-      // with a minimal regex — good enough for AI context, and avoids
-      // pulling in a DOM parser during extraction.
+    } else if (ext === 'rtf') {
+      // Real RTF file — decode via the dedicated parser so control words
+      // and `\uNNNN` escapes don't leak into the AI prompt.
+      rawText = await extractRtfText(content);
+      sourceKind = 'rtf';
+    } else if (ext === 'rt') {
+      // Projelli's internal `.rt` format — HTML-serialized TipTap state.
+      // Strip tags with a minimal regex so we don't pull in a DOM parser.
       rawText = content
         .replace(/<[^>]*>/g, ' ')
         .replace(/\s+/g, ' ')

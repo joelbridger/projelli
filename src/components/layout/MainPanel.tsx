@@ -29,6 +29,9 @@ const PresentationViewer = lazy(() =>
     default: m.PresentationViewer,
   }))
 );
+const RtfEditor = lazy(() =>
+  import('@/components/media/RtfEditor').then((m) => ({ default: m.RtfEditor }))
+);
 import { Whiteboard } from '@/components/whiteboard/Whiteboard';
 import { SourceFileEditor } from '@/components/research/SourceFileEditor';
 import { AIChatViewer } from '@/components/ai/AIChatViewer';
@@ -499,7 +502,8 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
       // Check if it's a markdown or text file for formatting support
       // .txt files now get full formatting toolbar (bold, italic, headers, etc.)
       const isMarkdown = extension === 'md' || extension === 'markdown' || extension === 'txt' || !extension;
-      const isRichText = extension === 'rtf' || extension === 'rt';
+      const isRtf = extension === 'rtf';
+      const isInternalRichText = extension === 'rt';
 
       if (isPreviewMode && isMarkdown && !isSecondary) {
         return (
@@ -510,8 +514,25 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
         );
       }
 
-      // Use WYSIWYG rich text editor for .rt and .rtf files
-      if (isRichText) {
+      // `.rtf` goes through the dedicated RtfEditor (Phase 6) which parses
+      // the RTF bytes and round-trips through TipTap. The legacy path that
+      // routed `.rtf` here as though it were the internal `.rt` format
+      // meant users saw raw RTF markup instead of a rendered document.
+      if (isRtf) {
+        return (
+          <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
+            <RtfEditor
+              src={tab.content}
+              fileName={tab.name}
+              onContentChange={onContentChange}
+              onFirstEdit={() => writeBackupIfNeeded(tab.path)}
+            />
+          </Suspense>
+        );
+      }
+
+      // Projelli's internal `.rt` format (HTML-serialized TipTap state).
+      if (isInternalRichText) {
         return (
           <RichTextEditor
             initialContent={tab.content}
