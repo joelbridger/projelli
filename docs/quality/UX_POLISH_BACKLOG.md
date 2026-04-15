@@ -241,7 +241,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-19: Drag-and-drop file upload to tree or editor
 **Priority:** P3
-**Status:** 📋
+**Status:** ✅ Done — hash: `dacc969`
 **Problem:** "Upload" is a button but users expect to drag files into the window. Most workspace apps (Notion, Obsidian, VS Code) support this.
 **Acceptance criteria:**
 - Dragging a file over the window shows a drop-zone overlay ("Drop to add to workspace")
@@ -253,7 +253,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-20: No "What's new" for version updates
 **Priority:** P3
-**Status:** 📋
+**Status:** ✅ Done — hash: `360ac39`
 **Problem:** When users update to a new version, no in-app changelog appears. Missed opportunity to highlight improvements.
 **Acceptance criteria:**
 - After version change, a dismissible toast/banner appears: "Updated to v1.x — see what's new"
@@ -264,7 +264,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-22: Tab close X always visible
 **Priority:** P3
-**Status:** 📋
+**Status:** ✅ Done — hash: `1b2cde9`
 **Problem:** Every open tab shows a close X. Visual noise with many tabs. Chrome/Arc show X only on hover.
 **Acceptance criteria:**
 - Close X shows only when tab is hovered or active
@@ -275,7 +275,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-23: Collapsed sidebar has unlabeled icons
 **Priority:** P3
-**Status:** 📋
+**Status:** ✅ Done — hash: `496deb7`
 **Problem:** "Collapse sidebar" hides labels. Collapsed state shows just icons with no tooltips on hover.
 **Acceptance criteria:**
 - When sidebar is collapsed, each icon has a tooltip with its label
@@ -286,7 +286,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-24: Version history confusing for non-versioned types
 **Priority:** P3
-**Status:** 📋
+**Status:** ✅ Done — hash: `7c7a12f`
 **Problem:** "History (0)" shows for binary docs (.xlsx/.docx) but these files don't participate in version tracking per `shouldVersionFile()`. Confusing for users.
 **Acceptance criteria:**
 - Hide the History button on file types that aren't versioned (per `shouldVersionFile`)
@@ -297,7 +297,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-25: Theme toggle doesn't respect system preference
 **Priority:** P3
-**Status:** 📋
+**Status:** ✅ Done — hash: `58e0d15`
 **Problem:** Theme toggle is binary (light/dark). No "system preference" option. Night mode users who change OS setting don't get automatic sync.
 **Acceptance criteria:**
 - Toggle cycles: light → dark → system (default: system)
@@ -309,7 +309,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-30: Word count on markdown/plain-text editors
 **Priority:** P3
-**Status:** 📋
+**Status:** ✅ Done — hash: `f1ed7b8`
 **Problem:** Phase 7 added word count to Docx/RTF editors but not to Markdown/Plain Text. Inconsistent.
 **Acceptance criteria:**
 - Markdown editor has same word-count footer (`247 words · 1,421 characters`)
@@ -393,5 +393,5 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 | Wave 2 | 2026-04-15 | `8d972bd` UX-04, `1c6bffb` UX-05, `1dc106b` UX-06, `7edffda` UX-07 | 11 new (3 onboarding-card + 3 welcome-dialog-copy + 5 empty-states), 87 total pass, 7 pre-existing failures unchanged (3 Claude Opus 4.5 model-id tests + 4 visual snapshots) | Added prominent API key setup card in MainPanel for BYOK onboarding (sessionStorage-dismissal, reappears after page reload). Welcome dialog now has elevator pitch + Learn more link + preview of docs/research/templates folders. New reusable EmptyState component applied to Files, Search, AI Audit, Trash, and Whiteboard panels; Workflows skipped (always has 15 templates). |
 | Wave 3 | 2026-04-15 | `e781fef` UX-08, `7aa7c25` UX-09, `636e967` UX-10, `4719c60` model-id fix | 19 new (7 api-keys-panel + 6 workflows-panel + 6 shortcuts-overlay), 109 total pass, 4 pre-existing visual-snapshot failures unchanged (ai-models-tab, file-tree, breadcrumb-nav, status-bar). The 3 model-id tests that were red since Wave 1 are now green. Updated ai-keys-tab snapshot to match the new UX-08 layout. | API Keys panel now renders all 3 providers simultaneously with Get key, Test, Clear, masked display, and Valid/Invalid/Not tested status chip. Workflows sidebar panel fills available height via flex layout + exposes a full-view modal with 3-column grid and search. Keyboard-shortcuts overlay (`?` hotkey, focus-aware) lists every shortcut from a new SSOT at src/utils/shortcuts.ts; overlay has a visible DialogTitle. Tooltip audit added shortcut hints on MainPanel toolbar + TabBar close-X. |
 | Wave 4 | 2026-04-15 | `69a05dc` UX-11, `df5eec1` UX-12, `36554df` UX-13, `49d68c0` UX-14, `b52d7ff` UX-15, `5e2a4e7` UX-16, `008bbb7` UX-17, `b4cc38f` UX-18, `a0b0ac4` fixes | 12 new spec files / tests (sidebar-icons, editor-toolbar-overflow, breadcrumbs, create-file-dialog, destructive-actions, auto-save-indicator, updated spreadsheet-improvements), 121 total pass, 3 pre-existing visual-snapshot failures unchanged (ai-models-tab, file-tree, grid-view-breadcrumbs). The status-bar visual snapshot was intentionally regenerated for the UX-14 breadcrumb layout. | Research + every other sidebar tab icon now inherits the same currentColor so no tab looks permanently tinted. Workflow cards use `line-clamp-2 break-words` + `title` tooltip, killing the one-word-per-line wrap at narrow widths. MainPanel toolbar collapses History/Split/Outline/Backlinks/Export into a `…` DropdownMenu via ResizeObserver when container width < 900px; Save/Auto-save/Download stay inline. StatusBar renders per-segment clickable breadcrumbs with chevrons and a `…` overflow DropdownMenu for paths with >4 segments; clicking a segment expands the FileTree sidebar to that folder. PromptDialog extended with `destinationPath` + `previewExtension` so every "New X" flow shows "Creating in /docs/" and a live filename preview. New in-app UndoToast shows "File moved to Trash — Undo" for 10s after delete; bulk delete uses the app's ConfirmDialog instead of window.confirm; Ctrl+Z reverts the most recent rename per session. Replaced the static "Auto-save" badge with a reactive AutoSaveIndicator state machine (idle → dirty → saving → saved-recent → error) with spinner + "Saved · Ns ago" updating every second. Spreadsheet formula bar + selection summary render at 5px thin divider before any selection in viewer mode, expanding to full size on first click; editable mode keeps the bar always-expanded to protect the dblclick-to-edit flow. |
-| Wave 5 | _pending_ | | | |
+| Wave 5 | 2026-04-15 | `dacc969` UX-19, `360ac39` UX-20, `1b2cde9` UX-22, `496deb7` UX-23, `7c7a12f` UX-24, `58e0d15` UX-25, `f1ed7b8` UX-30 | 17 new spec files/tests (drag-drop, whats-new, tab-close-visibility, sidebar-collapsed-tooltips, history-hidden-nonversioned, theme-system, word-count-md-txt), 138 total pass, 3 pre-existing visual-snapshot failures unchanged (ai-models-tab, file-tree, grid-view-breadcrumbs). | Dragging files anywhere onto the window now shows a dashed drop overlay and lands files in the nearest folder (or workspace root); duplicates get `(1)`, `(2)` suffixes; `.DS_Store` noise filtered out. After a version bump `useWhatsNew` compares the bundled changelog top entry against `localStorage['projelli:lastSeenVersion']` and shows a dismissible bottom-left toast that opens a per-release highlights modal; first-time users see nothing. TabBar close X now renders at `opacity-0` by default, `opacity-100` on active tab / group hover / keyboard focus so inactive tabs feel quiet. Sidebar in collapsed mode wraps every icon in a Radix tooltip via a root `TooltipProvider` (300ms delay, 100ms skip-delay) showing label + optional keyboard shortcut; added `@radix-ui/react-tooltip` dependency. MainPanel auto-closes the right-panel History tab when the active file switches to a non-versioned type so `.xlsx` no longer inherits a stale History view. Theme state upgraded from binary to `'light' \| 'dark' \| 'system'` with a matchMedia subscription; toggle cycles system → light → dark → system with Monitor/Sun/Moon icons. Shared `WordCountFooter` component added to MarkdownEditor + PlainTextEditor with the same `editor-word-count` testid as the TipTap editors. |
 | Wave 6 | _pending_ | | | |
