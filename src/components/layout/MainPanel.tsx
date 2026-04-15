@@ -8,6 +8,7 @@ import {
   markApiKeyCardDismissed,
 } from '@/components/onboarding/ApiKeySetupCard';
 import { TabBar } from '@/components/editor/TabBar';
+import { AutoSaveIndicator } from '@/components/editor/AutoSaveIndicator';
 import { MarkdownEditor, type MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
@@ -58,7 +59,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FileText, List, Link2, PanelRightClose, FileType, X, Save, History, Download, ChevronDown, Loader2, MoreHorizontal, Columns, Rows } from 'lucide-react';
+import { FileText, List, Link2, PanelRightClose, FileType, X, History, Download, ChevronDown, Loader2, MoreHorizontal, Columns, Rows } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/utils/saveFile';
 import { markdownToDocxBytes } from '@/utils/docx-io';
@@ -764,14 +765,20 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
           <TabBar {...(onRename ? { onRenameFile: onRename } : {})} />
         </div>
         <div className="flex items-center gap-1 px-2 border-l">
-          {/* Auto-save indicator — always visible (critical status). */}
-          <span
-            className="text-xs text-muted-foreground flex items-center gap-1 mr-2"
-            title={withShortcut('Auto-save is on. Force save now', ['Ctrl', 'S'])}
-          >
-            <Save className="h-3 w-3" />
-            Auto-save
-          </span>
+          {/*
+            UX-17: reactive auto-save indicator. Shows "Saved · Ns ago"
+            when clean, "Unsaved changes" when dirty, and updates every
+            second via the indicator's own setInterval. The saving and
+            error states are reserved for future use when the auto-save
+            subscription surfaces those states — for now we simply
+            reflect dirty/clean.
+          */}
+          <AutoSaveIndicator
+            isDirty={!!activeTab?.isDirty}
+            {...(activeTab?.lastSaved !== undefined
+              ? { lastSavedAt: activeTab.lastSaved }
+              : {})}
+          />
 
           {/* Download — always visible (critical action). */}
           {activeTab && (
