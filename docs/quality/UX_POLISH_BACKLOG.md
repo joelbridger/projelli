@@ -25,7 +25,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-01: Welcome dialog has no functional dismiss
 **Priority:** P0
-**Status:** 📋
+**Status:** ✅ Done — hash: `dc3f2c8`
 **Problem:** On first run with no workspace, the Welcome to Projelli dialog shows a close X button. Clicking it does nothing. Pressing Escape does nothing. Dialog stays up indefinitely. First-run users see a broken product.
 **Acceptance criteria:**
 - Clicking the X closes the dialog AND returns the user to either the workspace-selection state or an empty app state where they can still reopen the dialog via command palette
@@ -36,7 +36,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-02: Command palette missing DialogTitle (a11y error)
 **Priority:** P0
-**Status:** 📋
+**Status:** ✅ Done — hash: `8c717b5`
 **Problem:** Ctrl+K opens the command palette. Radix logs `DialogContent` requires a `DialogTitle` for the component to be accessible — this is an ERROR not a warning. Screen reader users get no context for the dialog.
 **Acceptance criteria:**
 - Add `<DialogTitle>` (using `VisuallyHidden` or `className="sr-only"` if no visible title is wanted)
@@ -46,7 +46,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-03: Sidebar nav tabs aren't tabs (a11y)
 **Priority:** P0
-**Status:** 📋
+**Status:** ✅ Done — hash: `a094d45`
 **Problem:** Sidebar section buttons (Files/Search/Workflows/etc.) use `role="button"`. The pattern is a tablist — screen readers won't announce arrow-key navigation or which tab is selected.
 **Acceptance criteria:**
 - Container uses `role="tablist"` with `aria-orientation="vertical"`
@@ -389,7 +389,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 | Wave | Date | Commit | Tests pass | Notes |
 |---|---|---|---|---|
-| Wave 1 | _pending_ | | | |
+| Wave 1 | 2026-04-15 | `dc3f2c8` UX-01, `8c717b5` UX-02, `a094d45` UX-03 | 9 new, 77 existing (7 pre-existing visual snapshot failures untouched) | Welcome dialog is now strictly blocking on first run (X hidden, Escape suppressed); dismissible when a workspace exists behind it. Command palette has sr-only DialogTitle. Sidebar nav is a proper ARIA tablist with arrow-key navigation. |
 | Wave 2 | _pending_ | | | |
 | Wave 3 | _pending_ | | | |
 | Wave 4 | _pending_ | | | |
