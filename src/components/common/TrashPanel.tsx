@@ -175,7 +175,13 @@ export function TrashPanel({
             panelName="trash"
             icon={Trash2}
             title="Trash is empty"
-            description="Deleted files live here for 30 days before being removed permanently. Restore any file from here back to its original folder."
+            description={
+              retentionPeriod === 'never'
+                ? 'Deleted files live here until you empty the trash. Restore any file from here back to its original folder.'
+                : retentionPeriod === 'custom'
+                  ? `Deleted files live here for ${customRetentionDays} day${customRetentionDays === 1 ? '' : 's'} before being removed permanently. Restore any file from here back to its original folder.`
+                  : `Deleted files live here for ${retentionPeriod} days before being removed permanently. Restore any file from here back to its original folder.`
+            }
           />
         ) : (
           <div className="divide-y">

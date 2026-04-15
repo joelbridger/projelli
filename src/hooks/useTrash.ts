@@ -42,8 +42,35 @@ export function useTrash({ rootPath, workspaceServiceRef }: UseTrashOptions): Us
     totalSize: 0,
     oldestItem: undefined,
   });
-  const [trashRetentionPeriod, setTrashRetentionPeriod] = useState<'never' | 7 | 30 | 90 | 'custom'>('never');
-  const [trashCustomRetentionDays, setTrashCustomRetentionDays] = useState(30);
+  // UX-29: default retention is 30 days (matches the in-app copy). Prior
+  // installs that explicitly picked a retention period keep their choice;
+  // otherwise first-load lands on 30d so auto-purge actually runs.
+  const [trashRetentionPeriod, setTrashRetentionPeriod] = useState<'never' | 7 | 30 | 90 | 'custom'>(() => {
+    if (typeof window === 'undefined') return 30;
+    try {
+      const raw = localStorage.getItem('trashRetentionPeriod');
+      if (!raw) return 30;
+      if (raw === 'never' || raw === 'custom') return raw;
+      const n = Number(raw);
+      if (n === 7 || n === 30 || n === 90) return n;
+    } catch {
+      // Ignore storage errors and fall through to default.
+    }
+    return 30;
+  });
+  const [trashCustomRetentionDays, setTrashCustomRetentionDays] = useState<number>(() => {
+    if (typeof window === 'undefined') return 30;
+    try {
+      const raw = localStorage.getItem('trashCustomRetentionDays');
+      if (raw) {
+        const n = parseInt(raw, 10);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+    } catch {
+      // Ignore
+    }
+    return 30;
+  });
 
   // Use ref to avoid stale closure issues in interval
   const trashItemsRef = useRef<TrashedItem[]>(trashItems);

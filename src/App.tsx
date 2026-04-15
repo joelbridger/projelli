@@ -217,6 +217,14 @@ function App() {
   // "session" is literally the current tab's lifetime.
   const renameHistoryRef = useRef<Array<{ fromPath: string; toPath: string }>>([]);
 
+  // UX-29: session-scoped delete history so Ctrl+Z can restore the most
+  // recent deletion. We keep just the trash `id` — `handleRestoreFromTrash`
+  // resolves it back to the original path. The combined `undoStackRef`
+  // below records the order of destructive actions so Ctrl+Z always undoes
+  // the most recent of any kind.
+  const deleteHistoryRef = useRef<Array<string>>([]);
+  const undoStackRef = useRef<Array<'rename' | 'delete'>>([]);
+
   // Auto-expand all folders when file tree is first loaded or changes
   useEffect(() => {
     if (fileTree.length > 0 && expandedPaths.size === 0 && rootPath) {
@@ -557,11 +565,23 @@ function App() {
           onUndo: async () => {
             try {
               await handleRestoreFromTrash(trashedItem.id);
+              // UX-29: once undone via the toast, drop the corresponding
+              // entry so Ctrl+Z doesn't try to restore it a second time.
+              const idx = deleteHistoryRef.current.lastIndexOf(trashedItem.id);
+              if (idx >= 0) deleteHistoryRef.current.splice(idx, 1);
+              const stackIdx = undoStackRef.current.lastIndexOf('delete');
+              if (stackIdx >= 0) undoStackRef.current.splice(stackIdx, 1);
             } catch (err) {
               console.error('Failed to undo delete:', err);
             }
           },
         });
+
+        // UX-29: record the deletion on the session-scoped delete history
+        // so Ctrl+Z can restore it even after the toast has expired
+        // (within the same session).
+        deleteHistoryRef.current.push(trashedItem.id);
+        undoStackRef.current.push('delete');
       } catch (error) {
         console.error('Failed to delete:', error);
       }
@@ -847,6 +867,10 @@ function App() {
         const parent = path.substring(0, path.lastIndexOf('/'));
         const newPath = `${parent}/${newName}`;
         renameHistoryRef.current.push({ fromPath: path, toPath: newPath });
+        // UX-29: track the kind of action so Ctrl+Z can undo the most
+        // recent destructive change (either rename OR delete), not just
+        // the most recent rename.
+        undoStackRef.current.push('rename');
       } catch (error) {
         console.error('Failed to rename:', error);
       }
@@ -879,6 +903,9 @@ function App() {
 
         // UX-16: track the rename for session-level Ctrl+Z undo.
         renameHistoryRef.current.push({ fromPath: oldPath, toPath: newPath });
+        // UX-29: push onto the combined undo stack so Ctrl+Z knows which
+        // stack to pop.
+        undoStackRef.current.push('rename');
       } catch (error) {
         console.error('Failed to rename:', error);
       }
@@ -1770,9 +1797,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
         return;
       }
 
-      // UX-16: Ctrl+Z outside any input undoes the most recent rename in
-      // this session. We explicitly skip when focus is in an editor-like
-      // element so normal text-editing undo behaviour is preserved.
+      // UX-16 / UX-29: Ctrl+Z outside any input undoes the most recent
+      // destructive action in this session — either a rename OR a delete.
+      // We explicitly skip when focus is in an editor-like element so
+      // normal text-editing undo behaviour is preserved.
       if (isMod && !e.shiftKey && e.key === 'z') {
         const target = e.target as HTMLElement | null;
         const tag = target?.tagName?.toLowerCase();
@@ -1780,9 +1808,32 @@ This file contains rules and guidelines for AI assistants in this workspace.
         if (tag === 'input' || tag === 'textarea' || tag === 'select' || editable) {
           return;
         }
-        const last = renameHistoryRef.current.pop();
-        if (!last || !workspaceServiceRef.current) return;
+        if (!workspaceServiceRef.current) return;
+
+        // Pop whichever action was most recent. If the top of the stack
+        // refers to a delete that's already gone (e.g. user clicked
+        // Undo in the toast), fall through to the next entry.
+        const kind = undoStackRef.current.pop();
+        if (!kind) return;
         e.preventDefault();
+
+        if (kind === 'delete') {
+          const trashId = deleteHistoryRef.current.pop();
+          if (!trashId) return;
+          try {
+            await handleRestoreFromTrash(trashId);
+          } catch (err) {
+            console.error('Failed to undo delete:', err);
+            // Push it back so a subsequent Ctrl+Z can retry.
+            deleteHistoryRef.current.push(trashId);
+            undoStackRef.current.push('delete');
+          }
+          return;
+        }
+
+        // kind === 'rename'
+        const last = renameHistoryRef.current.pop();
+        if (!last) return;
         try {
           // Recover the original file name from the original path we stored.
           const originalName = last.fromPath.split('/').pop() ?? '';
@@ -1799,6 +1850,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
           console.error('Failed to undo rename:', err);
           // Push it back so a subsequent Ctrl+Z can retry.
           renameHistoryRef.current.push(last);
+          undoStackRef.current.push('rename');
         }
         return;
       }
@@ -1806,7 +1858,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, setFileTree, handleFileOpen]);
+  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, setFileTree, handleFileOpen, handleRestoreFromTrash]);
 
   // Show workspace selector if no workspace is open (unless in test mode)
   if (!IS_TEST_MODE && (showWorkspaceSelector || !rootPath)) {
