@@ -39,3 +39,21 @@ export async function convertDocToDocx(inputPath: string): Promise<string> {
   }
   return invoke<string>('convert_doc_to_docx', { inputPath });
 }
+
+/**
+ * Convert a `.ppt` or `.pptx` file to `.pdf` using LibreOffice in headless
+ * mode. The resulting PDF is cached under the OS temp directory so reopening
+ * the same file is instant; the cache is invalidated when the source file's
+ * mtime changes.
+ *
+ * @param inputPath absolute path to the `.ppt` or `.pptx` file
+ * @returns absolute path of the cached `.pdf` file
+ * @throws if LibreOffice isn't installed, the conversion fails, or we're in
+ *   the browser (preview is only available in the desktop app)
+ */
+export async function convertPptToPdf(inputPath: string): Promise<string> {
+  if (!isTauri()) {
+    throw new Error('PowerPoint preview is only available in the desktop app.');
+  }
+  return invoke<string>('convert_ppt_to_pdf', { inputPath });
+}

@@ -1,5 +1,6 @@
-// Generate test fixture documents (.xlsx, .csv, .docx) for the document-viewer
-// Playwright suite. Re-run any time the suite needs fresh fixtures:
+// Generate test fixture documents (.xlsx, .csv, .docx, .pptx) for the
+// document-viewer Playwright suite. Re-run any time the suite needs fresh
+// fixtures:
 //   node tests/fixtures/generate.mjs
 
 import { writeFileSync } from 'node:fs';
@@ -14,6 +15,7 @@ import {
   Paragraph,
   TextRun,
 } from 'docx';
+import PptxGenJS from 'pptxgenjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -124,9 +126,74 @@ async function buildDocx() {
 }
 
 // ---------------------------------------------------------------------------
+// .pptx — 2 slides: Q1 Review title + Revenue bullets
+// ---------------------------------------------------------------------------
+
+async function buildPptx() {
+  const pres = new PptxGenJS();
+  pres.layout = 'LAYOUT_WIDE';
+
+  // Slide 1: Title + subtitle
+  const s1 = pres.addSlide();
+  s1.addText('Q1 Review', {
+    x: 0.5,
+    y: 0.5,
+    w: 12.0,
+    h: 1.5,
+    fontSize: 44,
+    bold: true,
+    align: 'center',
+  });
+  s1.addText('January 2026', {
+    x: 0.5,
+    y: 2.2,
+    w: 12.0,
+    h: 0.8,
+    fontSize: 24,
+    color: '666666',
+    align: 'center',
+  });
+
+  // Slide 2: Revenue + bullet list
+  const s2 = pres.addSlide();
+  s2.addText('Revenue', {
+    x: 0.5,
+    y: 0.3,
+    w: 12.0,
+    h: 1.0,
+    fontSize: 36,
+    bold: true,
+  });
+  s2.addText(
+    [
+      { text: 'Jan: $10,000 (baseline)', options: { bullet: true } },
+      { text: 'Feb: $11,000 (+10%)', options: { bullet: true } },
+      { text: 'Mar: $12,100 (+10%)', options: { bullet: true } },
+    ],
+    {
+      x: 0.5,
+      y: 1.5,
+      w: 12.0,
+      h: 5.0,
+      fontSize: 20,
+      valign: 'top',
+    }
+  );
+
+  // pptxgenjs writes directly with `write({ outputType })`; we pick uint8array
+  // so we can feed it straight to `writeFileSync`.
+  const out = await pres.write({ outputType: 'uint8array' });
+  writeFileSync(join(here, 'test.pptx'), Buffer.from(out));
+}
+
+// ---------------------------------------------------------------------------
 
 buildXlsx();
 buildCsv();
 await buildDocx();
+await buildPptx();
 
-console.log('Wrote test.xlsx, test.csv, test.docx to', here);
+console.log(
+  'Wrote test.xlsx, test.csv, test.docx, test.pptx to',
+  here
+);

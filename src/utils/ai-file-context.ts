@@ -25,6 +25,7 @@
 // UI can rely on the specific suffix if it ever needs to hide the notice.
 import { parseSpreadsheet, type SpreadsheetExtension, type SheetData } from './spreadsheet-io';
 import { extractDocxText } from './docx-io';
+import { extractPptxText } from './pptx-io';
 
 /** Character cap before AI-bound text is truncated. ~50k Claude tokens. */
 export const MAX_EXTRACTED_CHARS = 200_000;
@@ -32,7 +33,11 @@ export const MAX_EXTRACTED_CHARS = 200_000;
 /** Suffix appended to truncated text so the AI (and tests) can detect it. */
 export const TRUNCATION_MARKER = '\n\n[...truncated: file continues beyond this point...]';
 
-export type ExtractedSourceKind = 'spreadsheet' | 'docx' | 'text';
+export type ExtractedSourceKind =
+  | 'spreadsheet'
+  | 'docx'
+  | 'pptx'
+  | 'text';
 
 export interface ExtractedContext {
   /** File name as shown in the tab (e.g. "Q1-model.xlsx"). */
@@ -103,6 +108,21 @@ export async function extractForAI(
       const extraction = await extractDocxText(content);
       rawText = extraction.plainText ?? '';
       sourceKind = 'docx';
+    } else if (ext === 'pptx') {
+      // Pure-JS extraction via jszip — no LibreOffice needed for AI
+      // context, even though the preview path does need it. The rendered
+      // PDF is only for on-screen display; the AI just needs the words.
+      rawText = await extractPptxText(content);
+      sourceKind = 'pptx';
+    } else if (ext === 'ppt') {
+      // Legacy binary .ppt can't be parsed in-browser (no DrawingML
+      // runs to walk). Preview goes through LibreOffice conversion, but
+      // the AI context path can't touch that — document the limitation
+      // by returning null rather than a misleading empty string.
+      console.info(
+        '[ai-file-context] .ppt (legacy binary PowerPoint) is not supported for AI context. Convert to .pptx to enable.'
+      );
+      return null;
     } else if (ext === 'md' || ext === 'markdown' || ext === 'txt') {
       rawText = content;
       sourceKind = 'text';

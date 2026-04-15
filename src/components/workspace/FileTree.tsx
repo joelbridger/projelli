@@ -64,6 +64,7 @@ interface FileTreeProps {
   onCreateSpreadsheetAtRoot?: () => void;
   onCreateCsvAtRoot?: () => void;
   onCreateDocxAtRoot?: () => void;
+  onCreatePptxAtRoot?: () => void;
 }
 
 export function FileTree({
@@ -87,6 +88,7 @@ export function FileTree({
   onCreateSpreadsheetAtRoot,
   onCreateCsvAtRoot,
   onCreateDocxAtRoot,
+  onCreatePptxAtRoot,
 }: FileTreeProps) {
   const {
     fileTree,
@@ -255,6 +257,15 @@ export function FileTree({
               >
                 <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
                 Word Document (.docx)
+              </DropdownMenuItem>
+            )}
+            {onCreatePptxAtRoot && (
+              <DropdownMenuItem
+                data-testid="new-file-type-pptx"
+                onClick={onCreatePptxAtRoot}
+              >
+                <FileType className="h-3.5 w-3.5 mr-2 text-orange-600" />
+                PowerPoint (.pptx)
               </DropdownMenuItem>
             )}
             {onCreateSpreadsheetAtRoot && (

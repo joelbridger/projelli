@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Result of checking if a path exists
 #[derive(Serialize, Deserialize)]
@@ -250,4 +251,174 @@ pub fn convert_doc_to_docx(input_path: String) -> Result<String, String> {
     }
 
     Ok(expected.display().to_string())
+}
+
+/// Simple, stable, non-cryptographic hash used to key the PowerPoint preview
+/// cache. The key is derived from the absolute canonical path + modification
+/// time: two different files at different paths never collide, and the same
+/// file opened twice hits the cache until it's edited on disk.
+///
+/// The goal is uniqueness + stability, not cryptographic strength. We avoid
+/// pulling in the `sha2` crate for this one call site — a DJB2-style hash over
+/// the bytes produces a 64-bit value which is plenty for cache keying.
+fn djb2_hash(bytes: &[u8]) -> u64 {
+    let mut hash: u64 = 5381;
+    for b in bytes {
+        hash = hash
+            .wrapping_mul(33)
+            .wrapping_add(u64::from(*b));
+    }
+    hash
+}
+
+/// Convert a PowerPoint file (`.ppt` or `.pptx`) to PDF using LibreOffice in
+/// headless mode, and cache the resulting PDF inside the OS temp directory so
+/// reopening the same file is instant.
+///
+/// Cache strategy:
+///   - Key = `<djb2(canonical_path)>_<mtime_unix_seconds>` → deterministic for
+///     an unchanged file, automatically invalidated on edit because the mtime
+///     moves forward.
+///   - Location = `<tempdir>/projelli-ppt-cache/<key>.pdf`
+///   - If the file already exists AND is newer than the source, skip
+///     conversion and return the cached path immediately.
+///
+/// LibreOffice names its output after the input's stem, so after each
+/// conversion the produced file is renamed into the cache-key path. The cache
+/// directory is created lazily; we deliberately don't clean it here — the OS
+/// temp dir takes care of that across reboots.
+///
+/// Returns `Err` if:
+/// - LibreOffice isn't installed (`detect_libreoffice()` returns `None`)
+/// - the input path doesn't exist, isn't a file, or isn't a `.ppt`/`.pptx`
+/// - the soffice process exits non-zero (stderr is included in the message)
+/// - the expected output file wasn't produced / couldn't be moved
+#[tauri::command]
+pub fn convert_ppt_to_pdf(input_path: String) -> Result<String, String> {
+    let soffice = detect_libreoffice()?
+        .ok_or_else(|| "LibreOffice not found on this system.".to_string())?;
+
+    let input = Path::new(&input_path);
+    if !input.exists() {
+        return Err(format!("Input file does not exist: {}", input.display()));
+    }
+    if !input.is_file() {
+        return Err(format!("Input path is not a file: {}", input.display()));
+    }
+
+    // Case-insensitive `.ppt` / `.pptx` check.
+    let ext_ok = input
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("ppt") || e.eq_ignore_ascii_case("pptx"))
+        .unwrap_or(false);
+    if !ext_ok {
+        return Err(format!(
+            "Expected a .ppt or .pptx file, got: {}",
+            input.display()
+        ));
+    }
+
+    // Canonicalize so the cache key doesn't change based on how the user
+    // opened the file (symlinks, relative paths, etc).
+    let canonical = input
+        .canonicalize()
+        .map_err(|e| format!("Could not canonicalize input path: {}", e))?;
+
+    // Source mtime in unix seconds. If for any reason the metadata query or
+    // `duration_since(UNIX_EPOCH)` fails (pre-1970 timestamp, weird FS), fall
+    // back to 0 so we still produce a deterministic key — worst case, we
+    // re-convert more often than necessary.
+    let mtime_secs: u64 = canonical
+        .metadata()
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let path_hash = djb2_hash(canonical.to_string_lossy().as_bytes());
+    let cache_key = format!("{:016x}_{}", path_hash, mtime_secs);
+
+    // Cache dir under the OS temp dir — survives across runs of the app.
+    let mut cache_dir: PathBuf = std::env::temp_dir();
+    cache_dir.push("projelli-ppt-cache");
+    if !cache_dir.exists() {
+        std::fs::create_dir_all(&cache_dir)
+            .map_err(|e| format!("Failed to create cache dir: {}", e))?;
+    }
+
+    let mut cached_pdf: PathBuf = cache_dir.clone();
+    cached_pdf.push(format!("{}.pdf", cache_key));
+
+    // Fast path: cached file exists and is at least as new as the source.
+    if cached_pdf.exists() {
+        let cached_mtime = cached_pdf
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        if cached_mtime >= mtime_secs {
+            return Ok(cached_pdf.display().to_string());
+        }
+    }
+
+    // Slow path: run LibreOffice. `--outdir` is the cache dir; the produced
+    // file will be named after the input's stem, which we then move into
+    // place.
+    let output = std::process::Command::new(&soffice)
+        .arg("--headless")
+        .arg("--convert-to")
+        .arg("pdf")
+        .arg("--outdir")
+        .arg(&cache_dir)
+        .arg(&canonical)
+        .output()
+        .map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() {
+            stderr
+        } else if !stdout.is_empty() {
+            stdout
+        } else {
+            format!("exit status {}", output.status)
+        };
+        return Err(format!("LibreOffice conversion failed: {}", detail));
+    }
+
+    let stem = canonical
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| format!("Could not determine file stem of {}", canonical.display()))?;
+    let mut produced: PathBuf = cache_dir.clone();
+    produced.push(format!("{}.pdf", stem));
+
+    if !produced.exists() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(format!(
+            "LibreOffice reported success but no .pdf was produced at {}{}",
+            produced.display(),
+            if stderr.is_empty() {
+                String::new()
+            } else {
+                format!(" (stderr: {})", stderr)
+            }
+        ));
+    }
+
+    // If the cached file happens to already exist (e.g. a stale entry we
+    // want to overwrite because the source is newer), rename will fail on
+    // Windows. Remove the old one first.
+    if cached_pdf.exists() {
+        let _ = std::fs::remove_file(&cached_pdf);
+    }
+    std::fs::rename(&produced, &cached_pdf)
+        .map_err(|e| format!("Failed to move converted PDF into cache: {}", e))?;
+
+    Ok(cached_pdf.display().to_string())
 }

@@ -18,6 +18,7 @@ pub fn run() {
             commands::fs::open_in_explorer,
             commands::fs::detect_libreoffice,
             commands::fs::convert_doc_to_docx,
+            commands::fs::convert_ppt_to_pdf,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

@@ -24,6 +24,11 @@ const SpreadsheetViewer = lazy(() =>
 const DocxEditor = lazy(() =>
   import('@/components/media/DocxEditor').then((m) => ({ default: m.DocxEditor }))
 );
+const PresentationViewer = lazy(() =>
+  import('@/components/media/PresentationViewer').then((m) => ({
+    default: m.PresentationViewer,
+  }))
+);
 import { Whiteboard } from '@/components/whiteboard/Whiteboard';
 import { SourceFileEditor } from '@/components/research/SourceFileEditor';
 import { AIChatViewer } from '@/components/ai/AIChatViewer';
@@ -45,10 +50,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FileText, List, Link2, PanelRightClose, FileType, Presentation, X, Save, History, Download, ChevronDown, Loader2 } from 'lucide-react';
+import { FileText, List, Link2, PanelRightClose, FileType, X, Save, History, Download, ChevronDown, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/utils/saveFile';
 import { markdownToDocxBytes } from '@/utils/docx-io';
+import { markdownToPptxBytes } from '@/utils/pptx-io';
 import { detectLibreOffice, convertDocToDocx } from '@/utils/tauri-commands';
 import { isTauriEnvironment } from '@/modules/workspace/BackendFactory';
 
@@ -455,23 +461,13 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
       }
       if (isPresentation) {
         return (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full">
-            <Presentation className="h-16 w-16 mb-4 opacity-50" />
-            <p className="text-lg font-medium">Presentation: {tab.name}</p>
-            <p className="text-sm">Download to view in your presentation application</p>
-            <Button
-              variant="outline"
-              className="mt-4"
-              onClick={async () => {
-                // Convert data URL to blob
-                const response = await fetch(tab.content);
-                const blob = await response.blob();
-                await downloadFileWithDialog(blob, tab.name, blob.type || 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
-              }}
-            >
-              Download File
-            </Button>
-          </div>
+          <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
+            <PresentationViewer
+              src={tab.content}
+              fileName={tab.name}
+              filePath={tab.path}
+            />
+          </Suspense>
         );
       }
       if (isWord) {
@@ -669,6 +665,28 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
               }
             };
 
+            const exportAsPptx = async () => {
+              try {
+                const bytes = await markdownToPptxBytes(activeTab.content);
+                const suggestedName =
+                  activeTab.name.replace(/\.(md|markdown|txt)$/i, '') + '.pptx';
+                await saveFile(bytes, {
+                  suggestedName,
+                  types: [
+                    {
+                      description: 'PowerPoint Presentations',
+                      accept: {
+                        'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+                          ['.pptx'],
+                      },
+                    },
+                  ],
+                });
+              } catch (error) {
+                console.error('Failed to export to .pptx:', error);
+              }
+            };
+
             return (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -691,6 +709,13 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
                   >
                     <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
                     Save as Word (.docx)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="workflow-export-pptx"
+                    onClick={exportAsPptx}
+                  >
+                    <FileType className="h-3.5 w-3.5 mr-2 text-orange-600" />
+                    Save as PowerPoint (.pptx)
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

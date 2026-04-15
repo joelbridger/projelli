@@ -57,6 +57,7 @@ import {
   spreadsheetBytesToDataUrl,
 } from '@/utils/spreadsheet-io';
 import { createBlankDocx, docxBytesToDataUrl } from '@/utils/docx-io';
+import { createBlankPptx, pptxBytesToDataUrl } from '@/utils/pptx-io';
 import { useTrash } from '@/hooks/useTrash';
 import { useSourceCards } from '@/hooks/useSourceCards';
 import { useAIChatFiles } from '@/hooks/useAIChatFiles';
@@ -1035,6 +1036,31 @@ function App() {
     }
   }, [rootPath, setFileTree, openFile, prompt]);
 
+  // Handle create blank .pptx file at root (goes to docs folder)
+  const handleCreatePptxAtRoot = useCallback(async () => {
+    if (!workspaceServiceRef.current || !rootPath) return;
+    const name = await prompt('Enter file name (without extension):', '', {
+      title: 'Create PowerPoint Presentation',
+      placeholder: 'my-deck',
+    });
+    if (!name) return;
+
+    const fileName = name.endsWith('.pptx') ? name : `${name}.pptx`;
+    const filePath = `${rootPath}/docs/${fileName}`;
+    try {
+      const bytes = await createBlankPptx();
+      const buffer = new ArrayBuffer(bytes.byteLength);
+      new Uint8Array(buffer).set(bytes);
+      await workspaceServiceRef.current.writeFileBinary(filePath, buffer);
+      const fileTree = await workspaceServiceRef.current.getFileTree();
+      setFileTree(fileTree);
+      const dataUrl = pptxBytesToDataUrl(bytes);
+      openFile(filePath, fileName, dataUrl);
+    } catch (error) {
+      console.error('Failed to create PowerPoint presentation:', error);
+    }
+  }, [rootPath, setFileTree, openFile, prompt]);
+
   // Handle create source file in Research folder
   const handleCreateSourceFileAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
@@ -1663,6 +1689,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onCreateSpreadsheetAtRoot={handleCreateSpreadsheetAtRoot}
               onCreateCsvAtRoot={handleCreateCsvAtRoot}
               onCreateDocxAtRoot={handleCreateDocxAtRoot}
+              onCreatePptxAtRoot={handleCreatePptxAtRoot}
               onCreateSourceFileAtRoot={handleCreateSourceFileAtRoot}
               onCreateFolderAtRoot={handleCreateFolderAtRoot}
               onUploadFiles={handleUploadFiles}
