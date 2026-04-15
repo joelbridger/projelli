@@ -30,6 +30,7 @@ import {
   Filter,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/types/audit';
+import { EmptyState } from './EmptyState';
 
 interface AuditLogProps {
   entries: AuditEntry[];
@@ -232,13 +233,12 @@ export function AuditLog({
       {/* Entries list */}
       <div className="flex-1 overflow-y-auto">
         {filteredEntries.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4 text-center">
-            <History className="h-12 w-12 mb-3 opacity-20" />
-            <p className="text-sm font-medium mb-2">No audit entries yet</p>
-            <p className="text-xs max-w-[280px]">
-              AI actions like file changes, workflow runs, and model calls will appear here for transparency.
-            </p>
-          </div>
+          <EmptyState
+            panelName="audit"
+            icon={History}
+            title="No AI actions yet"
+            description="Every AI action in your workspace — file changes, workflow runs, model calls — gets logged here so you can review or audit what happened."
+          />
         ) : (
           <div className="divide-y">
             {filteredEntries.map((entry) => (

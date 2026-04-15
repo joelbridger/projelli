@@ -40,6 +40,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { EmptyState } from '@/components/common/EmptyState';
 import { cn } from '@/lib/utils';
 
 interface FileTreeProps {
@@ -405,9 +406,16 @@ export function FileTree({
 
       {/* File tree content */}
       {fileTree.length === 0 ? (
-        <div className="p-4 text-sm text-muted-foreground text-center">
-          No files in workspace
-        </div>
+        <EmptyState
+          panelName="files"
+          icon={FilePlus}
+          title="No files yet"
+          description="Create a file from the toolbar above, drop files in from your desktop, or start a new Markdown note to get going."
+          shortcut="Ctrl+N"
+          {...(onCreateMarkdownAtRoot
+            ? { cta: { label: 'New Markdown file', onClick: onCreateMarkdownAtRoot } }
+            : {})}
+        />
       ) : (
         <div
           className="py-2 min-h-[200px] flex-1 overflow-auto"

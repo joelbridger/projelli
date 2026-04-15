@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/common/EmptyState';
 import { PenTool, Plus, FileText, Trash2 } from 'lucide-react';
 
 interface WhiteboardFile {
@@ -50,18 +51,13 @@ export function WhiteboardManager({
       {/* Whiteboard list */}
       <div className="flex-1 overflow-auto p-2">
         {whiteboards.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
-            <PenTool className="h-8 w-8 mb-2 opacity-30" />
-            <p className="text-xs text-center">No whiteboards yet</p>
-            <Button
-              variant="link"
-              size="sm"
-              className="mt-1 text-xs h-auto p-0"
-              onClick={onCreateWhiteboard}
-            >
-              Create your first whiteboard
-            </Button>
-          </div>
+          <EmptyState
+            panelName="whiteboard"
+            icon={PenTool}
+            title="No whiteboards yet"
+            description="Sketch diagrams, mind maps, and visual notes. Whiteboards open as full tabs in the editor and save as .whiteboard files in your workspace."
+            cta={{ label: 'Create whiteboard', onClick: onCreateWhiteboard }}
+          />
         ) : (
           <div className="space-y-1">
             {whiteboards.map((wb) => (

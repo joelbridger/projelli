@@ -23,6 +23,7 @@ import {
   Settings,
 } from 'lucide-react';
 import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
+import { EmptyState } from './EmptyState';
 
 export type TrashRetentionPeriod = 'never' | 7 | 30 | 90 | 'custom';
 
@@ -170,13 +171,12 @@ export function TrashPanel({
       {/* Item list */}
       <div className="flex-1 overflow-auto">
         {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
-            <Trash2 className="h-12 w-12 mb-2 opacity-20" />
-            <p className="text-sm">Trash is empty</p>
-            <p className="text-xs mt-1">
-              Deleted files will appear here for 30 days
-            </p>
-          </div>
+          <EmptyState
+            panelName="trash"
+            icon={Trash2}
+            title="Trash is empty"
+            description="Deleted files live here for 30 days before being removed permanently. Restore any file from here back to its original folder."
+          />
         ) : (
           <div className="divide-y">
             {items.map((item) => (

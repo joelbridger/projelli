@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { EmptyState } from '@/components/common/EmptyState';
 import type { FileNode } from '@/types/workspace';
 
 interface SearchResult {
@@ -258,11 +259,12 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, className }: Searc
         )}
 
         {!query && (
-          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm px-4 text-center">
-            <Search className="h-8 w-8 mb-2 opacity-50" />
-            <p>Search across all workspace content</p>
-            <p className="text-xs mt-1">Files, folders, chats, and whiteboards</p>
-          </div>
+          <EmptyState
+            panelName="search"
+            icon={Search}
+            title="Search your workspace"
+            description="Find files, folders, AI chats, and whiteboards by name. Filter by file type above to narrow results."
+          />
         )}
 
         {results.length > 0 && (
