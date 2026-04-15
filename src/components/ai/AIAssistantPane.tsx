@@ -18,9 +18,12 @@ import {
   HelpCircle,
   FileText,
   Settings,
+  ExternalLink,
+  X,
 } from 'lucide-react';
 import { ApiKeyHelpDialog } from '@/components/common/ApiKeyHelpDialog';
 import { getCorsSafeFetch, getProviderBaseUrl } from '@/modules/models/fetchUtils';
+import { openExternal } from '@/utils/openExternal';
 import type { AIChatFile } from '@/types/ai';
 import type { ModelInfo } from '@/modules/models/ModelListService';
 
@@ -116,11 +119,24 @@ export function AIAssistantPane({
     google: 'gemini-2.5-flash',
   });
 
-  // API key validation state
+  // Transient key-flow state: drives the Save button's "Testing..." state and
+  // success/error inline messages for the Save path.
   const [keyStatus, setKeyStatus] = useState<Record<string, { state: 'idle' | 'testing' | 'success' | 'error'; message?: string }>>({
     anthropic: { state: 'idle' },
     openai: { state: 'idle' },
     google: { state: 'idle' },
+  });
+
+  // Persisted "last test result" for each saved key. Drives the status chip:
+  //   - undefined / 'untested': "Not tested"
+  //   - 'valid': "Valid ✓"
+  //   - 'invalid': "Invalid ✗" (with tooltip showing error)
+  // Note: when a key is saved through the Save flow we seed this to 'valid'
+  // because saveApiKey only fires after a successful testApiKey call.
+  const [testResults, setTestResults] = useState<Record<string, { status: 'untested' | 'valid' | 'invalid'; error?: string }>>({
+    anthropic: { status: 'untested' },
+    openai: { status: 'untested' },
+    google: { status: 'untested' },
   });
 
   // API Key form state
@@ -136,6 +152,8 @@ export function AIAssistantPane({
   });
   const handleDeleteKey = useCallback((provider: 'anthropic' | 'openai' | 'google') => {
     onDeleteApiKey(provider);
+    setTestResults(prev => ({ ...prev, [provider]: { status: 'untested' } }));
+    setKeyStatus(prev => ({ ...prev, [provider]: { state: 'idle' } }));
   }, [onDeleteApiKey]);
 
   const testApiKey = useCallback(async (provider: 'anthropic' | 'openai' | 'google', key: string): Promise<{ ok: boolean; error?: string }> => {
@@ -197,6 +215,55 @@ export function AIAssistantPane({
   const hasApiKey = (provider: string) => {
     return apiKeys.some(k => k.provider === provider && k.isValid);
   };
+
+  const getKeyUrl = (provider: 'anthropic' | 'openai' | 'google') => {
+    switch (provider) {
+      case 'anthropic':
+        return 'https://console.anthropic.com/settings/keys';
+      case 'openai':
+        return 'https://platform.openai.com/api-keys';
+      case 'google':
+        return 'https://aistudio.google.com/app/apikey';
+    }
+  };
+
+  /**
+   * Mask a key for display: show first 7 chars + ellipsis + last 3 chars.
+   * Short keys (<= 10 chars) are fully masked to avoid leaking too much.
+   */
+  const maskKey = (key: string): string => {
+    if (key.length <= 10) return '•'.repeat(Math.max(key.length, 8));
+    return `${key.slice(0, 7)}••••••••${key.slice(-3)}`;
+  };
+
+  /**
+   * Revalidate an already-saved key. Updates `testResults[provider]` which
+   * drives the status chip. Does not change the saved key itself.
+   */
+  const handleTestKey = useCallback(
+    async (provider: 'anthropic' | 'openai' | 'google') => {
+      const existing = apiKeys.find(k => k.provider === provider);
+      if (!existing) return;
+      setTestResults(prev => ({ ...prev, [provider]: { status: 'untested' } }));
+      setKeyStatus(prev => ({ ...prev, [provider]: { state: 'testing' } }));
+      const result = await testApiKey(provider, existing.key);
+      if (result.ok) {
+        setTestResults(prev => ({ ...prev, [provider]: { status: 'valid' } }));
+        setKeyStatus(prev => ({ ...prev, [provider]: { state: 'success', message: 'Valid' } }));
+        setTimeout(() => setKeyStatus(prev => ({ ...prev, [provider]: { state: 'idle' } })), 2500);
+      } else {
+        setTestResults(prev => ({
+          ...prev,
+          [provider]: { status: 'invalid', error: result.error ?? 'Validation failed' },
+        }));
+        setKeyStatus(prev => ({
+          ...prev,
+          [provider]: { state: 'error', message: result.error ?? 'Invalid key' },
+        }));
+      }
+    },
+    [apiKeys, testApiKey]
+  );
 
   return (
     <div data-testid="ai-assistant-pane" className={cn(
@@ -390,40 +457,105 @@ export function AIAssistantPane({
             </div>
             {(['anthropic', 'openai', 'google'] as const).map(provider => {
               const existingKey = apiKeys.find(k => k.provider === provider);
+              const test = testResults[provider] ?? { status: 'untested' };
+              const isTesting = keyStatus[provider]?.state === 'testing';
               return (
-                <div key={provider} className="space-y-2">
+                <div
+                  key={provider}
+                  data-testid={`api-key-row-${provider}`}
+                  className="space-y-2 border-b pb-4 last:border-b-0 last:pb-0"
+                >
                   <div className="flex items-center justify-between gap-2 min-w-0">
                     <label className="text-sm font-medium truncate">{getProviderLabel(provider)}</label>
-                    {existingKey?.isValid && (
-                      <span className="flex items-center gap-1 text-xs text-green-600 shrink-0 whitespace-nowrap">
-                        <Check className="h-3 w-3 shrink-0" />
-                        Connected
+                    {existingKey && (
+                      <span
+                        data-testid={`api-key-status-${provider}`}
+                        data-status={test.status}
+                        title={test.status === 'invalid' ? test.error : undefined}
+                        className={cn(
+                          'flex items-center gap-1 text-[11px] font-medium shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 border',
+                          test.status === 'valid' &&
+                            'text-green-700 border-green-300 bg-green-50 dark:text-green-300 dark:border-green-900 dark:bg-green-950',
+                          test.status === 'invalid' &&
+                            'text-red-700 border-red-300 bg-red-50 dark:text-red-300 dark:border-red-900 dark:bg-red-950',
+                          test.status === 'untested' &&
+                            'text-muted-foreground border-border bg-muted'
+                        )}
+                      >
+                        {test.status === 'valid' && (
+                          <>
+                            <Check className="h-3 w-3 shrink-0" />
+                            Valid
+                          </>
+                        )}
+                        {test.status === 'invalid' && (
+                          <>
+                            <X className="h-3 w-3 shrink-0" />
+                            Invalid
+                          </>
+                        )}
+                        {test.status === 'untested' && 'Not tested'}
                       </span>
                     )}
                   </div>
+                  {/* "Get key →" link - always visible, per-provider */}
+                  <button
+                    data-testid={`api-key-get-link-${provider}`}
+                    type="button"
+                    onClick={() => openExternal(getKeyUrl(provider))}
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    Get key
+                    <ExternalLink className="h-3 w-3" />
+                  </button>
                   {existingKey ? (
-                    <div className="flex gap-1.5 min-w-0">
-                      <Input
-                        value={showKeys[provider] ? existingKey.key : '••••••••••••••••'}
-                        readOnly
-                        className="flex-1 h-8 text-xs font-mono min-w-0"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 shrink-0"
-                        onClick={() => setShowKeys(prev => ({ ...prev, [provider]: !prev[provider] }))}
-                      >
-                        {showKeys[provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 shrink-0 text-destructive hover:text-destructive"
-                        onClick={() => handleDeleteKey(provider)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                    <div className="space-y-1.5">
+                      <div className="flex gap-1.5 min-w-0">
+                        <Input
+                          data-testid={`api-key-masked-${provider}`}
+                          value={showKeys[provider] ? existingKey.key : maskKey(existingKey.key)}
+                          readOnly
+                          className="flex-1 h-8 text-xs font-mono min-w-0"
+                        />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 shrink-0"
+                          onClick={() => setShowKeys(prev => ({ ...prev, [provider]: !prev[provider] }))}
+                          title={showKeys[provider] ? 'Hide key' : 'Show key'}
+                          aria-label={showKeys[provider] ? 'Hide key' : 'Show key'}
+                        >
+                          {showKeys[provider] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </Button>
+                        <Button
+                          data-testid={`api-key-test-${provider}`}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2 text-xs shrink-0"
+                          onClick={() => handleTestKey(provider)}
+                          disabled={isTesting}
+                          title="Re-test this API key"
+                        >
+                          {isTesting ? 'Testing...' : 'Test'}
+                        </Button>
+                        <Button
+                          data-testid={`api-key-clear-${provider}`}
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 shrink-0 text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteKey(provider)}
+                          title="Clear saved key"
+                          aria-label="Clear saved key"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      {keyStatus[provider]?.state === 'error' && (
+                        <p className="text-xs text-red-600 dark:text-red-400">{keyStatus[provider].message}</p>
+                      )}
+                      {keyStatus[provider]?.state === 'success' && (
+                        <p className="text-xs text-green-600 dark:text-green-400">{keyStatus[provider].message}</p>
+                      )}
                     </div>
                   ) : (
                     <div className="space-y-1.5">
@@ -456,12 +588,17 @@ export function AIAssistantPane({
                           const result = await testApiKey(provider, key);
                           if (result.ok) {
                             setKeyStatus(prev => ({ ...prev, [provider]: { state: 'success', message: 'Connected!' } }));
+                            setTestResults(prev => ({ ...prev, [provider]: { status: 'valid' } }));
                             onSaveApiKey(provider, key);
                             setKeyInputs(prev => ({ ...prev, [provider]: '' }));
                             // Clear success after 3s
                             setTimeout(() => setKeyStatus(prev => ({ ...prev, [provider]: { state: 'idle' } })), 3000);
                           } else {
                             setKeyStatus(prev => ({ ...prev, [provider]: { state: 'error', message: result.error ?? 'Unknown error' } }));
+                            setTestResults(prev => ({
+                              ...prev,
+                              [provider]: { status: 'invalid', error: result.error ?? 'Validation failed' },
+                            }));
                           }
                         }}
                         disabled={!keyInputs[provider] || keyStatus[provider]?.state === 'testing'}
@@ -476,11 +613,6 @@ export function AIAssistantPane({
                       )}
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground break-words">
-                    {provider === 'anthropic' && 'Get your API key from console.anthropic.com'}
-                    {provider === 'openai' && 'Get your API key from platform.openai.com'}
-                    {provider === 'google' && 'Get your API key from aistudio.google.com'}
-                  </p>
                 </div>
               );
             })}
