@@ -39,9 +39,16 @@ import {
   formatBackupTimestamp,
 } from '@/stores/fileBackupStore';
 import { Button } from '@/components/ui/button';
-import { FileText, List, Link2, PanelRightClose, FileType, Presentation, X, Save, History, Download } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { FileText, List, Link2, PanelRightClose, FileType, Presentation, X, Save, History, Download, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/utils/saveFile';
+import { markdownToDocxBytes } from '@/utils/docx-io';
 
 /**
  * Check if a file is a whiteboard file
@@ -640,6 +647,67 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
               History ({versionService.getVersionCount(activeTab.path)})
             </Button>
           )}
+          {/*
+            "Export as" dropdown for markdown files. This is the surfacing
+            point for workflow-generated artifacts: the 15 founder workflow
+            templates emit `.md` files, and this menu lets users convert
+            them to `.docx` (for text-heavy outputs like Investor Update)
+            in one click. The menu is visible for any markdown file, not
+            just workflow artifacts, since there's no meaningful difference
+            between the two on disk.
+          */}
+          {activeTab && (() => {
+            const ext = getFileExtension(activeTab.path)?.toLowerCase();
+            const isMarkdownLike = ext === 'md' || ext === 'markdown' || ext === 'txt' || !ext;
+            if (!isMarkdownLike) return null;
+
+            const exportAsDocx = async () => {
+              try {
+                const bytes = await markdownToDocxBytes(activeTab.content, activeTab.name);
+                const suggestedName = activeTab.name.replace(/\.(md|markdown|txt)$/i, '') + '.docx';
+                await saveFile(bytes, {
+                  suggestedName,
+                  types: [
+                    {
+                      description: 'Word Documents',
+                      accept: {
+                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+                      },
+                    },
+                  ],
+                });
+              } catch (error) {
+                console.error('Failed to export to .docx:', error);
+              }
+            };
+
+            return (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    data-testid="workflow-export-menu"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    title="Export to other formats"
+                  >
+                    <FileType className="h-3.5 w-3.5 mr-1" />
+                    Export
+                    <ChevronDown className="h-3 w-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem
+                    data-testid="workflow-export-docx"
+                    onClick={exportAsDocx}
+                  >
+                    <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
+                    Save as Word (.docx)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            );
+          })()}
           {activeTab && (
             <Button
               variant="ghost"

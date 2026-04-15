@@ -458,6 +458,172 @@ export async function createBlankDocx(): Promise<Uint8Array> {
   return serializeDocx('<p></p>', 'blank.docx');
 }
 
+// ---------------------------------------------------------------------------
+// Markdown to .docx conversion (used by workflow export)
+// ---------------------------------------------------------------------------
+//
+// Tiny zero-dependency markdown parser. Not a full CommonMark implementation
+// just the subset of features the founder workflow templates actually
+// produce: `#` headings (levels 1-6), paragraphs separated by blank lines,
+// unordered (`-` / `*`) and ordered (`1.`) lists, inline `**bold**`,
+// `*italic*`, `` `code` ``, and `[text](url)` links. Horizontal rules
+// (`---`) and line breaks are recognized.
+//
+// We convert markdown to HTML, then hand off to the existing HTML to docx
+// pipeline (`serializeDocx`) so the feature shares the same limitations
+// banner messaging and testing coverage.
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Render a single line's inline markdown (bold / italic / code / link) into
+ * HTML. Order matters: code spans must be handled first so that
+ * `` `foo_bar_baz` `` doesn't get italic tags inside.
+ */
+function renderInline(line: string): string {
+  const codeSpans: string[] = [];
+  let working = line.replace(/`([^`]+)`/g, (_m, code: string) => {
+    codeSpans.push(`<code>${escapeHtml(code)}</code>`);
+    return `\u0000CODE${codeSpans.length - 1}\u0000`;
+  });
+
+  working = escapeHtml(working);
+
+  // Links: [text](url). URL kept raw inside href after quote escaping.
+  working = working.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    (_m, text: string, href: string) => {
+      const safeHref = href.replace(/"/g, '&quot;');
+      return `<a href="${safeHref}">${text}</a>`;
+    }
+  );
+
+  working = working.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  working = working.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+
+  working = working.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+  working = working.replace(/(^|\W)_([^_\n]+)_(\W|$)/g, '$1<em>$2</em>$3');
+
+  working = working.replace(/\u0000CODE(\d+)\u0000/g, (_m, idx: string) => {
+    const i = Number.parseInt(idx, 10);
+    return codeSpans[i] ?? '';
+  });
+
+  return working;
+}
+
+/**
+ * Convert a markdown string into HTML suitable for feeding to `serializeDocx`.
+ *
+ * Block-level constructs handled:
+ *  - `#` through `######` to `<h1>` through `<h6>`
+ *  - blank-line-separated paragraph blocks to `<p>`
+ *  - `- `, `* `, `+ ` prefixed lines to `<ul><li>`
+ *  - `N. ` prefixed lines to `<ol><li>`
+ *  - `---`, `***`, `___` on their own line to `<hr>`
+ */
+export function markdownToHtml(markdown: string): string {
+  const lines = markdown.replace(/\r\n/g, '\n').split('\n');
+  const out: string[] = [];
+
+  type ListState = { kind: 'ul' | 'ol' } | null;
+  let list: ListState = null;
+  let paraBuffer: string[] = [];
+
+  const closeList = () => {
+    if (list) {
+      out.push(list.kind === 'ul' ? '</ul>' : '</ol>');
+      list = null;
+    }
+  };
+
+  const flushParagraph = () => {
+    if (paraBuffer.length > 0) {
+      const content = paraBuffer.map((l) => renderInline(l)).join(' ');
+      out.push(`<p>${content}</p>`);
+      paraBuffer = [];
+    }
+  };
+
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+
+    if (line.trim() === '') {
+      flushParagraph();
+      closeList();
+      continue;
+    }
+
+    if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      flushParagraph();
+      closeList();
+      out.push('<hr />');
+      continue;
+    }
+
+    const headingMatch = /^(#{1,6})\s+(.+)$/.exec(line);
+    if (headingMatch) {
+      flushParagraph();
+      closeList();
+      const level = headingMatch[1]!.length;
+      const text = renderInline(headingMatch[2]!.trim());
+      out.push(`<h${level}>${text}</h${level}>`);
+      continue;
+    }
+
+    const ulMatch = /^(\s*)[-*+]\s+(.+)$/.exec(line);
+    if (ulMatch) {
+      flushParagraph();
+      const text = renderInline(ulMatch[2]!);
+      if (!list || list.kind !== 'ul') {
+        closeList();
+        out.push('<ul>');
+        list = { kind: 'ul' };
+      }
+      out.push(`<li>${text}</li>`);
+      continue;
+    }
+
+    const olMatch = /^(\s*)\d+\.\s+(.+)$/.exec(line);
+    if (olMatch) {
+      flushParagraph();
+      const text = renderInline(olMatch[2]!);
+      if (!list || list.kind !== 'ol') {
+        closeList();
+        out.push('<ol>');
+        list = { kind: 'ol' };
+      }
+      out.push(`<li>${text}</li>`);
+      continue;
+    }
+
+    closeList();
+    paraBuffer.push(line);
+  }
+
+  flushParagraph();
+  closeList();
+
+  return out.join('\n');
+}
+
+/**
+ * One-step convenience: markdown string in, `.docx` bytes out. Used by the
+ * "Save as Word" export from the markdown editor / workflow results.
+ */
+export async function markdownToDocxBytes(
+  markdown: string,
+  fileName: string
+): Promise<Uint8Array> {
+  const html = markdownToHtml(markdown);
+  return serializeDocx(html, fileName);
+}
+
 /**
  * Bundle docx bytes back into a data URL for the editor tab's `content`.
  */
