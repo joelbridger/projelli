@@ -58,7 +58,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FileText, List, Link2, PanelRightClose, FileType, X, Save, History, Download, ChevronDown, Loader2 } from 'lucide-react';
+import { FileText, List, Link2, PanelRightClose, FileType, X, Save, History, Download, ChevronDown, Loader2, MoreHorizontal, Columns, Rows } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/utils/saveFile';
 import { markdownToDocxBytes } from '@/utils/docx-io';
@@ -220,6 +220,32 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
   // Version history state
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const versionService = getVersionService();
+
+  // UX-13: Compact toolbar overflow.
+  // At narrow widths the right-side toolbar (History / Split / Outline /
+  // Backlinks, etc.) wraps below the tab row, creating an awkward two-row
+  // layout. When the tab bar container reports a width below the breakpoint,
+  // we render a "…" overflow menu instead of showing every action inline.
+  // Save, Auto-save, and Download stay visible — those are the critical
+  // items a user needs on every file.
+  //
+  // Breakpoint: 900px for the entire MainPanel. Below that, squeeze items
+  // into the overflow menu. Using a plain ResizeObserver rather than CSS
+  // container queries for browser compatibility with the Tauri webview.
+  const toolbarContainerRef = useRef<HTMLDivElement | null>(null);
+  const [isToolbarCompact, setIsToolbarCompact] = useState(false);
+  useEffect(() => {
+    const el = toolbarContainerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const update = () => {
+      const w = el.getBoundingClientRect().width;
+      setIsToolbarCompact(w < 900);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // UX-04 onboarding: has the user dismissed the API key setup card in this
   // session? Reset to the live sessionStorage value each mount so a page
@@ -676,15 +702,69 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
     [activeTabPath, updateContent, versionService]
   );
 
+  // UX-13: export handlers live at render-top so both the inline toolbar
+  // button and the overflow menu can share them.
+  const exportAsDocx = useCallback(async () => {
+    if (!activeTab) return;
+    try {
+      const bytes = await markdownToDocxBytes(activeTab.content, activeTab.name);
+      const suggestedName = activeTab.name.replace(/\.(md|markdown|txt)$/i, '') + '.docx';
+      await saveFile(bytes, {
+        suggestedName,
+        types: [
+          {
+            description: 'Word Documents',
+            accept: {
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+            },
+          },
+        ],
+      });
+    } catch (error) {
+      console.error('Failed to export to .docx:', error);
+    }
+  }, [activeTab]);
+
+  const exportAsPptx = useCallback(async () => {
+    if (!activeTab) return;
+    try {
+      const bytes = await markdownToPptxBytes(activeTab.content);
+      const suggestedName = activeTab.name.replace(/\.(md|markdown|txt)$/i, '') + '.pptx';
+      await saveFile(bytes, {
+        suggestedName,
+        types: [
+          {
+            description: 'PowerPoint Presentations',
+            accept: {
+              'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+            },
+          },
+        ],
+      });
+    } catch (error) {
+      console.error('Failed to export to .pptx:', error);
+    }
+  }, [activeTab]);
+
+  const ext = activeTab ? getFileExtension(activeTab.path)?.toLowerCase() : undefined;
+  const isMarkdownLike = !!activeTab && (ext === 'md' || ext === 'markdown' || ext === 'txt' || !ext);
+  const isVersionable = !!activeTab && shouldVersionFile(getFileExtension(activeTab.path));
+  const canSplit = !!activeTab && !isSplit;
+
   return (
     <div className="flex-1 flex flex-col h-full">
       {/* Tab bar with split controls */}
-      <div className="flex items-center border-b min-w-0 w-full">
+      <div
+        ref={toolbarContainerRef}
+        data-testid="main-panel-toolbar"
+        data-compact={isToolbarCompact ? 'true' : 'false'}
+        className="flex items-center border-b min-w-0 w-full"
+      >
         <div className="flex-1 min-w-0 w-0 overflow-hidden">
           <TabBar {...(onRename ? { onRenameFile: onRename } : {})} />
         </div>
         <div className="flex items-center gap-1 px-2 border-l">
-          {/* Auto-save indicator */}
+          {/* Auto-save indicator — always visible (critical status). */}
           <span
             className="text-xs text-muted-foreground flex items-center gap-1 mr-2"
             title={withShortcut('Auto-save is on. Force save now', ['Ctrl', 'S'])}
@@ -692,111 +772,11 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
             <Save className="h-3 w-3" />
             Auto-save
           </span>
-          {/* Version History button - only show for versionable files */}
-          {activeTab && shouldVersionFile(getFileExtension(activeTab.path)) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className={cn('h-7 px-2 text-xs', showVersionHistory && 'bg-accent')}
-              onClick={() => setShowVersionHistory(!showVersionHistory)}
-              title="View version history"
-            >
-              <History className="h-3.5 w-3.5 mr-1" />
-              History ({versionService.getVersionCount(activeTab.path)})
-            </Button>
-          )}
-          {/*
-            "Export as" dropdown for markdown files. This is the surfacing
-            point for workflow-generated artifacts: the 15 founder workflow
-            templates emit `.md` files, and this menu lets users convert
-            them to `.docx` (for text-heavy outputs like Investor Update)
-            in one click. The menu is visible for any markdown file, not
-            just workflow artifacts, since there's no meaningful difference
-            between the two on disk.
-          */}
-          {activeTab && (() => {
-            const ext = getFileExtension(activeTab.path)?.toLowerCase();
-            const isMarkdownLike = ext === 'md' || ext === 'markdown' || ext === 'txt' || !ext;
-            if (!isMarkdownLike) return null;
 
-            const exportAsDocx = async () => {
-              try {
-                const bytes = await markdownToDocxBytes(activeTab.content, activeTab.name);
-                const suggestedName = activeTab.name.replace(/\.(md|markdown|txt)$/i, '') + '.docx';
-                await saveFile(bytes, {
-                  suggestedName,
-                  types: [
-                    {
-                      description: 'Word Documents',
-                      accept: {
-                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-                      },
-                    },
-                  ],
-                });
-              } catch (error) {
-                console.error('Failed to export to .docx:', error);
-              }
-            };
-
-            const exportAsPptx = async () => {
-              try {
-                const bytes = await markdownToPptxBytes(activeTab.content);
-                const suggestedName =
-                  activeTab.name.replace(/\.(md|markdown|txt)$/i, '') + '.pptx';
-                await saveFile(bytes, {
-                  suggestedName,
-                  types: [
-                    {
-                      description: 'PowerPoint Presentations',
-                      accept: {
-                        'application/vnd.openxmlformats-officedocument.presentationml.presentation':
-                          ['.pptx'],
-                      },
-                    },
-                  ],
-                });
-              } catch (error) {
-                console.error('Failed to export to .pptx:', error);
-              }
-            };
-
-            return (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    data-testid="workflow-export-menu"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    title="Export to other formats"
-                  >
-                    <FileType className="h-3.5 w-3.5 mr-1" />
-                    Export
-                    <ChevronDown className="h-3 w-3 ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem
-                    data-testid="workflow-export-docx"
-                    onClick={exportAsDocx}
-                  >
-                    <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
-                    Save as Word (.docx)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    data-testid="workflow-export-pptx"
-                    onClick={exportAsPptx}
-                  >
-                    <FileType className="h-3.5 w-3.5 mr-2 text-orange-600" />
-                    Save as PowerPoint (.pptx)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            );
-          })()}
+          {/* Download — always visible (critical action). */}
           {activeTab && (
             <Button
+              data-testid="toolbar-download"
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs"
@@ -807,31 +787,177 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
               Download
             </Button>
           )}
-          <SplitPaneControls
-            onSplitHorizontal={!isSplit ? handleSplitHorizontal : undefined}
-            onSplitVertical={!isSplit ? handleSplitVertical : undefined}
-            canSplit={!!activeTab && !isSplit}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn('h-7 w-7 p-0', showOutline && 'bg-accent')}
-            onClick={toggleOutline}
-            title={withShortcut('Toggle outline panel', ['Ctrl', 'Shift', 'O'])}
-            aria-label={withShortcut('Toggle outline panel', ['Ctrl', 'Shift', 'O'])}
-          >
-            <List className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn('h-7 w-7 p-0', showBacklinks && 'bg-accent')}
-            onClick={toggleBacklinks}
-            title={withShortcut('Toggle backlinks panel', ['Ctrl', 'Shift', 'B'])}
-            aria-label={withShortcut('Toggle backlinks panel', ['Ctrl', 'Shift', 'B'])}
-          >
-            <Link2 className="h-4 w-4" />
-          </Button>
+
+          {/*
+            EXPANDED LAYOUT — everything inline when width allows.
+            The export dropdown is its own menu (markdown only).
+            History + Split + Outline + Backlinks spread inline.
+          */}
+          {!isToolbarCompact && (
+            <>
+              {isVersionable && (
+                <Button
+                  data-testid="toolbar-history"
+                  variant="ghost"
+                  size="sm"
+                  className={cn('h-7 px-2 text-xs', showVersionHistory && 'bg-accent')}
+                  onClick={() => setShowVersionHistory(!showVersionHistory)}
+                  title="View version history"
+                >
+                  <History className="h-3.5 w-3.5 mr-1" />
+                  History ({versionService.getVersionCount(activeTab!.path)})
+                </Button>
+              )}
+              {isMarkdownLike && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      data-testid="workflow-export-menu"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      title="Export to other formats"
+                    >
+                      <FileType className="h-3.5 w-3.5 mr-1" />
+                      Export
+                      <ChevronDown className="h-3 w-3 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem
+                      data-testid="workflow-export-docx"
+                      onClick={exportAsDocx}
+                    >
+                      <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
+                      Save as Word (.docx)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      data-testid="workflow-export-pptx"
+                      onClick={exportAsPptx}
+                    >
+                      <FileType className="h-3.5 w-3.5 mr-2 text-orange-600" />
+                      Save as PowerPoint (.pptx)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              <SplitPaneControls
+                onSplitHorizontal={canSplit ? handleSplitHorizontal : undefined}
+                onSplitVertical={canSplit ? handleSplitVertical : undefined}
+                canSplit={canSplit}
+              />
+              <Button
+                data-testid="toolbar-outline"
+                variant="ghost"
+                size="sm"
+                className={cn('h-7 w-7 p-0', showOutline && 'bg-accent')}
+                onClick={toggleOutline}
+                title={withShortcut('Toggle outline panel', ['Ctrl', 'Shift', 'O'])}
+                aria-label={withShortcut('Toggle outline panel', ['Ctrl', 'Shift', 'O'])}
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                data-testid="toolbar-backlinks"
+                variant="ghost"
+                size="sm"
+                className={cn('h-7 w-7 p-0', showBacklinks && 'bg-accent')}
+                onClick={toggleBacklinks}
+                title={withShortcut('Toggle backlinks panel', ['Ctrl', 'Shift', 'B'])}
+                aria-label={withShortcut('Toggle backlinks panel', ['Ctrl', 'Shift', 'B'])}
+              >
+                <Link2 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+
+          {/*
+            COMPACT LAYOUT — single "…" button opens a DropdownMenu with
+            History / Split / Outline / Backlinks / Export as sub-items.
+            Only visible when the container width is below the breakpoint.
+            Save and Download stay inline above.
+          */}
+          {isToolbarCompact && activeTab && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  data-testid="toolbar-overflow"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  title="More actions"
+                  aria-label="More actions"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                data-testid="toolbar-overflow-menu"
+                align="end"
+                className="w-52"
+              >
+                {isVersionable && (
+                  <DropdownMenuItem
+                    data-testid="toolbar-overflow-history"
+                    onClick={() => setShowVersionHistory(!showVersionHistory)}
+                  >
+                    <History className="h-3.5 w-3.5 mr-2" />
+                    History ({versionService.getVersionCount(activeTab.path)})
+                  </DropdownMenuItem>
+                )}
+                {isMarkdownLike && (
+                  <>
+                    <DropdownMenuItem
+                      data-testid="toolbar-overflow-export-docx"
+                      onClick={exportAsDocx}
+                    >
+                      <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
+                      Save as Word (.docx)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      data-testid="toolbar-overflow-export-pptx"
+                      onClick={exportAsPptx}
+                    >
+                      <FileType className="h-3.5 w-3.5 mr-2 text-orange-600" />
+                      Save as PowerPoint (.pptx)
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {canSplit && (
+                  <>
+                    <DropdownMenuItem
+                      data-testid="toolbar-overflow-split-h"
+                      onClick={handleSplitHorizontal}
+                    >
+                      <Columns className="h-3.5 w-3.5 mr-2" />
+                      Split horizontally
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      data-testid="toolbar-overflow-split-v"
+                      onClick={handleSplitVertical}
+                    >
+                      <Rows className="h-3.5 w-3.5 mr-2" />
+                      Split vertically
+                    </DropdownMenuItem>
+                  </>
+                )}
+                <DropdownMenuItem
+                  data-testid="toolbar-overflow-outline"
+                  onClick={toggleOutline}
+                >
+                  <List className="h-3.5 w-3.5 mr-2" />
+                  Toggle outline
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  data-testid="toolbar-overflow-backlinks"
+                  onClick={toggleBacklinks}
+                >
+                  <Link2 className="h-3.5 w-3.5 mr-2" />
+                  Toggle backlinks
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
 
