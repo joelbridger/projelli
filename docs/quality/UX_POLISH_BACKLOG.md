@@ -111,7 +111,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-08: API keys tab only shows one provider at a time
 **Priority:** P1
-**Status:** 📋
+**Status:** ✅ Done — hash: `e781fef`
 **Problem:** The Keys sub-tab shows `api-key-input-google` when no keys are set — other providers (Anthropic, OpenAI, Gemini) aren't visible or require scroll. For a BYOK product, all providers should be immediately discoverable.
 **Acceptance criteria:**
 - All supported providers (Claude, OpenAI, Gemini) render simultaneously in the Keys panel with labeled inputs
@@ -123,7 +123,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-09: Workflows panel unusable at narrow heights
 **Priority:** P1
-**Status:** 📋
+**Status:** ✅ Done — hash: `7aa7c25`
 **Problem:** At 780px-tall viewport, workflows scrollable area is 131px of 3,230px content (4% visible). 15 workflows exist; only 1-2 visible at a time.
 **Acceptance criteria:**
 - Workflows panel stretches to fill all available sidebar height
@@ -134,7 +134,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-10: No visible keyboard shortcut hints
 **Priority:** P1
-**Status:** 📋
+**Status:** ✅ Done — hash: `636e967`
 **Problem:** Many features have shortcuts (discoverable via Ctrl+K) but the UI buttons themselves don't show them. Tooltips don't include shortcuts.
 **Acceptance criteria:**
 - All interactive elements with keyboard shortcuts show the shortcut in their tooltip (e.g., "Save File (Ctrl+S)")
@@ -391,7 +391,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 |---|---|---|---|---|
 | Wave 1 | 2026-04-15 | `dc3f2c8` UX-01, `8c717b5` UX-02, `a094d45` UX-03 | 9 new, 77 existing (7 pre-existing visual snapshot failures untouched) | Welcome dialog is now strictly blocking on first run (X hidden, Escape suppressed); dismissible when a workspace exists behind it. Command palette has sr-only DialogTitle. Sidebar nav is a proper ARIA tablist with arrow-key navigation. |
 | Wave 2 | 2026-04-15 | `8d972bd` UX-04, `1c6bffb` UX-05, `1dc106b` UX-06, `7edffda` UX-07 | 11 new (3 onboarding-card + 3 welcome-dialog-copy + 5 empty-states), 87 total pass, 7 pre-existing failures unchanged (3 Claude Opus 4.5 model-id tests + 4 visual snapshots) | Added prominent API key setup card in MainPanel for BYOK onboarding (sessionStorage-dismissal, reappears after page reload). Welcome dialog now has elevator pitch + Learn more link + preview of docs/research/templates folders. New reusable EmptyState component applied to Files, Search, AI Audit, Trash, and Whiteboard panels; Workflows skipped (always has 15 templates). |
-| Wave 3 | _pending_ | | | |
+| Wave 3 | 2026-04-15 | `e781fef` UX-08, `7aa7c25` UX-09, `636e967` UX-10, `4719c60` model-id fix | 19 new (7 api-keys-panel + 6 workflows-panel + 6 shortcuts-overlay), 109 total pass, 4 pre-existing visual-snapshot failures unchanged (ai-models-tab, file-tree, breadcrumb-nav, status-bar). The 3 model-id tests that were red since Wave 1 are now green. Updated ai-keys-tab snapshot to match the new UX-08 layout. | API Keys panel now renders all 3 providers simultaneously with Get key, Test, Clear, masked display, and Valid/Invalid/Not tested status chip. Workflows sidebar panel fills available height via flex layout + exposes a full-view modal with 3-column grid and search. Keyboard-shortcuts overlay (`?` hotkey, focus-aware) lists every shortcut from a new SSOT at src/utils/shortcuts.ts; overlay has a visible DialogTitle. Tooltip audit added shortcut hints on MainPanel toolbar + TabBar close-X. |
 | Wave 4 | _pending_ | | | |
 | Wave 5 | _pending_ | | | |
 | Wave 6 | _pending_ | | | |
