@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import CharacterCount from '@tiptap/extension-character-count';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
   AlertTriangle,
@@ -113,6 +114,7 @@ export function RtfEditor({
             },
           },
         }),
+        CharacterCount,
         Placeholder.configure({
           placeholder: 'Start writing...',
         }),
@@ -377,6 +379,8 @@ export function RtfEditor({
         <EditorContent editor={editor} className="h-full" />
       </div>
 
+      <WordCountFooter editor={editor} />
+
       {/* Matching styles to DocxEditor so the TipTap output renders visibly. */}
       <style>{`
         .ProseMirror { outline: none; min-height: 100%; }
@@ -415,6 +419,40 @@ export function RtfEditor({
           pointer-events: none;
         }
       `}</style>
+    </div>
+  );
+}
+
+type TipTapEditor = NonNullable<ReturnType<typeof useEditor>>;
+
+function WordCountFooter({ editor }: { editor: TipTapEditor }) {
+  const [counts, setCounts] = useState(() => ({
+    words: editor.storage['characterCount']?.words() ?? 0,
+    characters: editor.storage['characterCount']?.characters() ?? 0,
+  }));
+
+  useEffect(() => {
+    const update = () => {
+      setCounts({
+        words: editor.storage['characterCount']?.words() ?? 0,
+        characters: editor.storage['characterCount']?.characters() ?? 0,
+      });
+    };
+    editor.on('update', update);
+    editor.on('create', update);
+    return () => {
+      editor.off('update', update);
+      editor.off('create', update);
+    };
+  }, [editor]);
+
+  return (
+    <div
+      data-testid="editor-word-count"
+      className="flex items-center justify-end border-t bg-background px-3 py-1 text-[11px] text-muted-foreground"
+      style={{ fontVariantNumeric: 'tabular-nums' }}
+    >
+      {counts.words} words · {counts.characters.toLocaleString()} characters
     </div>
   );
 }

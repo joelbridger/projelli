@@ -39,6 +39,7 @@
     "@tauri-apps/plugin-fs": "~2.4.5",
     "@tauri-apps/plugin-http": "~2.5.0",
     "@tauri-apps/plugin-shell": "2.3.4",
+    "@tiptap/extension-character-count": "^3.22.3",
     "@tiptap/extension-link": "^3.22.3",
     "@tiptap/extension-placeholder": "^3.22.3",
     "@tiptap/extension-underline": "^3.22.3",

@@ -2,9 +2,10 @@
 // WYSIWYG editor for .rt and .rtf files using Tiptap
 // Shows formatting immediately as the user types (like WordPad/Word)
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import CharacterCount from '@tiptap/extension-character-count';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
   Bold,
@@ -77,6 +78,7 @@ export function RichTextEditor({
           },
         },
       }),
+      CharacterCount,
       Placeholder.configure({
         placeholder,
       }),
@@ -283,6 +285,8 @@ export function RichTextEditor({
         <EditorContent editor={editor} className="h-full" />
       </div>
 
+      <WordCountFooter editor={editor} />
+
       {/* Scoped styles so Tiptap content renders visibly without @tailwindcss/typography */}
       <style>{`
         .ProseMirror { outline: none; min-height: 100%; }
@@ -339,6 +343,40 @@ export function RichTextEditor({
           pointer-events: none;
         }
       `}</style>
+    </div>
+  );
+}
+
+type TipTapEditor = NonNullable<ReturnType<typeof useEditor>>;
+
+function WordCountFooter({ editor }: { editor: TipTapEditor }) {
+  const [counts, setCounts] = useState(() => ({
+    words: editor.storage['characterCount']?.words() ?? 0,
+    characters: editor.storage['characterCount']?.characters() ?? 0,
+  }));
+
+  useEffect(() => {
+    const update = () => {
+      setCounts({
+        words: editor.storage['characterCount']?.words() ?? 0,
+        characters: editor.storage['characterCount']?.characters() ?? 0,
+      });
+    };
+    editor.on('update', update);
+    editor.on('create', update);
+    return () => {
+      editor.off('update', update);
+      editor.off('create', update);
+    };
+  }, [editor]);
+
+  return (
+    <div
+      data-testid="editor-word-count"
+      className="flex items-center justify-end border-t bg-background px-3 py-1 text-[11px] text-muted-foreground"
+      style={{ fontVariantNumeric: 'tabular-nums' }}
+    >
+      {counts.words} words · {counts.characters.toLocaleString()} characters
     </div>
   );
 }
