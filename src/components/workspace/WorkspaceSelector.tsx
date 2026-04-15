@@ -18,7 +18,14 @@ import { WebFSBackend, createWebFSBackend } from '@/modules/workspace/WebFSBacke
 import { WorkspaceService, createWorkspaceService } from '@/modules/workspace/WorkspaceService';
 import { createFSBackend, isTauriEnvironment } from '@/modules/workspace/BackendFactory';
 import { DEFAULT_WORKSPACE_FOLDERS } from '@/modules/workspace/types';
-import { FolderOpen, FolderPlus, Clock, AlertCircle } from 'lucide-react';
+import { openExternal } from '@/utils/openExternal';
+import { FolderOpen, FolderPlus, Clock, AlertCircle, ExternalLink } from 'lucide-react';
+
+// Public Getting Started doc URL. The Tauri app does not bundle the docs
+// (checked src-tauri/tauri.conf.json — resources is empty), so we open the
+// live website in the system browser. If the docs ever ship bundled we'll
+// swap this for a file:// or asset-protocol URL.
+const GETTING_STARTED_URL = 'https://projelli.com/docs/getting-started';
 
 // Folders shown under the "New Workspace" button as a preview. We
 // intentionally omit `.trash` because it's an implementation detail for the
@@ -253,6 +260,36 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
             Select an existing workspace folder or create a new one to get started.
           </DialogDescription>
         </DialogHeader>
+
+        {/*
+          UX-06: elevator pitch + Learn more link. The default dialog copy
+          ("Select an existing workspace folder...") told users HOW but never
+          WHAT — Projelli's core pitch is "your AI chats become real files on
+          your disk," and first-run users had no way to know that before
+          committing a folder. Keep it short: one sentence of pitch, one link.
+        */}
+        <div className="pt-2 space-y-2 text-sm">
+          <p
+            data-testid="welcome-dialog-pitch"
+            className="text-foreground leading-relaxed"
+          >
+            Projelli saves your AI chats as real files on your computer — pick
+            a folder to save them into.
+          </p>
+          <button
+            data-testid="welcome-dialog-learn-more"
+            type="button"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+            onClick={() => {
+              openExternal(GETTING_STARTED_URL).catch((err) => {
+                console.error('[WorkspaceSelector] Failed to open docs:', err);
+              });
+            }}
+          >
+            Learn more
+            <ExternalLink className="h-3 w-3" />
+          </button>
+        </div>
 
         <div className="space-y-4 pt-4">
           {error && (
