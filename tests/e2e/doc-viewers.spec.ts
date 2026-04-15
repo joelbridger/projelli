@@ -172,10 +172,13 @@ test.describe('Document Viewers (Phase 1)', () => {
       content: dataUrl,
     });
 
-    // The fallback splits the .doc reference across an inline <code> tag, so
-    // match by a substring that survives the split.
-    await expect(page.getByText('This is the older')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText('format. Convert to')).toBeVisible();
+    // Phase 5 rewrote the fallback into a DocLegacyFallback component with a
+    // `doc-legacy-fallback` testid. In browser test mode (no Tauri mock) the
+    // "open in Word" branch renders — match a substring that survives the
+    // inline <code> split.
+    const fallback = page.getByTestId('doc-legacy-fallback');
+    await expect(fallback).toBeVisible({ timeout: 20_000 });
+    await expect(fallback).toContainText('Open it in Word');
 
     // The Download button should be present and enabled
     const download = page.getByRole('button', { name: 'Download File' });

@@ -1,7 +1,7 @@
 // Main Panel Component
 // Contains the editor area with tabs, split panes, and side panels
 
-import { lazy, Suspense, useCallback, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { TabBar } from '@/components/editor/TabBar';
 import { MarkdownEditor, type MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
@@ -45,10 +45,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FileText, List, Link2, PanelRightClose, FileType, Presentation, X, Save, History, Download, ChevronDown } from 'lucide-react';
+import { FileText, List, Link2, PanelRightClose, FileType, Presentation, X, Save, History, Download, ChevronDown, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/utils/saveFile';
 import { markdownToDocxBytes } from '@/utils/docx-io';
+import { detectLibreOffice, convertDocToDocx } from '@/utils/tauri-commands';
+import { isTauriEnvironment } from '@/modules/workspace/BackendFactory';
 
 /**
  * Check if a file is a whiteboard file
@@ -490,26 +492,12 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
           );
         }
         return (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full px-6 text-center">
-            <FileType className="h-16 w-16 mb-4 opacity-50" />
-            <p className="text-lg font-medium">{tab.name}</p>
-            <p className="mt-2 text-sm max-w-md">
-              This is the older <code>.doc</code> format. Convert to <code>.docx</code> in
-              Word to preview it here. Full <code>.doc</code> support coming in a future update.
-            </p>
-            <Button
-              variant="outline"
-              className="mt-4"
-              onClick={async () => {
-                // Convert data URL to blob
-                const response = await fetch(tab.content);
-                const blob = await response.blob();
-                await downloadFileWithDialog(blob, tab.name, blob.type || 'application/msword');
-              }}
-            >
-              Download File
-            </Button>
-          </div>
+          <DocLegacyFallback
+            tabName={tab.name}
+            tabPath={tab.path}
+            tabContent={tab.content}
+            onFileOpen={onFileOpen}
+          />
         );
       }
       // Check if it's a markdown or text file for formatting support
@@ -886,6 +874,223 @@ function DocLoadingFallback({ fileName }: { fileName: string }) {
     <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
       <FileType className="h-10 w-10 animate-pulse opacity-50" />
       <p className="text-sm">Opening {fileName}...</p>
+    </div>
+  );
+}
+
+interface DocLegacyFallbackProps {
+  tabName: string;
+  tabPath: string;
+  tabContent: string;
+  onFileOpen?: ((path: string, name: string) => Promise<void>) | undefined;
+}
+
+/**
+ * Fallback UI for legacy `.doc` (pre-2007 binary Word) files.
+ *
+ * Three branches:
+ *   1. Browser (not Tauri): show the plain fallback + a Download button. No
+ *      conversion is possible because LibreOffice subprocess calls need the
+ *      native host.
+ *   2. Tauri + LibreOffice detected: show a primary "Convert to .docx" button.
+ *      On click, invoke the Rust command, then open the new .docx tab and
+ *      close the current .doc tab (the editor store's openFile handles that
+ *      naturally via onFileOpen + user closing the old tab).
+ *   3. Tauri + LibreOffice NOT detected: show install instructions pointing
+ *      at libreoffice.org, plus the Download button so users can take the
+ *      file elsewhere.
+ *
+ * Detection is cached per-mount in local state. Re-detecting on every remount
+ * is cheap (single `which` call) and avoids stale "not installed" results if
+ * the user installs LibreOffice while the app is running.
+ */
+function DocLegacyFallback({
+  tabName,
+  tabPath,
+  tabContent,
+  onFileOpen,
+}: DocLegacyFallbackProps) {
+  // Detection state: undefined = still checking, null = not found,
+  // string = soffice path.
+  const [libreOfficePath, setLibreOfficePath] = useState<string | null | undefined>(
+    undefined
+  );
+  const [conversionState, setConversionState] = useState<
+    'idle' | 'loading' | 'error'
+  >('idle');
+  const [conversionError, setConversionError] = useState<string | null>(null);
+
+  const inTauri = isTauriEnvironment();
+
+  useEffect(() => {
+    let cancelled = false;
+    // In the browser, don't even try — detectLibreOffice() already
+    // short-circuits to null, but this skips the promise entirely.
+    if (!inTauri) {
+      setLibreOfficePath(null);
+      return;
+    }
+    detectLibreOffice()
+      .then((path) => {
+        if (!cancelled) setLibreOfficePath(path);
+      })
+      .catch(() => {
+        if (!cancelled) setLibreOfficePath(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inTauri]);
+
+  const handleConvert = useCallback(async () => {
+    setConversionState('loading');
+    setConversionError(null);
+    try {
+      const outputPath = await convertDocToDocx(tabPath);
+      // Derive a friendly display name from the path.
+      const parts = outputPath.split(/[\\/]/);
+      const newName = parts[parts.length - 1] || `${tabName}.docx`;
+      // Open the new .docx in a new tab. The old .doc tab stays open (user
+      // can close it manually); we don't force-close in case they want the
+      // original for reference.
+      if (onFileOpen) {
+        await onFileOpen(outputPath, newName);
+      }
+      setConversionState('idle');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setConversionError(message);
+      setConversionState('error');
+    }
+  }, [tabPath, tabName, onFileOpen]);
+
+  const handleDownload = useCallback(async () => {
+    try {
+      const response = await fetch(tabContent);
+      const blob = await response.blob();
+      await downloadFileWithDialog(blob, tabName, blob.type || 'application/msword');
+    } catch (err) {
+      console.error('[DocLegacyFallback] Download failed:', err);
+    }
+  }, [tabContent, tabName]);
+
+  // State 1: browser — no conversion possible.
+  if (!inTauri) {
+    return (
+      <div
+        data-testid="doc-legacy-fallback"
+        className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full px-6 text-center"
+      >
+        <FileType className="h-16 w-16 mb-4 opacity-50" />
+        <p className="text-lg font-medium">{tabName}</p>
+        <p className="mt-2 text-sm max-w-md">
+          This is the older <code>.doc</code> format. Open it in Word and save
+          as <code>.docx</code> to preview it here.
+        </p>
+        <Button variant="outline" className="mt-4" onClick={handleDownload}>
+          Download File
+        </Button>
+      </div>
+    );
+  }
+
+  // Still detecting — avoid flashing the wrong branch.
+  if (libreOfficePath === undefined) {
+    return (
+      <div
+        data-testid="doc-legacy-fallback"
+        className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full px-6 text-center"
+      >
+        <Loader2
+          data-testid="doc-convert-loading"
+          className="h-10 w-10 mb-3 animate-spin opacity-70"
+        />
+        <p className="text-sm">Checking for LibreOffice…</p>
+      </div>
+    );
+  }
+
+  // State 3: Tauri but LibreOffice not installed.
+  if (libreOfficePath === null) {
+    return (
+      <div
+        data-testid="doc-legacy-fallback"
+        className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full px-6 text-center"
+      >
+        <FileType className="h-16 w-16 mb-4 opacity-50" />
+        <p className="text-lg font-medium">{tabName}</p>
+        <p
+          data-testid="doc-convert-install-libreoffice"
+          className="mt-2 text-sm max-w-md"
+        >
+          <code>.doc</code> (legacy Word format) files need LibreOffice or
+          Microsoft Word to preview. Install LibreOffice for free at{' '}
+          <a
+            href="https://libreoffice.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-foreground"
+          >
+            libreoffice.org
+          </a>
+          , then reopen this file.
+        </p>
+        <Button variant="outline" className="mt-4" onClick={handleDownload}>
+          Download File
+        </Button>
+      </div>
+    );
+  }
+
+  // State 2: Tauri + LibreOffice detected. Show Convert as primary action.
+  // During loading, keep the container and swap the content to a spinner.
+  return (
+    <div
+      data-testid="doc-legacy-fallback"
+      className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full px-6 text-center"
+    >
+      <FileType className="h-16 w-16 mb-4 opacity-50" />
+      <p className="text-lg font-medium">{tabName}</p>
+      <p className="mt-2 text-sm max-w-md">
+        Preview this legacy <code>.doc</code> file? We'll convert it to{' '}
+        <code>.docx</code> using LibreOffice and save a copy next to the
+        original.
+      </p>
+      {conversionState === 'loading' ? (
+        <div
+          data-testid="doc-convert-loading"
+          className="mt-4 flex items-center gap-2 text-sm"
+        >
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Converting to .docx…</span>
+        </div>
+      ) : conversionState === 'error' ? (
+        <div
+          data-testid="doc-convert-error"
+          className="mt-4 flex flex-col items-center gap-2 max-w-md"
+        >
+          <p className="text-sm text-destructive">
+            Conversion failed: {conversionError}
+          </p>
+          <div className="flex gap-2">
+            <Button onClick={handleConvert} data-testid="doc-convert-button">
+              Try again
+            </Button>
+            <Button variant="outline" onClick={handleDownload}>
+              Download File
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4 flex gap-2">
+          <Button onClick={handleConvert} data-testid="doc-convert-button">
+            Convert to .docx
+          </Button>
+          <Button variant="outline" onClick={handleDownload}>
+            Download File
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

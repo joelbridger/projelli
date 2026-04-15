@@ -16,6 +16,8 @@ pub fn run() {
             commands::fs::check_path,
             commands::fs::get_home_dir,
             commands::fs::open_in_explorer,
+            commands::fs::detect_libreoffice,
+            commands::fs::convert_doc_to_docx,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
