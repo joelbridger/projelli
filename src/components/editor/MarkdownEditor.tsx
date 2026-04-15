@@ -1,7 +1,7 @@
 // Markdown Editor Component
 // CodeMirror 6 based editor with Markdown syntax highlighting
 
-import { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightActiveLine, drawSelection, rectangularSelection } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
@@ -9,6 +9,7 @@ import { syntaxHighlighting, defaultHighlightStyle, bracketMatching, foldGutter,
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
+import { WordCountFooter } from './WordCountFooter';
 
 export interface MarkdownEditorRef {
   getView: () => EditorView | null;
@@ -70,6 +71,7 @@ const editorTheme = EditorView.theme({
 // Create extensions array - using a ref callback for onChange to prevent recreating
 const createExtensions = (
   onChangeRef: React.MutableRefObject<((content: string) => void) | undefined>,
+  onChangeMirrorRef: React.MutableRefObject<((content: string) => void) | undefined>,
   readOnly: boolean = false
 ) => {
   const extensions = [
@@ -99,7 +101,9 @@ const createExtensions = (
     ]),
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {
-        onChangeRef.current?.(update.state.doc.toString());
+        const text = update.state.doc.toString();
+        onChangeRef.current?.(text);
+        onChangeMirrorRef.current?.(text);
       }
     }),
   ];
@@ -125,11 +129,26 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
     const onChangeRef = useRef(onChange);
+    // UX-30: reactive mirror of the current document content so the word
+    // count footer updates on every keystroke. We keep a separate piece of
+    // React state rather than reading from the CodeMirror view synchronously
+    // so the footer re-renders without touching the editor mount effect.
+    const [currentText, setCurrentText] = useState(initialContent);
+    const onChangeMirrorRef = useRef<((content: string) => void) | undefined>(
+      setCurrentText
+    );
 
     // Keep onChange ref up to date (this doesn't cause re-renders)
     useEffect(() => {
       onChangeRef.current = onChange;
     }, [onChange]);
+
+    // Reset the mirrored text when switching to a new file (filePath change
+    // is what recreates the editor; doing it in the same effect keeps the
+    // footer in sync with the freshly-loaded content).
+    useEffect(() => {
+      setCurrentText(initialContent);
+    }, [initialContent]);
 
     // Expose editor methods via ref
     useImperativeHandle(ref, () => ({
@@ -178,7 +197,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
 
       const state = EditorState.create({
         doc: initialContent,
-        extensions: createExtensions(onChangeRef, readOnly),
+        extensions: createExtensions(onChangeRef, onChangeMirrorRef, readOnly),
       });
 
       const view = new EditorView({
@@ -202,14 +221,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     }, [filePath, readOnly]); // Recreate when filePath or readOnly changes
 
     return (
-      <div
-        ref={containerRef}
-        className={`h-full w-full bg-background ${className}`}
-        onClick={() => {
-          // Ensure editor gets focus when clicking the container
-          viewRef.current?.focus();
-        }}
-      />
+      <div className={`h-full w-full flex flex-col bg-background ${className}`}>
+        <div
+          ref={containerRef}
+          className="flex-1 min-h-0"
+          onClick={() => {
+            // Ensure editor gets focus when clicking the container
+            viewRef.current?.focus();
+          }}
+        />
+        {/* UX-30: word count footer. Matches the TipTap editors' styling. */}
+        {!readOnly && <WordCountFooter text={currentText} />}
+      </div>
     );
   }
 );

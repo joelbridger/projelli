@@ -2,13 +2,14 @@
 // Simple CodeMirror-based editor for plain text files (.txt) without formatting toolbar
 // Plain text files should not have Markdown formatting applied
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EditorView, lineNumbers, highlightActiveLine, highlightActiveLineGutter, keymap, ViewUpdate, drawSelection } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching } from '@codemirror/language';
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
 import { cn } from '@/lib/utils';
+import { WordCountFooter } from './WordCountFooter';
 
 interface PlainTextEditorProps {
   initialContent: string;
@@ -20,6 +21,8 @@ export function PlainTextEditor({ initialContent, onChange, className }: PlainTe
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
+  // UX-30: reactive mirror of the current content for the word-count footer.
+  const [currentText, setCurrentText] = useState(initialContent);
 
   // Keep onChange ref up to date
   useEffect(() => {
@@ -50,9 +53,10 @@ export function PlainTextEditor({ initialContent, onChange, className }: PlainTe
           indentWithTab,
         ]),
         EditorView.updateListener.of((update: ViewUpdate) => {
-          if (update.docChanged && onChangeRef.current) {
+          if (update.docChanged) {
             const content = update.state.doc.toString();
-            onChangeRef.current(content);
+            onChangeRef.current?.(content);
+            setCurrentText(content);
           }
         }),
         EditorView.theme({
@@ -123,6 +127,7 @@ export function PlainTextEditor({ initialContent, onChange, className }: PlainTe
         });
       }
     }
+    setCurrentText(initialContent);
   }, [initialContent]);
 
   return (
@@ -130,12 +135,14 @@ export function PlainTextEditor({ initialContent, onChange, className }: PlainTe
       {/* Simple text editor - no formatting toolbar for plain text files */}
       <div
         ref={editorRef}
-        className="flex-1 overflow-hidden"
+        className="flex-1 overflow-hidden min-h-0"
         onClick={() => {
           // Ensure editor gets focus when container is clicked
           viewRef.current?.focus();
         }}
       />
+      {/* UX-30: word count footer matching other editors. */}
+      <WordCountFooter text={currentText} />
     </div>
   );
 }
