@@ -28,6 +28,7 @@ import { ProjectManager } from '@/components/workspace/ProjectManager';
 import { AudioRecorderModal } from '@/components/audio/AudioRecorderModal';
 import { Button } from '@/components/ui/button';
 import { Command, Moon, Sun } from 'lucide-react';
+import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/components/WhatsNew';
 import { GlobalDropOverlay, useGlobalFileDrop } from '@/components/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { saveFile } from '@/utils/saveFile';
@@ -1985,7 +1986,30 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
       {/* UX-19: Global drop overlay. Visible while files are dragged over the window. */}
       <GlobalDropOverlay visible={isFileDragging} />
+
+      {/* UX-20: What's new toast + changelog modal */}
+      <WhatsNewLayer />
     </div>
+  );
+}
+
+/**
+ * UX-20: local wrapper so we can call the hook inside a component tree that
+ * doesn't already subscribe to the app's other state. Mounted once near the
+ * UndoToastRenderer.
+ */
+function WhatsNewLayer() {
+  const { toastOpen, modalOpen, version, openModal, dismissToast, closeModal } = useWhatsNew();
+  return (
+    <>
+      <WhatsNewToast
+        open={toastOpen}
+        version={version}
+        onOpenModal={openModal}
+        onDismiss={dismissToast}
+      />
+      <WhatsNewModal open={modalOpen} onOpenChange={closeModal} />
+    </>
   );
 }
 
