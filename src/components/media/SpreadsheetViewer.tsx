@@ -248,13 +248,27 @@ interface FormulaBarProps {
 }
 
 function FormulaBar({ sheet, selected }: FormulaBarProps) {
-  // Always render so the grid's vertical position is stable; when no cell
-  // is selected, show an empty cell-reference box and blank content. If the
-  // bar only rendered when `selected` was non-null, the first click would
-  // shift the grid down by the bar's height, causing the second click of a
-  // dblclick to land on the wrong cell.
-  const cell = selected ? sheet.rows[selected.row]?.[selected.col] ?? null : null;
-  const ref = selected ? `${columnIndexToLetter(selected.col)}${selected.row + 1}` : '';
+  // UX-18: when no cell is selected the formula bar collapses to a thin
+  // (5px) divider so it doesn't reserve vertical space. On first selection
+  // it expands to its full height. The grid accepts a small layout shift
+  // on that FIRST expansion per selection session — subsequent
+  // cell-to-cell selection changes don't shift anything because the bar
+  // stays open. This trade-off lets us reclaim the ~26px of empty chrome
+  // that was always present before.
+  if (!selected) {
+    return (
+      <div
+        data-testid="spreadsheet-formula-bar"
+        data-state="collapsed"
+        className="border-b bg-muted/30"
+        style={{ height: 5 }}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  const cell = sheet.rows[selected.row]?.[selected.col] ?? null;
+  const ref = `${columnIndexToLetter(selected.col)}${selected.row + 1}`;
   const content = cell?.formula
     ? `=${cell.formula}`
     : cell?.display ?? '';
@@ -262,7 +276,8 @@ function FormulaBar({ sheet, selected }: FormulaBarProps) {
   return (
     <div
       data-testid="spreadsheet-formula-bar"
-      className="flex items-center border-b bg-background px-2 py-1 gap-2 text-xs font-mono"
+      data-state="expanded"
+      className="flex items-center border-b bg-background px-2 py-1 gap-2 text-xs font-mono transition-[height] duration-150 ease-out"
     >
       <span
         data-testid="spreadsheet-formula-bar-ref"
@@ -292,7 +307,24 @@ interface SelectionSummaryProps {
 }
 
 function SelectionSummary({ sheet, selected }: SelectionSummaryProps) {
-  const cell = selected ? sheet.rows[selected.row]?.[selected.col] ?? null : null;
+  // UX-18: mirror the formula bar's collapse behaviour — the summary row
+  // disappears entirely when no cell is selected, and reappears as a
+  // full-height footer on selection. Uses the same 5px thin-divider
+  // placeholder so the grid's resting state has a visible bottom border
+  // without reserving summary space.
+  if (!selected) {
+    return (
+      <div
+        data-testid="spreadsheet-selection-summary"
+        data-state="collapsed"
+        className="border-t bg-muted/30"
+        style={{ height: 5 }}
+        aria-hidden="true"
+      />
+    );
+  }
+
+  const cell = sheet.rows[selected.row]?.[selected.col] ?? null;
 
   let numeric: number | null = null;
   if (cell) {
@@ -304,11 +336,11 @@ function SelectionSummary({ sheet, selected }: SelectionSummaryProps) {
     }
   }
 
-  // Always render the footer so the grid height is stable (see FormulaBar).
   return (
     <div
       data-testid="spreadsheet-selection-summary"
-      className="flex justify-end border-t bg-muted/30 px-3 py-1 text-xs font-mono text-muted-foreground min-h-[22px]"
+      data-state="expanded"
+      className="flex justify-end border-t bg-muted/30 px-3 py-1 text-xs font-mono text-muted-foreground min-h-[22px] transition-[height] duration-150 ease-out"
     >
       {numeric !== null ? `Value: ${numeric}` : '\u00A0'}
     </div>

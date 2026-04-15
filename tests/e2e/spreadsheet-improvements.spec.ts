@@ -81,6 +81,31 @@ test.describe('Spreadsheet Improvements (Phase 7)', () => {
     await expect(c3).toContainText('22000', { timeout: 5_000 });
   });
 
+  test('UX-18: formula bar and summary collapse to a thin divider when no cell selected', async ({ page }) => {
+    const dataUrl = readFixtureAsDataUrl('test.xlsx', MIME.xlsx);
+    await openFixtureTab(page, {
+      path: '/test-workspace/ux18.xlsx',
+      name: 'ux18.xlsx',
+      content: dataUrl,
+    });
+
+    await expect(page.getByTestId('spreadsheet-viewer')).toBeVisible({ timeout: 20_000 });
+
+    // Before any cell is selected, both the formula bar and the summary
+    // are rendered but collapsed (5px thin divider). The data-state
+    // attribute reflects the collapse decision for deterministic
+    // assertions.
+    const formulaBar = page.getByTestId('spreadsheet-formula-bar');
+    const summary = page.getByTestId('spreadsheet-selection-summary');
+    await expect(formulaBar).toHaveAttribute('data-state', 'collapsed');
+    await expect(summary).toHaveAttribute('data-state', 'collapsed');
+
+    // Clicking a cell expands both.
+    await page.getByTestId('spreadsheet-cell-1-0').click();
+    await expect(formulaBar).toHaveAttribute('data-state', 'expanded');
+    await expect(summary).toHaveAttribute('data-state', 'expanded');
+  });
+
   test('formula bar shows the selected cell formula', async ({ page }) => {
     const dataUrl = readFixtureAsDataUrl('test.xlsx', MIME.xlsx);
     await openFixtureTab(page, {
