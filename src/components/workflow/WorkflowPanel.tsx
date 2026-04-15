@@ -81,9 +81,27 @@ export function WorkflowPanel({
             >
               <CardHeader className="p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <CardTitle className="text-sm truncate">{workflow.name}</CardTitle>
-                    <CardDescription className="text-xs mt-1 line-clamp-2">
+                  <div className="min-w-0 flex-1">
+                    {/*
+                      UX-12: `line-clamp-2` lets long titles ("New Business
+                      Kickoff", "Competitor Analysis Deep Dive") wrap across
+                      TWO lines before truncating with an ellipsis. The
+                      previous `truncate` forced one-line display, which in a
+                      narrow sidebar (256px) chopped off the tail end of most
+                      workflow names. `break-words` prevents a long
+                      unbreakable word from blowing out the card width (the
+                      "one word per line" vertical-stacking bug).
+                    */}
+                    <CardTitle
+                      className="text-sm leading-snug line-clamp-2 break-words"
+                      title={workflow.name}
+                    >
+                      {workflow.name}
+                    </CardTitle>
+                    <CardDescription
+                      className="text-xs mt-1 line-clamp-2"
+                      title={workflow.description}
+                    >
                       {workflow.description}
                     </CardDescription>
                   </div>
