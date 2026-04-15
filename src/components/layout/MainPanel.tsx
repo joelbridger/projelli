@@ -629,8 +629,8 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
   return (
     <div className="flex-1 flex flex-col h-full">
       {/* Tab bar with split controls */}
-      <div className="flex items-center border-b">
-        <div className="flex-1">
+      <div className="flex items-center border-b min-w-0 w-full">
+        <div className="flex-1 min-w-0 w-0 overflow-hidden">
           <TabBar {...(onRename ? { onRenameFile: onRename } : {})} />
         </div>
         <div className="flex items-center gap-1 px-2 border-l">

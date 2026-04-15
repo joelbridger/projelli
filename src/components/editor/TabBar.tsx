@@ -813,10 +813,10 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   });
 
   return (
-    <div className="border-b bg-muted/30" data-testid="tab-bar-root">
+    <div className="border-b bg-muted/30 min-w-0 w-full" data-testid="tab-bar-root">
       <div
         className={cn(
-          "flex items-stretch relative transition-colors",
+          "flex items-stretch relative transition-colors min-w-0 w-full",
           dragOverTabBar && "bg-primary/10 ring-2 ring-primary/50 ring-inset"
         )}
         onDragOver={handleTabBarDragOver}
@@ -839,12 +839,15 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         )}
 
         {/* Horizontally scrollable tab strip. Mouse wheel → horizontal scroll
-            via onWheel. scroll-snap keeps tabs aligned to their left edge. */}
+            via onWheel. scroll-snap keeps tabs aligned to their left edge.
+            flex-1 min-w-0 + max-w-full together clip the strip width to the
+            parent so overflow-x-auto can activate; otherwise the flex item
+            would expand to accommodate its content. */}
         <div
           ref={scrollRef}
           data-testid="tab-bar-scroll"
           className={cn(
-            "flex items-stretch flex-1 min-w-0 overflow-x-auto overflow-y-hidden",
+            "flex items-stretch flex-1 min-w-0 max-w-full overflow-x-auto overflow-y-hidden",
             "[scrollbar-width:thin]",
             "[scroll-snap-type:x_proximity]"
           )}
