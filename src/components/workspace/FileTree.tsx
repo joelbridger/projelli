@@ -66,6 +66,15 @@ interface FileTreeProps {
   onCreateCsvAtRoot?: () => void;
   onCreateDocxAtRoot?: () => void;
   onCreatePptxAtRoot?: () => void;
+  /**
+   * UX-16: optional confirm dialog. When provided, replaces the
+   * built-in window.confirm() for bulk delete with a proper modal. If
+   * not provided, falls back to window.confirm() (test mode / storybook).
+   */
+  onConfirm?: (
+    message: string,
+    options?: { title?: string; confirmLabel?: string; variant?: 'default' | 'destructive' }
+  ) => Promise<boolean>;
 }
 
 export function FileTree({
@@ -90,6 +99,7 @@ export function FileTree({
   onCreateCsvAtRoot,
   onCreateDocxAtRoot,
   onCreatePptxAtRoot,
+  onConfirm,
 }: FileTreeProps) {
   const {
     fileTree,
@@ -178,9 +188,18 @@ export function FileTree({
   const handleBatchDelete = useCallback(async () => {
     if (!onDelete || selectedPaths.size === 0) return;
 
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${selectedPaths.size} item(s)?`
-    );
+    // UX-16: replace window.confirm with the app's ConfirmDialog when
+    // provided. Keeps the destructive bulk-delete flow on-brand and
+    // accessible (Radix Dialog, proper a11y, keyboard-trap).
+    const count = selectedPaths.size;
+    const message = `Move ${count} file${count === 1 ? '' : 's'} to Trash?`;
+    const confirmed = onConfirm
+      ? await onConfirm(message, {
+          title: 'Delete selected files',
+          confirmLabel: `Move ${count} to Trash`,
+          variant: 'destructive',
+        })
+      : window.confirm(message);
 
     if (!confirmed) return;
 
@@ -191,7 +210,7 @@ export function FileTree({
     }
 
     clearSelection();
-  }, [selectedPaths, onDelete, clearSelection]);
+  }, [selectedPaths, onDelete, clearSelection, onConfirm]);
 
   const handleBatchDownload = useCallback(async () => {
     if (!onDownload || selectedPaths.size === 0) return;
@@ -390,6 +409,7 @@ export function FileTree({
             )}
             {onDelete && (
               <Button
+                data-testid="batch-delete"
                 variant="ghost"
                 size="sm"
                 className="h-6 px-2 text-xs text-destructive hover:text-destructive"

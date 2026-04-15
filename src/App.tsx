@@ -71,6 +71,7 @@ import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { usePromptDialog } from '@/hooks/usePromptDialog';
 import { PromptDialog } from '@/components/common/PromptDialog';
+import { useUndoToast, UndoToastRenderer } from '@/components/common/UndoToast';
 
 function App() {
   // Test mode: bypass workspace selector for E2E tests
@@ -172,6 +173,16 @@ function App() {
 
   // Prompt dialogs
   const { prompt, dialogProps: promptDialogProps } = usePromptDialog();
+
+  // UX-16: undo toast controller for destructive actions (delete/rename).
+  const undoToast = useUndoToast();
+
+  // UX-16: in-session rename history per-file so Ctrl+Z can revert the
+  // most recent rename. The value is an array of { fromPath, toPath }
+  // tuples in the order they happened; popping the tail gives us the
+  // last rename to undo. We don't persist this across app reloads —
+  // "session" is literally the current tab's lifetime.
+  const renameHistoryRef = useRef<Array<{ fromPath: string; toPath: string }>>([]);
 
   // Auto-expand all folders when file tree is first loaded or changes
   useEffect(() => {
@@ -496,11 +507,26 @@ function App() {
 
         // Close all tabs for the deleted file (handles duplicates and split panes)
         closeTabsByPath(path);
+
+        // UX-16: 10-second undo toast. Clicking Undo restores the file
+        // from Trash to its original path. Auto-dismissing commits the
+        // destructive action (no extra confirmation required).
+        undoToast.show({
+          message: `"${fileName}" moved to Trash`,
+          ttlMs: 10_000,
+          onUndo: async () => {
+            try {
+              await handleRestoreFromTrash(trashedItem.id);
+            } catch (err) {
+              console.error('Failed to undo delete:', err);
+            }
+          },
+        });
       } catch (error) {
         console.error('Failed to delete:', error);
       }
     },
-    [setFileTree, rootPath, closeTabsByPath, trashItems, saveTrashMetadata, setTrashStats, setTrashItems, confirm]
+    [setFileTree, rootPath, closeTabsByPath, trashItems, saveTrashMetadata, setTrashStats, setTrashItems, confirm, undoToast, handleRestoreFromTrash]
   );
 
   // AI Chat Files Management (must be defined after handleDelete and handleFileOpen)
@@ -774,6 +800,13 @@ function App() {
         await workspaceServiceRef.current.rename(path, newName);
         const fileTree = await workspaceServiceRef.current.getFileTree();
         setFileTree(fileTree);
+
+        // UX-16: record the rename so Ctrl+Z can revert it within the
+        // session. We store the full old/new absolute paths so undo can
+        // call `rename(newPath, oldName)` without re-deriving anything.
+        const parent = path.substring(0, path.lastIndexOf('/'));
+        const newPath = `${parent}/${newName}`;
+        renameHistoryRef.current.push({ fromPath: path, toPath: newPath });
       } catch (error) {
         console.error('Failed to rename:', error);
       }
@@ -803,6 +836,9 @@ function App() {
           closeTab(oldPath);
           await handleFileOpen(newPath, newName);
         }
+
+        // UX-16: track the rename for session-level Ctrl+Z undo.
+        renameHistoryRef.current.push({ fromPath: oldPath, toPath: newPath });
       } catch (error) {
         console.error('Failed to rename:', error);
       }
@@ -1658,11 +1694,44 @@ This file contains rules and guidelines for AI assistants in this workspace.
         setShowShortcutsOverlay(true);
         return;
       }
+
+      // UX-16: Ctrl+Z outside any input undoes the most recent rename in
+      // this session. We explicitly skip when focus is in an editor-like
+      // element so normal text-editing undo behaviour is preserved.
+      if (isMod && !e.shiftKey && e.key === 'z') {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName?.toLowerCase();
+        const editable = target?.isContentEditable;
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || editable) {
+          return;
+        }
+        const last = renameHistoryRef.current.pop();
+        if (!last || !workspaceServiceRef.current) return;
+        e.preventDefault();
+        try {
+          // Recover the original file name from the original path we stored.
+          const originalName = last.fromPath.split('/').pop() ?? '';
+          await workspaceServiceRef.current.rename(last.toPath, originalName);
+          const fileTree = await workspaceServiceRef.current.getFileTree();
+          setFileTree(fileTree);
+          // If the file was open in a tab, re-open it under the old name.
+          const tab = openTabs.find((t) => t.path === last.toPath);
+          if (tab) {
+            closeTab(last.toPath);
+            await handleFileOpen(last.fromPath, originalName);
+          }
+        } catch (err) {
+          console.error('Failed to undo rename:', err);
+          // Push it back so a subsequent Ctrl+Z can retry.
+          renameHistoryRef.current.push(last);
+        }
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit]);
+  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, setFileTree, handleFileOpen]);
 
   // Show workspace selector if no workspace is open (unless in test mode)
   if (!IS_TEST_MODE && (showWorkspaceSelector || !rootPath)) {
@@ -1750,6 +1819,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onCreateWhiteboardAtRoot={handleCreateWhiteboardAtRoot}
               onOpenGridView={handleOpenGridView}
               onCreateAudioAtRoot={handleCreateAudioAtRoot}
+              onConfirm={confirm}
             />
           }
           searchContent={
@@ -1867,6 +1937,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
       {/* Prompt Dialog */}
       <PromptDialog {...promptDialogProps} />
+
+      {/* UX-16: Undo toast for destructive actions */}
+      <UndoToastRenderer controller={undoToast} />
     </div>
   );
 }
