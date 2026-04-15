@@ -764,6 +764,10 @@ function FileTreeItem({
   return (
     <div>
       <div
+        // UX-19: folders tag their path so the global drop handler can route
+        // an external file drop into this folder. Uses `data-folder-path` —
+        // read by `findFolderTarget` in GlobalDropOverlay.
+        {...(isFolder ? { 'data-folder-path': node.path } : {})}
         className={cn(
           'flex items-center gap-1 px-2 py-1 cursor-pointer rounded-sm transition-colors border border-transparent',
           isSelected && 'bg-accent',

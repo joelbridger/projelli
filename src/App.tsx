@@ -28,6 +28,7 @@ import { ProjectManager } from '@/components/workspace/ProjectManager';
 import { AudioRecorderModal } from '@/components/audio/AudioRecorderModal';
 import { Button } from '@/components/ui/button';
 import { Command, Moon, Sun } from 'lucide-react';
+import { GlobalDropOverlay, useGlobalFileDrop } from '@/components/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { saveFile } from '@/utils/saveFile';
 import { useEditorStore } from '@/stores/editorStore';
@@ -53,6 +54,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/utils/file-utils';
+import { writeDroppedFiles } from '@/utils/fileDrop';
 import {
   createBlankSpreadsheet,
   spreadsheetBytesToDataUrl,
@@ -1322,6 +1324,41 @@ function App() {
     [rootPath, setFileTree]
   );
 
+  // UX-19: Global drag-and-drop upload. Handles files dropped anywhere on
+  // the window. Target folder resolves to the nearest `data-folder-path`
+  // ancestor of the drop target, or workspace root if no folder was under
+  // the cursor. Newly-written files are opened in tabs after the write.
+  const handleGlobalFileDrop = useCallback(
+    async (files: File[], folderPath: string | null) => {
+      const service = workspaceServiceRef.current;
+      if (!service || !rootPath) return;
+      const targetFolder = folderPath ?? rootPath;
+      try {
+        const results = await writeDroppedFiles({
+          service,
+          targetFolder,
+          files,
+        });
+        // Refresh tree
+        const tree = await service.getFileTree();
+        setFileTree(tree);
+        // Open each written file in a tab. Opening sequentially keeps the
+        // tab order consistent with the drop order.
+        for (const r of results) {
+          await handleFileOpen(r.path, r.name);
+        }
+      } catch (err) {
+        console.error('[App] Drag-drop upload failed:', err);
+      }
+    },
+    [rootPath, setFileTree, handleFileOpen]
+  );
+
+  const { isDragging: isFileDragging } = useGlobalFileDrop({
+    onDrop: handleGlobalFileDrop,
+    enabled: !!rootPath && !showWorkspaceSelector,
+  });
+
   // Handle starting a workflow
   const handleStartWorkflow = useCallback(
     async (template: WorkflowTemplate) => {
@@ -1945,6 +1982,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
       {/* UX-16: Undo toast for destructive actions */}
       <UndoToastRenderer controller={undoToast} />
+
+      {/* UX-19: Global drop overlay. Visible while files are dragged over the window. */}
+      <GlobalDropOverlay visible={isFileDragging} />
     </div>
   );
 }
