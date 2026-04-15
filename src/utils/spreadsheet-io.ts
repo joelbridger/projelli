@@ -10,6 +10,14 @@
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
 
+import {
+  evaluateFormulaString,
+  extractDependencies,
+  formulaValueToDisplay,
+  type CellLookup,
+  type FormulaValue,
+} from './formula-engine';
+
 /** A merged-cell range, in SheetJS's `{ s: {r,c}, e: {r,c} }` shape. */
 export interface MergeRange {
   /** Inclusive start row index (0-based). */
@@ -55,9 +63,246 @@ export interface SheetModel {
   activeSheetIndex: number;
   /** File extension this model came from (drives serialization). */
   sourceExtension: 'xlsx' | 'xls' | 'csv';
+  /**
+   * Live formula engine, seeded on parse with every cell + formula in the
+   * workbook. Consumers update cells through `engine.updateCell()` so that
+   * dependent formulas recompute on edit instead of showing stale cached
+   * values from the original xlsx file. Undefined when no cells contain
+   * formulas (single-sheet CSVs mostly).
+   */
+  engine?: SheetEngine;
 }
 
 export type SpreadsheetExtension = 'xlsx' | 'xls' | 'csv';
+
+// ---------------------------------------------------------------------------
+// SheetEngine — dependency-tracking formula recomputation
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-sheet formula engine. Indexed by `${row}:${col}` keys across a single
+ * `SheetData` (cross-sheet refs are not supported yet — they evaluate to
+ * `#REF!`). The engine stores:
+ *   - `values`:  the current (possibly-recomputed) value of every cell
+ *   - `formulas`: the formula string attached to cells that have one
+ *   - `dependents`: reverse graph — for each cell, which formula cells
+ *                    depend on it (so we can walk down on edit)
+ */
+export class SheetEngine {
+  private values = new Map<string, FormulaValue>();
+  private formulas = new Map<string, string>();
+  /** cellKey -> set of cellKeys that reference it (via formulas). */
+  private dependents = new Map<string, Set<string>>();
+
+  constructor(sheet: SheetData) {
+    this.seed(sheet);
+  }
+
+  private static key(row: number, col: number): string {
+    return `${row}:${col}`;
+  }
+
+  /** Seed all cells, then recompute formulas so `values` carries live
+   *  (not SheetJS-cached) results. */
+  private seed(sheet: SheetData) {
+    for (let r = 0; r < sheet.rows.length; r++) {
+      const row = sheet.rows[r];
+      if (!row) continue;
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c];
+        if (!cell) continue;
+        const k = SheetEngine.key(r, c);
+        if (cell.formula) {
+          this.formulas.set(k, cell.formula);
+          // Record dependencies
+          const deps = extractDependencies(cell.formula);
+          for (const dep of deps) {
+            const depKey = SheetEngine.key(dep.row, dep.col);
+            let set = this.dependents.get(depKey);
+            if (!set) {
+              set = new Set();
+              this.dependents.set(depKey, set);
+            }
+            set.add(k);
+          }
+          // Placeholder value — will be recomputed below.
+          this.values.set(k, null);
+        } else {
+          this.values.set(k, cell.raw as FormulaValue);
+        }
+      }
+    }
+
+    // Evaluate every formula cell once, in no particular order. A dependency
+    // may itself be a formula; the engine handles that recursively via the
+    // lookup callback, which falls back to the cached cell if the dependency
+    // hasn't been computed yet. On edit, the incremental recompute path
+    // walks the dependents set so order doesn't matter there either.
+    const visiting = new Set<string>();
+    for (const [k] of this.formulas) {
+      this.evaluateKey(k, visiting);
+    }
+  }
+
+  private lookup: CellLookup = (row, col) => {
+    const k = SheetEngine.key(row, col);
+    return this.values.get(k) ?? null;
+  };
+
+  /** Evaluate a single formula cell and store the result. */
+  private evaluateKey(k: string, visiting: Set<string>): FormulaValue {
+    const formula = this.formulas.get(k);
+    if (formula === undefined) return this.values.get(k) ?? null;
+
+    if (visiting.has(k)) {
+      // Circular reference — Excel shows #CIRC! / #REF! here.
+      this.values.set(k, '#CIRC!');
+      return '#CIRC!';
+    }
+    visiting.add(k);
+    let result: FormulaValue;
+    try {
+      // Resolve dependencies first so they carry fresh values.
+      const deps = extractDependencies(formula);
+      for (const dep of deps) {
+        const depKey = SheetEngine.key(dep.row, dep.col);
+        if (this.formulas.has(depKey)) {
+          this.evaluateKey(depKey, visiting);
+        }
+      }
+      result = evaluateFormulaString(formula, this.lookup);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '#ERROR!';
+      result = msg.startsWith('#') ? msg : '#ERROR!';
+    }
+    visiting.delete(k);
+    this.values.set(k, result);
+    return result;
+  }
+
+  /** Return the display string for a cell (formula cells show the computed
+   *  value, plain cells return their own display). */
+  public getDisplay(row: number, col: number): string | null {
+    const k = SheetEngine.key(row, col);
+    if (this.formulas.has(k)) {
+      return formulaValueToDisplay(this.values.get(k) ?? null);
+    }
+    return null;
+  }
+
+  public getFormula(row: number, col: number): string | undefined {
+    return this.formulas.get(SheetEngine.key(row, col));
+  }
+
+  /**
+   * Apply an edit to a single cell and return the set of cells that changed
+   * (the edit itself plus every formula cell that transitively depends on
+   * it). The caller repaints those cells in the grid.
+   */
+  public updateCell(
+    row: number,
+    col: number,
+    next: { raw: FormulaValue; formula?: string }
+  ): Array<{ row: number; col: number; display: string }> {
+    const k = SheetEngine.key(row, col);
+
+    // Tear down old dependencies for this cell so the graph stays accurate.
+    const oldFormula = this.formulas.get(k);
+    if (oldFormula) {
+      const oldDeps = extractDependencies(oldFormula);
+      for (const dep of oldDeps) {
+        this.dependents.get(SheetEngine.key(dep.row, dep.col))?.delete(k);
+      }
+      this.formulas.delete(k);
+    }
+
+    // Apply the new content.
+    if (next.formula) {
+      this.formulas.set(k, next.formula);
+      const newDeps = extractDependencies(next.formula);
+      for (const dep of newDeps) {
+        const depKey = SheetEngine.key(dep.row, dep.col);
+        let set = this.dependents.get(depKey);
+        if (!set) {
+          set = new Set();
+          this.dependents.set(depKey, set);
+        }
+        set.add(k);
+      }
+      this.evaluateKey(k, new Set());
+    } else {
+      this.values.set(k, next.raw);
+    }
+
+    // Collect this cell + all transitive dependents, in BFS order so each
+    // one sees up-to-date values from the ones above it in the graph.
+    const touched = new Set<string>([k]);
+    const queue: string[] = [k];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const deps = this.dependents.get(current);
+      if (!deps) continue;
+      for (const d of deps) {
+        if (touched.has(d)) continue;
+        touched.add(d);
+        queue.push(d);
+      }
+    }
+
+    // Recompute every formula cell in the touched set. We iterate in the
+    // order they were discovered by BFS, which guarantees an edit's direct
+    // dependents get fresh values before their own dependents do.
+    const visiting = new Set<string>();
+    const orderedKeys = Array.from(touched);
+    for (const tk of orderedKeys) {
+      if (this.formulas.has(tk)) {
+        this.evaluateKey(tk, visiting);
+      }
+    }
+
+    // Build the patch list for the UI.
+    const patch: Array<{ row: number; col: number; display: string }> = [];
+    for (const tk of orderedKeys) {
+      const [rStr, cStr] = tk.split(':');
+      const r = Number(rStr);
+      const c = Number(cStr);
+      if (!Number.isFinite(r) || !Number.isFinite(c)) continue;
+      const val = this.values.get(tk) ?? null;
+      const displayStr = this.formulas.has(tk)
+        ? formulaValueToDisplay(val)
+        : val === null
+        ? ''
+        : String(val);
+      patch.push({ row: r, col: c, display: displayStr });
+    }
+    return patch;
+  }
+
+  /** Snapshot the engine's current values onto the underlying SheetData so
+   *  the model serializes with fresh formula outputs (cached `display` +
+   *  `raw`), matching what the user sees. */
+  public snapshotInto(sheet: SheetData) {
+    for (const [k] of this.formulas) {
+      const [rStr, cStr] = k.split(':');
+      const r = Number(rStr);
+      const c = Number(cStr);
+      if (!Number.isFinite(r) || !Number.isFinite(c)) continue;
+      const row = sheet.rows[r];
+      if (!row) continue;
+      const cell = row[c];
+      if (!cell) continue;
+      const val = this.values.get(k) ?? null;
+      cell.display = formulaValueToDisplay(val);
+      if (typeof val === 'number' || typeof val === 'boolean') {
+        cell.raw = val;
+      } else if (val === null) {
+        cell.raw = null;
+      } else {
+        cell.raw = String(val);
+      }
+    }
+  }
+}
 
 /**
  * Convert a data URL to an ArrayBuffer.
@@ -80,6 +325,11 @@ export function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
 /**
  * Parse a spreadsheet from either a data URL or an ArrayBuffer.
  * Routes to SheetJS for `.xlsx`/`.xls` and PapaParse for `.csv`.
+ *
+ * Side-effect: if any sheet contains formulas, a `SheetEngine` is attached
+ * to `model.engine` and every formula cell's `display` is overwritten with
+ * the engine's live-computed value. This corrects the common case where
+ * SheetJS's cached display (`w`) is stale or missing.
  */
 export async function parseSpreadsheet(
   source: string | ArrayBuffer,
@@ -87,10 +337,33 @@ export async function parseSpreadsheet(
 ): Promise<SheetModel> {
   const buffer = typeof source === 'string' ? dataUrlToArrayBuffer(source) : source;
 
-  if (extension === 'csv') {
-    return parseCsv(buffer);
+  const model = extension === 'csv' ? parseCsv(buffer) : parseXlsx(buffer, extension);
+
+  // Wire the formula engine for the active sheet. Only one engine per
+  // workbook for now — cross-sheet references aren't supported, and users
+  // typically edit one sheet at a time anyway.
+  const activeSheet = model.sheets[model.activeSheetIndex] ?? model.sheets[0];
+  if (activeSheet) {
+    const hasFormulas = activeSheet.rows.some((row) => row.some((cell) => cell?.formula));
+    if (hasFormulas) {
+      const engine = new SheetEngine(activeSheet);
+      // Overlay live-computed values on the model so first paint shows the
+      // right thing, not SheetJS's cached value (which may be stale).
+      for (let r = 0; r < activeSheet.rows.length; r++) {
+        const row = activeSheet.rows[r];
+        if (!row) continue;
+        for (let c = 0; c < row.length; c++) {
+          const cell = row[c];
+          if (!cell?.formula) continue;
+          const live = engine.getDisplay(r, c);
+          if (live !== null) cell.display = live;
+        }
+      }
+      model.engine = engine;
+    }
   }
-  return parseXlsx(buffer, extension);
+
+  return model;
 }
 
 /**

@@ -27,6 +27,7 @@ import {
   serializeSpreadsheet,
   spreadsheetBytesToDataUrl,
   columnIndexToLetter,
+  SheetEngine,
   type SheetModel,
   type SheetData,
   type SheetCell,
@@ -862,11 +863,16 @@ function cloneSheet(sheet: SheetData): SheetData {
 }
 
 function cloneModel(model: SheetModel): SheetModel {
-  return {
+  const next: SheetModel = {
     sheets: model.sheets.map(cloneSheet),
     activeSheetIndex: model.activeSheetIndex,
     sourceExtension: model.sourceExtension,
   };
+  // Carry the engine forward — it tracks live values across edits. The
+  // engine references the ORIGINAL sheet, so callers that mutate structure
+  // (row/col insert/delete) must rebuild it via `new SheetEngine(sheet)`.
+  if (model.engine) next.engine = model.engine;
+  return next;
 }
 
 function valueToCell(value: string): SheetCell | null {
@@ -907,9 +913,57 @@ function setCellValue(
   while (row.length <= pos.col) {
     row.push(null);
   }
-  row[pos.col] = valueToCell(value);
+  const newCell = valueToCell(value);
+  row[pos.col] = newCell;
 
   sheet.columnCount = Math.max(sheet.columnCount, pos.col + 1);
+
+  // If the workbook has a live engine and we're editing the active sheet,
+  // tell the engine about the edit so any dependent formula cells get
+  // recomputed. The engine returns a patch list — apply each patch back
+  // onto the cloned sheet so the UI renders fresh values.
+  if (next.engine && sheetIndex === next.activeSheetIndex) {
+    let rawValue: number | string | boolean | null;
+    let formulaStr: string | undefined;
+    if (newCell) {
+      formulaStr = newCell.formula;
+      if (newCell.raw === null || newCell.raw instanceof Date) {
+        rawValue = newCell.raw === null ? null : newCell.raw.toISOString();
+      } else {
+        rawValue = newCell.raw;
+      }
+    } else {
+      rawValue = null;
+    }
+    const patch = next.engine.updateCell(pos.row, pos.col, {
+      raw: rawValue,
+      ...(formulaStr !== undefined ? { formula: formulaStr } : {}),
+    });
+    for (const p of patch) {
+      // Skip the edited cell itself — its display is already set by
+      // valueToCell above, which shows `=FORMULA` literally until the
+      // engine's result arrives below (then we overwrite for formula cells).
+      const dependentRow = sheet.rows[p.row];
+      if (!dependentRow) continue;
+      const existing = dependentRow[p.col];
+      if (!existing) continue;
+      // Only overwrite display — keep raw/formula as-is. For formula cells,
+      // also fold the engine's computed value into `raw` so round-tripped
+      // cached values are live.
+      existing.display = p.display;
+      if (existing.formula) {
+        const asNum = Number(p.display);
+        if (!Number.isNaN(asNum) && p.display.trim() !== '') {
+          existing.raw = asNum;
+        } else if (p.display.startsWith('#')) {
+          existing.raw = p.display;
+        } else {
+          existing.raw = p.display;
+        }
+      }
+    }
+  }
+
   return next;
 }
 
@@ -938,6 +992,14 @@ function insertRow(
     return m;
   });
 
+  // Rebuild the engine — row indices shifted so formula references to rows
+  // at or below the insertion point would be off by one. Simplest correct
+  // behavior is a fresh build from the new SheetData.
+  if (sheetIndex === next.activeSheetIndex) {
+    next.engine = new SheetEngine(sheet);
+  } else if (next.engine === undefined) {
+    delete next.engine;
+  }
   return next;
 }
 
@@ -971,6 +1033,11 @@ function insertCol(
     return m;
   });
 
+  if (sheetIndex === next.activeSheetIndex) {
+    next.engine = new SheetEngine(sheet);
+  } else if (next.engine === undefined) {
+    delete next.engine;
+  }
   return next;
 }
 
@@ -998,6 +1065,11 @@ function deleteRow(
       return m;
     });
 
+  if (sheetIndex === next.activeSheetIndex) {
+    next.engine = new SheetEngine(sheet);
+  } else if (next.engine === undefined) {
+    delete next.engine;
+  }
   return next;
 }
 
@@ -1033,6 +1105,11 @@ function deleteCol(
       return m;
     });
 
+  if (sheetIndex === next.activeSheetIndex) {
+    next.engine = new SheetEngine(sheet);
+  } else if (next.engine === undefined) {
+    delete next.engine;
+  }
   return next;
 }
 
