@@ -149,7 +149,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-11: Icon inconsistency — Research tab permanently tinted
 **Priority:** P2
-**Status:** 📋
+**Status:** ✅ Done — hash: `69a05dc`
 **Problem:** The "Research" sidebar tab icon appears in a permanent orange/brown color regardless of selection state. Every other sidebar icon is monochrome when inactive. Looks like a stuck state.
 **Acceptance criteria:**
 - Research icon follows the same monochrome-inactive / accent-active pattern as other sidebar icons
@@ -159,7 +159,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-12: Workflow template cards truncate names vertically
 **Priority:** P2
-**Status:** 📋
+**Status:** ✅ Done — hash: `df5eec1`
 **Problem:** "New Business Kickoff" renders stacked vertically one word per line because card is too narrow.
 **Acceptance criteria:**
 - Workflow cards have sensible min-width (180px) or use intrinsic sizing with ellipsis
@@ -170,7 +170,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-13: Editor toolbar wraps awkwardly at narrow widths
 **Priority:** P2
-**Status:** 📋
+**Status:** ✅ Done — hash: `36554df`
 **Problem:** At narrow widths, the right-side toolbar actions (Auto-save / History / Export / Download / Split / Outline / Backlinks) wrap below the tab row, creating awkward layout.
 **Acceptance criteria:**
 - At narrow widths, less-critical toolbar items collapse into a `…` overflow menu
@@ -181,7 +181,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-14: No breadcrumb navigation for deep files
 **Priority:** P2
-**Status:** 📋
+**Status:** ✅ Done — hash: `49d68c0`
 **Problem:** Status bar shows `test-workspace` and `test2.txt` but no clickable intermediate path. Users can't navigate up from deeply-nested files.
 **Acceptance criteria:**
 - Status bar breadcrumbs are clickable segments: `test-workspace / docs / guides / test2.txt`
@@ -192,7 +192,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-15: "Create Markdown File" dialog doesn't show destination
 **Priority:** P2
-**Status:** 📋
+**Status:** ✅ Done — hash: `b52d7ff`
 **Problem:** The prompt says "Enter file name (without extension):" but doesn't show where the file will live. If user is in a subfolder, they can't tell.
 **Acceptance criteria:**
 - Dialog shows: "Creating in `/docs/`" (or current-folder path)
@@ -203,7 +203,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-16: No confirm before destructive actions
 **Priority:** P2
-**Status:** 📋
+**Status:** ✅ Done — hash: `5e2a4e7`
 **Problem:** Rename and move may not require confirmation. For a local-first product holding user data, destructive actions should either require confirmation OR provide a 10-second undo toast.
 **Acceptance criteria:**
 - Delete shows an "Undo" toast for 10 seconds before committing
@@ -214,7 +214,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-17: Auto-save indicator is cryptic
 **Priority:** P2
-**Status:** 📋
+**Status:** ✅ Done — hash: `008bbb7`
 **Problem:** "Auto-save" appears as a static badge. No way to know if it's currently saving, last saved N seconds ago, or has pending changes.
 **Acceptance criteria:**
 - When saving: badge shows a spinner + "Saving..."
@@ -226,7 +226,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-18: Formula bar + selection summary reserve space when empty
 **Priority:** P2
-**Status:** 📋
+**Status:** ✅ Done — hash: `b4cc38f`
 **Problem:** Phase 7 made these always-visible (with nbsp placeholders) to prevent layout shift when selecting cells. They take vertical space even when no cell is selected.
 **Acceptance criteria:**
 - When no cell selected: collapse formula bar + summary to a thin (4-6px) divider that's visually quiet
@@ -392,6 +392,6 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 | Wave 1 | 2026-04-15 | `dc3f2c8` UX-01, `8c717b5` UX-02, `a094d45` UX-03 | 9 new, 77 existing (7 pre-existing visual snapshot failures untouched) | Welcome dialog is now strictly blocking on first run (X hidden, Escape suppressed); dismissible when a workspace exists behind it. Command palette has sr-only DialogTitle. Sidebar nav is a proper ARIA tablist with arrow-key navigation. |
 | Wave 2 | 2026-04-15 | `8d972bd` UX-04, `1c6bffb` UX-05, `1dc106b` UX-06, `7edffda` UX-07 | 11 new (3 onboarding-card + 3 welcome-dialog-copy + 5 empty-states), 87 total pass, 7 pre-existing failures unchanged (3 Claude Opus 4.5 model-id tests + 4 visual snapshots) | Added prominent API key setup card in MainPanel for BYOK onboarding (sessionStorage-dismissal, reappears after page reload). Welcome dialog now has elevator pitch + Learn more link + preview of docs/research/templates folders. New reusable EmptyState component applied to Files, Search, AI Audit, Trash, and Whiteboard panels; Workflows skipped (always has 15 templates). |
 | Wave 3 | 2026-04-15 | `e781fef` UX-08, `7aa7c25` UX-09, `636e967` UX-10, `4719c60` model-id fix | 19 new (7 api-keys-panel + 6 workflows-panel + 6 shortcuts-overlay), 109 total pass, 4 pre-existing visual-snapshot failures unchanged (ai-models-tab, file-tree, breadcrumb-nav, status-bar). The 3 model-id tests that were red since Wave 1 are now green. Updated ai-keys-tab snapshot to match the new UX-08 layout. | API Keys panel now renders all 3 providers simultaneously with Get key, Test, Clear, masked display, and Valid/Invalid/Not tested status chip. Workflows sidebar panel fills available height via flex layout + exposes a full-view modal with 3-column grid and search. Keyboard-shortcuts overlay (`?` hotkey, focus-aware) lists every shortcut from a new SSOT at src/utils/shortcuts.ts; overlay has a visible DialogTitle. Tooltip audit added shortcut hints on MainPanel toolbar + TabBar close-X. |
-| Wave 4 | _pending_ | | | |
+| Wave 4 | 2026-04-15 | `69a05dc` UX-11, `df5eec1` UX-12, `36554df` UX-13, `49d68c0` UX-14, `b52d7ff` UX-15, `5e2a4e7` UX-16, `008bbb7` UX-17, `b4cc38f` UX-18, `a0b0ac4` fixes | 12 new spec files / tests (sidebar-icons, editor-toolbar-overflow, breadcrumbs, create-file-dialog, destructive-actions, auto-save-indicator, updated spreadsheet-improvements), 121 total pass, 3 pre-existing visual-snapshot failures unchanged (ai-models-tab, file-tree, grid-view-breadcrumbs). The status-bar visual snapshot was intentionally regenerated for the UX-14 breadcrumb layout. | Research + every other sidebar tab icon now inherits the same currentColor so no tab looks permanently tinted. Workflow cards use `line-clamp-2 break-words` + `title` tooltip, killing the one-word-per-line wrap at narrow widths. MainPanel toolbar collapses History/Split/Outline/Backlinks/Export into a `…` DropdownMenu via ResizeObserver when container width < 900px; Save/Auto-save/Download stay inline. StatusBar renders per-segment clickable breadcrumbs with chevrons and a `…` overflow DropdownMenu for paths with >4 segments; clicking a segment expands the FileTree sidebar to that folder. PromptDialog extended with `destinationPath` + `previewExtension` so every "New X" flow shows "Creating in /docs/" and a live filename preview. New in-app UndoToast shows "File moved to Trash — Undo" for 10s after delete; bulk delete uses the app's ConfirmDialog instead of window.confirm; Ctrl+Z reverts the most recent rename per session. Replaced the static "Auto-save" badge with a reactive AutoSaveIndicator state machine (idle → dirty → saving → saved-recent → error) with spinner + "Saved · Ns ago" updating every second. Spreadsheet formula bar + selection summary render at 5px thin divider before any selection in viewer mode, expanding to full size on first click; editable mode keeps the bar always-expanded to protect the dblclick-to-edit flow. |
 | Wave 5 | _pending_ | | | |
 | Wave 6 | _pending_ | | | |
