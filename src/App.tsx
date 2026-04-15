@@ -27,7 +27,7 @@ import { WhiteboardManager } from '@/components/whiteboard/WhiteboardManager';
 import { ProjectManager } from '@/components/workspace/ProjectManager';
 import { AudioRecorderModal } from '@/components/audio/AudioRecorderModal';
 import { Button } from '@/components/ui/button';
-import { Command, Moon, Sun } from 'lucide-react';
+import { Command, Moon, Monitor, Sun } from 'lucide-react';
 import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/components/WhatsNew';
 import { GlobalDropOverlay, useGlobalFileDrop } from '@/components/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -113,12 +113,42 @@ function App() {
   // Audit log state
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
 
-  // Theme state
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    // Load theme from localStorage on mount
+  // UX-25: Theme state — 3 values: 'light' | 'dark' | 'system'.
+  // 'system' follows the OS prefers-color-scheme media query.
+  // Default is 'system' on first run; prior installs that saved 'light'/'dark'
+  // keep their explicit preference until they cycle off of it.
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
     const savedTheme = localStorage.getItem('theme');
-    return (savedTheme === 'dark' || savedTheme === 'light') ? savedTheme : 'light';
+    if (savedTheme === 'dark' || savedTheme === 'light' || savedTheme === 'system') {
+      return savedTheme;
+    }
+    return 'system';
   });
+
+  // Effective theme derived from `theme` + prefers-color-scheme. We listen
+  // to the media query so that a user in 'system' mode gets instant sync
+  // when they change their OS setting mid-session.
+  const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mql = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches);
+    // Safari < 14 uses addListener; modern browsers use addEventListener.
+    if (mql.addEventListener) {
+      mql.addEventListener('change', onChange);
+      return () => mql.removeEventListener('change', onChange);
+    } else {
+      mql.addListener(onChange);
+      return () => mql.removeListener(onChange);
+    }
+  }, []);
+
+  const effectiveTheme: 'light' | 'dark' = theme === 'system'
+    ? (systemPrefersDark ? 'dark' : 'light')
+    : theme;
 
   const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore();
   const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, toggleBacklinks, splitPane, closeSplit, isSplit } = useEditorStore();
@@ -367,16 +397,18 @@ function App() {
     }
   }, [IS_TEST_MODE, rootPath, setRootPath, openFile]);
 
-  // Theme: Apply theme class to HTML element and save to localStorage
+  // UX-25: Theme — apply effective theme (light/dark) as class and persist
+  // the user's *preference* (which may be 'system'). The effective theme
+  // can be different from the preference if the user is in 'system' mode.
   useEffect(() => {
     const htmlElement = document.documentElement;
-    if (theme === 'dark') {
+    if (effectiveTheme === 'dark') {
       htmlElement.classList.add('dark');
     } else {
       htmlElement.classList.remove('dark');
     }
     localStorage.setItem('theme', theme);
-  }, [theme]);
+  }, [theme, effectiveTheme]);
 
   // Load recent workspaces from localStorage on mount
   useEffect(() => {
@@ -1809,15 +1841,49 @@ This file contains rules and guidelines for AI assistants in this workspace.
           />
         </div>
         <div className="flex items-center gap-2">
+          {/*
+            UX-25: 3-state theme toggle. Cycles system → light → dark → system.
+            Icon reflects the *preference* (not the effective theme), so a user
+            in 'system' mode always sees the Monitor icon even if the OS is
+            currently dark. The title gives both the preference and the
+            effective theme when in 'system' mode.
+          */}
           <Button
+            data-testid="theme-toggle"
+            data-theme={theme}
             variant="ghost"
             size="sm"
             className="h-7 px-2"
-            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-            title="Toggle Theme"
-            aria-label="Toggle Theme"
+            onClick={() => {
+              // Cycle: system → light → dark → system
+              setTheme((prev) => {
+                if (prev === 'system') return 'light';
+                if (prev === 'light') return 'dark';
+                return 'system';
+              });
+            }}
+            title={
+              theme === 'system'
+                ? `System theme (currently ${effectiveTheme})`
+                : theme === 'light'
+                  ? 'Light theme'
+                  : 'Dark theme'
+            }
+            aria-label={
+              theme === 'system'
+                ? `System theme (currently ${effectiveTheme})`
+                : theme === 'light'
+                  ? 'Light theme'
+                  : 'Dark theme'
+            }
           >
-            {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+            {theme === 'system' ? (
+              <Monitor data-testid="theme-icon-system" className="h-4 w-4" />
+            ) : theme === 'light' ? (
+              <Sun data-testid="theme-icon-light" className="h-4 w-4" />
+            ) : (
+              <Moon data-testid="theme-icon-dark" className="h-4 w-4" />
+            )}
           </Button>
           <Button
             variant="ghost"
