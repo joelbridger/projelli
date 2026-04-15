@@ -6,6 +6,12 @@ import { useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { formatShortcutHint, getShortcut } from '@/utils/shortcuts';
+import {
   FolderTree,
   Workflow,
   ChevronLeft,
@@ -62,11 +68,19 @@ export function Sidebar({
   // Now every tab icon inherits the same `currentColor` stroke from the
   // Button's `text-muted-foreground` (inactive) or `text-foreground` (active)
   // class, so no tab can look permanently tinted relative to the others.
-  const tabs: { id: SidebarTab; Icon: typeof FolderTree; label: string }[] = [
+  // UX-23: `shortcutId` maps a tab to an entry in the SHORTCUTS SSOT so the
+  // collapsed-sidebar tooltip can surface the keyboard shortcut. Tabs without
+  // a canonical shortcut show just the label.
+  const tabs: {
+    id: SidebarTab;
+    Icon: typeof FolderTree;
+    label: string;
+    shortcutId?: string;
+  }[] = [
     { id: 'files', Icon: FolderTree, label: 'Files' },
     { id: 'search', Icon: Search, label: 'Search' },
     { id: 'workflows', Icon: Workflow, label: 'Workflows' },
-    { id: 'ai-assistant', Icon: Bot, label: 'AI Assistant' },
+    { id: 'ai-assistant', Icon: Bot, label: 'AI Assistant', shortcutId: 'ai-assistant' },
     { id: 'research', Icon: BookOpen, label: 'Research' },
     { id: 'whiteboard', Icon: PenTool, label: 'Whiteboard' },
     { id: 'audit', Icon: History, label: 'AI Audit' },
@@ -152,7 +166,15 @@ export function Sidebar({
         {tabs.map((tab, index) => {
           const isActive = activeTab === tab.id;
           const Icon = tab.Icon;
-          return (
+          // UX-23: derive tooltip text from the label + optional shortcut.
+          // Shown only when collapsed so the label isn't redundant with the
+          // inline text. Keyboard users still see it via focus.
+          const shortcut = tab.shortcutId ? getShortcut(tab.shortcutId) : undefined;
+          const tooltipLabel = shortcut
+            ? `${tab.label} (${formatShortcutHint(shortcut.keys)})`
+            : tab.label;
+
+          const button = (
             <Button
               key={tab.id}
               ref={(el) => {
@@ -177,7 +199,11 @@ export function Sidebar({
               )}
               onClick={() => setActiveTab(tab.id)}
               onKeyDown={(e) => handleTabKeyDown(e, index)}
-              title={tab.label}
+              // Keep `title` as a last-resort a11y fallback on non-collapsed
+              // mode and for browsers that can't style a Radix tooltip (Radix
+              // tooltip itself owns the visible one when collapsed).
+              title={!isCollapsed ? tooltipLabel : undefined}
+              aria-label={tooltipLabel}
             >
               <Icon
                 data-testid={`sidebar-tab-${tab.id}-icon`}
@@ -187,6 +213,23 @@ export function Sidebar({
               {!isCollapsed && <span className="ml-2 text-sm">{tab.label}</span>}
             </Button>
           );
+
+          // When collapsed, wrap in a Radix tooltip. When expanded, the label
+          // is visible inline so the tooltip would be noisy — skip it.
+          if (isCollapsed) {
+            return (
+              <Tooltip key={tab.id}>
+                <TooltipTrigger asChild>{button}</TooltipTrigger>
+                <TooltipContent
+                  side="right"
+                  data-testid={`sidebar-tab-${tab.id}-tooltip`}
+                >
+                  {tooltipLabel}
+                </TooltipContent>
+              </Tooltip>
+            );
+          }
+          return button;
         })}
       </div>
 
