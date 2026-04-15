@@ -713,6 +713,9 @@ function App() {
       const name = await prompt('Enter file name:', '', {
         title: 'Create File',
         placeholder: 'myfile.txt',
+        // UX-15: show the user which folder they're creating into. For
+        // subfolder-right-click-create this is the most useful info.
+        destinationPath: `${parentPath}/`,
       });
       if (!name || !workspaceServiceRef.current) return;
 
@@ -735,6 +738,8 @@ function App() {
       const name = await prompt('Enter folder name:', '', {
         title: 'Create Folder',
         placeholder: 'my-folder',
+        // UX-15: also show destination for folder creation.
+        destinationPath: `${parentPath}/`,
       });
       if (!name || !workspaceServiceRef.current) return;
 
@@ -911,6 +916,8 @@ function App() {
     const name = await prompt('Enter file name (without extension):', '', {
       title: 'Create Markdown File',
       placeholder: 'my-document',
+      destinationPath: `${rootPath}/docs/`,
+      previewExtension: '.md',
     });
     if (!name) return;
 
@@ -932,6 +939,8 @@ function App() {
     const name = await prompt('Enter file name (without extension):', '', {
       title: 'Create Text File',
       placeholder: 'my-notes',
+      destinationPath: `${rootPath}/docs/`,
+      previewExtension: '.txt',
     });
     if (!name) return;
 
@@ -953,6 +962,8 @@ function App() {
     const name = await prompt('Enter file name (without extension):', '', {
       title: 'Create Rich Text File',
       placeholder: 'my-document',
+      destinationPath: `${rootPath}/docs/`,
+      previewExtension: '.rt',
     });
     if (!name) return;
 
@@ -975,6 +986,8 @@ function App() {
     const name = await prompt('Enter file name (without extension):', '', {
       title: 'Create Spreadsheet',
       placeholder: 'my-sheet',
+      destinationPath: `${rootPath}/docs/`,
+      previewExtension: '.xlsx',
     });
     if (!name) return;
 
@@ -1003,6 +1016,8 @@ function App() {
     const name = await prompt('Enter file name (without extension):', '', {
       title: 'Create CSV File',
       placeholder: 'my-data',
+      destinationPath: `${rootPath}/docs/`,
+      previewExtension: '.csv',
     });
     if (!name) return;
 
@@ -1030,6 +1045,8 @@ function App() {
     const name = await prompt('Enter file name (without extension):', '', {
       title: 'Create Word Document',
       placeholder: 'my-document',
+      destinationPath: `${rootPath}/docs/`,
+      previewExtension: '.docx',
     });
     if (!name) return;
 
@@ -1055,6 +1072,8 @@ function App() {
     const name = await prompt('Enter file name (without extension):', '', {
       title: 'Create PowerPoint Presentation',
       placeholder: 'my-deck',
+      destinationPath: `${rootPath}/docs/`,
+      previewExtension: '.pptx',
     });
     if (!name) return;
 

@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FolderOpen } from 'lucide-react';
 
 export interface PromptDialogProps {
   open: boolean;
@@ -21,6 +22,17 @@ export interface PromptDialogProps {
   cancelLabel?: string;
   onConfirm: (value: string) => void;
   onCancel: () => void;
+  /**
+   * UX-15: optional human-readable destination path to display above the
+   * input ("Creating in /docs/"). Leave undefined for plain prompts.
+   */
+  destinationPath?: string;
+  /**
+   * UX-15: when set, an extension like `.md` is appended to the current
+   * input value for the live preview shown beneath the input. If the user
+   * already typed the extension, it's not duplicated.
+   */
+  previewExtension?: string;
 }
 
 export function PromptDialog({
@@ -34,6 +46,8 @@ export function PromptDialog({
   cancelLabel = 'Cancel',
   onConfirm,
   onCancel,
+  destinationPath,
+  previewExtension,
 }: PromptDialogProps) {
   const [value, setValue] = useState(defaultValue);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -66,6 +80,18 @@ export function PromptDialog({
     }
   };
 
+  // UX-15: live filename preview. If the user typed the extension already,
+  // don't duplicate it. Fall back to the placeholder while the input is
+  // empty so the user can see the final shape before they start typing.
+  const previewFilename = (() => {
+    const base = value.trim() || placeholder || 'my-file';
+    if (!previewExtension) return base;
+    const ext = previewExtension.startsWith('.')
+      ? previewExtension
+      : `.${previewExtension}`;
+    return base.toLowerCase().endsWith(ext.toLowerCase()) ? base : `${base}${ext}`;
+  })();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
@@ -73,7 +99,22 @@ export function PromptDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="py-4">
+        <div className="py-4 space-y-2">
+          {/* UX-15: destination path, so the user knows where the file
+              will be created. Rendered only when the caller passed one. */}
+          {destinationPath && (
+            <div
+              data-testid="prompt-dialog-destination"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground"
+              title={destinationPath}
+            >
+              <FolderOpen className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>Creating in</span>
+              <code className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded truncate">
+                {destinationPath}
+              </code>
+            </div>
+          )}
           <Input
             ref={inputRef}
             value={value}
@@ -81,6 +122,21 @@ export function PromptDialog({
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
           />
+          {/* UX-15: live filename preview (optional). */}
+          {previewExtension !== undefined && (
+            <div
+              data-testid="prompt-dialog-preview"
+              className="text-xs text-muted-foreground"
+            >
+              Preview:{' '}
+              <code
+                data-testid="prompt-dialog-preview-filename"
+                className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded"
+              >
+                {previewFilename}
+              </code>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={handleCancel}>

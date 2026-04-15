@@ -7,6 +7,16 @@ export interface PromptOptions {
   placeholder?: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  /**
+   * UX-15: destination path to display above the input (e.g. "/docs/").
+   * Pass undefined to hide the destination line.
+   */
+  destinationPath?: string;
+  /**
+   * UX-15: file extension (with or without a leading dot) used for the
+   * live filename preview below the input.
+   */
+  previewExtension?: string;
 }
 
 export interface PromptState {
@@ -17,6 +27,8 @@ export interface PromptState {
   placeholder: string;
   confirmLabel: string;
   cancelLabel: string;
+  destinationPath?: string;
+  previewExtension?: string;
 }
 
 export function usePromptDialog() {
@@ -43,6 +55,12 @@ export function usePromptDialog() {
         placeholder: options?.placeholder || '',
         confirmLabel: options?.confirmLabel || 'OK',
         cancelLabel: options?.cancelLabel || 'Cancel',
+        ...(options?.destinationPath !== undefined && {
+          destinationPath: options.destinationPath,
+        }),
+        ...(options?.previewExtension !== undefined && {
+          previewExtension: options.previewExtension,
+        }),
       });
     });
   }, []);
