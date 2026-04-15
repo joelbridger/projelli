@@ -3,6 +3,7 @@
 // Supports both browser (File System Access API) and Tauri (native filesystem)
 
 import { useState } from 'react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -21,9 +22,14 @@ import { FolderOpen, FolderPlus, Clock, AlertCircle } from 'lucide-react';
 interface WorkspaceSelectorProps {
   open: boolean;
   onWorkspaceSelected: (service: WorkspaceService) => void;
+  /**
+   * If provided, the dialog becomes dismissible via the X button and Escape.
+   * Leave undefined for first-run / blocking mode (no functional dismiss shown).
+   */
+  onDismiss?: (() => void) | undefined;
 }
 
-export function WorkspaceSelector({ open, onWorkspaceSelected }: WorkspaceSelectorProps) {
+export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: WorkspaceSelectorProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isTauri = isTauriEnvironment();
@@ -211,9 +217,28 @@ export function WorkspaceSelector({ open, onWorkspaceSelected }: WorkspaceSelect
     });
   };
 
+  const isDismissible = Boolean(onDismiss);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    // Dialog requests close (via X button or Escape). Only honour it when a dismiss
+    // handler is provided — otherwise keep the dialog open (first-run / blocking mode).
+    if (!nextOpen && onDismiss) {
+      onDismiss();
+    }
+  };
+
   return (
-    <Dialog open={open}>
-      <DialogContent className="sm:max-w-lg" onPointerDownOutside={(e) => e.preventDefault()}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        data-testid="workspace-selector-dialog"
+        className={cn('sm:max-w-lg', !isDismissible && '[&>button]:hidden')}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => {
+          if (!isDismissible) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="text-xl">Welcome to Projelli</DialogTitle>
           <DialogDescription>

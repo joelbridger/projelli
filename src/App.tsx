@@ -1618,11 +1618,16 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
   // Show workspace selector if no workspace is open (unless in test mode)
   if (!IS_TEST_MODE && (showWorkspaceSelector || !rootPath)) {
+    // Dialog is dismissible only when there's already a workspace behind it
+    // (i.e. opened via "Change Workspace"). First-run has nothing to return to,
+    // so the dialog must stay up and the X button is hidden.
+    const canDismiss = Boolean(rootPath);
     return (
       <div className="min-h-screen bg-background">
         <WorkspaceSelector
           open={true}
           onWorkspaceSelected={handleWorkspaceSelected}
+          onDismiss={canDismiss ? () => setShowWorkspaceSelector(false) : undefined}
         />
       </div>
     );
