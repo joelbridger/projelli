@@ -2,10 +2,11 @@
 // Displays open file tabs with close buttons, dirty indicators, drag-to-reorder, and tab groups
 
 import { useCallback, useState, useRef } from 'react';
-import { X, FileText, GripVertical, FileJson, FileImage, FileVideo, PenTool, Music, MoreHorizontal, MessageSquare, Settings, Globe } from 'lucide-react';
+import { X, FileText, GripVertical, FileJson, FileImage, FileVideo, PenTool, Music, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
+import { useFileContextStore } from '@/stores/fileContextStore';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,6 +35,20 @@ const removeExtension = (filename: string): string => {
   }
   return filename.substring(0, lastDotIndex);
 };
+
+/**
+ * URL-encode a tab path into a value that's safe to embed in a data-testid.
+ * Colons, slashes, and spaces collapse to dashes — collisions across real
+ * workspace paths are effectively impossible given the mapping is injective
+ * over ASCII file-system chars, and tests reproduce this same function so
+ * both sides agree on the exact string.
+ */
+export function pathToTestId(path: string): string {
+  return path
+    .replace(/[^A-Za-z0-9_.-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+}
 
 // Helper function to get file icon based on tab type and extension
 const getFileIcon = (tab: { name: string; type?: 'file' | 'browser' | 'whiteboard' }) => {
@@ -64,6 +79,51 @@ const getFileIcon = (tab: { name: string; type?: 'file' | 'browser' | 'whiteboar
 
   return <FileText className="h-4 w-4 flex-shrink-0" />;
 };
+
+/**
+ * Per-tab AI-context toggle. Shown only when the file has an extracted
+ * context (meaning the hook picked it up and turned it into AI-visible text);
+ * hidden entirely for unsupported types like PDFs or images so the UI stays
+ * quiet. Clicking toggles the path in `fileContextStore.disabledPaths`.
+ */
+function AIContextChip({ path }: { path: string }) {
+  const hasContext = useFileContextStore((s) => s.hasContext(path));
+  const enabled = useFileContextStore((s) => s.isEnabled(path));
+  const togglePath = useFileContextStore((s) => s.togglePath);
+
+  if (!hasContext) {
+    return null;
+  }
+
+  const title = enabled
+    ? 'This file is visible to AI chat — click to hide it from AI'
+    : 'This file is NOT visible to AI chat — click to enable';
+
+  return (
+    <button
+      type="button"
+      data-testid={`ai-context-toggle-${pathToTestId(path)}`}
+      data-ai-enabled={enabled ? 'true' : 'false'}
+      title={title}
+      aria-label={title}
+      onClick={(e) => {
+        e.stopPropagation();
+        togglePath(path);
+      }}
+      className={cn(
+        'flex items-center justify-center h-4 w-4 rounded-sm transition-opacity',
+        'text-muted-foreground hover:text-foreground',
+        enabled ? 'opacity-60 hover:opacity-100' : 'opacity-40 hover:opacity-80'
+      )}
+    >
+      {enabled ? (
+        <Sparkles className="h-3 w-3" />
+      ) : (
+        <EyeOff className="h-3 w-3" />
+      )}
+    </button>
+  );
+}
 
 interface TabBarProps {
   onRenameFile?: (path: string, newName: string) => Promise<void>;
@@ -507,6 +567,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         ) : (
           <span className="truncate max-w-[120px]">{removeExtension(tab.name)}</span>
         )}
+        <AIContextChip path={tab.path} />
         {tab.isDirty && (
           <span className="text-amber-500 font-bold" title="Unsaved changes">
             *

@@ -55,6 +55,9 @@ import { useTrash } from '@/hooks/useTrash';
 import { useSourceCards } from '@/hooks/useSourceCards';
 import { useAIChatFiles } from '@/hooks/useAIChatFiles';
 import { useApiKeys } from '@/hooks/useApiKeys';
+import { useOpenFileAIContext } from '@/hooks/useOpenFileAIContext';
+import { useFileContextStore } from '@/stores/fileContextStore';
+import { buildOpenFilesPromptBlock } from '@/components/ai/AIChatViewer';
 import { useModelList } from '@/hooks/useModelList';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -96,6 +99,10 @@ function App() {
   const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore();
   const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, toggleBacklinks, splitPane, closeSplit, isSplit } = useEditorStore();
   const { runHistory, completeRun } = useWorkflowStore();
+
+  // Keep the AI ambient file-context store in sync with whatever tabs are
+  // open. Mounted at App level so a single subscription drives every chat.
+  useOpenFileAIContext();
 
   // API key management
   const { apiKeys, handleSaveApiKey: rawSaveApiKey, handleDeleteApiKey: rawDeleteApiKey } = useApiKeys();
@@ -228,6 +235,21 @@ function App() {
       // files (e.g. binary data URLs) directly into the editor store without
       // going through the Tauri filesystem layer.
       (window as unknown as { __openTestFile?: typeof openFile }).__openTestFile = openFile;
+
+      // Also expose the file-context store + prompt builder so ambient-context
+      // tests can inspect extracted contents and verify system-prompt wiring
+      // without needing to open an AI chat tab (providers talk to real URLs).
+      (window as unknown as {
+        __fileContextStore?: typeof useFileContextStore;
+      }).__fileContextStore = useFileContextStore;
+      (window as unknown as {
+        __buildSystemPromptForTest?: (baseRole?: string) => string;
+      }).__buildSystemPromptForTest = (
+        baseRole = 'You are a helpful AI assistant.'
+      ) => {
+        const files = useFileContextStore.getState().getActiveContexts();
+        return `${baseRole}${buildOpenFilesPromptBlock(files)}`;
+      };
 
       // Note: workspaceServiceRef stays null in test mode
       // Tests will work with localStorage and component state

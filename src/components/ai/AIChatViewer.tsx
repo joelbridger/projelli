@@ -15,6 +15,8 @@ import { GeminiProvider } from '@/modules/models/GeminiProvider';
 import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/modules/models/fetchUtils';
 import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
 import { useAIChatStore, getDraftInput } from '@/stores/aiChatStore';
+import { useFileContextStore } from '@/stores/fileContextStore';
+import type { ExtractedContext } from '@/utils/ai-file-context';
 
 interface APIKey {
   provider: string;
@@ -32,6 +34,29 @@ interface AIChatViewerProps {
   onFileTreeChange?: () => void; // Callback when AI modifies files
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void; // Callback to log AI actions
   className?: string;
+}
+
+/**
+ * Build the "OPEN FILES" block that gets prepended to the chat system prompt.
+ * Exposed as a named helper so Playwright tests (and future request logging)
+ * can build the same string deterministically without mounting the viewer.
+ *
+ * Returns an empty string when no files are enabled; otherwise emits a
+ * section formatted for Claude-style prompts with per-file `##` headings and
+ * `---` separators between files.
+ */
+export function buildOpenFilesPromptBlock(openFiles: ExtractedContext[]): string {
+  if (openFiles.length === 0) {
+    return '';
+  }
+  const intro = `The user currently has these files open in their workspace. Reference them when relevant:`;
+  const body = openFiles
+    .map(
+      (f) =>
+        `## ${f.fileName}${f.truncated ? ' (truncated)' : ''}\n\n${f.extractedText}`
+    )
+    .join('\n\n---\n\n');
+  return `\n\n${intro}\n\n${body}`;
 }
 
 /**
@@ -92,6 +117,11 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const chatId = chatData.id;
   const session = sessions[chatId];
 
+  // Ambient file context from the editor — any open, enabled file that was
+  // successfully extracted. Re-renders the viewer when files change so the
+  // next message picks up the freshest snapshot automatically.
+  const openFiles = useFileContextStore((s) => s.getActiveContexts());
+
   // Initialize input with saved draft (persists across navigation)
   const [inputValue, setInputValue] = useState(() => getDraftInput(chatId));
   const [isRecording, setIsRecording] = useState(false);
@@ -106,6 +136,20 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       initSession(chatId, chatData.messages);
     }
   }, [chatId, session, initSession, chatData.messages]);
+
+  // Test-mode hook: expose a synchronous prompt-builder so Playwright specs
+  // can assert on the system prompt without instrumenting every provider's
+  // network call. Only mounted when `?testMode=true` is in the URL.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.location.search.includes('testMode=true')) return;
+    (window as unknown as {
+      __buildSystemPromptForTest?: (baseRole?: string) => string;
+    }).__buildSystemPromptForTest = (baseRole = 'You are a helpful AI assistant.') => {
+      const files = useFileContextStore.getState().getActiveContexts();
+      return `${baseRole}${buildOpenFilesPromptBlock(files)}`;
+    };
+  }, []);
 
   // Load AI Rules from workspace
   useEffect(() => {
@@ -380,9 +424,14 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           ? `${workspaceInstructions}You are a helpful AI assistant with full read/write access to the user's workspace.`
           : 'You are a helpful AI assistant.';
 
+        // Append any enabled open-file contexts BEFORE the conversation
+        // history. This lets the AI treat the files as background material
+        // that applies to every turn rather than a stale one-shot attachment.
+        const fileBlock = buildOpenFilesPromptBlock(openFiles);
+
         const systemPrompt = conversationContext
-          ? `${baseRole} Here is the conversation history so far:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
-          : baseRole;
+          ? `${baseRole}${fileBlock} Here is the conversation history so far:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
+          : `${baseRole}${fileBlock}`;
 
         // Use streaming if available (disabled in production Tauri builds
         // because tauri-plugin-http doesn't support ReadableStream/SSE)
@@ -510,7 +559,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         setLoading(chatId, false);
       }
     })();
-  }, [inputValue, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules]);
+  }, [inputValue, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles]);
 
   const handleStop = useCallback(() => {
     if (abortControllerRef.current) {
