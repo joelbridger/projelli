@@ -92,6 +92,17 @@ function App() {
   // Sidebar state
   const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash'>('files');
 
+  // UX-04 onboarding: one-shot "open Keys sub-tab" instruction passed to
+  // AIAssistantPane. Set when the onboarding card's CTA fires, cleared by
+  // the pane via onRequestedTabApplied.
+  const [aiAssistantRequestedTab, setAiAssistantRequestedTab] = useState<
+    'chats' | 'keys' | 'settings' | undefined
+  >(undefined);
+
+  const handleRequestApiKeySetup = useCallback(() => {
+    setSidebarActiveTab('ai-assistant');
+    setAiAssistantRequestedTab('keys');
+  }, []);
 
   // Audit log state
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
@@ -1728,6 +1739,8 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onOpenChat={handleOpenChat}
               onDeleteChat={handleDeleteChat}
               onOpenAIRules={handleOpenAIRules}
+              requestedTab={aiAssistantRequestedTab}
+              onRequestedTabApplied={() => setAiAssistantRequestedTab(undefined)}
             />
           }
           researchContent={
@@ -1767,7 +1780,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
         />
 
         {/* Main editor panel */}
-        <MainPanel onFileOpen={handleFileOpen} onMove={handleMove} onRename={handleRenameWithName} onDownload={handleDownload} apiKeys={apiKeys} workspaceServiceRef={workspaceServiceRef} {...(rootPath ? { rootPath } : {})} onFileTreeChange={refreshFileTree} onAuditLog={addAuditEntry} />
+        <MainPanel onFileOpen={handleFileOpen} onMove={handleMove} onRename={handleRenameWithName} onDownload={handleDownload} apiKeys={apiKeys} workspaceServiceRef={workspaceServiceRef} {...(rootPath ? { rootPath } : {})} onFileTreeChange={refreshFileTree} onAuditLog={addAuditEntry} onRequestApiKeySetup={handleRequestApiKeySetup} />
       </div>
 
       {/* Status bar */}

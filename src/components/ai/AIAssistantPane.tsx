@@ -2,7 +2,7 @@
 // Right-side panel for AI chat management, API keys, and model settings
 // Rebuilt from ground up to ensure all content fits within container
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,17 @@ interface AIAssistantPaneProps {
   onOpenChat: (chatFile: AIChatFile) => void;
   onDeleteChat: (chatId: string) => void;
   onOpenAIRules?: () => void;
+  /**
+   * When provided, forces the pane's inner tab to this value on mount AND any
+   * time this prop changes. Used by UX-04 onboarding card to drop users
+   * directly into the Keys sub-tab when they click "Add API key".
+   */
+  requestedTab?: 'chats' | 'keys' | 'settings' | undefined;
+  /**
+   * Fires after requestedTab has been applied, so the parent can clear the
+   * one-shot request (otherwise re-renders would keep snapping back to it).
+   */
+  onRequestedTabApplied?: () => void;
   className?: string;
 }
 
@@ -75,10 +86,28 @@ export function AIAssistantPane({
   onOpenChat,
   onDeleteChat,
   onOpenAIRules,
+  requestedTab,
+  onRequestedTabApplied,
   className,
 }: AIAssistantPaneProps) {
-  const [activeTab, setActiveTab] = useState<'chats' | 'keys' | 'settings'>('chats');
+  const [activeTab, setActiveTab] = useState<'chats' | 'keys' | 'settings'>(
+    requestedTab ?? 'chats'
+  );
   const [showHelpDialog, setShowHelpDialog] = useState(false);
+
+  // When the parent passes a new requestedTab (e.g. onboarding card clicked),
+  // snap to it and tell the parent it was applied so it can clear the request.
+  useEffect(() => {
+    if (requestedTab && requestedTab !== activeTab) {
+      setActiveTab(requestedTab);
+      onRequestedTabApplied?.();
+    } else if (requestedTab) {
+      // Already on the right tab; still clear the request so future re-mounts
+      // don't re-trigger.
+      onRequestedTabApplied?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedTab]);
 
   // Model selection state
   const [selectedModels, setSelectedModels] = useState<Record<string, string>>({

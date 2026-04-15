@@ -2,6 +2,11 @@
 // Contains the editor area with tabs, split panes, and side panels
 
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ApiKeySetupCard,
+  hasDismissedApiKeyCard,
+  markApiKeyCardDismissed,
+} from '@/components/onboarding/ApiKeySetupCard';
 import { TabBar } from '@/components/editor/TabBar';
 import { MarkdownEditor, type MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
@@ -174,9 +179,16 @@ interface MainPanelProps {
   rootPath?: string;
   onFileTreeChange?: () => void;
   onAuditLog?: (entry: Omit<import('@/types/audit').AuditEntry, 'id' | 'timestamp'>) => void;
+  /**
+   * When the user clicks the UX-04 onboarding card's "Add API key" button,
+   * this fires so the parent can switch to the AI Assistant sidebar + Keys
+   * sub-tab. Optional — if omitted, the card still renders but its CTA is a
+   * no-op (not a realistic production state; present for safety).
+   */
+  onRequestApiKeySetup?: () => void;
 }
 
-export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog }: MainPanelProps = {}) {
+export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onRequestApiKeySetup }: MainPanelProps = {}) {
   const {
     openTabs,
     activeTabPath,
@@ -207,6 +219,19 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
   // Version history state
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const versionService = getVersionService();
+
+  // UX-04 onboarding: has the user dismissed the API key setup card in this
+  // session? Reset to the live sessionStorage value each mount so a page
+  // reload ("full session restart") brings the card back when keys are still
+  // missing.
+  const [apiKeyCardDismissed, setApiKeyCardDismissed] = useState<boolean>(
+    () => hasDismissedApiKeyCard()
+  );
+
+  const handleDismissApiKeyCard = useCallback(() => {
+    markApiKeyCardDismissed();
+    setApiKeyCardDismissed(true);
+  }, []);
 
   // First-edit backup hook. For binary formats (.xlsx/.docx) we write a
   // snapshot of the original on-disk bytes to a `.backup-YYYYMMDD-HHMMSS.ext`
@@ -331,8 +356,32 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
     isSecondary = false
   ) => {
     if (!tab) {
+      // UX-04: Show API key setup card in the "no file open" slot when:
+      //   - a workspace is open (rootPath set),
+      //   - no API keys have been configured,
+      //   - the user hasn't dismissed the card this session,
+      //   - this is the primary (non-secondary) pane.
+      // Otherwise fall back to the plain "No file open" placeholder.
+      const shouldShowApiKeyCard =
+        !isSecondary &&
+        Boolean(rootPath) &&
+        apiKeys.length === 0 &&
+        !apiKeyCardDismissed;
+
+      if (shouldShowApiKeyCard) {
+        return (
+          <ApiKeySetupCard
+            onAddKey={() => onRequestApiKeySetup?.()}
+            onDismiss={handleDismissApiKeyCard}
+          />
+        );
+      }
+
       return (
-        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full">
+        <div
+          data-testid="main-panel-empty"
+          className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full"
+        >
           <FileText className="h-16 w-16 mb-4 opacity-50" />
           <p className="text-lg font-medium">No file open</p>
           <p className="text-sm">Select a file from the sidebar to start editing</p>
