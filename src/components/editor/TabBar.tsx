@@ -587,14 +587,17 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     return (
       <div
         key={tab.path}
+        data-testid={`tab-${pathToTestId(tab.path)}`}
+        data-active={isActive ? 'true' : 'false'}
         draggable
         onDragStart={(e) => handleDragStart(e, index)}
         onDragEnd={handleDragEnd}
         onDragOver={(e) => handleDragOver(e, index)}
         onDragLeave={handleDragLeave}
         onDrop={(e) => handleDrop(e, index)}
+        // `group` enables group-hover:* targeting on descendants (the close X).
         className={cn(
-          'flex items-center gap-1 px-3 py-1.5 border-r cursor-pointer text-sm transition-colors h-9 relative flex-shrink-0 snap-start',
+          'group flex items-center gap-1 px-3 py-1.5 border-r cursor-pointer text-sm transition-colors h-9 relative flex-shrink-0 snap-start',
           'min-w-[120px] max-w-[200px]',
           isActive
             ? 'bg-background text-foreground'
@@ -644,9 +647,21 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           </span>
         )}
         <Button
+          data-testid={`tab-close-${pathToTestId(tab.path)}`}
           variant="ghost"
           size="sm"
-          className="h-5 w-5 p-0 ml-1 rounded-sm hover:bg-muted"
+          // UX-22: Close X shows only when the tab is active, hovered, or
+          // focused (keyboard users). `opacity-0` hides by default;
+          // `group-hover:opacity-100` and `focus-visible:opacity-100` bring
+          // it back when the tab's container is hovered or the button
+          // itself gets keyboard focus. `isActive` forces it visible so
+          // active tabs always have a close affordance.
+          className={cn(
+            'h-5 w-5 p-0 ml-1 rounded-sm hover:bg-muted transition-opacity',
+            isActive
+              ? 'opacity-100'
+              : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+          )}
           onClick={(e) => handleTabClose(e, tab.path)}
           aria-label="Close tab"
           title="Close tab (Ctrl+W)"
