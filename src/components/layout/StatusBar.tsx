@@ -179,7 +179,12 @@ export function StatusBar() {
       >
         <FolderOpen className="h-3 w-3 flex-shrink-0" />
         {breadcrumbs.length === 0 ? (
-          <span className="truncate max-w-[200px]">{projectName}</span>
+          <span
+            data-testid="status-bar-project-name"
+            className="truncate max-w-[200px]"
+          >
+            {projectName}
+          </span>
         ) : (
           <nav
             data-testid="status-bar-breadcrumbs"
@@ -191,6 +196,10 @@ export function StatusBar() {
                 key={seg.folderPath}
                 segment={seg}
                 isFirst={i === 0}
+                // Keep the legacy `status-bar-project-name` testid on the
+                // first segment so older tests that inspect the workspace
+                // name continue to work.
+                legacyTestid={i === 0 ? 'status-bar-project-name' : undefined}
                 onNavigate={navigateToFolder}
               />
             ))}
@@ -282,25 +291,46 @@ export function StatusBar() {
 interface BreadcrumbButtonProps {
   segment: BreadcrumbSegment;
   isFirst: boolean;
+  /**
+   * Optional extra testid that will appear on a wrapping span. Used to
+   * preserve the legacy `status-bar-project-name` assertion on the
+   * first breadcrumb after the StatusBar refactor.
+   */
+  legacyTestid?: string | undefined;
   onNavigate: (folderPath: string) => void;
 }
 
-function BreadcrumbButton({ segment, isFirst, onNavigate }: BreadcrumbButtonProps) {
+function BreadcrumbButton({
+  segment,
+  isFirst,
+  legacyTestid,
+  onNavigate,
+}: BreadcrumbButtonProps) {
+  const button = (
+    <button
+      type="button"
+      data-testid={`status-bar-breadcrumb-${segment.label}`}
+      data-breadcrumb-path={segment.folderPath}
+      onClick={() => onNavigate(segment.folderPath)}
+      className="px-1 truncate max-w-[160px] rounded-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      title={segment.folderPath}
+    >
+      {segment.label}
+    </button>
+  );
+
   return (
     <>
       {!isFirst && (
         <ChevronRight className="h-3 w-3 flex-shrink-0 opacity-60" />
       )}
-      <button
-        type="button"
-        data-testid={`status-bar-breadcrumb-${segment.label}`}
-        data-breadcrumb-path={segment.folderPath}
-        onClick={() => onNavigate(segment.folderPath)}
-        className="px-1 truncate max-w-[160px] rounded-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        title={segment.folderPath}
-      >
-        {segment.label}
-      </button>
+      {legacyTestid ? (
+        <span data-testid={legacyTestid} className="inline-flex">
+          {button}
+        </span>
+      ) : (
+        button
+      )}
     </>
   );
 }

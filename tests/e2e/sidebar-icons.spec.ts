@@ -27,7 +27,7 @@ const TAB_IDS = [
 
 test.describe('Sidebar tab icons (UX-11)', () => {
   test('inactive tab icons all share the same computed color', async ({ page }) => {
-    await page.goto('/?test-mode=1');
+    await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
     // Files is the default active tab. Grab the computed color of each INACTIVE
@@ -49,7 +49,7 @@ test.describe('Sidebar tab icons (UX-11)', () => {
   });
 
   test('active tab icon color differs from inactive tab icon color', async ({ page }) => {
-    await page.goto('/?test-mode=1');
+    await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
     const activeIcon = page.getByTestId('sidebar-tab-files-icon');

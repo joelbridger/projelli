@@ -292,6 +292,11 @@ function App() {
       (window as unknown as {
         __fileBackupStore?: typeof useFileBackupStore;
       }).__fileBackupStore = useFileBackupStore;
+      // UX-14: expose the workspace store so breadcrumb tests can set a
+      // synthetic rootPath and inspect selectPath/expandedPaths behaviour.
+      (window as unknown as {
+        __workspaceStore?: typeof useWorkspaceStore;
+      }).__workspaceStore = useWorkspaceStore;
 
       // Install a mock workspace service for document-editing tests so the
       // FIRST-edit backup path exercises the real write-binary call through

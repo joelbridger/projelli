@@ -31,7 +31,7 @@ async function openAnyMarkdownFile(page: import('@playwright/test').Page) {
 test.describe('Editor toolbar overflow (UX-13)', () => {
   test('narrow viewport collapses overflow items into a … menu', async ({ page }) => {
     await page.setViewportSize({ width: 700, height: 800 });
-    await page.goto('/?test-mode=1');
+    await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
     await openAnyMarkdownFile(page);
 
@@ -58,7 +58,7 @@ test.describe('Editor toolbar overflow (UX-13)', () => {
 
   test('wide viewport shows inline items and no overflow menu', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
-    await page.goto('/?test-mode=1');
+    await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
     await openAnyMarkdownFile(page);
 

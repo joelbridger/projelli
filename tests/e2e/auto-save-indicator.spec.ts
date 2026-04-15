@@ -18,7 +18,7 @@ import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
 
 test.describe('Auto-save indicator (UX-17)', () => {
   test('shows "Saved" (idle state) when no file is open', async ({ page }) => {
-    await page.goto('/?test-mode=1');
+    await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
     const indicator = page.getByTestId('auto-save-indicator');
@@ -30,7 +30,7 @@ test.describe('Auto-save indicator (UX-17)', () => {
   });
 
   test('cycles to "Unsaved changes" when a tab is dirty', async ({ page }) => {
-    await page.goto('/?test-mode=1');
+    await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
     // Open a markdown file from the tree if one exists; otherwise skip.

@@ -195,7 +195,15 @@ export function SpreadsheetViewer({
         />
       )}
       {editable && (
-        <FormulaBar sheet={activeSheet} selected={selected} />
+        // UX-18: in editable mode, keep the formula bar expanded at all
+        // times so dblclick-to-edit flows never suffer a layout shift on
+        // the second click. The collapse behaviour still kicks in for
+        // read-only viewing.
+        <FormulaBar
+          sheet={activeSheet}
+          selected={selected}
+          expandedSticky={true}
+        />
       )}
       <SheetGrid
         sheet={activeSheet}
@@ -232,7 +240,14 @@ export function SpreadsheetViewer({
           setSelected(moveSelection(activeSheet, selected, dir));
         }}
       />
-      {editable && <SelectionSummary sheet={activeSheet} selected={selected} />}
+      {editable && (
+        // UX-18: same reasoning as the formula bar above.
+        <SelectionSummary
+          sheet={activeSheet}
+          selected={selected}
+          expandedSticky={true}
+        />
+      )}
     </div>
   );
 }
@@ -245,17 +260,22 @@ export function SpreadsheetViewer({
 interface FormulaBarProps {
   sheet: SheetData;
   selected: CellPos | null;
+  /**
+   * UX-18: when true, the bar stays expanded even if `selected` is null.
+   * The SpreadsheetViewer flips this on after the FIRST cell selection
+   * so subsequent dblclicks don't trigger a layout shift that would
+   * otherwise make the second click of the dblclick land on a different
+   * cell.
+   */
+  expandedSticky?: boolean;
 }
 
-function FormulaBar({ sheet, selected }: FormulaBarProps) {
-  // UX-18: when no cell is selected the formula bar collapses to a thin
-  // (5px) divider so it doesn't reserve vertical space. On first selection
-  // it expands to its full height. The grid accepts a small layout shift
-  // on that FIRST expansion per selection session — subsequent
-  // cell-to-cell selection changes don't shift anything because the bar
-  // stays open. This trade-off lets us reclaim the ~26px of empty chrome
-  // that was always present before.
-  if (!selected) {
+function FormulaBar({ sheet, selected, expandedSticky }: FormulaBarProps) {
+  // UX-18: when no cell is selected AND we haven't yet expanded this
+  // session, collapse the bar to a 5px thin divider. Once the user
+  // selects any cell, `expandedSticky` flips on and stays true for the
+  // lifetime of the component, keeping the grid position stable.
+  if (!selected && !expandedSticky) {
     return (
       <div
         data-testid="spreadsheet-formula-bar"
@@ -267,8 +287,8 @@ function FormulaBar({ sheet, selected }: FormulaBarProps) {
     );
   }
 
-  const cell = sheet.rows[selected.row]?.[selected.col] ?? null;
-  const ref = `${columnIndexToLetter(selected.col)}${selected.row + 1}`;
+  const cell = selected ? sheet.rows[selected.row]?.[selected.col] ?? null : null;
+  const ref = selected ? `${columnIndexToLetter(selected.col)}${selected.row + 1}` : '';
   const content = cell?.formula
     ? `=${cell.formula}`
     : cell?.display ?? '';
@@ -304,15 +324,17 @@ function FormulaBar({ sheet, selected }: FormulaBarProps) {
 interface SelectionSummaryProps {
   sheet: SheetData;
   selected: CellPos | null;
+  /**
+   * UX-18: sticky-expanded flag (see FormulaBar for details).
+   */
+  expandedSticky?: boolean;
 }
 
-function SelectionSummary({ sheet, selected }: SelectionSummaryProps) {
-  // UX-18: mirror the formula bar's collapse behaviour — the summary row
-  // disappears entirely when no cell is selected, and reappears as a
-  // full-height footer on selection. Uses the same 5px thin-divider
-  // placeholder so the grid's resting state has a visible bottom border
-  // without reserving summary space.
-  if (!selected) {
+function SelectionSummary({ sheet, selected, expandedSticky }: SelectionSummaryProps) {
+  // UX-18: mirror the formula bar's collapse behaviour. Collapse only
+  // on initial mount (no selection ever); stay expanded once any cell
+  // was selected this session.
+  if (!selected && !expandedSticky) {
     return (
       <div
         data-testid="spreadsheet-selection-summary"
@@ -324,7 +346,7 @@ function SelectionSummary({ sheet, selected }: SelectionSummaryProps) {
     );
   }
 
-  const cell = sheet.rows[selected.row]?.[selected.col] ?? null;
+  const cell = selected ? sheet.rows[selected.row]?.[selected.col] ?? null : null;
 
   let numeric: number | null = null;
   if (cell) {

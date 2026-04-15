@@ -14,7 +14,7 @@ import { waitForTestModeLoad, hardClick, safeFill } from './helpers/test-utils';
 
 test.describe('Create file dialog (UX-15)', () => {
   test('shows destination and live preview when creating markdown', async ({ page }) => {
-    await page.goto('/?test-mode=1');
+    await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
     // Open the File dropdown in the file tree toolbar.
@@ -43,7 +43,7 @@ test.describe('Create file dialog (UX-15)', () => {
   });
 
   test('shows destination when creating a spreadsheet', async ({ page }) => {
-    await page.goto('/?test-mode=1');
+    await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
     await hardClick(page.getByTestId('new-file-menu-trigger'));

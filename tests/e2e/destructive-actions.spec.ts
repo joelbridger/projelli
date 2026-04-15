@@ -15,7 +15,7 @@ import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
 
 test.describe('Destructive actions (UX-16)', () => {
   test('deleting a file shows an Undo toast that restores it', async ({ page }) => {
-    await page.goto('/?test-mode=1');
+    await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
     await hardClick(page.getByTestId('sidebar-tab-files'));

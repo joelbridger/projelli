@@ -15,7 +15,7 @@ import { waitForTestModeLoad } from './helpers/test-utils';
 
 test.describe('Status bar breadcrumbs (UX-14)', () => {
   test('renders root + file name when no ancestor folders', async ({ page }) => {
-    await page.goto('/?test-mode=1');
+    await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
     // Seed a workspace root + one opened tab at the root via the editor store.
@@ -53,7 +53,7 @@ test.describe('Status bar breadcrumbs (UX-14)', () => {
   });
 
   test('nested file path renders clickable intermediate segments', async ({ page }) => {
-    await page.goto('/?test-mode=1');
+    await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
     await page.evaluate(() => {
