@@ -17,7 +17,15 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { WebFSBackend, createWebFSBackend } from '@/modules/workspace/WebFSBackend';
 import { WorkspaceService, createWorkspaceService } from '@/modules/workspace/WorkspaceService';
 import { createFSBackend, isTauriEnvironment } from '@/modules/workspace/BackendFactory';
+import { DEFAULT_WORKSPACE_FOLDERS } from '@/modules/workspace/types';
 import { FolderOpen, FolderPlus, Clock, AlertCircle } from 'lucide-react';
+
+// Folders shown under the "New Workspace" button as a preview. We
+// intentionally omit `.trash` because it's an implementation detail for the
+// Trash panel, not a folder a user would organise files into.
+const PREVIEW_STRUCTURE_FOLDERS = DEFAULT_WORKSPACE_FOLDERS.filter(
+  (folder) => !folder.startsWith('.')
+);
 
 interface WorkspaceSelectorProps {
   open: boolean;
@@ -281,8 +289,11 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
               <FolderPlus className="h-8 w-8" />
               <div className="text-center">
                 <div className="font-medium">New Workspace</div>
-                <div className="text-xs text-muted-foreground">
-                  With default structure
+                <div
+                  data-testid="new-workspace-structure-preview"
+                  className="text-xs text-muted-foreground mt-0.5 font-mono"
+                >
+                  {PREVIEW_STRUCTURE_FOLDERS.map((f) => `${f}/`).join('  ')}
                 </div>
               </div>
             </Button>
