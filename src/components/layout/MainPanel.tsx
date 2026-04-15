@@ -1,7 +1,7 @@
 // Main Panel Component
 // Contains the editor area with tabs, split panes, and side panels
 
-import { useCallback, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 import { TabBar } from '@/components/editor/TabBar';
 import { MarkdownEditor, type MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
@@ -12,6 +12,15 @@ import { OutlinePanel } from '@/components/editor/OutlinePanel';
 import { BacklinksPanel } from '@/components/editor/BacklinksPanel';
 import { ImageViewer, VideoViewer, isImageFile, isVideoFile } from '@/components/media/MediaViewer';
 import { PDFViewer, isPDFFile, isSpreadsheetFile, isPresentationFile, isWordFile } from '@/components/media/PDFViewer';
+
+// Heavy doc libraries (xlsx ~500KB, docx-preview ~300KB, mammoth ~200KB) are
+// lazy-loaded so markdown-only users don't download them up front.
+const SpreadsheetViewer = lazy(() =>
+  import('@/components/media/SpreadsheetViewer').then((m) => ({ default: m.SpreadsheetViewer }))
+);
+const DocxViewer = lazy(() =>
+  import('@/components/media/DocxViewer').then((m) => ({ default: m.DocxViewer }))
+);
 import { Whiteboard } from '@/components/whiteboard/Whiteboard';
 import { SourceFileEditor } from '@/components/research/SourceFileEditor';
 import { AIChatViewer } from '@/components/ai/AIChatViewer';
@@ -22,7 +31,7 @@ import { BrowserPanel } from '@/components/workflow/BrowserPanel';
 import { getVersionService } from '@/modules/versioning/VersionService';
 import { useEditorStore } from '@/stores/editorStore';
 import { Button } from '@/components/ui/button';
-import { FileText, List, Link2, PanelRightClose, FileSpreadsheet, FileType, Presentation, X, Save, History, Download } from 'lucide-react';
+import { FileText, List, Link2, PanelRightClose, FileType, Presentation, X, Save, History, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/utils/saveFile';
 
@@ -374,23 +383,9 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
       }
       if (isSpreadsheet) {
         return (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full">
-            <FileSpreadsheet className="h-16 w-16 mb-4 opacity-50" />
-            <p className="text-lg font-medium">Spreadsheet: {tab.name}</p>
-            <p className="text-sm">Download to view in your spreadsheet application</p>
-            <Button
-              variant="outline"
-              className="mt-4"
-              onClick={async () => {
-                // Convert data URL to blob
-                const response = await fetch(tab.content);
-                const blob = await response.blob();
-                await downloadFileWithDialog(blob, tab.name, blob.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-              }}
-            >
-              Download File
-            </Button>
-          </div>
+          <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
+            <SpreadsheetViewer src={tab.content} fileName={tab.name} />
+          </Suspense>
         );
       }
       if (isPresentation) {
@@ -415,11 +410,25 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
         );
       }
       if (isWord) {
+        // `.docx` gets the new in-app preview. `.doc` (legacy binary format)
+        // can't be parsed reliably in-browser, so we keep the friendly
+        // fallback. Full `.doc` support comes in a later phase via a Tauri
+        // LibreOffice subprocess fallback.
+        if (extension?.toLowerCase() === 'docx') {
+          return (
+            <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
+              <DocxViewer src={tab.content} fileName={tab.name} />
+            </Suspense>
+          );
+        }
         return (
-          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full">
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full px-6 text-center">
             <FileType className="h-16 w-16 mb-4 opacity-50" />
-            <p className="text-lg font-medium">Word Document: {tab.name}</p>
-            <p className="text-sm">Download to view in your word processor</p>
+            <p className="text-lg font-medium">{tab.name}</p>
+            <p className="mt-2 text-sm max-w-md">
+              This is the older <code>.doc</code> format. Convert to <code>.docx</code> in
+              Word to preview it here. Full <code>.doc</code> support coming in a future update.
+            </p>
             <Button
               variant="outline"
               className="mt-4"
@@ -427,7 +436,7 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
                 // Convert data URL to blob
                 const response = await fetch(tab.content);
                 const blob = await response.blob();
-                await downloadFileWithDialog(blob, tab.name, blob.type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+                await downloadFileWithDialog(blob, tab.name, blob.type || 'application/msword');
               }}
             >
               Download File
@@ -739,6 +748,15 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function DocLoadingFallback({ fileName }: { fileName: string }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+      <FileType className="h-10 w-10 animate-pulse opacity-50" />
+      <p className="text-sm">Opening {fileName}...</p>
     </div>
   );
 }
