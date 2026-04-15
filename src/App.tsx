@@ -224,6 +224,11 @@ function App() {
       openFile(demoTab1Path, 'test1.md', demoTab1Content);
       openFile(demoTab2Path, 'test2.txt', demoTab2Content);
 
+      // Expose openFile for Playwright tests so specs can inject fixture
+      // files (e.g. binary data URLs) directly into the editor store without
+      // going through the Tauri filesystem layer.
+      (window as unknown as { __openTestFile?: typeof openFile }).__openTestFile = openFile;
+
       // Note: workspaceServiceRef stays null in test mode
       // Tests will work with localStorage and component state
       console.log('Test mode enabled: Mock workspace initialized with 2 demo tabs');

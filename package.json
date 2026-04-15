@@ -47,6 +47,7 @@
     "@tiptap/starter-kit": "^3.22.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "docx": "^9.6.1",
     "docx-preview": "^0.3.7",
     "lucide-react": "^0.563.0",
     "mammoth": "^1.12.0",

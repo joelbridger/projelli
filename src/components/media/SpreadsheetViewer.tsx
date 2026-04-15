@@ -91,7 +91,10 @@ export function SpreadsheetViewer({ src, fileName, className }: SpreadsheetViewe
   }
 
   return (
-    <div className={cn('flex h-full flex-col bg-background', className)}>
+    <div
+      data-testid="spreadsheet-viewer"
+      className={cn('flex h-full flex-col bg-background', className)}
+    >
       <SheetTabsBar
         sheets={model.sheets}
         activeIndex={activeSheetIndex}
@@ -100,6 +103,17 @@ export function SpreadsheetViewer({ src, fileName, className }: SpreadsheetViewe
       <SheetGrid sheet={activeSheet} />
     </div>
   );
+}
+
+/**
+ * Convert a sheet name to a stable kebab-case slug for use in `data-testid`.
+ * Lower-cased, alphanumeric and dashes only — anything else collapses to `-`.
+ */
+function sheetNameToTestId(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +137,7 @@ function SheetTabsBar({ sheets, activeIndex, onChange }: SheetTabsBarProps) {
           <button
             key={`${sheet.name}-${index}`}
             type="button"
+            data-testid={`spreadsheet-sheet-tab-${sheetNameToTestId(sheet.name)}`}
             onClick={() => onChange(index)}
             className={cn(
               'whitespace-nowrap rounded-sm px-3 py-1 text-xs font-medium transition-colors',
@@ -310,6 +325,7 @@ function SheetRow({ rowIndex, cells, columnWidthsPx, mergeMaps }: SheetRowProps)
         return (
           <div
             key={colIndex}
+            data-testid={`spreadsheet-cell-${rowIndex}-${colIndex}`}
             className="flex shrink-0 items-center overflow-hidden border-r px-1 py-0.5"
             style={{
               width: renderedWidth,
@@ -362,7 +378,10 @@ function buildMergeMaps(merges: MergeRange[]): MergeMaps {
 
 function SpreadsheetSkeleton({ fileName, className }: { fileName: string; className?: string | undefined }) {
   return (
-    <div className={cn('flex h-full flex-col items-center justify-center gap-2 text-muted-foreground', className)}>
+    <div
+      data-testid="spreadsheet-loading"
+      className={cn('flex h-full flex-col items-center justify-center gap-2 text-muted-foreground', className)}
+    >
       <FileSpreadsheet className="h-10 w-10 animate-pulse opacity-50" />
       <p className="text-sm">Opening {fileName}...</p>
     </div>
@@ -377,7 +396,10 @@ interface SpreadsheetErrorProps {
 
 function SpreadsheetError({ fileName, message, className }: SpreadsheetErrorProps) {
   return (
-    <div className={cn('flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground', className)}>
+    <div
+      data-testid="spreadsheet-error"
+      className={cn('flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground', className)}
+    >
       <AlertTriangle className="h-10 w-10 text-destructive opacity-70" />
       <div>
         <p className="text-sm font-medium text-foreground">Couldn't open {fileName}</p>

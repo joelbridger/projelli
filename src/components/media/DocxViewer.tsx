@@ -72,7 +72,10 @@ export function DocxViewer({ src, fileName, className }: DocxViewerProps) {
   }, [src]);
 
   return (
-    <div className={cn('flex h-full flex-col bg-background', className)}>
+    <div
+      data-testid="docx-viewer"
+      className={cn('flex h-full flex-col bg-background', className)}
+    >
       {error ? (
         <DocxError fileName={fileName} message={error} />
       ) : (
@@ -92,7 +95,10 @@ export function DocxViewer({ src, fileName, className }: DocxViewerProps) {
 
 function DocxSkeleton({ fileName }: { fileName: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+    <div
+      data-testid="docx-loading"
+      className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground"
+    >
       <FileType className="h-10 w-10 animate-pulse opacity-50" />
       <p className="text-sm">Opening {fileName}...</p>
     </div>
@@ -101,7 +107,10 @@ function DocxSkeleton({ fileName }: { fileName: string }) {
 
 function DocxError({ fileName, message }: { fileName: string; message: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground">
+    <div
+      data-testid="docx-error"
+      className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground"
+    >
       <AlertTriangle className="h-10 w-10 text-destructive opacity-70" />
       <div>
         <p className="text-sm font-medium text-foreground">Couldn't open {fileName}</p>
