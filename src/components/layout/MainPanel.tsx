@@ -222,6 +222,17 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const versionService = getVersionService();
 
+  // UX-24: auto-close the version-history panel when the active file
+  // switches to a non-versioned type (e.g. a .xlsx). Keeps the panel from
+  // showing stale history for a file that can't actually produce versions.
+  useEffect(() => {
+    if (!activeTabPath) return;
+    const extension = getFileExtension(activeTabPath);
+    if (!shouldVersionFile(extension) && showVersionHistory) {
+      setShowVersionHistory(false);
+    }
+  }, [activeTabPath, showVersionHistory]);
+
   // UX-13: Compact toolbar overflow.
   // At narrow widths the right-side toolbar (History / Split / Outline /
   // Backlinks, etc.) wraps below the tab row, creating an awkward two-row
