@@ -61,7 +61,7 @@ export function EmptyState({
       {shortcut && (
         <p
           data-testid={`empty-state-${panelName}-shortcut`}
-          className="text-xs mt-2 font-mono text-muted-foreground/80"
+          className="text-xs mt-2 font-mono text-foreground/70"
         >
           {shortcut}
         </p>

@@ -62,7 +62,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-04: Zero onboarding for BYOK model
 **Priority:** P1
-**Status:** 📋
+**Status:** ✅ Done — hash: `8d972bd`
 **Problem:** A new user creates a workspace and gets dropped into an empty app. Nothing tells them they need to add an API key before AI works. Silent dead-end for a product whose core feature is AI.
 **Acceptance criteria:**
 - After workspace selection, if no API keys are configured, main panel shows a prominent "Next step: add your AI key" card with a one-click link to the API keys panel
@@ -73,7 +73,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-05: "New Workspace" doesn't explain structure
 **Priority:** P1
-**Status:** 📋
+**Status:** ✅ Done — hash: `1c6bffb`
 **Problem:** The button says "New Workspace — With default structure." What structure? Users hesitate without knowing.
 **Acceptance criteria:**
 - Either: show a small preview list of folders (e.g., `docs/`, `notes/`, `projects/`) under the button, OR remove the "With default structure" subtitle entirely if no real structure is created
@@ -83,7 +83,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-06: Welcome dialog copy is too thin
 **Priority:** P1
-**Status:** 📋
+**Status:** ✅ Done — hash: `1dc106b`
 **Problem:** "Select an existing workspace folder or create a new one to get started." Doesn't explain what a workspace is, why it matters (local-first), or what Projelli does.
 **Acceptance criteria:**
 - Add one-sentence elevator pitch: "Projelli saves your AI chats as real files on your computer — pick a folder to save them into."
@@ -93,7 +93,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-07: No onboarding tour or empty-state prompts
 **Priority:** P1
-**Status:** 📋
+**Status:** ✅ Done — hash: `7edffda`
 **Problem:** Empty states are bare: "No files in workspace", "AI Audit Log (0 entries)". Users don't know what each tab does without clicking into it.
 **Acceptance criteria:**
 - Each sidebar panel's empty state has: an icon, a 1-2 sentence explanation of what that feature does, and a call-to-action (button or keyboard shortcut hint)
@@ -390,7 +390,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 | Wave | Date | Commit | Tests pass | Notes |
 |---|---|---|---|---|
 | Wave 1 | 2026-04-15 | `dc3f2c8` UX-01, `8c717b5` UX-02, `a094d45` UX-03 | 9 new, 77 existing (7 pre-existing visual snapshot failures untouched) | Welcome dialog is now strictly blocking on first run (X hidden, Escape suppressed); dismissible when a workspace exists behind it. Command palette has sr-only DialogTitle. Sidebar nav is a proper ARIA tablist with arrow-key navigation. |
-| Wave 2 | _pending_ | | | |
+| Wave 2 | 2026-04-15 | `8d972bd` UX-04, `1c6bffb` UX-05, `1dc106b` UX-06, `7edffda` UX-07 | 11 new (3 onboarding-card + 3 welcome-dialog-copy + 5 empty-states), 87 total pass, 7 pre-existing failures unchanged (3 Claude Opus 4.5 model-id tests + 4 visual snapshots) | Added prominent API key setup card in MainPanel for BYOK onboarding (sessionStorage-dismissal, reappears after page reload). Welcome dialog now has elevator pitch + Learn more link + preview of docs/research/templates folders. New reusable EmptyState component applied to Files, Search, AI Audit, Trash, and Whiteboard panels; Workflows skipped (always has 15 templates). |
 | Wave 3 | _pending_ | | | |
 | Wave 4 | _pending_ | | | |
 | Wave 5 | _pending_ | | | |
