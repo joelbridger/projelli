@@ -46,6 +46,11 @@ import { WaveformEditor } from '@/components/audio/WaveformEditor';
 import { VersionHistoryPanel } from '@/components/version/VersionHistoryPanel';
 import { BrowserPanel } from '@/components/workflow/BrowserPanel';
 import { WorkflowExecutionTab } from '@/components/workflow/WorkflowExecutionTab';
+import {
+  fileDataToExecution,
+  isWorkflowFilePath,
+  parseWorkflowFile,
+} from '@/modules/workflow/workflowFile';
 import { getVersionService } from '@/modules/versioning/VersionService';
 import { useEditorStore } from '@/stores/editorStore';
 import {
@@ -495,15 +500,35 @@ export function MainPanel({
           />
         );
       }
-      // Workflow execution tab — shows live step progress, interview forms,
-      // and final output inside the main panel instead of the sidebar.
-      if (tab.type === 'workflow-execution' && workflowTemplate) {
+      // Workflow execution tab — dispatched purely by the `.workflow`
+      // extension so the same renderer covers (a) a freshly-opened live run
+      // whose tab path is the real `.workflow` file, and (b) a past run
+      // re-opened from the file tree. When the live engine state matches
+      // the file's runId, prefer the in-memory execution so progress
+      // updates flow through. Otherwise re-hydrate from the file content.
+      if (isWorkflowFilePath(tab.path)) {
+        const parsed = parseWorkflowFile(tab.content);
+        if (!parsed) {
+          return (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              <p>Failed to load workflow file.</p>
+            </div>
+          );
+        }
+        const isLive =
+          workflowExecution?.runId === parsed.runId &&
+          workflowTemplate?.id === parsed.template.id;
+        const liveExecution = isLive
+          ? workflowExecution
+          : fileDataToExecution(parsed);
+        const liveTemplate = isLive ? workflowTemplate : parsed.template;
+        const liveInterview = isLive ? (workflowInterviewQuestions ?? null) : null;
         return (
           <div data-testid="workflow-execution-tab-wrapper" className="h-full">
             <WorkflowExecutionTab
-              template={workflowTemplate}
-              execution={workflowExecution ?? null}
-              interviewQuestions={workflowInterviewQuestions ?? null}
+              template={liveTemplate ?? parsed.template}
+              execution={liveExecution ?? null}
+              interviewQuestions={liveInterview}
               onInterviewSubmit={(answers) => onWorkflowInterviewSubmit?.(answers)}
               onCancel={() => onWorkflowCancel?.()}
               {...(onWorkflowSaveAsFile ? { onSaveAsFile: onWorkflowSaveAsFile } : {})}

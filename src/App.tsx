@@ -45,6 +45,13 @@ import type { TrashedItem } from '@/modules/history/TrashService';
 import type { SourceCard } from '@/types/research';
 import type { AuditEntry } from '@/types/audit';
 import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
+import {
+  appendCompletedInterviewAnswers,
+  buildWorkflowFilename,
+  executionToFileData,
+  isWorkflowFilePath,
+} from '@/modules/workflow/workflowFile';
+import type { WorkflowFileData } from '@/types/workflow';
 import { createMockProvider } from '@/modules/models/MockProvider';
 import { createClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { createOpenAIProvider } from '@/modules/models/OpenAIProvider';
@@ -102,6 +109,10 @@ function App() {
   const [interviewResolver, setInterviewResolver] = useState<((answers: Record<string, string>) => void) | null>(null);
   const [interviewRejecter, setInterviewRejecter] = useState<((error: Error) => void) | null>(null);
   const [showInterviewDialog, setShowInterviewDialog] = useState(false);
+  // Active `.workflow` file path for the live execution. Used by the
+  // sidebar "Current Execution" link and by debounced write-back so the
+  // file on disk stays in sync with the running engine.
+  const [activeWorkflowFilePath, setActiveWorkflowFilePath] = useState<string | null>(null);
 
   // Sidebar state
   const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash'>('files');
@@ -490,13 +501,21 @@ function App() {
           openFile(path, name, dataUrl);
         } else {
           const content = await workspaceServiceRef.current.readFile(path);
-          openFile(path, name, content);
+          // `.workflow` files are routed via openTab with the dedicated
+          // type so MainPanel's extension-based dispatch + the dedup logic
+          // both see a stable type and re-clicks from the tree refresh
+          // the in-memory content rather than dropping the tab type.
+          if (isWorkflowFilePath(path)) {
+            openTab(path, name, content, 'workflow-execution');
+          } else {
+            openFile(path, name, content);
+          }
         }
       } catch (error) {
         console.error('Failed to open file:', error);
       }
     },
-    [openFile]
+    [openFile, openTab]
   );
 
   // Source card management (must be defined before handleWorkspaceSelected)
@@ -1572,7 +1591,8 @@ function App() {
       if (!workspaceServiceRef.current || !rootPath) return;
 
       // Create workflow folder with timestamp
-      const timestamp = new Date().toISOString().replace(/:/g, '-').replace(/\..+/, '').replace('T', '_');
+      const startTime = new Date();
+      const timestamp = startTime.toISOString().replace(/:/g, '-').replace(/\..+/, '').replace('T', '_');
       const workflowFolderName = `${template.name} - ${timestamp}`;
       const workflowFolderPath = `${rootPath}/${workflowFolderName}`;
 
@@ -1584,6 +1604,58 @@ function App() {
         console.error('Failed to create workflow folder:', error);
         return;
       }
+
+      // Stable runId — both the live execution state and the persisted
+      // file share this id so MainPanel can match the live engine to the
+      // file's tab and prefer the in-memory state over the on-disk
+      // snapshot during a running execution.
+      const runId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      const workflowFilename = buildWorkflowFilename(template, startTime);
+      const workflowFilePath = `${workflowFolderPath}/${workflowFilename}`;
+
+      // Track artifacts and completed interview answers as the engine runs.
+      // These accumulate alongside execution state and get written into the
+      // .workflow file on every flush.
+      const artifacts: string[] = [];
+      let completedAnswers: { stepName: string; answers: Record<string, string> }[] = [];
+      let lastSeenStepIndex = -1;
+
+      // Debounced write helper. Holds the most recent file payload and
+      // flushes after 1.5s of quiet. Terminal-state writes use
+      // `flushImmediate=true` so completion / failure / cancellation
+      // always lands on disk synchronously.
+      let pendingFileData: WorkflowFileData | null = null;
+      let writeTimer: ReturnType<typeof setTimeout> | null = null;
+      const writeFileNow = async (data: WorkflowFileData) => {
+        try {
+          const json = JSON.stringify(data, null, 2);
+          await workspaceServiceRef.current!.writeFile(workflowFilePath, json);
+          // Keep the open tab's in-memory content in lockstep with disk so
+          // MainPanel re-renders WorkflowExecutionTab against the latest
+          // snapshot if the user clicks away and back.
+          useEditorStore.getState().updateContent(workflowFilePath, json);
+          // Flag the tab as saved so the dirty indicator stays clean.
+          useEditorStore.getState().markSaved(workflowFilePath);
+        } catch (err) {
+          console.warn('[workflow] Failed to write .workflow file:', err);
+        }
+      };
+      const scheduleWrite = (data: WorkflowFileData, flushImmediate = false) => {
+        pendingFileData = data;
+        if (flushImmediate) {
+          if (writeTimer) {
+            clearTimeout(writeTimer);
+            writeTimer = null;
+          }
+          void writeFileNow(data);
+          return;
+        }
+        if (writeTimer) clearTimeout(writeTimer);
+        writeTimer = setTimeout(() => {
+          writeTimer = null;
+          if (pendingFileData) void writeFileNow(pendingFileData);
+        }, 1500);
+      };
 
       // Load AI Rules if available
       let aiRulesContent: string | undefined;
@@ -1639,6 +1711,11 @@ function App() {
             const filename = path.split('/').pop() || path;
             const fullPath = `${workflowFolderPath}/${filename}`;
             await workspaceServiceRef.current!.writeFile(fullPath, content);
+            // Track the artifact so the .workflow file has a record of
+            // what the run produced.
+            if (!artifacts.includes(filename)) {
+              artifacts.push(filename);
+            }
             // Refresh file tree after write
             const fileTree = await workspaceServiceRef.current!.getFileTree();
             setFileTree(fileTree);
@@ -1662,41 +1739,117 @@ function App() {
         // Progress handler
         (stepIndex, stepName, status) => {
           console.log(`Workflow step ${stepIndex}: ${stepName} - ${status}`);
-          if (engine.getExecution()) {
-            setCurrentExecution({ ...engine.getExecution()! });
+          const live = engine.getExecution();
+          if (!live) return;
+          setCurrentExecution({ ...live });
+          // Build accumulated interview answers when we cross a step
+          // boundary so the persisted file has the same structure the
+          // tab UI displays.
+          if (live.currentStepIndex > lastSeenStepIndex && live.currentStepIndex > 0) {
+            completedAnswers = appendCompletedInterviewAnswers(
+              completedAnswers,
+              live.template,
+              live.currentStepIndex - 1,
+              live.inputs
+            );
+            lastSeenStepIndex = live.currentStepIndex;
           }
+          // Schedule a debounced snapshot. Step transitions count as
+          // "important enough" but not so urgent that we need to flush
+          // synchronously — terminal states do that below.
+          scheduleWrite(
+            executionToFileData({
+              execution: live,
+              workflowFolderPath,
+              completedAnswers,
+              artifacts,
+            })
+          );
         }
       );
 
       try {
         const initialExecution: WorkflowExecution = {
-          runId: `temp_${Date.now()}`,
+          runId,
           template,
           currentStepIndex: 0,
           status: 'running',
           inputs: {},
           stepOutputs: [],
-          startTime: new Date(),
+          startTime,
         };
         setCurrentExecution(initialExecution);
         setActiveWorkflowTemplate(template);
+        setActiveWorkflowFilePath(workflowFilePath);
 
-        // Open a workflow-execution tab in the main panel
-        const tabPath = `__workflow_exec_${Date.now()}__`;
-        openTab(tabPath, template.name, '', 'workflow-execution');
+        // Initial snapshot. Status='running' so re-opening the file
+        // mid-run shows the workflow tab in its starting state.
+        const initialData = executionToFileData({
+          execution: initialExecution,
+          workflowFolderPath,
+          completedAnswers: [],
+          artifacts: [],
+          status: 'running',
+        });
+        const initialJson = JSON.stringify(initialData, null, 2);
+        await workspaceServiceRef.current.writeFile(workflowFilePath, initialJson);
+
+        // Open the workflow tab pointing at the real file path. Type stays
+        // 'workflow-execution' so editor-store metadata is unchanged, but
+        // MainPanel routes purely on `.workflow` extension.
+        openTab(workflowFilePath, workflowFilename, initialJson, 'workflow-execution');
+
+        // Refresh tree so the new file shows up in the sidebar before
+        // execution starts.
+        try {
+          const fileTree = await workspaceServiceRef.current.getFileTree();
+          setFileTree(fileTree);
+        } catch {
+          // Non-fatal: tree refresh failure shouldn't block the run.
+        }
 
         const runRecord = await engine.execute(template);
         completeRun(runRecord);
+
+        // Final snapshot for the completed run. Pull the engine's last
+        // execution state so endTime + final status are reflected.
+        const finalExecution = engine.getExecution() ?? initialExecution;
+        scheduleWrite(
+          executionToFileData({
+            execution: finalExecution,
+            workflowFolderPath,
+            completedAnswers,
+            artifacts,
+            status: finalExecution.status === 'failed' ? 'failed' : 'completed',
+          }),
+          true
+        );
+
         // Keep template around so the completed tab can still show output.
         // setActiveWorkflowTemplate is cleared only on cancel.
         setCurrentExecution(null);
+        setActiveWorkflowFilePath(null);
 
         // Refresh file tree after workflow completes
         const fileTree = await workspaceServiceRef.current.getFileTree();
         setFileTree(fileTree);
       } catch (error) {
         console.error('Workflow failed:', error);
+        const failedExecution = engine.getExecution();
+        if (failedExecution) {
+          scheduleWrite(
+            executionToFileData({
+              execution: failedExecution,
+              workflowFolderPath,
+              completedAnswers,
+              artifacts,
+              status: 'failed',
+            }),
+            true
+          );
+        }
         setCurrentExecution(null);
+        setActiveWorkflowFilePath(null);
       }
     },
     [rootPath, setFileTree, completeRun, apiKeys, openTab]
@@ -1728,6 +1881,12 @@ function App() {
     setInterviewRejecter(null);
     setCurrentExecution(null);
     setActiveWorkflowTemplate(null);
+    setActiveWorkflowFilePath(null);
+    // Cancellation flushes a `cancelled` status to the .workflow file via
+    // the catch branch in handleStartWorkflow when the engine throws —
+    // but if the user cancels before the engine has thrown back into the
+    // try/catch, the snapshot may still report 'running'. The catch path
+    // covers the common case; this is an acceptable trade-off.
   }, [interviewRejecter]);
 
   // Workflow execution tab: save output as a markdown file
@@ -2272,10 +2431,16 @@ This file contains rules and guidelines for AI assistants in this workspace.
               currentExecution={currentExecution}
               runHistory={runHistory}
               onFocusExecutionTab={() => {
-                // Find the workflow-execution tab and focus it
-                const execTab = openTabs.find((t) => t.type === 'workflow-execution');
-                if (execTab) {
-                  useEditorStore.getState().setActiveTab(execTab.path);
+                // Prefer the tracked active workflow file path (live run);
+                // fall back to scanning open tabs for any `.workflow` file
+                // so we still focus a recently-completed run if its tab is
+                // open but the live state has cleared.
+                const target =
+                  activeWorkflowFilePath ??
+                  openTabs.find((t) => isWorkflowFilePath(t.path))?.path ??
+                  null;
+                if (target) {
+                  useEditorStore.getState().setActiveTab(target);
                 }
               }}
             />

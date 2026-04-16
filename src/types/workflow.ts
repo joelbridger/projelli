@@ -115,3 +115,43 @@ export interface WorkflowExecution {
   endTime?: Date;
   error?: string;
 }
+
+/**
+ * Persisted workflow execution record stored in a `.workflow` file.
+ *
+ * The on-disk file is the source of truth for past runs and lets the user
+ * reopen a completed (or in-progress) workflow from the file tree. Live
+ * runs write a debounced snapshot of this shape on every progress update;
+ * terminal states (completed / failed / cancelled) are flushed immediately.
+ *
+ * Designed to be JSON-serializable: dates are ISO strings, no Date objects,
+ * no functions. Schema version gates future additions.
+ */
+export interface WorkflowFileData {
+  /** Stable schema version for future backward-compatible migrations. */
+  schemaVersion: 1;
+  /** Run identifier — equals execution.runId once engine starts. */
+  runId: string;
+  /** Full template (NOT just id) so the tab can render even if the template list changes. */
+  template: WorkflowTemplate;
+  /** Absolute path of the workflow folder this file lives in. */
+  workflowFolderPath: string;
+  /** Current step index. 0 when started, template.steps.length when completed. */
+  currentStepIndex: number;
+  /** Live status of the run. */
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  /** All accumulated step inputs/outputs — same shape as WorkflowExecution.inputs. */
+  inputs: Record<string, unknown>;
+  /** Step-by-step outputs in execution order. */
+  stepOutputs: Record<string, unknown>[];
+  /** Completed interview answers, prebuilt for the tab's display. */
+  completedAnswers: { stepName: string; answers: Record<string, string> }[];
+  /** ISO start timestamp. */
+  startTime: string;
+  /** ISO end timestamp — set when status flips away from 'running'. */
+  endTime?: string;
+  /** If status='failed', the error message. */
+  error?: string;
+  /** Filenames (not absolute paths) created in the workflow folder. */
+  artifacts: string[];
+}

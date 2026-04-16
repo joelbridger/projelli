@@ -502,9 +502,12 @@ export const useEditorStore = create<EditorState>()(
           continue;
         }
 
-        // Workflow-execution tabs are transient (running workflow state
-        // is in-memory). Don't restore them on reload.
-        if (tab.type === 'workflow-execution') {
+        // Legacy synthetic workflow-execution tabs (path starts with
+        // `__workflow_exec_`) had no on-disk file and were transient. Skip
+        // them on restore. Real `.workflow` files persisted with
+        // type='workflow-execution' fall through to the regular file-
+        // reading branch below so their JSON content is rehydrated.
+        if (tab.type === 'workflow-execution' && tab.path.startsWith('__workflow_exec_')) {
           continue;
         }
 
