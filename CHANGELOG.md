@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Sample workspace on first run (Q11)** — FirstRunWizard now offers a toggle (default ON) to populate the newly-selected workspace with three realistic Markdown samples so new users see what a finished workflow output looks like before they run their first one. Samples are written via `WorkspaceService.writeFile`; collisions get `(1)`, `(2)` suffixes rather than overwriting. Failure to copy samples does not block onboarding completion.
+  - `src/onboarding/samples/Sample - Pricing Strategy.md`, `Sample - Pitch Deck.md`, `Sample - Weekly Review.md` — ~200-400 word realistic founder-voiced outputs for a fictional product ("Acme Budget", a personal finance app for freelancers). No em dashes, contractions, first-person singular, concrete nouns.
+  - `src/onboarding/samples/index.ts` — raw-imports the three markdown files via Vite `?raw`, exposes `SAMPLE_FILES` array and `writeSampleFiles(workspace)` helper that writes non-colliding filenames via the supplied workspace abstraction.
+  - `src/components/onboarding/FirstRunWizard.tsx` — new `workspace` prop (optional), `populateSamples` state (default true), toggle UI on the demo step with `data-testid="first-run-samples-toggle"`, `isFinishing` state while samples are being written. Onboarding completion marks `projelli_onboarding_complete` even if the sample copy fails.
+  - `tests/unit/samples.test.ts` — 14 tests verifying file existence, no em dashes, `# Sample:` heading format, non-trivial size, index export.
+  - `tests/unit/first-run-samples.test.tsx` — 4 RTL tests covering toggle presence/default, 3x writeFile when on, no writeFile when off, and onboarding-complete flag.
+
 - **Claude Haiku 4.5 as free-tier default model (Q9)** — fresh installs and any code path that instantiates a Claude provider without specifying a model now land on `claude-haiku-4-5-20251001` instead of Sonnet 4.6. Pro and Lifetime users default to Sonnet 4.6 (unchanged). Users who already picked a model keep it — this only touches the out-of-box fallback.
   - `src/utils/defaultModel.ts` — new helper `getDefaultModelForTier` / `getDefaultModelsForTier` centralizes the tier × provider default matrix. Anthropic: Haiku 4.5 free / Sonnet 4.6 paid. OpenAI: gpt-4o-mini free / gpt-4o paid. Google: Gemini 2.5 Flash free / Gemini 1.5 Pro paid.
   - `src/components/ai/AIAssistantPane.tsx` — model dropdown initial selection routed through `getDefaultModelsForTier(tier)`; reads tier from `useLicense()`.

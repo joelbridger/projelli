@@ -34,9 +34,9 @@
 | Q6 | Audit log filtering | ✅ Done | Commit `9ed4d65` — date-range + model dropdown + reset button added to `AuditLog.tsx` filter row, composes with existing action-type chips. 6 RTL integration tests |
 | Q7 | Ollama as 4th provider | 🔲 Not started | No `OllamaProvider.ts`; needs Phase 2 Rust HTTP infra first |
 | Q8 | Per-template model assignment | 🔲 Not started | `WorkflowTemplate` schema lacks `defaultProvider`/`defaultModel` fields |
-| Q9 | Haiku 4.5 free-tier default | ✅ Done | Commit `<q9-sha>` — new `src/utils/defaultModel.ts` helper; `AIAssistantPane.tsx` reads tier from `useLicense` and initializes selectedModels via `getDefaultModelsForTier`; `ClaudeProvider.ts` constructor fallback flipped to Haiku 4.5 |
+| Q9 | Haiku 4.5 free-tier default | ✅ Done | Commit `b827443` — new `src/utils/defaultModel.ts` helper; `AIAssistantPane.tsx` reads tier from `useLicense` and initializes selectedModels via `getDefaultModelsForTier`; `ClaudeProvider.ts` constructor fallback flipped to Haiku 4.5 |
 | Q10 | Template preview gallery | 🔲 Not started | No `website/templates/` directory; content generation work |
-| Q11 | Sample workspace on first run | 🔲 Not started | No `src/onboarding/samples/`; FirstRunWizard has no "populate samples" toggle |
+| Q11 | Sample workspace on first run | ✅ Done | Commit `<q11-sha>` — `src/onboarding/samples/` with 3 Markdown files (Pricing Strategy, Pitch Deck, Weekly Review) plus `index.ts` (`SAMPLE_FILES` + `writeSampleFiles`). `FirstRunWizard.tsx` gains `workspace` prop + `first-run-samples-toggle`. 18 new unit tests. |
 | Q12 | Smart paste URL → link | 🔲 Not started | No clipboard paste handler in MarkdownEditor; needs Phase 2 `fetch_url_title` command |
 | Q13 | Image paste auto-save | 🔲 Not started | No clipboard image detection. File drag-drop exists via `GlobalDropOverlay.tsx` + `fileDrop.ts` (v1.0.8) but not per-editor paste |
 | Q14 | Wiki-link autocomplete | 🔲 Not started | `WikiLinkParser.ts` has parsing only, no CodeMirror autocompletion extension |

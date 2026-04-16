@@ -22,23 +22,61 @@
 import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { writeSampleFiles, SAMPLE_FILES } from '@/onboarding/samples';
 
 const STORAGE_KEY = 'projelli_onboarding_complete';
+
+/**
+ * Minimal slice of `WorkspaceService` that the wizard needs. Typed as a
+ * duck-typed interface so tests can pass a mock without importing the real
+ * service (which pulls in filesystem backends).
+ */
+export interface WizardWorkspace {
+  writeFile: (path: string, content: string) => Promise<void>;
+  exists: (path: string) => Promise<boolean>;
+}
 
 export interface FirstRunWizardProps {
   /** Called when the user completes the wizard. */
   onComplete: () => void;
   /** Called when the user picks "Skip" — doesn't mark onboarding as complete. */
   onSkip: () => void;
+  /**
+   * Optional workspace handle used to populate sample files when the
+   * "Populate workspace with samples" toggle is on. When omitted, the toggle
+   * still renders but has no effect at finish — useful for tests and browsers
+   * without a workspace root selected yet.
+   */
+  workspace?: WizardWorkspace;
 }
 
 type Step = 'welcome' | 'workspace' | 'apikey' | 'demo' | 'done';
 
-export function FirstRunWizard({ onComplete, onSkip }: FirstRunWizardProps) {
+export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizardProps) {
   const [step, setStep] = useState<Step>('welcome');
   const [apiKey, setApiKey] = useState('');
+  // Q11 (Wave 1.5): default ON — new users benefit from seeing realistic
+  // artifacts before they run their first workflow.
+  const [populateSamples, setPopulateSamples] = useState(true);
+  const [isFinishing, setIsFinishing] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
 
-  const markComplete = () => {
+  const markComplete = async () => {
+    setFinishError(null);
+    if (populateSamples && workspace) {
+      setIsFinishing(true);
+      try {
+        await writeSampleFiles(workspace);
+      } catch (err) {
+        // Don't block onboarding completion on a failed sample copy — log the
+        // error and let the user into the app. Samples are a nice-to-have.
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn('[FirstRunWizard] failed to populate samples:', message);
+        setFinishError(message);
+      } finally {
+        setIsFinishing(false);
+      }
+    }
     localStorage.setItem(STORAGE_KEY, 'true');
     onComplete();
   };
@@ -235,15 +273,41 @@ export function FirstRunWizard({ onComplete, onSkip }: FirstRunWizardProps) {
                     You'll get back a Vision document, a PRD, and a Lean Canvas — all as real Markdown files you can edit, link together,
                     and back up however you want.
                   </p>
+
+                  {/* Q11 (Wave 1.5): sample-files toggle. */}
+                  <label className="flex items-start gap-3 rounded-lg border border-border bg-muted/20 p-4 cursor-pointer hover:bg-muted/30 transition-colors">
+                    <input
+                      data-testid="first-run-samples-toggle"
+                      type="checkbox"
+                      checked={populateSamples}
+                      onChange={(e) => setPopulateSamples(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 accent-primary"
+                    />
+                    <div className="flex-1 text-xs">
+                      <div className="font-medium text-foreground">
+                        Populate workspace with {SAMPLE_FILES.length} sample files
+                      </div>
+                      <p className="mt-1 text-muted-foreground">
+                        Adds finished examples of a pricing strategy, pitch deck, and weekly review so you can see what
+                        a completed workflow looks like. You can delete them later.
+                      </p>
+                    </div>
+                  </label>
+
+                  {finishError && (
+                    <p className="text-xs text-destructive">
+                      Could not copy samples: {finishError}. Don't worry, you're still in.
+                    </p>
+                  )}
                 </div>
               }
               actions={
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setStep('apikey')}>
+                  <Button variant="outline" onClick={() => setStep('apikey')} disabled={isFinishing}>
                     ← Back
                   </Button>
-                  <Button onClick={markComplete} size="lg">
-                    Open my workspace →
+                  <Button onClick={markComplete} size="lg" disabled={isFinishing}>
+                    {isFinishing ? 'Setting up...' : 'Open my workspace →'}
                   </Button>
                 </div>
               }
