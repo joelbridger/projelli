@@ -44,7 +44,7 @@
 | Q16 | `?` shortcut overlay | ✅ Done in v1.0.8 | `src/components/ShortcutsOverlay.tsx` (187 lines), `src/utils/shortcuts.ts` (175 lines) |
 | Q17 | `/vs-obsidian`, `/vs-notion` pages | 🔲 Not started | No `website/vs/` directory |
 | Q18 | In-app changelog on update | ✅ Done in v1.0.8 | `src/components/WhatsNew.tsx` (191 lines), `src/content/changelog.ts` (78 lines) |
-| Q19 | Template fork / remix | ✅ Done | Commit `PENDING-Q19` — new `src/modules/workflow/userTemplates.ts` with swappable storage adapter (localStorage default, in-memory for tests, filesystem-ready for Tauri); `WorkflowPanel.tsx` gains Duplicate + Delete buttons, Custom badge, and a `TemplateForkModal` that edits name + first-generate-step systemPrompt; 14 unit tests |
+| Q19 | Template fork / remix | ✅ Done | Commit `147ead3` — new `src/modules/workflow/userTemplates.ts` with swappable storage adapter (localStorage default, in-memory for tests, filesystem-ready for Tauri); `WorkflowPanel.tsx` gains Duplicate + Delete buttons, Custom badge, and a `TemplateForkModal` that edits name + first-generate-step systemPrompt; 14 unit tests |
 | Q20 | API-key onboarding wizard | ✅ Done | Commit `a69e144` — new `ApiKeyWizard.tsx` (3-step modal: open console → illustrated mock → paste + validate + save) with provider selector tabs. `ApiKeySetupCard.tsx` gains optional `onSaveKey` prop; when passed, the CTA launches the wizard. 7 new unit tests. |
 
 **Phase 1 net work: 18 of 20 Quick Wins** (Q16 and Q18 already shipped in v1.0.8).
@@ -137,6 +137,9 @@ Discovered during the re-audit — confirmed present in `2644a9c`:
 | `a69e144` | Q20 — Guided 3-step API-key onboarding wizard |
 | `6f376ab` | Q3 — Real-time API cost chip in chat pane |
 | `8a2c5bb` | Q4 — Monthly cost dashboard in Settings |
+| `35ae3ea` | Q8 — Per-template model assignment |
+| `22bb36f` | Q14 — Wiki-link autocomplete in CodeMirror |
+| `147ead3` | Q19 — Template fork / remix |
 
 ---
 
