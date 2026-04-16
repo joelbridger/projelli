@@ -15,6 +15,10 @@ import {
   flattenFilesForWikiLinks,
   type WikiLinkFileInfo,
 } from '@/modules/editor/wikiLinkAutocomplete';
+import {
+  createSmartPasteExtension,
+  type FetchUrlTitle,
+} from '@/modules/editor/smartPaste';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 export interface MarkdownEditorRef {
@@ -30,6 +34,12 @@ interface MarkdownEditorProps {
   readOnly?: boolean;
   className?: string;
   filePath?: string; // Used to determine when to reset the editor for a new file
+  /**
+   * Q12 — provider for URL → title lookups. Defaults to the Tauri
+   * `fetchUrlTitle` wrapper so production doesn't need to pass anything.
+   * Tests inject a stub.
+   */
+  fetchUrlTitle?: FetchUrlTitle | undefined;
 }
 
 // Custom theme for the editor
@@ -79,12 +89,21 @@ const createExtensions = (
   onChangeRef: React.MutableRefObject<((content: string) => void) | undefined>,
   onChangeMirrorRef: React.MutableRefObject<((content: string) => void) | undefined>,
   getFilesRef: React.MutableRefObject<() => WikiLinkFileInfo[]>,
+  smartPasteRefs: {
+    fetchUrlTitle: React.MutableRefObject<FetchUrlTitle>;
+  },
   readOnly: boolean = false
 ) => {
   // Q14 — wiki-link autocomplete source. Reads the workspace file list via a
   // ref so the popup always shows the current file tree even after the user
   // creates or deletes files without re-mounting the editor.
   const wikiLinkSource = createWikiLinkCompletionSource(() => getFilesRef.current());
+  // Q12 — smart paste extension. The URL-title fetcher is resolved via
+  // a ref so the extension never re-creates when the parent hands us a
+  // fresh lambda.
+  const smartPasteExtension = createSmartPasteExtension({
+    fetchUrlTitle: (url: string) => smartPasteRefs.fetchUrlTitle.current(url),
+  });
   const extensions = [
     lineNumbers(),
     highlightActiveLineGutter(),
@@ -99,6 +118,7 @@ const createExtensions = (
     highlightSelectionMatches(),
     syntaxHighlighting(defaultHighlightStyle),
     markdown({ base: markdownLanguage }),
+    smartPasteExtension,
     EditorView.lineWrapping,
     editorTheme,
     keymap.of([
@@ -134,6 +154,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       readOnly = false,
       className = '',
       filePath,
+      fetchUrlTitle,
     },
     ref
   ) {
@@ -149,6 +170,25 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     useEffect(() => {
       getFilesRef.current = () => flattenFilesForWikiLinks(fileTree);
     }, [fileTree]);
+
+    // Q12 — smart-paste URL-title fetcher lives behind a ref so it
+    // stays fresh without re-mounting the editor. Default dynamically
+    // imports `@/utils/tauri-commands` so tests mocking the Tauri
+    // bindings don't need to wire a stub manually.
+    const fetchUrlTitleRef = useRef<FetchUrlTitle>(
+      fetchUrlTitle ??
+        (async (url: string) => {
+          try {
+            const mod = await import('@/utils/tauri-commands');
+            return await mod.fetchUrlTitle(url);
+          } catch {
+            return '';
+          }
+        })
+    );
+    useEffect(() => {
+      if (fetchUrlTitle) fetchUrlTitleRef.current = fetchUrlTitle;
+    }, [fetchUrlTitle]);
     // UX-30: reactive mirror of the current document content so the word
     // count footer updates on every keystroke. We keep a separate piece of
     // React state rather than reading from the CodeMirror view synchronously
@@ -157,6 +197,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     const onChangeMirrorRef = useRef<((content: string) => void) | undefined>(
       setCurrentText
     );
+
+    // Q12 — visible marker for the inline "[Fetching title...](…)"
+    // placeholder. Derived from `currentText` so tests can observe it
+    // via `data-testid` without poking at CodeMirror internals.
+    const hasUrlPastePlaceholder = currentText.includes('[Fetching title...](');
 
     // Keep onChange ref up to date (this doesn't cause re-renders)
     useEffect(() => {
@@ -217,7 +262,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
 
       const state = EditorState.create({
         doc: initialContent,
-        extensions: createExtensions(onChangeRef, onChangeMirrorRef, getFilesRef, readOnly),
+        extensions: createExtensions(
+          onChangeRef,
+          onChangeMirrorRef,
+          getFilesRef,
+          { fetchUrlTitle: fetchUrlTitleRef },
+          readOnly
+        ),
       });
 
       const view = new EditorView({
@@ -245,9 +296,19 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
         className={`h-full w-full flex flex-col bg-background ${className}`}
         data-testid="wiki-link-autocomplete"
       >
+        {hasUrlPastePlaceholder && (
+          // Q12 — zero-height marker so tests can wait for the inflight
+          // URL-title fetch to resolve.
+          <span
+            aria-hidden="true"
+            data-testid="markdown-editor-url-paste-placeholder"
+            className="sr-only"
+          />
+        )}
         <div
           ref={containerRef}
           className="flex-1 min-h-0"
+          data-testid="markdown-editor-paste-target"
           onClick={() => {
             // Ensure editor gets focus when clicking the container
             viewRef.current?.focus();
