@@ -3,14 +3,24 @@
 //
 // v1.5 extensions on top of the original regex converter:
 // - Q1: Mermaid diagram rendering (fenced ```mermaid blocks → SVG)
+// - Q2: KaTeX math rendering ($$...$$ block + $...$ inline)
 //
 // Mermaid render is async, so conversion inserts a placeholder <div> per
 // diagram up front, and a post-mount effect calls mermaid.render() and
 // drops the SVG into the matching node. Syntax errors render as a small
 // red error block inside the placeholder rather than crashing the preview.
+//
+// KaTeX renders synchronously via katex.renderToString. Math expressions
+// are extracted up front (same placeholder mechanism as mermaid) so the
+// regex markdown pipeline can't mangle them, then the rendered HTML is
+// inlined during the post-conversion swap. Parse errors fall back to the
+// raw expression with a red underline (katex's throwOnError: false
+// default error styling).
 
 import { useEffect, useMemo, useRef } from 'react';
 import mermaid from 'mermaid';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 import { cn } from '@/lib/utils';
 
 interface MarkdownPreviewProps {
@@ -38,30 +48,82 @@ function escapeHtmlString(s: string): string {
 }
 
 /**
- * Extract fenced ```mermaid blocks from the raw markdown and replace each
- * with an opaque placeholder token that survives the regex pipeline. After
- * markdown→HTML conversion, tokens are swapped for placeholder <div>s that
- * the post-mount effect fills with rendered SVG.
+ * Render a single math expression with KaTeX. Parse errors are rendered
+ * through KaTeX's own error fallback (red underlined source) via the
+ * throwOnError: false default, and any thrown exception falls back to
+ * escaped source text with a local red-underline span.
  */
-function extractMermaidBlocks(markdown: string): {
+function renderMath(expr: string, displayMode: boolean): string {
+  try {
+    return katex.renderToString(expr, { throwOnError: false, displayMode });
+  } catch {
+    return `<span class="text-red-500 underline decoration-red-500">${escapeHtmlString(expr)}</span>`;
+  }
+}
+
+/**
+ * Extract fenced ```mermaid blocks, $$block$$ math, and $inline$ math from
+ * the raw markdown source. Each is replaced with an opaque placeholder
+ * token that survives the regex pipeline. After markdown→HTML conversion,
+ * tokens are swapped for their final HTML (a placeholder div for mermaid,
+ * the KaTeX-rendered HTML for math).
+ *
+ * Ordering matters: mermaid first (fenced blocks can contain $), block
+ * math before inline so `$$` doesn't get split by the inline pattern.
+ */
+function extractSpecialBlocks(markdown: string): {
   stripped: string;
-  blocks: MermaidBlock[];
+  mermaidBlocks: MermaidBlock[];
   placeholders: Map<string, string>;
 } {
-  const blocks: MermaidBlock[] = [];
+  const mermaidBlocks: MermaidBlock[] = [];
   const placeholders = new Map<string, string>();
   let counter = 0;
-  const stripped = markdown.replace(/```mermaid\n([\s\S]*?)```/g, (_match, source: string) => {
+  const tokenFor = (kind: string) => `\u0000MDPREVIEW${kind}${counter++}\u0000`;
+
+  let stripped = markdown.replace(/```mermaid\n([\s\S]*?)```/g, (_match, source: string) => {
     const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
-    blocks.push({ id, source: source.trim() });
-    const token = `\u0000MDPREVIEWMERMAID${counter++}\u0000`;
+    mermaidBlocks.push({ id, source: source.trim() });
+    const token = tokenFor('MERMAID');
     placeholders.set(
       token,
       `<div class="mermaid-diagram my-4" data-mermaid-id="${id}" data-testid="mermaid-diagram-${id}"></div>`,
     );
     return token;
   });
-  return { stripped, blocks, placeholders };
+
+  // Block math: $$...$$. Runs before inline so the outer `$$` doesn't get
+  // chopped into two bare `$` pairs. Match is non-greedy and multi-line.
+  stripped = stripped.replace(/\$\$([\s\S]+?)\$\$/g, (_match, expr: string) => {
+    const token = tokenFor('KATEXBLOCK');
+    const rendered = renderMath(expr.trim(), true);
+    placeholders.set(
+      token,
+      `<div class="katex-block my-4" data-testid="katex-block">${rendered}</div>`,
+    );
+    return token;
+  });
+
+  // Inline math: $...$. Tightened to:
+  //   - a non-backslash/non-dollar lookbehind (so `\$` and `$$` are skipped)
+  //   - no newline in the expression
+  //   - no leading/trailing whitespace (so `a $ b` isn't math)
+  //   - not immediately followed by a digit (so `$5 ... $10` isn't matched)
+  stripped = stripped.replace(
+    /(?<![\\$])\$(?!\s)([^\n$]+?)(?<!\s)\$(?!\d)/g,
+    (match, expr: string) => {
+      if (!expr.trim()) return match;
+      const token = tokenFor('KATEXINLINE');
+      const rendered = renderMath(expr, false);
+      placeholders.set(
+        token,
+        `<span class="katex-inline" data-testid="katex-inline">${rendered}</span>`,
+      );
+      return token;
+    },
+  );
+
+  return { stripped, mermaidBlocks, placeholders };
 }
 
 /**
@@ -172,20 +234,23 @@ function markdownToHtml(markdown: string): string {
 }
 
 /**
- * Build the final HTML string: extract Mermaid blocks → run the markdown
- * regex pipeline on the stripped source → swap placeholders for diagram
- * target <div>s. Exported for unit-testability.
+ * Build the final HTML string:
+ *   1. Extract mermaid + math placeholders from the raw source
+ *   2. Run the markdown regex pipeline on the stripped source
+ *   3. Swap each placeholder token for its final HTML
+ *
+ * Exported for unit-testability.
  */
 export function renderMarkdownToHtml(content: string): {
   html: string;
   mermaidBlocks: MermaidBlock[];
 } {
-  const { stripped, blocks, placeholders } = extractMermaidBlocks(content);
+  const { stripped, mermaidBlocks, placeholders } = extractSpecialBlocks(content);
   let html = markdownToHtml(stripped);
   for (const [token, replacement] of placeholders) {
     html = html.split(token).join(replacement);
   }
-  return { html, mermaidBlocks: blocks };
+  return { html, mermaidBlocks };
 }
 
 export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {

@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `src/components/editor/MarkdownPreview.tsx` — pre-extracts mermaid blocks, runs the existing regex markdown pipeline, then renders each diagram into its placeholder via `mermaid.render()` after mount. Theme follows the app's `dark` class on `<html>`.
   - `tests/unit/markdown-preview-mermaid.test.ts` — 4 unit tests covering block extraction, multi-diagram id uniqueness, non-mermaid passthrough, and token-leak guard.
 
+- **KaTeX math rendering in markdown preview (Q2)** — inline `$...$` and block `$$...$$` math expressions now render as typeset math via KaTeX. Block math processed first so `$$` delimiters aren't chopped. Currency-style prose (`$5 ... $10`) and escaped dollars (`\$x\$`) are deliberately skipped.
+  - `src/components/editor/MarkdownPreview.tsx` — math expressions extracted to opaque placeholders alongside mermaid blocks, rendered synchronously via `katex.renderToString`. KaTeX CSS imported at the component level.
+  - `tests/unit/markdown-preview-katex.test.ts` — 7 unit tests covering inline/block rendering, ordering, currency guard, escape guard, spy-on-katex call args, and graceful fallback on invalid math.
+
 ## [1.0.8] - 2026-04-16
 
 The first release with auto-updates. From now on, Projelli checks for new
