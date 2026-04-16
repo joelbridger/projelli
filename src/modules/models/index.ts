@@ -6,4 +6,5 @@ export * from './MockProvider';
 export * from './ClaudeProvider';
 export * from './OpenAIProvider';
 export * from './GeminiProvider';
+export * from './OllamaProvider';
 export * from './KeychainService';

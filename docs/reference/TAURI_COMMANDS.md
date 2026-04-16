@@ -131,22 +131,27 @@ const title = await fetchUrlTitle('https://example.com');
 const mdLink = title ? `[${title}](${url})` : url;
 ```
 
-### `ollama_list_models` (Phase 4 stub)
+### `ollama_list_models` (legacy stub, kept for compatibility)
 
 ```rust
 async fn ollama_list_models() -> Result<Vec<String>, String>
 ```
 
-Phase 2 stub — always returns `Err("not implemented yet")`. Phase 4 wires
-this to `http://127.0.0.1:11434/api/tags`.
+Phase 2 stub. Q7 (Phase 4) moved Ollama integration entirely to the
+frontend — the `OllamaProvider` in `src/modules/models/OllamaProvider.ts`
+talks to `http://127.0.0.1:11434` directly (the CSP allows it), so this
+Rust command is no longer called. It stays in the handler list for
+backward compatibility and will be removed in the v1.6 release.
 
-### `ollama_chat_stream` (Phase 4 stub)
+### `ollama_chat_stream` (legacy stub)
 
 ```rust
 async fn ollama_chat_stream(model: String, messages: JsonValue) -> Result<(), String>
 ```
 
-Phase 2 stub. Phase 4 will emit a Tauri event stream of text chunks.
+Legacy stub — see `ollama_list_models` above. Streaming is handled in the
+browser using `ReadableStream` + NDJSON parsing (`parseNdjsonChunk` in
+`OllamaProvider.ts`).
 
 ---
 
@@ -331,6 +336,53 @@ Resolve the absolute path of the platform `.mcpb` bundle. Lookup order:
 
 Returns `Ok(None)` when neither path exists — the Settings UI renders a
 "Bundle not available" hint instead of throwing.
+
+---
+
+## Voice (`src-tauri/src/commands/voice.rs`) — Phase 4 M6 (v1.5 Flag 4)
+
+Press-to-talk voice input. The renderer captures microphone audio via
+`navigator.mediaDevices.getUserMedia` + `MediaRecorder`, re-encodes to
+16 kHz mono 16-bit PCM WAV via a small Web Audio pipeline in
+`src/modules/voice/VoiceCapture.ts`, and ships the bytes into the bundled
+Parakeet.cpp (or whisper.cpp fallback) sidecar through these commands.
+
+### `voice_sidecar_available`
+
+```rust
+async fn voice_sidecar_available(app: AppHandle) -> Result<bool, String>
+```
+
+Reports whether the bundled voice sidecar binary is on disk at runtime.
+Search order: Tauri resource dir `binaries/parakeet[.exe]` (or
+`whisper[.exe]`), then dev fallbacks under `src-tauri/binaries/`. Returns
+`false` if no match. Frontend wrapper: `voiceSidecarAvailable()` in
+`tauri-commands.ts`.
+
+### `transcribe_audio`
+
+```rust
+async fn transcribe_audio(
+  app: AppHandle,
+  wav_bytes: Vec<u8>,
+  model: Option<String>,
+) -> Result<TranscribeResult, String>
+
+struct TranscribeResult { text: String, latencyMs: u64 }
+```
+
+Spawns the sidecar with the WAV bytes on stdin; captures stdout as the
+transcription. Hard-capped at 30 seconds (voice input is expected to be
+short). Returns structured JSON (`camelCase` on the wire). Errors if the
+binary is missing, the spawn fails, the process exits non-zero, or the
+timeout elapses.
+
+**Frontend:**
+```ts
+import { transcribeAudio } from '@/utils/tauri-commands';
+const result = await transcribeAudio(wavBytes, 'small');
+console.log(result.text, result.latencyMs);
+```
 
 ---
 

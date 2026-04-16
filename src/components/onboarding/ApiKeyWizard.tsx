@@ -24,7 +24,7 @@
  *     for non-empty and reasonable length.
  */
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -35,10 +35,11 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { openExternal } from '@/utils/openExternal';
-import { ExternalLink, Eye, EyeOff, Check, AlertCircle, ArrowLeft, ArrowRight } from 'lucide-react';
+import { ExternalLink, Eye, EyeOff, Check, AlertCircle, ArrowLeft, ArrowRight, RefreshCw, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { detectOllama } from '@/modules/models/OllamaProvider';
 
-export type WizardProvider = 'anthropic' | 'openai' | 'google';
+export type WizardProvider = 'anthropic' | 'openai' | 'google' | 'ollama';
 
 interface ProviderMeta {
   id: WizardProvider;
@@ -83,6 +84,16 @@ const PROVIDERS: Record<WizardProvider, ProviderMeta> = {
     step2Title: 'Find "Create API key" on Google AI Studio',
     dashboardLabel: 'Google AI Studio',
   },
+  ollama: {
+    id: 'ollama',
+    name: 'Ollama (local)',
+    consoleUrl: 'https://ollama.com/download',
+    placeholder: '', // no key
+    prefix: null,
+    costLine: '$0/month. Inference runs on your own machine.',
+    step2Title: 'Install Ollama and pull a model',
+    dashboardLabel: 'Ollama',
+  },
 };
 
 export interface ApiKeyWizardProps {
@@ -112,8 +123,25 @@ export function ApiKeyWizard({
   const [showKey, setShowKey] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [ollamaStatus, setOllamaStatus] = useState<'idle' | 'checking' | 'ok' | 'missing'>('idle');
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
 
   const meta = PROVIDERS[provider];
+
+  // Auto-detect Ollama when the user lands on step 3 of the Ollama flow.
+  useEffect(() => {
+    if (provider !== 'ollama' || step !== 3) return;
+    let cancelled = false;
+    setOllamaStatus('checking');
+    void detectOllama().then((result) => {
+      if (cancelled) return;
+      setOllamaStatus(result.reachable ? 'ok' : 'missing');
+      setOllamaModels(result.models);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [provider, step]);
 
   const reset = () => {
     setStep(1);
@@ -148,6 +176,22 @@ export function ApiKeyWizard({
   };
 
   const handleSubmit = async () => {
+    if (provider === 'ollama') {
+      // Ollama has no key — the "submit" gesture is confirming the
+      // detected connection. Pass an empty string to onSaveKey so callers
+      // that track configured-providers see the provider activate.
+      setSubmitting(true);
+      try {
+        await onSaveKey(provider, '');
+        onOpenChange(false);
+        reset();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     const err = validateFormat(keyText);
     if (err) {
       setError(err);
@@ -235,7 +279,7 @@ export function ApiKeyWizard({
           </StepShell>
         )}
 
-        {step === 3 && (
+        {step === 3 && provider !== 'ollama' && (
           <StepShell testid="api-key-wizard-step-3" title="Step 3. Paste your key" description="We'll store it in your OS keychain (or localStorage in browser mode).">
             <div className="space-y-3">
               <div className="relative">
@@ -270,6 +314,60 @@ export function ApiKeyWizard({
           </StepShell>
         )}
 
+        {step === 3 && provider === 'ollama' && (
+          <StepShell
+            testid="api-key-wizard-step-3"
+            title="Step 3. Check your Ollama connection"
+            description="No API key needed — Ollama runs on your own machine."
+          >
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+                {ollamaStatus === 'checking' && (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">Pinging Ollama...</span>
+                  </>
+                )}
+                {ollamaStatus === 'ok' && (
+                  <>
+                    <Check className="h-4 w-4 text-emerald-500" />
+                    <span className="text-sm">
+                      Ollama is running{' '}
+                      <span className="text-muted-foreground">
+                        ({ollamaModels.length} model{ollamaModels.length === 1 ? '' : 's'} ready)
+                      </span>
+                    </span>
+                  </>
+                )}
+                {ollamaStatus === 'missing' && (
+                  <>
+                    <AlertCircle className="h-4 w-4 text-amber-500" />
+                    <span className="text-sm">
+                      Ollama is not running. Install it, then click Check.
+                    </span>
+                  </>
+                )}
+              </div>
+              <Button
+                data-testid="api-key-wizard-ollama-check"
+                size="sm"
+                variant="outline"
+                onClick={async () => {
+                  setOllamaStatus('checking');
+                  const result = await detectOllama();
+                  setOllamaStatus(result.reachable ? 'ok' : 'missing');
+                  setOllamaModels(result.models);
+                }}
+                className="gap-1.5"
+              >
+                <Cpu className="h-3.5 w-3.5" />
+                Check Ollama connection
+              </Button>
+              <p className="text-xs text-muted-foreground italic">{meta.costLine}</p>
+            </div>
+          </StepShell>
+        )}
+
         {/* Footer actions */}
         <div className="flex items-center justify-between pt-4 border-t border-border">
           <Button
@@ -296,13 +394,16 @@ export function ApiKeyWizard({
               data-testid="api-key-wizard-submit"
               size="sm"
               onClick={handleSubmit}
-              disabled={submitting || !keyText.trim()}
+              disabled={
+                submitting ||
+                (provider === 'ollama' ? ollamaStatus !== 'ok' : !keyText.trim())
+              }
               className="gap-1.5"
             >
               {submitting ? 'Saving...' : (
                 <>
                   <Check className="h-3.5 w-3.5" />
-                  Save key
+                  {provider === 'ollama' ? 'Finish' : 'Save key'}
                 </>
               )}
             </Button>

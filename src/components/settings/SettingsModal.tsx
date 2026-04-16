@@ -32,6 +32,7 @@ import { CostMetrics } from '@/components/analysis/CostMetrics';
 import { TemplateModelSettings } from '@/components/settings/TemplateModelSettings';
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
 import { McpSettingsSection } from '@/components/settings/McpSettingsSection';
+import { OllamaSettingsSection } from '@/components/settings/OllamaSettingsSection';
 import type { AuditEntry } from '@/types/audit';
 import type { WorkflowTemplate } from '@/types/workflow';
 import {
@@ -626,7 +627,10 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
             ) : activeCategory === 'templates' ? (
               <TemplateModelSettings templates={templates ?? []} />
             ) : activeCategory === 'integrations' ? (
-              <McpSettingsSection />
+              <>
+                <McpSettingsSection />
+                <OllamaSettingsSection />
+              </>
             ) : categorySettings.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
                 No settings match your search in this category.
