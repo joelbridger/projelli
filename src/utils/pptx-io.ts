@@ -287,6 +287,70 @@ export async function extractPptxText(source: PptxSource): Promise<string> {
   return chunks.join('\n\n');
 }
 
+// ---------------------------------------------------------------------------
+// UX-34: Pure-JS slide extraction for the fallback renderer
+// ---------------------------------------------------------------------------
+
+/** A slide's extracted text content, ready for rendering as HTML. */
+export interface SlidePreview {
+  /** 1-based slide number. */
+  number: number;
+  /** All text runs on the slide, joined by newlines. */
+  texts: string[];
+}
+
+/**
+ * Extract slide text from a `.pptx` data URL or ArrayBuffer.
+ * Returns one `SlidePreview` per slide in deck order. Uses JSZip to
+ * unpack the OOXML archive and DOMParser to walk the DrawingML
+ * `<a:t>` elements — the same approach as `extractPptxText` but
+ * returns structured data instead of a flat string.
+ */
+export async function extractSlides(source: PptxSource): Promise<SlidePreview[]> {
+  const buffer = typeof source === 'string' ? dataUrlToArrayBuffer(source) : source;
+  const zip = await JSZip.loadAsync(buffer);
+
+  const slideNames: string[] = [];
+  zip.forEach((relativePath) => {
+    if (/^ppt\/slides\/slide\d+\.xml$/.test(relativePath)) {
+      slideNames.push(relativePath);
+    }
+  });
+  slideNames.sort((a, b) => {
+    const na = Number.parseInt(a.match(/slide(\d+)/)?.[1] ?? '0', 10);
+    const nb = Number.parseInt(b.match(/slide(\d+)/)?.[1] ?? '0', 10);
+    return na - nb;
+  });
+
+  const slides: SlidePreview[] = [];
+  for (let i = 0; i < slideNames.length; i++) {
+    const name = slideNames[i]!;
+    const file = zip.file(name);
+    if (!file) {
+      slides.push({ number: i + 1, texts: [] });
+      continue;
+    }
+    try {
+      const xml = await file.async('string');
+      const doc = new DOMParser().parseFromString(xml, 'application/xml');
+      const runs = doc.getElementsByTagNameNS(
+        'http://schemas.openxmlformats.org/drawingml/2006/main',
+        't'
+      );
+      const texts: string[] = [];
+      for (let j = 0; j < runs.length; j++) {
+        const txt = runs[j]?.textContent;
+        if (txt && txt.trim().length > 0) texts.push(txt.trim());
+      }
+      slides.push({ number: i + 1, texts });
+    } catch (err) {
+      console.warn(`[pptx-io] Failed to extract slide ${i + 1}:`, err);
+      slides.push({ number: i + 1, texts: [] });
+    }
+  }
+  return slides;
+}
+
 /**
  * Bundle pptx bytes back into a data URL for the editor tab's `content`.
  * Mirrors `docxBytesToDataUrl` / `spreadsheetBytesToDataUrl`.

@@ -25,7 +25,8 @@ import {
   convertPptToPdf,
   detectLibreOffice,
 } from '@/utils/tauri-commands';
-import { AlertTriangle, Loader2, Presentation } from 'lucide-react';
+import { extractSlides, type SlidePreview } from '@/utils/pptx-io';
+import { AlertTriangle, Info, Loader2, Presentation } from 'lucide-react';
 
 interface PresentationViewerProps {
   /** Data URL of the original .pptx / .ppt file (used for the download hatch). */
@@ -42,6 +43,7 @@ type LoadState =
   | { kind: 'no-libreoffice' }
   | { kind: 'converting' }
   | { kind: 'ready'; pdfDataUrl: string }
+  | { kind: 'fallback'; slides: SlidePreview[] }
   | { kind: 'error'; message: string };
 
 const PDF_MIME = 'application/pdf';
@@ -83,11 +85,24 @@ export function PresentationViewer({
     }
   }, [filePath]);
 
+  // UX-34: pure-JS fallback — extract slide text and render as an outline
+  // when LibreOffice isn't installed.
+  const runFallback = useCallback(async () => {
+    try {
+      const slides = await extractSlides(src);
+      setState({ kind: 'fallback', slides });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setState({ kind: 'error', message });
+    }
+  }, [src]);
+
   // Kick off detection + conversion on mount.
   useEffect(() => {
     let cancelled = false;
     if (!inTauri) {
-      setState({ kind: 'browser' });
+      // In the browser (dev mode), use JS fallback instead of dead end.
+      void runFallback();
       return;
     }
     setState({ kind: 'detecting' });
@@ -95,20 +110,19 @@ export function PresentationViewer({
       .then((path) => {
         if (cancelled) return;
         if (path === null) {
-          setState({ kind: 'no-libreoffice' });
+          // No LibreOffice — fall back to pure-JS renderer.
+          void runFallback();
           return;
         }
-        // Kick off conversion immediately; runConversion manages its own
-        // state transitions from here.
         void runConversion();
       })
       .catch(() => {
-        if (!cancelled) setState({ kind: 'no-libreoffice' });
+        if (!cancelled) void runFallback();
       });
     return () => {
       cancelled = true;
     };
-  }, [inTauri, filePath, runConversion]);
+  }, [inTauri, filePath, runConversion, runFallback]);
 
   const handleDownload = useCallback(async () => {
     try {
@@ -149,6 +163,66 @@ export function PresentationViewer({
     );
   }
 
+  // UX-34: Pure-JS fallback renderer — shows slide text as an outline.
+  if (state.kind === 'fallback') {
+    return (
+      <div
+        data-testid="presentation-viewer"
+        className={cn('h-full flex flex-col', className)}
+      >
+        {/* Banner */}
+        <div
+          data-testid="presentation-fallback-banner"
+          className="flex items-center gap-2 border-b bg-amber-50 dark:bg-amber-900/20 px-4 py-2 text-xs text-amber-800 dark:text-amber-200"
+        >
+          <Info className="h-4 w-4 shrink-0" />
+          <span>
+            Basic preview — install{' '}
+            <a
+              href="https://libreoffice.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
+              LibreOffice
+            </a>
+            {' '}for full fidelity.
+          </span>
+        </div>
+        {/* Slide outline */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+          {state.slides.length === 0 && (
+            <p className="text-muted-foreground text-sm">No slides found.</p>
+          )}
+          {state.slides.map((slide) => (
+            <div
+              key={slide.number}
+              data-testid={`fallback-slide-${slide.number}`}
+              className="rounded-lg border bg-card p-4 shadow-sm"
+            >
+              <div className="text-xs font-semibold text-muted-foreground mb-2">
+                Slide {slide.number}
+              </div>
+              {slide.texts.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">
+                  (no text content)
+                </p>
+              ) : (
+                <div className="space-y-1">
+                  {slide.texts.map((t, i) => (
+                    <p key={i} className={i === 0 ? 'text-base font-semibold' : 'text-sm'}>
+                      {t}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // All non-ready states share the same centered frame layout.
   return (
     <div
@@ -181,39 +255,16 @@ export function PresentationViewer({
         </>
       )}
 
-      {state.kind === 'browser' && (
+      {/* UX-34: 'browser' and 'no-libreoffice' states now route to the
+          JS fallback renderer above, so these dead-end screens are no
+          longer reachable. Kept as a safety net in case the fallback
+          extraction itself fails and lands us here somehow. */}
+      {(state.kind === 'browser' || state.kind === 'no-libreoffice') && (
         <>
           <Presentation className="h-16 w-16 mb-4 opacity-50" />
           <p className="text-lg font-medium">{fileName}</p>
           <p className="mt-2 text-sm max-w-md">
-            PowerPoint preview is only available in the Projelli desktop app.
-            Download the file to view it in PowerPoint or Keynote.
-          </p>
-          <Button variant="outline" className="mt-4" onClick={handleDownload}>
-            Download File
-          </Button>
-        </>
-      )}
-
-      {state.kind === 'no-libreoffice' && (
-        <>
-          <Presentation className="h-16 w-16 mb-4 opacity-50" />
-          <p className="text-lg font-medium">{fileName}</p>
-          <p
-            data-testid="presentation-install-libreoffice"
-            className="mt-2 text-sm max-w-md"
-          >
-            PowerPoint files need LibreOffice to render. Install LibreOffice
-            for free at{' '}
-            <a
-              href="https://libreoffice.org"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground"
-            >
-              libreoffice.org
-            </a>
-            , then reopen this file.
+            Could not preview this file. Download it to view in PowerPoint.
           </p>
           <Button variant="outline" className="mt-4" onClick={handleDownload}>
             Download File
