@@ -385,6 +385,140 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ---
 
+## Wave 7 — Testing feedback (2026-04-16)
+
+User testing on the Windows build surfaced 11 issues. These are a mix of real bugs (CSV parse, DOCX corruption, app freeze) and missing polish. Priorities reflect severity, not position.
+
+### UX-31: Welcome dialog — Recent workspaces section is too big
+**Priority:** P2
+**Status:** 📋
+**Problem:** When the welcome dialog opens, the "Recent workspaces" section is expanded by default and takes up a lot of vertical space, making the dialog look bloated and ugly.
+**Acceptance criteria:**
+- Recent workspaces section is collapsed by default (or capped to top 3 entries inline)
+- Clicking an expand toggle (e.g., "Show all recent") reveals the full list
+- Dialog feels compact and focused
+**Files:** `src/components/workspace/WorkspaceSelector.tsx`
+**Effort:** S
+
+### UX-32: CSV drag-drop throws atob error (critical bug)
+**Priority:** P0
+**Status:** 📋
+**Problem:** Dropping a `.csv` file onto the window produces: `Failed to parse spreadsheet, failed to execute ATOB on window: the string to be decoded is not correctly encoded.` Diagnosis: the drag-drop writer reads CSV as text, but `parseSpreadsheet` then calls `dataUrlToArrayBuffer` which runs `atob()` on non-base64 content.
+**Acceptance criteria:**
+- `parseSpreadsheet` handles both data URLs AND raw text for CSVs
+- Dropping a CSV opens and renders correctly
+- Add a unit test that exercises both input shapes
+**Files:** `src/utils/spreadsheet-io.ts`, `src/utils/fileDrop.ts`
+**Effort:** S
+
+### UX-33: Uploaded files don't auto-switch to the new tab
+**Priority:** P1
+**Status:** 📋
+**Problem:** When user drops files, they're added as tabs but the active tab doesn't change. User has to hunt for the new file.
+**Acceptance criteria:**
+- After drop, the last-dropped file becomes the active tab
+- If multiple dropped, the first one becomes active (or the most recent — pick the common convention)
+- Existing tab focus is preserved if drop fails
+**Files:** `src/utils/fileDrop.ts`, `src/App.tsx`
+**Effort:** XS
+
+### UX-34: PowerPoint preview requires LibreOffice — add pure-JS fallback
+**Priority:** P1
+**Status:** 📋
+**Problem:** User without LibreOffice installed sees a dead-end. We chose LibreOffice for fidelity but never-preview isn't acceptable for a $49 product.
+**Chosen approach:** Hybrid — keep the LibreOffice→PDF path as primary (high fidelity), add a pure-JS fallback renderer when LibreOffice isn't detected. Users see slides with basic shapes, text, and images even without the dependency.
+**Acceptance criteria:**
+- When LibreOffice is absent OR fails, `PresentationViewer` falls back to pure-JS rendering via a library like `pptxjs`, `pptx-preview`, or a custom slide walker over the DrawingML XML (via the JSZip we already load)
+- Fallback clearly labeled: "Basic preview (install LibreOffice for full fidelity)"
+- Both paths render — user can toggle "Install LibreOffice" messaging into a less-intrusive banner at top
+**Files:** `src/components/media/PresentationViewer.tsx`, `src/utils/pptx-io.ts`
+**Effort:** M-L
+
+### UX-35: DOCX corruption — "can't find end of central directory" after edit
+**Priority:** P0
+**Status:** 📋
+**Problem:** User edits a `.docx`, switches away, switches back — sees `Couldn't open {file}. Can't find end of central directory`. JSZip error = the file's ZIP structure is broken. Likely our docx round-trip serializer is producing a malformed archive on save.
+**Acceptance criteria:**
+- Round-trip save produces a valid `.docx` that re-opens cleanly
+- If round-trip fails, the save is aborted and the user sees a clear error before the file is overwritten
+- Backup-before-first-edit must remain effective so nothing is lost
+- Investigate: look for a bug in `serializeDocx` in `src/utils/docx-io.ts`; possibly related to how images are re-embedded or how the Document is packaged. May need to compare the resulting zip structure against known-good .docx files.
+**Files:** `src/utils/docx-io.ts`, `src/components/media/DocxEditor.tsx`
+**Effort:** M
+
+### UX-36: Tab overflow should be user-configurable
+**Priority:** P3
+**Status:** 📋
+**Problem:** Phase 7 replaced wrap with horizontal scroll. User wants to choose between horizontal scroll and multi-row wrap.
+**Acceptance criteria:**
+- Settings (new or existing panel) exposes a "Tab overflow behavior" option: `Scroll horizontally` | `Wrap to multiple rows`
+- Persisted in localStorage
+- Default: horizontal scroll (current behavior)
+**Files:** `src/components/editor/TabBar.tsx`, a settings store/panel
+**Effort:** M
+
+### UX-37: File icons are all the same white document
+**Priority:** P2
+**Status:** 📋
+**Problem:** In the Files pane, the tab bar, AND the grid view, every file currently shows a generic white document icon. Need unique, colored icons per extension so users can visually scan.
+**Acceptance criteria:**
+- Single source of truth `src/utils/fileIcons.ts` — maps extension → `{ Icon: LucideIcon, color: string }`
+- Applied consistently in: FileTree rows, TabBar tab labels, GridView tiles, any other file surface
+- Color palette coordinated (not random): spreadsheets green, word docs blue, powerpoints orange, audio pink, images purple, etc.
+- Respects light/dark theme
+**Files:** `src/utils/fileIcons.ts` (new), `src/components/workspace/FileTree.tsx`, `src/components/editor/TabBar.tsx`, `src/components/workspace/FileGridView.tsx`
+**Effort:** M
+
+### UX-38: AI chat 429 rate-limit hangs the conversation
+**Priority:** P1
+**Status:** 📋
+**Problem:** When Anthropic returns 429 (rate limit), the chat UI hangs showing "loading..." forever. Console shows the error but the user sees nothing actionable.
+**Acceptance criteria:**
+- 429 and other API errors surface as an in-chat error message (not just console)
+- Message includes: brief description, retry-after time if the API provides it, a "Retry" button
+- Loading state clears on error
+- Applies to all three providers (Claude, OpenAI, Gemini)
+**Files:** `src/components/ai/AIChatViewer.tsx`, `src/modules/models/*Provider.ts`
+**Effort:** S-M
+
+### UX-39: Stop button doesn't cancel in-flight AI requests
+**Priority:** P1
+**Status:** 📋
+**Problem:** User clicks Stop while AI is thinking — nothing happens. The chat stays locked in the loading state. Can't recover.
+**Acceptance criteria:**
+- Stop button genuinely aborts the in-flight request (AbortController signal wired to fetch)
+- UI resets to pre-send state; the user can type a new message
+- Any partial streamed content stays in the chat history (don't lose work)
+- Works for all three providers
+**Files:** `src/components/ai/AIChatViewer.tsx`, `src/modules/models/*Provider.ts`
+**Effort:** M
+
+### UX-40: Grid view button is on its own awkward line
+**Priority:** P3
+**Status:** 📋
+**Problem:** In the file tree toolbar, "Grid View" is currently on a second line below File/Folder/Upload. Looks awkward and wastes space.
+**Acceptance criteria:**
+- Grid View moves somewhere that makes sense visually and logically
+- Options: (a) icon-only button inline with File/Folder/Upload, (b) a top-right corner of the tree, (c) next to the Search sidebar tab as a view mode toggle
+- Pick the option with the lowest regression risk and implement
+**Files:** `src/components/workspace/FileTree.tsx`
+**Effort:** S
+
+### UX-41: Drop overlay stays stuck / app freezes after second drop
+**Priority:** P0
+**Status:** 📋
+**Problem:** User dragged a PDF onto the app (worked). Dragged a second PDF — the "Drop files to add to your workspace" overlay stayed up, and the whole app froze. Unable to recover without reload.
+**Acceptance criteria:**
+- Drop handler always resets the overlay state, even on error (try/finally)
+- Dragleave and drop events reliably dismiss the overlay; no stuck state on rapid subsequent drops
+- If one file fails to write, other files in the same drop still proceed
+- The depth counter in `useGlobalFileDrop` is bulletproof against dragenter/dragleave mismatches
+- Add a test that simulates two rapid drag-drop cycles
+**Files:** `src/utils/fileDrop.ts` (or hook), `src/components/common/GlobalDropOverlay.tsx`
+**Effort:** S-M
+
+---
+
 ## Execution log
 
 | Wave | Date | Commit | Tests pass | Notes |
