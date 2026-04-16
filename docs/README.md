@@ -18,6 +18,7 @@ docs/
 
 | File | What it covers |
 |---|---|
+| [FEATURES.md](reference/FEATURES.md) | Canonical feature reference — every capability, file type, shortcut, and setting. Read first for "what can Projelli do". |
 | [VISION.md](reference/VISION.md) | Current product vision (founder-focused positioning) |
 | [PROJECT_VISION_ORIGINAL.md](reference/PROJECT_VISION_ORIGINAL.md) | Original vision doc — preserved for context |
 | [ARCHITECTURE.md](reference/ARCHITECTURE.md) | System architecture, layered design, modules |
