@@ -28,6 +28,15 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            // Auto-updater stack. Desktop-only because the underlying
+            // crates are gated to macOS / Windows / Linux in Cargo.toml.
+            // The plugin reads endpoints + pubkey from tauri.conf.json so
+            // registration here is just a no-arg builder.
+            #[cfg(desktop)]
+            {
+                app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
+                app.handle().plugin(tauri_plugin_process::init())?;
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

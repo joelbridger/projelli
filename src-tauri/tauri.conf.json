@@ -67,8 +67,15 @@
     },
     "resources": [],
     "externalBin": [],
-    "createUpdaterArtifacts": false
+    "createUpdaterArtifacts": true
   },
-  "plugins": {}
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJDMjMyQzcyQThCMDA4QjkKUldTNUNMQ29jaXdqTEQ2V0tEcUxIMS9IZy9BaFUyeXNHQmk5NlAyZ2hEMlZ5QUxNTmNiSnNBNjgK",
+      "endpoints": [
+        "https://github.com/projelli/projelli/releases/latest/download/latest.json"
+      ]
+    }
+  }
 
 }

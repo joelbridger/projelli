@@ -9,7 +9,14 @@
 
 export type SettingType = 'toggle' | 'select' | 'number' | 'text' | 'shortcut-display';
 
-export type SettingCategory = 'general' | 'editor' | 'ai' | 'files' | 'shortcuts';
+export type SettingCategory =
+  | 'general'
+  | 'editor'
+  | 'ai'
+  | 'files'
+  | 'shortcuts'
+  | 'updates'
+  | 'about';
 
 export interface SettingOption {
   value: string;
@@ -42,6 +49,8 @@ export const SETTING_CATEGORIES: { id: SettingCategory; label: string }[] = [
   { id: 'ai', label: 'AI' },
   { id: 'files', label: 'Files & Workspace' },
   { id: 'shortcuts', label: 'Keyboard Shortcuts' },
+  { id: 'updates', label: 'Updates' },
+  { id: 'about', label: 'About' },
 ];
 
 export const SETTINGS_SCHEMA: SettingDefinition[] = [
@@ -215,6 +224,65 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     description: 'Display files and folders that start with a dot (e.g., .gitignore).',
     type: 'toggle',
     defaultValue: false,
+  },
+
+  // ── Updates ───────────────────────────────────────────────────────────
+  {
+    key: 'autoUpdateCheck',
+    category: 'updates',
+    label: 'Check for updates automatically',
+    description: 'When enabled, Projelli checks GitHub Releases for new versions in the background and prompts you when one is available.',
+    type: 'toggle',
+    defaultValue: true,
+  },
+  {
+    key: 'updateChannel',
+    category: 'updates',
+    label: 'Update channel',
+    description: 'Which release channel to follow. Beta is reserved for future use.',
+    type: 'select',
+    defaultValue: 'stable',
+    options: [
+      { value: 'stable', label: 'Stable' },
+    ],
+  },
+  {
+    key: 'manualCheckNow',
+    category: 'updates',
+    label: 'Check for updates now',
+    description: 'Run the updater check immediately without waiting for the scheduled interval.',
+    type: 'text', // rendered as action link
+    defaultValue: '',
+    action: { label: 'Check now', actionId: 'updater-check-now' },
+  },
+
+  // ── About ─────────────────────────────────────────────────────────────
+  {
+    key: 'aboutWhatsNew',
+    category: 'about',
+    label: "What's new",
+    description: 'See highlights from the most recent Projelli releases.',
+    type: 'text',
+    defaultValue: '',
+    action: { label: "What's new", actionId: 'open-whats-new' },
+  },
+  {
+    key: 'aboutWebsite',
+    category: 'about',
+    label: 'Website',
+    description: 'Open projelli.com in your browser.',
+    type: 'text',
+    defaultValue: '',
+    action: { label: 'Open website', actionId: 'open-website' },
+  },
+  {
+    key: 'aboutGithub',
+    category: 'about',
+    label: 'GitHub',
+    description: 'Browse the source, file an issue, or contribute on GitHub.',
+    type: 'text',
+    defaultValue: '',
+    action: { label: 'Open GitHub', actionId: 'open-github' },
   },
 ];
 

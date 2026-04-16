@@ -26,3 +26,9 @@ tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-http = "2"
 dirs = "5"
+
+# Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
+# the cfg() filter keeps the iOS/Android crate graph slim.
+[target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"

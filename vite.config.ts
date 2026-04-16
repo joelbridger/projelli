@@ -2,13 +2,24 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Read package.json once at config-load time so the in-app About panel
+// can show the same version the bundle was built with.
+const packageJson = JSON.parse(
+  readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')
+) as { version: string };
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  define: {
+    // Surfaced via `import.meta.env.VITE_APP_VERSION` in the renderer.
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageJson.version),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

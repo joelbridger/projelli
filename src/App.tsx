@@ -30,6 +30,8 @@ import { AudioRecorderModal } from '@/components/audio/AudioRecorderModal';
 import { Button } from '@/components/ui/button';
 import { Command, Moon, Monitor, Sun, Settings } from 'lucide-react';
 import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/components/WhatsNew';
+import { UpdateManager, manualUpdateCheck } from '@/components/updater/UpdateManager';
+import { openExternal } from '@/utils/openExternal';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { GlobalDropOverlay, useGlobalFileDrop } from '@/components/common/GlobalDropOverlay';
@@ -99,6 +101,11 @@ function App() {
   const [showQuickOpen, setShowQuickOpen] = useState(false);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  // Direct trigger for the WhatsNew changelog modal from outside the
+  // WhatsNewLayer (e.g. the Settings → About → "What's new" action).
+  // The local hook in WhatsNewLayer still owns the toast + first-run
+  // logic; this flag layers on top of it.
+  const [showWhatsNewModalDirect, setShowWhatsNewModalDirect] = useState(false);
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
 
@@ -2559,6 +2566,14 @@ This file contains rules and guidelines for AI assistants in this workspace.
             setAiAssistantRequestedTab('keys');
           } else if (actionId === 'open-ai-rules') {
             handleOpenAIRules();
+          } else if (actionId === 'updater-check-now') {
+            void manualUpdateCheck();
+          } else if (actionId === 'open-whats-new') {
+            setShowWhatsNewModalDirect(true);
+          } else if (actionId === 'open-website') {
+            void openExternal('https://projelli.com');
+          } else if (actionId === 'open-github') {
+            void openExternal('https://github.com/projelli/projelli');
           }
         }}
       />
@@ -2598,6 +2613,17 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
       {/* UX-20: What's new toast + changelog modal */}
       <WhatsNewLayer />
+
+      {/* Manually-triggered version of the changelog modal, opened from
+          Settings → About so users can revisit release notes anytime. */}
+      <WhatsNewModal
+        open={showWhatsNewModalDirect}
+        onOpenChange={setShowWhatsNewModalDirect}
+      />
+
+      {/* Auto-updater banner + scheduled background checks. No-op outside
+          Tauri so the browser / test mode never sees it. */}
+      <UpdateManager />
     </div>
   );
 }

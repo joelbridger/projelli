@@ -108,6 +108,13 @@ jobs:
           # APPLE_ID: ${{ secrets.APPLE_ID }}
           # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Updater signing. tauri-action signs the bundle artifacts with
+          # the minisign keypair embedded in tauri.conf.json (pubkey) and
+          # this private key (secret). Without these vars the build still
+          # runs but no .sig files are produced and latest.json won't be
+          # generated.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Projelli ${{ github.ref_name }}'
@@ -151,6 +158,13 @@ jobs:
         run: npm ci
 
       - name: Build Tauri app (unsigned)
+        env:
+          # Updater signing also needed on the Windows job so the NSIS
+          # installer .sig file is produced. Without it, Windows users
+          # can't auto-update because the manifest would have no signature
+          # for them to verify.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri build
 
       - name: List built artifacts
