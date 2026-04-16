@@ -323,8 +323,25 @@ export function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
 }
 
 /**
- * Parse a spreadsheet from either a data URL or an ArrayBuffer.
- * Routes to SheetJS for `.xlsx`/`.xls` and PapaParse for `.csv`.
+ * Heuristic: does `source` look like a data URL (base64-encoded) vs raw
+ * text? Data URLs always start with `data:`. Anything else — including raw
+ * CSV text that happens to contain commas or quotes — is treated as a text
+ * payload.
+ */
+function isDataUrl(source: string): boolean {
+  return source.startsWith('data:');
+}
+
+/**
+ * Parse a spreadsheet from either a data URL, raw text (CSV only), or an
+ * ArrayBuffer. Routes to SheetJS for `.xlsx`/`.xls` and PapaParse for
+ * `.csv`.
+ *
+ * UX-32: CSVs are often written to disk as plain text (isBinaryFile('.csv')
+ * is false, so writeDroppedFiles uses writeFile(content) with raw text
+ * content). When the viewer later reads them back, the `src` is raw text —
+ * NOT a `data:` URL. Calling atob on raw CSV (e.g. `a,b,c\n1,2,3`) blows up
+ * with "not correctly encoded". Detect raw text vs data URL and branch.
  *
  * Side-effect: if any sheet contains formulas, a `SheetEngine` is attached
  * to `model.engine` and every formula cell's `display` is overwritten with
@@ -335,7 +352,20 @@ export async function parseSpreadsheet(
   source: string | ArrayBuffer,
   extension: SpreadsheetExtension
 ): Promise<SheetModel> {
-  const buffer = typeof source === 'string' ? dataUrlToArrayBuffer(source) : source;
+  let buffer: ArrayBuffer;
+  if (typeof source !== 'string') {
+    buffer = source;
+  } else if (isDataUrl(source)) {
+    buffer = dataUrlToArrayBuffer(source);
+  } else if (extension === 'csv') {
+    // Raw CSV text — encode to bytes so parseCsv can treat it uniformly.
+    buffer = new TextEncoder().encode(source).buffer as ArrayBuffer;
+  } else {
+    // xlsx/xls should never arrive as raw text; the only consumers are
+    // binary data URLs or the file reader. Fall back to TextEncoder so we
+    // fail with a parse error rather than atob's cryptic message.
+    buffer = new TextEncoder().encode(source).buffer as ArrayBuffer;
+  }
 
   const model = extension === 'csv' ? parseCsv(buffer) : parseXlsx(buffer, extension);
 
