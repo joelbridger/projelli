@@ -1,35 +1,31 @@
-// Workspace Selector Dialog
-// Prompts users to select or create a workspace folder
-// Supports both browser (File System Access API) and Tauri (native filesystem)
+// Workspace Selector — Full-viewport branded start screen
+// Replaces the old dialog-over-dark-background with a white branded page.
+// This is the first thing users see — it must look like a $49 product.
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Card, CardContent } from '@/components/ui/card';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { WebFSBackend, createWebFSBackend } from '@/modules/workspace/WebFSBackend';
 import { WorkspaceService, createWorkspaceService } from '@/modules/workspace/WorkspaceService';
 import { createFSBackend, isTauriEnvironment } from '@/modules/workspace/BackendFactory';
 import { DEFAULT_WORKSPACE_FOLDERS } from '@/modules/workspace/types';
 import { openExternal } from '@/utils/openExternal';
-import { FolderOpen, FolderPlus, Clock, AlertCircle, ExternalLink, ChevronDown } from 'lucide-react';
+import { ProjelliLogo } from '@/components/brand/ProjelliLogo';
+import { GradientGlow } from '@/components/brand/GradientGlow';
+import {
+  FolderOpen,
+  FolderPlus,
+  Clock,
+  AlertCircle,
+  ExternalLink,
+  ChevronRight,
+  X,
+} from 'lucide-react';
 
-// Public Getting Started doc URL. The Tauri app does not bundle the docs
-// (checked src-tauri/tauri.conf.json — resources is empty), so we open the
-// live website in the system browser. If the docs ever ship bundled we'll
-// swap this for a file:// or asset-protocol URL.
+// Public Getting Started doc URL
 const GETTING_STARTED_URL = 'https://projelli.com/docs/getting-started';
 
-// Folders shown under the "New Workspace" button as a preview. We
-// intentionally omit `.trash` because it's an implementation detail for the
-// Trash panel, not a folder a user would organise files into.
+// Folders shown under the "New Workspace" card as a preview
 const PREVIEW_STRUCTURE_FOLDERS = DEFAULT_WORKSPACE_FOLDERS.filter(
   (folder) => !folder.startsWith('.')
 );
@@ -38,18 +34,16 @@ interface WorkspaceSelectorProps {
   open: boolean;
   onWorkspaceSelected: (service: WorkspaceService) => void;
   /**
-   * If provided, the dialog becomes dismissible via the X button and Escape.
-   * Leave undefined for first-run / blocking mode (no functional dismiss shown).
+   * If provided, a dismiss/close button is shown (e.g. user already has a workspace
+   * open and is switching). Leave undefined for first-run blocking mode.
    */
   onDismiss?: (() => void) | undefined;
 }
 
-/** UX-31: Max recent workspaces to show without expanding. */
+/** Max recent workspaces to show without expanding */
 const RECENT_PREVIEW_COUNT = 3;
 
-/** UX-31: Collapsed-by-default recent workspaces section. Shows top 3
- * entries inline; the rest are behind an expand toggle. Keeps the welcome
- * dialog compact and focused on the primary actions. */
+/** Collapsed-by-default recent workspaces section */
 function RecentWorkspacesSection({
   workspaces,
   isLoading,
@@ -68,23 +62,46 @@ function RecentWorkspacesSection({
   const hasMore = workspaces.length > RECENT_PREVIEW_COUNT;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+    <div className="w-full max-w-lg mx-auto">
+      <button
+        data-testid="recent-workspaces-toggle"
+        type="button"
+        className="flex items-center gap-2 text-sm font-medium mb-3 group"
+        style={{ color: '#94A3B8' }}
+        onClick={() => setExpanded((prev) => !prev)}
+      >
+        <ChevronRight
+          className={cn(
+            'h-4 w-4 transition-transform duration-200',
+            expanded && 'rotate-90'
+          )}
+        />
         <Clock className="h-4 w-4" />
-        Recent Workspaces
-      </div>
-      <Card>
-        <CardContent className="p-0">
-          <ul className="divide-y">
+        <span>
+          Recent ({workspaces.length})
+        </span>
+      </button>
+
+      {expanded && (
+        <div
+          className="rounded-xl border overflow-hidden"
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderColor: '#E2E8F0',
+          }}
+        >
+          <ul className="divide-y" style={{ borderColor: '#E2E8F0' }}>
             {visible.map((workspace) => (
               <li key={workspace.path}>
                 <button
-                  className="w-full px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+                  className="w-full px-4 py-3 text-left transition-colors hover:bg-slate-50"
                   disabled={isLoading || !isTauri}
                   onClick={() => onOpen(workspace.path)}
                 >
-                  <div className="font-medium text-sm">{workspace.name}</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="font-medium text-sm" style={{ color: '#111F35' }}>
+                    {workspace.name}
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: '#94A3B8' }}>
                     {formatDate(workspace.lastOpened)}
                     {!isTauri && ' \u00B7 Re-select folder to reopen'}
                   </div>
@@ -92,27 +109,23 @@ function RecentWorkspacesSection({
               </li>
             ))}
           </ul>
-        </CardContent>
-      </Card>
-      {hasMore && (
-        <button
-          data-testid="recent-workspaces-toggle"
-          type="button"
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => setExpanded((prev) => !prev)}
-        >
-          <ChevronDown
-            className={cn(
-              'h-3 w-3 transition-transform',
-              expanded && 'rotate-180'
-            )}
-          />
-          {expanded ? 'Show fewer' : `Show all (${workspaces.length})`}
-        </button>
+
+          {hasMore && !expanded && (
+            <button
+              type="button"
+              className="w-full px-4 py-2 text-xs text-left transition-colors hover:bg-slate-50"
+              style={{ color: '#94A3B8' }}
+              onClick={() => setExpanded(true)}
+            >
+              Show all ({workspaces.length})
+            </button>
+          )}
+        </div>
       )}
-      {!isTauri && (
-        <p className="text-xs text-muted-foreground">
-          Note: Recent workspaces require re-selecting the folder due to browser security.
+
+      {expanded && !isTauri && (
+        <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>
+          Recent workspaces require re-selecting the folder due to browser security.
         </p>
       )}
     </div>
@@ -135,7 +148,6 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
       let rootPath: string;
 
       if (isTauri) {
-        // Tauri mode: Use native folder picker
         const { open } = await import('@tauri-apps/plugin-dialog');
         const selectedPath = await open({
           directory: true,
@@ -144,7 +156,6 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         });
 
         if (!selectedPath) {
-          // User cancelled
           setIsLoading(false);
           return;
         }
@@ -153,7 +164,6 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         backend = await createFSBackend(selectedPath as string);
         rootPath = selectedPath as string;
       } else {
-        // Browser mode: Use directory picker
         if (!WebFSBackend.isSupported()) {
           setError('File System Access API is not supported in this browser. Please use Chrome, Edge, or Opera.');
           setIsLoading(false);
@@ -168,15 +178,11 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
       const service = createWorkspaceService();
       const workspace = await service.initialize(backend, rootPath);
 
-      // Update store
       setRootPath(workspace.rootPath);
       const fileTree = await service.getFileTree();
       setFileTree(fileTree);
-
-      // Expand all folders by default
       expandAllFolders();
 
-      // Add to recent workspaces
       addRecentWorkspace({
         path: workspace.rootPath,
         name: workspace.name,
@@ -186,7 +192,6 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
       onWorkspaceSelected(service);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        // User cancelled the picker
         return;
       }
       console.error('[WorkspaceSelector] Failed to open workspace:', err);
@@ -206,7 +211,6 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
       let rootPath: string;
 
       if (isTauri) {
-        // Tauri mode: Use native folder picker
         const { open } = await import('@tauri-apps/plugin-dialog');
         const selectedPath = await open({
           directory: true,
@@ -215,7 +219,6 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         });
 
         if (!selectedPath) {
-          // User cancelled
           setIsLoading(false);
           return;
         }
@@ -223,7 +226,6 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         backend = await createFSBackend(selectedPath as string);
         rootPath = selectedPath as string;
       } else {
-        // Browser mode: Use directory picker
         if (!WebFSBackend.isSupported()) {
           setError('File System Access API is not supported in this browser. Please use Chrome, Edge, or Opera.');
           setIsLoading(false);
@@ -240,15 +242,11 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         createDefaultStructure: true,
       });
 
-      // Update store
       setRootPath(workspace.rootPath);
       const fileTree = await service.getFileTree();
       setFileTree(fileTree);
-
-      // Expand all folders by default
       expandAllFolders();
 
-      // Add to recent workspaces
       addRecentWorkspace({
         path: workspace.rootPath,
         name: workspace.name,
@@ -258,7 +256,6 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
       onWorkspaceSelected(service);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        // User cancelled the picker
         return;
       }
       console.error('[WorkspaceSelector] Failed to create workspace:', err);
@@ -270,7 +267,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
   };
 
   const handleOpenRecent = async (workspacePath: string) => {
-    if (!isTauri) return; // Browser mode can't reopen by path
+    if (!isTauri) return;
     setIsLoading(true);
     setError(null);
 
@@ -309,119 +306,216 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
 
   const isDismissible = Boolean(onDismiss);
 
-  const handleOpenChange = (nextOpen: boolean) => {
-    // Dialog requests close (via X button or Escape). Only honour it when a dismiss
-    // handler is provided — otherwise keep the dialog open (first-run / blocking mode).
-    if (!nextOpen && onDismiss) {
-      onDismiss();
-    }
-  };
+  if (!open) return null;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        data-testid="workspace-selector-dialog"
-        className={cn('sm:max-w-lg', !isDismissible && '[&>button]:hidden')}
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => {
-          if (!isDismissible) {
+    <div
+      data-testid="workspace-selector-dialog"
+      className="fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-white dark:bg-white dark:text-slate-900"
+      // Trap Escape for first-run blocking mode
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          if (isDismissible && onDismiss) {
+            onDismiss();
+          } else {
             e.preventDefault();
           }
-        }}
-      >
-        <DialogHeader>
-          <DialogTitle className="text-xl">Welcome to Projelli</DialogTitle>
-          <DialogDescription>
-            Select an existing workspace folder or create a new one to get started.
-          </DialogDescription>
-        </DialogHeader>
+        }
+      }}
+      // tabIndex needed so keydown fires on this element
+      tabIndex={-1}
+    >
+      {/* Dismiss button (only when returning from an open workspace) */}
+      {isDismissible && (
+        <button
+          type="button"
+          aria-label="Close"
+          className="absolute top-4 right-4 p-2 rounded-md transition-colors hover:bg-slate-100"
+          style={{ color: '#94A3B8' }}
+          onClick={onDismiss}
+        >
+          <span className="sr-only">Close</span>
+          <X className="h-5 w-5" />
+        </button>
+      )}
 
-        {/*
-          UX-06: elevator pitch + Learn more link. The default dialog copy
-          ("Select an existing workspace folder...") told users HOW but never
-          WHAT — Projelli's core pitch is "your AI chats become real files on
-          your disk," and first-run users had no way to know that before
-          committing a folder. Keep it short: one sentence of pitch, one link.
-        */}
-        <div className="pt-2 space-y-2 text-sm">
-          <p
-            data-testid="welcome-dialog-pitch"
-            className="text-foreground leading-relaxed"
-          >
-            Projelli saves your AI chats as real files on your computer — pick
-            a folder to save them into.
-          </p>
-          <button
-            data-testid="welcome-dialog-learn-more"
-            type="button"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-            onClick={() => {
-              openExternal(GETTING_STARTED_URL).catch((err) => {
-                console.error('[WorkspaceSelector] Failed to open docs:', err);
-              });
+      {/* Main content — centered vertically with some top padding */}
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-16 w-full max-w-2xl">
+
+        {/* Logo area with gradient glow */}
+        <div className="relative flex flex-col items-center mb-8">
+          <GradientGlow className="-translate-x-1/2 -translate-y-1/2 top-1/2 left-1/2" />
+          <ProjelliLogo iconSize={64} wordmarkHeight={28} />
+        </div>
+
+        {/* Tagline */}
+        <p
+          data-testid="welcome-dialog-pitch"
+          className="text-base text-center mb-8 max-w-md leading-relaxed"
+          style={{ color: '#475569' }}
+        >
+          Your AI workspace. Your files. Your machine.
+        </p>
+
+        {/* Error banner */}
+        {error && (
+          <div
+            className="flex items-start gap-2 p-3 text-sm rounded-xl mb-6 w-full max-w-lg"
+            style={{
+              color: '#DC2626',
+              backgroundColor: 'rgba(220, 38, 38, 0.06)',
+              border: '1px solid rgba(220, 38, 38, 0.15)',
             }}
           >
-            Learn more
-            <ExternalLink className="h-3 w-3" />
+            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Action cards */}
+        <div className="grid grid-cols-2 gap-4 w-full max-w-lg mb-8">
+          {/* Open Existing */}
+          <button
+            data-testid="open-existing-workspace"
+            type="button"
+            disabled={isLoading}
+            onClick={handleSelectFolder}
+            className={cn(
+              'group relative rounded-xl p-6 text-left transition-all duration-200',
+              'border shadow-sm hover:shadow-md',
+              isLoading && 'opacity-50 cursor-not-allowed'
+            )}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderColor: '#E2E8F0',
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoading) {
+                e.currentTarget.style.borderColor = '#93C5FD';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.08)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#E2E8F0';
+              e.currentTarget.style.boxShadow = '';
+            }}
+          >
+            <div
+              className="h-10 w-10 rounded-lg flex items-center justify-center mb-4"
+              style={{ backgroundColor: '#F8FAFC' }}
+            >
+              <FolderOpen className="h-5 w-5" style={{ color: '#3B82F6' }} />
+            </div>
+            <div className="font-semibold text-sm mb-1" style={{ color: '#111F35' }}>
+              Open Existing
+            </div>
+            <div className="text-xs" style={{ color: '#94A3B8' }}>
+              Select a workspace folder
+            </div>
+          </button>
+
+          {/* New Workspace */}
+          <button
+            data-testid="new-workspace"
+            type="button"
+            disabled={isLoading}
+            onClick={handleCreateWorkspace}
+            className={cn(
+              'group relative rounded-xl p-6 text-left transition-all duration-200',
+              'border shadow-sm hover:shadow-md',
+              isLoading && 'opacity-50 cursor-not-allowed'
+            )}
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderColor: '#E2E8F0',
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoading) {
+                e.currentTarget.style.borderColor = '#93C5FD';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.08)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = '#E2E8F0';
+              e.currentTarget.style.boxShadow = '';
+            }}
+          >
+            <div
+              className="h-10 w-10 rounded-lg flex items-center justify-center mb-4"
+              style={{ backgroundColor: '#F8FAFC' }}
+            >
+              <FolderPlus className="h-5 w-5" style={{ color: '#8B5CF6' }} />
+            </div>
+            <div className="font-semibold text-sm mb-1" style={{ color: '#111F35' }}>
+              New Workspace
+            </div>
+            <div
+              data-testid="new-workspace-structure-preview"
+              className="text-xs font-mono"
+              style={{ color: '#94A3B8' }}
+            >
+              {PREVIEW_STRUCTURE_FOLDERS.map((f) => `${f}/`).join('  ')}
+            </div>
           </button>
         </div>
 
-        <div className="space-y-4 pt-4">
-          {error && (
-            <div className="flex items-center gap-2 p-3 text-sm text-destructive bg-destructive/10 rounded-md">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+        {/* Recent workspaces (collapsed by default) */}
+        {recentWorkspaces.length > 0 && (
+          <RecentWorkspacesSection
+            workspaces={recentWorkspaces}
+            isLoading={isLoading}
+            isTauri={isTauri}
+            onOpen={handleOpenRecent}
+            formatDate={formatDate}
+          />
+        )}
+      </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              data-testid="open-existing-workspace"
-              variant="outline"
-              className="h-auto py-4 flex flex-col items-center gap-2"
-              onClick={handleSelectFolder}
-              disabled={isLoading}
-            >
-              <FolderOpen className="h-8 w-8" />
-              <div className="text-center">
-                <div className="font-medium">Open Existing</div>
-                <div className="text-xs text-muted-foreground">
-                  Select a workspace folder
-                </div>
-              </div>
-            </Button>
-
-            <Button
-              data-testid="new-workspace"
-              variant="outline"
-              className="h-auto py-4 flex flex-col items-center gap-2"
-              onClick={handleCreateWorkspace}
-              disabled={isLoading}
-            >
-              <FolderPlus className="h-8 w-8" />
-              <div className="text-center">
-                <div className="font-medium">New Workspace</div>
-                <div
-                  data-testid="new-workspace-structure-preview"
-                  className="text-xs text-muted-foreground mt-0.5 font-mono"
-                >
-                  {PREVIEW_STRUCTURE_FOLDERS.map((f) => `${f}/`).join('  ')}
-                </div>
-              </div>
-            </Button>
-          </div>
-
-          {recentWorkspaces.length > 0 && (
-            <RecentWorkspacesSection
-              workspaces={recentWorkspaces}
-              isLoading={isLoading}
-              isTauri={isTauri}
-              onOpen={handleOpenRecent}
-              formatDate={formatDate}
-            />
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+      {/* Footer */}
+      <footer className="flex items-center justify-center gap-3 pb-6 text-xs" style={{ color: '#94A3B8' }}>
+        <button
+          data-testid="welcome-dialog-learn-more"
+          type="button"
+          className="inline-flex items-center gap-1 transition-colors hover:underline underline-offset-2"
+          style={{ color: '#94A3B8' }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#475569'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#94A3B8'; }}
+          onClick={() => {
+            openExternal(GETTING_STARTED_URL).catch((err) => {
+              console.error('[WorkspaceSelector] Failed to open docs:', err);
+            });
+          }}
+        >
+          Learn more
+          <ExternalLink className="h-3 w-3" />
+        </button>
+        <span aria-hidden="true">{'\u00B7'}</span>
+        <button
+          type="button"
+          className="transition-colors hover:underline underline-offset-2"
+          style={{ color: '#94A3B8' }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#475569'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#94A3B8'; }}
+          onClick={() => {
+            openExternal('https://projelli.com/privacy').catch(() => {});
+          }}
+        >
+          Privacy
+        </button>
+        <span aria-hidden="true">{'\u00B7'}</span>
+        <button
+          type="button"
+          className="transition-colors hover:underline underline-offset-2"
+          style={{ color: '#94A3B8' }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = '#475569'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = '#94A3B8'; }}
+          onClick={() => {
+            openExternal('https://projelli.com/terms').catch(() => {});
+          }}
+        >
+          Terms
+        </button>
+      </footer>
+    </div>
   );
 }
