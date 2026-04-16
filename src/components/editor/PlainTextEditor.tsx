@@ -10,19 +10,38 @@ import { syntaxHighlighting, defaultHighlightStyle, bracketMatching } from '@cod
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
 import { cn } from '@/lib/utils';
 import { WordCountFooter } from './WordCountFooter';
+import { InlineChatAnchor } from './InlineChatAnchor';
+import { StreamingDiffOverlay } from './StreamingDiffOverlay';
+import { codeMirrorAdapter, useInlineAiEdit } from './useInlineAiEdit';
+import type { Provider } from '@/modules/models/Provider';
 
 interface PlainTextEditorProps {
   initialContent: string;
   onChange?: (content: string) => void;
   className?: string;
+  /** M5 — file path used for version-history attribution on AI edits. */
+  filePath?: string;
+  /** M5 — provider factory for inline AI edits. Returning `null` disables. */
+  getAiProvider?: () => Provider | null;
 }
 
-export function PlainTextEditor({ initialContent, onChange, className }: PlainTextEditorProps) {
+export function PlainTextEditor({ initialContent, onChange, className, filePath, getAiProvider }: PlainTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   // UX-30: reactive mirror of the current content for the word-count footer.
   const [currentText, setCurrentText] = useState(initialContent);
+
+  // M5 — selection-version counter + AI provider ref (same pattern as
+  // MarkdownEditor). Kept behind refs so the editor mount effect isn't
+  // remounted when the parent re-renders.
+  const [selectionVersion, setSelectionVersion] = useState(0);
+  const getAiProviderRef = useRef<(() => Provider | null) | undefined>(
+    getAiProvider
+  );
+  useEffect(() => {
+    getAiProviderRef.current = getAiProvider;
+  }, [getAiProvider]);
 
   // Keep onChange ref up to date
   useEffect(() => {
@@ -57,6 +76,11 @@ export function PlainTextEditor({ initialContent, onChange, className }: PlainTe
             const content = update.state.doc.toString();
             onChangeRef.current?.(content);
             setCurrentText(content);
+          }
+          // M5 — bump on selection or doc change so the inline-edit
+          // anchor keeps its coords current.
+          if (update.selectionSet || update.docChanged) {
+            setSelectionVersion((n) => (n + 1) % 1_000_000);
           }
         }),
         EditorView.theme({
@@ -130,6 +154,30 @@ export function PlainTextEditor({ initialContent, onChange, className }: PlainTe
     setCurrentText(initialContent);
   }, [initialContent]);
 
+  // M5 — inline AI edit hook wired to the same CodeMirror adapter
+  // MarkdownEditor uses. `formatHint: 'plain'` keeps the model from
+  // introducing Markdown the user never typed.
+  const aiAdapterRef = useRef<ReturnType<typeof codeMirrorAdapter> | null>(null);
+  aiAdapterRef.current = codeMirrorAdapter(viewRef.current, { filePath });
+  const { state: aiState, handlers: aiHandlers } = useInlineAiEdit({
+    adapter: {
+      getSelectedText: () => aiAdapterRef.current?.getSelectedText() ?? '',
+      getSelectionRange: () => aiAdapterRef.current?.getSelectionRange() ?? null,
+      replaceRange: (from, to, insert) =>
+        aiAdapterRef.current?.replaceRange(from, to, insert),
+      coordsAtPos: (pos) => aiAdapterRef.current?.coordsAtPos(pos) ?? null,
+      getDocText: () => aiAdapterRef.current?.getDocText() ?? '',
+      getDomNode: () => aiAdapterRef.current?.getDomNode() ?? null,
+      filePath,
+    },
+    getProvider: () => {
+      const fn = getAiProviderRef.current;
+      return fn ? fn() : null;
+    },
+    formatHint: 'plain',
+    docVersion: selectionVersion,
+  });
+
   return (
     <div className={cn('h-full flex flex-col', className)}>
       {/* Simple text editor - no formatting toolbar for plain text files */}
@@ -143,6 +191,31 @@ export function PlainTextEditor({ initialContent, onChange, className }: PlainTe
       />
       {/* UX-30: word count footer matching other editors. */}
       <WordCountFooter text={currentText} />
+
+      {/* M5 — inline AI edit surfaces. */}
+      <InlineChatAnchor
+        coords={aiState.anchorCoords}
+        sessionActive={aiState.sessionActive}
+        externalOpenSignal={aiState.externalOpenSignal}
+        onSubmit={(instruction) => {
+          void aiHandlers.submitInstruction(instruction);
+        }}
+      />
+      {aiState.sessionActive && (
+        <div className="px-4 pb-2">
+          <StreamingDiffOverlay
+            original={aiState.sessionOriginal}
+            proposed={aiState.sessionProposed}
+            streaming={aiState.sessionStreaming}
+            resolutions={aiState.resolutions}
+            onAcceptHunk={aiHandlers.acceptHunk}
+            onRejectHunk={aiHandlers.rejectHunk}
+            onAcceptAll={aiHandlers.acceptAll}
+            onRejectAll={aiHandlers.rejectAll}
+            onCancel={aiHandlers.cancelSession}
+          />
+        </div>
+      )}
     </div>
   );
 }
