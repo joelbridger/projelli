@@ -324,7 +324,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-21: AI Assistant as main-panel tab type (not just sidebar)
 **Priority:** P4
-**Status:** 📋
+**Status:** ✅ Done — hash: `fd40eab`
 **Problem:** The AI Assistant lives in the narrow sidebar. Heavy chat use — the core value prop — is cramped. Other tools (ChatGPT Desktop, Claude Desktop, Cursor) give chat a major UI slot.
 **Acceptance criteria:**
 - Opening AI Assistant creates a main-panel tab (like .aichat files already do)
@@ -336,7 +336,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-26: Full-text search across file content
 **Priority:** P4
-**Status:** 📋
+**Status:** ✅ Done — hash: `885074e`
 **Problem:** The Search panel exists but current scope unclear. Full-text search across workspace content is table-stakes for a workspace app.
 **Acceptance criteria:**
 - Search queries match both filenames AND file content (markdown, plain text, RTF, and text-extracted XLSX/DOCX/PPTX/CSV)
@@ -349,7 +349,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-27: Ctrl+P fuzzy file switcher
 **Priority:** P4
-**Status:** 📋
+**Status:** ✅ Done — hash: `85e04ae`
 **Problem:** Power users reach for `Ctrl+P` (VS Code, Obsidian) to quickly open files by fuzzy name. Projelli has `Ctrl+K` for commands but no separate file-open.
 **Acceptance criteria:**
 - `Ctrl+P` opens a quick-open modal with fuzzy filename matching (fuse.js or similar)
@@ -361,7 +361,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-28: AI response → draggable to file tree
 **Priority:** P4
-**Status:** 📋
+**Status:** ✅ Done — hash: `b68efa2`
 **Problem:** Currently AI responses become files via buttons. A drag gesture from any AI response directly onto the file tree would be a delightful power-user shortcut.
 **Acceptance criteria:**
 - Any AI response message has a drag handle (or whole-message drag)
@@ -373,7 +373,7 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 
 ### UX-29: Undo for file deletions (Trash + toast)
 **Priority:** P4
-**Status:** 📋
+**Status:** ✅ Done — hash: `4fe507b`
 **Problem:** Undoing accidental file deletes isn't obvious. A Trash panel exists but no toast-level undo.
 **Acceptance criteria:**
 - Deleting a file shows a toast with "Undo" for 10 seconds
@@ -394,4 +394,4 @@ Comprehensive list of UX improvements identified during the Phase 7 audit (2026-
 | Wave 3 | 2026-04-15 | `e781fef` UX-08, `7aa7c25` UX-09, `636e967` UX-10, `4719c60` model-id fix | 19 new (7 api-keys-panel + 6 workflows-panel + 6 shortcuts-overlay), 109 total pass, 4 pre-existing visual-snapshot failures unchanged (ai-models-tab, file-tree, breadcrumb-nav, status-bar). The 3 model-id tests that were red since Wave 1 are now green. Updated ai-keys-tab snapshot to match the new UX-08 layout. | API Keys panel now renders all 3 providers simultaneously with Get key, Test, Clear, masked display, and Valid/Invalid/Not tested status chip. Workflows sidebar panel fills available height via flex layout + exposes a full-view modal with 3-column grid and search. Keyboard-shortcuts overlay (`?` hotkey, focus-aware) lists every shortcut from a new SSOT at src/utils/shortcuts.ts; overlay has a visible DialogTitle. Tooltip audit added shortcut hints on MainPanel toolbar + TabBar close-X. |
 | Wave 4 | 2026-04-15 | `69a05dc` UX-11, `df5eec1` UX-12, `36554df` UX-13, `49d68c0` UX-14, `b52d7ff` UX-15, `5e2a4e7` UX-16, `008bbb7` UX-17, `b4cc38f` UX-18, `a0b0ac4` fixes | 12 new spec files / tests (sidebar-icons, editor-toolbar-overflow, breadcrumbs, create-file-dialog, destructive-actions, auto-save-indicator, updated spreadsheet-improvements), 121 total pass, 3 pre-existing visual-snapshot failures unchanged (ai-models-tab, file-tree, grid-view-breadcrumbs). The status-bar visual snapshot was intentionally regenerated for the UX-14 breadcrumb layout. | Research + every other sidebar tab icon now inherits the same currentColor so no tab looks permanently tinted. Workflow cards use `line-clamp-2 break-words` + `title` tooltip, killing the one-word-per-line wrap at narrow widths. MainPanel toolbar collapses History/Split/Outline/Backlinks/Export into a `…` DropdownMenu via ResizeObserver when container width < 900px; Save/Auto-save/Download stay inline. StatusBar renders per-segment clickable breadcrumbs with chevrons and a `…` overflow DropdownMenu for paths with >4 segments; clicking a segment expands the FileTree sidebar to that folder. PromptDialog extended with `destinationPath` + `previewExtension` so every "New X" flow shows "Creating in /docs/" and a live filename preview. New in-app UndoToast shows "File moved to Trash — Undo" for 10s after delete; bulk delete uses the app's ConfirmDialog instead of window.confirm; Ctrl+Z reverts the most recent rename per session. Replaced the static "Auto-save" badge with a reactive AutoSaveIndicator state machine (idle → dirty → saving → saved-recent → error) with spinner + "Saved · Ns ago" updating every second. Spreadsheet formula bar + selection summary render at 5px thin divider before any selection in viewer mode, expanding to full size on first click; editable mode keeps the bar always-expanded to protect the dblclick-to-edit flow. |
 | Wave 5 | 2026-04-15 | `dacc969` UX-19, `360ac39` UX-20, `1b2cde9` UX-22, `496deb7` UX-23, `7c7a12f` UX-24, `58e0d15` UX-25, `f1ed7b8` UX-30 | 17 new spec files/tests (drag-drop, whats-new, tab-close-visibility, sidebar-collapsed-tooltips, history-hidden-nonversioned, theme-system, word-count-md-txt), 138 total pass, 3 pre-existing visual-snapshot failures unchanged (ai-models-tab, file-tree, grid-view-breadcrumbs). | Dragging files anywhere onto the window now shows a dashed drop overlay and lands files in the nearest folder (or workspace root); duplicates get `(1)`, `(2)` suffixes; `.DS_Store` noise filtered out. After a version bump `useWhatsNew` compares the bundled changelog top entry against `localStorage['projelli:lastSeenVersion']` and shows a dismissible bottom-left toast that opens a per-release highlights modal; first-time users see nothing. TabBar close X now renders at `opacity-0` by default, `opacity-100` on active tab / group hover / keyboard focus so inactive tabs feel quiet. Sidebar in collapsed mode wraps every icon in a Radix tooltip via a root `TooltipProvider` (300ms delay, 100ms skip-delay) showing label + optional keyboard shortcut; added `@radix-ui/react-tooltip` dependency. MainPanel auto-closes the right-panel History tab when the active file switches to a non-versioned type so `.xlsx` no longer inherits a stale History view. Theme state upgraded from binary to `'light' \| 'dark' \| 'system'` with a matchMedia subscription; toggle cycles system → light → dark → system with Monitor/Sun/Moon icons. Shared `WordCountFooter` component added to MarkdownEditor + PlainTextEditor with the same `editor-word-count` testid as the TipTap editors. |
-| Wave 6 | _pending_ | | | |
+| Wave 6 | 2026-04-16 | `4fe507b` UX-29, `85e04ae` UX-27, `b68efa2` UX-28, `885074e` UX-26, `fd40eab` UX-21 | 17 new e2e + 16 new unit (7 filename-derivation + 9 content-index), 159 e2e total pass, 2 pre-existing visual-snapshot failures unchanged (file-tree, grid-view-breadcrumbs). Regenerated ai-keys-tab + ai-models-tab snapshots to pick up the new Pop-out button. | UX-29 extends the UX-16 undo path with keyboard parity: Ctrl+Z outside any input pops a combined rename+delete stack so the most recent destructive action reverses regardless of whether the undo toast is still visible. Trash retention default flipped from 'never' to 30 days so the "30 days" in-app copy is truthful; empty-state description now adapts to the active retention period. UX-27 introduces a Ctrl+P / Cmd+P quick-open modal via fuse.js (7.3.0, MIT). Arrow/Enter/Esc navigation, a persisted-in-localStorage recents list (10 entries) when the input is empty, sr-only DialogTitle mirroring the command palette a11y pattern. Ctrl+Shift+P still routes to the command palette because the new handler explicitly excludes Shift. UX-28 adds a grip-handle drag source next to every assistant bubble in AIChatViewer; the dragstart stuffs the content into a custom `application/x-projelli-chat-message` MIME plus text/plain. FileTree grew an `onDropAIMessage` prop: folder drops create a new .md file (filename derived from first heading or first 60 chars), file drops append with a `---` separator. UX-26 ships full-text content search via minisearch (7.2.0, MIT). Builds an index on workspace open over all text-extractable files (md/txt/rt/rtf/json/csv + extracted xlsx/docx/pptx via extractForAI); per-save `upsert` and per-delete `remove` keep the index current without rescans. SearchPanel merges filename + content hits, shows a 160-char snippet around the match with a `<mark>` highlight, debounces input 150ms, caps at 30 results. UX-21 opens AI Assistant as a MAIN-PANEL tab instead of the cramped sidebar — Ctrl+Shift+A toggles it, a second press focuses the existing tab instead of duplicating. Sidebar pane grew an additive "Pop out" button (Maximize2 icon) that calls the same helper. Drive-by fix for a React 18 "getSnapshot should be cached" infinite-loop in AIChatViewer's file-context selector: now subscribes to raw bags and derives via useMemo. |
