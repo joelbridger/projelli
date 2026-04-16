@@ -14,10 +14,13 @@
 //
 // Introduced: Wave 2 / UX-04.
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Key, X, ArrowRight } from 'lucide-react';
+import { Key, X, ArrowRight, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ApiKeyWizard, type WizardProvider } from './ApiKeyWizard';
+import type { KeyProvider } from '@/modules/models/KeychainService';
 
 const DISMISS_STORAGE_KEY = 'projelli:apiKeyCardDismissed';
 
@@ -40,12 +43,34 @@ export function markApiKeyCardDismissed(): void {
 }
 
 interface ApiKeySetupCardProps {
+  /**
+   * Legacy behavior: opens the AI pane's Keys tab. Still supported so existing
+   * callers work unchanged. When `onSaveKey` is NOT provided, clicking the CTA
+   * falls back to calling this instead of launching the guided wizard.
+   */
   onAddKey: () => void;
   onDismiss: () => void;
   className?: string;
+  /**
+   * Q20 (Wave 1.5): when supplied, clicking the CTA opens the guided 3-step
+   * ApiKeyWizard modal. The wizard calls `onSaveKey` with the final validated
+   * key string. This should route into the same save path that ApiKeySettings
+   * uses (i.e. KeychainService.setKey).
+   */
+  onSaveKey?: (provider: KeyProvider, key: string) => void | Promise<void>;
 }
 
-export function ApiKeySetupCard({ onAddKey, onDismiss, className }: ApiKeySetupCardProps) {
+export function ApiKeySetupCard({ onAddKey, onDismiss, className, onSaveKey }: ApiKeySetupCardProps) {
+  const [wizardOpen, setWizardOpen] = useState(false);
+
+  const handleCta = () => {
+    if (onSaveKey) {
+      setWizardOpen(true);
+    } else {
+      onAddKey();
+    }
+  };
+
   return (
     <div
       data-testid="api-key-setup-card"
@@ -82,22 +107,39 @@ export function ApiKeySetupCard({ onAddKey, onDismiss, className }: ApiKeySetupC
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">
             Projelli uses your own API key from Anthropic, OpenAI, or Google.
-            You only pay the provider for what you use — Projelli doesn&apos;t
+            You only pay the provider for what you use. Projelli doesn&apos;t
             charge a subscription.
           </p>
           <Button
             data-testid="api-key-setup-card-cta"
-            onClick={onAddKey}
+            onClick={handleCta}
             className="w-full gap-2"
           >
-            Add API key
-            <ArrowRight className="h-4 w-4" />
+            {onSaveKey ? (
+              <>
+                <Sparkles className="h-4 w-4" />
+                Walk me through it
+              </>
+            ) : (
+              <>
+                Add API key
+                <ArrowRight className="h-4 w-4" />
+              </>
+            )}
           </Button>
           <p className="text-xs text-muted-foreground text-center">
-            Keys are stored locally on your computer — never sent to us.
+            Keys are stored locally on your computer. Never sent to us.
           </p>
         </CardContent>
       </Card>
+
+      {onSaveKey && (
+        <ApiKeyWizard
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          onSaveKey={(provider: WizardProvider, key: string) => onSaveKey(provider as KeyProvider, key)}
+        />
+      )}
     </div>
   );
 }

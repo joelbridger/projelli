@@ -4,3 +4,4 @@ export {
   hasDismissedApiKeyCard,
   markApiKeyCardDismissed,
 } from './ApiKeySetupCard';
+export { ApiKeyWizard, type ApiKeyWizardProps, type WizardProvider } from './ApiKeyWizard';
