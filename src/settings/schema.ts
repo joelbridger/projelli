@@ -200,9 +200,27 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'memory',
     label: 'Workspace memory',
     description:
-      'Index your workspace files locally so AI can recall relevant context. Embeddings live on your machine — nothing is sent anywhere.',
+      'Index your workspace files locally so AI can recall relevant context. Embeddings live on your machine, nothing is sent anywhere.',
     type: 'toggle',
     defaultValue: true,
+  },
+  {
+    key: 'factsInjection',
+    category: 'memory',
+    label: 'Inject memory facts into chat',
+    description:
+      'Prepend your saved memory facts to every chat system prompt so the AI always knows prior durable context. Turn off if you want workspace memory without the facts block.',
+    type: 'toggle',
+    defaultValue: true,
+  },
+  {
+    key: 'factsAutoAccept',
+    category: 'memory',
+    label: 'Auto-accept proposed facts',
+    description:
+      'When enabled, facts that the AI extracts from your conversations are saved without asking. Default is off, so every proposed fact needs your approval.',
+    type: 'toggle',
+    defaultValue: false,
   },
 
   // ── Files & Workspace ─────────────────────────────────────────────────
