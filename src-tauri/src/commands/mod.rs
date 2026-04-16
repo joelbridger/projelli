@@ -13,4 +13,9 @@ pub mod keychain;
 // platform `.mcpb` bundle path.
 pub mod mcp;
 pub mod rag;
+// Phase 4 M6 (v1.5 Flag 4) — voice capture & transcription via bundled
+// Parakeet/whisper.cpp sidecar. Frontend press-to-talk hotkey invokes
+// `transcribe_audio(wav_bytes)` with WAV bytes captured via
+// `navigator.mediaDevices.getUserMedia` + `MediaRecorder`.
+pub mod voice;
 pub mod watcher;

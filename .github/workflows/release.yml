@@ -99,9 +99,11 @@ jobs:
       # tauri.conf.json is still empty in Phase 2 - wiring it in Phase 4
       # will flip these builds from "nice to have" to "required".
       #
-      # TODO (Phase 4 M6): add a parallel step here that fetches the
-      # Parakeet.cpp sidecar binary for voice input and stages it the same
-      # way (parakeet-transcribe-<target-triple>).
+      # Phase 4 M6 voice sidecar: the `Fetch voice sidecar binary` step
+      # below stages Parakeet.cpp (or whisper.cpp as fallback) into
+      # `src-tauri/binaries/parakeet[.exe]`. Until a reliable per-platform
+      # release artifact is pinned, the step is a no-op and voice features
+      # are marked "binary required; see docs" in V1_5_RELEASE.md.
       - name: Build Projelli MCP stub binary (Mac/Linux)
         shell: bash
         working-directory: src-tauri
@@ -127,6 +129,32 @@ jobs:
           cp "$SRC" "binaries/projelli-mcp-$TARGET"
           echo "MCP_TARGET=$TARGET" >> "$GITHUB_ENV"
           ls -la binaries/
+
+      # Phase 4 M6 (v1.5 Flag 4) - Fetch the voice sidecar binary
+      # (Parakeet.cpp or whisper.cpp) and stage it at
+      # `src-tauri/binaries/parakeet[-<triple>]` so tauri build can bundle
+      # it. The step is a no-op when the upstream release URL isn't
+      # pinned yet; voice features are documented as "binary required".
+      - name: Fetch voice sidecar binary (Mac/Linux)
+        if: ${{ vars.VOICE_SIDECAR_URL != '' }}
+        shell: bash
+        working-directory: src-tauri
+        env:
+          VOICE_URL: ${{ vars.VOICE_SIDECAR_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -p binaries
+          curl -fsSL "$VOICE_URL" -o /tmp/voice.tar.gz
+          tar -xzf /tmp/voice.tar.gz -C /tmp
+          # Expected layout: /tmp/<name>/parakeet (or whisper). Find and copy.
+          BIN="$(find /tmp -maxdepth 3 -type f \( -name parakeet -o -name whisper \) | head -1)"
+          if [[ -n "$BIN" ]]; then
+            cp "$BIN" "binaries/$(basename "$BIN")"
+            chmod +x "binaries/$(basename "$BIN")"
+            ls -la binaries/
+          else
+            echo "No voice sidecar binary found in archive; skipping"
+          fi
 
       # Phase 4 M4 (v1.5 Flag 2) - Bundle the projelli-mcp binary into a
       # `.mcpb` Desktop Extension archive. Claude Desktop installs these
@@ -246,6 +274,26 @@ jobs:
           Copy-Item "target/release/projelli-mcp.exe" "binaries/projelli-mcp-$host_triple.exe"
           "MCP_TARGET=$host_triple" | Out-File -FilePath $env:GITHUB_ENV -Append
           Get-ChildItem binaries
+
+      # Phase 4 M6 (v1.5 Flag 4) - Fetch Windows voice sidecar binary
+      # when pinned via the VOICE_SIDECAR_URL repo variable.
+      - name: Fetch voice sidecar binary (Windows)
+        if: ${{ vars.VOICE_SIDECAR_URL != '' }}
+        shell: pwsh
+        working-directory: src-tauri
+        env:
+          VOICE_URL: ${{ vars.VOICE_SIDECAR_URL }}
+        run: |
+          New-Item -ItemType Directory -Force -Path binaries | Out-Null
+          Invoke-WebRequest -Uri $env:VOICE_URL -OutFile "$env:TEMP\voice.zip"
+          Expand-Archive -Path "$env:TEMP\voice.zip" -DestinationPath "$env:TEMP\voice-sidecar"
+          $bin = Get-ChildItem -Path "$env:TEMP\voice-sidecar" -Recurse -Include 'parakeet.exe','whisper.exe' | Select-Object -First 1
+          if ($bin) {
+            Copy-Item $bin.FullName "binaries/$($bin.Name)"
+            Get-ChildItem binaries
+          } else {
+            Write-Host 'No voice sidecar binary found in archive; skipping'
+          }
 
       # Phase 4 M4 (v1.5 Flag 2) - Bundle the Windows projelli-mcp binary
       # into a `.mcpb` archive. See the Mac/Linux block above for rationale.

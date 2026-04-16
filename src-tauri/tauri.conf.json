@@ -65,7 +65,7 @@
         "language": "en-US"
       }
     },
-    "resources": ["resources/**/*"],
+    "resources": ["resources/**/*", "binaries/**/*"],
     "externalBin": [],
     "createUpdaterArtifacts": true
   },

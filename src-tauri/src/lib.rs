@@ -41,6 +41,10 @@ pub fn run() {
             commands::mcp::mcp_list_pending_approvals,
             commands::mcp::mcp_approve_write,
             commands::mcp::mcp_bundle_path,
+            // Phase 4 M6 (v1.5 Flag 4) — voice input via bundled
+            // Parakeet/whisper.cpp sidecar.
+            commands::voice::voice_sidecar_available,
+            commands::voice::transcribe_audio,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
