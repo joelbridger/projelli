@@ -30,6 +30,7 @@ import {
 import { useSettingsStore } from '@/stores/settingsStore';
 import { CostMetrics } from '@/components/analysis/CostMetrics';
 import { TemplateModelSettings } from '@/components/settings/TemplateModelSettings';
+import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
 import type { AuditEntry } from '@/types/audit';
 import type { WorkflowTemplate } from '@/types/workflow';
 import {
@@ -117,6 +118,10 @@ function settingTestid(key: string): string | undefined {
   switch (key) {
     case 'memoryEnabled':
       return 'settings-memory-enabled';
+    case 'factsInjection':
+      return 'settings-facts-inject-toggle';
+    case 'factsAutoAccept':
+      return 'settings-facts-auto-accept-toggle';
     default:
       return undefined;
   }
@@ -630,6 +635,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
                     onAction={handleAction}
                   />
                 ))}
+                {activeCategory === 'memory' && <MemoryFactsSettings />}
               </div>
             )}
           </div>

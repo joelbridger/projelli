@@ -2,7 +2,7 @@
 // Displays full chat history and allows continuing conversations
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, FileText, ChevronDown, ChevronRight } from 'lucide-react';
+import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, FileText, ChevronDown, ChevronRight, Check, X, Pencil, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,24 @@ import {
   parseWorkspaceCommand,
   resolveCitationPath,
 } from '@/modules/memory/workspaceCommand';
+import {
+  buildFactsMemoryBlock,
+} from '@/modules/memory/FactsService';
+import {
+  snapshotFactsForInjection,
+  getFactsService,
+  isFactsAutoAcceptEnabled,
+} from '@/modules/memory/factsSingleton';
+import {
+  runExtraction,
+  shouldRunExtraction,
+  markCheckpointRan,
+  markRejected,
+  markAccepted,
+  makeInitialState,
+  type ChatExtractionState,
+  type ProposedFact,
+} from '@/modules/memory/factsExtraction';
 
 interface APIKey {
   provider: string;
@@ -305,6 +323,152 @@ function ChatSourcesAccordion({
 }
 
 /**
+ * M3 — Proposed facts chip row. Rendered below the most recent AI
+ * response whenever fact extraction returned candidates. Each chip has
+ * Accept / Edit / Reject buttons; editing swaps the chip text for an
+ * inline textarea with Save + Cancel.
+ */
+interface ProposedFactsPanelProps {
+  proposals: Array<{ key: string; text: string }>;
+  onAccept: (key: string, editedText?: string) => void | Promise<void>;
+  onReject: (key: string) => void;
+}
+
+function ProposedFactsPanel({
+  proposals,
+  onAccept,
+  onReject,
+}: ProposedFactsPanelProps): React.ReactElement {
+  const [expanded, setExpanded] = useState(true);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+
+  const startEdit = (key: string, currentText: string) => {
+    setEditingKey(key);
+    setEditText(currentText);
+  };
+  const cancelEdit = () => {
+    setEditingKey(null);
+    setEditText('');
+  };
+  const saveEdit = async (key: string) => {
+    await onAccept(key, editText);
+    setEditingKey(null);
+    setEditText('');
+  };
+
+  return (
+    <div
+      data-testid="proposed-facts-panel"
+      className="mt-4 rounded-md border border-primary/30 bg-primary/5 p-3"
+    >
+      <button
+        type="button"
+        data-testid="proposed-facts-toggle"
+        className="w-full flex items-center gap-2 text-xs font-medium text-primary"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+      >
+        {expanded ? (
+          <ChevronDown className="h-3 w-3" />
+        ) : (
+          <ChevronRight className="h-3 w-3" />
+        )}
+        <Brain className="h-3.5 w-3.5" />
+        {proposals.length} proposed memory fact
+        {proposals.length === 1 ? '' : 's'}
+      </button>
+      {expanded && (
+        <ul className="mt-2 space-y-2">
+          {proposals.map((p) => (
+            <li
+              key={p.key}
+              data-testid={`proposed-fact-chip-${p.key}`}
+              className="flex items-start gap-2 rounded border border-primary/20 bg-background px-3 py-2"
+            >
+              {editingKey === p.key ? (
+                <>
+                  <Textarea
+                    data-testid={`fact-edit-input-${p.key}`}
+                    value={editText}
+                    onChange={(e) => setEditText(e.target.value)}
+                    className="flex-1 min-h-[48px] text-sm"
+                  />
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <Button
+                      data-testid={`fact-edit-save-${p.key}`}
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => {
+                        void saveEdit(p.key);
+                      }}
+                      disabled={editText.trim().length === 0}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      data-testid={`fact-edit-cancel-${p.key}`}
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={cancelEdit}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className="flex-1 text-sm leading-relaxed">{p.text}</span>
+                  <div className="flex gap-1 shrink-0">
+                    <Button
+                      data-testid={`fact-accept-${p.key}`}
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-green-700 hover:bg-green-50 dark:text-green-400 dark:hover:bg-green-950/30"
+                      onClick={() => {
+                        void onAccept(p.key);
+                      }}
+                      aria-label="Accept fact"
+                      title="Accept — save this fact to memory"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      data-testid={`fact-edit-${p.key}`}
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => startEdit(p.key, p.text)}
+                      aria-label="Edit fact"
+                      title="Edit before saving"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      data-testid={`fact-reject-${p.key}`}
+                      variant="outline"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                      onClick={() => onReject(p.key)}
+                      aria-label="Reject fact"
+                      title="Reject — discard this proposal"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
  * Convert chat to markdown for export
  */
 function chatToMarkdown(chat: AIChatFile): string {
@@ -333,6 +497,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // M2 — surfaced inline beneath the input when a citation can't be
   // resolved. Cleared whenever the user interacts with the input again.
   const [missingSourceWarning, setMissingSourceWarning] = useState<string | null>(null);
+  // M3 — proposed facts awaiting user approval. Keyed by chat so a
+  // batch from one chat doesn't bleed into another if the user switches.
+  type PendingProposal = ProposedFact & { key: string };
+  const [proposedFacts, setProposedFacts] = useState<PendingProposal[]>([]);
+  const extractionStateRef = useRef<ChatExtractionState>(makeInitialState());
+  const extractionInFlightRef = useRef<boolean>(false);
 
   // Ambient file context from the editor — any open, enabled file that was
   // successfully extracted. Re-renders the viewer when files change so the
@@ -414,6 +584,105 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // M3 — after each completed turn, check whether extraction should
+  // run. Only fires when we're not loading (so the turn is complete),
+  // when `shouldRunExtraction` says yes, and when an extraction isn't
+  // already in flight. All failure paths silently skip; the next
+  // checkpoint is recorded regardless so we don't re-hit the API on
+  // every render when the provider is throwing.
+  useEffect(() => {
+    if (isLoading) return;
+    if (extractionInFlightRef.current) return;
+    const count = messages.length;
+    if (!shouldRunExtraction(count, extractionStateRef.current)) return;
+
+    const chatProvider = chatData.provider ?? 'anthropic';
+    const apiKey = apiKeys.find((k) => k.provider === chatProvider && k.isValid);
+    if (!apiKey) {
+      // No key — silently advance the checkpoint so we don't spin on
+      // every render. Next checkpoint will try again when there's a key.
+      extractionStateRef.current = markCheckpointRan(
+        extractionStateRef.current,
+        count,
+      );
+      return;
+    }
+
+    extractionInFlightRef.current = true;
+    (async () => {
+      try {
+        let provider: Provider;
+        switch (chatProvider) {
+          case 'openai':
+            provider = new OpenAIProvider({
+              apiKey: apiKey.key,
+              ...(chatData.model ? { model: chatData.model } : {}),
+            });
+            break;
+          case 'google':
+            provider = new GeminiProvider({
+              apiKey: apiKey.key,
+              ...(chatData.model ? { model: chatData.model } : {}),
+            });
+            break;
+          case 'anthropic':
+          default:
+            provider = new ClaudeProvider({
+              apiKey: apiKey.key,
+              ...(chatData.model ? { model: chatData.model } : {}),
+            });
+            break;
+        }
+        const proposals = await runExtraction(provider, messages);
+        extractionStateRef.current = markCheckpointRan(
+          extractionStateRef.current,
+          count,
+        );
+        if (proposals.length === 0) return;
+
+        // M3 — auto-accept path skips the chip and saves directly.
+        if (isFactsAutoAcceptEnabled()) {
+          const svc = getFactsService();
+          if (svc) {
+            for (const p of proposals) {
+              try {
+                await svc.addFact({
+                  text: p.text,
+                  approved_by: 'auto',
+                  source_chat_id: chatId,
+                  source_message_index: count - 1,
+                });
+              } catch {
+                // Best-effort — if one save fails, keep trying the others.
+              }
+            }
+          }
+          return;
+        }
+
+        // Otherwise surface chips for user approval.
+        const keyed = proposals.map((p, i) => ({
+          ...p,
+          key: `${count}-${i}-${Date.now()}`,
+        }));
+        setProposedFacts((prev) => [...prev, ...keyed]);
+      } catch {
+        extractionStateRef.current = markCheckpointRan(
+          extractionStateRef.current,
+          count,
+        );
+      } finally {
+        extractionInFlightRef.current = false;
+      }
+    })();
+  }, [messages, isLoading, apiKeys, chatData.provider, chatData.model, chatId]);
+
+  // Clear proposed facts + reset extraction state when the chat switches.
+  useEffect(() => {
+    setProposedFacts([]);
+    extractionStateRef.current = makeInitialState();
+  }, [chatId]);
 
   // Save draft input to store (debounced) - persists across navigation
   useEffect(() => {
@@ -723,9 +992,16 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         );
         const workspacePrefix = workspaceBlock ? `${workspaceBlock}\n\n` : '';
 
+        // M3 — facts memory block sits BEFORE the workspace context
+        // block. Facts are durable; retrieval is situational. Putting
+        // the memory first frames everything the model reads after.
+        const facts = await snapshotFactsForInjection();
+        const factsBlock = buildFactsMemoryBlock(facts);
+        const factsPrefix = factsBlock ? `${factsBlock}\n\n` : '';
+
         const systemPrompt = conversationContext
-          ? `${workspacePrefix}${baseRole}${fileBlock} Here is the conversation history so far:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
-          : `${workspacePrefix}${baseRole}${fileBlock}`;
+          ? `${factsPrefix}${workspacePrefix}${baseRole}${fileBlock} Here is the conversation history so far:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
+          : `${factsPrefix}${workspacePrefix}${baseRole}${fileBlock}`;
 
         // Use streaming if available (disabled in production Tauri builds
         // because tauri-plugin-http doesn't support ReadableStream/SSE)
@@ -1058,6 +1334,46 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     setAskWorkspaceMode(chatId, !askWorkspaceMode);
   }, [askWorkspaceMode, chatId, setAskWorkspaceMode]);
 
+  // M3 — Accept a proposed fact. Saves to FactsService with
+  // approved_by='user' and removes the chip. `editedText` overrides
+  // the proposal text for the "user tweaked it" path.
+  const handleAcceptProposedFact = useCallback(
+    async (key: string, editedText?: string) => {
+      const entry = proposedFacts.find((p) => p.key === key);
+      if (!entry) return;
+      const svc = getFactsService();
+      const text = (editedText ?? entry.text).trim();
+      if (!svc || text.length === 0) {
+        setProposedFacts((prev) => prev.filter((p) => p.key !== key));
+        return;
+      }
+      try {
+        await svc.addFact({
+          text,
+          approved_by: 'user',
+          source_chat_id: chatId,
+          source_message_index: messages.length - 1,
+        });
+        extractionStateRef.current = markAccepted(extractionStateRef.current);
+      } catch {
+        // Save failed — keep the chip so the user can retry. In practice
+        // this only happens when the workspace is offline, and the
+        // singleton storage bubbles the error up. No toast in v1.5.
+      } finally {
+        setProposedFacts((prev) => prev.filter((p) => p.key !== key));
+      }
+    },
+    [proposedFacts, chatId, messages.length],
+  );
+
+  const handleRejectProposedFact = useCallback(
+    (key: string) => {
+      extractionStateRef.current = markRejected(extractionStateRef.current);
+      setProposedFacts((prev) => prev.filter((p) => p.key !== key));
+    },
+    [],
+  );
+
   return (
     <div data-testid="ai-chat-viewer" className={cn('flex flex-col h-full', className)}>
       {/* Header */}
@@ -1260,6 +1576,13 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               Stop
             </Button>
           </div>
+        )}
+        {proposedFacts.length > 0 && (
+          <ProposedFactsPanel
+            proposals={proposedFacts}
+            onAccept={handleAcceptProposedFact}
+            onReject={handleRejectProposedFact}
+          />
         )}
         <div ref={messagesEndRef} />
       </div>

@@ -194,7 +194,9 @@ function App() {
 
   // M1 (v1.5) Memory: install the workspace RAG indexer once we know
   // which workspace is open. Watches `rootPath` and re-arms on switch.
-  useMemoryWiring(rootPath);
+  // M3 (v1.5) Facts: the same hook wires the FactsService singleton
+  // to the active workspace via the WorkspaceService ref.
+  useMemoryWiring(rootPath, workspaceServiceRef.current);
 
   // Keep the AI ambient file-context store in sync with whatever tabs are
   // open. Mounted at App level so a single subscription drives every chat.

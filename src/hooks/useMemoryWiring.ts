@@ -23,18 +23,84 @@ import {
   MemoryService,
   setMemoryEnabledReader,
 } from '@/modules/memory/MemoryService';
+import { createFactsService, type FactsStorage } from '@/modules/memory/FactsService';
+import {
+  setFactsService,
+  setFactsInjectionReader,
+  setFactsAutoAcceptReader,
+} from '@/modules/memory/factsSingleton';
 import {
   watchWorkspace,
   type WorkspaceChangeEvent,
 } from '@/utils/tauri-commands';
 
-export function useMemoryWiring(rootPath: string | null): void {
+/** Build a FactsStorage adapter from a WorkspaceService-shaped object.
+ *  Accepts `any` so this stays decoupled from the concrete service
+ *  type — App.tsx passes its workspaceServiceRef.current through. */
+export function buildFactsStorage(
+  workspaceService: {
+    readFile: (path: string) => Promise<string>;
+    writeFile: (path: string, content: string) => Promise<void>;
+    exists: (path: string) => Promise<boolean>;
+    delete?: (path: string) => Promise<void>;
+  },
+  rootPath: string,
+): FactsStorage {
+  const resolve = (relative: string) =>
+    `${rootPath}/${relative}`.replace(/\/+/g, '/');
+  return {
+    read: (relative) => workspaceService.readFile(resolve(relative)),
+    write: (relative, content) =>
+      workspaceService.writeFile(resolve(relative), content),
+    exists: (relative) => workspaceService.exists(resolve(relative)),
+    remove: workspaceService.delete
+      ? (relative) => workspaceService.delete!(resolve(relative))
+      : async () => {
+          /* no-op if delete isn't exposed; stale .tmp is harmless */
+        },
+  };
+}
+
+export function useMemoryWiring(
+  rootPath: string | null,
+  workspaceService?: {
+    readFile: (path: string) => Promise<string>;
+    writeFile: (path: string, content: string) => Promise<void>;
+    exists: (path: string) => Promise<boolean>;
+    delete?: (path: string) => Promise<void>;
+  } | null,
+): void {
   // Wire the toggle reader once. Safe to call repeatedly — last writer wins.
   useEffect(() => {
     setMemoryEnabledReader(() =>
       Boolean(useSettingsStore.getState().getSetting<boolean>('memoryEnabled')),
     );
+    // M3 — facts toggles. Injection defaults ON, auto-accept defaults OFF.
+    setFactsInjectionReader(() =>
+      Boolean(
+        useSettingsStore.getState().getSetting<boolean>('factsInjection'),
+      ),
+    );
+    setFactsAutoAcceptReader(() =>
+      Boolean(
+        useSettingsStore.getState().getSetting<boolean>('factsAutoAccept'),
+      ),
+    );
   }, []);
+
+  // M3 — wire the facts service once the workspace is open so the
+  // Settings panel and chat viewer can both read/write `memory.json`.
+  useEffect(() => {
+    if (!rootPath || !workspaceService) {
+      setFactsService(null);
+      return;
+    }
+    const storage = buildFactsStorage(workspaceService, rootPath);
+    setFactsService(createFactsService({ storage }));
+    return () => {
+      setFactsService(null);
+    };
+  }, [rootPath, workspaceService]);
 
   // Per-workspace lifecycle.
   useEffect(() => {
