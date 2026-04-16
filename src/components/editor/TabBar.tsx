@@ -128,6 +128,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     deleteTabGroup,
     moveTabToGroup,
     ungroupTab,
+    tabOverflow,
   } = useEditorStore();
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -849,9 +850,10 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           ref={scrollRef}
           data-testid="tab-bar-scroll"
           className={cn(
-            "flex items-stretch flex-1 min-w-0 max-w-full overflow-x-auto overflow-y-hidden",
-            "[scrollbar-width:thin]",
-            "[scroll-snap-type:x_proximity]"
+            "flex items-stretch flex-1 min-w-0 max-w-full",
+            tabOverflow === 'scroll'
+              ? "overflow-x-auto overflow-y-hidden [scrollbar-width:thin] [scroll-snap-type:x_proximity]"
+              : "flex-wrap overflow-hidden"
           )}
           onWheel={(e) => {
             // Vertical wheel → horizontal scroll (standard on tab bars). Only

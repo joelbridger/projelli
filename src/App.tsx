@@ -1819,6 +1819,15 @@ This file contains rules and guidelines for AI assistants in this workspace.
         action: toggleBacklinks,
       },
       {
+        id: 'view.tabOverflow',
+        label: 'Toggle Tab Overflow (Scroll / Wrap)',
+        category: 'view',
+        action: () => {
+          const { tabOverflow, setTabOverflow } = useEditorStore.getState();
+          setTabOverflow(tabOverflow === 'scroll' ? 'wrap' : 'scroll');
+        },
+      },
+      {
         id: 'view.split',
         label: isSplit ? 'Close Split' : 'Split Editor',
         shortcut: 'Ctrl+\\',
