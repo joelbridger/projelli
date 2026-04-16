@@ -8,6 +8,18 @@ export interface FileVersion {
   timestamp: Date;
   size: number;
   message?: string; // Optional commit message
+  /** M5 — who made this change. 'user' when absent for pre-M5 versions. */
+  author?: 'user' | 'ai';
+  /**
+   * M5 — metadata attached when `author === 'ai'`. Lets the version
+   * history UI show the prompt + model + which hunk it applied to.
+   */
+  aiMetadata?: {
+    prompt: string;
+    model: string;
+    hunkIndex: number;
+    hunkRange: { start: number; end: number };
+  };
 }
 
 export interface VersionMetadata {
@@ -31,11 +43,24 @@ export class VersionService {
 
   /**
    * Save a new version snapshot of a file
+   *
+   * M5 — the optional `options` argument carries an author tag and
+   * (for AI-authored changes) the prompt + model + hunk range. Pre-M5
+   * callers continue to work unchanged with just a message string.
    */
   async saveVersion(
     filePath: string,
     content: string,
-    message?: string
+    message?: string,
+    options?: {
+      author?: 'user' | 'ai';
+      aiMetadata?: {
+        prompt: string;
+        model: string;
+        hunkIndex: number;
+        hunkRange: { start: number; end: number };
+      };
+    }
   ): Promise<FileVersion> {
     const version: FileVersion = {
       id: `v_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
@@ -44,6 +69,8 @@ export class VersionService {
       timestamp: new Date(),
       size: new Blob([content]).size,
       ...(message !== undefined && { message }),
+      ...(options?.author !== undefined && { author: options.author }),
+      ...(options?.aiMetadata !== undefined && { aiMetadata: options.aiMetadata }),
     };
 
     // Get or create metadata for this file
