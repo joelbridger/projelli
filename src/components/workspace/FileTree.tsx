@@ -447,8 +447,8 @@ export function FileTree({
           panelName="files"
           icon={FilePlus}
           title="No files yet"
-          description="Create a file from the toolbar above, drop files in from your desktop, or start a new Markdown note to get going."
-          shortcut="Ctrl+N"
+          description="Create a file from the toolbar above, drop files in from your desktop, or start a new Markdown note to get going. Press Ctrl+P to quickly open any file by name."
+          shortcut="Ctrl+N / Ctrl+P"
           {...(onCreateMarkdownAtRoot
             ? { cta: { label: 'New Markdown file', onClick: onCreateMarkdownAtRoot } }
             : {})}

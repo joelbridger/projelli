@@ -407,6 +407,11 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, onContentSearch, c
       {!query && (
         <div className="border-t p-3 text-xs text-muted-foreground space-y-1">
           <div className="font-medium mb-2">Search Tips:</div>
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-2 mb-2 text-foreground/80">
+            <span className="font-medium">Tip:</span> Press{' '}
+            <kbd className="px-1.5 py-0.5 rounded bg-muted text-[11px] font-mono">Ctrl+P</kbd>{' '}
+            to quickly open any file by name
+          </div>
           <div>• Searches filenames AND file content</div>
           <div>• Markdown, text, docx, xlsx, pptx, RTF are all indexed</div>
           <div>• Click a result to open the file with a match snippet</div>
