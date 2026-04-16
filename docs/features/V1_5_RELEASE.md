@@ -34,7 +34,7 @@
 | Q6 | Audit log filtering | ✅ Done | Commit `9ed4d65` — date-range + model dropdown + reset button added to `AuditLog.tsx` filter row, composes with existing action-type chips. 6 RTL integration tests |
 | Q7 | Ollama as 4th provider | 🔲 Not started | No `OllamaProvider.ts`; needs Phase 2 Rust HTTP infra first |
 | Q8 | Per-template model assignment | 🔲 Not started | `WorkflowTemplate` schema lacks `defaultProvider`/`defaultModel` fields |
-| Q9 | Haiku 4.5 free-tier default | 🔲 Not started | Not verified in `settingsStore.ts` defaults — need to check and flip |
+| Q9 | Haiku 4.5 free-tier default | ✅ Done | Commit `<q9-sha>` — new `src/utils/defaultModel.ts` helper; `AIAssistantPane.tsx` reads tier from `useLicense` and initializes selectedModels via `getDefaultModelsForTier`; `ClaudeProvider.ts` constructor fallback flipped to Haiku 4.5 |
 | Q10 | Template preview gallery | 🔲 Not started | No `website/templates/` directory; content generation work |
 | Q11 | Sample workspace on first run | 🔲 Not started | No `src/onboarding/samples/`; FirstRunWizard has no "populate samples" toggle |
 | Q12 | Smart paste URL → link | 🔲 Not started | No clipboard paste handler in MarkdownEditor; needs Phase 2 `fetch_url_title` command |

@@ -149,7 +149,10 @@ export class ClaudeProvider implements Provider {
 
   constructor(config: ClaudeProviderConfig) {
     this.apiKey = config.apiKey;
-    this.model = config.model ?? 'claude-sonnet-4-6';
+    // Q9 (Wave 1.5): when no model is specified, fall back to Claude Haiku 4.5.
+    // It's the cheapest capable Anthropic model in 2026 and a safer free-tier
+    // default than Sonnet for surfaces that forgot to pass one through.
+    this.model = config.model ?? 'claude-haiku-4-5-20251001';
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getAnthropicBaseUrl(config.baseUrl);
     this.aiRules = config.aiRules;

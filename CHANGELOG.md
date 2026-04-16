@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Claude Haiku 4.5 as free-tier default model (Q9)** — fresh installs and any code path that instantiates a Claude provider without specifying a model now land on `claude-haiku-4-5-20251001` instead of Sonnet 4.6. Pro and Lifetime users default to Sonnet 4.6 (unchanged). Users who already picked a model keep it — this only touches the out-of-box fallback.
+  - `src/utils/defaultModel.ts` — new helper `getDefaultModelForTier` / `getDefaultModelsForTier` centralizes the tier × provider default matrix. Anthropic: Haiku 4.5 free / Sonnet 4.6 paid. OpenAI: gpt-4o-mini free / gpt-4o paid. Google: Gemini 2.5 Flash free / Gemini 1.5 Pro paid.
+  - `src/components/ai/AIAssistantPane.tsx` — model dropdown initial selection routed through `getDefaultModelsForTier(tier)`; reads tier from `useLicense()`.
+  - `src/modules/models/ClaudeProvider.ts` — constructor fallback flipped from `claude-sonnet-4-6` to `claude-haiku-4-5-20251001`.
+
 - **Mermaid diagram rendering in markdown preview (Q1)** — fenced ` ```mermaid ` blocks now render as SVG diagrams in the read-only preview. Syntax errors are surfaced as a small red error block inside the diagram placeholder instead of crashing the preview.
   - `src/components/editor/MarkdownPreview.tsx` — pre-extracts mermaid blocks, runs the existing regex markdown pipeline, then renders each diagram into its placeholder via `mermaid.render()` after mount. Theme follows the app's `dark` class on `<html>`.
   - `tests/unit/markdown-preview-mermaid.test.ts` — 4 unit tests covering block extraction, multi-diagram id uniqueness, non-mermaid passthrough, and token-leak guard.

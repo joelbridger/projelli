@@ -25,6 +25,8 @@ import {
 import { ApiKeyHelpDialog } from '@/components/common/ApiKeyHelpDialog';
 import { getCorsSafeFetch, getProviderBaseUrl } from '@/modules/models/fetchUtils';
 import { openExternal } from '@/utils/openExternal';
+import { getDefaultModelsForTier } from '@/utils/defaultModel';
+import { useLicense } from '@/hooks/useLicense';
 import type { AIChatFile } from '@/types/ai';
 import type { ModelInfo } from '@/modules/models/ModelListService';
 
@@ -105,6 +107,7 @@ export function AIAssistantPane({
     requestedTab ?? 'chats'
   );
   const [showHelpDialog, setShowHelpDialog] = useState(false);
+  const { tier } = useLicense();
 
   // When the parent passes a new requestedTab (e.g. onboarding card clicked),
   // snap to it and tell the parent it was applied so it can clear the request.
@@ -120,12 +123,13 @@ export function AIAssistantPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedTab]);
 
-  // Model selection state
-  const [selectedModels, setSelectedModels] = useState<Record<string, string>>({
-    anthropic: 'claude-3-haiku-20240307',
-    openai: 'gpt-4o-mini',
-    google: 'gemini-2.5-flash',
-  });
+  // Model selection state.
+  // Defaults resolve through `getDefaultModelsForTier` (Q9 — Wave 1.5) so free-tier
+  // founders land on Claude Haiku 4.5 out of the box. Paid tiers keep Sonnet 4.6.
+  // This only seeds the initial selection; a user's explicit pick is respected.
+  const [selectedModels, setSelectedModels] = useState<Record<string, string>>(() =>
+    getDefaultModelsForTier(tier)
+  );
 
   // Transient key-flow state: drives the Save button's "Testing..." state and
   // success/error inline messages for the Save path.
