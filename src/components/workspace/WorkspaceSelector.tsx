@@ -19,7 +19,7 @@ import { WorkspaceService, createWorkspaceService } from '@/modules/workspace/Wo
 import { createFSBackend, isTauriEnvironment } from '@/modules/workspace/BackendFactory';
 import { DEFAULT_WORKSPACE_FOLDERS } from '@/modules/workspace/types';
 import { openExternal } from '@/utils/openExternal';
-import { FolderOpen, FolderPlus, Clock, AlertCircle, ExternalLink } from 'lucide-react';
+import { FolderOpen, FolderPlus, Clock, AlertCircle, ExternalLink, ChevronDown } from 'lucide-react';
 
 // Public Getting Started doc URL. The Tauri app does not bundle the docs
 // (checked src-tauri/tauri.conf.json — resources is empty), so we open the
@@ -42,6 +42,81 @@ interface WorkspaceSelectorProps {
    * Leave undefined for first-run / blocking mode (no functional dismiss shown).
    */
   onDismiss?: (() => void) | undefined;
+}
+
+/** UX-31: Max recent workspaces to show without expanding. */
+const RECENT_PREVIEW_COUNT = 3;
+
+/** UX-31: Collapsed-by-default recent workspaces section. Shows top 3
+ * entries inline; the rest are behind an expand toggle. Keeps the welcome
+ * dialog compact and focused on the primary actions. */
+function RecentWorkspacesSection({
+  workspaces,
+  isLoading,
+  isTauri,
+  onOpen,
+  formatDate,
+}: {
+  workspaces: Array<{ path: string; name: string; lastOpened: Date }>;
+  isLoading: boolean;
+  isTauri: boolean;
+  onOpen: (path: string) => void;
+  formatDate: (date: Date) => string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? workspaces : workspaces.slice(0, RECENT_PREVIEW_COUNT);
+  const hasMore = workspaces.length > RECENT_PREVIEW_COUNT;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+        <Clock className="h-4 w-4" />
+        Recent Workspaces
+      </div>
+      <Card>
+        <CardContent className="p-0">
+          <ul className="divide-y">
+            {visible.map((workspace) => (
+              <li key={workspace.path}>
+                <button
+                  className="w-full px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+                  disabled={isLoading || !isTauri}
+                  onClick={() => onOpen(workspace.path)}
+                >
+                  <div className="font-medium text-sm">{workspace.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {formatDate(workspace.lastOpened)}
+                    {!isTauri && ' \u00B7 Re-select folder to reopen'}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+      {hasMore && (
+        <button
+          data-testid="recent-workspaces-toggle"
+          type="button"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => setExpanded((prev) => !prev)}
+        >
+          <ChevronDown
+            className={cn(
+              'h-3 w-3 transition-transform',
+              expanded && 'rotate-180'
+            )}
+          />
+          {expanded ? 'Show fewer' : `Show all (${workspaces.length})`}
+        </button>
+      )}
+      {!isTauri && (
+        <p className="text-xs text-muted-foreground">
+          Note: Recent workspaces require re-selecting the folder due to browser security.
+        </p>
+      )}
+    </div>
+  );
 }
 
 export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: WorkspaceSelectorProps) {
@@ -337,38 +412,13 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
           </div>
 
           {recentWorkspaces.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <Clock className="h-4 w-4" />
-                Recent Workspaces
-              </div>
-              <Card>
-                <CardContent className="p-0">
-                  <ul className="divide-y">
-                    {recentWorkspaces.map((workspace) => (
-                      <li key={workspace.path}>
-                        <button
-                          className="w-full px-3 py-2 text-left hover:bg-muted/50 transition-colors"
-                          disabled={isLoading || !isTauri}
-                          onClick={() => handleOpenRecent(workspace.path)}
-                        >
-                          <div className="font-medium text-sm">{workspace.name}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {formatDate(workspace.lastOpened)}
-                            {!isTauri && ' · Re-select folder to reopen'}
-                          </div>
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-              {!isTauri && (
-                <p className="text-xs text-muted-foreground">
-                  Note: Recent workspaces require re-selecting the folder due to browser security.
-                </p>
-              )}
-            </div>
+            <RecentWorkspacesSection
+              workspaces={recentWorkspaces}
+              isLoading={isLoading}
+              isTauri={isTauri}
+              onOpen={handleOpenRecent}
+              formatDate={formatDate}
+            />
           )}
         </div>
       </DialogContent>
