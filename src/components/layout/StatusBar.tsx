@@ -11,6 +11,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+// M1 (v1.5) Memory: RAG indexer status badge.
+import { RagStatusBadge } from '@/components/memory/RagStatusBadge';
 
 /**
  * Extract project name from full path
@@ -279,6 +281,9 @@ export function StatusBar() {
           )}
         </>
       )}
+
+      {/* M1 (v1.5) Memory: workspace RAG indexer status. */}
+      <RagStatusBadge />
 
       {/* Tab count */}
       <div data-testid="status-bar-tab-count" className="ml-4">

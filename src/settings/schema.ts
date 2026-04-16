@@ -13,6 +13,7 @@ export type SettingCategory =
   | 'general'
   | 'editor'
   | 'ai'
+  | 'memory'
   | 'files'
   | 'shortcuts'
   | 'costs'
@@ -49,6 +50,7 @@ export const SETTING_CATEGORIES: { id: SettingCategory; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'editor', label: 'Editor' },
   { id: 'ai', label: 'AI' },
+  { id: 'memory', label: 'Memory' },
   { id: 'files', label: 'Files & Workspace' },
   { id: 'shortcuts', label: 'Keyboard Shortcuts' },
   { id: 'costs', label: 'Cost & Usage' },
@@ -190,6 +192,17 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'text', // rendered as action link
     defaultValue: '',
     action: { label: 'Manage AI Rules', actionId: 'open-ai-rules' },
+  },
+
+  // ── Memory ────────────────────────────────────────────────────────────
+  {
+    key: 'memoryEnabled',
+    category: 'memory',
+    label: 'Workspace memory',
+    description:
+      'Index your workspace files locally so AI can recall relevant context. Embeddings live on your machine — nothing is sent anywhere.',
+    type: 'toggle',
+    defaultValue: true,
   },
 
   // ── Files & Workspace ─────────────────────────────────────────────────

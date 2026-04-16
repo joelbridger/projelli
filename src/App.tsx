@@ -34,6 +34,9 @@ import { UpdateManager, manualUpdateCheck } from '@/components/updater/UpdateMan
 import { openExternal } from '@/utils/openExternal';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { useSettingsStore } from '@/stores/settingsStore';
+// M1 (v1.5) Memory: workspace RAG indexer + status UI.
+import { RagProgressBanner } from '@/components/memory/RagProgressBanner';
+import { useMemoryWiring } from '@/hooks/useMemoryWiring';
 import { GlobalDropOverlay, useGlobalFileDrop } from '@/components/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { saveFile } from '@/utils/saveFile';
@@ -188,6 +191,10 @@ function App() {
   const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore();
   const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, toggleBacklinks, splitPane, closeSplit, isSplit } = useEditorStore();
   const { runHistory, completeRun } = useWorkflowStore();
+
+  // M1 (v1.5) Memory: install the workspace RAG indexer once we know
+  // which workspace is open. Watches `rootPath` and re-arms on switch.
+  useMemoryWiring(rootPath);
 
   // Keep the AI ambient file-context store in sync with whatever tabs are
   // open. Mounted at App level so a single subscription drives every chat.
@@ -2441,6 +2448,11 @@ This file contains rules and guidelines for AI assistants in this workspace.
           </Button>
         </div>
       </header>
+
+      {/* M1 (v1.5) Memory: live indexing progress banner. Renders only
+          while the workspace indexer is running (or briefly after it
+          completes); otherwise it returns null and adds zero layout. */}
+      <RagProgressBanner />
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">

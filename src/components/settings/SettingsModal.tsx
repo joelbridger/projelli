@@ -80,14 +80,17 @@ function Toggle({
   checked,
   onChange,
   id,
+  testid,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   id?: string;
+  testid?: string;
 }) {
   return (
     <button
       id={id}
+      data-testid={testid}
       type="button"
       role="switch"
       aria-checked={checked}
@@ -106,6 +109,17 @@ function Toggle({
       />
     </button>
   );
+}
+
+/** Map a SETTINGS_SCHEMA `key` to the kebab-case test id callers know
+ *  about. Keeps test selectors stable when refactoring. */
+function settingTestid(key: string): string | undefined {
+  switch (key) {
+    case 'memoryEnabled':
+      return 'settings-memory-enabled';
+    default:
+      return undefined;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -219,15 +233,18 @@ function SettingRow({
   let control: React.ReactNode = null;
 
   switch (def.type) {
-    case 'toggle':
+    case 'toggle': {
+      const tid = settingTestid(def.key);
       control = (
         <Toggle
           id={controlId}
           checked={Boolean(value)}
           onChange={(v) => onChange(v)}
+          {...(tid ? { testid: tid } : {})}
         />
       );
       break;
+    }
 
     case 'select':
       control = (

@@ -55,8 +55,8 @@
 
 | # | Item | Status | Evidence |
 |---|---|---|---|
-| M1 | Local RAG (LanceDB + fastembed-rs + e5-small) | 🔲 Not started | No embeddings/vector code anywhere. `src-tauri/Cargo.toml` lacks `lancedb`, `fastembed`. Existing `ContentIndex.ts` is MiniSearch (full-text only) |
-| M2 | `@workspace` + Ask-my-workspace | 🔲 Not started | Depends on M1 |
+| M1 | Local RAG (LanceDB + fastembed-rs + e5-small) | ✅ Done | Commits `550c730` (Rust RAG engine: chunker + embedder + LanceDB store + 6 commands), `889bb36` (TS bindings + MemoryService toggle wrapper + 12 unit tests), `<COMMIT3>` (UI banner + status badge + settings toggle + watcher integration + useRagStatus hook + 7 unit tests). Vector store at `<workspace>/.projelli/vectors/`, 384-dim e5-small via fastembed-rs, paragraph-aware chunker, watcher-driven incremental re-index, `Settings → Memory` opt-out. 56 Rust tests + 19 new TS tests. |
+| M2 | `@workspace` + Ask-my-workspace | 🔲 Not started | Depends on M1 (✅) — ready to start. `MemoryService.retrieve()` is the single entry point M2 will call. |
 | M3 | Memory facts file + extraction | 🔲 Not started | No memory/facts infrastructure |
 | M4 | Projelli MCP server + `.mcpb` bundle | 🔲 Not started | No `src-tauri/src/bin/mcp.rs`, no MCP crate in deps |
 | M5 | Side-by-side AI editing | 🔲 Not started | `DiffViewer.tsx` exists (read-only preview, v1.0.x); no inline chat anchor, no per-hunk accept/reject |
@@ -64,7 +64,7 @@
 | M7 | Template chaining | 🔲 Not started | `WorkflowTemplate` schema has no named outputs; no chain config UI |
 | M8 | Multi-interview synthesis | 🔲 Not started | `UserInterviews.ts` is single-interview only; no synthesis template |
 
-**All 8 Mediums require work.**
+**1 of 8 Mediums shipped (M1). Mediums remaining: 7.**
 
 ---
 
@@ -157,6 +157,9 @@ Discovered during the re-audit — confirmed present in `2644a9c`:
 | `35ae3ea` | Q8 — Per-template model assignment |
 | `22bb36f` | Q14 — Wiki-link autocomplete in CodeMirror |
 | `147ead3` | Q19 — Template fork / remix |
+| `550c730` | M1 (1/3) — RAG engine: Cargo deps + chunker + embedder + LanceDB store |
+| `889bb36` | M1 (2/3) — RAG frontend bindings + MemoryService toggle wrapper |
+| `<COMMIT3>` | M1 (3/3) — UI progress banner + status badge + Memory settings toggle + watcher integration |
 
 ---
 
