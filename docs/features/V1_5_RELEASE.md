@@ -45,7 +45,7 @@
 | Q17 | `/vs-obsidian`, `/vs-notion` pages | 🔲 Not started | No `website/vs/` directory |
 | Q18 | In-app changelog on update | ✅ Done in v1.0.8 | `src/components/WhatsNew.tsx` (191 lines), `src/content/changelog.ts` (78 lines) |
 | Q19 | Template fork / remix | 🔲 Not started | No duplicate-template UI; `~/.projelli/user-templates/` path not yet referenced |
-| Q20 | API-key onboarding wizard | ✅ Done | Commit `<q20-sha>` — new `ApiKeyWizard.tsx` (3-step modal: open console → illustrated mock → paste + validate + save) with provider selector tabs. `ApiKeySetupCard.tsx` gains optional `onSaveKey` prop; when passed, the CTA launches the wizard. 7 new unit tests. |
+| Q20 | API-key onboarding wizard | ✅ Done | Commit `a69e144` — new `ApiKeyWizard.tsx` (3-step modal: open console → illustrated mock → paste + validate + save) with provider selector tabs. `ApiKeySetupCard.tsx` gains optional `onSaveKey` prop; when passed, the CTA launches the wizard. 7 new unit tests. |
 
 **Phase 1 net work: 18 of 20 Quick Wins** (Q16 and Q18 already shipped in v1.0.8).
 
@@ -134,7 +134,7 @@ Discovered during the re-audit — confirmed present in `2644a9c`:
 | `9ed4d65` | Q6 — Audit log filtering by date range and model |
 | `b827443` | Q9 — Claude Haiku 4.5 as free-tier default model |
 | `7611733` | Q11 — Seed sample workspace files on first run |
-| `<q20-sha>` | Q20 — Guided 3-step API-key onboarding wizard |
+| `a69e144` | Q20 — Guided 3-step API-key onboarding wizard |
 
 ---
 
