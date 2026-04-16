@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `src/components/common/AuditLog.tsx` — export buttons always render (previously hidden when no callback supplied). Component default-implements `downloadAudit{JSON,CSV}`; callback props still accepted as an override so callers can swap in a custom path (e.g. Tauri save dialog). New `data-testid` attributes `audit-log-export-json-btn` and `audit-log-export-csv-btn`. Filter logic routed through the shared `filterEntries` helper.
   - `tests/unit/audit-export.test.ts` — 34 tests covering CSV escaping (commas, quotes, newlines, CRLF), JSON shape, filename format, `uniqueModels`, `filterEntries` composition, and `triggerDownload` DOM side effects (object URL creation + revocation).
 
+- **Audit log filtering by date range and model (Q6)** — the filter row (toggled via the Filter button) now includes From / To date pickers and a model dropdown populated from the unique models present in the current entries. All filters compose with the existing action-type chips and free-text search. A Reset button appears once any filter is active and clears them all in one click. The filter count badge reflects every active dimension, not just action types.
+  - `src/components/common/AuditLog.tsx` — adds `dateFrom`, `dateTo`, `modelFilter` state; derives `availableModels` via `uniqueModels`; composes them through `filterEntries`. New `data-testid` attributes: `audit-log-filter-date-from`, `audit-log-filter-date-to`, `audit-log-filter-model`, `audit-log-filter-reset`. Date range is inclusive on both endpoints (local midnight to 23:59:59.999).
+  - `tests/unit/audit-log-filters.test.tsx` — 6 RTL integration tests covering date-range inclusivity, model dropdown population from data, filter composition, and reset behavior.
+
 ## [1.0.8] - 2026-04-16
 
 The first release with auto-updates. From now on, Projelli checks for new

@@ -28,6 +28,7 @@ import {
   Cpu,
   User,
   Filter,
+  X,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/types/audit';
 import { EmptyState } from './EmptyState';
@@ -35,6 +36,7 @@ import {
   downloadAuditCSV,
   downloadAuditJSON,
   filterEntries,
+  uniqueModels,
 } from '@/utils/audit-export';
 
 interface AuditLogProps {
@@ -101,19 +103,41 @@ export function AuditLog({
   const [selectedTypes, setSelectedTypes] = useState<Set<AuditActionType>>(
     new Set()
   );
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+  const [modelFilter, setModelFilter] = useState<string>('');
   const [expandedEntries, setExpandedEntries] = useState<Set<string>>(new Set());
   const [detailEntry, setDetailEntry] = useState<AuditEntry | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Filter entries (composes action type + search query via the shared helper).
+  // Unique model list derived from current entries, for the model dropdown.
+  const availableModels = useMemo(() => uniqueModels(entries), [entries]);
+
+  // Filter entries (composes action type + date range + model + search).
   const filteredEntries = useMemo(
     () =>
       filterEntries(entries, {
         actionTypes: selectedTypes,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        model: modelFilter || undefined,
         searchQuery: searchQuery || undefined,
       }),
-    [entries, selectedTypes, searchQuery]
+    [entries, selectedTypes, dateFrom, dateTo, modelFilter, searchQuery]
   );
+
+  const activeFilterCount =
+    selectedTypes.size +
+    (dateFrom ? 1 : 0) +
+    (dateTo ? 1 : 0) +
+    (modelFilter ? 1 : 0);
+
+  const handleResetFilters = useCallback(() => {
+    setSelectedTypes(new Set());
+    setDateFrom('');
+    setDateTo('');
+    setModelFilter('');
+  }, []);
 
   const handleExportJSON = useCallback(() => {
     if (onExportJSON) {
@@ -229,28 +253,84 @@ export function AuditLog({
           >
             <Filter className="h-4 w-4 mr-1" />
             Filter
-            {selectedTypes.size > 0 && (
+            {activeFilterCount > 0 && (
               <span className="ml-1 text-xs bg-primary text-primary-foreground rounded-full px-1.5">
-                {selectedTypes.size}
+                {activeFilterCount}
               </span>
             )}
           </Button>
         </div>
 
-        {/* Filter chips */}
+        {/* Filter chips + date/model pickers */}
         {showFilters && (
-          <div className="flex flex-wrap gap-1">
-            {(Object.keys(ACTION_LABELS) as AuditActionType[]).map((type) => (
-              <Button
-                key={type}
-                variant={selectedTypes.has(type) ? 'secondary' : 'outline'}
-                size="sm"
-                className="h-6 text-xs"
-                onClick={() => toggleFilter(type)}
-              >
-                {ACTION_LABELS[type]}
-              </Button>
-            ))}
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-1">
+              {(Object.keys(ACTION_LABELS) as AuditActionType[]).map((type) => (
+                <Button
+                  key={type}
+                  variant={selectedTypes.has(type) ? 'secondary' : 'outline'}
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={() => toggleFilter(type)}
+                >
+                  {ACTION_LABELS[type]}
+                </Button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="text-xs text-muted-foreground">
+                From
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  data-testid="audit-log-filter-date-from"
+                  className="ml-1 h-6 rounded border border-input bg-background px-1.5 text-xs"
+                  aria-label="Filter by date from"
+                />
+              </label>
+              <label className="text-xs text-muted-foreground">
+                To
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  data-testid="audit-log-filter-date-to"
+                  className="ml-1 h-6 rounded border border-input bg-background px-1.5 text-xs"
+                  aria-label="Filter by date to"
+                />
+              </label>
+              <label className="text-xs text-muted-foreground">
+                Model
+                <select
+                  value={modelFilter}
+                  onChange={(e) => setModelFilter(e.target.value)}
+                  data-testid="audit-log-filter-model"
+                  className="ml-1 h-6 rounded border border-input bg-background px-1.5 text-xs"
+                  aria-label="Filter by model"
+                  disabled={availableModels.length === 0}
+                >
+                  <option value="">All models</option>
+                  {availableModels.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {activeFilterCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={handleResetFilters}
+                  data-testid="audit-log-filter-reset"
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  Reset
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </div>
