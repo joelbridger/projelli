@@ -2579,6 +2579,30 @@ This file contains rules and guidelines for AI assistants in this workspace.
           {...(rootPath ? { rootPath } : {})}
           onFileTreeChange={refreshFileTree}
           onAuditLog={addAuditEntry}
+          // M2 — Citations in AI responses navigate through here. We
+          // resolve the retrieval path (workspace-relative) to the full
+          // workspace path, then reuse the existing file-open pipeline.
+          // Paragraph index is carried through so the editor can scroll
+          // if/when it wires into the M2 spec's paragraph anchor.
+          onOpenFileAtPath={async (p, paragraphIndex) => {
+            if (!rootPath) return;
+            const absPath = p.startsWith(rootPath)
+              ? p
+              : `${rootPath}/${p}`.replace(/\/+/g, '/');
+            const name = absPath.split('/').pop() ?? absPath;
+            await handleFileOpen(absPath, name);
+            // Paragraph scroll hook — editors that subscribe to this
+            // custom event can use the paragraph index to scroll. Kept
+            // decoupled so the editor integration can land later
+            // without touching this wiring.
+            if (typeof window !== 'undefined' && typeof paragraphIndex === 'number') {
+              window.dispatchEvent(
+                new CustomEvent('projelli:scroll-to-paragraph', {
+                  detail: { path: absPath, paragraphIndex },
+                }),
+              );
+            }
+          }}
           onRequestApiKeySetup={handleRequestApiKeySetup}
           workflowExecution={currentExecution}
           workflowTemplate={activeWorkflowTemplate}

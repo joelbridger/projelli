@@ -53,6 +53,12 @@ interface AIChatStore {
   sessions: Record<string, ChatSession>;
   /** Q3 — daily cost buckets keyed by local YYYY-MM-DD. */
   dailyCosts: Record<string, DailyCost>;
+  /**
+   * M2 — per-chat "Ask my workspace" toggle. When `true`, every message
+   * in that chat retrieves workspace context before the model is called.
+   * Off by default; the user enables it per chat via the header toggle.
+   */
+  askWorkspaceMode: Record<string, boolean>;
 
   // Actions
   initSession: (chatId: string, initialMessages: ChatMessage[]) => void;
@@ -65,6 +71,8 @@ interface AIChatStore {
   updateLastMessage: (chatId: string, content: string) => void;
   setDraftInput: (chatId: string, draft: string) => void;
   clearDraftInput: (chatId: string) => void;
+  /** M2 — set the Ask-my-workspace mode for a given chat. */
+  setAskWorkspaceMode: (chatId: string, enabled: boolean) => void;
   /**
    * Q3 — Record the cost and token count of a single provider response.
    * Updates both the per-chat aggregate and today's daily bucket
@@ -113,6 +121,7 @@ export const useAIChatStore = create<AIChatStore>()(
     (set) => ({
       sessions: {},
       dailyCosts: {},
+      askWorkspaceMode: {},
 
       initSession: (chatId, initialMessages) => {
         set((state) => {
@@ -224,7 +233,23 @@ export const useAIChatStore = create<AIChatStore>()(
       },
 
       clearAllSessions: () => {
-        set({ sessions: {}, dailyCosts: {} });
+        set({ sessions: {}, dailyCosts: {}, askWorkspaceMode: {} });
+      },
+
+      setAskWorkspaceMode: (chatId, enabled) => {
+        set((state) => {
+          if (!enabled) {
+            // Shrink the map when turning off so we don't grow unbounded.
+            const { [chatId]: _removed, ...rest } = state.askWorkspaceMode;
+            return { askWorkspaceMode: rest };
+          }
+          return {
+            askWorkspaceMode: {
+              ...state.askWorkspaceMode,
+              [chatId]: true,
+            },
+          };
+        });
       },
 
       updateLastMessage: (chatId, content) => {
@@ -360,7 +385,7 @@ export const useAIChatStore = create<AIChatStore>()(
     }),
     {
       name: 'ai-chat-storage', // localStorage key
-      version: 3, // Bumped for Q3 cost fields
+      version: 4, // Bumped for M2 askWorkspaceMode
       migrate: (persisted: unknown, version: number) => {
         // Older versions lack `dailyCosts`; add an empty map so the
         // store shape stays consistent. We don't retroactively compute
@@ -372,6 +397,16 @@ export const useAIChatStore = create<AIChatStore>()(
             ...next,
             sessions: next.sessions ?? {},
             dailyCosts: {},
+            askWorkspaceMode: {},
+          };
+        }
+        if (version < 4) {
+          const next = (persisted ?? {}) as Partial<AIChatStore>;
+          return {
+            ...next,
+            sessions: next.sessions ?? {},
+            dailyCosts: next.dailyCosts ?? {},
+            askWorkspaceMode: {},
           };
         }
         return persisted as AIChatStore;
@@ -438,4 +473,16 @@ export function useTodayCost(): TodayCostSummary {
       byProvider: bucket.byProvider,
     };
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// M2 — Ask-my-workspace selector
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * M2 — Subscribe to the Ask-my-workspace toggle for a specific chat.
+ * `false` when the chat has never flipped the toggle (the default).
+ */
+export function useAskWorkspaceMode(chatId: string): boolean {
+  return useAIChatStore((s) => Boolean(s.askWorkspaceMode[chatId]));
 }

@@ -194,6 +194,11 @@ interface MainPanelProps {
   onFileTreeChange?: () => void;
   onAuditLog?: (entry: Omit<import('@/types/audit').AuditEntry, 'id' | 'timestamp'>) => void;
   /**
+   * M2 — forwarded to AIChatViewer so citation chips in assistant
+   * responses can open the cited file at a specific paragraph index.
+   */
+  onOpenFileAtPath?: (path: string, paragraphIndex?: number) => void | Promise<void>;
+  /**
    * When the user clicks the UX-04 onboarding card's "Add API key" button,
    * this fires so the parent can switch to the AI Assistant sidebar + Keys
    * sub-tab. Optional — if omitted, the card still renders but its CTA is a
@@ -230,6 +235,7 @@ export function MainPanel({
   rootPath,
   onFileTreeChange,
   onAuditLog,
+  onOpenFileAtPath,
   onRequestApiKeySetup,
   workflowExecution,
   workflowTemplate,
@@ -579,6 +585,7 @@ export function MainPanel({
               {...(rootPath && { rootPath })}
               {...(onFileTreeChange && { onFileTreeChange })}
               {...(onAuditLog && { onAuditLog })}
+              {...(onOpenFileAtPath && { onOpenFileAtPath })}
               className="h-full"
             />
           </div>
@@ -627,6 +634,7 @@ export function MainPanel({
               {...(rootPath && { rootPath })}
               {...(onFileTreeChange && { onFileTreeChange })}
               {...(onAuditLog && { onAuditLog })}
+              {...(onOpenFileAtPath && { onOpenFileAtPath })}
               className="h-full"
             />
           );

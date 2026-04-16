@@ -20,6 +20,35 @@ export interface ChatMessage {
   isError?: boolean;
   /** Diagnostic info for parse errors — full raw response body, redacted */
   errorDiagnostic?: string;
+  /**
+   * M2 — workspace retrieval hits associated with this turn. For
+   * user-role messages this is the list of chunks that were retrieved
+   * and injected into the system prompt. For assistant-role messages
+   * this is a copy of the same list so the "Sources" accordion
+   * rendered below the assistant response has the data it needs to
+   * resolve inline `[filename paragraph N]` citations.
+   */
+  sources?: WorkspaceSource[];
+  /**
+   * M2 — human-readable warning surfaced inline when retrieval was
+   * attempted but couldn't run (e.g. memory toggle is off). Shown as
+   * subtle grey text below the message so the user knows the response
+   * wasn't workspace-aware.
+   */
+  workspaceHint?: string;
+}
+
+/**
+ * M2 — a single retrieval source attached to a chat message. Mirror of
+ * `RagHit` from `@/utils/tauri-commands` but redeclared here to keep
+ * `@/types/ai` free of Tauri imports (these messages are serialized to
+ * `.aichat` files and may be round-tripped in browser mode).
+ */
+export interface WorkspaceSource {
+  path: string;
+  chunkText: string;
+  score: number;
+  paragraphIndex: number;
 }
 
 /**

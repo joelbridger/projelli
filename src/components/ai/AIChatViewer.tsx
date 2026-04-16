@@ -2,11 +2,11 @@
 // Displays full chat history and allows continuing conversations
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { Send, Square, Download, Mic, MicOff, GripVertical } from 'lucide-react';
+import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import type { AIChatFile, ChatMessage } from '@/types/ai';
+import type { AIChatFile, ChatMessage, WorkspaceSource } from '@/types/ai';
 import type { AuditEntry } from '@/types/audit';
 import type { Provider } from '@/modules/models/Provider';
 import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
@@ -14,10 +14,19 @@ import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
 import { GeminiProvider } from '@/modules/models/GeminiProvider';
 import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/modules/models/fetchUtils';
 import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
-import { useAIChatStore, getDraftInput } from '@/stores/aiChatStore';
+import { useAIChatStore, getDraftInput, useAskWorkspaceMode } from '@/stores/aiChatStore';
 import { useFileContextStore } from '@/stores/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
 import { ChatCostChip } from '@/components/ai/ChatCostChip';
+import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
+import {
+  DEFAULT_WORKSPACE_TOP_K,
+  buildWorkspaceContextBlock,
+  citationBasename,
+  parseCitations,
+  parseWorkspaceCommand,
+  resolveCitationPath,
+} from '@/modules/memory/workspaceCommand';
 
 interface APIKey {
   provider: string;
@@ -34,6 +43,15 @@ interface AIChatViewerProps {
   rootPath?: string; // Workspace root path for file access tools
   onFileTreeChange?: () => void; // Callback when AI modifies files
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void; // Callback to log AI actions
+  /**
+   * M2 — called when the user clicks a citation or a source in the
+   * accordion. Resolves a workspace-relative path to a real file path
+   * (stripping any parent folders the retriever returned) and opens it
+   * in the editor. When provided, also opens the paragraph the citation
+   * references (editor integration left to the caller; the callback
+   * receives the paragraph index as an optional second arg).
+   */
+  onOpenFileAtPath?: (path: string, paragraphIndex?: number) => void | Promise<void>;
   className?: string;
 }
 
@@ -93,6 +111,200 @@ function renderMessage(content: string): string {
 }
 
 /**
+ * M2 — Render the user's `@workspace` command as a visible chip. The
+ * chip is non-interactive; it exists purely so the user can see that
+ * retrieval fired. We render it as a React fragment (not an HTML string
+ * dangerously-set into a div) so the markup stays accessible.
+ */
+function renderMessageWithWorkspaceChip(content: string): React.ReactNode {
+  // Reuse the parser to locate every occurrence of the tag, then split
+  // around them so we can replace with a styled span while keeping the
+  // surrounding markdown rendered via `renderMessage`.
+  const tagRe = /(^|[\s])@workspace(?=$|[\s\p{P}])/gu;
+  const parts: Array<{ type: 'text' | 'chip'; content: string }> = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = tagRe.exec(content)) !== null) {
+    const tagStart = m.index + (m[1]?.length ?? 0);
+    const tagEnd = tagStart + '@workspace'.length;
+    if (tagStart > last) {
+      parts.push({ type: 'text', content: content.slice(last, tagStart) });
+    }
+    parts.push({ type: 'chip', content: '@workspace' });
+    last = tagEnd;
+  }
+  if (last < content.length) {
+    parts.push({ type: 'text', content: content.slice(last) });
+  }
+  if (parts.length === 0) {
+    return (
+      <span
+        // eslint-disable-next-line react/no-danger -- markdown rendered by the pre-existing renderMessage helper
+        dangerouslySetInnerHTML={{ __html: renderMessage(content) }}
+      />
+    );
+  }
+  return (
+    <span>
+      {parts.map((p, idx) =>
+        p.type === 'chip' ? (
+          <span
+            key={`chip-${idx}`}
+            data-testid="workspace-command-chip"
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium text-xs mx-0.5 align-baseline"
+            title="Workspace retrieval will run for this message"
+          >
+            <Sparkles className="h-3 w-3" />
+            @workspace
+          </span>
+        ) : (
+          <span
+            key={`text-${idx}`}
+            // eslint-disable-next-line react/no-danger -- markdown rendered by the pre-existing renderMessage helper
+            dangerouslySetInnerHTML={{ __html: renderMessage(p.content) }}
+          />
+        ),
+      )}
+    </span>
+  );
+}
+
+/**
+ * M2 — Render an assistant response with any `[filename paragraph N]`
+ * citations turned into clickable chips that navigate to the file. The
+ * surrounding text is still rendered with the same markdown helper as
+ * before; only the citation substrings are replaced with React elements.
+ */
+function renderMessageWithCitations(
+  content: string,
+  sources: WorkspaceSource[] | undefined,
+  onCitationClick: (path: string, paragraphIndex: number) => void,
+  onMissingCitation: (basename: string) => void,
+): React.ReactNode {
+  const citations = parseCitations(content);
+  if (citations.length === 0) {
+    return (
+      <span
+        // eslint-disable-next-line react/no-danger -- markdown rendered by the pre-existing renderMessage helper
+        dangerouslySetInnerHTML={{ __html: renderMessage(content) }}
+      />
+    );
+  }
+  const pieces: React.ReactNode[] = [];
+  let last = 0;
+  citations.forEach((cite, idx) => {
+    if (cite.start > last) {
+      const text = content.slice(last, cite.start);
+      pieces.push(
+        <span
+          key={`c-pre-${idx}`}
+          // eslint-disable-next-line react/no-danger -- markdown rendered by the pre-existing renderMessage helper
+          dangerouslySetInnerHTML={{ __html: renderMessage(text) }}
+        />,
+      );
+    }
+    const resolved = resolveCitationPath(cite, sources ?? []);
+    const label = `${cite.basename} §${cite.paragraphIndex}`;
+    const testId = `chat-citation-${cite.basename}-${cite.paragraphIndex}`;
+    pieces.push(
+      <button
+        key={`cite-${idx}`}
+        type="button"
+        data-testid={testId}
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded border border-primary/30 bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 align-baseline"
+        onClick={() => {
+          if (resolved) {
+            onCitationClick(resolved, cite.paragraphIndex);
+          } else {
+            onMissingCitation(cite.basename);
+          }
+        }}
+        title={resolved ? `Open ${resolved}` : 'Source file not found'}
+      >
+        <FileText className="h-3 w-3" />
+        {label}
+      </button>,
+    );
+    last = cite.end;
+  });
+  if (last < content.length) {
+    const tail = content.slice(last);
+    pieces.push(
+      <span
+        key="c-tail"
+        // eslint-disable-next-line react/no-danger -- markdown rendered by the pre-existing renderMessage helper
+        dangerouslySetInnerHTML={{ __html: renderMessage(tail) }}
+      />,
+    );
+  }
+  return <span>{pieces}</span>;
+}
+
+/**
+ * M2 — Sources accordion shown below any assistant message whose user
+ * turn was workspace-aware. Collapsed by default; expanding reveals a
+ * list of clickable paths (basename + paragraph). Clicking a row opens
+ * the file in the editor.
+ */
+function ChatSourcesAccordion({
+  sources,
+  onOpen,
+  onMissing,
+}: {
+  sources: WorkspaceSource[];
+  onOpen: (path: string, paragraphIndex: number) => void;
+  onMissing: (path: string) => void;
+}): React.ReactElement | null {
+  const [open, setOpen] = useState(false);
+  if (!sources || sources.length === 0) return null;
+  return (
+    <div
+      data-testid="chat-sources-accordion"
+      className="mt-2 w-full max-w-[85%]"
+    >
+      <button
+        type="button"
+        data-testid="chat-sources-toggle"
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        {open ? (
+          <ChevronDown className="h-3 w-3" />
+        ) : (
+          <ChevronRight className="h-3 w-3" />
+        )}
+        {sources.length} source{sources.length === 1 ? '' : 's'}
+      </button>
+      {open && (
+        <ul className="mt-1 ml-4 space-y-1 border-l pl-2 border-muted">
+          {sources.map((s, idx) => {
+            const base = citationBasename(s.path);
+            const testId = `chat-citation-${base}-${s.paragraphIndex}`;
+            return (
+              <li key={`${s.path}-${s.paragraphIndex}-${idx}`}>
+                <button
+                  type="button"
+                  data-testid={testId}
+                  className="text-xs text-muted-foreground hover:text-foreground underline truncate max-w-full text-left"
+                  title={s.path}
+                  onClick={() => {
+                    if (s.path) onOpen(s.path, s.paragraphIndex);
+                    else onMissing(base);
+                  }}
+                >
+                  {base} §{s.paragraphIndex}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
  * Convert chat to markdown for export
  */
 function chatToMarkdown(chat: AIChatFile): string {
@@ -112,11 +324,15 @@ function chatToMarkdown(chat: AIChatFile): string {
   return markdown;
 }
 
-export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, className }: AIChatViewerProps) {
+export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onOpenFileAtPath, className }: AIChatViewerProps) {
   // Use global store for chat state (persists across navigation)
-  const { sessions, initSession, addMessage, updateLastMessage, setLoading, setDraftInput, clearDraftInput, recordCost } = useAIChatStore();
+  const { sessions, initSession, addMessage, updateLastMessage, setLoading, setDraftInput, clearDraftInput, recordCost, setAskWorkspaceMode } = useAIChatStore();
   const chatId = chatData.id;
   const session = sessions[chatId];
+  const askWorkspaceMode = useAskWorkspaceMode(chatId);
+  // M2 — surfaced inline beneath the input when a citation can't be
+  // resolved. Cleared whenever the user interacts with the input again.
+  const [missingSourceWarning, setMissingSourceWarning] = useState<string | null>(null);
 
   // Ambient file context from the editor — any open, enabled file that was
   // successfully extracted. Re-renders the viewer when files change so the
@@ -215,10 +431,58 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const handleSendMessage = useCallback(async () => {
     if (!inputValue.trim() || isLoading) return;
 
+    const rawContent = inputValue.trim();
+    const parsed = parseWorkspaceCommand(rawContent);
+    // M2 — retrieval triggers when the user explicitly tagged
+    // `@workspace`, or when the Ask-my-workspace mode is on for this
+    // chat. We call MemoryService (not raw ragRetrieve) so the Settings
+    // toggle is respected with a clean `[]` short-circuit when off.
+    const shouldRetrieve = parsed.hasCommand || askWorkspaceMode;
+    let retrievedSources: WorkspaceSource[] = [];
+    let workspaceHint: string | undefined;
+    if (shouldRetrieve) {
+      if (!isMemoryEnabled()) {
+        workspaceHint =
+          "Memory is off; this message wasn't workspace-aware.";
+      } else {
+        // If the user typed only `@workspace`, reuse the last user
+        // turn(s) as the retrieval query so the retriever has
+        // something to embed. Fall back to the raw message when no
+        // prior user turn exists.
+        let retrievalQuery = parsed.query;
+        if (retrievalQuery.length === 0) {
+          const priorUserTurns = messages
+            .filter((m) => m.role === 'user')
+            .slice(-2)
+            .map((m) => m.content)
+            .join('\n');
+          retrievalQuery = priorUserTurns || rawContent;
+        }
+        try {
+          const hits = await MemoryService.retrieve(
+            retrievalQuery,
+            DEFAULT_WORKSPACE_TOP_K,
+          );
+          retrievedSources = hits.map((h) => ({
+            path: h.path,
+            chunkText: h.chunkText,
+            score: h.score,
+            paragraphIndex: h.paragraphIndex,
+          }));
+        } catch (err) {
+          console.error('Workspace retrieval failed:', err);
+          workspaceHint =
+            "Workspace retrieval failed; this message wasn't workspace-aware.";
+        }
+      }
+    }
+
     const userMessage: ChatMessage = {
       role: 'user',
-      content: inputValue.trim(),
+      content: rawContent,
       timestamp: new Date().toISOString(),
+      ...(retrievedSources.length > 0 ? { sources: retrievedSources } : {}),
+      ...(workspaceHint ? { workspaceHint } : {}),
     };
 
     // Add user message to store (persists immediately)
@@ -226,6 +490,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     const updatedMessages = [...messages, userMessage];
     setInputValue('');
     clearDraftInput(chatId); // Clear saved draft after sending
+    setMissingSourceWarning(null);
     setLoading(chatId, true);
 
     // Call AI provider with streaming
@@ -444,9 +709,23 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         // that applies to every turn rather than a stale one-shot attachment.
         const fileBlock = buildOpenFilesPromptBlock(openFiles);
 
+        // M2 — workspace context block goes at the very top of the
+        // system prompt so the retrieval sources are the first thing
+        // the model sees. Empty string when no retrieval ran, so the
+        // non-workspace code path is byte-identical to pre-M2.
+        const workspaceBlock = buildWorkspaceContextBlock(
+          retrievedSources.map((s) => ({
+            path: s.path,
+            chunkText: s.chunkText,
+            score: s.score,
+            paragraphIndex: s.paragraphIndex,
+          })),
+        );
+        const workspacePrefix = workspaceBlock ? `${workspaceBlock}\n\n` : '';
+
         const systemPrompt = conversationContext
-          ? `${baseRole}${fileBlock} Here is the conversation history so far:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
-          : `${baseRole}${fileBlock}`;
+          ? `${workspacePrefix}${baseRole}${fileBlock} Here is the conversation history so far:\n\n${conversationContext}\n\nPlease respond to the user's latest message.`
+          : `${workspacePrefix}${baseRole}${fileBlock}`;
 
         // Use streaming if available (disabled in production Tauri builds
         // because tauri-plugin-http doesn't support ReadableStream/SSE)
@@ -468,6 +747,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             role: 'assistant',
             content: '',
             timestamp: new Date().toISOString(),
+            // M2 — mirror the retrieval hits onto the assistant message
+            // so the Sources accordion has something to render even
+            // before the stream finishes.
+            ...(retrievedSources.length > 0
+              ? { sources: retrievedSources }
+              : {}),
           };
           addMessage(chatId, streamingMessage);
 
@@ -547,6 +832,11 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             role: 'assistant',
             content: response.content,
             timestamp: new Date().toISOString(),
+            // M2 — attach retrieval sources so the accordion + citation
+            // chips rendered below the bubble have data to resolve.
+            ...(retrievedSources.length > 0
+              ? { sources: retrievedSources }
+              : {}),
           };
 
           addMessage(chatId, assistantMessage);
@@ -640,7 +930,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         setLoading(chatId, false);
       }
     })();
-  }, [inputValue, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, recordCost, clearDraftInput]);
+  }, [inputValue, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, recordCost, clearDraftInput, askWorkspaceMode]);
 
   const handleStop = useCallback(() => {
     if (abortControllerRef.current) {
@@ -743,6 +1033,31 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     }
   }, [chatData, messages, onExport]);
 
+  // M2 — citation click handler. Invoked from both inline citation
+  // chips and the Sources accordion. Calls the caller-provided
+  // `onOpenFileAtPath` (wired up in App.tsx / MainPanel). If the
+  // callback is missing (e.g. in a unit-test mount), no-op.
+  const handleCitationClick = useCallback(
+    (path: string, paragraphIndex: number) => {
+      setMissingSourceWarning(null);
+      if (onOpenFileAtPath) {
+        void onOpenFileAtPath(path, paragraphIndex);
+      }
+    },
+    [onOpenFileAtPath],
+  );
+
+  const handleMissingSource = useCallback((basename: string) => {
+    setMissingSourceWarning(
+      `Source file not found: ${basename}. Retrieval may be stale. Re-indexing...`,
+    );
+  }, []);
+
+  // M2 — Ask-my-workspace toggle handler.
+  const handleToggleAskWorkspace = useCallback(() => {
+    setAskWorkspaceMode(chatId, !askWorkspaceMode);
+  }, [askWorkspaceMode, chatId, setAskWorkspaceMode]);
+
   return (
     <div data-testid="ai-chat-viewer" className={cn('flex flex-col h-full', className)}>
       {/* Header */}
@@ -764,16 +1079,42 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             Created {new Date(chatData.created).toLocaleDateString()}
           </p>
         </div>
-        <Button
-          data-testid="chat-export-button"
-          variant="outline"
-          size="sm"
-          onClick={handleExport}
-          className="gap-2"
-        >
-          <Download className="h-4 w-4" />
-          Export
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* M2 — Ask my workspace toggle. When ON, every message in
+              this chat retrieves workspace context before calling the
+              model. Persisted per-chat in aiChatStore so flipping it
+              once sticks across navigation. */}
+          <Button
+            data-testid="ask-workspace-toggle"
+            data-enabled={askWorkspaceMode ? 'true' : 'false'}
+            variant={askWorkspaceMode ? 'default' : 'outline'}
+            size="sm"
+            onClick={handleToggleAskWorkspace}
+            className={cn(
+              'gap-2',
+              askWorkspaceMode && 'bg-primary text-primary-foreground',
+            )}
+            aria-pressed={askWorkspaceMode}
+            title={
+              askWorkspaceMode
+                ? 'Ask my workspace is ON — every message searches your files first'
+                : 'Ask my workspace is OFF — click to have every message search your files'
+            }
+          >
+            <Sparkles className="h-4 w-4" />
+            Ask my workspace
+          </Button>
+          <Button
+            data-testid="chat-export-button"
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Export
+          </Button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -819,7 +1160,6 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                   <GripVertical className="h-3.5 w-3.5" />
                 </button>
               )}
-              {/* eslint-disable-next-line react/no-danger -- markdown rendered by the pre-existing renderMessage helper above */}
               <div
                 className={cn(
                   'min-w-0 rounded-lg px-4 py-2 break-words overflow-wrap-anywhere',
@@ -829,9 +1169,36 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                       ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200'
                       : 'bg-muted'
                 )}
-                dangerouslySetInnerHTML={{ __html: renderMessage(msg.content) }}
-              />
+              >
+                {msg.role === 'user'
+                  ? renderMessageWithWorkspaceChip(msg.content)
+                  : renderMessageWithCitations(
+                      msg.content,
+                      msg.sources,
+                      handleCitationClick,
+                      handleMissingSource,
+                    )}
+              </div>
             </div>
+            {/* M2 — grey hint below the bubble when retrieval couldn't
+                run (memory off, retrieval failed, etc.). */}
+            {msg.workspaceHint && (
+              <p
+                data-testid={`chat-message-${idx}-hint`}
+                className="text-xs text-muted-foreground italic mt-1"
+              >
+                {msg.workspaceHint}
+              </p>
+            )}
+            {/* M2 — Sources accordion, only on assistant messages that
+                had workspace retrieval. */}
+            {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+              <ChatSourcesAccordion
+                sources={msg.sources}
+                onOpen={handleCitationClick}
+                onMissing={handleMissingSource}
+              />
+            )}
             {msg.isError && idx === messages.length - 1 && (
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 <button
@@ -899,6 +1266,24 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
       {/* Input */}
       <div data-testid="chat-input-area" className="border-t p-4">
+        {/* M2 — inline toast for missing source files. Rendered as a
+             dismissable strip above the input so the user can keep
+             typing while the warning is visible. */}
+        {missingSourceWarning && (
+          <div
+            data-testid="chat-missing-source-warning"
+            className="mb-2 px-3 py-2 rounded border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200 text-xs"
+          >
+            {missingSourceWarning}
+            <button
+              type="button"
+              className="ml-2 underline hover:no-underline"
+              onClick={() => setMissingSourceWarning(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         {/* Q3 — real-time cost chip, anchored bottom-right of the chat pane
              just above the input. Hover reveals today's provider breakdown. */}
         <div className="flex justify-end mb-2">
