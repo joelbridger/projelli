@@ -451,6 +451,50 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
           />
         );
       }
+      // UX-21: AI Assistant main-panel tab. Runs the same AIChatViewer as
+      // `.aichat` files but with its chatData pulled from the tab's
+      // content (or a fresh-session default if the content is empty).
+      // The tab itself is NOT written to disk — it's a transient UI
+      // surface. Closing the tab drops the conversation unless the user
+      // exports it or saves a copy from within the viewer.
+      if (tab.type === 'ai-assistant') {
+        let chatData: import('@/types/ai').AIChatFile;
+        try {
+          chatData = tab.content
+            ? (JSON.parse(tab.content) as import('@/types/ai').AIChatFile)
+            : {
+                id: tab.path,
+                title: tab.name || 'AI Assistant',
+                created: new Date().toISOString(),
+                updated: new Date().toISOString(),
+                messages: [],
+              };
+        } catch {
+          chatData = {
+            id: tab.path,
+            title: tab.name || 'AI Assistant',
+            created: new Date().toISOString(),
+            updated: new Date().toISOString(),
+            messages: [],
+          };
+        }
+        return (
+          <div data-testid="ai-assistant-tab" className="h-full">
+            <AIChatViewer
+              chatData={chatData}
+              onSave={async (updatedChat) => {
+                onContentChange(JSON.stringify(updatedChat, null, 2));
+              }}
+              apiKeys={apiKeys}
+              {...(workspaceServiceRef && { workspaceServiceRef })}
+              {...(rootPath && { rootPath })}
+              {...(onFileTreeChange && { onFileTreeChange })}
+              {...(onAuditLog && { onAuditLog })}
+              className="h-full"
+            />
+          </div>
+        );
+      }
       // Check for grid view special tab
       if (tab.path === '__grid_view__') {
         const gridViewProps: {

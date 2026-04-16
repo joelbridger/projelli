@@ -51,10 +51,14 @@ export function pathToTestId(path: string): string {
 }
 
 // Helper function to get file icon based on tab type and extension
-const getFileIcon = (tab: { name: string; type?: 'file' | 'browser' | 'whiteboard' }) => {
+const getFileIcon = (tab: { name: string; type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' }) => {
   // Check tab type first
   if (tab.type === 'browser') {
     return <Globe className="h-4 w-4 text-sky-500 flex-shrink-0" />;
+  }
+  // UX-21: AI Assistant main-panel tab uses the chat-bubble icon.
+  if (tab.type === 'ai-assistant') {
+    return <MessageSquare className="h-4 w-4 text-purple-500 flex-shrink-0" />;
   }
 
   const ext = tab.name.split('.').pop()?.toLowerCase();

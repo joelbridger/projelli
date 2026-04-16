@@ -8,7 +8,10 @@ interface OpenTab {
   isDirty: boolean;
   groupId?: string | null; // Optional group ID
   lastSaved?: number; // Timestamp of last save
-  type?: 'file' | 'browser' | 'whiteboard'; // Tab type (default: 'file' for backward compatibility)
+  // UX-21: 'ai-assistant' is a new sentinel type for the AI Assistant
+  // main-panel tab. Reusing the existing 'file' → extension routing in
+  // MainPanel doesn't work here because the tab has no file on disk.
+  type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant';
   metadata?: {
     url?: string; // For browser tabs
     favicon?: string; // For browser tabs
@@ -64,7 +67,7 @@ interface EditorState {
 
   // Actions
   openFile: (path: string, name: string, content: string) => void;
-  openTab: (path: string, name: string, content: string, type?: 'file' | 'browser' | 'whiteboard', metadata?: { url?: string; favicon?: string }) => void;
+  openTab: (path: string, name: string, content: string, type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant', metadata?: { url?: string; favicon?: string }) => void;
   closeTab: (path: string) => void;
   closeTabsByPath: (path: string) => void; // Close all tabs for a deleted file
   setActiveTab: (path: string) => void;
@@ -463,6 +466,24 @@ export const useEditorStore = create<EditorState>()(
             isDirty: false,
             groupId: tab.groupId ?? null,
             type: 'browser',
+            ...(meta ? { metadata: meta } : {}),
+          });
+          continue;
+        }
+
+        // UX-21: AI Assistant main-panel tabs. Content is transient — we
+        // don't try to restore old chat state from disk (there's no file
+        // on disk in the first place). Restoring the tab gives the user
+        // a fresh empty AI surface; prior sessions are lost if the app
+        // was closed mid-conversation.
+        if (tab.type === 'ai-assistant') {
+          restoredTabs.push({
+            path: tab.path,
+            name: tab.name,
+            content: '',
+            isDirty: false,
+            groupId: tab.groupId ?? null,
+            type: 'ai-assistant',
             ...(meta ? { metadata: meta } : {}),
           });
           continue;

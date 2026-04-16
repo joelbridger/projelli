@@ -790,6 +790,22 @@ function App() {
     [openTab]
   );
 
+  // UX-21: open (or focus) the AI Assistant as a main-panel tab. We look
+  // for an existing `ai-assistant` tab first so Ctrl+Shift+A doesn't spam
+  // new tabs, then fall back to creating a fresh one. The sidebar AI pane
+  // keeps working independently — this is purely additive.
+  const openAIAssistantTab = useCallback(() => {
+    const existing = useEditorStore
+      .getState()
+      .openTabs.find((t) => t.type === 'ai-assistant');
+    if (existing) {
+      useEditorStore.getState().setActiveTab(existing.path);
+      return;
+    }
+    const tabPath = `__ai_assistant__${Date.now()}`;
+    openTab(tabPath, 'AI Assistant', '', 'ai-assistant');
+  }, [openTab]);
+
   // Handle file save
   const handleSaveFile = useCallback(
     async (path: string, content: string) => {
@@ -1863,9 +1879,15 @@ This file contains rules and guidelines for AI assistants in this workspace.
       }
 
       // Open AI Assistant: Ctrl+Shift+A
+      //
+      // UX-21: opens AI Assistant as a MAIN-PANEL tab (the cramped sidebar
+      // was never where chat wanted to live). If a main-panel AI tab is
+      // already open we just focus it; otherwise we create a fresh one.
+      // The legacy sidebar button still flips the sidebar to the AI pane,
+      // so power users who liked the sidebar layout keep their workflow.
       if (isMod && e.shiftKey && e.key === 'a') {
         e.preventDefault();
-        setSidebarActiveTab('ai-assistant');
+        openAIAssistantTab();
         return;
       }
 
@@ -1946,7 +1968,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, setFileTree, handleFileOpen, handleRestoreFromTrash]);
+  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, setFileTree, handleFileOpen, handleRestoreFromTrash, openAIAssistantTab]);
 
   // Show workspace selector if no workspace is open (unless in test mode)
   if (!IS_TEST_MODE && (showWorkspaceSelector || !rootPath)) {
@@ -2099,6 +2121,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onOpenAIRules={handleOpenAIRules}
               requestedTab={aiAssistantRequestedTab}
               onRequestedTabApplied={() => setAiAssistantRequestedTab(undefined)}
+              onPopOut={openAIAssistantTab}
             />
           }
           researchContent={

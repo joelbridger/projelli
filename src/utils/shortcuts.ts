@@ -99,7 +99,7 @@ export const SHORTCUTS: ShortcutDef[] = [
     label: 'Open AI Assistant',
     keys: ['Ctrl', 'Shift', 'A'],
     category: 'AI',
-    description: 'Focus the AI Assistant sidebar pane',
+    description: 'Open AI Assistant in a main-panel tab',
   },
 ];
 

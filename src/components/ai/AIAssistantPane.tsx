@@ -20,6 +20,7 @@ import {
   Settings,
   ExternalLink,
   X,
+  Maximize2,
 } from 'lucide-react';
 import { ApiKeyHelpDialog } from '@/components/common/ApiKeyHelpDialog';
 import { getCorsSafeFetch, getProviderBaseUrl } from '@/modules/models/fetchUtils';
@@ -55,6 +56,12 @@ interface AIAssistantPaneProps {
    * one-shot request (otherwise re-renders would keep snapping back to it).
    */
   onRequestedTabApplied?: () => void;
+  /**
+   * UX-21: when provided, renders a "Pop out to tab" button in the header
+   * that opens the AI Assistant as a main-panel tab. The sidebar pane
+   * keeps existing unchanged — the pop-out is additive.
+   */
+  onPopOut?: () => void;
   className?: string;
 }
 
@@ -91,6 +98,7 @@ export function AIAssistantPane({
   onOpenAIRules,
   requestedTab,
   onRequestedTabApplied,
+  onPopOut,
   className,
 }: AIAssistantPaneProps) {
   const [activeTab, setActiveTab] = useState<'chats' | 'keys' | 'settings'>(
@@ -288,6 +296,22 @@ export function AIAssistantPane({
             >
               <FileText className="h-3 w-3" />
               Rules
+            </Button>
+          )}
+          {/* UX-21: pop the AI Assistant out into a main-panel tab where it
+              gets the full editor width instead of the narrow sidebar slot. */}
+          {onPopOut && (
+            <Button
+              data-testid="ai-pop-out-button"
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs gap-1 shrink-0"
+              onClick={onPopOut}
+              title="Open AI Assistant in a main-panel tab (Ctrl+Shift+A)"
+              aria-label="Open AI Assistant in a main-panel tab"
+            >
+              <Maximize2 className="h-3 w-3" />
+              Pop out
             </Button>
           )}
         </div>

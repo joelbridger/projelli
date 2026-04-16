@@ -1,7 +1,7 @@
 // AI Chat Viewer Component
 // Displays full chat history and allows continuing conversations
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Send, Square, Download, Mic, MicOff, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -120,7 +120,21 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // Ambient file context from the editor — any open, enabled file that was
   // successfully extracted. Re-renders the viewer when files change so the
   // next message picks up the freshest snapshot automatically.
-  const openFiles = useFileContextStore((s) => s.getActiveContexts());
+  //
+  // NOTE: select the raw bags of state (not the computed `getActiveContexts`
+  // result) so the zustand snapshot is stable. Computing a new array on
+  // every selector call caused a React 18 "getSnapshot should be cached"
+  // infinite-loop warning when rendered alongside tab-change-driven
+  // context updates.
+  const contexts = useFileContextStore((s) => s.contexts);
+  const disabledPaths = useFileContextStore((s) => s.disabledPaths);
+  const openFiles = useMemo<ExtractedContext[]>(() => {
+    const out: ExtractedContext[] = [];
+    for (const [path, ctx] of Object.entries(contexts)) {
+      if (!disabledPaths[path]) out.push(ctx);
+    }
+    return out;
+  }, [contexts, disabledPaths]);
 
   // Initialize input with saved draft (persists across navigation)
   const [inputValue, setInputValue] = useState(() => getDraftInput(chatId));
