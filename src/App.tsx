@@ -94,6 +94,7 @@ function App() {
 
   // Workflow state
   const [currentExecution, setCurrentExecution] = useState<WorkflowExecution | null>(null);
+  const [activeWorkflowTemplate, setActiveWorkflowTemplate] = useState<WorkflowTemplate | null>(null);
   const [interviewQuestions, setInterviewQuestions] = useState<InterviewQuestion[] | null>(null);
   const [interviewResolver, setInterviewResolver] = useState<((answers: Record<string, string>) => void) | null>(null);
   const [interviewRejecter, setInterviewRejecter] = useState<((error: Error) => void) | null>(null);
@@ -1663,7 +1664,7 @@ function App() {
       );
 
       try {
-        setCurrentExecution({
+        const initialExecution: WorkflowExecution = {
           runId: `temp_${Date.now()}`,
           template,
           currentStepIndex: 0,
@@ -1671,10 +1672,18 @@ function App() {
           inputs: {},
           stepOutputs: [],
           startTime: new Date(),
-        });
+        };
+        setCurrentExecution(initialExecution);
+        setActiveWorkflowTemplate(template);
+
+        // Open a workflow-execution tab in the main panel
+        const tabPath = `__workflow_exec_${Date.now()}__`;
+        openTab(tabPath, template.name, '', 'workflow-execution');
 
         const runRecord = await engine.execute(template);
         completeRun(runRecord);
+        // Keep template around so the completed tab can still show output.
+        // setActiveWorkflowTemplate is cleared only on cancel.
         setCurrentExecution(null);
 
         // Refresh file tree after workflow completes
@@ -1685,7 +1694,7 @@ function App() {
         setCurrentExecution(null);
       }
     },
-    [rootPath, setFileTree, completeRun, apiKeys]
+    [rootPath, setFileTree, completeRun, apiKeys, openTab]
   );
 
   // Handle interview form submission
@@ -1713,8 +1722,79 @@ function App() {
     setInterviewResolver(null);
     setInterviewRejecter(null);
     setCurrentExecution(null);
+    setActiveWorkflowTemplate(null);
   }, [interviewRejecter]);
 
+  // Workflow execution tab: save output as a markdown file
+  const handleWorkflowSaveAsFile = useCallback(
+    async (content: string, suggestedName: string) => {
+      try {
+        await saveFile(content, {
+          suggestedName,
+          types: [{ description: 'Markdown Files', accept: { 'text/markdown': ['.md'] } }],
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.error('Failed to save workflow output:', error);
+        }
+      }
+    },
+    []
+  );
+
+  // Workflow execution tab: export output as .docx
+  const handleWorkflowExportDocx = useCallback(
+    async (content: string, suggestedName: string) => {
+      try {
+        const { markdownToDocxBytes } = await import('@/utils/docx-io');
+        const bytes = await markdownToDocxBytes(content, suggestedName);
+        await saveFile(bytes, {
+          suggestedName,
+          types: [
+            {
+              description: 'Word Documents',
+              accept: {
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+                  ['.docx'],
+              },
+            },
+          ],
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.error('Failed to export workflow output as .docx:', error);
+        }
+      }
+    },
+    []
+  );
+
+  // Workflow execution tab: export output as .pptx
+  const handleWorkflowExportPptx = useCallback(
+    async (content: string, suggestedName: string) => {
+      try {
+        const { markdownToPptxBytes } = await import('@/utils/pptx-io');
+        const bytes = await markdownToPptxBytes(content);
+        await saveFile(bytes, {
+          suggestedName,
+          types: [
+            {
+              description: 'PowerPoint Presentations',
+              accept: {
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation':
+                  ['.pptx'],
+              },
+            },
+          ],
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          console.error('Failed to export workflow output as .pptx:', error);
+        }
+      }
+    },
+    []
+  );
 
   // Handle opening AI Rules file
   const handleOpenAIRules = useCallback(async () => {
@@ -2165,6 +2245,13 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onStartWorkflow={handleStartWorkflow}
               currentExecution={currentExecution}
               runHistory={runHistory}
+              onFocusExecutionTab={() => {
+                // Find the workflow-execution tab and focus it
+                const execTab = openTabs.find((t) => t.type === 'workflow-execution');
+                if (execTab) {
+                  useEditorStore.getState().setActiveTab(execTab.path);
+                }
+              }}
             />
           }
           aiAssistantContent={
@@ -2220,7 +2307,26 @@ This file contains rules and guidelines for AI assistants in this workspace.
         />
 
         {/* Main editor panel */}
-        <MainPanel onFileOpen={handleFileOpen} onMove={handleMove} onRename={handleRenameWithName} onDownload={handleDownload} apiKeys={apiKeys} workspaceServiceRef={workspaceServiceRef} {...(rootPath ? { rootPath } : {})} onFileTreeChange={refreshFileTree} onAuditLog={addAuditEntry} onRequestApiKeySetup={handleRequestApiKeySetup} />
+        <MainPanel
+          onFileOpen={handleFileOpen}
+          onMove={handleMove}
+          onRename={handleRenameWithName}
+          onDownload={handleDownload}
+          apiKeys={apiKeys}
+          workspaceServiceRef={workspaceServiceRef}
+          {...(rootPath ? { rootPath } : {})}
+          onFileTreeChange={refreshFileTree}
+          onAuditLog={addAuditEntry}
+          onRequestApiKeySetup={handleRequestApiKeySetup}
+          workflowExecution={currentExecution}
+          workflowTemplate={activeWorkflowTemplate}
+          workflowInterviewQuestions={interviewQuestions}
+          onWorkflowInterviewSubmit={handleInterviewSubmit}
+          onWorkflowCancel={handleInterviewCancel}
+          onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
+          onWorkflowExportDocx={handleWorkflowExportDocx}
+          onWorkflowExportPptx={handleWorkflowExportPptx}
+        />
       </div>
 
       {/* Status bar */}

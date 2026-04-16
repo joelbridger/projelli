@@ -54,12 +54,15 @@ export function pathToTestId(path: string): string {
 // UX-37: Helper function to get file icon based on tab type and extension.
 // Uses the shared getFileIcon SSOT from utils/fileIcons.ts for file tabs,
 // with special-case overrides for non-file tab types (browser, AI assistant).
-const getTabIcon = (tab: { name: string; type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' }) => {
+const getTabIcon = (tab: { name: string; type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' | 'workflow-execution' }) => {
   if (tab.type === 'browser') {
     return <Globe className="h-4 w-4 text-sky-500 flex-shrink-0" />;
   }
   if (tab.type === 'ai-assistant') {
     return <MessageSquare className="h-4 w-4 text-purple-500 flex-shrink-0" />;
+  }
+  if (tab.type === 'workflow-execution') {
+    return <Sparkles className="h-4 w-4 text-amber-500 flex-shrink-0" />;
   }
   const ext = tab.name.split('.').pop()?.toLowerCase();
   const { Icon, color } = getFileIcon(ext);

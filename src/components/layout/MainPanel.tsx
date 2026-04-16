@@ -45,6 +45,7 @@ import { FileGridView } from '@/components/workspace/FileGridView';
 import { WaveformEditor } from '@/components/audio/WaveformEditor';
 import { VersionHistoryPanel } from '@/components/version/VersionHistoryPanel';
 import { BrowserPanel } from '@/components/workflow/BrowserPanel';
+import { WorkflowExecutionTab } from '@/components/workflow/WorkflowExecutionTab';
 import { getVersionService } from '@/modules/versioning/VersionService';
 import { useEditorStore } from '@/stores/editorStore';
 import {
@@ -165,6 +166,12 @@ async function downloadFileWithDialog(content: string | Blob, filename: string, 
   }
 }
 
+import type {
+  WorkflowTemplate,
+  WorkflowExecution,
+  InterviewQuestion,
+} from '@/types/workflow';
+
 interface APIKey {
   provider: string;
   key: string;
@@ -188,9 +195,46 @@ interface MainPanelProps {
    * no-op (not a realistic production state; present for safety).
    */
   onRequestApiKeySetup?: () => void;
+
+  // Workflow execution tab support
+  /** The active workflow execution state (null when no workflow is running). */
+  workflowExecution?: WorkflowExecution | null;
+  /** The template for the active workflow execution. */
+  workflowTemplate?: WorkflowTemplate | null;
+  /** Interview questions for the current workflow step (null when not interviewing). */
+  workflowInterviewQuestions?: InterviewQuestion[] | null;
+  /** Called when the user submits interview answers in the workflow tab. */
+  onWorkflowInterviewSubmit?: (answers: Record<string, string>) => void;
+  /** Called when the user cancels the running workflow. */
+  onWorkflowCancel?: () => void;
+  /** Called to save workflow output as a file. */
+  onWorkflowSaveAsFile?: (content: string, suggestedName: string) => void;
+  /** Called to export workflow output as .docx. */
+  onWorkflowExportDocx?: (content: string, suggestedName: string) => void;
+  /** Called to export workflow output as .pptx. */
+  onWorkflowExportPptx?: (content: string, suggestedName: string) => void;
 }
 
-export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onRequestApiKeySetup }: MainPanelProps = {}) {
+export function MainPanel({
+  onFileOpen,
+  onMove,
+  onRename,
+  onDownload,
+  apiKeys = [],
+  workspaceServiceRef,
+  rootPath,
+  onFileTreeChange,
+  onAuditLog,
+  onRequestApiKeySetup,
+  workflowExecution,
+  workflowTemplate,
+  workflowInterviewQuestions,
+  onWorkflowInterviewSubmit,
+  onWorkflowCancel,
+  onWorkflowSaveAsFile,
+  onWorkflowExportDocx,
+  onWorkflowExportPptx,
+}: MainPanelProps = {}) {
   const {
     openTabs,
     activeTabPath,
@@ -449,6 +493,25 @@ export function MainPanel({ onFileOpen, onMove, onRename, onDownload, apiKeys = 
             {...(tab.metadata?.url ? { initialUrl: tab.metadata.url } : {})}
             className="h-full"
           />
+        );
+      }
+      // Workflow execution tab — shows live step progress, interview forms,
+      // and final output inside the main panel instead of the sidebar.
+      if (tab.type === 'workflow-execution' && workflowTemplate) {
+        return (
+          <div data-testid="workflow-execution-tab-wrapper" className="h-full">
+            <WorkflowExecutionTab
+              template={workflowTemplate}
+              execution={workflowExecution ?? null}
+              interviewQuestions={workflowInterviewQuestions ?? null}
+              onInterviewSubmit={(answers) => onWorkflowInterviewSubmit?.(answers)}
+              onCancel={() => onWorkflowCancel?.()}
+              {...(onWorkflowSaveAsFile ? { onSaveAsFile: onWorkflowSaveAsFile } : {})}
+              {...(onWorkflowExportDocx ? { onExportDocx: onWorkflowExportDocx } : {})}
+              {...(onWorkflowExportPptx ? { onExportPptx: onWorkflowExportPptx } : {})}
+              className="h-full"
+            />
+          </div>
         );
       }
       // UX-21: AI Assistant main-panel tab. Runs the same AIChatViewer as

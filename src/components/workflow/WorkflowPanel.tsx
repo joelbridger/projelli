@@ -31,12 +31,15 @@ interface WorkflowPanelProps {
   onStartWorkflow: (template: WorkflowTemplate) => void;
   currentExecution: WorkflowExecution | null;
   runHistory: RunRecord[];
+  /** Callback to focus the workflow-execution tab in the main panel. */
+  onFocusExecutionTab?: () => void;
 }
 
 export function WorkflowPanel({
   onStartWorkflow,
   currentExecution,
   runHistory,
+  onFocusExecutionTab,
 }: WorkflowPanelProps) {
   const [showFullView, setShowFullView] = useState(false);
 
@@ -129,33 +132,22 @@ export function WorkflowPanel({
         {currentExecution && (
           <div>
             <h3 className="text-sm font-semibold mb-3">Current Execution</h3>
-            <Card>
+            <Card
+              className="cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={onFocusExecutionTab}
+            >
               <CardContent className="p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                  <span className="text-sm font-medium">{currentExecution.template.name}</span>
-                </div>
-                <div className="space-y-1">
-                  {currentExecution.template.steps.map((step, index) => (
-                    <div key={step.id} className="flex items-center gap-2 text-xs">
-                      {index < currentExecution.currentStepIndex ? (
-                        <CheckCircle className="h-3 w-3 text-green-500" />
-                      ) : index === currentExecution.currentStepIndex ? (
-                        <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
-                      ) : (
-                        <Clock className="h-3 w-3 text-muted-foreground" />
-                      )}
-                      <span
-                        className={
-                          index === currentExecution.currentStepIndex
-                            ? 'font-medium'
-                            : 'text-muted-foreground'
-                        }
-                      >
-                        {step.name}
-                      </span>
-                    </div>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium block truncate">
+                      {currentExecution.template.name}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Step {currentExecution.currentStepIndex + 1} of{' '}
+                      {currentExecution.template.steps.length} &mdash; click to view
+                    </span>
+                  </div>
                 </div>
               </CardContent>
             </Card>

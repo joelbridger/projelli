@@ -11,7 +11,7 @@ interface OpenTab {
   // UX-21: 'ai-assistant' is a new sentinel type for the AI Assistant
   // main-panel tab. Reusing the existing 'file' → extension routing in
   // MainPanel doesn't work here because the tab has no file on disk.
-  type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant';
+  type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' | 'workflow-execution';
   metadata?: {
     url?: string; // For browser tabs
     favicon?: string; // For browser tabs
@@ -71,7 +71,7 @@ interface EditorState {
 
   // Actions
   openFile: (path: string, name: string, content: string) => void;
-  openTab: (path: string, name: string, content: string, type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant', metadata?: { url?: string; favicon?: string }) => void;
+  openTab: (path: string, name: string, content: string, type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' | 'workflow-execution', metadata?: { url?: string; favicon?: string }) => void;
   closeTab: (path: string) => void;
   closeTabsByPath: (path: string) => void; // Close all tabs for a deleted file
   setActiveTab: (path: string) => void;
@@ -499,6 +499,12 @@ export const useEditorStore = create<EditorState>()(
             type: 'ai-assistant',
             ...(meta ? { metadata: meta } : {}),
           });
+          continue;
+        }
+
+        // Workflow-execution tabs are transient (running workflow state
+        // is in-memory). Don't restore them on reload.
+        if (tab.type === 'workflow-execution') {
           continue;
         }
 
