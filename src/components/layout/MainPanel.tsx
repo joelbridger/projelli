@@ -778,6 +778,18 @@ export function MainPanel({
           initialContent={tab.content}
           onChange={onContentChange}
           filePath={tab.path}
+          writeImage={async ({ path, bytes }) => {
+            // Q13 — route image paste writes through the same
+            // WorkspaceService the rest of the app uses. The service
+            // creates parent folders on demand, so `media/YYYY-MM/` is
+            // handled automatically.
+            const service = workspaceServiceRef?.current;
+            if (!service) return;
+            if (await service.exists(path)) return;
+            await service.writeFileBinary(path, bytes);
+            onFileTreeChange?.();
+          }}
+          hasWorkspace={() => Boolean(workspaceServiceRef?.current)}
         />
       );
     };

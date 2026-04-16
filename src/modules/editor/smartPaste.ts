@@ -1,26 +1,27 @@
 /**
- * Q12 (Wave 1.4) — smart URL paste for the Markdown editor.
+ * Q12 + Q13 (Wave 1.4) — smart paste handlers for the Markdown editor.
  *
- * When the user pastes a single http(s) URL into the editor we:
- *   1. insert `[Fetching title...](url)` at the cursor so they see
- *      immediate feedback;
- *   2. fire `fetchUrlTitle(url)` in the background (the default lives
- *      in `@/utils/tauri-commands` and goes through the Phase 2 Rust
- *      `fetch_url_title` command with its 5 s timeout, 10 MiB body cap,
- *      5-redirect limit, and empty-string-on-error contract);
- *   3. swap the placeholder for `[title](url)` on success, or for the
- *      raw URL on empty / error.
+ * This module packages two paste behaviors into a single CodeMirror
+ * `EditorView.domEventHandlers` extension:
  *
- * If the paste lands over a non-empty selection, we treat it as
- * "linkify the selection" and insert `[selected-text](url)` without a
- * placeholder round-trip.
+ *   1. **Smart URL paste** (Q12) — if the clipboard text is a lone URL,
+ *      we insert `[Fetching title...](url)` immediately, kick off
+ *      `fetchUrlTitle(url)`, and swap the placeholder for `[title](url)`
+ *      when the title arrives. An empty title (timeout / error) resolves
+ *      to the raw URL with no brackets. Pasting a URL over a selection
+ *      is treated as "linkify the selection": `[selected-text](url)`.
  *
- * If the paste lands inside a code block (fenced or inline) we skip the
- * smart path and let CodeMirror paste verbatim — URLs inside code
- * blocks should remain URLs, not links.
+ *   2. **Image paste auto-save** (Q13) — if the clipboard carries an
+ *      `image/*` item, we SHA-256 the bytes, write the file to
+ *      `<workspace>/media/YYYY-MM/image-<hash12>.<ext>`, and insert
+ *      `![](media/YYYY-MM/image-<hash12>.<ext>)` at the cursor. Duplicate
+ *      paste of the same bytes reuses the existing file.
  *
- * Q13 (image paste) is not part of this module yet; it lands in a
- * follow-up commit.
+ * Everything below is dependency-injected so tests (and the live editor)
+ * wire their own `fetchUrlTitle`, `writeImage`, toast helper, etc. The
+ * pure helpers (`isSingleUrl`, `hashImageBytes`, `mimeToExtension`,
+ * `buildImageMediaPath`) are exported separately so they can be unit
+ * tested without touching CodeMirror.
  */
 
 import { EditorView } from '@codemirror/view';
@@ -28,6 +29,9 @@ import { EditorView } from '@codemirror/view';
 // ---------------------------------------------------------------------
 // Pure helpers — exported for direct unit tests.
 // ---------------------------------------------------------------------
+
+/** Max image size we'll auto-save. 20 MiB matches the spec. */
+export const IMAGE_PASTE_MAX_BYTES = 20 * 1024 * 1024;
 
 /** Matches a whitespace-trimmed, single-token URL. Intentionally strict
  *  — anything with internal whitespace is not a "single URL paste". */
@@ -39,6 +43,64 @@ export function isSingleUrl(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
   return SINGLE_URL_REGEX.test(trimmed);
+}
+
+/** Map a clipboard / File MIME type to a lowercase file extension
+ *  (without the leading dot). Returns `null` for types we don't handle. */
+export function mimeToExtension(mime: string): string | null {
+  const m = mime.toLowerCase();
+  if (m === 'image/png') return 'png';
+  if (m === 'image/jpeg' || m === 'image/jpg') return 'jpg';
+  if (m === 'image/gif') return 'gif';
+  if (m === 'image/webp') return 'webp';
+  return null;
+}
+
+/**
+ * Format a `Date` as `YYYY-MM` for the per-month media bucket folder.
+ * Defaults to `new Date()` so callers can inject a fixed clock in tests.
+ */
+export function formatYearMonth(d: Date = new Date()): string {
+  const year = d.getFullYear().toString().padStart(4, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+/** Compute the first 12 hex characters of SHA-256(bytes). Uses the
+ *  Web Crypto API (available in Tauri's WebView and in jsdom's polyfill).
+ *  12 hex chars = 48 bits of hash space, plenty for per-workspace image
+ *  deduping. */
+export async function hashImageBytes(bytes: ArrayBuffer): Promise<string> {
+  // Wrap in a Uint8Array so `crypto.subtle.digest` accepts the input
+  // across runtimes (Node, Tauri WebView, jsdom). The spec allows
+  // either an ArrayBuffer or an ArrayBufferView, but jsdom's check is
+  // stricter about which realm the ArrayBuffer came from.
+  const input = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes;
+  const digest = await crypto.subtle.digest('SHA-256', input);
+  const view = new Uint8Array(digest);
+  let hex = '';
+  for (let i = 0; i < 6; i += 1) {
+    hex += (view[i] ?? 0).toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+export interface BuildImagePathArgs {
+  /** 12-hex-char content hash. */
+  hash: string;
+  /** File extension without the leading dot (e.g. `png`). */
+  extension: string;
+  /** `YYYY-MM` bucket folder. */
+  yearMonth: string;
+}
+
+/** Workspace-relative path used both on disk and in the inserted Markdown. */
+export function buildImageMediaPath({
+  hash,
+  extension,
+  yearMonth,
+}: BuildImagePathArgs): string {
+  return `media/${yearMonth}/image-${hash}.${extension}`;
 }
 
 /**
@@ -95,10 +157,36 @@ export function isInsideCodeBlock(doc: string, cursor: number): boolean {
  */
 export type FetchUrlTitle = (url: string) => Promise<string>;
 
+/**
+ * Signature of the image-writer. Implementations (the live editor's
+ * adapter around `WorkspaceService`) are responsible for:
+ *   - checking if the target path already exists (dedupe by hash);
+ *   - creating the `media/YYYY-MM/` folder if missing;
+ *   - writing the bytes with `writeFileBinary`.
+ * The function MUST be idempotent for the same hash.
+ */
+export type WriteImage = (args: {
+  path: string;
+  bytes: ArrayBuffer;
+}) => Promise<void>;
+
+/** Minimal toast surface we need from the parent. */
+export type ShowToast = (message: string) => void;
+
+/** Optional clock injection so tests can pin `YYYY-MM`. */
+export type NowProvider = () => Date;
+
 export interface SmartPasteHandlerOptions {
   fetchUrlTitle: FetchUrlTitle;
+  writeImage?: WriteImage | undefined;
+  /** Returns true when a workspace is open. Image paste is disabled when false. */
+  hasWorkspace?: (() => boolean) | undefined;
+  showToast?: ShowToast | undefined;
+  now?: NowProvider | undefined;
   /** Hook so tests can observe the final state after an async title fetch. */
   onUrlPasteResolved?: ((result: { url: string; title: string }) => void) | undefined;
+  /** Hook for tests to observe the image-write outcome. */
+  onImagePasteResolved?: ((result: { path: string; bytes: ArrayBuffer }) => void) | undefined;
 }
 
 // ---------------------------------------------------------------------
@@ -154,17 +242,43 @@ export function resolveUrlPasteReplacement(url: string, title: string): string {
 
 /**
  * Build the CodeMirror `paste` handler extension. Returns an
- * `EditorView.domEventHandlers` so URL paste, (future) image paste,
- * and the fall-through to default paste all live in one place.
+ * `EditorView.domEventHandlers` so all three behaviors (URL paste, image
+ * paste, and the fall-through to default paste) live in one place.
  */
 export function createSmartPasteExtension(options: SmartPasteHandlerOptions) {
-  const { fetchUrlTitle, onUrlPasteResolved } = options;
+  const {
+    fetchUrlTitle,
+    writeImage,
+    hasWorkspace,
+    showToast,
+    now,
+    onUrlPasteResolved,
+    onImagePasteResolved,
+  } = options;
 
   return EditorView.domEventHandlers({
     paste: (event: ClipboardEvent, view: EditorView) => {
       const cd = event.clipboardData;
       if (!cd) return false;
 
+      // ---- Image paste (Q13) — handled first so `image/png` + text
+      //      clipboard payloads prioritize the image branch. -----------
+      const imageItem = findImageItem(cd);
+      if (imageItem) {
+        event.preventDefault();
+        void handleImagePaste({
+          item: imageItem,
+          view,
+          writeImage,
+          hasWorkspace,
+          showToast,
+          now,
+          onImagePasteResolved,
+        });
+        return true;
+      }
+
+      // ---- URL paste (Q12). ----------------------------------------
       const rawText = cd.getData('text/plain');
       if (rawText && isSingleUrl(rawText)) {
         const { from, to } = view.state.selection.main;
@@ -181,7 +295,7 @@ export function createSmartPasteExtension(options: SmartPasteHandlerOptions) {
           to,
           url,
           fetchUrlTitle,
-          ...(onUrlPasteResolved ? { onUrlPasteResolved } : {}),
+          onUrlPasteResolved,
         });
         return true;
       }
@@ -255,4 +369,111 @@ function handleUrlPaste({
     });
     onUrlPasteResolved?.({ url, title });
   })();
+}
+
+// ---------------------------------------------------------------------
+// Image paste implementation.
+// ---------------------------------------------------------------------
+
+/** Pull the first `image/*` item out of a `DataTransfer`, if any. */
+function findImageItem(data: DataTransfer): DataTransferItem | null {
+  for (let i = 0; i < data.items.length; i += 1) {
+    const item = data.items[i];
+    if (!item) continue;
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      return item;
+    }
+  }
+  return null;
+}
+
+interface HandleImagePasteArgs {
+  item: DataTransferItem;
+  view: EditorView;
+  writeImage?: WriteImage | undefined;
+  hasWorkspace?: (() => boolean) | undefined;
+  showToast?: ShowToast | undefined;
+  now?: NowProvider | undefined;
+  onImagePasteResolved?: ((result: { path: string; bytes: ArrayBuffer }) => void) | undefined;
+}
+
+async function handleImagePaste({
+  item,
+  view,
+  writeImage,
+  hasWorkspace,
+  showToast,
+  now,
+  onImagePasteResolved,
+}: HandleImagePasteArgs): Promise<void> {
+  const file = item.getAsFile();
+  if (!file) return;
+  await processImageFile({
+    file,
+    view,
+    writeImage,
+    hasWorkspace,
+    showToast,
+    now,
+    onImagePasteResolved,
+  });
+}
+
+/**
+ * Shared entry point used by both paste and drag-drop. Exported so the
+ * future drop handler (and tests) can call it directly.
+ */
+export async function processImageFile({
+  file,
+  view,
+  writeImage,
+  hasWorkspace,
+  showToast,
+  now,
+  onImagePasteResolved,
+}: {
+  file: File;
+  view: EditorView;
+  writeImage?: WriteImage | undefined;
+  hasWorkspace?: (() => boolean) | undefined;
+  showToast?: ShowToast | undefined;
+  now?: NowProvider | undefined;
+  onImagePasteResolved?: ((result: { path: string; bytes: ArrayBuffer }) => void) | undefined;
+}): Promise<void> {
+  if (hasWorkspace && !hasWorkspace()) {
+    showToast?.('No workspace — paste an image only when a workspace is open.');
+    return;
+  }
+  if (!writeImage) {
+    // No writer wired (browser / test-mode); nothing we can do.
+    return;
+  }
+  if (file.size > IMAGE_PASTE_MAX_BYTES) {
+    showToast?.('Image too large (20MB max).');
+    return;
+  }
+  const ext = mimeToExtension(file.type);
+  if (!ext) {
+    // Unknown image type — bail gracefully.
+    return;
+  }
+  const bytes = await file.arrayBuffer();
+  const hash = await hashImageBytes(bytes);
+  const yearMonth = formatYearMonth(now?.());
+  const path = buildImageMediaPath({ hash, extension: ext, yearMonth });
+  try {
+    await writeImage({ path, bytes });
+  } catch (err) {
+    console.error('[smartPaste] writeImage failed:', err);
+    showToast?.('Failed to save image.');
+    return;
+  }
+
+  const markdown = `![](${path})`;
+  const { from, to } = view.state.selection.main;
+  view.dispatch({
+    changes: { from, to, insert: markdown },
+    selection: { anchor: from + markdown.length },
+  });
+  onImagePasteResolved?.({ path, bytes });
 }

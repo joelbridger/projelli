@@ -38,7 +38,7 @@
 | Q10 | Template preview gallery | 🔲 Not started | No `website/templates/` directory; content generation work |
 | Q11 | Sample workspace on first run | ✅ Done | Commit `7611733` — `src/onboarding/samples/` with 3 Markdown files (Pricing Strategy, Pitch Deck, Weekly Review) plus `index.ts` (`SAMPLE_FILES` + `writeSampleFiles`). `FirstRunWizard.tsx` gains `workspace` prop + `first-run-samples-toggle`. 18 new unit tests. |
 | Q12 | Smart paste URL → link | ✅ Done | Commit pending — new `src/modules/editor/smartPaste.ts` with `createSmartPasteExtension` + pure helpers (`isSingleUrl`, `isInsideCodeBlock`, `findUrlPlaceholder`, `resolveUrlPasteReplacement`). CodeMirror `domEventHandlers` intercepts paste, inserts `[Fetching title...](url)` placeholder, swaps in `[title](url)` when the Phase 2 `fetch_url_title` command resolves. Falls back to raw URL on empty title. Selection paste linkifies the selection. Fenced-block / inline-backtick suppression. `markdown-editor-paste-target` + `markdown-editor-url-paste-placeholder` testids. 23 new Vitest tests; jsdom Range polyfill added to `tests/setup.ts` so real editor mounts survive measure phase. |
-| Q13 | Image paste auto-save | 🔲 Not started | No clipboard image detection. File drag-drop exists via `GlobalDropOverlay.tsx` + `fileDrop.ts` (v1.0.8) but not per-editor paste |
+| Q13 | Image paste auto-save | ✅ Done | Commit pending — extends `src/modules/editor/smartPaste.ts` with `processImageFile`, `hashImageBytes`, `mimeToExtension`, `formatYearMonth`, `buildImageMediaPath`, `IMAGE_PASTE_MAX_BYTES`. `createSmartPasteExtension` now handles `image/*` `DataTransferItem`s before falling through to URL paste. `MarkdownEditor` gains `writeImage` / `hasWorkspace` / `showToast` props (all ref-stable) plus a drop-zone that consumes image files while letting non-image drops fall through to `GlobalDropOverlay`. `MainPanel` wires `writeImage` through `WorkspaceService.writeFileBinary` with a `service.exists(path)` dedupe guard and refreshes the file tree after writes. Out of workspace → toast. >20 MB → toast. Unknown MIME → silent fallthrough. New testids `markdown-editor-image-paste` (with `data-paste-count`). 17 new Vitest tests (15 unit + 2 RTL integration). |
 | Q14 | Wiki-link autocomplete | ✅ Done | Commit `22bb36f` — new `src/modules/editor/wikiLinkAutocomplete.ts` with `createWikiLinkCompletionSource` + helpers; wired into `MarkdownEditor.tsx` via `autocompletion({ override: [...] })`; fires on `[[`, filters workspace files by prefix/substring/initials, inserts normalized target and closes with `]]`; 13 unit tests |
 | Q15 | Run-on-all-3 button | 🔲 Not started | `ComparisonView.tsx` scaffolded but not wired from chat input |
 | Q16 | `?` shortcut overlay | ✅ Done in v1.0.8 | `src/components/ShortcutsOverlay.tsx` (187 lines), `src/utils/shortcuts.ts` (175 lines) |
@@ -166,6 +166,8 @@ Discovered during the re-audit — confirmed present in `2644a9c`:
 | `bfc4f1c` | M2 (2/3) — Ask-workspace mode + citation navigation UI tests |
 | `5ad53e9` | M3 (1/3) — FactsService + `<memory>` prompt block + settings toggles |
 | `d03acaf` | M3 (2/3) — Fact extraction + chat UI + settings panel |
+| `60413dd` | Q12 — Smart paste URL → Markdown link |
+| `b6330ba` | Q13 — Image paste auto-save to workspace/media |
 
 ---
 

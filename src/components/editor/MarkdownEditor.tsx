@@ -17,7 +17,10 @@ import {
 } from '@/modules/editor/wikiLinkAutocomplete';
 import {
   createSmartPasteExtension,
+  processImageFile,
   type FetchUrlTitle,
+  type WriteImage,
+  type ShowToast,
 } from '@/modules/editor/smartPaste';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 
@@ -40,6 +43,22 @@ interface MarkdownEditorProps {
    * Tests inject a stub.
    */
   fetchUrlTitle?: FetchUrlTitle | undefined;
+  /**
+   * Q13 — image writer. When omitted, image paste is a no-op (browser /
+   * no-workspace mode). Live app passes an adapter around
+   * `WorkspaceService.writeFileBinary`.
+   */
+  writeImage?: WriteImage | undefined;
+  /**
+   * Q13 — "is a workspace open?" probe. Defaults to "yes" when omitted
+   * (test convenience). Live app passes a check for the store's rootPath.
+   */
+  hasWorkspace?: (() => boolean) | undefined;
+  /**
+   * Q13 — surface "image too large" / "no workspace" / "save failed"
+   * messages to the user. Defaults to a console-only warn in test mode.
+   */
+  showToast?: ShowToast | undefined;
 }
 
 // Custom theme for the editor
@@ -91,6 +110,10 @@ const createExtensions = (
   getFilesRef: React.MutableRefObject<() => WikiLinkFileInfo[]>,
   smartPasteRefs: {
     fetchUrlTitle: React.MutableRefObject<FetchUrlTitle>;
+    writeImage: React.MutableRefObject<WriteImage | undefined>;
+    hasWorkspace: React.MutableRefObject<() => boolean>;
+    showToast: React.MutableRefObject<ShowToast | undefined>;
+    onImagePasted: React.MutableRefObject<() => void>;
   },
   readOnly: boolean = false
 ) => {
@@ -98,11 +121,24 @@ const createExtensions = (
   // ref so the popup always shows the current file tree even after the user
   // creates or deletes files without re-mounting the editor.
   const wikiLinkSource = createWikiLinkCompletionSource(() => getFilesRef.current());
-  // Q12 — smart paste extension. The URL-title fetcher is resolved via
-  // a ref so the extension never re-creates when the parent hands us a
-  // fresh lambda.
+  // Q12 + Q13 — smart paste extension. All callbacks are resolved via
+  // refs so the extension never re-creates when a parent hands us a new
+  // lambda (e.g. App.tsx passing a fresh `writeImage` closure each
+  // render).
   const smartPasteExtension = createSmartPasteExtension({
     fetchUrlTitle: (url: string) => smartPasteRefs.fetchUrlTitle.current(url),
+    writeImage: (args) => {
+      const writer = smartPasteRefs.writeImage.current;
+      if (!writer) return Promise.resolve();
+      return writer(args);
+    },
+    hasWorkspace: () => smartPasteRefs.hasWorkspace.current(),
+    showToast: (msg) => {
+      const cb = smartPasteRefs.showToast.current;
+      if (cb) cb(msg);
+      else console.warn('[MarkdownEditor]', msg);
+    },
+    onImagePasteResolved: () => smartPasteRefs.onImagePasted.current(),
   });
   const extensions = [
     lineNumbers(),
@@ -155,6 +191,9 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       className = '',
       filePath,
       fetchUrlTitle,
+      writeImage,
+      hasWorkspace,
+      showToast,
     },
     ref
   ) {
@@ -171,10 +210,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       getFilesRef.current = () => flattenFilesForWikiLinks(fileTree);
     }, [fileTree]);
 
-    // Q12 — smart-paste URL-title fetcher lives behind a ref so it
-    // stays fresh without re-mounting the editor. Default dynamically
-    // imports `@/utils/tauri-commands` so tests mocking the Tauri
-    // bindings don't need to wire a stub manually.
+    // Q12 + Q13 — smart paste callbacks behind refs so they stay fresh
+    // without re-mounting the editor. Default `fetchUrlTitle` imports
+    // lazily from `@/utils/tauri-commands` so tests that mock the Tauri
+    // bindings don't have to wire a stub manually.
     const fetchUrlTitleRef = useRef<FetchUrlTitle>(
       fetchUrlTitle ??
         (async (url: string) => {
@@ -186,9 +225,26 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
           }
         })
     );
+    const writeImageRef = useRef<WriteImage | undefined>(writeImage);
+    const hasWorkspaceRef = useRef<() => boolean>(
+      hasWorkspace ?? (() => true)
+    );
+    const showToastRef = useRef<ShowToast | undefined>(showToast);
+    const onImagePastedRef = useRef<() => void>(() => {
+      setImagePasteCount((n) => n + 1);
+    });
     useEffect(() => {
       if (fetchUrlTitle) fetchUrlTitleRef.current = fetchUrlTitle;
     }, [fetchUrlTitle]);
+    useEffect(() => {
+      writeImageRef.current = writeImage;
+    }, [writeImage]);
+    useEffect(() => {
+      hasWorkspaceRef.current = hasWorkspace ?? (() => true);
+    }, [hasWorkspace]);
+    useEffect(() => {
+      showToastRef.current = showToast;
+    }, [showToast]);
     // UX-30: reactive mirror of the current document content so the word
     // count footer updates on every keystroke. We keep a separate piece of
     // React state rather than reading from the CodeMirror view synchronously
@@ -202,6 +258,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     // placeholder. Derived from `currentText` so tests can observe it
     // via `data-testid` without poking at CodeMirror internals.
     const hasUrlPastePlaceholder = currentText.includes('[Fetching title...](');
+
+    // Q13 — increments every time an image paste succeeds so tests can
+    // wait on a `data-paste-count` attribute without timing races.
+    const [imagePasteCount, setImagePasteCount] = useState(0);
 
     // Keep onChange ref up to date (this doesn't cause re-renders)
     useEffect(() => {
@@ -266,7 +326,13 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
           onChangeRef,
           onChangeMirrorRef,
           getFilesRef,
-          { fetchUrlTitle: fetchUrlTitleRef },
+          {
+            fetchUrlTitle: fetchUrlTitleRef,
+            writeImage: writeImageRef,
+            hasWorkspace: hasWorkspaceRef,
+            showToast: showToastRef,
+            onImagePasted: onImagePastedRef,
+          },
           readOnly
         ),
       });
@@ -291,6 +357,42 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filePath, readOnly]); // Recreate when filePath or readOnly changes
 
+    // Q13 — editor-level image drop. Only consumes drops whose first file
+    // has an `image/*` MIME type; everything else falls through to the
+    // workspace-global drop handler (`GlobalDropOverlay`) so the existing
+    // file-upload behaviour is preserved.
+    const handleEditorDrop = useCallback(
+      async (event: React.DragEvent<HTMLDivElement>) => {
+        const files = event.dataTransfer?.files;
+        if (!files || files.length === 0) return;
+        const imageFiles = Array.from(files).filter((f) =>
+          f.type.startsWith('image/')
+        );
+        if (imageFiles.length === 0) return; // let global overlay handle it
+        event.preventDefault();
+        event.stopPropagation();
+        const view = viewRef.current;
+        if (!view) return;
+        for (const file of imageFiles) {
+          const toastFn: ShowToast = (msg: string) => {
+            const cb = showToastRef.current;
+            if (cb) cb(msg);
+            else console.warn('[MarkdownEditor]', msg);
+          };
+          // eslint-disable-next-line no-await-in-loop
+          await processImageFile({
+            file,
+            view,
+            ...(writeImageRef.current ? { writeImage: writeImageRef.current } : {}),
+            hasWorkspace: hasWorkspaceRef.current,
+            showToast: toastFn,
+            onImagePasteResolved: () => setImagePasteCount((n) => n + 1),
+          });
+        }
+      },
+      []
+    );
+
     return (
       <div
         className={`h-full w-full flex flex-col bg-background ${className}`}
@@ -305,6 +407,17 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
             className="sr-only"
           />
         )}
+        {imagePasteCount > 0 && (
+          // Q13 — testable signal that at least one image paste has been
+          // processed. `data-paste-count` counts every paste so tests can
+          // await a specific count when pasting the same image twice.
+          <span
+            aria-hidden="true"
+            data-testid="markdown-editor-image-paste"
+            data-paste-count={imagePasteCount}
+            className="sr-only"
+          />
+        )}
         <div
           ref={containerRef}
           className="flex-1 min-h-0"
@@ -313,6 +426,18 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
             // Ensure editor gets focus when clicking the container
             viewRef.current?.focus();
           }}
+          onDragOver={(event) => {
+            // Only intercept when the drag carries files we want to
+            // swallow. Otherwise let the event bubble to the global
+            // overlay.
+            const types = event.dataTransfer?.types;
+            if (types && Array.from(types).includes('Files')) {
+              // Don't preventDefault unconditionally here; the global
+              // overlay does that. We only need to allow image drops to
+              // proceed onto the editor surface.
+            }
+          }}
+          onDrop={handleEditorDrop}
         />
         {/* UX-30: word count footer. Matches the TipTap editors' styling. */}
         {!readOnly && <WordCountFooter text={currentText} />}
