@@ -191,9 +191,17 @@ export function FileTree({
     try {
       // Check if we're in Tauri environment
       if (typeof window !== 'undefined' && '__TAURI__' in window) {
-        // Use custom Tauri command to open in system file explorer
+        // Use custom Tauri command to open in system file explorer.
+        // The selectedPath may be workspace-relative (e.g. "docs/file.csv"),
+        // but the Rust command calls path.exists() from the Tauri process CWD,
+        // which is NOT the workspace root. Resolve to an absolute path first.
         const { invoke } = await import('@tauri-apps/api/core');
-        const pathToOpen = selectedPath || rootPath;
+        let pathToOpen = selectedPath || rootPath;
+        // If the path is relative (doesn't start with / on Unix or X:\ on Windows),
+        // prepend the workspace rootPath.
+        if (pathToOpen && !pathToOpen.startsWith('/') && !/^[A-Za-z]:[/\\]/.test(pathToOpen)) {
+          pathToOpen = `${rootPath}/${pathToOpen}`;
+        }
         await invoke('open_in_explorer', { path: pathToOpen });
       } else {
         // Fallback for browser - just show an alert
