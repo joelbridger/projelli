@@ -1450,8 +1450,16 @@ function App() {
       // Refresh file tree after uploads
       const fileTree = await workspaceServiceRef.current.getFileTree();
       setFileTree(fileTree);
+
+      // UX-33: open the last uploaded file so the user sees it immediately.
+      const uploaded = Array.from(files);
+      if (uploaded.length > 0) {
+        const last = uploaded[uploaded.length - 1]!;
+        const lastPath = `${uploadPath}/${last.name}`;
+        await handleFileOpen(lastPath, last.name);
+      }
     },
-    [rootPath, setFileTree]
+    [rootPath, setFileTree, handleFileOpen]
   );
 
   // UX-19: Global drag-and-drop upload. Handles files dropped anywhere on
@@ -1476,6 +1484,12 @@ function App() {
         // tab order consistent with the drop order.
         for (const r of results) {
           await handleFileOpen(r.path, r.name);
+        }
+        // UX-33: activate the last-dropped file so the user lands on
+        // something they just dropped rather than the previously-active tab.
+        if (results.length > 0) {
+          const last = results[results.length - 1]!;
+          useEditorStore.getState().setActiveTab(last.path);
         }
       } catch (err) {
         console.error('[App] Drag-drop upload failed:', err);
