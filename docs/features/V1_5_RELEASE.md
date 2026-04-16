@@ -30,8 +30,8 @@
 | Q2 | KaTeX math rendering | ✅ Done | Commit `5403b04` — `katex@0.16.45` + `MarkdownPreview.tsx` + 7 new unit tests |
 | Q3 | Real-time cost meter | 🔲 Not started | `ProviderMetadata` has pricing fields (v1.0.8+), but chat UI doesn't render cost. Needs aggregation + chip UI |
 | Q4 | Monthly cost dashboard | 🔲 Not started | `AuditService` schema has no `tokens_in`/`tokens_out`/`cost_usd` fields. New `CostMetrics.tsx` component needed |
-| Q5 | Audit log export (CSV/JSON) | 🔲 Not started | `AuditLog.tsx` has `onExportJSON`/`onExportCSV` callbacks but no serialization |
-| Q6 | Audit log filtering | 🔲 Not started | Action-type filter exists; date-range + model filter missing |
+| Q5 | Audit log export (CSV/JSON) | ✅ Done | Commit `e5d5cd4` — `src/utils/audit-export.ts` + wired buttons in `AuditLog.tsx` + 34 unit tests. CSV is RFC 4180; future-proof `tokens_in`/`tokens_out`/`cost_usd` columns for Q4 |
+| Q6 | Audit log filtering | ✅ Done | Commit `9ed4d65` — date-range + model dropdown + reset button added to `AuditLog.tsx` filter row, composes with existing action-type chips. 6 RTL integration tests |
 | Q7 | Ollama as 4th provider | 🔲 Not started | No `OllamaProvider.ts`; needs Phase 2 Rust HTTP infra first |
 | Q8 | Per-template model assignment | 🔲 Not started | `WorkflowTemplate` schema lacks `defaultProvider`/`defaultModel` fields |
 | Q9 | Haiku 4.5 free-tier default | 🔲 Not started | Not verified in `settingsStore.ts` defaults — need to check and flip |
@@ -130,6 +130,8 @@ Discovered during the re-audit — confirmed present in `2644a9c`:
 | `51e8aab` | Add v1.5 release tracking doc with re-audit + baseline results |
 | `5d154f8` | Q1 — Add Mermaid diagram rendering to markdown preview |
 | `5403b04` | Q2 — Add KaTeX math rendering to markdown preview |
+| `e5d5cd4` | Q5 — Implement real audit log export to JSON and CSV |
+| `9ed4d65` | Q6 — Audit log filtering by date range and model |
 
 ---
 
