@@ -9,6 +9,8 @@ export interface SendOptions {
   maxTokens?: number;
   systemPrompt?: string;
   stopSequences?: string[];
+  /** UX-39: AbortSignal so callers can cancel in-flight requests. */
+  signal?: AbortSignal;
 }
 
 /**

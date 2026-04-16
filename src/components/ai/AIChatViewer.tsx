@@ -501,10 +501,14 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             onSave({ ...chatData, updated: new Date().toISOString(), messages: finalMessages });
           }
         } else {
-          // Fallback to non-streaming
+          // Non-streaming: wire an AbortController so the Stop button can
+          // cancel the in-flight request. UX-39.
+          const abortController = new AbortController();
+          abortControllerRef.current = abortController;
           const response = await provider.sendMessage(userMessage.content, {
             systemPrompt,
             maxTokens: 4096,
+            signal: abortController.signal,
           });
 
           const assistantMessage: ChatMessage = {
@@ -521,6 +525,15 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           }
         }
       } catch (error) {
+        // UX-39: user clicked Stop on a non-streaming request. The
+        // AbortController fires a DOMException with name 'AbortError'.
+        // Don't show it as a red error bubble — just reset the loading
+        // state silently. (Streaming abort is already handled above.)
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          abortControllerRef.current = null;
+          return;
+        }
+
         console.error('AI chat error:', error);
 
         let errorContent: string;

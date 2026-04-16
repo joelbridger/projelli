@@ -234,7 +234,9 @@ export class GeminiProvider implements Provider {
       request.tools = [{ functionDeclarations: this.tools }];
     }
 
-    let response = await this.makeRequest(request);
+    // UX-39: thread an optional AbortSignal to the fetch layer.
+    const signal = options?.signal;
+    let response = await this.makeRequest(request, 0, signal);
     let totalInputTokens = response.usageMetadata.promptTokenCount;
     let totalOutputTokens = response.usageMetadata.candidatesTokenCount;
 
@@ -297,7 +299,7 @@ export class GeminiProvider implements Provider {
         ...request,
         contents,
       };
-      response = await this.makeRequest(nextRequest);
+      response = await this.makeRequest(nextRequest, 0, signal);
       totalInputTokens += response.usageMetadata.promptTokenCount;
       totalOutputTokens += response.usageMetadata.candidatesTokenCount;
     }
@@ -457,7 +459,7 @@ export class GeminiProvider implements Provider {
   /**
    * Make HTTP request to Gemini API with retries
    */
-  private async makeRequest(request: GeminiRequest, retryCount = 0): Promise<GeminiResponse> {
+  private async makeRequest(request: GeminiRequest, retryCount = 0, signal?: AbortSignal): Promise<GeminiResponse> {
     const url = `${this.baseUrl}/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
 
     try {
@@ -468,6 +470,7 @@ export class GeminiProvider implements Provider {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(request),
+        ...(signal ? { signal } : {}),
       });
 
       if (!response.ok) {
@@ -492,7 +495,7 @@ export class GeminiProvider implements Provider {
         // Exponential backoff
         const delay = Math.pow(2, retryCount) * 1000;
         await new Promise((resolve) => setTimeout(resolve, delay));
-        return this.makeRequest(request, retryCount + 1);
+        return this.makeRequest(request, retryCount + 1, signal);
       }
 
       throw error;

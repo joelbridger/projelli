@@ -230,7 +230,9 @@ export class OpenAIProvider implements Provider {
       request.tools = this.tools;
     }
 
-    let response = await this.makeRequest(request);
+    // UX-39: thread an optional AbortSignal to the fetch layer.
+    const signal = options?.signal;
+    let response = await this.makeRequest(request, signal);
 
     let totalInputTokens = response.usage.prompt_tokens;
     let totalOutputTokens = response.usage.completion_tokens;
@@ -296,7 +298,7 @@ export class OpenAIProvider implements Provider {
         ...request,
         messages,
       };
-      response = await this.makeRequest(nextRequest);
+      response = await this.makeRequest(nextRequest, signal);
       totalInputTokens += response.usage.prompt_tokens;
       totalOutputTokens += response.usage.completion_tokens;
     }
@@ -528,7 +530,7 @@ Respond ONLY with the JSON object.`;
   /**
    * Make a request to the OpenAI API with retry logic
    */
-  private async makeRequest(request: OpenAIRequest): Promise<OpenAIResponse> {
+  private async makeRequest(request: OpenAIRequest, signal?: AbortSignal): Promise<OpenAIResponse> {
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
@@ -547,6 +549,7 @@ Respond ONLY with the JSON object.`;
           method: 'POST',
           headers,
           body: JSON.stringify(request),
+          ...(signal ? { signal } : {}),
         });
 
         if (!response.ok) {

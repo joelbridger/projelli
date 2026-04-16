@@ -213,7 +213,9 @@ export class ClaudeProvider implements Provider {
       messageCount: request.messages.length,
     });
 
-    let response = await this.makeRequest(request);
+    // UX-39: thread an optional AbortSignal to the fetch layer.
+    const signal = options?.signal;
+    let response = await this.makeRequest(request, signal);
 
     console.log('[ClaudeProvider DIAGNOSTIC] Initial response:', {
       stop_reason: response.stop_reason,
@@ -269,7 +271,7 @@ export class ClaudeProvider implements Provider {
         messages,
       };
 
-      response = await this.makeRequest(nextRequest);
+      response = await this.makeRequest(nextRequest, signal);
       totalInputTokens += response.usage.input_tokens;
       totalOutputTokens += response.usage.output_tokens;
     }
@@ -501,7 +503,7 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
   /**
    * Make a request to the Claude API with retry logic
    */
-  private async makeRequest(request: ClaudeRequest): Promise<ClaudeResponse> {
+  private async makeRequest(request: ClaudeRequest, signal?: AbortSignal): Promise<ClaudeResponse> {
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
@@ -516,6 +518,7 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
             'anthropic-dangerous-direct-browser-access': 'true',
           },
           body: JSON.stringify(request),
+          ...(signal ? { signal } : {}),
         });
 
         if (!response.ok) {
