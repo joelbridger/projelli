@@ -28,6 +28,8 @@ import {
   type SettingDefinition,
 } from '@/settings/schema';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { CostMetrics } from '@/components/analysis/CostMetrics';
+import type { AuditEntry } from '@/types/audit';
 import {
   SHORTCUTS,
   groupShortcutsByCategory,
@@ -54,6 +56,12 @@ interface SettingsModalProps {
   onOpenChange: (open: boolean) => void;
   /** Callback when an action link is clicked (e.g., "Manage API Keys"). */
   onAction?: (actionId: string) => void;
+  /**
+   * Q4 (Wave 1.2) — audit entries for the Cost & Usage category. When
+   * omitted, the Cost & Usage dashboard renders with an empty array
+   * (shows the zero-state copy and an all-zero 30-day chart).
+   */
+  auditEntries?: AuditEntry[];
 }
 
 // ---------------------------------------------------------------------------
@@ -384,7 +392,7 @@ function AboutHeader() {
 // Main modal
 // ---------------------------------------------------------------------------
 
-export function SettingsModal({ open, onOpenChange, onAction }: SettingsModalProps) {
+export function SettingsModal({ open, onOpenChange, onAction, auditEntries }: SettingsModalProps) {
   const [activeCategory, setActiveCategory] = useState<SettingCategory>('general');
   const [searchQuery, setSearchQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
@@ -418,8 +426,15 @@ export function SettingsModal({ open, onOpenChange, onAction }: SettingsModalPro
           s.keys.some((k) => k.toLowerCase().includes(lowerQ))
       );
       if (anyShortcutMatch) cats.add('shortcuts');
+      // Cost & Usage has no settings rows (dashboard only); include it
+      // when the search query matches its label/description keywords.
+      const costsMatch = ['cost', 'usage', 'spend', 'budget', 'month'].some(
+        (k) => lowerQ.includes(k)
+      );
+      if (costsMatch) cats.add('costs');
     } else {
       cats.add('shortcuts');
+      cats.add('costs');
     }
     return cats;
   }, [filteredSchema, searchQuery]);
@@ -565,6 +580,8 @@ export function SettingsModal({ open, onOpenChange, onAction }: SettingsModalPro
           <div className="flex-1 overflow-y-auto px-6 py-4">
             {activeCategory === 'shortcuts' ? (
               <ShortcutsCategory searchQuery={searchQuery} />
+            ) : activeCategory === 'costs' ? (
+              <CostMetrics entries={auditEntries ?? []} />
             ) : categorySettings.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
                 No settings match your search in this category.

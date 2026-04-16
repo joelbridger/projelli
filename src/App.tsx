@@ -2560,6 +2560,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
       <SettingsModal
         open={showSettingsModal}
         onOpenChange={setShowSettingsModal}
+        auditEntries={auditEntries}
         onAction={(actionId) => {
           if (actionId === 'open-ai-keys') {
             setSidebarActiveTab('ai-assistant');
