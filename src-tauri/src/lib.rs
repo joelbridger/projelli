@@ -1,7 +1,12 @@
 // Business OS - Tauri Backend
 // Local-first workspace for solo founders
 
-mod commands;
+// `pub` so the `projelli-mcp` sidecar binary (see `src/bin/mcp.rs`) can
+// reuse the `commands::rag::{store, embedder, extractor}` helpers without
+// duplicating code. The binary only touches the pure, Tauri-agnostic
+// sub-modules; the `#[tauri::command]` wrapper fns stay host-only in
+// practice even though the module path is now public.
+pub mod commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

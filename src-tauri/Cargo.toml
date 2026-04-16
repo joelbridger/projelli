@@ -12,12 +12,14 @@ rust-version = "1.77.2"
 name = "projelli_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-# Stub MCP server binary. Real implementation lands in Phase 4 (M4). The
-# stub is here now so the release pipeline can cross-compile the target on
-# every platform without having to wait for Phase 4.
+# Projelli MCP server (M4, v1.5). Hand-rolled JSON-RPC 2.0 server over stdio
+# that exposes the workspace (list / read / search / write / memory facts) to
+# any MCP-compatible client — Claude Desktop, Cursor, Zed, etc. The binary
+# lives in its own sub-folder so its helper modules (`protocol`, `tools`,
+# `approval`) can be split across files the way the Tauri host already does.
 [[bin]]
 name = "projelli-mcp"
-path = "src/bin/mcp.rs"
+path = "src/bin/mcp/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2.5.3", features = [] }
@@ -87,3 +89,7 @@ tauri-plugin-process = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
+# Integration tests for the `projelli-mcp` sidecar need a throwaway workspace
+# dir per test; `tempfile` is the de-facto standard and already transitively
+# in the lock via `lancedb` + `fastembed`, so no new build-time weight.
+tempfile = "3"
