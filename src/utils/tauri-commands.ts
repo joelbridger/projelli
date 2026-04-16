@@ -287,3 +287,44 @@ export async function mcpBundlePath(): Promise<string | null> {
     return null;
   }
 }
+
+// --------------------------------------------------------------------
+// Phase 4 M6 (v1.5 Flag 4) — voice input via bundled Parakeet/whisper.cpp
+// sidecar. Press-to-talk captures WAV bytes in the renderer (via
+// `MediaRecorder` + `AudioContext` re-encoding) and ships them here for
+// transcription.
+// --------------------------------------------------------------------
+
+/** Result of a single transcription run. Mirror of Rust `TranscribeResult`
+ *  (`#[serde(rename_all = "camelCase")]`). */
+export interface TranscribeResult {
+  text: string;
+  latencyMs: number;
+}
+
+/** Reports whether the bundled voice sidecar is on disk at runtime. Always
+ *  returns `false` in browser mode — voice input requires a native sidecar. */
+export async function voiceSidecarAvailable(): Promise<boolean> {
+  if (!isTauri()) return false;
+  try {
+    return await invoke<boolean>('voice_sidecar_available');
+  } catch {
+    return false;
+  }
+}
+
+/** Transcribe a WAV-encoded audio buffer via the bundled sidecar. Throws
+ *  with a user-readable error if the binary is missing, spawn fails, or
+ *  the subprocess exits non-zero. */
+export async function transcribeAudio(
+  wavBytes: Uint8Array,
+  model?: string,
+): Promise<TranscribeResult> {
+  if (!isTauri()) {
+    throw new Error('Voice transcription is only available in the desktop app.');
+  }
+  return invoke<TranscribeResult>('transcribe_audio', {
+    wavBytes: Array.from(wavBytes),
+    model,
+  });
+}
