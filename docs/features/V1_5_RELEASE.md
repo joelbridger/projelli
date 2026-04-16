@@ -56,7 +56,7 @@
 | # | Item | Status | Evidence |
 |---|---|---|---|
 | M1 | Local RAG (LanceDB + fastembed-rs + e5-small) | ✅ Done | Commits `550c730` (Rust RAG engine: chunker + embedder + LanceDB store + 6 commands), `889bb36` (TS bindings + MemoryService toggle wrapper + 12 unit tests), `2bb410b` (UI banner + status badge + settings toggle + watcher integration + useRagStatus hook + 7 unit tests). Vector store at `<workspace>/.projelli/vectors/`, 384-dim e5-small via fastembed-rs, paragraph-aware chunker, watcher-driven incremental re-index, `Settings → Memory` opt-out. 56 Rust tests + 19 new TS tests. |
-| M2 | `@workspace` + Ask-my-workspace | 🔲 Not started | Depends on M1 (✅) — ready to start. `MemoryService.retrieve()` is the single entry point M2 will call. |
+| M2 | `@workspace` + Ask-my-workspace | ✅ Done | Commits `bd6b818` (`@workspace` parser + `<workspace_context>` injection + Ask-my-workspace per-chat toggle + citation chips + Sources accordion + `workspace-command-chip` / `ask-workspace-toggle` / `chat-sources-accordion` / `chat-citation-{path}-{paragraph}` testids + 27 unit tests), `bfc4f1c` (UI mount tests + scrollIntoView jsdom polyfill + 14 more unit tests). Retrieval goes through `MemoryService.retrieve(query, 8)` so the Settings toggle is respected. Provider-agnostic — Claude, OpenAI, Gemini all receive the same `<workspace_context>` block via their existing `systemPrompt` entrypoint. Graceful degrade: memory off / retrieval error surfaces a subtle inline "this message wasn't workspace-aware" hint. Citation clicks fire `onOpenFileAtPath` → App.tsx opens the file and dispatches `projelli:scroll-to-paragraph`. 41 new TS tests (17 command-parser + 10 prompt-injection + 8 Ask-mode + 6 citation-nav). |
 | M3 | Memory facts file + extraction | 🔲 Not started | No memory/facts infrastructure |
 | M4 | Projelli MCP server + `.mcpb` bundle | 🔲 Not started | No `src-tauri/src/bin/mcp.rs`, no MCP crate in deps |
 | M5 | Side-by-side AI editing | 🔲 Not started | `DiffViewer.tsx` exists (read-only preview, v1.0.x); no inline chat anchor, no per-hunk accept/reject |
@@ -64,7 +64,7 @@
 | M7 | Template chaining | 🔲 Not started | `WorkflowTemplate` schema has no named outputs; no chain config UI |
 | M8 | Multi-interview synthesis | 🔲 Not started | `UserInterviews.ts` is single-interview only; no synthesis template |
 
-**1 of 8 Mediums shipped (M1). Mediums remaining: 7.**
+**2 of 8 Mediums shipped (M1, M2). Mediums remaining: 6.**
 
 ---
 
@@ -160,6 +160,8 @@ Discovered during the re-audit — confirmed present in `2644a9c`:
 | `550c730` | M1 (1/3) — RAG engine: Cargo deps + chunker + embedder + LanceDB store |
 | `889bb36` | M1 (2/3) — RAG frontend bindings + MemoryService toggle wrapper |
 | `2bb410b` | M1 (3/3) — UI progress banner + status badge + Memory settings toggle + watcher integration |
+| `bd6b818` | M2 (1/3) — `@workspace` command + Ask-my-workspace toggle + citation navigation |
+| `bfc4f1c` | M2 (2/3) — Ask-workspace mode + citation navigation UI tests |
 
 ---
 
