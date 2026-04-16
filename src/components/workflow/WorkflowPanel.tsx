@@ -31,8 +31,9 @@ import {
   Search,
   Copy,
   Trash2,
+  Link as LinkIcon,
 } from 'lucide-react';
-import type { WorkflowTemplate, WorkflowExecution, RunRecord } from '@/types/workflow';
+import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
 import {
   duplicateTemplate,
   deleteUserTemplate,
@@ -41,6 +42,7 @@ import {
   saveUserTemplate,
   setSystemPrompt,
 } from '@/modules/workflow/userTemplates';
+import { ChainBuilderModal } from './ChainBuilderModal';
 
 interface WorkflowPanelProps {
   onStartWorkflow: (template: WorkflowTemplate) => void;
@@ -48,6 +50,11 @@ interface WorkflowPanelProps {
   runHistory: RunRecord[];
   /** Callback to focus the workflow-execution tab in the main panel. */
   onFocusExecutionTab?: () => void;
+  /**
+   * M7 — optional callback fired when the user saves + runs a chain. The
+   * app owns the engine, so the panel just hands back the saved chain.
+   */
+  onRunChain?: (chain: WorkflowChain) => void;
 }
 
 export function WorkflowPanel({
@@ -55,8 +62,11 @@ export function WorkflowPanel({
   currentExecution,
   runHistory,
   onFocusExecutionTab,
+  onRunChain,
 }: WorkflowPanelProps) {
   const [showFullView, setShowFullView] = useState(false);
+  // M7 — chain builder open state
+  const [showChainBuilder, setShowChainBuilder] = useState(false);
   // Q19 — combined built-ins + user templates. `version` triggers re-read
   // after a save or delete so the picker reflects the change.
   const [templatesVersion, setTemplatesVersion] = useState(0);
@@ -115,17 +125,30 @@ export function WorkflowPanel({
       {/* Header - fixed */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
         <h3 className="text-sm font-semibold">Available Workflows</h3>
-        <Button
-          data-testid="workflows-open-full-view"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs gap-1"
-          onClick={() => setShowFullView(true)}
-          title="Open workflows in a full-screen browser"
-        >
-          <Maximize2 className="h-3.5 w-3.5" />
-          Open full view
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            data-testid="workflows-chain-templates"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs gap-1"
+            onClick={() => setShowChainBuilder(true)}
+            title="Chain templates into a multi-step pipeline"
+          >
+            <LinkIcon className="h-3.5 w-3.5" />
+            Chain
+          </Button>
+          <Button
+            data-testid="workflows-open-full-view"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs gap-1"
+            onClick={() => setShowFullView(true)}
+            title="Open workflows in a full-screen browser"
+          >
+            <Maximize2 className="h-3.5 w-3.5" />
+            Open full view
+          </Button>
+        </div>
       </div>
 
       {/* Scrollable list region — takes all remaining sidebar height */}
@@ -298,6 +321,14 @@ export function WorkflowPanel({
         original={forkOriginal}
         onClose={() => setForkOriginal(null)}
         onSaved={handleForkSaved}
+      />
+
+      {/* M7 — chain builder */}
+      <ChainBuilderModal
+        open={showChainBuilder}
+        onOpenChange={setShowChainBuilder}
+        templates={availableWorkflows}
+        onRun={onRunChain}
       />
     </div>
   );

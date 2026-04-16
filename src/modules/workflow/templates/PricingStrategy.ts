@@ -288,6 +288,20 @@ export const PricingStrategy: WorkflowTemplate = {
   ],
   requiredInputs: [],
   outputs: ['PRICING_STRATEGY.md', 'PRICING_PAGE_COPY.md'],
+  // M7 — pricing tiers and anchors can seed GTM and landing-page templates.
+  namedOutputs: [
+    { id: 'tiers', name: 'Pricing tiers', schema: 'array' },
+    { id: 'anchors', name: 'Price anchors', schema: 'array' },
+  ],
+  namedInputs: [
+    {
+      id: 'competitor_list',
+      name: 'Competitor list',
+      schema: 'array',
+      // Upstream competitor list from CompetitorAnalysis neatly seeds pricing.
+      acceptsOutputFrom: ['competitors'],
+    },
+  ],
 };
 
 export default PricingStrategy;

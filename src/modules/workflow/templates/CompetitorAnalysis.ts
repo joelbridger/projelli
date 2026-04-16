@@ -185,6 +185,11 @@ export const CompetitorAnalysis: WorkflowTemplate = {
   ],
   requiredInputs: [],
   outputs: ['COMPETITOR_ANALYSIS.md', 'BATTLE_CARDS.md'],
+  // M7 — named output fields chainable templates can consume.
+  namedOutputs: [
+    { id: 'competitors', name: 'Competitors', schema: 'array' },
+    { id: 'key_gaps', name: 'Key gaps', schema: 'array' },
+  ],
 };
 
 export default CompetitorAnalysis;

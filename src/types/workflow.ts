@@ -94,6 +94,29 @@ export interface WorkflowStep {
 export type TemplateProviderId = 'claude' | 'openai' | 'gemini' | 'ollama';
 
 /**
+ * M7 — A named output produced by a template. The `id` is stable and used
+ * for chain wiring; the `name` is human-readable for UI; `schema` is a free-
+ * form JSON-schema-ish hint (optional — Projelli chains only require the id).
+ */
+export interface NamedOutput {
+  id: string;
+  name: string;
+  schema?: string;
+}
+
+/**
+ * M7 — A named input to a template that can be fed from another template's
+ * output.  `acceptsOutputFrom` lists compatible output IDs so the chain UI
+ * can highlight which steps naturally compose.
+ */
+export interface TemplateInput {
+  id: string;
+  name: string;
+  schema?: string;
+  acceptsOutputFrom?: string[];
+}
+
+/**
  * Workflow template definition
  */
 export interface WorkflowTemplate {
@@ -105,6 +128,18 @@ export interface WorkflowTemplate {
   steps: WorkflowStep[];
   requiredInputs: string[];
   outputs: string[];
+  /**
+   * M7 — Named outputs for chain wiring. Separate from `outputs` (which is
+   * a list of filenames) so chain logic can reference structured fields
+   * produced by generation steps without conflicting with file artifacts.
+   */
+  namedOutputs?: NamedOutput[];
+  /**
+   * M7 — Named inputs for chain wiring. When a template declares inputs with
+   * `acceptsOutputFrom` values that include an upstream template's output
+   * IDs, the chain UI marks the pairing as "recommended" vs "manual map".
+   */
+  namedInputs?: TemplateInput[];
   /**
    * Q8 — Optional template-level default provider. When unset the user's
    * global default provider is used. A settings override takes precedence
@@ -122,6 +157,38 @@ export interface WorkflowTemplate {
    * undefined; user templates are persisted with this flag set to `true`.
    */
   isUser?: boolean;
+}
+
+/**
+ * M7 — A single step in a workflow chain: run a template and optionally map
+ * fields from a previous step's output to this step's inputs.
+ */
+export interface WorkflowChainStep {
+  templateId: string;
+  /**
+   * For each mapping, `fromStepIndex` selects a previous step's output (0 =
+   * first step); `fromOutputId` names which field to pull; `toInputId` names
+   * the input on this step that should receive it.
+   */
+  inputMap?: Array<{
+    fromStepIndex: number;
+    fromOutputId: string;
+    toInputId: string;
+  }>;
+}
+
+/**
+ * M7 — A persisted chain definition. Saved to
+ * `<workspace>/.projelli/chains/<name>.json`.
+ */
+export interface WorkflowChain {
+  schemaVersion: 1;
+  id: string;
+  name: string;
+  description?: string;
+  steps: WorkflowChainStep[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 /**

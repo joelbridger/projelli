@@ -248,6 +248,20 @@ export const CustomerPersona: WorkflowTemplate = {
   ],
   requiredInputs: [],
   outputs: ['CUSTOMER_PERSONAS.md', 'ICP_SUMMARY.md'],
+  // M7 — personas + quotes make good inputs for landing-page / GTM templates.
+  namedOutputs: [
+    { id: 'personas', name: 'Customer personas', schema: 'array' },
+    { id: 'quotes', name: 'Supporting quotes', schema: 'array' },
+  ],
+  namedInputs: [
+    {
+      id: 'interview_themes',
+      name: 'Interview themes',
+      schema: 'array',
+      // Can consume themes/quotes produced by UserInterviews or the synthesis.
+      acceptsOutputFrom: ['common_themes', 'themes', 'killer_quotes'],
+    },
+  ],
 };
 
 export default CustomerPersona;

@@ -13,6 +13,7 @@ import {
   Download,
   FileText,
   FileType,
+  Link as LinkIcon,
   Loader2,
   XCircle,
   Zap,
@@ -22,6 +23,7 @@ import type {
   WorkflowExecution,
   InterviewQuestion,
 } from '@/types/workflow';
+import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { FileNode } from '@/types/workspace';
@@ -49,6 +51,15 @@ export interface WorkflowExecutionTabProps {
   onExportPptx?: (content: string, suggestedName: string) => void;
   /** Called to open a file in a new tab. */
   onFileOpen?: (path: string, name: string) => void;
+  /**
+   * M7 — user clicked "Use as input for another template →" on the chain
+   * suggestion callout. Parent typically opens the ChainBuilderModal with
+   * this run's template pre-filled as step 0.
+   */
+  onStartChainFromHere?: (
+    sourceTemplate: WorkflowTemplate,
+    targetTemplate: WorkflowTemplate
+  ) => void;
   className?: string;
 }
 
@@ -116,6 +127,7 @@ export function WorkflowExecutionTab({
   onExportDocx,
   onExportPptx,
   onFileOpen,
+  onStartChainFromHere,
   className,
 }: WorkflowExecutionTabProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -415,6 +427,14 @@ export function WorkflowExecutionTab({
           </Card>
         )}
 
+        {/* M7 — Chain suggestions: templates that can consume this run's outputs */}
+        {isCompleted && (template.namedOutputs?.length ?? 0) > 0 && (
+          <ChainSuggestions
+            sourceTemplate={template}
+            onPick={(target) => onStartChainFromHere?.(template, target)}
+          />
+        )}
+
         {/* Live file links — files created during this workflow */}
         {fileLinks.length > 0 && (
           <Card>
@@ -443,6 +463,93 @@ export function WorkflowExecutionTab({
         <div ref={bottomRef} />
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// M7 — Chain suggestions. Rendered after a completed run with named outputs.
+// Highlights templates that can consume those outputs; dims the rest.
+// ---------------------------------------------------------------------------
+
+interface ChainSuggestionsProps {
+  sourceTemplate: WorkflowTemplate;
+  onPick: (target: WorkflowTemplate) => void;
+}
+
+function ChainSuggestions({ sourceTemplate, onPick }: ChainSuggestionsProps) {
+  const allTemplates = useMemo(() => loadAllTemplates(), []);
+  const sourceOutputIds = useMemo(
+    () => (sourceTemplate.namedOutputs ?? []).map((o) => o.id),
+    [sourceTemplate]
+  );
+
+  const { recommended, others } = useMemo(() => {
+    const recommended: WorkflowTemplate[] = [];
+    const others: WorkflowTemplate[] = [];
+    for (const t of allTemplates) {
+      if (t.id === sourceTemplate.id) continue;
+      const inputs = t.namedInputs ?? [];
+      const fits = inputs.some((inp) =>
+        (inp.acceptsOutputFrom ?? []).some((id) => sourceOutputIds.includes(id))
+      );
+      if (fits) recommended.push(t);
+      else others.push(t);
+    }
+    return { recommended, others };
+  }, [allTemplates, sourceOutputIds, sourceTemplate.id]);
+
+  return (
+    <Card data-testid="chain-suggestions" className="border-amber-500/30">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <LinkIcon className="h-4 w-4 text-amber-500" />
+          Use this as input for another template
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {recommended.length > 0 && (
+          <div>
+            <p className="text-xs text-muted-foreground mb-1.5">Recommended next steps</p>
+            <div className="flex flex-wrap gap-1.5">
+              {recommended.map((t) => (
+                <Button
+                  key={t.id}
+                  data-testid={`chain-suggest-${t.id}`}
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => onPick(t)}
+                  title={t.description}
+                >
+                  {t.name} →
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+        {others.length > 0 && (
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground">
+              Other templates (manual mapping required)
+            </summary>
+            <div className="flex flex-wrap gap-1.5 mt-1.5 opacity-60">
+              {others.slice(0, 12).map((t) => (
+                <Button
+                  key={t.id}
+                  data-testid={`chain-suggest-other-${t.id}`}
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-[11px]"
+                  onClick={() => onPick(t)}
+                >
+                  {t.name}
+                </Button>
+              ))}
+            </div>
+          </details>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

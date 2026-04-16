@@ -429,6 +429,11 @@ export const UserInterviews: WorkflowTemplate = {
   ],
   requiredInputs: [],
   outputs: ['INTERVIEW_GUIDE.md', 'RECRUITING_TEMPLATES.md'],
+  // M7 — transcripts + themes feed the multi-interview synthesis (M8).
+  namedOutputs: [
+    { id: 'transcripts', name: 'Interview transcripts', schema: 'array' },
+    { id: 'common_themes', name: 'Common themes', schema: 'array' },
+  ],
 };
 
 export default UserInterviews;
