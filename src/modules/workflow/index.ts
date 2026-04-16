@@ -13,6 +13,7 @@ export { GoToMarketPlan } from './templates/GoToMarketPlan';
 export { PitchDeck } from './templates/PitchDeck';
 export { ContentStrategy } from './templates/ContentStrategy';
 export { UserInterviews } from './templates/UserInterviews';
+export { UserInterviewsSynthesis } from './templates/UserInterviewsSynthesis';
 export { MVPScope } from './templates/MVPScope';
 export { FinancialModel } from './templates/FinancialModel';
 export { LandingPage } from './templates/LandingPage';
@@ -30,6 +31,7 @@ import { GoToMarketPlan } from './templates/GoToMarketPlan';
 import { PitchDeck } from './templates/PitchDeck';
 import { ContentStrategy } from './templates/ContentStrategy';
 import { UserInterviews } from './templates/UserInterviews';
+import { UserInterviewsSynthesis } from './templates/UserInterviewsSynthesis';
 import { MVPScope } from './templates/MVPScope';
 import { FinancialModel } from './templates/FinancialModel';
 import { LandingPage } from './templates/LandingPage';
@@ -47,6 +49,7 @@ export const allWorkflows = [
   PitchDeck,
   ContentStrategy,
   UserInterviews,
+  UserInterviewsSynthesis,
   MVPScope,
   FinancialModel,
   LandingPage,
