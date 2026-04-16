@@ -10,11 +10,6 @@ import {
   File,
   Folder,
   FolderOpen,
-  FileText,
-  FileJson,
-  FileImage,
-  FileVideo,
-  Music,
   MoreVertical,
   FilePlus,
   FolderPlus,
@@ -24,14 +19,15 @@ import {
   BookOpen,
   Grid3x3,
   Mic,
-  MessageSquare,
   ExternalLink,
   Trash2,
   X,
   Table,
   FileSpreadsheet,
   FileType,
+  FileText,
 } from 'lucide-react';
+import { getFileIcon } from '@/utils/fileIcons';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -773,7 +769,8 @@ function FileTreeItem({
     [isFolder, node.path, onMove, setDragOverPath, clearSelection, onDropAIMessage, rootPath]
   );
 
-  const getFileIcon = () => {
+  // UX-37: single source of truth for per-extension file icons.
+  const renderFileIcon = () => {
     if (isFolder) {
       return isExpanded ? (
         <FolderOpen className="h-4 w-4 text-amber-500" />
@@ -781,45 +778,8 @@ function FileTreeItem({
         <Folder className="h-4 w-4 text-amber-500" />
       );
     }
-
-    const ext = node.extension?.toLowerCase();
-    switch (ext) {
-      case 'md':
-        return <FileText className="h-4 w-4 text-blue-500" />;
-      case 'json':
-        return <FileJson className="h-4 w-4 text-yellow-500" />;
-      case 'png':
-      case 'jpg':
-      case 'jpeg':
-      case 'gif':
-      case 'webp':
-      case 'svg':
-        return <FileImage className="h-4 w-4 text-green-500" />;
-      case 'mp4':
-      case 'webm':
-      case 'mov':
-      case 'avi':
-        return <FileVideo className="h-4 w-4 text-purple-500" />;
-      case 'whiteboard':
-        return <PenTool className="h-4 w-4 text-orange-500" />;
-      case 'mp3':
-      case 'wav':
-      case 'ogg':
-      case 'm4a':
-      case 'webm':
-        return <Music className="h-4 w-4 text-pink-500" />;
-      case 'aichat':
-        return <MessageSquare className="h-4 w-4 text-purple-500" />;
-      case 'source':
-        return <FileText className="h-4 w-4 text-green-500" />;
-      case 'txt':
-        return <FileText className="h-4 w-4 text-blue-500" />;
-      case 'rt':
-      case 'rtf':
-        return <FileText className="h-4 w-4 text-indigo-500" />;
-      default:
-        return <File className="h-4 w-4 text-muted-foreground" />;
-    }
+    const { Icon, color } = getFileIcon(node.extension?.toLowerCase());
+    return <Icon className={`h-4 w-4 ${color}`} />;
   };
 
   return (
@@ -867,7 +827,7 @@ function FileTreeItem({
         </span>
 
         {/* Icon */}
-        <span className="flex-shrink-0">{getFileIcon()}</span>
+        <span className="flex-shrink-0">{renderFileIcon()}</span>
 
         {/* Name */}
         <span className="flex-1 truncate text-sm">{node.name}</span>

@@ -2,7 +2,8 @@
 // Displays open file tabs with close buttons, dirty indicators, drag-to-reorder, and tab groups
 
 import { useCallback, useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { X, FileText, GripVertical, FileJson, FileImage, FileVideo, PenTool, Music, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, GripVertical, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getFileIcon } from '@/utils/fileIcons';
 import { Button } from '@/components/ui/button';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -50,38 +51,19 @@ export function pathToTestId(path: string): string {
     .toLowerCase();
 }
 
-// Helper function to get file icon based on tab type and extension
-const getFileIcon = (tab: { name: string; type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' }) => {
-  // Check tab type first
+// UX-37: Helper function to get file icon based on tab type and extension.
+// Uses the shared getFileIcon SSOT from utils/fileIcons.ts for file tabs,
+// with special-case overrides for non-file tab types (browser, AI assistant).
+const getTabIcon = (tab: { name: string; type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' }) => {
   if (tab.type === 'browser') {
     return <Globe className="h-4 w-4 text-sky-500 flex-shrink-0" />;
   }
-  // UX-21: AI Assistant main-panel tab uses the chat-bubble icon.
   if (tab.type === 'ai-assistant') {
     return <MessageSquare className="h-4 w-4 text-purple-500 flex-shrink-0" />;
   }
-
   const ext = tab.name.split('.').pop()?.toLowerCase();
-
-  if (ext === 'whiteboard') {
-    return <PenTool className="h-4 w-4 text-orange-500 flex-shrink-0" />;
-  } else if (ext === 'aichat') {
-    return <MessageSquare className="h-4 w-4 text-purple-500 flex-shrink-0" />;
-  } else if (ext === 'md' || ext === 'markdown' || ext === 'txt') {
-    return <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />;
-  } else if (ext === 'json') {
-    return <FileJson className="h-4 w-4 text-yellow-500 flex-shrink-0" />;
-  } else if (ext === 'source') {
-    return <FileText className="h-4 w-4 text-green-500 flex-shrink-0" />;
-  } else if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext || '')) {
-    return <FileImage className="h-4 w-4 text-green-500 flex-shrink-0" />;
-  } else if (['mp4', 'webm', 'mov', 'avi'].includes(ext || '')) {
-    return <FileVideo className="h-4 w-4 text-purple-500 flex-shrink-0" />;
-  } else if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext || '')) {
-    return <Music className="h-4 w-4 text-pink-500 flex-shrink-0" />;
-  }
-
-  return <FileText className="h-4 w-4 flex-shrink-0" />;
+  const { Icon, color } = getFileIcon(ext);
+  return <Icon className={`h-4 w-4 ${color} flex-shrink-0`} />;
 };
 
 /**
@@ -616,7 +598,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         onDoubleClick={() => handleTabDoubleClick(tab)}
       >
         <GripVertical className="h-3 w-3 flex-shrink-0 opacity-40 cursor-grab" />
-        {getFileIcon(tab)}
+        {getTabIcon(tab)}
         {editingTabPath === tab.path ? (
           <input
             type="text"
@@ -791,7 +773,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                       draggable
                     >
                       <GripVertical className="h-3 w-3 flex-shrink-0 opacity-40" />
-                      {getFileIcon(tab)}
+                      {getTabIcon(tab)}
                       <span className="truncate flex-1">{removeExtension(tab.name)}</span>
                       {tab.isDirty && (
                         <span className="text-amber-500 font-bold" title="Unsaved changes">
@@ -950,7 +932,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                       onClick={() => handleTabClick(tab.path)}
                       className="gap-2"
                     >
-                      {getFileIcon(tab)}
+                      {getTabIcon(tab)}
                       <span className="truncate max-w-[200px]">{removeExtension(tab.name)}</span>
                       {tab.isDirty && (
                         <span className="text-amber-500 font-bold ml-auto" title="Unsaved changes">

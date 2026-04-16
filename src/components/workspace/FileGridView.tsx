@@ -6,14 +6,10 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { FileNode } from '@/types/workspace';
 import {
   Folder,
-  File,
-  FileText,
-  FileImage,
-  FileVideo,
-  FileJson,
   ChevronRight,
   Home,
 } from 'lucide-react';
+import { getFileIcon } from '@/utils/fileIcons';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -73,29 +69,14 @@ export function FileGridView({
     [onFileOpen]
   );
 
-  // Get icon for file type
-  const getFileIcon = (node: FileNode) => {
-    // Bigger icons for better visibility in smaller squares
+  // UX-37: per-extension colored icons from the shared SSOT.
+  const getGridIcon = (node: FileNode) => {
     const iconClass = "h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16";
-
     if (node.type === 'folder') {
       return <Folder className={`${iconClass} text-blue-500`} />;
     }
-
-    const ext = node.extension?.toLowerCase();
-    if (ext === 'md' || ext === 'txt') {
-      return <FileText className={`${iconClass} text-gray-600`} />;
-    }
-    if (ext === 'json') {
-      return <FileJson className={`${iconClass} text-orange-500`} />;
-    }
-    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext || '')) {
-      return <FileImage className={`${iconClass} text-green-500`} />;
-    }
-    if (['mp4', 'webm', 'mov', 'avi'].includes(ext || '')) {
-      return <FileVideo className={`${iconClass} text-purple-500`} />;
-    }
-    return <File className={`${iconClass} text-gray-500`} />;
+    const { Icon, color } = getFileIcon(node.extension?.toLowerCase());
+    return <Icon className={`${iconClass} ${color}`} />;
   };
 
   // Drag and drop handlers
@@ -262,7 +243,7 @@ export function FileGridView({
                   'group'
                 )}
               >
-                <div className="flex-shrink-0">{getFileIcon(node)}</div>
+                <div className="flex-shrink-0">{getGridIcon(node)}</div>
                 <span className="text-xs text-center break-words w-full line-clamp-2 font-medium">
                   {node.name}
                 </span>
