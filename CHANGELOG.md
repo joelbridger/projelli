@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `src/components/editor/MarkdownPreview.tsx` — math expressions extracted to opaque placeholders alongside mermaid blocks, rendered synchronously via `katex.renderToString`. KaTeX CSS imported at the component level.
   - `tests/unit/markdown-preview-katex.test.ts` — 7 unit tests covering inline/block rendering, ordering, currency guard, escape guard, spy-on-katex call args, and graceful fallback on invalid math.
 
+- **Audit log export to JSON and CSV (Q5)** — the JSON and CSV buttons in the audit log panel now produce real downloads of the currently-filtered entries. JSON is pretty-printed with 2-space indentation; CSV follows RFC 4180 (quotes `,`, `"`, CR, LF; doubles embedded quotes; CRLF separators). Filenames follow `projelli-audit-YYYY-MM-DDTHH-mm-ss.{json|csv}` in local time. CSV columns include future-proof `tokens_in`, `tokens_out`, `cost_usd` for the Wave 1.2 cost dashboard (empty until populated).
+  - `src/utils/audit-export.ts` — new pure helpers: `entriesToJSON`, `entriesToCSV`, `buildExportFilename`, `triggerDownload`, `downloadAuditJSON`, `downloadAuditCSV`, `filterEntries`, `uniqueModels`. No React / Tauri coupling below the download layer.
+  - `src/components/common/AuditLog.tsx` — export buttons always render (previously hidden when no callback supplied). Component default-implements `downloadAudit{JSON,CSV}`; callback props still accepted as an override so callers can swap in a custom path (e.g. Tauri save dialog). New `data-testid` attributes `audit-log-export-json-btn` and `audit-log-export-csv-btn`. Filter logic routed through the shared `filterEntries` helper.
+  - `tests/unit/audit-export.test.ts` — 34 tests covering CSV escaping (commas, quotes, newlines, CRLF), JSON shape, filename format, `uniqueModels`, `filterEntries` composition, and `triggerDownload` DOM side effects (object URL creation + revocation).
+
 ## [1.0.8] - 2026-04-16
 
 The first release with auto-updates. From now on, Projelli checks for new

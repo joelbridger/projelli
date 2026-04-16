@@ -31,11 +31,24 @@ import {
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/types/audit';
 import { EmptyState } from './EmptyState';
+import {
+  downloadAuditCSV,
+  downloadAuditJSON,
+  filterEntries,
+} from '@/utils/audit-export';
 
 interface AuditLogProps {
   entries: AuditEntry[];
-  onExportJSON?: () => void;
-  onExportCSV?: () => void;
+  /**
+   * Optional custom JSON exporter. If omitted, clicking "JSON" serializes
+   * `entries` and triggers a browser download directly.
+   */
+  onExportJSON?: (entries: AuditEntry[]) => void;
+  /**
+   * Optional custom CSV exporter. If omitted, clicking "CSV" serializes
+   * `entries` and triggers a browser download directly.
+   */
+  onExportCSV?: (entries: AuditEntry[]) => void;
   className?: string;
 }
 
@@ -92,27 +105,31 @@ export function AuditLog({
   const [detailEntry, setDetailEntry] = useState<AuditEntry | null>(null);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Filter entries
-  const filteredEntries = useMemo(() => {
-    return entries.filter((entry) => {
-      // Filter by action type
-      if (selectedTypes.size > 0 && !selectedTypes.has(entry.action)) {
-        return false;
-      }
+  // Filter entries (composes action type + search query via the shared helper).
+  const filteredEntries = useMemo(
+    () =>
+      filterEntries(entries, {
+        actionTypes: selectedTypes,
+        searchQuery: searchQuery || undefined,
+      }),
+    [entries, selectedTypes, searchQuery]
+  );
 
-      // Filter by search query
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        return (
-          entry.description.toLowerCase().includes(query) ||
-          entry.action.toLowerCase().includes(query) ||
-          (entry.model && entry.model.toLowerCase().includes(query))
-        );
-      }
+  const handleExportJSON = useCallback(() => {
+    if (onExportJSON) {
+      onExportJSON(filteredEntries);
+    } else {
+      downloadAuditJSON(filteredEntries);
+    }
+  }, [filteredEntries, onExportJSON]);
 
-      return true;
-    });
-  }, [entries, selectedTypes, searchQuery]);
+  const handleExportCSV = useCallback(() => {
+    if (onExportCSV) {
+      onExportCSV(filteredEntries);
+    } else {
+      downloadAuditCSV(filteredEntries);
+    }
+  }, [filteredEntries, onExportCSV]);
 
   const toggleExpanded = useCallback((id: string) => {
     setExpandedEntries((prev) => {
@@ -170,18 +187,26 @@ export function AuditLog({
           </span>
         </div>
         <div className="flex items-center gap-2">
-          {onExportJSON && (
-            <Button variant="ghost" size="sm" onClick={onExportJSON}>
-              <Download className="h-4 w-4 mr-1" />
-              JSON
-            </Button>
-          )}
-          {onExportCSV && (
-            <Button variant="ghost" size="sm" onClick={onExportCSV}>
-              <Download className="h-4 w-4 mr-1" />
-              CSV
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleExportJSON}
+            data-testid="audit-log-export-json-btn"
+            disabled={filteredEntries.length === 0}
+          >
+            <Download className="h-4 w-4 mr-1" />
+            JSON
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleExportCSV}
+            data-testid="audit-log-export-csv-btn"
+            disabled={filteredEntries.length === 0}
+          >
+            <Download className="h-4 w-4 mr-1" />
+            CSV
+          </Button>
         </div>
       </div>
 
