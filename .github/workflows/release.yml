@@ -125,7 +125,27 @@ jobs:
           fi
           mkdir -p binaries
           cp "$SRC" "binaries/projelli-mcp-$TARGET"
+          echo "MCP_TARGET=$TARGET" >> "$GITHUB_ENV"
           ls -la binaries/
+
+      # Phase 4 M4 (v1.5 Flag 2) - Bundle the projelli-mcp binary into a
+      # `.mcpb` Desktop Extension archive. Claude Desktop installs these
+      # with a double-click; other MCP clients can unpack and register the
+      # binary directly. One archive per platform so the download stays
+      # lean for the user (no fat-binary tradeoff).
+      - name: Build .mcpb bundle (Mac/Linux)
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET="${MCP_TARGET}"
+          VERSION="$(node -p "require('./package.json').version")"
+          mkdir -p dist
+          node scripts/build-mcpb.mjs \
+            --binary "src-tauri/binaries/projelli-mcp-$TARGET" \
+            --target "$TARGET" \
+            --output "dist/projelli-$TARGET.mcpb" \
+            --version "$VERSION"
+          ls -la dist/
 
       - name: Build Tauri app (Mac/Linux)
         uses: tauri-apps/tauri-action@v0
@@ -165,9 +185,27 @@ jobs:
             - **macOS Apple Silicon:** `.dmg` (signed with Developer ID, unnotarized — Gatekeeper warning on first open)
             - **macOS Intel:** `.dmg` (signed with Developer ID, unnotarized — Gatekeeper warning on first open)
             - **Linux:** `.AppImage` or `.deb`
+            - **MCP bundle:** `projelli-<platform>.mcpb` (install into Claude Desktop)
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      # Phase 4 M4 (v1.5 Flag 2) - Upload the `.mcpb` bundle alongside the
+      # installers. We use gh CLI rather than tauri-action's own upload
+      # because tauri-action only uploads files under the `bundle/` dir and
+      # the .mcpb lives outside that tree. `--clobber` lets re-runs replace
+      # the previous artifact without deleting the draft.
+      - name: Upload .mcpb to release (Mac/Linux)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.ref_name }}"
+          TARGET="${MCP_TARGET}"
+          gh release upload "$TAG" \
+            "dist/projelli-$TARGET.mcpb" \
+            --clobber --repo projelli/projelli
 
   # Windows job: separate from the matrix because we don't use Tauri's
   # signCommand. Build with raw npm + sign with Microsoft's official action
@@ -206,7 +244,23 @@ jobs:
           cargo build --release --bin projelli-mcp
           New-Item -ItemType Directory -Force -Path binaries | Out-Null
           Copy-Item "target/release/projelli-mcp.exe" "binaries/projelli-mcp-$host_triple.exe"
+          "MCP_TARGET=$host_triple" | Out-File -FilePath $env:GITHUB_ENV -Append
           Get-ChildItem binaries
+
+      # Phase 4 M4 (v1.5 Flag 2) - Bundle the Windows projelli-mcp binary
+      # into a `.mcpb` archive. See the Mac/Linux block above for rationale.
+      - name: Build .mcpb bundle (Windows)
+        shell: pwsh
+        run: |
+          $target = $env:MCP_TARGET
+          $version = (node -p "require('./package.json').version")
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          node scripts/build-mcpb.mjs `
+            --binary "src-tauri/binaries/projelli-mcp-$target.exe" `
+            --target $target `
+            --output "dist/projelli-$target.mcpb" `
+            --version $version
+          Get-ChildItem dist
 
       - name: Build Tauri app (unsigned)
         env:
@@ -284,3 +338,19 @@ jobs:
             Write-Host "Uploading $($f.FullName) to release $tag"
             gh release upload $tag $f.FullName --clobber --repo projelli/projelli
           }
+
+      # Phase 4 M4 (v1.5 Flag 2) - Upload the Windows `.mcpb` bundle.
+      - name: Upload .mcpb to release (Windows)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $target = $env:MCP_TARGET
+          $mcpb = "dist/projelli-$target.mcpb"
+          if (-not (Test-Path $mcpb)) {
+            Write-Error "No .mcpb bundle found at $mcpb"
+            exit 1
+          }
+          Write-Host "Uploading $mcpb to release $tag"
+          gh release upload $tag $mcpb --clobber --repo projelli/projelli
