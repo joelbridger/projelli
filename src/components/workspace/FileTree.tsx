@@ -771,6 +771,8 @@ function FileTreeItem({
   );
 
   // UX-37: single source of truth for per-extension file icons.
+  // Derive extension from the file name (not node.extension) because the
+  // TauriFSBackend does not populate the extension field on FileNode.
   const renderFileIcon = () => {
     if (isFolder) {
       return isExpanded ? (
@@ -779,7 +781,8 @@ function FileTreeItem({
         <Folder className="h-4 w-4 text-amber-500" />
       );
     }
-    const { Icon, color } = getFileIcon(node.extension?.toLowerCase());
+    const ext = node.name.split('.').pop()?.toLowerCase();
+    const { Icon, color } = getFileIcon(ext);
     return <Icon className={`h-4 w-4 ${color}`} />;
   };
 

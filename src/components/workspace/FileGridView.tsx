@@ -70,12 +70,15 @@ export function FileGridView({
   );
 
   // UX-37: per-extension colored icons from the shared SSOT.
+  // Derive extension from the file name (not node.extension) because the
+  // TauriFSBackend does not populate the extension field on FileNode.
   const getGridIcon = (node: FileNode) => {
     const iconClass = "h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16";
     if (node.type === 'folder') {
       return <Folder className={`${iconClass} text-blue-500`} />;
     }
-    const { Icon, color } = getFileIcon(node.extension?.toLowerCase());
+    const ext = node.name.split('.').pop()?.toLowerCase();
+    const { Icon, color } = getFileIcon(ext);
     return <Icon className={`${iconClass} ${color}`} />;
   };
 
