@@ -33,13 +33,13 @@
 | Q5 | Audit log export (CSV/JSON) | ✅ Done | Commit `e5d5cd4` — `src/utils/audit-export.ts` + wired buttons in `AuditLog.tsx` + 34 unit tests. CSV is RFC 4180; future-proof `tokens_in`/`tokens_out`/`cost_usd` columns for Q4 |
 | Q6 | Audit log filtering | ✅ Done | Commit `9ed4d65` — date-range + model dropdown + reset button added to `AuditLog.tsx` filter row, composes with existing action-type chips. 6 RTL integration tests |
 | Q7 | Ollama as 4th provider | 🔲 Not started | No `OllamaProvider.ts`; needs Phase 2 Rust HTTP infra first |
-| Q8 | Per-template model assignment | ✅ Done | Commit `PENDING-Q8` — `WorkflowTemplate` gains optional `defaultProvider` / `defaultModel` / `isUser`; new `resolveTemplateModel` helper with 7 unit tests; new `templates` Settings category renders a per-template provider + model table persisted under `templateModelOverrides` |
+| Q8 | Per-template model assignment | ✅ Done | Commit `35ae3ea` — `WorkflowTemplate` gains optional `defaultProvider` / `defaultModel` / `isUser`; new `resolveTemplateModel` helper with 7 unit tests; new `templates` Settings category renders a per-template provider + model table persisted under `templateModelOverrides` |
 | Q9 | Haiku 4.5 free-tier default | ✅ Done | Commit `b827443` — new `src/utils/defaultModel.ts` helper; `AIAssistantPane.tsx` reads tier from `useLicense` and initializes selectedModels via `getDefaultModelsForTier`; `ClaudeProvider.ts` constructor fallback flipped to Haiku 4.5 |
 | Q10 | Template preview gallery | 🔲 Not started | No `website/templates/` directory; content generation work |
 | Q11 | Sample workspace on first run | ✅ Done | Commit `7611733` — `src/onboarding/samples/` with 3 Markdown files (Pricing Strategy, Pitch Deck, Weekly Review) plus `index.ts` (`SAMPLE_FILES` + `writeSampleFiles`). `FirstRunWizard.tsx` gains `workspace` prop + `first-run-samples-toggle`. 18 new unit tests. |
 | Q12 | Smart paste URL → link | 🔲 Not started | No clipboard paste handler in MarkdownEditor; needs Phase 2 `fetch_url_title` command |
 | Q13 | Image paste auto-save | 🔲 Not started | No clipboard image detection. File drag-drop exists via `GlobalDropOverlay.tsx` + `fileDrop.ts` (v1.0.8) but not per-editor paste |
-| Q14 | Wiki-link autocomplete | 🔲 Not started | `WikiLinkParser.ts` has parsing only, no CodeMirror autocompletion extension |
+| Q14 | Wiki-link autocomplete | ✅ Done | Commit `PENDING-Q14` — new `src/modules/editor/wikiLinkAutocomplete.ts` with `createWikiLinkCompletionSource` + helpers; wired into `MarkdownEditor.tsx` via `autocompletion({ override: [...] })`; fires on `[[`, filters workspace files by prefix/substring/initials, inserts normalized target and closes with `]]`; 13 unit tests |
 | Q15 | Run-on-all-3 button | 🔲 Not started | `ComparisonView.tsx` scaffolded but not wired from chat input |
 | Q16 | `?` shortcut overlay | ✅ Done in v1.0.8 | `src/components/ShortcutsOverlay.tsx` (187 lines), `src/utils/shortcuts.ts` (175 lines) |
 | Q17 | `/vs-obsidian`, `/vs-notion` pages | 🔲 Not started | No `website/vs/` directory |

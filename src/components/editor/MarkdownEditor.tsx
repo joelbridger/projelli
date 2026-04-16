@@ -10,6 +10,12 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
 import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { WordCountFooter } from './WordCountFooter';
+import {
+  createWikiLinkCompletionSource,
+  flattenFilesForWikiLinks,
+  type WikiLinkFileInfo,
+} from '@/modules/editor/wikiLinkAutocomplete';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 
 export interface MarkdownEditorRef {
   getView: () => EditorView | null;
@@ -72,8 +78,13 @@ const editorTheme = EditorView.theme({
 const createExtensions = (
   onChangeRef: React.MutableRefObject<((content: string) => void) | undefined>,
   onChangeMirrorRef: React.MutableRefObject<((content: string) => void) | undefined>,
+  getFilesRef: React.MutableRefObject<() => WikiLinkFileInfo[]>,
   readOnly: boolean = false
 ) => {
+  // Q14 — wiki-link autocomplete source. Reads the workspace file list via a
+  // ref so the popup always shows the current file tree even after the user
+  // creates or deletes files without re-mounting the editor.
+  const wikiLinkSource = createWikiLinkCompletionSource(() => getFilesRef.current());
   const extensions = [
     lineNumbers(),
     highlightActiveLineGutter(),
@@ -84,7 +95,7 @@ const createExtensions = (
     foldGutter(),
     bracketMatching(),
     closeBrackets(),
-    autocompletion(),
+    autocompletion({ override: [wikiLinkSource] }),
     highlightSelectionMatches(),
     syntaxHighlighting(defaultHighlightStyle),
     markdown({ base: markdownLanguage }),
@@ -129,6 +140,15 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
     const onChangeRef = useRef(onChange);
+    // Q14 — live workspace file list for wiki-link autocomplete. Kept behind
+    // a ref so file-tree changes don't trigger the editor remount effect.
+    const fileTree = useWorkspaceStore((s) => s.fileTree);
+    const getFilesRef = useRef<() => WikiLinkFileInfo[]>(() =>
+      flattenFilesForWikiLinks(fileTree)
+    );
+    useEffect(() => {
+      getFilesRef.current = () => flattenFilesForWikiLinks(fileTree);
+    }, [fileTree]);
     // UX-30: reactive mirror of the current document content so the word
     // count footer updates on every keystroke. We keep a separate piece of
     // React state rather than reading from the CodeMirror view synchronously
@@ -197,7 +217,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
 
       const state = EditorState.create({
         doc: initialContent,
-        extensions: createExtensions(onChangeRef, onChangeMirrorRef, readOnly),
+        extensions: createExtensions(onChangeRef, onChangeMirrorRef, getFilesRef, readOnly),
       });
 
       const view = new EditorView({
@@ -221,7 +241,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     }, [filePath, readOnly]); // Recreate when filePath or readOnly changes
 
     return (
-      <div className={`h-full w-full flex flex-col bg-background ${className}`}>
+      <div
+        className={`h-full w-full flex flex-col bg-background ${className}`}
+        data-testid="wiki-link-autocomplete"
+      >
         <div
           ref={containerRef}
           className="flex-1 min-h-0"
