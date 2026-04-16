@@ -17,6 +17,7 @@ import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
 import { useAIChatStore, getDraftInput } from '@/stores/aiChatStore';
 import { useFileContextStore } from '@/stores/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
+import { ChatCostChip } from '@/components/ai/ChatCostChip';
 
 interface APIKey {
   provider: string;
@@ -113,7 +114,7 @@ function chatToMarkdown(chat: AIChatFile): string {
 
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, className }: AIChatViewerProps) {
   // Use global store for chat state (persists across navigation)
-  const { sessions, initSession, addMessage, updateLastMessage, setLoading, setDraftInput, clearDraftInput } = useAIChatStore();
+  const { sessions, initSession, addMessage, updateLastMessage, setLoading, setDraftInput, clearDraftInput, recordCost } = useAIChatStore();
   const chatId = chatData.id;
   const session = sessions[chatId];
 
@@ -471,9 +472,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           addMessage(chatId, streamingMessage);
 
           let accumulated = '';
+          let streamingResponse: Awaited<ReturnType<NonNullable<typeof provider.sendMessageStreaming>>> | null = null;
 
           try {
-            await provider.sendMessageStreaming!(userMessage.content, {
+            streamingResponse = await provider.sendMessageStreaming!(userMessage.content, {
               systemPrompt,
               maxTokens: 4096,
               onChunk: (chunk: string) => {
@@ -493,6 +495,36 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             }
           } finally {
             abortControllerRef.current = null;
+          }
+
+          // Q3 — record cost/tokens for the chip. Streaming abort (null
+          // response) leaves these at zero; partial-cost tracking for
+          // aborted streams isn't worth the complexity.
+          if (streamingResponse) {
+            recordCost(chatId, {
+              cost: streamingResponse.cost,
+              inputTokens: streamingResponse.usage.inputTokens,
+              outputTokens: streamingResponse.usage.outputTokens,
+              provider: chatProvider,
+            });
+
+            // Q4 — emit an audit entry with the cost/token metadata so
+            // CostMetrics can aggregate over 30 days. Only log when
+            // audit callback is wired; the chat-only surface works
+            // without it.
+            onAuditLog?.({
+              action: 'model_call',
+              description: `Chat message to ${chatModel ?? chatProvider}`,
+              model: chatModel ?? chatProvider,
+              inputs: { promptLength: userMessage.content.length },
+              outputs: { contentLength: streamingResponse.content.length },
+              userDecision: 'auto',
+              metadata: { chatId, streamed: true },
+              tokensIn: streamingResponse.usage.inputTokens,
+              tokensOut: streamingResponse.usage.outputTokens,
+              costUsd: streamingResponse.cost,
+              provider: chatProvider,
+            });
           }
 
           const finalMessages = [...updatedMessages, { ...streamingMessage, content: accumulated }];
@@ -518,6 +550,28 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           };
 
           addMessage(chatId, assistantMessage);
+
+          // Q3 — record cost for the chip + Q4 audit entry.
+          recordCost(chatId, {
+            cost: response.cost,
+            inputTokens: response.usage.inputTokens,
+            outputTokens: response.usage.outputTokens,
+            provider: chatProvider,
+          });
+          onAuditLog?.({
+            action: 'model_call',
+            description: `Chat message to ${chatModel ?? chatProvider}`,
+            model: chatModel ?? chatProvider,
+            inputs: { promptLength: userMessage.content.length },
+            outputs: { contentLength: response.content.length },
+            userDecision: 'auto',
+            metadata: { chatId, streamed: false },
+            tokensIn: response.usage.inputTokens,
+            tokensOut: response.usage.outputTokens,
+            costUsd: response.cost,
+            provider: chatProvider,
+          });
+
           const finalMessages = [...updatedMessages, assistantMessage];
 
           if (onSave) {
@@ -586,7 +640,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         setLoading(chatId, false);
       }
     })();
-  }, [inputValue, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles]);
+  }, [inputValue, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, recordCost, clearDraftInput]);
 
   const handleStop = useCallback(() => {
     if (abortControllerRef.current) {
@@ -845,6 +899,11 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
       {/* Input */}
       <div data-testid="chat-input-area" className="border-t p-4">
+        {/* Q3 — real-time cost chip, anchored bottom-right of the chat pane
+             just above the input. Hover reveals today's provider breakdown. */}
+        <div className="flex justify-end mb-2">
+          <ChatCostChip chatId={chatId} />
+        </div>
         <div className="flex gap-2">
           <Textarea
             data-testid="chat-input"

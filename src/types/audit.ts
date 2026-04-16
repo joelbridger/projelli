@@ -28,6 +28,24 @@ export interface AuditEntry {
   outputs: Record<string, unknown>;
   userDecision: 'approved' | 'rejected' | 'auto' | undefined;
   metadata: Record<string, unknown>;
+  /**
+   * Q4 (Wave 1.2) — Optional cost/token fields populated when an entry
+   * represents a model call or a workflow/chat completion that triggered
+   * one. Pre-v1.5 entries won't have these; the cost dashboard just skips
+   * entries where these aren't set. See `src/utils/audit-export.ts` —
+   * these keys are also scraped from `outputs`/`metadata` for backward
+   * compatibility with entries that stored them there.
+   */
+  tokensIn?: number;
+  tokensOut?: number;
+  costUsd?: number;
+  /**
+   * Q4 — Provider ID ('anthropic' | 'openai' | 'google' | 'ollama') if
+   * known at log time. Used by CostMetrics for the stacked breakdown. The
+   * `model` field alone can't always be attributed to a provider
+   * (gpt-4o vs claude-haiku-4-5 is fine, but custom model names may not be).
+   */
+  provider?: string;
 }
 
 /**

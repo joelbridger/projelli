@@ -101,11 +101,11 @@ function extractField(entry: AuditEntry, col: CsvColumn): string {
         ? JSON.stringify(entry.metadata)
         : '';
     case 'tokens_in':
-      return readNumeric(entry, ['tokens_in', 'tokensIn', 'input_tokens']);
+      return readNumeric(entry, ['tokensIn', 'tokens_in', 'input_tokens']);
     case 'tokens_out':
-      return readNumeric(entry, ['tokens_out', 'tokensOut', 'output_tokens', 'tokens']);
+      return readNumeric(entry, ['tokensOut', 'tokens_out', 'output_tokens', 'tokens']);
     case 'cost_usd':
-      return readNumeric(entry, ['cost_usd', 'costUsd', 'cost']);
+      return readNumeric(entry, ['costUsd', 'cost_usd', 'cost']);
   }
 }
 
