@@ -68,6 +68,54 @@ export interface WriteDroppedFilesOptions {
  * files go through writeFile. Returns one record per file actually
  * written so the caller can open them in tabs.
  */
+/**
+ * UX-28: MIME identifier used to carry raw AI chat message content through
+ * the DOM drag-and-drop DataTransfer pipe. Export so consumers don't have
+ * to type the literal everywhere.
+ */
+export const AI_MESSAGE_MIME = 'application/x-projelli-chat-message';
+
+/**
+ * UX-28: Derive a reasonable filename from arbitrary AI chat content.
+ *
+ * Preference order:
+ *   1. A leading Markdown heading (# / ## / ###)
+ *   2. The first non-empty line, clipped to ~60 chars
+ *   3. The literal word "chat-message"
+ *
+ * The result is lowercased, kebab-cased, and trimmed to 60 chars of slug
+ * before the `.md` extension is appended. Non-ASCII alphanumerics are
+ * stripped; runs of separators collapse to one hyphen. Always ends in
+ * `.md`.
+ */
+export function deriveFilenameFromMessage(content: string): string {
+  const lines = content.split('\n');
+  let seed: string | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    // Heading?
+    const headingMatch = trimmed.match(/^#{1,6}\s+(.+)$/);
+    if (headingMatch) {
+      seed = headingMatch[1] ?? null;
+      break;
+    }
+    // Otherwise use the first non-empty line.
+    seed = trimmed.slice(0, 60);
+    break;
+  }
+
+  const fallback = 'chat-message';
+  const base = (seed ?? fallback)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60)
+    || fallback;
+  return `${base}.md`;
+}
+
 export async function writeDroppedFiles({
   service,
   targetFolder,

@@ -1421,6 +1421,63 @@ function App() {
     enabled: !!rootPath && !showWorkspaceSelector,
   });
 
+  // UX-28: handle a drag-and-drop of an AI chat message from AIChatViewer
+  // onto the file tree. Folder drops create a new .md file; file drops
+  // append the content to the existing file with a `---` separator so
+  // markdown readers still render both halves. Opens the resulting file
+  // in a tab either way.
+  const handleDropAIMessage = useCallback(
+    async (opts: { content: string; targetFolder: string; existingFilePath?: string }) => {
+      const service = workspaceServiceRef.current;
+      if (!service) return;
+      try {
+        if (opts.existingFilePath) {
+          // Append. Read the current text (best-effort — fall back to
+          // empty if the read fails, e.g. binary file) and tack on a
+          // separator + the new content.
+          let existing = '';
+          try {
+            existing = await service.readFile(opts.existingFilePath);
+          } catch {
+            existing = '';
+          }
+          const trimmedExisting = existing.replace(/\s+$/, '');
+          const appended = trimmedExisting
+            ? `${trimmedExisting}\n\n---\n\n${opts.content}\n`
+            : `${opts.content}\n`;
+          await service.writeFile(opts.existingFilePath, appended);
+          const tree = await service.getFileTree();
+          setFileTree(tree);
+          await handleFileOpen(
+            opts.existingFilePath,
+            opts.existingFilePath.split('/').pop() ?? 'file'
+          );
+          return;
+        }
+
+        // New-file path: derive a filename from the message, resolve
+        // against existing entries in the target folder to avoid collision.
+        const { deriveFilenameFromMessage, resolveUniqueName } = await import(
+          '@/utils/fileDrop'
+        );
+        const desired = deriveFilenameFromMessage(opts.content);
+        const finalName = await resolveUniqueName(
+          service,
+          opts.targetFolder,
+          desired
+        );
+        const path = `${opts.targetFolder}/${finalName}`;
+        await service.writeFile(path, `${opts.content}\n`);
+        const tree = await service.getFileTree();
+        setFileTree(tree);
+        await handleFileOpen(path, finalName);
+      } catch (err) {
+        console.error('[App] AI message drop failed:', err);
+      }
+    },
+    [setFileTree, handleFileOpen]
+  );
+
   // Handle starting a workflow
   const handleStartWorkflow = useCallback(
     async (template: WorkflowTemplate) => {
@@ -1992,6 +2049,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onOpenGridView={handleOpenGridView}
               onCreateAudioAtRoot={handleCreateAudioAtRoot}
               onConfirm={confirm}
+              onDropAIMessage={handleDropAIMessage}
             />
           }
           searchContent={

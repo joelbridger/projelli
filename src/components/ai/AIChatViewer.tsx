@@ -2,7 +2,7 @@
 // Displays full chat history and allows continuing conversations
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Send, Square, Download, Mic, MicOff } from 'lucide-react';
+import { Send, Square, Download, Mic, MicOff, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -715,17 +715,42 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                 {new Date(msg.timestamp).toLocaleTimeString()}
               </span>
             </div>
-            <div
-              className={cn(
-                'max-w-[85%] min-w-0 rounded-lg px-4 py-2 break-words overflow-wrap-anywhere',
-                msg.role === 'user'
-                  ? 'bg-primary text-primary-foreground'
-                  : msg.isError
-                    ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200'
-                    : 'bg-muted'
+            <div className="flex items-start gap-1 max-w-[85%] min-w-0">
+              {/* UX-28: assistant messages carry a drag handle so the content can
+                  be dropped onto the file tree to create a new file. The
+                  handle, not the whole bubble, is draggable so text selection
+                  inside the bubble keeps working. Errored assistant messages
+                  skip the handle to avoid offering a non-useful drag source. */}
+              {msg.role === 'assistant' && !msg.isError && msg.content.trim().length > 0 && (
+                <button
+                  type="button"
+                  data-testid={`ai-message-drag-handle-${idx}`}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = 'copy';
+                    e.dataTransfer.setData('application/x-projelli-chat-message', msg.content);
+                    e.dataTransfer.setData('text/plain', msg.content);
+                  }}
+                  title="Drag to file tree to save as a file"
+                  aria-label="Drag to file tree to save as a file"
+                  className="mt-2 shrink-0 cursor-grab active:cursor-grabbing p-1 rounded hover:bg-muted/60 text-muted-foreground/50 hover:text-muted-foreground"
+                >
+                  <GripVertical className="h-3.5 w-3.5" />
+                </button>
               )}
-              dangerouslySetInnerHTML={{ __html: renderMessage(msg.content) }}
-            />
+              {/* eslint-disable-next-line react/no-danger -- markdown rendered by the pre-existing renderMessage helper above */}
+              <div
+                className={cn(
+                  'min-w-0 rounded-lg px-4 py-2 break-words overflow-wrap-anywhere',
+                  msg.role === 'user'
+                    ? 'bg-primary text-primary-foreground'
+                    : msg.isError
+                      ? 'bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-red-900 dark:text-red-200'
+                      : 'bg-muted'
+                )}
+                dangerouslySetInnerHTML={{ __html: renderMessage(msg.content) }}
+              />
+            </div>
             {msg.isError && idx === messages.length - 1 && (
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 <button

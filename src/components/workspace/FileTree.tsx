@@ -41,6 +41,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { EmptyState } from '@/components/common/EmptyState';
+import { AI_MESSAGE_MIME } from '@/utils/fileDrop';
 import { cn } from '@/lib/utils';
 
 interface FileTreeProps {
@@ -75,6 +76,18 @@ interface FileTreeProps {
     message: string,
     options?: { title?: string; confirmLabel?: string; variant?: 'default' | 'destructive' }
   ) => Promise<boolean>;
+  /**
+   * UX-28: called when an AI chat message is dragged from the chat viewer
+   * and dropped on the tree. `targetPath` is the folder the drop landed on,
+   * or the workspace root when dropped on empty space. `existingFilePath`
+   * is set when the drop landed on an existing file — in which case the
+   * handler appends content rather than creating a new file.
+   */
+  onDropAIMessage?: (opts: {
+    content: string;
+    targetFolder: string;
+    existingFilePath?: string;
+  }) => Promise<void>;
 }
 
 export function FileTree({
@@ -100,6 +113,7 @@ export function FileTree({
   onCreateDocxAtRoot,
   onCreatePptxAtRoot,
   onConfirm,
+  onDropAIMessage,
 }: FileTreeProps) {
   const {
     fileTree,
@@ -133,7 +147,20 @@ export function FileTree({
       e.preventDefault();
       setDragOverPath(null);
 
-      if (!onMove || !rootPath) return;
+      if (!rootPath) return;
+
+      // UX-28: AI chat message drops carry our custom MIME. Route those
+      // through onDropAIMessage BEFORE looking for multi-drag payloads —
+      // the text/plain fallback is the raw message text, not a path.
+      const aiMessage = e.dataTransfer.getData(AI_MESSAGE_MIME);
+      if (aiMessage) {
+        if (onDropAIMessage) {
+          await onDropAIMessage({ content: aiMessage, targetFolder: rootPath });
+        }
+        return;
+      }
+
+      if (!onMove) return;
 
       const isMultiDrag = e.dataTransfer.getData('multi-drag') === 'true';
       const dataStr = e.dataTransfer.getData('text/plain');
@@ -161,7 +188,7 @@ export function FileTree({
         await onMove(sourcePath, rootPath);
       }
     },
-    [onMove, rootPath, clearSelection]
+    [onMove, rootPath, clearSelection, onDropAIMessage]
   );
 
   const handleOpenInExplorer = useCallback(async () => {
@@ -474,6 +501,8 @@ export function FileTree({
               addToSelection={addToSelection}
               selectRange={selectRange}
               clearSelection={clearSelection}
+              onDropAIMessage={onDropAIMessage}
+              rootPath={rootPath}
             />
           ))}
         </div>
@@ -521,6 +550,12 @@ interface FileTreeItemProps {
   addToSelection: (path: string) => void;
   selectRange: (startPath: string, endPath: string) => void;
   clearSelection: () => void;
+  // UX-28: passed down so items can accept AI chat message drops on
+  // folders (create new file) or files (append with `---` separator).
+  onDropAIMessage:
+    | ((opts: { content: string; targetFolder: string; existingFilePath?: string }) => Promise<void>)
+    | undefined;
+  rootPath: string | null;
 }
 
 function FileTreeItem({
@@ -546,6 +581,8 @@ function FileTreeItem({
   addToSelection,
   selectRange,
   clearSelection,
+  onDropAIMessage,
+  rootPath,
 }: FileTreeItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -638,10 +675,15 @@ function FileTreeItem({
       e.preventDefault();
       e.stopPropagation();
 
-      // Only folders can be drop targets
-      if (!isFolder) return;
+      // UX-28: AI chat message drops can land on EITHER folders (create a
+      // new file) or files (append to existing). For non-AI drags, keep
+      // the original behaviour of only lighting up folders.
+      const types = Array.from(e.dataTransfer.types);
+      const isAIMessage = types.includes(AI_MESSAGE_MIME);
 
-      e.dataTransfer.dropEffect = 'move';
+      if (!isAIMessage && !isFolder) return;
+
+      e.dataTransfer.dropEffect = isAIMessage ? 'copy' : 'move';
       setDragOverPath(node.path);
     },
     [isFolder, node.path, setDragOverPath]
@@ -668,6 +710,25 @@ function FileTreeItem({
       e.preventDefault();
       e.stopPropagation();
       setDragOverPath(null);
+
+      // UX-28: first, try the AI-chat-message MIME. Folder drops create a
+      // new file; file drops append to the existing file.
+      const aiMessage = e.dataTransfer.getData(AI_MESSAGE_MIME);
+      if (aiMessage && onDropAIMessage) {
+        if (isFolder) {
+          await onDropAIMessage({ content: aiMessage, targetFolder: node.path });
+        } else {
+          // Dropped onto a file — append with a separator. Fall back to
+          // the parent folder if we can't compute one.
+          const parent = node.path.substring(0, node.path.lastIndexOf('/'));
+          await onDropAIMessage({
+            content: aiMessage,
+            targetFolder: parent || rootPath || node.path,
+            existingFilePath: node.path,
+          });
+        }
+        return;
+      }
 
       if (!isFolder || !onMove) return;
 
@@ -709,7 +770,7 @@ function FileTreeItem({
         await onMove(sourcePath, node.path);
       }
     },
-    [isFolder, node.path, onMove, setDragOverPath, clearSelection]
+    [isFolder, node.path, onMove, setDragOverPath, clearSelection, onDropAIMessage, rootPath]
   );
 
   const getFileIcon = () => {
@@ -889,6 +950,8 @@ function FileTreeItem({
               addToSelection={addToSelection}
               selectRange={selectRange}
               clearSelection={clearSelection}
+              onDropAIMessage={onDropAIMessage}
+              rootPath={rootPath}
             />
           ))}
         </div>
