@@ -231,3 +231,59 @@ export async function watchWorkspace(path: string): Promise<void> {
   if (!isTauri()) return; // no-op in browser
   return invoke<void>('watch_workspace', { path });
 }
+
+// --------------------------------------------------------------------
+// Phase 4 M4 (v1.5 Flag 2) — MCP sidecar bridge.
+//
+// The `projelli-mcp` binary (see `src-tauri/src/bin/mcp/`) writes approval
+// requests to disk when an MCP client calls `write_workspace_file` with
+// `require_confirmation = true`. These commands let the desktop app
+// surface them to the user and return the user's decision.
+// --------------------------------------------------------------------
+
+/** One pending write approval queued by the `projelli-mcp` sidecar.
+ *  Mirror of the `PendingApproval` struct in `src-tauri/src/commands/mcp.rs`
+ *  (camelCase via `#[serde(rename_all = "camelCase")]`). */
+export interface McpPendingApproval {
+  token: string;
+  path: string;
+  preview: string;
+  fileExists: boolean;
+  oldPreview: string;
+  contentBytes: number;
+  receivedAt: number;
+}
+
+/** List every pending write approval request on disk. Returns `[]` in
+ *  browser mode and on a clean filesystem. Safe to call on a 1s poll. */
+export async function mcpListPendingApprovals(): Promise<McpPendingApproval[]> {
+  if (!isTauri()) return [];
+  try {
+    return await invoke<McpPendingApproval[]>('mcp_list_pending_approvals');
+  } catch {
+    return [];
+  }
+}
+
+/** Record the user's decision on a pending write. The sidecar's stdout
+ *  poller picks it up within 100 ms; the file is deleted after read. */
+export async function mcpApproveWrite(
+  token: string,
+  approved: boolean,
+): Promise<void> {
+  if (!isTauri()) return;
+  return invoke<void>('mcp_approve_write', { token, approved });
+}
+
+/** Resolve the absolute path to the platform `.mcpb` bundle that the
+ *  Settings section's Download button reveals for the user. Returns `null`
+ *  when the bundle isn't available (dev build without prior `build-mcpb`
+ *  run, unsupported target, browser mode). */
+export async function mcpBundlePath(): Promise<string | null> {
+  if (!isTauri()) return null;
+  try {
+    return await invoke<string | null>('mcp_bundle_path');
+  } catch {
+    return null;
+  }
+}

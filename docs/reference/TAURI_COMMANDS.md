@@ -271,6 +271,69 @@ const unlisten = await listen<WorkspaceChangeEvent>(
 
 ---
 
+## MCP (`src-tauri/src/commands/mcp.rs`) — Phase 4 M4 (v1.5 Flag 2)
+
+Host-side bridge between the `projelli-mcp` sidecar binary and the desktop
+app. The sidecar is cross-process — whichever MCP client (Claude Desktop,
+Cursor, Zed) spawned it owns its stdio — so the approval channel is a
+filesystem rendezvous under `<temp>/projelli-mcp/{requests,responses}/`.
+
+### `mcp_list_pending_approvals`
+
+```rust
+async fn mcp_list_pending_approvals() -> Result<Vec<PendingApproval>, String>
+```
+
+Read the `requests/` directory and return every pending write as
+`PendingApproval { token, path, preview, fileExists, oldPreview,
+contentBytes, receivedAt }` (camelCase on the wire). Malformed files are
+skipped silently so a single bad entry doesn't block the rest. Returns
+`[]` when the directory is missing. Safe to call on a 1-second poll.
+
+### `mcp_approve_write`
+
+```rust
+async fn mcp_approve_write(token: String, approved: bool) -> Result<(), String>
+```
+
+Write the user's decision to `responses/<token>.json`. The sidecar's
+`wait_for_response` polls the same directory and picks it up within
+100 ms, deletes both the request and response files, and returns its
+JSON-RPC reply to the MCP client.
+
+**Error conditions:**
+- `Err("token is empty")` for empty input.
+- `Err("token must be hex")` when the token contains non-hex characters.
+  Prevents a frontend bug from passing `..` and escaping the responses dir.
+
+**Frontend:**
+```ts
+import { mcpListPendingApprovals, mcpApproveWrite } from '@/utils/tauri-commands';
+
+const pending = await mcpListPendingApprovals();
+if (pending.length) {
+  // ... show modal, wait for user decision ...
+  await mcpApproveWrite(pending[0].token, true);
+}
+```
+
+### `mcp_bundle_path`
+
+```rust
+async fn mcp_bundle_path(app: AppHandle) -> Result<Option<String>, String>
+```
+
+Resolve the absolute path of the platform `.mcpb` bundle. Lookup order:
+1. Tauri resource dir: `<resource>/mcpb/projelli-<target>.mcpb` (production)
+2. Dev-build fallback: `<cwd>/dist/projelli-<target>.mcpb` and one/two
+   levels up, so engineers running `npm run tauri:dev` after
+   `node scripts/build-mcpb.mjs` get a hit.
+
+Returns `Ok(None)` when neither path exists — the Settings UI renders a
+"Bundle not available" hint instead of throwing.
+
+---
+
 ## Testing Tauri commands
 
 Pure helpers are tested directly with `#[cfg(test)]` blocks in the same

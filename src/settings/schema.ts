@@ -18,6 +18,7 @@ export type SettingCategory =
   | 'shortcuts'
   | 'costs'
   | 'templates'
+  | 'integrations'
   | 'updates'
   | 'about';
 
@@ -55,6 +56,7 @@ export const SETTING_CATEGORIES: { id: SettingCategory; label: string }[] = [
   { id: 'shortcuts', label: 'Keyboard Shortcuts' },
   { id: 'costs', label: 'Cost & Usage' },
   { id: 'templates', label: 'Templates' },
+  { id: 'integrations', label: 'Integrations' },
   { id: 'updates', label: 'Updates' },
   { id: 'about', label: 'About' },
 ];

@@ -8,5 +8,9 @@
 pub mod fs;
 pub mod http;
 pub mod keychain;
+// Phase 4 M4 (v1.5 Flag 2) — host-side bridge for the Projelli MCP sidecar:
+// list pending write approvals, record the user's decision, resolve the
+// platform `.mcpb` bundle path.
+pub mod mcp;
 pub mod rag;
 pub mod watcher;

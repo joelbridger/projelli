@@ -65,7 +65,14 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 pub const APPROVAL_MARKER: &str = "projelli/approval_request";
 
 /// The payload mirrored into `<approval_dir>/requests/<token>.json`.
+///
+/// `camelCase` on the wire so the host-side Tauri `PendingApproval` struct
+/// can deserialize the exact same JSON with its own `rename_all`. Both
+/// structs live in different binaries and have to agree by convention;
+/// adding a field here requires updating `commands::mcp::PendingApproval`
+/// too.
 #[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct ApprovalRequest {
     pub token: String,
     /// Workspace-relative path being written.
@@ -81,6 +88,9 @@ pub struct ApprovalRequest {
     pub old_preview: String,
     /// Total byte length of the new content.
     pub content_bytes: u64,
+    /// Unix seconds when we emitted the request — the host sorts pending
+    /// approvals FIFO by this field.
+    pub received_at: i64,
 }
 
 /// The response dropped into `<approval_dir>/responses/<token>.json` by the
@@ -174,6 +184,10 @@ pub fn build_request(
         Some(c) => (true, truncate(c)),
         None => (false, String::new()),
     };
+    let received_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
     ApprovalRequest {
         token,
         path,
@@ -181,6 +195,7 @@ pub fn build_request(
         file_exists,
         old_preview,
         content_bytes: new_content.len() as u64,
+        received_at,
     }
 }
 

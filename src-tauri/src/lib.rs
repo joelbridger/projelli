@@ -37,6 +37,10 @@ pub fn run() {
             commands::rag::rag_cancel_indexing,
             commands::rag::rag_delete_path,
             commands::watcher::watch_workspace,
+            // Phase 4 M4 (v1.5 Flag 2) — MCP approval bridge + .mcpb path.
+            commands::mcp::mcp_list_pending_approvals,
+            commands::mcp::mcp_approve_write,
+            commands::mcp::mcp_bundle_path,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

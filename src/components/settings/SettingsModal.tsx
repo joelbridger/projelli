@@ -31,6 +31,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { CostMetrics } from '@/components/analysis/CostMetrics';
 import { TemplateModelSettings } from '@/components/settings/TemplateModelSettings';
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
+import { McpSettingsSection } from '@/components/settings/McpSettingsSection';
 import type { AuditEntry } from '@/types/audit';
 import type { WorkflowTemplate } from '@/types/workflow';
 import {
@@ -466,10 +467,15 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
         (k) => lowerQ.includes(k)
       );
       if (templatesMatch) cats.add('templates');
+      const integrationsMatch = ['mcp', 'claude desktop', 'integration', 'sidecar', 'bundle'].some(
+        (k) => lowerQ.includes(k)
+      );
+      if (integrationsMatch) cats.add('integrations');
     } else {
       cats.add('shortcuts');
       cats.add('costs');
       cats.add('templates');
+      cats.add('integrations');
     }
     return cats;
   }, [filteredSchema, searchQuery]);
@@ -619,6 +625,8 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
               <CostMetrics entries={auditEntries ?? []} />
             ) : activeCategory === 'templates' ? (
               <TemplateModelSettings templates={templates ?? []} />
+            ) : activeCategory === 'integrations' ? (
+              <McpSettingsSection />
             ) : categorySettings.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
                 No settings match your search in this category.
