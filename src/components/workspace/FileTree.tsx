@@ -384,17 +384,18 @@ export function FileTree({
             Upload
           </Button>
         )}
+        {/* UX-40: Grid View button as an icon-only button inline with
+            the rest of the toolbar instead of on its own line. */}
         {onOpenGridView && (
           <Button
             variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs"
+            size="icon"
+            className="h-7 w-7"
             onClick={onOpenGridView}
-            title="Open grid view"
+            title="Grid view"
             data-testid="grid-view-button"
           >
-            <Grid3x3 className="h-3.5 w-3.5 mr-1" />
-            Grid View
+            <Grid3x3 className="h-3.5 w-3.5" />
           </Button>
         )}
       </div>
