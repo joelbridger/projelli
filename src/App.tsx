@@ -47,7 +47,7 @@ import type { TrashedItem } from '@/modules/history/TrashService';
 import type { SourceCard } from '@/types/research';
 import type { AuditEntry } from '@/types/audit';
 import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
-import { allWorkflows } from '@/modules/workflow';
+import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import {
   resolveTemplateModel,
   TEMPLATE_MODEL_OVERRIDES_KEY,
@@ -2613,7 +2613,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
         open={showSettingsModal}
         onOpenChange={setShowSettingsModal}
         auditEntries={auditEntries}
-        templates={allWorkflows}
+        templates={loadAllTemplates()}
         onAction={(actionId) => {
           if (actionId === 'open-ai-keys') {
             setSidebarActiveTab('ai-assistant');
