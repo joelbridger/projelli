@@ -28,8 +28,8 @@
 |---|---|---|---|
 | Q1 | Mermaid rendering | ✅ Done | Commit `5d154f8` — `mermaid@11.14.0` + `MarkdownPreview.tsx` + 4 new unit tests |
 | Q2 | KaTeX math rendering | ✅ Done | Commit `5403b04` — `katex@0.16.45` + `MarkdownPreview.tsx` + 7 new unit tests |
-| Q3 | Real-time cost meter | 🔲 Not started | `ProviderMetadata` has pricing fields (v1.0.8+), but chat UI doesn't render cost. Needs aggregation + chip UI |
-| Q4 | Monthly cost dashboard | 🔲 Not started | `AuditService` schema has no `tokens_in`/`tokens_out`/`cost_usd` fields. New `CostMetrics.tsx` component needed |
+| Q3 | Real-time cost meter | ✅ Done | Commit `6f376ab` — `src/stores/aiChatStore.ts` gains per-chat + per-day cost aggregation (`recordCost`, `useChatCost`, `useTodayCost`, 7-day bucket retention). New `ChatCostChip.tsx` renders "$X this chat / $Y today" above the chat input with a tooltip breakdown by provider. `AIChatViewer.tsx` wires `recordCost` + populates Q4 audit fields on both streaming and non-streaming completions. 14 new unit tests (chat-cost-aggregation + audit-cost-fields). |
+| Q4 | Monthly cost dashboard | ✅ Done | Commit `8a2c5bb` — `AuditEntry` extended with optional `tokensIn` / `tokensOut` / `costUsd` / `provider` fields. New `src/components/analysis/CostMetrics.tsx` renders a last-30-days inline SVG bar chart (no chart library), per-provider stacked breakdown, and "This month: $X.XX across Y calls" total. New `costs` category in `src/settings/schema.ts` surfaces it in Settings. `audit-export.ts` `readNumeric` key arrays prefer camelCase top-level fields with legacy fallback. 9 new unit tests. |
 | Q5 | Audit log export (CSV/JSON) | ✅ Done | Commit `e5d5cd4` — `src/utils/audit-export.ts` + wired buttons in `AuditLog.tsx` + 34 unit tests. CSV is RFC 4180; future-proof `tokens_in`/`tokens_out`/`cost_usd` columns for Q4 |
 | Q6 | Audit log filtering | ✅ Done | Commit `9ed4d65` — date-range + model dropdown + reset button added to `AuditLog.tsx` filter row, composes with existing action-type chips. 6 RTL integration tests |
 | Q7 | Ollama as 4th provider | 🔲 Not started | No `OllamaProvider.ts`; needs Phase 2 Rust HTTP infra first |
@@ -135,6 +135,8 @@ Discovered during the re-audit — confirmed present in `2644a9c`:
 | `b827443` | Q9 — Claude Haiku 4.5 as free-tier default model |
 | `7611733` | Q11 — Seed sample workspace files on first run |
 | `a69e144` | Q20 — Guided 3-step API-key onboarding wizard |
+| `6f376ab` | Q3 — Real-time API cost chip in chat pane |
+| `8a2c5bb` | Q4 — Monthly cost dashboard in Settings |
 
 ---
 
