@@ -3,7 +3,10 @@
 
 mod commands;
 
-use tauri::Manager;
+// `tauri::Manager` is no longer directly used here — `app.handle().plugin(...)`
+// resolves through the AppHandle methods in Tauri 2. Keep it commented as a
+// pointer for future setup-hook work.
+// use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,6 +22,17 @@ pub fn run() {
             commands::fs::detect_libreoffice,
             commands::fs::convert_doc_to_docx,
             commands::fs::convert_ppt_to_pdf,
+            // Phase 2 Rust foundation for v1.5 (M1-M6 enable, Q7/Q12 real).
+            commands::http::fetch_url_title,
+            commands::http::ollama_list_models,
+            commands::http::ollama_chat_stream,
+            commands::keychain::keychain_set,
+            commands::keychain::keychain_get,
+            commands::keychain::keychain_delete,
+            commands::rag::rag_index_file,
+            commands::rag::rag_index_workspace,
+            commands::rag::rag_retrieve,
+            commands::watcher::watch_workspace,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

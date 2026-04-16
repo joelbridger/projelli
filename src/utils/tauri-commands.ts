@@ -1,5 +1,5 @@
 // Thin wrappers around custom Tauri commands defined in
-// `src-tauri/src/commands/fs.rs`. Each wrapper is safe to call from browser
+// `src-tauri/src/commands/`. Each wrapper is safe to call from browser
 // test mode: `isTauri()` returns false and the function short-circuits with a
 // browser-appropriate fallback (null for detection, thrown error for
 // conversion).
@@ -56,4 +56,129 @@ export async function convertPptToPdf(inputPath: string): Promise<string> {
     throw new Error('PowerPoint preview is only available in the desktop app.');
   }
   return invoke<string>('convert_ppt_to_pdf', { inputPath });
+}
+
+// --------------------------------------------------------------------
+// Phase 2 (v1.5) Rust foundation bindings.
+//
+// These thin wrappers mirror the new commands in `src-tauri/src/commands/`
+// (http.rs, keychain.rs, rag.rs, watcher.rs). Each gracefully degrades in
+// browser / test mode so callers can wire UI against them today.
+// --------------------------------------------------------------------
+
+/** Structured error the `keychain_*` commands can return. Frontend callers
+ *  can switch on `.kind` to show a useful message ("install gnome-keyring"
+ *  on Linux, "allow the app to access your Keychain" on macOS, etc.). */
+export type KeychainErrorKind =
+  | 'notFound'
+  | 'noBackend'
+  | 'denied'
+  | 'other';
+
+export interface KeychainError {
+  kind: KeychainErrorKind;
+  message: string;
+}
+
+/** A single retrieval hit returned by `rag_retrieve`. Shape is frozen in
+ *  Phase 2 so the frontend can wire UI before M1 lands the implementation. */
+export interface RagHit {
+  path: string;
+  chunkText: string;
+  score: number;
+  paragraphIndex: number;
+}
+
+/** Simplified change kind emitted on the `workspace-file-changed` event. */
+export type WorkspaceChangeKind = 'create' | 'modify' | 'delete' | 'rename';
+
+export interface WorkspaceChangeEvent {
+  path: string;
+  kind: WorkspaceChangeKind;
+}
+
+/**
+ * Fetch the HTML title of a URL for Q12 smart paste. Returns `""` on any
+ * error — the frontend should treat an empty string as "fall back to the
+ * raw URL". Browser mode also returns `""` since we don't have access to
+ * a CORS-friendly fetcher.
+ */
+export async function fetchUrlTitle(url: string): Promise<string> {
+  if (!isTauri()) return '';
+  try {
+    return await invoke<string>('fetch_url_title', { url });
+  } catch {
+    return '';
+  }
+}
+
+/** Store a secret in the OS keychain under (service, key). Overwrites. */
+export async function keychainSet(
+  key: string,
+  value: string,
+  service?: string,
+): Promise<void> {
+  if (!isTauri()) {
+    throw new Error('keychain is only available in the desktop app.');
+  }
+  return invoke<void>('keychain_set', { service, key, value });
+}
+
+/** Read a secret from the OS keychain. Throws with a structured
+ *  `KeychainError` if not found or the backend rejects the query. */
+export async function keychainGet(
+  key: string,
+  service?: string,
+): Promise<string> {
+  if (!isTauri()) {
+    throw new Error('keychain is only available in the desktop app.');
+  }
+  return invoke<string>('keychain_get', { service, key });
+}
+
+/** Delete a secret. Idempotent — succeeds if the key wasn't present. */
+export async function keychainDelete(
+  key: string,
+  service?: string,
+): Promise<void> {
+  if (!isTauri()) {
+    throw new Error('keychain is only available in the desktop app.');
+  }
+  return invoke<void>('keychain_delete', { service, key });
+}
+
+/** Index a single file into the local RAG store. Phase 2 stub — Phase 3
+ *  (M1) wires the actual embedding + upsert. */
+export async function ragIndexFile(path: string): Promise<void> {
+  if (!isTauri()) {
+    throw new Error('RAG is only available in the desktop app.');
+  }
+  return invoke<void>('rag_index_file', { path });
+}
+
+/** Index the entire active workspace. Phase 2 stub. */
+export async function ragIndexWorkspace(): Promise<void> {
+  if (!isTauri()) {
+    throw new Error('RAG is only available in the desktop app.');
+  }
+  return invoke<void>('rag_index_workspace');
+}
+
+/** Query the local RAG store. Phase 2 stub. */
+export async function ragRetrieve(
+  query: string,
+  topK: number,
+): Promise<RagHit[]> {
+  if (!isTauri()) {
+    throw new Error('RAG is only available in the desktop app.');
+  }
+  return invoke<RagHit[]>('rag_retrieve', { query, topK });
+}
+
+/** Start (or replace) the workspace file watcher. Only one watcher is
+ *  active at a time. Emits `workspace-file-changed` events that callers
+ *  can subscribe to via `@tauri-apps/api/event`'s `listen`. */
+export async function watchWorkspace(path: string): Promise<void> {
+  if (!isTauri()) return; // no-op in browser
+  return invoke<void>('watch_workspace', { path });
 }

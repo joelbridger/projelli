@@ -12,6 +12,13 @@ rust-version = "1.77.2"
 name = "projelli_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# Stub MCP server binary. Real implementation lands in Phase 4 (M4). The
+# stub is here now so the release pipeline can cross-compile the target on
+# every platform without having to wait for Phase 4.
+[[bin]]
+name = "projelli-mcp"
+path = "src/bin/mcp.rs"
+
 [build-dependencies]
 tauri-build = { version = "2.5.3", features = [] }
 
@@ -27,8 +34,32 @@ tauri-plugin-shell = "2"
 tauri-plugin-http = "2"
 dirs = "5"
 
+# Phase 2 (v1.5) — Rust/Tauri foundation. These four crates unlock the
+# Mediums and Quick Wins in Phases 3 and 4:
+#   - reqwest : Ollama streaming (M6/Q7) + URL title fetch (Q12)
+#   - tokio   : async runtime for all new #[tauri::command] async fns
+#   - notify  : workspace file watcher feeding incremental RAG (M1)
+#   - keyring : native OS keychain (replaces the encrypted-file fallback
+#               for API-key storage on desktop builds)
+#
+# NOTE: `lancedb` + `fastembed` (M1 RAG) and the MCP Rust SDK (M4) are
+# intentionally NOT added here. They add ~500MB of compile output and
+# several minutes of compile time, and Phase 2 doesn't need them yet.
+# They land with their respective Phase 3 / Phase 4 scaffolding.
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+tokio = { version = "1", features = ["full"] }
+# `futures-util::StreamExt` powers the chunked body reader in `fetch_url_title`
+# (we want to bail as soon as we see `</title>` rather than reading the full
+# body). `reqwest`'s response stream uses the same `Stream` trait.
+futures-util = "0.3"
+notify = "6"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+
 # Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
 # the cfg() filter keeps the iOS/Android crate graph slim.
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "test-util"] }
