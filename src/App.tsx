@@ -18,6 +18,7 @@ import { WorkflowPanel } from '@/components/workflow/WorkflowPanel';
 import { InterviewForm } from '@/components/workflow/InterviewForm';
 import { CommandPalette, getDefaultCommands, type PaletteCommand } from '@/components/common/CommandPalette';
 import { ShortcutsOverlay } from '@/components/ShortcutsOverlay';
+import { QuickOpen } from '@/components/QuickOpen';
 import { SourceCardPanel } from '@/components/research/SourceCardPanel';
 import { SearchPanel } from '@/components/search/SearchPanel';
 import { AuditLog } from '@/components/common/AuditLog';
@@ -84,6 +85,7 @@ function App() {
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showShortcutsOverlay, setShowShortcutsOverlay] = useState(false);
+  const [showQuickOpen, setShowQuickOpen] = useState(false);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
@@ -1730,6 +1732,15 @@ This file contains rules and guidelines for AI assistants in this workspace.
         return;
       }
 
+      // UX-27: Quick-open fuzzy file switcher — Ctrl+P / Cmd+P.
+      // Must come AFTER the command-palette check so Ctrl+Shift+P keeps
+      // routing to the palette.
+      if (isMod && !e.shiftKey && e.key === 'p') {
+        e.preventDefault();
+        setShowQuickOpen(true);
+        return;
+      }
+
       // Save: Ctrl+S
       if (isMod && e.key === 's') {
         e.preventDefault();
@@ -2084,6 +2095,14 @@ This file contains rules and guidelines for AI assistants in this workspace.
       <ShortcutsOverlay
         open={showShortcutsOverlay}
         onOpenChange={setShowShortcutsOverlay}
+      />
+
+      {/* UX-27: Quick-open fuzzy file switcher (Ctrl+P) */}
+      <QuickOpen
+        open={showQuickOpen}
+        onOpenChange={setShowQuickOpen}
+        fileTree={fileTree}
+        onFileOpen={handleFileOpen}
       />
 
       {/* Audio Recorder Modal */}

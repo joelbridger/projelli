@@ -79,6 +79,13 @@ export const SHORTCUTS: ShortcutDef[] = [
     description: 'Search and run any command',
   },
   {
+    id: 'quick-open',
+    label: 'Quick Open File',
+    keys: ['Ctrl', 'P'],
+    category: 'Navigation',
+    description: 'Fuzzy-match any workspace file by name',
+  },
+  {
     id: 'shortcuts-overlay',
     label: 'Show Keyboard Shortcuts',
     keys: ['?'],
