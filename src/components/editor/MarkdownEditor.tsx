@@ -23,6 +23,10 @@ import {
   type ShowToast,
 } from '@/modules/editor/smartPaste';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import { InlineChatAnchor } from './InlineChatAnchor';
+import { StreamingDiffOverlay } from './StreamingDiffOverlay';
+import { codeMirrorAdapter, useInlineAiEdit } from './useInlineAiEdit';
+import type { Provider } from '@/modules/models/Provider';
 
 export interface MarkdownEditorRef {
   getView: () => EditorView | null;
@@ -59,6 +63,11 @@ interface MarkdownEditorProps {
    * messages to the user. Defaults to a console-only warn in test mode.
    */
   showToast?: ShowToast | undefined;
+  /**
+   * M5 — provider factory for inline AI edits. Returning `null`
+   * disables the feature (default). Tests inject a `MockProvider`.
+   */
+  getAiProvider?: (() => Provider | null) | undefined;
 }
 
 // Custom theme for the editor
@@ -115,6 +124,8 @@ const createExtensions = (
     showToast: React.MutableRefObject<ShowToast | undefined>;
     onImagePasted: React.MutableRefObject<() => void>;
   },
+  // M5 — optional "bump" to inform the React side that the selection moved.
+  selectionVersionBumpRef: React.MutableRefObject<(() => void) | undefined>,
   readOnly: boolean = false
 ) => {
   // Q14 — wiki-link autocomplete source. Reads the workspace file list via a
@@ -172,6 +183,13 @@ const createExtensions = (
         onChangeRef.current?.(text);
         onChangeMirrorRef.current?.(text);
       }
+      // M5 — bump the selection-version counter whenever the user's
+      // selection shifts, so `useInlineAiEdit` can recompute anchor
+      // coordinates. Gated behind a ref so we can disable it if the
+      // caller never wires up the AI edit feature.
+      if (update.selectionSet || update.docChanged) {
+        selectionVersionBumpRef.current?.();
+      }
     }),
   ];
 
@@ -194,6 +212,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       writeImage,
       hasWorkspace,
       showToast,
+      getAiProvider,
     },
     ref
   ) {
@@ -262,6 +281,50 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
     // Q13 — increments every time an image paste succeeds so tests can
     // wait on a `data-paste-count` attribute without timing races.
     const [imagePasteCount, setImagePasteCount] = useState(0);
+
+    // M5 — monotonic counter bumped on every selection change so the
+    // inline-edit hook can recompute anchor coordinates. Separate from
+    // currentText so plain "the user typed one key" doesn't force the
+    // overlay to re-layout.
+    const [selectionVersion, setSelectionVersion] = useState(0);
+    const selectionVersionBumpRef = useRef<(() => void) | undefined>(undefined);
+    useEffect(() => {
+      selectionVersionBumpRef.current = () =>
+        setSelectionVersion((n) => (n + 1) % 1_000_000);
+    }, []);
+    const getAiProviderRef = useRef<(() => Provider | null) | undefined>(
+      getAiProvider
+    );
+    useEffect(() => {
+      getAiProviderRef.current = getAiProvider;
+    }, [getAiProvider]);
+
+    // M5 inline edit orchestration. The adapter reads from the live
+    // `viewRef` so the hook keeps pointing at the right editor even
+    // after a filePath remount.
+    const aiAdapter = useRef<ReturnType<typeof codeMirrorAdapter> | null>(null);
+    aiAdapter.current = codeMirrorAdapter(viewRef.current, { filePath });
+    const {
+      state: aiState,
+      handlers: aiHandlers,
+    } = useInlineAiEdit({
+      adapter: {
+        getSelectedText: () => aiAdapter.current?.getSelectedText() ?? '',
+        getSelectionRange: () => aiAdapter.current?.getSelectionRange() ?? null,
+        replaceRange: (from, to, insert) =>
+          aiAdapter.current?.replaceRange(from, to, insert),
+        coordsAtPos: (pos) => aiAdapter.current?.coordsAtPos(pos) ?? null,
+        getDocText: () => aiAdapter.current?.getDocText() ?? '',
+        getDomNode: () => aiAdapter.current?.getDomNode() ?? null,
+        filePath,
+      },
+      getProvider: () => {
+        const fn = getAiProviderRef.current;
+        return fn ? fn() : null;
+      },
+      formatHint: 'markdown',
+      docVersion: selectionVersion,
+    });
 
     // Keep onChange ref up to date (this doesn't cause re-renders)
     useEffect(() => {
@@ -333,6 +396,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
             showToast: showToastRef,
             onImagePasted: onImagePastedRef,
           },
+          selectionVersionBumpRef,
           readOnly
         ),
       });
@@ -441,6 +505,36 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
         />
         {/* UX-30: word count footer. Matches the TipTap editors' styling. */}
         {!readOnly && <WordCountFooter text={currentText} />}
+
+        {/* M5 — inline AI edit surfaces. The anchor button is suppressed
+            while a session is active so the overlay isn't visually noisy. */}
+        {!readOnly && (
+          <>
+            <InlineChatAnchor
+              coords={aiState.anchorCoords}
+              sessionActive={aiState.sessionActive}
+              externalOpenSignal={aiState.externalOpenSignal}
+              onSubmit={(instruction) => {
+                void aiHandlers.submitInstruction(instruction);
+              }}
+            />
+            {aiState.sessionActive && (
+              <div className="px-4 pb-2">
+                <StreamingDiffOverlay
+                  original={aiState.sessionOriginal}
+                  proposed={aiState.sessionProposed}
+                  streaming={aiState.sessionStreaming}
+                  resolutions={aiState.resolutions}
+                  onAcceptHunk={aiHandlers.acceptHunk}
+                  onRejectHunk={aiHandlers.rejectHunk}
+                  onAcceptAll={aiHandlers.acceptAll}
+                  onRejectAll={aiHandlers.rejectAll}
+                  onCancel={aiHandlers.cancelSession}
+                />
+              </div>
+            )}
+          </>
+        )}
       </div>
     );
   }
