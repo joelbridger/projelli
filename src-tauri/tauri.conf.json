@@ -58,7 +58,8 @@
         "sidebarImage": "icons/installer-sidebar.bmp",
         "installMode": "currentUser",
         "languages": ["English"],
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerHooks": "./windows/installer-hooks.nsh"
       },
       "wix": {
         "language": "en-US"
