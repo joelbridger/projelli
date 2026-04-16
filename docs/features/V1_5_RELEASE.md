@@ -57,14 +57,16 @@
 |---|---|---|---|
 | M1 | Local RAG (LanceDB + fastembed-rs + e5-small) | ✅ Done | Commits `550c730` (Rust RAG engine: chunker + embedder + LanceDB store + 6 commands), `889bb36` (TS bindings + MemoryService toggle wrapper + 12 unit tests), `2bb410b` (UI banner + status badge + settings toggle + watcher integration + useRagStatus hook + 7 unit tests). Vector store at `<workspace>/.projelli/vectors/`, 384-dim e5-small via fastembed-rs, paragraph-aware chunker, watcher-driven incremental re-index, `Settings → Memory` opt-out. 56 Rust tests + 19 new TS tests. |
 | M2 | `@workspace` + Ask-my-workspace | ✅ Done | Commits `bd6b818` (`@workspace` parser + `<workspace_context>` injection + Ask-my-workspace per-chat toggle + citation chips + Sources accordion + `workspace-command-chip` / `ask-workspace-toggle` / `chat-sources-accordion` / `chat-citation-{path}-{paragraph}` testids + 27 unit tests), `bfc4f1c` (UI mount tests + scrollIntoView jsdom polyfill + 14 more unit tests). Retrieval goes through `MemoryService.retrieve(query, 8)` so the Settings toggle is respected. Provider-agnostic — Claude, OpenAI, Gemini all receive the same `<workspace_context>` block via their existing `systemPrompt` entrypoint. Graceful degrade: memory off / retrieval error surfaces a subtle inline "this message wasn't workspace-aware" hint. Citation clicks fire `onOpenFileAtPath` → App.tsx opens the file and dispatches `projelli:scroll-to-paragraph`. 41 new TS tests (17 command-parser + 10 prompt-injection + 8 Ask-mode + 6 citation-nav). |
-| M3 | Memory facts file + extraction | 🔲 Not started | No memory/facts infrastructure |
+| M3 | Memory facts file + extraction | ✅ Done | Commits `5ad53e9` (FactsService + `<memory>` prompt injection + settings schema + 22 unit tests), `d03acaf` (fact extraction state machine + `ProposedFactsPanel` chat UI + auto-accept path + 22 more unit tests). Facts live at `<workspace>/.projelli/memory.json` with atomic tmp-rename writes and defensive parsing. `<memory>` block sits BEFORE `<workspace_context>` in the system prompt so durable facts frame every response. Extraction fires every 10 messages via `Provider.structuredOutput`; proposed facts show Accept / Edit / Reject chips with explicit user approval required by default. 5 consecutive rejects mute a chat for the session. New settings: `factsInjection` (default ON), `factsAutoAccept` (default OFF). 44 new TS tests: CRUD + atomic write + schema version handling; throttling + reject giveup + error-silent-skip; prompt block format + ordering; RTL panel test. |
 | M4 | Projelli MCP server + `.mcpb` bundle | 🔲 Not started | No `src-tauri/src/bin/mcp.rs`, no MCP crate in deps |
 | M5 | Side-by-side AI editing | 🔲 Not started | `DiffViewer.tsx` exists (read-only preview, v1.0.x); no inline chat anchor, no per-hunk accept/reject |
 | M6 | Voice input via Parakeet.cpp | 🔲 Not started | No sidecar binary, no press-to-talk hotkey. WaveformEditor Web Audio exists (v1.0.x) for reuse |
 | M7 | Template chaining | 🔲 Not started | `WorkflowTemplate` schema has no named outputs; no chain config UI |
 | M8 | Multi-interview synthesis | 🔲 Not started | `UserInterviews.ts` is single-interview only; no synthesis template |
 
-**2 of 8 Mediums shipped (M1, M2). Mediums remaining: 6.**
+**3 of 8 Mediums shipped (M1, M2, M3). Mediums remaining: 5.**
+
+**Flag 1 (Memory) is complete.** M1 (RAG) + M2 (@workspace / Ask-mode) + M3 (facts) together make "the AI workspace that remembers your stuff" the headline capability of v1.5.
 
 ---
 
@@ -162,6 +164,8 @@ Discovered during the re-audit — confirmed present in `2644a9c`:
 | `2bb410b` | M1 (3/3) — UI progress banner + status badge + Memory settings toggle + watcher integration |
 | `bd6b818` | M2 (1/3) — `@workspace` command + Ask-my-workspace toggle + citation navigation |
 | `bfc4f1c` | M2 (2/3) — Ask-workspace mode + citation navigation UI tests |
+| `5ad53e9` | M3 (1/3) — FactsService + `<memory>` prompt block + settings toggles |
+| `d03acaf` | M3 (2/3) — Fact extraction + chat UI + settings panel |
 
 ---
 
