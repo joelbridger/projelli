@@ -3,11 +3,6 @@
 
 mod commands;
 
-// `tauri::Manager` is no longer directly used here — `app.handle().plugin(...)`
-// resolves through the AppHandle methods in Tauri 2. Keep it commented as a
-// pointer for future setup-hook work.
-// use tauri::Manager;
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -29,9 +24,13 @@ pub fn run() {
             commands::keychain::keychain_set,
             commands::keychain::keychain_get,
             commands::keychain::keychain_delete,
+            // Phase 3 M1 RAG (LanceDB + fastembed-rs + e5-small).
+            commands::rag::rag_set_workspace,
             commands::rag::rag_index_file,
             commands::rag::rag_index_workspace,
             commands::rag::rag_retrieve,
+            commands::rag::rag_cancel_indexing,
+            commands::rag::rag_delete_path,
             commands::watcher::watch_workspace,
         ])
         .setup(|app| {
@@ -42,6 +41,10 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            // Phase 3 M1 — manage shared RAG state (active workspace +
+            // cancellation flag for the workspace indexer). Required by all
+            // `rag_*` commands.
+            commands::rag::manage_state(app);
             // Auto-updater stack. Desktop-only because the underlying
             // crates are gated to macOS / Windows / Linux in Cargo.toml.
             // The plugin reads endpoints + pubkey from tauri.conf.json so

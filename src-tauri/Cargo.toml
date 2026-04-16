@@ -42,18 +42,42 @@ dirs = "5"
 #   - keyring : native OS keychain (replaces the encrypted-file fallback
 #               for API-key storage on desktop builds)
 #
-# NOTE: `lancedb` + `fastembed` (M1 RAG) and the MCP Rust SDK (M4) are
-# intentionally NOT added here. They add ~500MB of compile output and
-# several minutes of compile time, and Phase 2 doesn't need them yet.
-# They land with their respective Phase 3 / Phase 4 scaffolding.
+# Phase 3 M1 (v1.5) — Local RAG. lancedb + fastembed-rs + the underlying
+# arrow crates land here. Together they add ~500MB of compile output and
+# several minutes of compile time, but they are required for the Memory
+# feature (Flag 1: "the AI workspace that remembers your stuff"). They are
+# pinned to versions known to work on Tauri 2.9 / Rust 1.78+:
+#   - lancedb 0.21    — vector store; rust-version 1.78
+#   - fastembed 4     — local ONNX embeddings via ort; bundles e5-small
+#   - arrow-array 55  — must match lancedb 0.21's transitive arrow dep so
+#                       users building tables don't see the "two arrow
+#                       versions" error from cargo. Pin explicitly to keep
+#                       upgrades across the workspace coherent.
+#   - arrow-schema 55 — same reasoning.
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 tokio = { version = "1", features = ["full"] }
 # `futures-util::StreamExt` powers the chunked body reader in `fetch_url_title`
 # (we want to bail as soon as we see `</title>` rather than reading the full
-# body). `reqwest`'s response stream uses the same `Stream` trait.
+# body). `reqwest`'s response stream uses the same `Stream` trait. M1 RAG
+# also uses it to consume the LanceDB query stream.
 futures-util = "0.3"
 notify = "6"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+lancedb = "0.21"
+fastembed = "4"
+arrow-array = "55"
+arrow-schema = "55"
+# Stable hash for chunk ids (path + paragraph_index). std::hash defaults
+# don't guarantee cross-version stability, so use a known-good algorithm.
+sha2 = "0.10"
+# WalkDir for file walking in rag_index_workspace. Lighter than std::fs
+# recursion + handles symlinks correctly.
+walkdir = "2"
+# Async stream consumption for LanceDB query results.
+async-stream = "0.3"
+# Ergonomic error contexts for the M1 RAG indexer (chunker / embedder /
+# store all use `?` against heterogeneous error types).
+anyhow = "1"
 
 # Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
 # the cfg() filter keeps the iOS/Android crate graph slim.
