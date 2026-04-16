@@ -33,7 +33,7 @@
 | Q5 | Audit log export (CSV/JSON) | ✅ Done | Commit `e5d5cd4` — `src/utils/audit-export.ts` + wired buttons in `AuditLog.tsx` + 34 unit tests. CSV is RFC 4180; future-proof `tokens_in`/`tokens_out`/`cost_usd` columns for Q4 |
 | Q6 | Audit log filtering | ✅ Done | Commit `9ed4d65` — date-range + model dropdown + reset button added to `AuditLog.tsx` filter row, composes with existing action-type chips. 6 RTL integration tests |
 | Q7 | Ollama as 4th provider | 🔲 Not started | No `OllamaProvider.ts`; needs Phase 2 Rust HTTP infra first |
-| Q8 | Per-template model assignment | 🔲 Not started | `WorkflowTemplate` schema lacks `defaultProvider`/`defaultModel` fields |
+| Q8 | Per-template model assignment | ✅ Done | Commit `PENDING-Q8` — `WorkflowTemplate` gains optional `defaultProvider` / `defaultModel` / `isUser`; new `resolveTemplateModel` helper with 7 unit tests; new `templates` Settings category renders a per-template provider + model table persisted under `templateModelOverrides` |
 | Q9 | Haiku 4.5 free-tier default | ✅ Done | Commit `b827443` — new `src/utils/defaultModel.ts` helper; `AIAssistantPane.tsx` reads tier from `useLicense` and initializes selectedModels via `getDefaultModelsForTier`; `ClaudeProvider.ts` constructor fallback flipped to Haiku 4.5 |
 | Q10 | Template preview gallery | 🔲 Not started | No `website/templates/` directory; content generation work |
 | Q11 | Sample workspace on first run | ✅ Done | Commit `7611733` — `src/onboarding/samples/` with 3 Markdown files (Pricing Strategy, Pitch Deck, Weekly Review) plus `index.ts` (`SAMPLE_FILES` + `writeSampleFiles`). `FirstRunWizard.tsx` gains `workspace` prop + `first-run-samples-toggle`. 18 new unit tests. |

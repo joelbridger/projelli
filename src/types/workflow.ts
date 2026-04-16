@@ -88,6 +88,12 @@ export interface WorkflowStep {
 }
 
 /**
+ * Supported AI provider identifiers for per-template model assignment.
+ * Kept as a string literal so Ollama (Q7) remains a valid option once added.
+ */
+export type TemplateProviderId = 'claude' | 'openai' | 'gemini' | 'ollama';
+
+/**
  * Workflow template definition
  */
 export interface WorkflowTemplate {
@@ -99,6 +105,23 @@ export interface WorkflowTemplate {
   steps: WorkflowStep[];
   requiredInputs: string[];
   outputs: string[];
+  /**
+   * Q8 — Optional template-level default provider. When unset the user's
+   * global default provider is used. A settings override takes precedence
+   * over this.
+   */
+  defaultProvider?: TemplateProviderId;
+  /**
+   * Q8 — Optional template-level default model (provider-specific model id,
+   * e.g. `claude-sonnet-4-6` or `gpt-4o`). When unset the provider's default
+   * model is used.
+   */
+  defaultModel?: string;
+  /**
+   * Q19 — Marker for user-authored templates. Built-ins leave this
+   * undefined; user templates are persisted with this flag set to `true`.
+   */
+  isUser?: boolean;
 }
 
 /**

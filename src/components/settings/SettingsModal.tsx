@@ -29,7 +29,9 @@ import {
 } from '@/settings/schema';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { CostMetrics } from '@/components/analysis/CostMetrics';
+import { TemplateModelSettings } from '@/components/settings/TemplateModelSettings';
 import type { AuditEntry } from '@/types/audit';
+import type { WorkflowTemplate } from '@/types/workflow';
 import {
   SHORTCUTS,
   groupShortcutsByCategory,
@@ -62,6 +64,12 @@ interface SettingsModalProps {
    * (shows the zero-state copy and an all-zero 30-day chart).
    */
   auditEntries?: AuditEntry[];
+  /**
+   * Q8 (Wave 1.6) — workflow templates (built-ins + user-authored) used to
+   * render the per-template model assignment table in the Templates
+   * category. When omitted, the table shows an empty state.
+   */
+  templates?: WorkflowTemplate[];
 }
 
 // ---------------------------------------------------------------------------
@@ -392,7 +400,7 @@ function AboutHeader() {
 // Main modal
 // ---------------------------------------------------------------------------
 
-export function SettingsModal({ open, onOpenChange, onAction, auditEntries }: SettingsModalProps) {
+export function SettingsModal({ open, onOpenChange, onAction, auditEntries, templates }: SettingsModalProps) {
   const [activeCategory, setActiveCategory] = useState<SettingCategory>('general');
   const [searchQuery, setSearchQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
@@ -432,9 +440,14 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries }: Se
         (k) => lowerQ.includes(k)
       );
       if (costsMatch) cats.add('costs');
+      const templatesMatch = ['template', 'workflow', 'model', 'provider'].some(
+        (k) => lowerQ.includes(k)
+      );
+      if (templatesMatch) cats.add('templates');
     } else {
       cats.add('shortcuts');
       cats.add('costs');
+      cats.add('templates');
     }
     return cats;
   }, [filteredSchema, searchQuery]);
@@ -582,6 +595,8 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries }: Se
               <ShortcutsCategory searchQuery={searchQuery} />
             ) : activeCategory === 'costs' ? (
               <CostMetrics entries={auditEntries ?? []} />
+            ) : activeCategory === 'templates' ? (
+              <TemplateModelSettings templates={templates ?? []} />
             ) : categorySettings.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
                 No settings match your search in this category.

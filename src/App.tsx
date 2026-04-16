@@ -47,6 +47,13 @@ import type { TrashedItem } from '@/modules/history/TrashService';
 import type { SourceCard } from '@/types/research';
 import type { AuditEntry } from '@/types/audit';
 import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
+import { allWorkflows } from '@/modules/workflow';
+import {
+  resolveTemplateModel,
+  TEMPLATE_MODEL_OVERRIDES_KEY,
+  type TemplateModelOverride,
+} from '@/modules/workflow/resolveTemplateModel';
+import type { TemplateProviderId } from '@/types/workflow';
 import {
   appendCompletedInterviewAnswers,
   buildWorkflowFilename,
@@ -1681,31 +1688,76 @@ function App() {
       const openaiKey = apiKeys.find((k) => k.provider === 'openai')?.key;
       const googleKey = apiKeys.find((k) => k.provider === 'google')?.key;
 
+      // Q8 — honor the template's own default provider/model plus any
+      // per-template override the user pinned in Settings.
+      const overrides =
+        (useSettingsStore.getState().getSetting<
+          Record<string, TemplateModelOverride> | undefined
+        >(TEMPLATE_MODEL_OVERRIDES_KEY) ?? {});
+      const globalProvider: TemplateProviderId = anthropicKey
+        ? 'claude'
+        : openaiKey
+          ? 'openai'
+          : googleKey
+            ? 'gemini'
+            : 'claude';
+      const resolution = resolveTemplateModel({
+        template,
+        overrides,
+        globalDefault: { provider: globalProvider, model: '' },
+      });
+
       let provider;
-      if (anthropicKey) {
-        // Use Claude for intelligent document generation
+      const pickedProvider = resolution.provider;
+      const pickedModel = resolution.model || undefined;
+      if (pickedProvider === 'claude' && anthropicKey) {
+        provider = createClaudeProvider({
+          apiKey: anthropicKey,
+          dangerouslySkipPermissions: true,
+          ...(pickedModel ? { model: pickedModel } : {}),
+          ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
+        });
+        console.log(
+          `Using Claude API (${pickedModel ?? 'default'}) for workflow generation [source=${resolution.source}]`
+        );
+      } else if (pickedProvider === 'openai' && openaiKey) {
+        provider = createOpenAIProvider({
+          apiKey: openaiKey,
+          ...(pickedModel ? { model: pickedModel } : {}),
+          ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
+        });
+        console.log(
+          `Using OpenAI API (${pickedModel ?? 'default'}) for workflow generation [source=${resolution.source}]`
+        );
+      } else if (pickedProvider === 'gemini' && googleKey) {
+        provider = createGeminiProvider({
+          apiKey: googleKey,
+          ...(pickedModel ? { model: pickedModel } : {}),
+          ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
+        });
+        console.log(
+          `Using Gemini API (${pickedModel ?? 'default'}) for workflow generation [source=${resolution.source}]`
+        );
+      } else if (anthropicKey) {
         provider = createClaudeProvider({
           apiKey: anthropicKey,
           dangerouslySkipPermissions: true,
           ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
         });
-        console.log('Using Claude API for workflow generation');
+        console.log('Using Claude API for workflow generation (fallback — picked provider has no key)');
       } else if (openaiKey) {
-        // Fallback to OpenAI if available
         provider = createOpenAIProvider({
           apiKey: openaiKey,
           ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
         });
-        console.log('Using OpenAI API for workflow generation');
+        console.log('Using OpenAI API for workflow generation (fallback)');
       } else if (googleKey) {
-        // Fallback to Gemini if available
         provider = createGeminiProvider({
           apiKey: googleKey,
           ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
         });
-        console.log('Using Gemini API for workflow generation');
+        console.log('Using Gemini API for workflow generation (fallback)');
       } else {
-        // Fall back to mock provider if no API keys
         provider = createMockProvider();
         console.log('No API key configured - using mock provider (documents will contain placeholder content)');
       }
@@ -2561,6 +2613,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
         open={showSettingsModal}
         onOpenChange={setShowSettingsModal}
         auditEntries={auditEntries}
+        templates={allWorkflows}
         onAction={(actionId) => {
           if (actionId === 'open-ai-keys') {
             setSidebarActiveTab('ai-assistant');
