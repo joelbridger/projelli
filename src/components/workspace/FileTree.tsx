@@ -17,7 +17,6 @@ import {
   PenTool,
   Download,
   BookOpen,
-  Grid3x3,
   Mic,
   ExternalLink,
   Trash2,
@@ -102,7 +101,6 @@ export function FileTree({
   onUploadFiles,
   onCreateWhiteboard,
   onCreateWhiteboardAtRoot,
-  onOpenGridView,
   onCreateAudioAtRoot,
   onCreateSpreadsheetAtRoot,
   onCreateCsvAtRoot,
@@ -384,20 +382,7 @@ export function FileTree({
             Upload
           </Button>
         )}
-        {/* UX-40: Grid View button as an icon-only button inline with
-            the rest of the toolbar instead of on its own line. */}
-        {onOpenGridView && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={onOpenGridView}
-            title="Grid view"
-            data-testid="grid-view-button"
-          >
-            <Grid3x3 className="h-3.5 w-3.5" />
-          </Button>
-        )}
+        {/* Grid View button moved to Sidebar Files header (fix 3). */}
       </div>
 
       {/* Multi-select actions bar */}

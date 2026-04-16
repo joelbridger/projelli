@@ -22,6 +22,7 @@ import {
   PenTool,
   Search,
   Bot,
+  LayoutGrid,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -35,6 +36,9 @@ interface SidebarProps {
   whiteboardContent?: React.ReactNode;
   activeTab?: SidebarTab; // Controlled active tab
   onTabChange?: (tab: SidebarTab) => void; // Tab change callback
+  /** Opens the Grid View tab in the main panel. Shown as an icon button in
+   *  the Files section header. */
+  onOpenGridView?: () => void;
   className?: string;
 }
 
@@ -51,6 +55,7 @@ export function Sidebar({
   whiteboardContent,
   activeTab: controlledActiveTab,
   onTabChange,
+  onOpenGridView,
   className,
 }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -245,7 +250,29 @@ export function Sidebar({
           tabIndex={0}
           className="flex-1 overflow-hidden focus:outline-none"
         >
-          {activeTab === 'files' && fileTreeContent}
+          {activeTab === 'files' && (
+            <div className="flex flex-col h-full overflow-hidden">
+              {/* Files section header with Grid View toggle */}
+              <div className="flex items-center justify-between px-3 py-1.5 border-b">
+                <span className="text-xs font-semibold text-foreground">Files</span>
+                {onOpenGridView && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={onOpenGridView}
+                    title="Grid view"
+                    data-testid="grid-view-button"
+                  >
+                    <LayoutGrid className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+              <div className="flex-1 overflow-hidden">
+                {fileTreeContent}
+              </div>
+            </div>
+          )}
           {activeTab === 'search' && searchContent}
           {activeTab === 'workflows' && workflowContent}
           {activeTab === 'ai-assistant' && aiAssistantContent}

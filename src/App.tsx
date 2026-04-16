@@ -2124,6 +2124,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
         <Sidebar
           activeTab={sidebarActiveTab}
           onTabChange={setSidebarActiveTab}
+          onOpenGridView={handleOpenGridView}
           fileTreeContent={
             <FileTree
               onFileOpen={handleFileOpen}
