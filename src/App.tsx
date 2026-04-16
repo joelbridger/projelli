@@ -60,6 +60,7 @@ import { writeDroppedFiles } from '@/utils/fileDrop';
 import {
   createBlankSpreadsheet,
   spreadsheetBytesToDataUrl,
+  dataUrlToArrayBuffer,
 } from '@/utils/spreadsheet-io';
 import { createBlankDocx, docxBytesToDataUrl } from '@/utils/docx-io';
 import { createBlankPptx, pptxBytesToDataUrl } from '@/utils/pptx-io';
@@ -806,13 +807,42 @@ function App() {
     openTab(tabPath, 'AI Assistant', '', 'ai-assistant');
   }, [openTab]);
 
+  // UX-35: shared writer that routes binary file extensions (.docx, .xlsx,
+  // .pptx, .rtf, etc.) through writeFileBinary using the bytes decoded
+  // from the editor's data-URL content. The Save path (handleSaveFile)
+  // and the autosave interval both call into this so the two can't drift.
+  //
+  // Why this matters: DocxEditor (and the other binary-format editors)
+  // pushes tab content as a `data:...base64,...` string. The previous
+  // writeFile(path, content) path stored that string literally as UTF-8
+  // text on disk, which destroyed the actual .docx/.xlsx bytes —
+  // re-opening the file produced JSZip's "can't find end of central
+  // directory" error because the on-disk bytes were a base64 text blob
+  // instead of a zip archive.
+  const writeTabContent = useCallback(
+    async (path: string, content: string): Promise<void> => {
+      const service = workspaceServiceRef.current;
+      if (!service) return;
+      if (isBinaryFile(path) && content.startsWith('data:')) {
+        // Strip the data-URL prefix and decode bytes back to an ArrayBuffer
+        // so the on-disk file is the actual binary format, not the text
+        // encoding of it.
+        const buffer = dataUrlToArrayBuffer(content);
+        await service.writeFileBinary(path, buffer);
+      } else {
+        await service.writeFile(path, content);
+      }
+    },
+    []
+  );
+
   // Handle file save
   const handleSaveFile = useCallback(
     async (path: string, content: string) => {
       if (!workspaceServiceRef.current) return;
 
       try {
-        await workspaceServiceRef.current.writeFile(path, content);
+        await writeTabContent(path, content);
         markSaved(path);
 
         // Refresh file tree
@@ -822,13 +852,15 @@ function App() {
         // UX-26: keep the content index current so the next search sees
         // the just-saved text. Binary writes skip this path — the index
         // builder re-extracts via extractForAI anyway on a full rebuild.
-        const name = path.split('/').pop() ?? path;
-        contentIndex.upsert({ id: path, path, name, content });
+        if (!isBinaryFile(path)) {
+          const name = path.split('/').pop() ?? path;
+          contentIndex.upsert({ id: path, path, name, content });
+        }
       } catch (error) {
         console.error('Failed to save file:', error);
       }
     },
-    [markSaved, setFileTree, contentIndex]
+    [markSaved, setFileTree, contentIndex, writeTabContent]
   );
 
   // Handle create new file
@@ -1707,7 +1739,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
   }, [rootPath, handleFileOpen, refreshFileTree]);
 
 
-  // Autosave dirty tabs every 2 seconds
+  // Autosave dirty tabs every 2 seconds. UX-35: routes through
+  // writeTabContent so binary formats (.docx/.xlsx/.pptx/.rtf) decode
+  // their data-URL content back to bytes before hitting disk — otherwise
+  // re-opening the file gave "can't find end of central directory".
   useEffect(() => {
     const autosaveInterval = setInterval(async () => {
       if (!workspaceServiceRef.current) return;
@@ -1715,7 +1750,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
       for (const tab of openTabs) {
         if (tab.isDirty) {
           try {
-            await workspaceServiceRef.current.writeFile(tab.path, tab.content);
+            await writeTabContent(tab.path, tab.content);
             markSaved(tab.path);
           } catch (error) {
             console.error('Autosave failed for:', tab.path, error);
@@ -1725,7 +1760,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
     }, 2000);
 
     return () => clearInterval(autosaveInterval);
-  }, [openTabs, markSaved]);
+  }, [openTabs, markSaved, writeTabContent]);
 
 
   // Build command palette commands

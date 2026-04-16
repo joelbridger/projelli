@@ -179,6 +179,14 @@ export async function serializeDocx(
     sections: [sectionOptions],
   });
 
+  // UX-35: Packer.toBlob uses the DOM Blob API which is unreliable in
+  // test environments (jsdom). Prefer toBuffer when available (Node,
+  // jsdom, SSR), fall back to toBlob in the real browser. Both produce
+  // the exact same zip bytes — only the wrapper differs.
+  if (typeof Packer.toBuffer === 'function') {
+    const nodeBuffer: Buffer = await Packer.toBuffer(doc);
+    return new Uint8Array(nodeBuffer);
+  }
   const blob = await Packer.toBlob(doc);
   const buf = await blob.arrayBuffer();
   return new Uint8Array(buf);
