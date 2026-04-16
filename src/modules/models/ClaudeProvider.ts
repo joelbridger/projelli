@@ -526,8 +526,11 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
           const errorMessage =
             errorBody.error?.message ?? `HTTP ${response.status}`;
 
-          // Check for rate limiting
+          // UX-38: rate limiting — record the error so that if all retries
+          // are exhausted the caller sees "HTTP 429" in the message and
+          // parseApiError can surface a proper user-visible message.
           if (response.status === 429) {
+            lastError = new Error(`Claude API error: HTTP 429 — ${errorMessage}`);
             const retryAfter = response.headers.get('retry-after');
             const waitTime = retryAfter
               ? parseInt(retryAfter, 10) * 1000
@@ -536,7 +539,7 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
             continue;
           }
 
-          throw new Error(`Claude API error: ${errorMessage}`);
+          throw new Error(`Claude API error: HTTP ${response.status} — ${errorMessage}`);
         }
 
         return await safeJsonParse<ClaudeResponse>(response);

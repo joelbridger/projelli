@@ -556,8 +556,9 @@ Respond ONLY with the JSON object.`;
           const errorBody = await safeJsonParse<OpenAIError>(response);
           const errorMessage = errorBody.error?.message ?? `HTTP ${response.status}`;
 
-          // Check for rate limiting
+          // UX-38: rate limiting — preserve status code in lastError.
           if (response.status === 429) {
+            lastError = new Error(`OpenAI API error: HTTP 429 — ${errorMessage}`);
             const retryAfter = response.headers.get('retry-after');
             const waitTime = retryAfter
               ? parseInt(retryAfter, 10) * 1000
@@ -566,7 +567,7 @@ Respond ONLY with the JSON object.`;
             continue;
           }
 
-          throw new Error(`OpenAI API error: ${errorMessage}`);
+          throw new Error(`OpenAI API error: HTTP ${response.status} — ${errorMessage}`);
         }
 
         return await safeJsonParse<OpenAIResponse>(response);
