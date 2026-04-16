@@ -391,7 +391,7 @@ User testing on the Windows build surfaced 11 issues. These are a mix of real bu
 
 ### UX-31: Welcome dialog — Recent workspaces section is too big
 **Priority:** P2
-**Status:** 📋
+**Status:** ✅ Done — hash: `c68c2e9`
 **Problem:** When the welcome dialog opens, the "Recent workspaces" section is expanded by default and takes up a lot of vertical space, making the dialog look bloated and ugly.
 **Acceptance criteria:**
 - Recent workspaces section is collapsed by default (or capped to top 3 entries inline)
@@ -402,7 +402,7 @@ User testing on the Windows build surfaced 11 issues. These are a mix of real bu
 
 ### UX-32: CSV drag-drop throws atob error (critical bug)
 **Priority:** P0
-**Status:** 📋
+**Status:** ✅ Done — hash: `1e962a4`
 **Problem:** Dropping a `.csv` file onto the window produces: `Failed to parse spreadsheet, failed to execute ATOB on window: the string to be decoded is not correctly encoded.` Diagnosis: the drag-drop writer reads CSV as text, but `parseSpreadsheet` then calls `dataUrlToArrayBuffer` which runs `atob()` on non-base64 content.
 **Acceptance criteria:**
 - `parseSpreadsheet` handles both data URLs AND raw text for CSVs
@@ -413,7 +413,7 @@ User testing on the Windows build surfaced 11 issues. These are a mix of real bu
 
 ### UX-33: Uploaded files don't auto-switch to the new tab
 **Priority:** P1
-**Status:** 📋
+**Status:** ✅ Done — hash: `b4a9bf2`
 **Problem:** When user drops files, they're added as tabs but the active tab doesn't change. User has to hunt for the new file.
 **Acceptance criteria:**
 - After drop, the last-dropped file becomes the active tab
@@ -424,7 +424,7 @@ User testing on the Windows build surfaced 11 issues. These are a mix of real bu
 
 ### UX-34: PowerPoint preview requires LibreOffice — add pure-JS fallback
 **Priority:** P1
-**Status:** 📋
+**Status:** ✅ Done — hash: `39b0606`
 **Problem:** User without LibreOffice installed sees a dead-end. We chose LibreOffice for fidelity but never-preview isn't acceptable for a $49 product.
 **Chosen approach:** Hybrid — keep the LibreOffice→PDF path as primary (high fidelity), add a pure-JS fallback renderer when LibreOffice isn't detected. Users see slides with basic shapes, text, and images even without the dependency.
 **Acceptance criteria:**
@@ -436,7 +436,7 @@ User testing on the Windows build surfaced 11 issues. These are a mix of real bu
 
 ### UX-35: DOCX corruption — "can't find end of central directory" after edit
 **Priority:** P0
-**Status:** 📋
+**Status:** ✅ Done — hash: `7c37a57`
 **Problem:** User edits a `.docx`, switches away, switches back — sees `Couldn't open {file}. Can't find end of central directory`. JSZip error = the file's ZIP structure is broken. Likely our docx round-trip serializer is producing a malformed archive on save.
 **Acceptance criteria:**
 - Round-trip save produces a valid `.docx` that re-opens cleanly
@@ -448,7 +448,7 @@ User testing on the Windows build surfaced 11 issues. These are a mix of real bu
 
 ### UX-36: Tab overflow should be user-configurable
 **Priority:** P3
-**Status:** 📋
+**Status:** ✅ Done — hash: `f60efba`
 **Problem:** Phase 7 replaced wrap with horizontal scroll. User wants to choose between horizontal scroll and multi-row wrap.
 **Acceptance criteria:**
 - Settings (new or existing panel) exposes a "Tab overflow behavior" option: `Scroll horizontally` | `Wrap to multiple rows`
@@ -459,7 +459,7 @@ User testing on the Windows build surfaced 11 issues. These are a mix of real bu
 
 ### UX-37: File icons are all the same white document
 **Priority:** P2
-**Status:** 📋
+**Status:** ✅ Done — hash: `ea14f09`
 **Problem:** In the Files pane, the tab bar, AND the grid view, every file currently shows a generic white document icon. Need unique, colored icons per extension so users can visually scan.
 **Acceptance criteria:**
 - Single source of truth `src/utils/fileIcons.ts` — maps extension → `{ Icon: LucideIcon, color: string }`
@@ -471,7 +471,7 @@ User testing on the Windows build surfaced 11 issues. These are a mix of real bu
 
 ### UX-38: AI chat 429 rate-limit hangs the conversation
 **Priority:** P1
-**Status:** 📋
+**Status:** ✅ Done — hash: `bdd5230`
 **Problem:** When Anthropic returns 429 (rate limit), the chat UI hangs showing "loading..." forever. Console shows the error but the user sees nothing actionable.
 **Acceptance criteria:**
 - 429 and other API errors surface as an in-chat error message (not just console)
@@ -483,7 +483,7 @@ User testing on the Windows build surfaced 11 issues. These are a mix of real bu
 
 ### UX-39: Stop button doesn't cancel in-flight AI requests
 **Priority:** P1
-**Status:** 📋
+**Status:** ✅ Done — hash: `b601e5b`
 **Problem:** User clicks Stop while AI is thinking — nothing happens. The chat stays locked in the loading state. Can't recover.
 **Acceptance criteria:**
 - Stop button genuinely aborts the in-flight request (AbortController signal wired to fetch)
@@ -495,7 +495,7 @@ User testing on the Windows build surfaced 11 issues. These are a mix of real bu
 
 ### UX-40: Grid view button is on its own awkward line
 **Priority:** P3
-**Status:** 📋
+**Status:** ✅ Done — hash: `ba0a170`
 **Problem:** In the file tree toolbar, "Grid View" is currently on a second line below File/Folder/Upload. Looks awkward and wastes space.
 **Acceptance criteria:**
 - Grid View moves somewhere that makes sense visually and logically
@@ -506,7 +506,7 @@ User testing on the Windows build surfaced 11 issues. These are a mix of real bu
 
 ### UX-41: Drop overlay stays stuck / app freezes after second drop
 **Priority:** P0
-**Status:** 📋
+**Status:** ✅ Done — hash: `a971537`
 **Problem:** User dragged a PDF onto the app (worked). Dragged a second PDF — the "Drop files to add to your workspace" overlay stayed up, and the whole app froze. Unable to recover without reload.
 **Acceptance criteria:**
 - Drop handler always resets the overlay state, even on error (try/finally)
@@ -529,3 +529,4 @@ User testing on the Windows build surfaced 11 issues. These are a mix of real bu
 | Wave 4 | 2026-04-15 | `69a05dc` UX-11, `df5eec1` UX-12, `36554df` UX-13, `49d68c0` UX-14, `b52d7ff` UX-15, `5e2a4e7` UX-16, `008bbb7` UX-17, `b4cc38f` UX-18, `a0b0ac4` fixes | 12 new spec files / tests (sidebar-icons, editor-toolbar-overflow, breadcrumbs, create-file-dialog, destructive-actions, auto-save-indicator, updated spreadsheet-improvements), 121 total pass, 3 pre-existing visual-snapshot failures unchanged (ai-models-tab, file-tree, grid-view-breadcrumbs). The status-bar visual snapshot was intentionally regenerated for the UX-14 breadcrumb layout. | Research + every other sidebar tab icon now inherits the same currentColor so no tab looks permanently tinted. Workflow cards use `line-clamp-2 break-words` + `title` tooltip, killing the one-word-per-line wrap at narrow widths. MainPanel toolbar collapses History/Split/Outline/Backlinks/Export into a `…` DropdownMenu via ResizeObserver when container width < 900px; Save/Auto-save/Download stay inline. StatusBar renders per-segment clickable breadcrumbs with chevrons and a `…` overflow DropdownMenu for paths with >4 segments; clicking a segment expands the FileTree sidebar to that folder. PromptDialog extended with `destinationPath` + `previewExtension` so every "New X" flow shows "Creating in /docs/" and a live filename preview. New in-app UndoToast shows "File moved to Trash — Undo" for 10s after delete; bulk delete uses the app's ConfirmDialog instead of window.confirm; Ctrl+Z reverts the most recent rename per session. Replaced the static "Auto-save" badge with a reactive AutoSaveIndicator state machine (idle → dirty → saving → saved-recent → error) with spinner + "Saved · Ns ago" updating every second. Spreadsheet formula bar + selection summary render at 5px thin divider before any selection in viewer mode, expanding to full size on first click; editable mode keeps the bar always-expanded to protect the dblclick-to-edit flow. |
 | Wave 5 | 2026-04-15 | `dacc969` UX-19, `360ac39` UX-20, `1b2cde9` UX-22, `496deb7` UX-23, `7c7a12f` UX-24, `58e0d15` UX-25, `f1ed7b8` UX-30 | 17 new spec files/tests (drag-drop, whats-new, tab-close-visibility, sidebar-collapsed-tooltips, history-hidden-nonversioned, theme-system, word-count-md-txt), 138 total pass, 3 pre-existing visual-snapshot failures unchanged (ai-models-tab, file-tree, grid-view-breadcrumbs). | Dragging files anywhere onto the window now shows a dashed drop overlay and lands files in the nearest folder (or workspace root); duplicates get `(1)`, `(2)` suffixes; `.DS_Store` noise filtered out. After a version bump `useWhatsNew` compares the bundled changelog top entry against `localStorage['projelli:lastSeenVersion']` and shows a dismissible bottom-left toast that opens a per-release highlights modal; first-time users see nothing. TabBar close X now renders at `opacity-0` by default, `opacity-100` on active tab / group hover / keyboard focus so inactive tabs feel quiet. Sidebar in collapsed mode wraps every icon in a Radix tooltip via a root `TooltipProvider` (300ms delay, 100ms skip-delay) showing label + optional keyboard shortcut; added `@radix-ui/react-tooltip` dependency. MainPanel auto-closes the right-panel History tab when the active file switches to a non-versioned type so `.xlsx` no longer inherits a stale History view. Theme state upgraded from binary to `'light' \| 'dark' \| 'system'` with a matchMedia subscription; toggle cycles system → light → dark → system with Monitor/Sun/Moon icons. Shared `WordCountFooter` component added to MarkdownEditor + PlainTextEditor with the same `editor-word-count` testid as the TipTap editors. |
 | Wave 6 | 2026-04-16 | `4fe507b` UX-29, `85e04ae` UX-27, `b68efa2` UX-28, `885074e` UX-26, `fd40eab` UX-21 | 17 new e2e + 16 new unit (7 filename-derivation + 9 content-index), 159 e2e total pass, 2 pre-existing visual-snapshot failures unchanged (file-tree, grid-view-breadcrumbs). Regenerated ai-keys-tab + ai-models-tab snapshots to pick up the new Pop-out button. | UX-29 extends the UX-16 undo path with keyboard parity: Ctrl+Z outside any input pops a combined rename+delete stack so the most recent destructive action reverses regardless of whether the undo toast is still visible. Trash retention default flipped from 'never' to 30 days so the "30 days" in-app copy is truthful; empty-state description now adapts to the active retention period. UX-27 introduces a Ctrl+P / Cmd+P quick-open modal via fuse.js (7.3.0, MIT). Arrow/Enter/Esc navigation, a persisted-in-localStorage recents list (10 entries) when the input is empty, sr-only DialogTitle mirroring the command palette a11y pattern. Ctrl+Shift+P still routes to the command palette because the new handler explicitly excludes Shift. UX-28 adds a grip-handle drag source next to every assistant bubble in AIChatViewer; the dragstart stuffs the content into a custom `application/x-projelli-chat-message` MIME plus text/plain. FileTree grew an `onDropAIMessage` prop: folder drops create a new .md file (filename derived from first heading or first 60 chars), file drops append with a `---` separator. UX-26 ships full-text content search via minisearch (7.2.0, MIT). Builds an index on workspace open over all text-extractable files (md/txt/rt/rtf/json/csv + extracted xlsx/docx/pptx via extractForAI); per-save `upsert` and per-delete `remove` keep the index current without rescans. SearchPanel merges filename + content hits, shows a 160-char snippet around the match with a `<mark>` highlight, debounces input 150ms, caps at 30 results. UX-21 opens AI Assistant as a MAIN-PANEL tab instead of the cramped sidebar — Ctrl+Shift+A toggles it, a second press focuses the existing tab instead of duplicating. Sidebar pane grew an additive "Pop out" button (Maximize2 icon) that calls the same helper. Drive-by fix for a React 18 "getSnapshot should be cached" infinite-loop in AIChatViewer's file-context selector: now subscribes to raw bags and derives via useMemo. |
+| Wave 7 | 2026-04-16 | `a971537` UX-41, `1e962a4` UX-32, `7c37a57` UX-35, `b601e5b` UX-39, `bdd5230` UX-38, `b4a9bf2` UX-33, `39b0606` UX-34, `c68c2e9` UX-31, `ea14f09` UX-37, `ba0a170` UX-40, `f60efba` UX-36 | 5 new unit tests (3 spreadsheet-io + 2 docx-roundtrip), 1 new e2e spec (drag-drop-repeated, 2 tests), all unit + typecheck green | P0 bugs: UX-41 drop overlay stuck (try/finally + watchdog timer), UX-32 CSV atob (detect raw text vs data URL in parseSpreadsheet), UX-35 DOCX corruption (root cause: autosave wrote data-URL text to disk instead of decoded binary bytes; fix routes binary tabs through writeFileBinary). P1: UX-39 AbortController threaded through all 3 providers' sendMessage + makeRequest; UX-38 rate-limit error messages now include HTTP status so parseApiError works; UX-33 last-dropped file auto-activates; UX-34 pure-JS fallback renderer for PowerPoint using existing JSZip+DrawingML pipeline (no new deps). Polish: UX-31 recent workspaces capped at 3 with expand toggle, UX-37 new fileIcons.ts SSOT applied to FileTree/TabBar/FileGridView, UX-40 Grid View as icon-only button, UX-36 tabOverflow scroll/wrap persisted to localStorage with command palette toggle. |
