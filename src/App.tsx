@@ -1908,8 +1908,8 @@ This file contains rules and guidelines for AI assistants in this workspace.
         label: 'Toggle Tab Overflow (Scroll / Wrap)',
         category: 'view',
         action: () => {
-          const { tabOverflow, setTabOverflow } = useEditorStore.getState();
-          setTabOverflow(tabOverflow === 'scroll' ? 'wrap' : 'scroll');
+          const current = useSettingsStore.getState().getSetting<string>('tabOverflow');
+          useSettingsStore.getState().setSetting('tabOverflow', current === 'scroll' ? 'wrap' : 'scroll');
         },
       },
       {

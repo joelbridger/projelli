@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useEditorStore } from '@/stores/editorStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { TabGroupManager } from './TabGroupManager';
 
 // Helper function to remove file extension from name
@@ -131,8 +132,14 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     deleteTabGroup,
     moveTabToGroup,
     ungroupTab,
-    tabOverflow,
   } = useEditorStore();
+
+  // Tab overflow mode: canonical source is settingsStore. Falls back to the
+  // old editorStore value (which itself falls back to 'scroll') so existing
+  // users see no change until they visit Settings.
+  const tabOverflow = useSettingsStore(
+    (s) => s.getSetting<'scroll' | 'wrap'>('tabOverflow')
+  ) ?? 'scroll';
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
