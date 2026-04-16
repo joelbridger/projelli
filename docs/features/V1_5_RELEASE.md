@@ -55,7 +55,7 @@
 
 | # | Item | Status | Evidence |
 |---|---|---|---|
-| M1 | Local RAG (LanceDB + fastembed-rs + e5-small) | ✅ Done | Commits `550c730` (Rust RAG engine: chunker + embedder + LanceDB store + 6 commands), `889bb36` (TS bindings + MemoryService toggle wrapper + 12 unit tests), `<COMMIT3>` (UI banner + status badge + settings toggle + watcher integration + useRagStatus hook + 7 unit tests). Vector store at `<workspace>/.projelli/vectors/`, 384-dim e5-small via fastembed-rs, paragraph-aware chunker, watcher-driven incremental re-index, `Settings → Memory` opt-out. 56 Rust tests + 19 new TS tests. |
+| M1 | Local RAG (LanceDB + fastembed-rs + e5-small) | ✅ Done | Commits `550c730` (Rust RAG engine: chunker + embedder + LanceDB store + 6 commands), `889bb36` (TS bindings + MemoryService toggle wrapper + 12 unit tests), `2bb410b` (UI banner + status badge + settings toggle + watcher integration + useRagStatus hook + 7 unit tests). Vector store at `<workspace>/.projelli/vectors/`, 384-dim e5-small via fastembed-rs, paragraph-aware chunker, watcher-driven incremental re-index, `Settings → Memory` opt-out. 56 Rust tests + 19 new TS tests. |
 | M2 | `@workspace` + Ask-my-workspace | 🔲 Not started | Depends on M1 (✅) — ready to start. `MemoryService.retrieve()` is the single entry point M2 will call. |
 | M3 | Memory facts file + extraction | 🔲 Not started | No memory/facts infrastructure |
 | M4 | Projelli MCP server + `.mcpb` bundle | 🔲 Not started | No `src-tauri/src/bin/mcp.rs`, no MCP crate in deps |
@@ -159,7 +159,7 @@ Discovered during the re-audit — confirmed present in `2644a9c`:
 | `147ead3` | Q19 — Template fork / remix |
 | `550c730` | M1 (1/3) — RAG engine: Cargo deps + chunker + embedder + LanceDB store |
 | `889bb36` | M1 (2/3) — RAG frontend bindings + MemoryService toggle wrapper |
-| `<COMMIT3>` | M1 (3/3) — UI progress banner + status badge + Memory settings toggle + watcher integration |
+| `2bb410b` | M1 (3/3) — UI progress banner + status badge + Memory settings toggle + watcher integration |
 
 ---
 
