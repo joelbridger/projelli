@@ -27,7 +27,7 @@
 | # | Item | Status | Evidence |
 |---|---|---|---|
 | Q1 | Mermaid rendering | ✅ Done | Commit `5d154f8` — `mermaid@11.14.0` + `MarkdownPreview.tsx` + 4 new unit tests |
-| Q2 | KaTeX math rendering | 🟡 In flight | `katex@0.16.45` installed; `MarkdownPreview.tsx` extension in progress |
+| Q2 | KaTeX math rendering | ✅ Done | Commit `5403b04` — `katex@0.16.45` + `MarkdownPreview.tsx` + 7 new unit tests |
 | Q3 | Real-time cost meter | 🔲 Not started | `ProviderMetadata` has pricing fields (v1.0.8+), but chat UI doesn't render cost. Needs aggregation + chip UI |
 | Q4 | Monthly cost dashboard | 🔲 Not started | `AuditService` schema has no `tokens_in`/`tokens_out`/`cost_usd` fields. New `CostMetrics.tsx` component needed |
 | Q5 | Audit log export (CSV/JSON) | 🔲 Not started | `AuditLog.tsx` has `onExportJSON`/`onExportCSV` callbacks but no serialization |
@@ -127,6 +127,9 @@ Discovered during the re-audit — confirmed present in `2644a9c`:
 |---|---|
 | `a8835d7` | Add April 2026 market assessment docs (9 files, 3360 lines) |
 | `f7e9783` | Preserve pre-v1.5 website prep: favicons, em-dash removal, new blog post |
+| `51e8aab` | Add v1.5 release tracking doc with re-audit + baseline results |
+| `5d154f8` | Q1 — Add Mermaid diagram rendering to markdown preview |
+| `5403b04` | Q2 — Add KaTeX math rendering to markdown preview |
 
 ---
 
