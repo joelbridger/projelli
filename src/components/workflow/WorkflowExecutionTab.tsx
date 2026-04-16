@@ -3,7 +3,7 @@
 // step progress, the current interview form, completed answers, generated
 // output, and final export actions.
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InterviewForm } from './InterviewForm';
@@ -11,6 +11,7 @@ import {
   CheckCircle,
   Clock,
   Download,
+  FileText,
   FileType,
   Loader2,
   XCircle,
@@ -22,6 +23,8 @@ import type {
   InterviewQuestion,
 } from '@/types/workflow';
 import { cn } from '@/lib/utils';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import type { FileNode } from '@/types/workspace';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -44,12 +47,64 @@ export interface WorkflowExecutionTabProps {
   onExportDocx?: (content: string, suggestedName: string) => void;
   /** Called to export the final output as .pptx. */
   onExportPptx?: (content: string, suggestedName: string) => void;
+  /** Called to open a file in a new tab. */
+  onFileOpen?: (path: string, name: string) => void;
   className?: string;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
+
+/**
+ * Recursively flatten a FileNode tree into an array of absolute paths.
+ */
+function flattenPaths(nodes: FileNode[]): string[] {
+  const result: string[] = [];
+  for (const node of nodes) {
+    result.push(node.path);
+    if (node.children) {
+      result.push(...flattenPaths(node.children));
+    }
+  }
+  return result;
+}
+
+/**
+ * Scan text for workspace-relative file paths by matching against the
+ * current file tree. Returns deduplicated {path, name} pairs.
+ */
+function extractFileLinks(
+  text: string,
+  allPaths: string[],
+  rootPath: string | null
+): { path: string; name: string }[] {
+  if (!rootPath || !text || allPaths.length === 0) return [];
+
+  const seen = new Set<string>();
+  const results: { path: string; name: string }[] = [];
+
+  for (const fullPath of allPaths) {
+    // Derive a relative path from rootPath for matching in the text
+    const rel = fullPath.startsWith(rootPath + '/')
+      ? fullPath.slice(rootPath.length + 1)
+      : null;
+
+    // Check if the full path or relative path appears in the text
+    const name = fullPath.split('/').pop() ?? fullPath;
+
+    if (rel && text.includes(rel) && !seen.has(fullPath)) {
+      seen.add(fullPath);
+      results.push({ path: fullPath, name });
+    } else if (text.includes(name) && !seen.has(fullPath) && name.includes('.')) {
+      // Match by filename alone (only if it has an extension to avoid false positives)
+      seen.add(fullPath);
+      results.push({ path: fullPath, name });
+    }
+  }
+
+  return results;
+}
 
 export function WorkflowExecutionTab({
   template,
@@ -60,6 +115,7 @@ export function WorkflowExecutionTab({
   onSaveAsFile,
   onExportDocx,
   onExportPptx,
+  onFileOpen,
   className,
 }: WorkflowExecutionTabProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -116,6 +172,29 @@ export function WorkflowExecutionTab({
       onInterviewSubmit(answers);
     },
     [onInterviewSubmit]
+  );
+
+  // --- Live file links ---
+  // Watch the workspace file tree for files created during this workflow.
+  // Scans all text in execution.inputs (step outputs) for recognizable
+  // workspace paths/filenames and renders them as clickable links.
+  const { fileTree, rootPath } = useWorkspaceStore();
+  const allPaths = useMemo(() => flattenPaths(fileTree), [fileTree]);
+
+  const workflowTextBlob = useMemo(() => {
+    if (!execution) return '';
+    // Combine all string values from execution.inputs
+    const parts: string[] = [];
+    for (const v of Object.values(execution.inputs)) {
+      if (typeof v === 'string') parts.push(v);
+    }
+    if (finalOutput) parts.push(finalOutput);
+    return parts.join('\n');
+  }, [execution, finalOutput]);
+
+  const fileLinks = useMemo(
+    () => extractFileLinks(workflowTextBlob, allPaths, rootPath),
+    [workflowTextBlob, allPaths, rootPath]
   );
 
   const isRunning = execution?.status === 'running';
@@ -332,6 +411,31 @@ export function WorkflowExecutionTab({
                   </Button>
                 )}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Live file links — files created during this workflow */}
+        {fileLinks.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FileText className="h-4 w-4 text-blue-500" />
+                Created Files ({fileLinks.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1">
+              {fileLinks.map((link) => (
+                <button
+                  key={link.path}
+                  data-testid={`workflow-file-link-${link.name}`}
+                  className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted/50 transition-colors text-primary underline-offset-2 hover:underline"
+                  onClick={() => onFileOpen?.(link.path, link.name)}
+                >
+                  <FileText className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">{link.name}</span>
+                </button>
+              ))}
             </CardContent>
           </Card>
         )}

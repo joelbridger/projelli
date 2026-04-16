@@ -509,6 +509,7 @@ export function MainPanel({
               {...(onWorkflowSaveAsFile ? { onSaveAsFile: onWorkflowSaveAsFile } : {})}
               {...(onWorkflowExportDocx ? { onExportDocx: onWorkflowExportDocx } : {})}
               {...(onWorkflowExportPptx ? { onExportPptx: onWorkflowExportPptx } : {})}
+              {...(onFileOpen ? { onFileOpen: (path: string, name: string) => { onFileOpen(path, name); } } : {})}
               className="h-full"
             />
           </div>
