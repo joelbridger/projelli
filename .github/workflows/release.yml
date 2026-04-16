@@ -88,6 +88,45 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # Phase 2 (v1.5) - stage the stub MCP sidecar binary so tauri build
+      # can bundle it via externalBin. Phase 4 (M4) swaps the stub for a
+      # real MCP server; the real implementation lands in src/bin/mcp.rs.
+      #
+      # Cargo builds projelli-mcp into
+      # src-tauri/target/<target?>/release/projelli-mcp[.exe]. Tauri's
+      # externalBin expects src-tauri/binaries/projelli-mcp-<target-triple>
+      # so we copy + rename here. The externalBin array in
+      # tauri.conf.json is still empty in Phase 2 - wiring it in Phase 4
+      # will flip these builds from "nice to have" to "required".
+      #
+      # TODO (Phase 4 M6): add a parallel step here that fetches the
+      # Parakeet.cpp sidecar binary for voice input and stages it the same
+      # way (parakeet-transcribe-<target-triple>).
+      - name: Build Projelli MCP stub binary (Mac/Linux)
+        shell: bash
+        working-directory: src-tauri
+        env:
+          MATRIX_ARGS: ${{ matrix.args }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            # Matrix passes `--target aarch64-apple-darwin` or
+            # `--target x86_64-apple-darwin` via MATRIX_ARGS. Extract it so
+            # the cargo build uses the same target.
+            TARGET="${MATRIX_ARGS##*--target }"
+            rustup target add "$TARGET"
+            cargo build --release --bin projelli-mcp --target "$TARGET"
+            SRC="target/$TARGET/release/projelli-mcp"
+          else
+            # Linux: host triple, no cross compile.
+            TARGET="$(rustc -vV | sed -n 's|host: ||p')"
+            cargo build --release --bin projelli-mcp
+            SRC="target/release/projelli-mcp"
+          fi
+          mkdir -p binaries
+          cp "$SRC" "binaries/projelli-mcp-$TARGET"
+          ls -la binaries/
+
       - name: Build Tauri app (Mac/Linux)
         uses: tauri-apps/tauri-action@v0
         env:
@@ -156,6 +195,18 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      # Phase 2 (v1.5) - stage the stub MCP sidecar binary. See the Mac/Linux
+      # job above for rationale. Windows uses the MSVC host triple.
+      - name: Build Projelli MCP stub binary (Windows)
+        shell: pwsh
+        working-directory: src-tauri
+        run: |
+          $host_triple = (& rustc -vV | Select-String '^host: ').ToString().Replace('host: ','').Trim()
+          cargo build --release --bin projelli-mcp
+          New-Item -ItemType Directory -Force -Path binaries | Out-Null
+          Copy-Item "target/release/projelli-mcp.exe" "binaries/projelli-mcp-$host_triple.exe"
+          Get-ChildItem binaries
 
       - name: Build Tauri app (unsigned)
         env:

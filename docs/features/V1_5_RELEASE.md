@@ -70,24 +70,41 @@
 
 ## Rust/Tauri foundation status (Phase 2 prerequisite)
 
+Phase 2 landed in 3 commits on `release/v1.5`. See the "Commit log" table
+below for SHAs.
+
 | Item | Status |
 |---|---|
-| `reqwest` dep | 🔲 Not in `Cargo.toml` |
-| `tokio` dep (explicit) | 🔲 Not in `Cargo.toml` |
-| `notify` file-watcher dep | 🔲 Not in `Cargo.toml` |
-| `lancedb` dep | 🔲 Not in `Cargo.toml` |
-| `fastembed` dep | 🔲 Not in `Cargo.toml` |
-| `keyring` dep | 🔲 Not in `Cargo.toml` |
-| MCP Rust SDK dep | 🔲 Not in `Cargo.toml` |
-| `src-tauri/src/commands/http.rs` | 🔲 Missing |
-| `src-tauri/src/commands/keychain.rs` | 🔲 Missing |
-| `src-tauri/src/commands/rag.rs` | 🔲 Missing |
-| `src-tauri/src/commands/watcher.rs` | 🔲 Missing |
-| `src-tauri/src/bin/mcp.rs` (+`[[bin]]`) | 🔲 Missing |
-| `tauri.conf.json:bundle.externalBin` | 🔲 Empty |
-| `tauri.conf.json:bundle.resources` for ONNX | 🔲 Empty |
-| `tauri.conf.json:plugins.fs.dragDropEnabled` | ✅ Already `true` (v1.0.8 drag-drop upload) — verify |
-| CSP allows `http://127.0.0.1:11434` | 🔲 Not in CSP yet |
+| `reqwest` dep | ✅ Done (Phase 2) — 0.12 with `json` + `stream` + rustls-tls |
+| `tokio` dep (explicit) | ✅ Done (Phase 2) — 1.x with `full` feature |
+| `futures-util` dep (for stream bail-out in `fetch_url_title`) | ✅ Done (Phase 2) |
+| `notify` file-watcher dep | ✅ Done (Phase 2) — v6 |
+| `lancedb` dep | 🔲 Phase 3 (M1) — deferred per plan, adds ~500MB compile weight |
+| `fastembed` dep | 🔲 Phase 3 (M1) — deferred per plan |
+| `keyring` dep | ✅ Done (Phase 2) — v3 with apple-native, windows-native, sync-secret-service |
+| MCP Rust SDK dep | 🔲 Phase 4 (M4) — crate name pending verification, only the `[[bin]]` stub exists today |
+| `src-tauri/src/commands/http.rs` | ✅ Done (Phase 2) — `fetch_url_title` real; Ollama commands stubbed for Phase 4 |
+| `src-tauri/src/commands/keychain.rs` | ✅ Done (Phase 2) |
+| `src-tauri/src/commands/rag.rs` | ✅ Done (Phase 2) — stubs only; Phase 3 M1 replaces bodies |
+| `src-tauri/src/commands/watcher.rs` | ✅ Done (Phase 2) — singleton watcher + 200 ms debouncer |
+| `src-tauri/src/bin/mcp.rs` (+`[[bin]]`) | ✅ Done (Phase 2) — stub exits 0; release pipeline cross-compiles per platform |
+| `src-tauri/binaries/` staging dir | ✅ Done (Phase 2) — populated by release workflow |
+| `src-tauri/resources/embeddings/` staging dir | ✅ Done (Phase 2) — Phase 3 M1 drops e5-small here |
+| `tauri.conf.json:bundle.externalBin` | 🟡 Empty array kept; Phase 4 populates once MCP + Parakeet sidecars exist |
+| `tauri.conf.json:bundle.resources` for ONNX | ✅ Done (Phase 2) — set to `["resources/**/*"]` |
+| `tauri.conf.json:plugins.fs.dragDropEnabled` | ✅ Already wired (v1.0.8 drag-drop upload) — verified |
+| CSP allows `http://127.0.0.1:11434` | ✅ Done (Phase 2) — appended to `connect-src` |
+| `docs/reference/TAURI_COMMANDS.md` reference doc | ✅ Done (Phase 2) |
+| `src/utils/tauri-commands.ts` TS bindings for new commands | ✅ Done (Phase 2) |
+| Release workflow builds + stages `projelli-mcp-<target>` | ✅ Done (Phase 2) — Mac/Linux and Windows jobs both build release binary |
+
+**Phase 2 verification (local, release/v1.5):**
+- `cargo build` — clean
+- `cargo build --bin projelli-mcp` — clean, stub prints marker + exits 0
+- `cargo clippy --all-targets -- -D warnings` — clean
+- `cargo test -p projelli` — 29 passed, 0 failed (13 http + 7 keychain + 2 rag + 7 watcher)
+- `npm run typecheck` — clean
+- `npm run test` — 288 passing / 23 failing (unchanged from v1.0.8 baseline; no new regressions)
 
 ---
 
