@@ -21,6 +21,7 @@ import { Search, File as FileIcon, Clock } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -208,9 +209,12 @@ export function QuickOpen({ open, onOpenChange, fileTree, onFileOpen }: QuickOpe
         data-testid="quick-open-modal"
         className="p-0 max-w-lg overflow-hidden [&>button]:hidden"
       >
-        {/* Accessible title for screen readers — kept visually hidden so the
-            modal matches the command palette's compact look. */}
+        {/* Accessible title and description for screen readers — kept visually
+            hidden so the modal matches the command palette's compact look. */}
         <DialogTitle className="sr-only">Quick open</DialogTitle>
+        <DialogDescription className="sr-only">
+          Find a file by fuzzy matching its name
+        </DialogDescription>
 
         {/* Search input */}
         <div className="flex items-center gap-2 px-4 py-3 border-b">

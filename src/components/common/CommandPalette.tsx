@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -193,9 +194,13 @@ export function CommandPalette({
         data-testid="command-palette-dialog"
         className="p-0 max-w-lg overflow-hidden [&>button]:hidden"
       >
-        {/* Accessible title — visually hidden but announced by screen readers.
-            Required by Radix DialogContent; without it Radix logs an a11y error. */}
+        {/* Accessible title and description — visually hidden but announced by
+            screen readers. Required by Radix DialogContent; without them Radix
+            logs an a11y warning. */}
         <DialogTitle className="sr-only">Command Palette</DialogTitle>
+        <DialogDescription className="sr-only">
+          Type a command or search across the app
+        </DialogDescription>
 
         {/* Search input */}
         <div className="flex items-center gap-2 px-4 py-3 border-b">

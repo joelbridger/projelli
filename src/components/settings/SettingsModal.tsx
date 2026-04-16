@@ -14,6 +14,7 @@ import { useState, useCallback, useRef, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -467,6 +468,9 @@ export function SettingsModal({ open, onOpenChange, onAction }: SettingsModalPro
         className="max-w-3xl w-[90vw] h-[80vh] max-h-[700px] p-0 flex flex-col overflow-hidden [&>button]:hidden"
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
+        <DialogDescription className="sr-only">
+          Configure Projelli preferences
+        </DialogDescription>
 
         {/* Header / Search */}
         <div className="shrink-0 border-b px-4 py-3 flex items-center gap-3">
