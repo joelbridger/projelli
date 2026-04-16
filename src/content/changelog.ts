@@ -23,6 +23,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
   {
+    version: '1.0.8',
+    date: '2026-04-16',
+    highlights: [
+      'Auto-updates: Projelli now checks for new versions and installs them with one click',
+      'Document suite: open, edit, and create Excel, Word, PowerPoint, and RTF files',
+      'Spreadsheets now have a live formula engine that recomputes dependent cells as you type',
+      'AI sees your open files automatically, so you can ask questions about your spreadsheet or doc without pasting',
+      'Workflow runs are saved as real files you can reopen, with live links to every output',
+      'Find anything in your workspace with full-text content search and Ctrl+P quick-open',
+      'Redesigned start screen with a fresh, branded look',
+    ],
+  },
+  {
     version: '1.0.7',
     date: '2026-04-15',
     highlights: [

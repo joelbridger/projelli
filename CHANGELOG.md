@@ -7,6 +7,118 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-04-16
+
+The first release with auto-updates. From now on, Projelli checks for new
+versions on launch and installs them with one click, so you never have to
+hunt down a new installer again. This release also ships a full document
+suite (Excel, Word, PowerPoint, RTF), ambient AI context, persistent
+workflow executions, and a redesigned brand experience.
+
+### Added
+
+- **Auto-update system** (headline feature)
+  - `tauri-plugin-updater` wired into the Tauri shell with a check-then-prompt UI
+  - Settings panel surfaces update state and a manual "Check for updates" button
+  - Releases point at `https://github.com/projelli/projelli/releases/latest/download/latest.json`
+  - New minisign pubkey embedded in `tauri.conf.json` for signature verification
+  - Desktop-only target filter keeps the iOS/Android crate graph slim
+
+- **Document suite** — open, edit, and create Office-style files end-to-end
+  - **.xlsx / .csv** preview and editing with round-trip preservation
+  - **Full formula engine** — dependent cells live-recompute as you edit
+  - **.docx** preview and editing backed by TipTap, with round-trip preservation
+  - **.ppt / .pptx** preview via LibreOffice conversion, plus a pure-JS fallback renderer
+  - **.rtf** preview and editing with round-trip
+  - **Legacy .doc** support via LibreOffice subprocess conversion
+  - **Blank document creation** from the file tree for every supported format
+  - **Word export** from workflow results
+  - Column resize, ARIA roles, formula bar, and selection summary in the spreadsheet editor
+
+- **AI ambient context** — the AI sees what you're working on
+  - Open files automatically inject as context into the chat
+  - Per-tab AI context toggle to exclude individual files
+  - File tool support added to OpenAI and Gemini providers (not just Claude)
+  - Non-streaming fallback when tools are registered, so tools actually get sent
+
+- **Workflow execution as a persistent artifact**
+  - New `.workflow` file type stores execution records on disk
+  - Workflows open as a main-panel tab (not a sidebar flash) with live file links to generated outputs
+
+- **AI Assistant as a main-panel tab** — opens full-width via `Ctrl+Shift+A`, not just the sidebar pane
+
+- **Workspace-wide search and navigation**
+  - **Full-text content search** across every file in the workspace, indexed with MiniSearch
+  - **`Ctrl+P` quick-open** fuzzy file switcher
+  - Drag AI responses from chat into the file tree to save them as real files
+
+- **Drag-and-drop file upload** with a drop overlay, plus auto-switch to the newly uploaded file
+
+- **Schema-driven Settings modal** (`Ctrl+,`) — one central place for theme, tab overflow, and future settings
+
+- **Keyboard shortcuts overlay** — press `?` anywhere to see every shortcut, with tooltips throughout the UI
+
+- **"What's new" toast and changelog modal** — after each update, a non-intrusive toast surfaces the highlights
+
+- **Audio editor upgrade** to Audacity-lite
+  - WYSIWYG rich text editor powered by TipTap
+  - Destroy-and-recreate WaveSurfer on reload to avoid quality degradation
+  - Persist audio edits across tab switches
+  - `.webm` and `.ogg` routed to the waveform editor instead of the video viewer
+
+- **Word count** in Markdown and Plain Text editors (matching other editor types)
+
+### Changed
+
+- **Redesigned start screen** with a white, branded, full-viewport layout featuring the coral Projelli logo and a gradient glow
+- **Installer branding** refreshed with new Projelli logo BMPs and NSIS installer hooks
+- **Horizontal-scrolling tab bar** replaces the old wrapping behavior, with overflow navigation buttons
+- **Reactive auto-save indicator** — shows real state (saving, saved, unsaved, error) with a spinner and relative time
+- **Theme toggle** cycles System → Light → Dark and follows the OS setting
+- **Tab close buttons** hide until hover, reducing visual noise
+- **History button** is hidden on file types that don't track version history
+- **Sidebar icons** show tooltips with labels and shortcuts when collapsed
+- **"Grid View" button** moved to the Files section header in the sidebar
+- **Colored per-extension file icons** across the tree, tabs, and grid view
+- **Empty states with CTAs** on every sidebar panel (Files, Research, Workflows, AI)
+- **Clickable breadcrumbs** in the status bar navigate up through folders
+- **Delete undo toast** plus `Ctrl+Z` to restore the most recent deletion and to undo renames
+- **Create-file dialog** now shows destination and a filename preview before you confirm
+- **Editor toolbar** collapses into an overflow menu at narrow widths
+- **Workflow cards** truncate to two lines with a hover tooltip for the full name
+- **API keys panel** shows all three providers (Claude, OpenAI, Gemini) with per-provider test and status
+- **Workflows panel** fills the sidebar height and offers a full-view modal for long runs
+- **Welcome dialog** expanded with an elevator pitch and "Learn more" link
+- **Welcome dialog Recent Workspaces** section collapses by default
+- **"New Workspace"** button copy clarified
+- **API key setup card** now appears after workspace selection
+- **Sidebar navigation** uses proper tablist/tab ARIA roles with arrow-key navigation
+- **Command palette** gained a screen-reader-only `DialogTitle` and `DialogDescription`
+- **Quick Open, Settings, and Shortcuts modals** all gained `sr-only DialogDescription` for screen readers
+- **Rate-limit and API errors** now surface directly in chat with a Retry button
+- **AbortController** wired through every AI provider's `sendMessage` so cancel actually cancels
+- **Specialized non-chat models** filtered out of the Gemini and OpenAI dropdowns
+- **Cache version** added to the model list so filter changes auto-invalidate stored lists
+
+### Fixed
+
+- **CSV drag-and-drop** no longer throws an `atob` error — raw text CSV now parses correctly
+- **DOCX round-trip corruption** — saving a `.docx` no longer writes the data URL as UTF-8, so files open cleanly after edit
+- **Word document creation** works in browser environments — switched from `Packer.toBuffer` (Node-only) to `Packer.toBlob`
+- **Drop overlay stuck state** — wrapped the drop handler in `try/finally` so the overlay always clears
+- **TipTap duplicate-extension warnings** silenced in the Docx and RTF editors
+- **Welcome dialog** close button and `Escape` handling now work
+- **File icons** in the file tree and grid view now derive the extension from the file name, fixing mismatched icons
+- **"Open on Desktop"** now resolves absolute paths correctly
+- **Research sidebar icon** no longer gets stuck in a tinted state
+- **Spreadsheet formula bar** collapses cleanly when no cell is selected
+
+### Infrastructure
+
+- **Theme and tab-overflow preferences** migrated into the schema-driven settings store
+- **Filesystem operations** now work on any user-picked workspace path (no forced root)
+- **`@tauri-apps/plugin-http`** bumped to the 2.5.x line to match the Rust crate version
+
 ## [1.0.2-rc.1] - 2026-04-09
 
 First fully-signed cross-platform test release. Validates the GitHub Actions
