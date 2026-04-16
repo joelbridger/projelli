@@ -89,6 +89,27 @@ export interface RagHit {
   paragraphIndex: number;
 }
 
+/** RAG indexer status emitted on the `rag-indexing-progress` Tauri event.
+ *  Mirror of `IndexingStatus` in `src-tauri/src/commands/rag/mod.rs`. */
+export type RagIndexingStatus =
+  | 'idle'
+  | 'indexing'
+  | 'done'
+  | 'cancelled'
+  | 'error';
+
+/** Payload emitted on the `rag-indexing-progress` event. The
+ *  `useRagStatus` hook subscribes to this event. */
+export interface RagIndexingProgress {
+  status: RagIndexingStatus;
+  processed: number;
+  total: number;
+  currentPath?: string | null;
+}
+
+/** Tauri event name. Mirror of `PROGRESS_EVENT` in mod.rs. */
+export const RAG_PROGRESS_EVENT = 'rag-indexing-progress';
+
 /** Simplified change kind emitted on the `workspace-file-changed` event. */
 export type WorkspaceChangeKind = 'create' | 'modify' | 'delete' | 'rename';
 
@@ -147,8 +168,17 @@ export async function keychainDelete(
   return invoke<void>('keychain_delete', { service, key });
 }
 
-/** Index a single file into the local RAG store. Phase 2 stub — Phase 3
- *  (M1) wires the actual embedding + upsert. */
+/** Set or replace the active workspace root the RAG indexer points at.
+ *  Must be called once when the user opens a workspace, before any other
+ *  `rag_*` command. */
+export async function ragSetWorkspace(path: string): Promise<void> {
+  if (!isTauri()) return; // no-op in browser
+  return invoke<void>('rag_set_workspace', { path });
+}
+
+/** Index a single file into the local RAG store. Idempotent — re-running
+ *  for the same path replaces stale chunks. Returns immediately for
+ *  unsupported file types (silently). */
 export async function ragIndexFile(path: string): Promise<void> {
   if (!isTauri()) {
     throw new Error('RAG is only available in the desktop app.');
@@ -156,7 +186,10 @@ export async function ragIndexFile(path: string): Promise<void> {
   return invoke<void>('rag_index_file', { path });
 }
 
-/** Index the entire active workspace. Phase 2 stub. */
+/** Index the entire active workspace. Walks every supported file under the
+ *  workspace root, emits `rag-indexing-progress` events as it goes, and
+ *  honours `ragCancelIndexing()` between files. Resolves once indexing
+ *  completes (or is cancelled). */
 export async function ragIndexWorkspace(): Promise<void> {
   if (!isTauri()) {
     throw new Error('RAG is only available in the desktop app.');
@@ -164,7 +197,23 @@ export async function ragIndexWorkspace(): Promise<void> {
   return invoke<void>('rag_index_workspace');
 }
 
-/** Query the local RAG store. Phase 2 stub. */
+/** Cancel the currently-running workspace indexer. Safe to call when no
+ *  indexer is running (no-op). */
+export async function ragCancelIndexing(): Promise<void> {
+  if (!isTauri()) return;
+  return invoke<void>('rag_cancel_indexing');
+}
+
+/** Drop every stored chunk for `path`. Wrapper for the watcher path —
+ *  callers that already know a file is gone can use this directly. */
+export async function ragDeletePath(path: string): Promise<void> {
+  if (!isTauri()) return;
+  return invoke<void>('rag_delete_path', { path });
+}
+
+/** Query the local RAG store. Returns up to `topK` hits sorted by score
+ *  (descending). Empty query or `topK = 0` returns `[]` without invoking
+ *  the embedder. */
 export async function ragRetrieve(
   query: string,
   topK: number,
