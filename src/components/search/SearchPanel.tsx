@@ -1,7 +1,7 @@
 // Search Panel Component
 // Provides intelligent, deep search across all workspace content
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Search, FileText, FolderOpen, MessageSquare, PenTool, X, FolderTree, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { EmptyState } from '@/components/common/EmptyState';
 import type { FileNode } from '@/types/workspace';
+import type { ContentSearchResult } from '@/modules/search/ContentIndex';
 
 interface SearchResult {
   path: string;
@@ -24,11 +25,21 @@ interface SearchResult {
   type: 'file' | 'folder' | 'chat' | 'whiteboard';
   preview?: string;
   matches: number;
+  /** UX-26: the snippet of content around the first match. Only set when
+   *  the result came from the content index, not just filename matching. */
+  snippet?: string;
+  matchedTerm?: string;
 }
 
 interface SearchPanelProps {
   onFileSelect?: (path: string, name: string) => void;
   onRevealInFolder?: (path: string) => void;
+  /**
+   * UX-26: optional content search function. When provided, content-index
+   * hits are merged with filename hits for a single unified result list.
+   * Callers pass a reference to the `useContentIndex` hook's `search`.
+   */
+  onContentSearch?: (query: string) => ContentSearchResult[];
   className?: string;
 }
 
@@ -76,6 +87,31 @@ function searchFileTree(
 }
 
 /**
+ * UX-26: Render a content snippet with the matching term wrapped in a
+ * `<mark>` tag. We split on a case-insensitive exact-term boundary so the
+ * highlight survives the fuzzy-match miss.
+ */
+function renderSnippetWithHighlight(snippet: string, term?: string): React.ReactNode {
+  if (!term) return snippet;
+  const lowerSnippet = snippet.toLowerCase();
+  const lowerTerm = term.toLowerCase();
+  const idx = lowerSnippet.indexOf(lowerTerm);
+  if (idx === -1) return snippet;
+  const before = snippet.slice(0, idx);
+  const hit = snippet.slice(idx, idx + term.length);
+  const after = snippet.slice(idx + term.length);
+  return (
+    <>
+      {before}
+      <mark className="bg-yellow-200 dark:bg-yellow-900/60 text-foreground rounded px-0.5">
+        {hit}
+      </mark>
+      {after}
+    </>
+  );
+}
+
+/**
  * Get icon for search result type
  */
 function getResultIcon(type: SearchResult['type']) {
@@ -106,10 +142,20 @@ const FILE_TYPE_FILTERS: { value: FileTypeFilter; label: string; extensions: str
   { value: 'json', label: 'JSON', extensions: ['json'] },
 ];
 
-export function SearchPanel({ onFileSelect, onRevealInFolder, className }: SearchPanelProps) {
+export function SearchPanel({ onFileSelect, onRevealInFolder, onContentSearch, className }: SearchPanelProps) {
   const [query, setQuery] = useState('');
+  // UX-26: separate debounced query fuels the content index so we don't
+  // re-run every keystroke on a 10k-file index. 150ms feels instant in the
+  // hand yet lets stronger signals consolidate.
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [fileTypeFilter, setFileTypeFilter] = useState<FileTypeFilter>('all');
   const { fileTree, setExpandedPaths, expandedPaths, selectPath } = useWorkspaceStore();
+
+  // Debounce the query → debouncedQuery propagation on a 150ms timer.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), 150);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   // Perform search with file type filtering
   const results = useMemo(() => {
@@ -117,7 +163,33 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, className }: Searc
       return [];
     }
 
-    const allResults = searchFileTree(fileTree, query);
+    // Filename matches (the original search path).
+    const nameResults = searchFileTree(fileTree, query);
+
+    // UX-26: content matches. We key the content lookup on the debounced
+    // value so results stabilise while the user is typing quickly.
+    const contentMatches: SearchResult[] = [];
+    if (onContentSearch && debouncedQuery.trim()) {
+      const byPath = new Set(nameResults.map((r) => r.path));
+      const contentHits = onContentSearch(debouncedQuery.trim());
+      for (const hit of contentHits) {
+        if (byPath.has(hit.path)) continue; // Already in name matches
+        const ext = hit.name.split('.').pop()?.toLowerCase();
+        let type: SearchResult['type'] = 'file';
+        if (ext === 'aichat') type = 'chat';
+        else if (ext === 'whiteboard') type = 'whiteboard';
+        contentMatches.push({
+          path: hit.path,
+          name: hit.name,
+          type,
+          matches: 1,
+          snippet: hit.snippet,
+          ...(hit.matchedTerm ? { matchedTerm: hit.matchedTerm } : {}),
+        });
+      }
+    }
+
+    const allResults = [...nameResults, ...contentMatches];
 
     // Apply file type filter
     if (fileTypeFilter === 'all') {
@@ -137,7 +209,7 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, className }: Searc
       const ext = result.name.split('.').pop()?.toLowerCase();
       return ext && filter.extensions.includes(ext);
     });
-  }, [fileTree, query, fileTypeFilter]);
+  }, [fileTree, query, debouncedQuery, fileTypeFilter, onContentSearch]);
 
   const handleResultClick = useCallback(
     (result: SearchResult) => {
@@ -205,8 +277,9 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, className }: Searc
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
+            data-testid="search-input"
             type="text"
-            placeholder="Search files, chats, whiteboards..."
+            placeholder="Search filenames and content..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="pl-8 pr-8 h-9 text-sm"
@@ -268,7 +341,7 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, className }: Searc
         )}
 
         {results.length > 0 && (
-          <div className="py-2">
+          <div data-testid="search-results" className="py-2">
             <div className="px-3 py-1 text-xs text-muted-foreground">
               {results.length} {results.length === 1 ? 'result' : 'results'}
               {fileTypeFilter !== 'all' && (
@@ -281,6 +354,7 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, className }: Searc
               {results.map((result, index) => (
                 <div
                   key={`${result.path}-${index}`}
+                  data-testid={`search-result-${index}`}
                   className={cn(
                     'group relative w-full px-3 py-2 flex items-start gap-2 hover:bg-accent transition-colors cursor-pointer'
                   )}
@@ -299,6 +373,16 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, className }: Searc
                       <div className="text-xs text-muted-foreground truncate">
                         {result.path.split('/').slice(0, -1).join('/') || '/'}
                       </div>
+                      {/* UX-26: content snippet — only present when the
+                          result was produced by the MiniSearch index. */}
+                      {result.snippet && (
+                        <div
+                          data-testid={`search-result-${index}-snippet`}
+                          className="text-xs text-muted-foreground/90 mt-1 line-clamp-2"
+                        >
+                          {renderSnippetWithHighlight(result.snippet, result.matchedTerm)}
+                        </div>
+                      )}
                     </div>
                   </button>
                   {result.type !== 'folder' && (
@@ -323,9 +407,9 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, className }: Searc
       {!query && (
         <div className="border-t p-3 text-xs text-muted-foreground space-y-1">
           <div className="font-medium mb-2">Search Tips:</div>
-          <div>• Search is case-insensitive</div>
-          <div>• Results include all file types</div>
-          <div>• Click a result to open the file</div>
+          <div>• Searches filenames AND file content</div>
+          <div>• Markdown, text, docx, xlsx, pptx, RTF are all indexed</div>
+          <div>• Click a result to open the file with a match snippet</div>
         </div>
       )}
     </div>

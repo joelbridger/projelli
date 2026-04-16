@@ -71,6 +71,7 @@ import { useOpenFileAIContext } from '@/hooks/useOpenFileAIContext';
 import { useFileContextStore } from '@/stores/fileContextStore';
 import { buildOpenFilesPromptBlock } from '@/components/ai/AIChatViewer';
 import { useModelList } from '@/hooks/useModelList';
+import { useContentIndex } from '@/hooks/useContentIndex';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { usePromptDialog } from '@/hooks/usePromptDialog';
@@ -159,6 +160,16 @@ function App() {
   // Keep the AI ambient file-context store in sync with whatever tabs are
   // open. Mounted at App level so a single subscription drives every chat.
   useOpenFileAIContext();
+
+  // UX-26: full-text content index across the workspace. Builds once per
+  // workspace open; per-file updates flow through the returned `upsert`.
+  // We pass the service from the ref (not reactive) — the hook rebuilds
+  // when rootPath changes, so a switch wire-up gives us a fresh index.
+  const contentIndex = useContentIndex({
+    rootPath,
+    service: workspaceServiceRef.current,
+    fileTree,
+  });
 
   // API key management
   const { apiKeys, handleSaveApiKey: rawSaveApiKey, handleDeleteApiKey: rawDeleteApiKey } = useApiKeys();
@@ -558,6 +569,9 @@ function App() {
         // Close all tabs for the deleted file (handles duplicates and split panes)
         closeTabsByPath(path);
 
+        // UX-26: drop from the content index so stale hits don't linger.
+        contentIndex.remove(path);
+
         // UX-16: 10-second undo toast. Clicking Undo restores the file
         // from Trash to its original path. Auto-dismissing commits the
         // destructive action (no extra confirmation required).
@@ -588,7 +602,7 @@ function App() {
         console.error('Failed to delete:', error);
       }
     },
-    [setFileTree, rootPath, closeTabsByPath, trashItems, saveTrashMetadata, setTrashStats, setTrashItems, confirm, undoToast, handleRestoreFromTrash]
+    [setFileTree, rootPath, closeTabsByPath, trashItems, saveTrashMetadata, setTrashStats, setTrashItems, confirm, undoToast, handleRestoreFromTrash, contentIndex]
   );
 
   // AI Chat Files Management (must be defined after handleDelete and handleFileOpen)
@@ -788,11 +802,17 @@ function App() {
         // Refresh file tree
         const fileTree = await workspaceServiceRef.current.getFileTree();
         setFileTree(fileTree);
+
+        // UX-26: keep the content index current so the next search sees
+        // the just-saved text. Binary writes skip this path — the index
+        // builder re-extracts via extractForAI anyway on a full rebuild.
+        const name = path.split('/').pop() ?? path;
+        contentIndex.upsert({ id: path, path, name, content });
       } catch (error) {
         console.error('Failed to save file:', error);
       }
     },
-    [markSaved, setFileTree]
+    [markSaved, setFileTree, contentIndex]
   );
 
   // Handle create new file
@@ -2056,6 +2076,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
             <SearchPanel
               onFileSelect={handleFileOpen}
               onRevealInFolder={handleRevealInFolder}
+              onContentSearch={contentIndex.search}
             />
           }
           workflowContent={
