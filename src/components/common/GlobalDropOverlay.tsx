@@ -56,11 +56,20 @@ export function useGlobalFileDrop({ onDrop, enabled = true }: DropHookOptions) {
   const [isDragging, setIsDragging] = useState(false);
   // Counter: only reaches 0 when every enter has a matching leave.
   const depthRef = useRef(0);
+  // Watchdog timer — if a dragenter fires but no dragleave/drop arrives
+  // (e.g. user drags out of the window without a clean leave event, or the
+  // browser swallows the leave during a rapid second drop), this resets the
+  // overlay after the drag has been idle for a moment. UX-41.
+  const watchdogRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!enabled) {
       setIsDragging(false);
       depthRef.current = 0;
+      if (watchdogRef.current) {
+        clearTimeout(watchdogRef.current);
+        watchdogRef.current = null;
+      }
       return;
     }
 
@@ -74,11 +83,30 @@ export function useGlobalFileDrop({ onDrop, enabled = true }: DropHookOptions) {
       return false;
     };
 
+    // UX-41: Reset all drag state to its resting position. Called from
+    // try/finally in the drop handler and by the watchdog timer so a single
+    // bad event can never leave the overlay stuck.
+    const resetDragState = () => {
+      depthRef.current = 0;
+      setIsDragging(false);
+      if (watchdogRef.current) {
+        clearTimeout(watchdogRef.current);
+        watchdogRef.current = null;
+      }
+    };
+
+    const bumpWatchdog = () => {
+      if (watchdogRef.current) clearTimeout(watchdogRef.current);
+      // 2s of no drag events = overlay is stuck. Reset.
+      watchdogRef.current = setTimeout(resetDragState, 2000);
+    };
+
     const onDragEnter = (e: DragEvent) => {
       if (!hasFiles(e)) return;
       e.preventDefault();
       depthRef.current += 1;
       setIsDragging(true);
+      bumpWatchdog();
     };
 
     const onDragLeave = (e: DragEvent) => {
@@ -86,7 +114,15 @@ export function useGlobalFileDrop({ onDrop, enabled = true }: DropHookOptions) {
       // Ignore leaves that don't actually exit the window — the counter
       // handles the real state.
       depthRef.current = Math.max(0, depthRef.current - 1);
-      if (depthRef.current === 0) setIsDragging(false);
+      if (depthRef.current === 0) {
+        setIsDragging(false);
+        if (watchdogRef.current) {
+          clearTimeout(watchdogRef.current);
+          watchdogRef.current = null;
+        }
+      } else {
+        bumpWatchdog();
+      }
     };
 
     const onDragOver = (e: DragEvent) => {
@@ -95,19 +131,31 @@ export function useGlobalFileDrop({ onDrop, enabled = true }: DropHookOptions) {
       if (!hasFiles(e)) return;
       e.preventDefault();
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+      // Keep the watchdog alive while the drag is active. Use depthRef
+      // (a ref, not state) so we don't close over a stale `isDragging` value.
+      if (depthRef.current > 0) bumpWatchdog();
     };
 
     const onDropEvt = async (e: DragEvent) => {
       if (!hasFiles(e)) return;
       e.preventDefault();
-      depthRef.current = 0;
-      setIsDragging(false);
-      const fileList = e.dataTransfer?.files;
-      if (!fileList || fileList.length === 0) return;
-      const files = filterNoiseFiles(Array.from(fileList));
-      if (files.length === 0) return;
-      const folderPath = findFolderTarget(e.target);
-      await onDrop(files, folderPath);
+      // UX-41: always reset overlay state FIRST so the try/finally below
+      // can't leave us hung even if the onDrop callback blows up. Clearing
+      // the depth + watchdog ensures subsequent drops start from a clean
+      // baseline.
+      try {
+        const fileList = e.dataTransfer?.files;
+        if (!fileList || fileList.length === 0) return;
+        const files = filterNoiseFiles(Array.from(fileList));
+        if (files.length === 0) return;
+        const folderPath = findFolderTarget(e.target);
+        await onDrop(files, folderPath);
+      } catch (err) {
+        // Never let a drop handler error strand the overlay.
+        console.error('[useGlobalFileDrop] onDrop failed:', err);
+      } finally {
+        resetDragState();
+      }
     };
 
     window.addEventListener('dragenter', onDragEnter);
@@ -119,6 +167,10 @@ export function useGlobalFileDrop({ onDrop, enabled = true }: DropHookOptions) {
       window.removeEventListener('dragleave', onDragLeave);
       window.removeEventListener('dragover', onDragOver);
       window.removeEventListener('drop', onDropEvt);
+      if (watchdogRef.current) {
+        clearTimeout(watchdogRef.current);
+        watchdogRef.current = null;
+      }
     };
   }, [onDrop, enabled]);
 
