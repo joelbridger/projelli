@@ -101,6 +101,15 @@ export const SHORTCUTS: ShortcutDef[] = [
     category: 'AI',
     description: 'Open AI Assistant in a main-panel tab',
   },
+
+  // General
+  {
+    id: 'open-settings',
+    label: 'Open Settings',
+    keys: ['Ctrl', ','],
+    category: 'General',
+    description: 'Open the settings panel',
+  },
 ];
 
 /**

@@ -28,8 +28,10 @@ import { WhiteboardManager } from '@/components/whiteboard/WhiteboardManager';
 import { ProjectManager } from '@/components/workspace/ProjectManager';
 import { AudioRecorderModal } from '@/components/audio/AudioRecorderModal';
 import { Button } from '@/components/ui/button';
-import { Command, Moon, Monitor, Sun } from 'lucide-react';
+import { Command, Moon, Monitor, Sun, Settings } from 'lucide-react';
 import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/components/WhatsNew';
+import { SettingsModal } from '@/components/settings/SettingsModal';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { GlobalDropOverlay, useGlobalFileDrop } from '@/components/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { saveFile } from '@/utils/saveFile';
@@ -89,6 +91,7 @@ function App() {
   const [showShortcutsOverlay, setShowShortcutsOverlay] = useState(false);
   const [showQuickOpen, setShowQuickOpen] = useState(false);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
 
@@ -120,15 +123,17 @@ function App() {
 
   // UX-25: Theme state — 3 values: 'light' | 'dark' | 'system'.
   // 'system' follows the OS prefers-color-scheme media query.
-  // Default is 'system' on first run; prior installs that saved 'light'/'dark'
-  // keep their explicit preference until they cycle off of it.
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark' || savedTheme === 'light' || savedTheme === 'system') {
-      return savedTheme;
-    }
-    return 'system';
-  });
+  // Now reads from settingsStore as the canonical source. The local
+  // `theme` / `setTheme` pair wraps the store so existing callers
+  // keep working without refactoring every `setTheme` call.
+  const settingsTheme = useSettingsStore((s) => s.getSetting<string>('theme')) as 'light' | 'dark' | 'system';
+  const theme = (settingsTheme === 'light' || settingsTheme === 'dark' || settingsTheme === 'system')
+    ? settingsTheme
+    : 'system';
+  const setTheme = useCallback((valueOrFn: 'light' | 'dark' | 'system' | ((prev: 'light' | 'dark' | 'system') => 'light' | 'dark' | 'system')) => {
+    const next = typeof valueOrFn === 'function' ? valueOrFn(theme) : valueOrFn;
+    useSettingsStore.getState().setSetting('theme', next);
+  }, [theme]);
 
   // Effective theme derived from `theme` + prefers-color-scheme. We listen
   // to the media query so that a user in 'system' mode gets instant sync
@@ -1934,6 +1939,13 @@ This file contains rules and guidelines for AI assistants in this workspace.
         action: () => setSidebarActiveTab('ai-assistant'),
       },
       {
+        id: 'open-settings',
+        label: 'Open Settings',
+        shortcut: 'Ctrl+,',
+        category: 'general',
+        action: () => setShowSettingsModal(true),
+      },
+      {
         id: 'browser.open',
         label: 'Open Browser Tab',
         category: 'view',
@@ -1955,6 +1967,13 @@ This file contains rules and guidelines for AI assistants in this workspace.
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
       const isMod = e.ctrlKey || e.metaKey;
+
+      // Open Settings: Ctrl+,
+      if (isMod && e.key === ',') {
+        e.preventDefault();
+        setShowSettingsModal(true);
+        return;
+      }
 
       // Command Palette: Ctrl+K or Ctrl+Shift+P
       if ((isMod && e.key === 'k') || (isMod && e.shiftKey && e.key === 'p')) {
@@ -2186,6 +2205,17 @@ This file contains rules and guidelines for AI assistants in this workspace.
             )}
           </Button>
           <Button
+            data-testid="settings-gear"
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0"
+            onClick={() => setShowSettingsModal(true)}
+            title="Settings (Ctrl+,)"
+            aria-label="Open settings"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Button
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-xs text-muted-foreground"
@@ -2356,6 +2386,20 @@ This file contains rules and guidelines for AI assistants in this workspace.
         open={showCommandPalette}
         onOpenChange={setShowCommandPalette}
         commands={commands}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        open={showSettingsModal}
+        onOpenChange={setShowSettingsModal}
+        onAction={(actionId) => {
+          if (actionId === 'open-ai-keys') {
+            setSidebarActiveTab('ai-assistant');
+            setAiAssistantRequestedTab('keys');
+          } else if (actionId === 'open-ai-rules') {
+            handleOpenAIRules();
+          }
+        }}
       />
 
       {/* Keyboard Shortcuts Overlay (UX-10) */}
