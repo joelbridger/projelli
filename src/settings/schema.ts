@@ -14,6 +14,7 @@ export type SettingCategory =
   | 'editor'
   | 'ai'
   | 'memory'
+  | 'voice'
   | 'files'
   | 'shortcuts'
   | 'costs'
@@ -52,6 +53,7 @@ export const SETTING_CATEGORIES: { id: SettingCategory; label: string }[] = [
   { id: 'editor', label: 'Editor' },
   { id: 'ai', label: 'AI' },
   { id: 'memory', label: 'Memory' },
+  { id: 'voice', label: 'Voice' },
   { id: 'files', label: 'Files & Workspace' },
   { id: 'shortcuts', label: 'Keyboard Shortcuts' },
   { id: 'costs', label: 'Cost & Usage' },
@@ -223,6 +225,49 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
       'When enabled, facts that the AI extracts from your conversations are saved without asking. Default is off, so every proposed fact needs your approval.',
     type: 'toggle',
     defaultValue: false,
+  },
+
+  // ── Voice ─────────────────────────────────────────────────────────────
+  {
+    key: 'voiceEnabled',
+    category: 'voice',
+    label: 'Voice input',
+    description:
+      'Hold Ctrl+Shift+Space (Cmd+Shift+Space on Mac) to talk; release to transcribe and insert at the cursor. Runs a bundled speech-recognition binary on your machine — no network, no API key.',
+    type: 'toggle',
+    defaultValue: true,
+  },
+  {
+    key: 'voiceModel',
+    category: 'voice',
+    label: 'Transcription model',
+    description:
+      'Smaller models are faster but less accurate. Changes take effect on the next transcription.',
+    type: 'select',
+    defaultValue: 'small',
+    options: [
+      { value: 'tiny', label: 'Tiny (fastest)' },
+      { value: 'base', label: 'Base' },
+      { value: 'small', label: 'Small (recommended)' },
+    ],
+  },
+  {
+    key: 'voicePressToTalkShortcut',
+    category: 'voice',
+    label: 'Press-to-talk hotkey',
+    description:
+      'Hold this shortcut to record; release to transcribe. Customization is coming in a later release.',
+    type: 'shortcut-display',
+    defaultValue: 'Ctrl+Shift+Space',
+  },
+  {
+    key: 'voiceNoteShortcut',
+    category: 'voice',
+    label: 'Voice-to-note hotkey',
+    description:
+      'Record a voice note and save the transcription to Inbox/ as a new Markdown file. Release to save.',
+    type: 'shortcut-display',
+    defaultValue: 'Ctrl+Shift+N',
   },
 
   // ── Files & Workspace ─────────────────────────────────────────────────

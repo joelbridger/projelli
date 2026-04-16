@@ -33,6 +33,7 @@ import { TemplateModelSettings } from '@/components/settings/TemplateModelSettin
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
 import { McpSettingsSection } from '@/components/settings/McpSettingsSection';
 import { OllamaSettingsSection } from '@/components/settings/OllamaSettingsSection';
+import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';
 import type { AuditEntry } from '@/types/audit';
 import type { WorkflowTemplate } from '@/types/workflow';
 import {
@@ -638,6 +639,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
             ) : (
               <div>
                 {activeCategory === 'about' && <AboutHeader />}
+                {activeCategory === 'voice' && <VoiceSettingsSection />}
                 {categorySettings.map((def) => (
                   <SettingRow
                     key={def.key}
