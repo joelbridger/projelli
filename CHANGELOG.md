@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Mermaid diagram rendering in markdown preview (Q1)** — fenced ` ```mermaid ` blocks now render as SVG diagrams in the read-only preview. Syntax errors are surfaced as a small red error block inside the diagram placeholder instead of crashing the preview.
+  - `src/components/editor/MarkdownPreview.tsx` — pre-extracts mermaid blocks, runs the existing regex markdown pipeline, then renders each diagram into its placeholder via `mermaid.render()` after mount. Theme follows the app's `dark` class on `<html>`.
+  - `tests/unit/markdown-preview-mermaid.test.ts` — 4 unit tests covering block extraction, multi-diagram id uniqueness, non-mermaid passthrough, and token-leak guard.
+
 ## [1.0.8] - 2026-04-16
 
 The first release with auto-updates. From now on, Projelli checks for new

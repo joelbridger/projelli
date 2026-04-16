@@ -26,8 +26,8 @@
 
 | # | Item | Status | Evidence |
 |---|---|---|---|
-| Q1 | Mermaid rendering | 🔲 Not started | `mermaid` not in `package.json` deps |
-| Q2 | KaTeX math rendering | 🔲 Not started | `katex`/`rehype-katex` not in `package.json` deps |
+| Q1 | Mermaid rendering | 🟡 In flight | `mermaid` installed 2026-04-16; `MarkdownPreview.tsx` extension in progress |
+| Q2 | KaTeX math rendering | 🟡 In flight | `katex` installed 2026-04-16; `MarkdownPreview.tsx` extension in progress |
 | Q3 | Real-time cost meter | 🔲 Not started | `ProviderMetadata` has pricing fields (v1.0.8+), but chat UI doesn't render cost. Needs aggregation + chip UI |
 | Q4 | Monthly cost dashboard | 🔲 Not started | `AuditService` schema has no `tokens_in`/`tokens_out`/`cost_usd` fields. New `CostMetrics.tsx` component needed |
 | Q5 | Audit log export (CSV/JSON) | 🔲 Not started | `AuditLog.tsx` has `onExportJSON`/`onExportCSV` callbacks but no serialization |

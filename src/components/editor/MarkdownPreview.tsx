@@ -1,12 +1,67 @@
 // Markdown Preview Component
-// Renders markdown content as formatted HTML
+// Renders markdown content as formatted HTML.
+//
+// v1.5 extensions on top of the original regex converter:
+// - Q1: Mermaid diagram rendering (fenced ```mermaid blocks → SVG)
+//
+// Mermaid render is async, so conversion inserts a placeholder <div> per
+// diagram up front, and a post-mount effect calls mermaid.render() and
+// drops the SVG into the matching node. Syntax errors render as a small
+// red error block inside the placeholder rather than crashing the preview.
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import mermaid from 'mermaid';
 import { cn } from '@/lib/utils';
 
 interface MarkdownPreviewProps {
   content: string;
   className?: string;
+}
+
+interface MermaidBlock {
+  id: string;
+  source: string;
+}
+
+// Initialize mermaid once per theme. Module-level flag keeps us from
+// re-initializing on every preview mount, but we re-call initialize when
+// the theme changes because mermaid tolerates repeat calls.
+let lastMermaidTheme: 'default' | 'dark' | null = null;
+function ensureMermaidInit(theme: 'default' | 'dark') {
+  if (lastMermaidTheme === theme) return;
+  mermaid.initialize({ startOnLoad: false, theme, securityLevel: 'strict' });
+  lastMermaidTheme = theme;
+}
+
+function escapeHtmlString(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * Extract fenced ```mermaid blocks from the raw markdown and replace each
+ * with an opaque placeholder token that survives the regex pipeline. After
+ * markdown→HTML conversion, tokens are swapped for placeholder <div>s that
+ * the post-mount effect fills with rendered SVG.
+ */
+function extractMermaidBlocks(markdown: string): {
+  stripped: string;
+  blocks: MermaidBlock[];
+  placeholders: Map<string, string>;
+} {
+  const blocks: MermaidBlock[] = [];
+  const placeholders = new Map<string, string>();
+  let counter = 0;
+  const stripped = markdown.replace(/```mermaid\n([\s\S]*?)```/g, (_match, source: string) => {
+    const id = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
+    blocks.push({ id, source: source.trim() });
+    const token = `\u0000MDPREVIEWMERMAID${counter++}\u0000`;
+    placeholders.set(
+      token,
+      `<div class="mermaid-diagram my-4" data-mermaid-id="${id}" data-testid="mermaid-diagram-${id}"></div>`,
+    );
+    return token;
+  });
+  return { stripped, blocks, placeholders };
 }
 
 /**
@@ -116,15 +171,66 @@ function markdownToHtml(markdown: string): string {
   return html;
 }
 
+/**
+ * Build the final HTML string: extract Mermaid blocks → run the markdown
+ * regex pipeline on the stripped source → swap placeholders for diagram
+ * target <div>s. Exported for unit-testability.
+ */
+export function renderMarkdownToHtml(content: string): {
+  html: string;
+  mermaidBlocks: MermaidBlock[];
+} {
+  const { stripped, blocks, placeholders } = extractMermaidBlocks(content);
+  let html = markdownToHtml(stripped);
+  for (const [token, replacement] of placeholders) {
+    html = html.split(token).join(replacement);
+  }
+  return { html, mermaidBlocks: blocks };
+}
+
 export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
-  const html = useMemo(() => markdownToHtml(content), [content]);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { html, mermaidBlocks } = useMemo(() => renderMarkdownToHtml(content), [content]);
+
+  // Render each Mermaid diagram after React paints the placeholder <div>s.
+  // Cancellation flag guards against a new content change firing a fresh
+  // effect before the previous pass finishes.
+  useEffect(() => {
+    if (!containerRef.current || mermaidBlocks.length === 0) return;
+    const root = containerRef.current;
+    const isDark = document.documentElement.classList.contains('dark');
+    ensureMermaidInit(isDark ? 'dark' : 'default');
+
+    let cancelled = false;
+    (async () => {
+      for (const block of mermaidBlocks) {
+        const target = root.querySelector<HTMLElement>(`[data-mermaid-id="${block.id}"]`);
+        if (!target) continue;
+        try {
+          const { svg } = await mermaid.render(`${block.id}-svg`, block.source);
+          if (cancelled) return;
+          target.innerHTML = svg;
+        } catch (err) {
+          if (cancelled) return;
+          const msg = err instanceof Error ? err.message : String(err);
+          target.innerHTML = `<div class="text-sm text-red-600 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded p-3 font-mono whitespace-pre-wrap" data-testid="mermaid-error">${escapeHtmlString(msg)}</div>`;
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [html, mermaidBlocks]);
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         'h-full w-full overflow-auto p-6 prose prose-sm dark:prose-invert max-w-none',
         className
       )}
+      data-testid="markdown-preview"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
