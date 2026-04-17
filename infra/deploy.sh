@@ -32,9 +32,13 @@ if [[ ! -d "$WEB_ROOT" ]]; then
 fi
 
 echo "==> Syncing $WEBSITE_DIR/ → $WEB_ROOT/"
+# `_*.html` are source templates (underscore prefix is the convention).
+# `_detail_template.html` in /templates/ contains unrendered {{SLUG}}
+# placeholders that would leak if served. Exclude them from deploy.
 sudo rsync -av --delete \
   --exclude='.DS_Store' \
   --exclude='*.swp' \
+  --exclude='_*.html' \
   "$WEBSITE_DIR/" "$WEB_ROOT/"
 
 echo "==> Setting ownership to www-data:www-data"
