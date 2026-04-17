@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('v1.6 feature tour', () => {
   test('tour appears after first-run completes and can be stepped through', async ({ page }) => {
-    await page.goto('http://localhost:5173/?testMode=true');
+    await page.goto('http://localhost:5173/?testMode=true&forceTour=true');
     await page.evaluate(() => localStorage.clear());
     await page.reload();
 
@@ -36,7 +36,7 @@ test.describe('v1.6 feature tour', () => {
   });
 
   test('Esc skips the tour', async ({ page }) => {
-    await page.goto('http://localhost:5173/?testMode=true');
+    await page.goto('http://localhost:5173/?testMode=true&forceTour=true');
     await page.evaluate(() => {
       localStorage.setItem('projelli_onboarding_complete', 'true');
       const raw = localStorage.getItem('projelli:settings') ?? '{}';

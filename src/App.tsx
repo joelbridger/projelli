@@ -118,11 +118,16 @@ function App() {
 
   // v1.6: auto-show feature tour on first launch (post-first-run wizard) once
   // the sidebar testids exist in the DOM. Persistent flag stops re-triggering.
+  // Suppressed in test mode (other E2E specs) unless the URL explicitly opts
+  // in via ?forceTour=true. The dedicated tour spec uses the opt-in.
+  const FORCE_TOUR = typeof window !== 'undefined' &&
+                     window.location.search.includes('forceTour=true');
   useEffect(() => {
+    if (IS_TEST_MODE && !FORCE_TOUR) return;
     if (!featureTour.shouldAutoShow) return;
     const timeoutId = setTimeout(() => setTourOpen(true), 800);
     return () => clearTimeout(timeoutId);
-  }, [featureTour.shouldAutoShow]);
+  }, [IS_TEST_MODE, FORCE_TOUR, featureTour.shouldAutoShow]);
   // Direct trigger for the WhatsNew changelog modal from outside the
   // WhatsNewLayer (e.g. the Settings → About → "What's new" action).
   // The local hook in WhatsNewLayer still owns the toast + first-run
