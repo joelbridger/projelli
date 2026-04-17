@@ -38,6 +38,8 @@ import { openExternal } from '@/utils/openExternal';
 import { ExternalLink, Eye, EyeOff, Check, AlertCircle, ArrowLeft, ArrowRight, RefreshCw, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { detectOllama } from '@/modules/models/OllamaProvider';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { PROVIDER_TUTORIALS, ProviderTutorialList, type ProviderId } from './ProviderTutorialSteps';
 
 export type WizardProvider = 'anthropic' | 'openai' | 'google' | 'ollama';
 
@@ -125,6 +127,7 @@ export function ApiKeyWizard({
   const [submitting, setSubmitting] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<'idle' | 'checking' | 'ok' | 'missing'>('idle');
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [step2Tab, setStep2Tab] = useState<'steps' | 'visual'>('steps');
 
   const meta = PROVIDERS[provider];
 
@@ -268,14 +271,42 @@ export function ApiKeyWizard({
           </StepShell>
         )}
 
-        {step === 2 && (
+        {step === 2 && provider !== 'ollama' && (
           <StepShell testid="api-key-wizard-step-2" title="Step 2. Find the Create Key button" description={meta.step2Title}>
-            <ProviderMockSvg label={meta.dashboardLabel} />
-            <p className="text-xs text-muted-foreground mt-3">
-              Look for a button labeled <strong className="text-foreground">Create API key</strong> (or similar).
-              Click it, give the key a name like "Projelli", and copy the key it gives you.
-              Most providers only show the full key once, so copy it right away.
-            </p>
+            <Tabs value={step2Tab} onValueChange={(v) => setStep2Tab(v as 'steps' | 'visual')} className="w-full">
+              <div data-testid="api-key-wizard-step-2-tabs">
+                <TabsList className="grid w-full grid-cols-2">
+                  <div data-testid="api-key-wizard-tab-steps">
+                    <TabsTrigger value="steps" className="w-full">Step-by-step</TabsTrigger>
+                  </div>
+                  <div data-testid="api-key-wizard-tab-visual">
+                    <TabsTrigger value="visual" className="w-full">Visual</TabsTrigger>
+                  </div>
+                </TabsList>
+              </div>
+              <TabsContent value="steps" className="mt-4">
+                <ProviderTutorialList tutorial={PROVIDER_TUTORIALS[provider as ProviderId]} />
+              </TabsContent>
+              <TabsContent value="visual" className="mt-4">
+                <ProviderMockSvg label={meta.dashboardLabel} />
+                <p className="text-xs text-muted-foreground mt-3">
+                  Look for a button labeled <strong className="text-foreground">Create API key</strong> (or similar).
+                  Click it, give the key a name like "Projelli", and copy the key it gives you.
+                  Most providers only show the full key once, so copy it right away.
+                </p>
+              </TabsContent>
+            </Tabs>
+          </StepShell>
+        )}
+
+        {step === 2 && provider === 'ollama' && (
+          <StepShell testid="api-key-wizard-step-2" title="Step 2. Install Ollama and pull a model" description={meta.step2Title}>
+            <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2 text-sm">
+              <p className="text-muted-foreground">
+                Download Ollama for your OS, then in a terminal run <code className="text-foreground">ollama pull llama3.2</code> (or any model you want).
+                Projelli auto-detects Ollama on the next step.
+              </p>
+            </div>
           </StepShell>
         )}
 
