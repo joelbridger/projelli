@@ -35,10 +35,31 @@ function createMockFSBackend(): FSBackend & {
     getRootPath: vi.fn(() => rootPath),
 
     exists: vi.fn(async (path: string) => {
+      // WorkspaceService.initialize calls exists('') to check the root.
+      // Tests seed the root by adding an entry keyed at TEST_ROOT, so we
+      // map '' to "is rootPath seeded in files". Symmetric with the
+      // stat() shim further down.
+      if (path === '' || path === rootPath) {
+        return rootPath !== '' && files.has(rootPath);
+      }
       return files.has(path);
     }),
 
     stat: vi.fn(async (path: string): Promise<FileStat> => {
+      // WorkspaceService.initialize calls stat('') to verify the root
+      // exists and is a directory. Synthesize a folder stat for the
+      // empty-string root path (and the literal rootPath for symmetry)
+      // so the integration tests don't have to seed a "" entry manually.
+      if (path === '' || path === rootPath) {
+        return {
+          path: '',
+          name: rootPath.split('/').pop() || '',
+          type: 'folder',
+          size: 0,
+          createdAt: new Date(),
+          modifiedAt: new Date(),
+        };
+      }
       const file = files.get(path);
       if (!file) {
         throw new Error(`Path not found: ${path}`);
@@ -160,21 +181,35 @@ function createMockFSBackend(): FSBackend & {
 
     list: vi.fn(async (path: string): Promise<FileNode[]> => {
       const result: FileNode[] = [];
-      const pathWithSlash = path.endsWith('/') ? path : path + '/';
-
+      // WorkspaceService writes go through toBackendPath(), which produces
+      // paths RELATIVE to the workspace root. So entries land in the map
+      // as 'file1.md', 'docs/readme.md' etc. The root itself was seeded
+      // with the absolute TEST_ROOT key in beforeEach — skip it.
+      // path === '' means "list root level" → entries with no '/'.
+      // path === '<sub>' means "list under <sub>/" → entries that start
+      // with '<sub>/' and have no further '/' after.
       for (const [key, file] of files.entries()) {
-        if (key.startsWith(pathWithSlash)) {
-          const relativePath = key.substring(pathWithSlash.length);
-          // Only include direct children (no nested paths)
-          if (!relativePath.includes('/')) {
-            result.push({
-              path: key,
-              name: file.stat.name,
-              type: file.stat.type,
-              children: file.stat.type === 'folder' ? [] : undefined,
-            });
+        if (key === rootPath) continue; // Skip seeded absolute root entry
+
+        let relativeFromBase: string | null = null;
+        if (path === '') {
+          relativeFromBase = key;
+        } else {
+          const prefix = path.endsWith('/') ? path : path + '/';
+          if (key.startsWith(prefix)) {
+            relativeFromBase = key.substring(prefix.length);
           }
         }
+        if (relativeFromBase === null) continue;
+        if (relativeFromBase === '') continue; // The directory itself
+        if (relativeFromBase.includes('/')) continue; // Not a direct child
+
+        result.push({
+          path: key,
+          name: file.stat.name,
+          type: file.stat.type,
+          children: file.stat.type === 'folder' ? [] : undefined,
+        });
       }
 
       return result;
@@ -185,8 +220,12 @@ function createMockFSBackend(): FSBackend & {
       if (!file) {
         throw new Error(`File not found: ${path}`);
       }
-      const parentPath = path.substring(0, path.lastIndexOf('/'));
-      const newPath = `${parentPath}/${newName}`;
+      // Backend receives relative paths from WorkspaceService.toBackendPath
+      // (so 'old-name.md' instead of '/test/workspace/old-name.md'). Compute
+      // the new path correctly whether `path` is absolute or relative.
+      const lastSlash = path.lastIndexOf('/');
+      const parentPath = lastSlash > 0 ? path.substring(0, lastSlash) : '';
+      const newPath = parentPath ? `${parentPath}/${newName}` : newName;
       files.set(newPath, {
         ...file,
         stat: {
