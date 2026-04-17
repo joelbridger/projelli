@@ -12,23 +12,23 @@
 
 | Ticket | Description | Status |
 |---|---|---|
-| v1.5-rc.9 | Fix React #185 crash on AI chat / Pop-out | 🟡 Fix committed, CI building |
-| W-SI | Windows silent install (NSIS passive mode default) | 🔲 Not started |
-| W-PX | Portable .exe artifact signed and uploaded to releases | 🔲 Not started |
-| T-AKT | API key tutorial content in wizard + Settings entry | 🔲 Not started |
-| T-FT | 5-step feature tour after first-run | 🔲 Not started |
+| v1.5-rc.9 | Fix React #185 crash on AI chat / Pop-out | ✅ Done |
+| W-SI | Windows silent install (NSIS passive mode default) | ✅ Done |
+| W-PX | Portable .exe artifact signed and uploaded to releases | ✅ Done |
+| T-AKT | API key tutorial content in wizard + Settings entry | ✅ Done (4/4) |
+| T-FT | 5-step feature tour after first-run | ✅ Done (6/6) |
 
 ## Phase status
 
 | Phase | Work | Status |
 |---|---|---|
-| Phase 1 | Bug fix (ships as v1.5-rc.9) | ✅ Committed, CI building |
+| Phase 1 | Bug fix (ships as v1.5-rc.9) | ✅ Done |
 | Phase 2 | Branch + version bump | ✅ Done |
-| Phase 3 | Silent install | 🟡 In flight |
-| Phase 4 | Portable .exe | 🔲 Not started |
-| Phase 5 | API key tutorials | 🔲 Not started |
-| Phase 6 | Feature tour | 🔲 Not started |
-| Phase 7 | RC + extensive Playwright + publish prep | 🔲 Not started |
+| Phase 3 | Silent install | ✅ Done |
+| Phase 4 | Portable .exe | ✅ Done |
+| Phase 5 | API key tutorials | ✅ Done |
+| Phase 6 | Feature tour | ✅ Done |
+| Phase 7 | RC + extensive Playwright + publish prep | 🟡 RC build in flight |
 
 ## Portable mode caveats
 

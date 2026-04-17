@@ -7,7 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No changes since v1.5.0.
+No changes since v1.6.0.
+
+## [1.6.0] - 2026-04-17
+
+A polish + onboarding release driven by founder feedback on the v1.5
+installer experience and one critical AI-chat bug.
+
+### Added
+- Windows silent install as the double-click default. Installer shows a
+  brief progress indicator and auto-launches Projelli. No wizard
+  screens. Pass `/INTERACTIVE` on the command line to get the old
+  wizard back.
+- Portable Windows `.exe` artifact (`Projelli_1.6.0_x64-portable.exe`).
+  Single file you can drop anywhere, no install step. Signed via
+  Azure Trusted Signing.
+- API-key tutorial tab in the first-run wizard's API key step. Real
+  5-step guides for Anthropic, OpenAI, and Google with direct links
+  to each console's API-keys page and billing page.
+- Settings, Onboarding, "API Key Tutorial" action. Users can revisit
+  the tutorial any time from a new Onboarding category in Settings.
+- 5-step interactive feature tour after the first-run wizard. Covers
+  file tree, AI chat, workflow templates, and settings. Skip with Esc,
+  arrow keys to navigate, persistent flag stops re-triggering.
+
+### Changed
+- Windows installer defaults from full wizard to silent install.
+- Windows `.msi` (WiX) dropped from release artifacts. Only NSIS
+  `.exe` + portable `.exe` ship for Windows.
+
+### Fixed
+- React #185 infinite loop crash on AI chat "Pop out" and new-chat
+  creation. Root cause: `loadAIRules` useEffect had a React ref in
+  its dependency array, which broke effect-dep tracking and produced
+  a setState-render loop. Fix also shipped in v1.5-rc.9.
+
+### Known issues
+- Portable `.exe` does not auto-update (requires manual re-download).
+- Portable `.exe` can't use the MCP `.mcpb` server (sidecar binary
+  not bundled). Full installer users get MCP.
+- Portable `.exe` still saves config to `%APPDATA%\Projelli` rather
+  than next to the binary. True self-contained portable mode is a
+  v1.7 item.
 
 ## [1.5.0] - 2026-04-16
 
