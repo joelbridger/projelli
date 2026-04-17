@@ -261,6 +261,18 @@ Failing files (treat as v1.0.8 floor; any new failure = regression we introduced
 
 ---
 
+## Known accessibility limitations (pre-v1.5, deferred)
+
+These pre-date the v1.5 branch and are tracked here so they don't block the ship. Each one has a ~5-line fix; they're deferred purely to avoid scope creep the week of launch.
+
+- **Color contrast** in a handful of muted-foreground-on-muted-background combinations under `settings-*` surfaces. WCAG AA wants 4.5:1 ratio; a few spots land at 4.25:1. Theme-system fix, not per-component.
+- **Select elements without aria-label** in `TemplateModelSettings.tsx` (provider dropdown + model dropdown). They sit next to a visible template name but axe-core wants the control itself labelled.
+- **Icon-only buttons without accessible name** in `ApiKeySettings.tsx` (show/hide/copy key). Need `aria-label`.
+
+These are filtered out of the `v1.5-accessibility-full.spec.ts` sweep via a `PRE_EXISTING_IGNORES` set so new violations still fail CI. If you fix one, drop it from the set and the test will catch any regression.
+
+---
+
 ## Guardrails reminder
 
 Always consult before any design decision: `docs/strategy/market-assessment-2026-04/08-RISKS_AND_ANTIPATTERNS.md`. Hard NOs:
