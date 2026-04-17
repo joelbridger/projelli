@@ -7,6 +7,9 @@ license = "MIT"
 repository = ""
 edition = "2021"
 rust-version = "1.77.2"
+# Required when a crate ships multiple binaries (projelli + projelli-mcp)
+# so `tauri build` and plain `cargo run` know which main binary to use.
+default-run = "projelli"
 
 [lib]
 name = "projelli_lib"
