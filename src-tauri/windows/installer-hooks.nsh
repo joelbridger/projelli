@@ -18,6 +18,17 @@
   SetShellVarContext current
   IfFileExists "$DESKTOP\Projelli.lnk" +2 0
     CreateShortcut "$DESKTOP\Projelli.lnk" "$INSTDIR\Projelli.exe" "" "$INSTDIR\Projelli.exe" 0
+
+  ; v1.6: when installing silently (double-click UX) auto-launch the
+  ; app after install. Skipped in /INTERACTIVE mode because the
+  ; built-in finish page there has a "Run Projelli" checkbox.
+  ; Skipped in /UPDATE mode because the auto-updater handles the
+  ; relaunch itself and spawning a second instance would race.
+  ${If} $PassiveMode = 1
+    ${If} $UpdateMode <> 1
+      nsis_tauri_utils::RunAsUser "$INSTDIR\Projelli.exe" ""
+    ${EndIf}
+  ${EndIf}
 !macroend
 
 ; --- NSIS_HOOK_POSTUNINSTALL ---
