@@ -23,6 +23,24 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
   {
+    version: '1.5.0',
+    date: '2026-04-16',
+    highlights: [
+      'Memory: Projelli indexes your notes and can recall the right paragraph when you ask (use @workspace in any chat)',
+      'Memory facts: a short list of user-approved truths the AI always sees, edit them under Settings → Memory',
+      'MCP server: install the bundled .mcpb into Claude Desktop, Cursor, or Zed to read and search your workspace from any AI client',
+      'Side-by-side AI editing: select text, ask for a revision, accept or reject each change hunk-by-hunk with version history',
+      'Ollama support: run Llama, Mistral, Phi, or any local model for free and offline, no API key needed',
+      'Voice input: press-to-talk dictation that transcribes on-device and inserts into any text field',
+      'Run the same prompt on all 3 providers in parallel and keep the answer you like',
+      'Template chaining: Competitor Analysis → Pricing Strategy, User Interviews → Customer Persona, one click',
+      'Multi-interview synthesis: drop 3+ transcripts and get themes, contradictions, JTBD, and priority features',
+      'Monthly cost dashboard, real-time cost chip per chat, and audit log export to CSV or JSON',
+      'Mermaid and KaTeX rendering in Markdown preview, plus wiki-link autocomplete with [[',
+      'Smart paste: drop a URL and get [title](url), paste an image and it auto-saves to media/',
+    ],
+  },
+  {
     version: '1.0.8',
     date: '2026-04-16',
     highlights: [

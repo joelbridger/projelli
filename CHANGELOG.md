@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No changes since v1.5.0.
+
+## [1.5.0] - 2026-04-16
+
+The biggest Projelli release yet. v1.5 ships four headline capabilities and
+a wall of quality-of-life extras, all under the same "works offline, keys
+in your keychain, files on your disk" contract as v1.0.
+
+**Four flags:**
+1. **Memory — the AI workspace that remembers your stuff.** Local RAG over
+   your notes via LanceDB + fastembed-rs (M1), an `@workspace` chat command
+   plus per-chat Ask-my-workspace toggle (M2), and a user-approved memory
+   facts file that's always in the system prompt (M3).
+2. **MCP server — your workspace, available in every AI tool you use.** A
+   real JSON-RPC 2.0 MCP server binary exposing five tools (list / read /
+   search / write-with-approval / facts) over stdio, shipped as a per-platform
+   `.mcpb` Desktop Extension bundle for Claude Desktop, Cursor, Zed, etc.
+3. **Side-by-side AI editing — AI edits your doc next to you, you take only
+   what you like.** Select text, ask for a revision, watch the streaming
+   diff land where your cursor was, accept or reject each hunk individually.
+   Every accepted hunk is written to version history with `author: 'ai'`.
+4. **Voice input and local models — talk to your AI like it's already caught
+   up, offline.** Ollama as a first-class fourth provider (free, offline,
+   $0 per call), plus a press-to-talk voice-capture stack that transcribes
+   via a bundled Parakeet/whisper.cpp sidecar and inserts into the focused
+   text field (or saves a Markdown note to Inbox/).
+
+**Plus eighteen Quick Wins:** Mermaid + KaTeX rendering, real-time cost
+chip, monthly cost dashboard, audit export + filtering, Haiku 4.5 as the
+free-tier default, per-template model assignment, first-run sample files,
+smart-paste URL-to-link + image-to-media, wiki-link autocomplete,
+Run-on-all-3 multi-provider compare, shortcuts overlay, template fork /
+remix, API-key onboarding wizard, template preview gallery, and `/vs/`
+comparison pages against Obsidian / Notion / ChatGPT.
+
+**Two multi-model Mediums:** template chaining (M7) lets one workflow's
+output feed the next, and multi-interview synthesis (M8) turns a folder of
+transcripts into themes + contradictions + JTBD + priority features in one
+pass.
+
 ### Added
 
 - **v1.5 launch content (Phase 6), homepage refresh, template gallery, /vs comparison pages, announcement blog post.** The homepage now leads with Flag 1: the headline is "The AI workspace that remembers your stuff" and the subhead is "Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use." The previous six-card feature grid is replaced with four cards, one per v1.5 flag (Memory, MCP, Side-by-side AI editing, Voice+Ollama), each linking to the relevant doc or external reference. The 15-template scroller is replaced with four excerpt cards from the new gallery plus a "Browse all 15" link to `/templates/`. Every em dash that had crept back into the copy is gone, and navigation (desktop, mobile, footer) now includes `/templates/` and `/vs/`. Plausible Download / GitHub / Buy click goals are already wired and still fire.
