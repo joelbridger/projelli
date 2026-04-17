@@ -24,7 +24,7 @@ Top of the page shows **Projelli v1.5-rc.8** with a `Draft` badge. Click in, pic
 **If the page shows only published releases and no draft:** you're logged in with the wrong GitHub account. Switch to `joelbridger` (owns the Projelli org; sees drafts). If you still don't see it, the `v1.5-rc.8` tag exists but the draft might have been cleaned up, pull down `v1.5-rc.6` or `-rc.7` (same code path, both are valid drafts).
 
 ### Install
-- [ ] **Windows:** Double-click the `.exe`. **No SmartScreen warning** (Azure-signed). If you see one, note it, that's a signing regression.
+- [ ] **Windows:** Double-click the `.exe`. SmartScreen will show a **"Windows protected your PC"** dialog for now. This is the new-certificate reputation warning, NOT a signing regression. Verify the publisher line reads `US, Utah, Provo, Jameson Daines, Jameson Daines` (confirms the Azure cert is applied). Click **"More info" → "Run anyway"** to proceed. Every new Windows user on Day 1 will see this until reputation builds (~500-2000 installs or 2-4 weeks). Mitigation options listed in the Phase 8 ship doc.
 - [ ] **Mac:** Open the `.dmg`, drag Projelli to Applications. First launch: right-click → Open → Open (Gatekeeper warning expected; Apple notarization still disabled from March 2026 outage). After first open, trusted thereafter.
 - [ ] **Linux:** `sudo dpkg -i Projelli_1.5.0_amd64.deb` (Debian) or `chmod +x Projelli*.AppImage && ./Projelli*.AppImage`.
 - [ ] Launch completes within 5 seconds. If it takes 30+ seconds, note it. LanceDB + fastembed load on startup, 10 seconds is expected on first launch.

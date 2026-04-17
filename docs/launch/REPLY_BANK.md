@@ -98,7 +98,15 @@ Yes, and that's a you-problem more than a me-problem since the keys are yours. P
 
 ### Q20. "Is the Windows installer signed?"
 
-Yes, via Azure Trusted Signing with a Public Trust cert. No SmartScreen warning. macOS is signed with my Developer ID. Linux binaries are signed with my Tauri updater key for the auto-update verification. macOS notarization is currently disabled because Apple's notary service has been degraded since March 2026, so you'll see a Gatekeeper warning on first open. Right-click → Open → Open once, trusted after that.
+Yes, via Azure Trusted Signing with a Public Trust cert. Publisher reads "Jameson Daines". macOS is signed with my Developer ID. Linux binaries are signed with my Tauri updater key for the auto-update verification.
+
+**If you see a SmartScreen warning on Windows:** that's the new-certificate reputation warning, not a signing regression. My cert is brand new (days old) so SmartScreen hasn't built reputation for it yet. The publisher line proves the cert is applied. Click More info → Run anyway. The warning clears automatically once enough people install it, which is the whole catch-22 with new-publisher Windows signing.
+
+**macOS notarization** is currently disabled because Apple's notary service has been degraded since March 2026, so you'll see a Gatekeeper warning on first open. Right-click → Open → Open once, trusted after that.
+
+### Q20a. "I saw a Windows SmartScreen warning, is it safe?"
+
+Yes. SmartScreen is saying "unrecognized" not "unsafe". The installer is signed by Azure Trusted Signing with my verified publisher identity (check the publisher line: "Jameson Daines, Provo, Utah"). SmartScreen reputation for new publishers builds up over the first few hundred installs, 2 to 4 weeks. I'm the first paying customer you're watching go through this. If you want extra assurance, build from source: github.com/projelli/projelli.
 
 ---
 
