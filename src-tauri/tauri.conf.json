@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Projelli",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "identifier": "com.projelli.app",
   "build": {
     "frontendDist": "../dist",
@@ -57,7 +57,9 @@
         "headerImage": "icons/installer-header.bmp",
         "sidebarImage": "icons/installer-sidebar.bmp",
         "installMode": "currentUser",
-        "languages": ["English"],
+        "languages": [
+          "English"
+        ],
         "displayLanguageSelector": false,
         "installerHooks": "./windows/installer-hooks.nsh"
       },
@@ -65,7 +67,10 @@
         "language": "en-US"
       }
     },
-    "resources": ["resources/**/*", "binaries/**/*"],
+    "resources": [
+      "resources/**/*",
+      "binaries/**/*"
+    ],
     "externalBin": [],
     "createUpdaterArtifacts": true
   },
@@ -77,5 +82,4 @@
       ]
     }
   }
-
 }
