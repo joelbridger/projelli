@@ -22,7 +22,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 # `approval`) can be split across files the way the Tauri host already does.
 [[bin]]
 name = "projelli-mcp"
-path = "src/bin/mcp/main.rs"
+path = "src/mcp_bin/main.rs"
 
 [build-dependencies]
 tauri-build = { version = "2.5.3", features = [] }

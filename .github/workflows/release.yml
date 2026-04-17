@@ -98,7 +98,7 @@ jobs:
 
       # Phase 2 (v1.5) - stage the stub MCP sidecar binary so tauri build
       # can bundle it via externalBin. Phase 4 (M4) swaps the stub for a
-      # real MCP server; the real implementation lands in src/bin/mcp.rs.
+      # real MCP server; the real implementation lands in src/mcp_bin/.
       #
       # Cargo builds projelli-mcp into
       # src-tauri/target/<target?>/release/projelli-mcp[.exe]. Tauri's
