@@ -175,13 +175,13 @@ jobs:
           set -euo pipefail
           TARGET="${MCP_TARGET}"
           VERSION="$(node -p "require('./package.json').version")"
-          mkdir -p dist
+          mkdir -p mcpb-dist
           node scripts/build-mcpb.mjs \
             --binary "src-tauri/binaries/projelli-mcp-$TARGET" \
             --target "$TARGET" \
-            --output "dist/projelli-$TARGET.mcpb" \
+            --output "mcpb-dist/projelli-$TARGET.mcpb" \
             --version "$VERSION"
-          ls -la dist/
+          ls -la mcpb-dist/
 
       - name: Build Tauri app (Mac/Linux)
         uses: tauri-apps/tauri-action@v0
@@ -240,7 +240,7 @@ jobs:
           TAG="${{ github.ref_name }}"
           TARGET="${MCP_TARGET}"
           gh release upload "$TAG" \
-            "dist/projelli-$TARGET.mcpb" \
+            "mcpb-dist/projelli-$TARGET.mcpb" \
             --clobber --repo projelli/projelli
 
   # Windows job: separate from the matrix because we don't use Tauri's
@@ -318,13 +318,13 @@ jobs:
         run: |
           $target = $env:MCP_TARGET
           $version = (node -p "require('./package.json').version")
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          New-Item -ItemType Directory -Force -Path mcpb-dist | Out-Null
           node scripts/build-mcpb.mjs `
             --binary "src-tauri/binaries/projelli-mcp-$target.exe" `
             --target $target `
-            --output "dist/projelli-$target.mcpb" `
+            --output "mcpb-dist/projelli-$target.mcpb" `
             --version $version
-          Get-ChildItem dist
+          Get-ChildItem mcpb-dist
 
       - name: Build Tauri app (unsigned)
         env:
@@ -411,7 +411,7 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $target = $env:MCP_TARGET
-          $mcpb = "dist/projelli-$target.mcpb"
+          $mcpb = "mcpb-dist/projelli-$target.mcpb"
           if (-not (Test-Path $mcpb)) {
             Write-Error "No .mcpb bundle found at $mcpb"
             exit 1
