@@ -143,8 +143,57 @@ Discovered during the re-audit — confirmed present in `2644a9c`:
 | **Phase 4 — Flags 2+3+4** | M4 (Track A) + M5 (Track B) + M6 + Q7 (Track C) in parallel |
 | **Phase 5 — Workflow extensions** | M7 + M8 + Q15 |
 | **Phase 6 — Website** | Q10 (gallery) + Q17 (/vs pages) + homepage update + v1.5 launch blog post |
-| **Phase 7 — RC + dogfood** | Regression tests + `v1.5-rc.N` iteration |
+| **Phase 7 — RC + dogfood** | ✅ In dogfood (v1.5-rc.1). Four flag-level Playwright specs added, version bumped to 1.5.0, CHANGELOG finalized, tag pushed to origin so CI builds signed installers + .mcpb bundles. |
 | **Phase 8 — Ship** | Tag v1.5, publish, deploy |
+
+---
+
+## Phase 7 — Release candidate status
+
+**Tag:** `v1.5-rc.1`
+**Draft release URL:** https://github.com/projelli/projelli/releases/tag/v1.5-rc.1 (populated once CI completes)
+**Workflow run:** https://github.com/projelli/projelli/actions/workflows/release.yml (filter by tag `v1.5-rc.1`)
+
+**Test state (local, release/v1.5 at v1.5-rc.1):**
+- TypeScript: ✅ clean
+- Vitest: 730 passing / 23 failing (unchanged baseline; same 3 legacy files)
+- Playwright: 174 passing / 15 failing / 1 flaky / 4 skipped. All 15 failures are pre-existing at `60ebbf5` (verified by reproducing without the new Phase 7 specs applied). No regressions introduced by v1.5 work.
+- Rust: 103 tests pass (70 lib + 28 MCP binary + 5 integration). `cargo clippy --all-targets -- -D warnings` clean. `cargo build --release -p projelli` green.
+- 10 new Playwright flag specs (4 files, all green):
+  - `tests/e2e/v1.5-flag-memory.spec.ts` (3 tests)
+  - `tests/e2e/v1.5-flag-mcp.spec.ts` (3 tests)
+  - `tests/e2e/v1.5-flag-canvas.spec.ts` (2 tests)
+  - `tests/e2e/v1.5-flag-voice.spec.ts` (2 tests)
+
+**Expected artifacts on the draft release (9-11 files):**
+- Windows: `Projelli_1.5.0_x64-setup.exe` (NSIS, Azure-signed) + `Projelli_1.5.0_x64_en-US.msi` (MSI, Azure-signed)
+- macOS Apple Silicon: `Projelli_1.5.0_aarch64.dmg` (Developer ID signed, unnotarized)
+- macOS Intel: `Projelli_1.5.0_x64.dmg` (Developer ID signed, unnotarized)
+- Linux: `projelli_1.5.0_amd64.deb` + `projelli_1.5.0_amd64.AppImage` (+ optionally `.rpm` + `app.tar.gz`)
+- Updater manifest: `latest.json` with signed download URLs
+- MCP bundles: `projelli-aarch64-apple-darwin.mcpb` + `projelli-x86_64-apple-darwin.mcpb` + `projelli-x86_64-unknown-linux-gnu.mcpb` + `projelli-x86_64-pc-windows-msvc.mcpb`
+
+**Dogfood checklist (before promoting to v1.5 final):**
+
+Jameson — when the CI run completes and the draft release is populated:
+
+1. **Install the matching RC build on your daily-driver machine** (Windows NSIS `.exe` from the draft). Confirm the installer runs, the app launches, and the start screen reflects v1.5.0.
+2. **Memory (Flag 1):**
+   - Open a real workspace with 20+ markdown files. Check the indexing banner appears and finishes without errors.
+   - Open a chat, type `@workspace what did I write about pricing?`, confirm the Sources accordion shows citations and that clicking one opens the right file at roughly the right paragraph.
+   - Send 10 messages in a chat, then check the proposed-facts chips appear. Accept one, reject one, edit one. Confirm they land under Settings → Memory → Memory Facts.
+3. **MCP (Flag 2):**
+   - Settings → Integrations → Download .mcpb (path copies to clipboard).
+   - Install the `.mcpb` into Claude Desktop. Ask Claude "search my Projelli workspace for X" and confirm it returns results.
+   - Ask Claude to write a file via MCP. Confirm the Projelli approval modal surfaces and that Approve actually writes the file.
+4. **Side-by-side AI editing (Flag 3):**
+   - Open any markdown file. Select a paragraph. Click the "Ask AI" anchor. Type "tighten this". Confirm the streaming diff renders and that Accept / Reject per-hunk works.
+   - Confirm the accepted change shows up in the file's version history with `author: 'ai'`.
+5. **Voice + Ollama (Flag 4):**
+   - Voice: Settings → Voice. Status pill should read "Sidecar missing" (CI doesn't bundle Parakeet yet). Confirm the model select and shortcut rows render without errors.
+   - Ollama: if you have Ollama running locally, Settings → Integrations → Ollama should show "Ready · N models". Create a new chat with the Ollama provider and send one message.
+6. **Auto-update path:** install v1.0.8 on a second machine, then point it at the latest.json from the v1.5.0 release and confirm the update banner appears and the install succeeds (or skip this step and promote v1.5-rc.1 straight to v1.5.0).
+7. **Overall:** use Projelli for real work for ~24-48 hours. File any regressions as issues on `projelli/projelli`. Once you're happy with dogfood, Phase 8 tags `v1.5.0` as the real release and promotes the draft.
 
 ---
 
