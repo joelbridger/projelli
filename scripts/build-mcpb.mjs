@@ -166,7 +166,12 @@ function buildManifest({ target, version }) {
  * Reference: APPNOTE.TXT §4.3.7 (local file header) + §4.3.12 (central
  * directory).
  */
-function zipEntry(relPath, content, { dosDate = 0x5000, dosTime = 0, mode = 0o100644 }) {
+// 0x5021 = DOS-date for 2020-01-01 (year bits = 40 = 1980+40, month = 1,
+// day = 1). Kept fixed so .mcpb archives are bit-reproducible across
+// builds. The previous default (0x5000) picked valid year bits but
+// month=0 / day=0, which reads as "2020-00-00" in unzip listings — valid
+// enough for Claude Desktop but distracting when debugging archive layout.
+function zipEntry(relPath, content, { dosDate = 0x5021, dosTime = 0, mode = 0o100644 }) {
   const nameBuf = Buffer.from(relPath, 'utf8');
   const crc = crc32(content) >>> 0;
   const size = content.length;
