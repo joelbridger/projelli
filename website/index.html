@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Projelli — a local-first AI workspace by Jameson Daines</title>
-  <meta name="description" content="Projelli is a local-first AI workspace for the complex projects in your life — built by Jameson Daines, a Senior Product Designer with eight years in health-tech. Offline, BYOK, your files stay on your machine.">
+  <title>Projelli, the AI workspace that remembers your stuff</title>
+  <meta name="description" content="Projelli is a local-first AI workspace for indie founders. Local files, your API keys, every chat becomes a durable note. Available in every AI tool you use.">
   <link rel="canonical" href="https://projelli.com/">
   <meta name="robots" content="index, follow">
   <meta name="author" content="Jameson Daines">
@@ -12,8 +12,8 @@
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://projelli.com/">
-  <meta property="og:title" content="Projelli — a local-first AI workspace by Jameson Daines">
-  <meta property="og:description" content="Projelli is a local-first AI workspace for the complex projects in your life — built by Jameson Daines. Offline, BYOK, your files stay on your machine.">
+  <meta property="og:title" content="Projelli, the AI workspace that remembers your stuff">
+  <meta property="og:description" content="Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use.">
   <meta property="og:site_name" content="Projelli">
   <meta property="og:image" content="https://projelli.com/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -21,8 +21,8 @@
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Projelli — a local-first AI workspace by Jameson Daines">
-  <meta name="twitter:description" content="Projelli is a local-first AI workspace for the complex projects in your life — built by Jameson Daines. Offline, BYOK, your files stay on your machine.">
+  <meta name="twitter:title" content="Projelli, the AI workspace that remembers your stuff">
+  <meta name="twitter:description" content="Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use.">
   <meta name="twitter:image" content="https://projelli.com/og-image.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1396,8 +1396,8 @@
 
       <nav class="nav-links">
         <a href="#features">Features</a>
-        <a href="#workflows">Templates</a>
-        <a href="#how-it-works">How It Works</a>
+        <a href="/templates/">Templates</a>
+        <a href="/vs/">vs Others</a>
         <a href="#pricing">Pricing</a>
         <a href="/blog/">Blog</a>
       </nav>
@@ -1416,8 +1416,8 @@
     <div class="mobile-menu" id="mobile-menu">
       <nav>
         <a href="#features">Features</a>
-        <a href="#workflows">Templates</a>
-        <a href="#how-it-works">How It Works</a>
+        <a href="/templates/">Templates</a>
+        <a href="/vs/">vs Others</a>
         <a href="#pricing">Pricing</a>
         <a href="/blog/">Blog</a>
         <a href="https://github.com/projelli/projelli/releases/latest" class="btn btn-primary" style="margin-top: 24px;">Download</a>
@@ -1434,12 +1434,12 @@
       <div class="container hero-inner">
         <div class="hero-content">
           <h1>
-            Big, annoying project?<br>
-            <span class="gradient-text">Put it in one place.</span>
+            The AI workspace<br>
+            <span class="gradient-text">that remembers your stuff.</span>
           </h1>
 
           <p class="hero-subtitle">
-            Projelli is a desktop AI workspace for indie founders. Sketch a launch plan, write a pricing page, draft a pitch deck, run weekly reviews &mdash; every chat with the AI drops the actual file into your project folder. Runs on your machine, stays on your machine.
+            Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use. Projelli is a desktop AI workspace for indie founders, with memory that actually indexes what you've already written, voice that works offline, and side-by-side editing where the AI proposes and you accept only what you like.
           </p>
 
           <div class="hero-ctas">
@@ -1468,7 +1468,7 @@
             <div class="mockup-dot"></div>
             <div class="mockup-dot"></div>
             <div class="mockup-dot"></div>
-            <div class="mockup-title-text">Projelli — My SaaS Launch</div>
+            <div class="mockup-title-text">Projelli, My SaaS Launch</div>
           </div>
 
           <div class="mockup-body">
@@ -1532,85 +1532,71 @@
       </div>
     </section>
 
-    <!-- Features Grid -->
+    <!-- Features Grid (v1.5: the four flags) -->
     <section class="features" id="features">
       <div class="container">
         <div class="section-header">
-          <span class="eyebrow">FEATURES</span>
-          <h2>A workspace for the messy projects</h2>
-          <p>From the first vague idea to the version you actually launch, Projelli keeps every piece of a project in one place you can come back to.</p>
+          <span class="eyebrow">V1.5</span>
+          <h2>Four capabilities, one local-first app</h2>
+          <p>Every feature below runs on your machine with your own API keys. Nothing you type is ever sent to a Projelli server. The four things v1.5 leads with, in order.</p>
         </div>
 
         <div class="features-grid">
           <div class="feature-card animate-on-scroll">
             <div class="feature-icon blue">
               <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                <path d="M12 8v4l3 3"/>
+                <circle cx="12" cy="12" r="10"/>
               </svg>
             </div>
-            <h3>AI chat that turns into real files</h3>
-            <p>The chat is not a throwaway window. Every conversation leaves behind documents you can edit, rename, and come back to, the same way you would with any other file on your computer.</p>
+            <h3>Memory that indexes your work</h3>
+            <p><strong>The AI workspace that remembers your stuff.</strong> A local vector index (LanceDB + e5-small) over every Markdown file you've written, plus a <code>memory.json</code> facts file extracted from your chats. Ask "what did I say about pricing?" and the answer comes back with citations.</p>
+            <a href="/blog/chat-shouldnt-disappear-when-you-close-the-tab" style="color: var(--accent-blue); font-size: 0.9rem; margin-top: 12px; display: inline-block;">Read why chat shouldn't evaporate &rarr;</a>
           </div>
 
           <div class="feature-card animate-on-scroll">
             <div class="feature-icon green">
               <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
               </svg>
             </div>
-            <h3>Lives on your machine</h3>
-            <p>Your files stay on your hard drive. No account, no sync, no cloud. Works on a plane, in a cabin, on a couch with the Wi-Fi unplugged.</p>
+            <h3>Available in every AI tool you use</h3>
+            <p><strong>Your workspace, everywhere.</strong> Projelli ships a <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener" style="color: var(--accent-blue);">Model Context Protocol</a> server as a one-click <code>.mcpb</code> bundle. Install it in Claude Desktop, Cursor, or Zed and those clients can read, search, and (with approval) write your Projelli workspace.</p>
+            <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener" style="color: var(--accent-blue); font-size: 0.9rem; margin-top: 12px; display: inline-block;">Learn about MCP &rarr;</a>
           </div>
 
           <div class="feature-card animate-on-scroll">
             <div class="feature-icon purple">
               <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
+                <path d="M12 20h9"/>
+                <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
               </svg>
             </div>
-            <h3>Markdown editor</h3>
-            <p>A proper Markdown editor with wiki-style links, automatic backlinks, split panes, and a live preview. Build out a second brain if you want one.</p>
+            <h3>AI edits side-by-side with you</h3>
+            <p><strong>The Canvas pattern, but local.</strong> Select any paragraph, ask "tighten this," watch a streaming diff land in place. Per-hunk Accept or Reject, or accept-all. Every AI edit gets logged to version history with the prompt + model + offset range, so you can always see what the AI changed.</p>
+            <a href="/blog/projelli-1-5-announce" style="color: var(--accent-blue); font-size: 0.9rem; margin-top: 12px; display: inline-block;">See the 1.5 announcement &rarr;</a>
           </div>
 
           <div class="feature-card animate-on-scroll">
             <div class="feature-icon amber">
               <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 12 16 14"/>
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
               </svg>
             </div>
-            <h3>Version history</h3>
-            <p>Every edit is saved. Undo, redo, and a diff view so you can experiment without worrying about losing the version you actually liked.</p>
-          </div>
-
-          <div class="feature-card animate-on-scroll">
-            <div class="feature-icon pink">
-              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                <polygon points="12 2 2 7 12 12 22 7 12 2"/>
-                <polyline points="2 17 12 22 22 17"/>
-                <polyline points="2 12 12 17 22 12"/>
-              </svg>
-            </div>
-            <h3>Pick your own model</h3>
-            <p>Bring your own API keys for Claude, OpenAI, or Gemini. Switch between them per conversation. If one of them gets worse, you are not stuck with it.</p>
-          </div>
-
-          <div class="feature-card animate-on-scroll">
-            <div class="feature-icon teal">
-              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-              </svg>
-            </div>
-            <h3>Research &amp; citations</h3>
-            <p>Projelli keeps a running list of the sources and citations behind every document, so when someone asks you where a number came from, you can actually answer.</p>
+            <h3>Talk to it offline</h3>
+            <p><strong>Voice + local models.</strong> Hold <code>Ctrl+Shift+Space</code> to dictate into any field via bundled <a href="https://github.com/ggerganov/whisper.cpp" target="_blank" rel="noopener" style="color: var(--accent-blue);">whisper.cpp</a>-family transcription. Or run <a href="https://ollama.com/" target="_blank" rel="noopener" style="color: var(--accent-blue);">Ollama</a> as your 4th provider and do everything, inference included, without a network round trip.</p>
+            <a href="https://ollama.com/" target="_blank" rel="noopener" style="color: var(--accent-blue); font-size: 0.9rem; margin-top: 12px; display: inline-block;">Get Ollama &rarr;</a>
           </div>
         </div>
+
+        <p style="text-align: center; color: var(--text-muted); font-size: 0.9375rem; margin-top: 40px;">
+          Plus the v1.0.8+v1.5 quality-of-life additions: a real-time API cost meter, a 30-day cost dashboard, a <code>?</code> keyboard-shortcuts overlay, a memory status badge, per-template model selection, Mermaid diagrams, KaTeX math, and a 3-step API-key wizard for your first run.
+        </p>
       </div>
     </section>
 
@@ -1712,160 +1698,51 @@
         <div class="section-header">
           <span class="eyebrow">TEMPLATES</span>
           <h2>15 founder workflows, ready to run</h2>
-          <p>Each one is an interview-driven workflow that asks you the right questions and produces the documents you actually need. No staring at blank pages.</p>
+          <p>Each template asks you the right questions and produces the actual document: Vision, Pricing Strategy, Pitch Deck, Weekly Review. See real worked examples on the <a href="/templates/" style="color: var(--accent-blue);">template gallery</a>.</p>
         </div>
 
-        <div class="workflows-scroll">
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(59, 130, 246, 0.1);">🚀</div>
+        <div class="features-grid" style="margin-bottom: 32px;">
+
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon blue">
+              <span style="font-size: 22px;">🚀</span>
+            </div>
             <h3>New Business Kickoff</h3>
-            <p>Vision, PRD, and Lean Canvas from one founder interview. The fastest way to get a fuzzy idea into shape.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Vision</span>
-              <span class="workflow-tag">PRD</span>
-              <span class="workflow-tag">Lean Canvas</span>
-            </div>
+            <p style="font-size: 0.875rem; color: var(--text-muted); font-style: italic; border-left: 2px solid var(--border-gray); padding-left: 12px; margin: 10px 0;">"Freelancers in the US don't have a CFO. They have a Google Sheet, a guilty pile of unopened emails, and a quarterly panic when taxes come due."</p>
+            <a href="/templates/new-business-kickoff" style="color: var(--accent-blue); font-size: 0.875rem; font-weight: 600;">See the full example &rarr;</a>
           </div>
 
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(16, 185, 129, 0.1);">📊</div>
-            <h3>Competitor Analysis</h3>
-            <p>Map the landscape, find the gaps, and understand where you actually win against existing alternatives.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Research</span>
-              <span class="workflow-tag">Positioning</span>
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon purple">
+              <span style="font-size: 22px;">💰</span>
             </div>
-          </div>
-
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(139, 92, 246, 0.1);">👤</div>
-            <h3>Customer Persona</h3>
-            <p>Who are you really building for? Get specific about the person, their problems, and their day.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Customer</span>
-              <span class="workflow-tag">Research</span>
-            </div>
-          </div>
-
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(236, 72, 153, 0.1);">💰</div>
             <h3>Pricing Strategy</h3>
-            <p>Work out what to charge, how to package it, and how to talk about it without sounding cheap or scary.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Pricing</span>
-              <span class="workflow-tag">Packaging</span>
-            </div>
+            <p style="font-size: 0.875rem; color: var(--text-muted); font-style: italic; border-left: 2px solid var(--border-gray); padding-left: 12px; margin: 10px 0;">"$12/month or $108/year. One tier. No freemium. 14-day trial, no credit card. Refund if the tax bucket doesn't hold enough for your Q1 estimate."</p>
+            <a href="/templates/pricing-strategy" style="color: var(--accent-blue); font-size: 0.875rem; font-weight: 600;">See the full example &rarr;</a>
           </div>
 
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(245, 158, 11, 0.1);">🚢</div>
-            <h3>Go-to-Market Plan</h3>
-            <p>Channels, tactics, and the first six months of distribution. Concrete enough to actually execute on Monday.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">GTM</span>
-              <span class="workflow-tag">Distribution</span>
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon green">
+              <span style="font-size: 22px;">📈</span>
             </div>
-          </div>
-
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(14, 165, 233, 0.1);">🎤</div>
-            <h3>Pitch Deck</h3>
-            <p>An outline and narrative for the deck, structured the way investors actually want to hear it.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Investors</span>
-              <span class="workflow-tag">Narrative</span>
-            </div>
-          </div>
-
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(6, 182, 212, 0.1);">📝</div>
-            <h3>Content Strategy</h3>
-            <p>Pick the channels, the cadence, and the topics. Stop posting random stuff and start building something.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Marketing</span>
-              <span class="workflow-tag">SEO</span>
-            </div>
-          </div>
-
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(99, 102, 241, 0.1);">💬</div>
-            <h3>User Interviews</h3>
-            <p>Scripts, screeners, and outreach for talking to users. The interview prep that makes the actual call useful.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Research</span>
-              <span class="workflow-tag">Discovery</span>
-            </div>
-          </div>
-
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(239, 68, 68, 0.1);">🎯</div>
-            <h3>MVP Scope</h3>
-            <p>What's in the first version, what gets cut, and what to ship next. The brutal scope conversation, on paper.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Scope</span>
-              <span class="workflow-tag">Roadmap</span>
-            </div>
-          </div>
-
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(234, 179, 8, 0.1);">📈</div>
             <h3>Financial Model</h3>
-            <p>A simple spreadsheet model: cost structure, runway, scenarios. Enough to make a decision, not so much that you avoid building it.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Finance</span>
-              <span class="workflow-tag">Runway</span>
-            </div>
+            <p style="font-size: 0.875rem; color: var(--text-muted); font-style: italic; border-left: 2px solid var(--border-gray); padding-left: 12px; margin: 10px 0;">"ARR target year 1: $120K. Gross margin 78%. Contribution margin per paid user: $85/year. Breakeven at 2,800 paid users in month 18."</p>
+            <a href="/templates/financial-model" style="color: var(--accent-blue); font-size: 0.875rem; font-weight: 600;">See the full example &rarr;</a>
           </div>
 
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(244, 63, 94, 0.1);">🌐</div>
-            <h3>Landing Page Copy</h3>
-            <p>Headline variants, sections, FAQs, and CTAs. The copy that goes on the homepage when you finally write it.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Copy</span>
-              <span class="workflow-tag">Marketing</span>
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon amber">
+              <span style="font-size: 22px;">🧩</span>
             </div>
+            <h3>User Interview Synthesis</h3>
+            <p style="font-size: 0.875rem; color: var(--text-muted); font-style: italic; border-left: 2px solid var(--border-gray); padding-left: 12px; margin: 10px 0;">"Ten interviews. Three themes emerged 10 of 10 times. Every freelancer raids their tax account. Nobody knows their effective hourly rate."</p>
+            <a href="/templates/user-interviews-synthesis" style="color: var(--accent-blue); font-size: 0.875rem; font-weight: 600;">See the full example &rarr;</a>
           </div>
 
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(16, 185, 129, 0.1);">🔄</div>
-            <h3>Weekly Review</h3>
-            <p>What got done, what didn't, what to focus on next week. The 15-minute Friday ritual that compounds.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Review</span>
-              <span class="workflow-tag">Planning</span>
-            </div>
-          </div>
+        </div>
 
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(139, 92, 246, 0.1);">📨</div>
-            <h3>Investor Update</h3>
-            <p>Monthly or quarterly update with metrics, wins, losses, and asks. Honest, brief, and actually useful.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Investors</span>
-              <span class="workflow-tag">Communication</span>
-            </div>
-          </div>
-
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(59, 130, 246, 0.1);">🪑</div>
-            <h3>Board Meeting Prep</h3>
-            <p>Time-boxed agenda, pre-read briefing, decisions queue. Walk in with a plan and walk out with a vote.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Governance</span>
-              <span class="workflow-tag">Strategy</span>
-            </div>
-          </div>
-
-          <div class="workflow-card animate-on-scroll">
-            <div class="workflow-icon" style="background: rgba(245, 158, 11, 0.1);">🤝</div>
-            <h3>First Hire Playbook</h3>
-            <p>Job description, interview rubric, and 30/60/90 onboarding plan. The full hiring kit for hire #1.</p>
-            <div class="workflow-tags">
-              <span class="workflow-tag">Hiring</span>
-              <span class="workflow-tag">Team</span>
-            </div>
-          </div>
+        <div style="text-align: center;">
+          <a href="/templates/" class="btn btn-outline btn-lg">Browse all 15 templates &rarr;</a>
         </div>
       </div>
     </section>
@@ -1907,7 +1784,7 @@
         <div class="section-header">
           <span class="eyebrow">PRICING</span>
           <h2>Pay once. Own it.</h2>
-          <p>No subscriptions. No usage limits. No surprises. Bring your own API keys for Claude, OpenAI, or Gemini and pay your AI provider directly — Projelli takes nothing out of your inference budget.</p>
+          <p>No subscriptions. No usage limits. No surprises. Bring your own API keys for Claude, OpenAI, Gemini, or Ollama and pay your AI provider directly. Projelli takes nothing out of your inference budget.</p>
         </div>
 
         <div class="founders-banner">
@@ -1933,7 +1810,7 @@
           <!-- Founder's Launch tier (highlighted) -->
           <div class="pricing-card featured animate-on-scroll">
             <div class="pricing-badge">FOUNDER'S LAUNCH</div>
-            <div class="pricing-name">Lifetime <span style="font-size: 0.75em; color: var(--text-muted); font-weight: 400;">— first 100 buyers</span></div>
+            <div class="pricing-name">Lifetime <span style="font-size: 0.75em; color: var(--text-muted); font-weight: 400;">(first 100 buyers)</span></div>
             <div class="pricing-price">$29<span> one-time</span></div>
             <div class="pricing-description">Lifetime tier at the founder price. Locked to the first 100 buyers.</div>
             <ul class="pricing-features">
@@ -1943,7 +1820,7 @@
               <li>Commercial use license</li>
               <li>Priority support</li>
             </ul>
-            <a href="https://projelli.lemonsqueezy.com/checkout/buy/33cd497b-bffd-404c-910e-f8dd1f4453bd" class="btn btn-primary btn-lg" style="width: 100%;">Get Lifetime — $29</a>
+            <a href="https://projelli.lemonsqueezy.com/checkout/buy/33cd497b-bffd-404c-910e-f8dd1f4453bd" class="btn btn-primary btn-lg" style="width: 100%;">Get Lifetime for $29</a>
             <div style="text-align: center; margin-top: 12px; font-size: 13px; color: var(--text-muted);">After 100 sales, this tier becomes $99.</div>
           </div>
 
@@ -1960,12 +1837,12 @@
               <li>Multi-model comparison</li>
               <li>1 year of updates</li>
             </ul>
-            <a href="https://projelli.lemonsqueezy.com/checkout/buy/9a5a7f48-0ffe-448a-a1af-889af99a0f47" class="btn btn-outline btn-lg" style="width: 100%;">Get Pro — $49</a>
+            <a href="https://projelli.lemonsqueezy.com/checkout/buy/9a5a7f48-0ffe-448a-a1af-889af99a0f47" class="btn btn-outline btn-lg" style="width: 100%;">Get Pro for $49</a>
           </div>
         </div>
 
         <p style="text-align: center; color: var(--text-muted); font-size: 14px; margin-top: 32px;">
-          Past the first 100 founders? Get the regular <a href="https://projelli.lemonsqueezy.com/checkout/buy/fbd4cf73-c234-4da9-b55a-31231496ced0" style="color: var(--accent-blue); text-decoration: underline;">Lifetime tier for $99</a> — same deal, just no founder discount.
+          Past the first 100 founders? Get the regular <a href="https://projelli.lemonsqueezy.com/checkout/buy/fbd4cf73-c234-4da9-b55a-31231496ced0" style="color: var(--accent-blue); text-decoration: underline;">Lifetime tier for $99</a>, same deal, just no founder discount.
         </p>
         <p style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 12px;">
           14-day refund, no questions asked. Sold via <a href="https://www.lemonsqueezy.com/" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">LemonSqueezy</a> as merchant of record (handles tax for you).
@@ -1979,7 +1856,7 @@
         <p style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.18em; color: var(--text-muted); margin-bottom: 14px;">Built by</p>
         <h2 style="font-size: 2rem; color: var(--text-heading); margin-bottom: 18px; font-weight: 700;">Jameson Daines</h2>
         <p style="font-size: 1.0625rem; line-height: 1.7; color: var(--text-body); max-width: 60ch; margin: 0 auto 28px;">
-          Projelli is built by <a href="https://jamesondaines.com" target="_blank" rel="noopener" style="color: var(--accent-blue); font-weight: 600;">Jameson Daines</a>, a Senior Product Designer with eight years of experience designing health products at Samsung, AstraZeneca, and Tesla. He runs a few other things on the side too &mdash; <a href="https://behaviorux.com" target="_blank" rel="noopener" style="color: var(--accent-blue);">BehaviorUX</a> (a behavior change canvas), <a href="https://healthfulinnovation.com" target="_blank" rel="noopener" style="color: var(--accent-blue);">Healthful</a> (an AI design copilot), and <a href="https://heardify.me" target="_blank" rel="noopener" style="color: var(--accent-blue);">Heardify</a> (student mental health).
+          Projelli is built by <a href="https://jamesondaines.com" target="_blank" rel="noopener" style="color: var(--accent-blue); font-weight: 600;">Jameson Daines</a>, a Senior Product Designer with eight years of experience designing health products at Samsung, AstraZeneca, and Tesla. He runs a few other things on the side too. <a href="https://behaviorux.com" target="_blank" rel="noopener" style="color: var(--accent-blue);">BehaviorUX</a> (a behavior change canvas), <a href="https://healthfulinnovation.com" target="_blank" rel="noopener" style="color: var(--accent-blue);">Healthful</a> (an AI design copilot), and <a href="https://heardify.me" target="_blank" rel="noopener" style="color: var(--accent-blue);">Heardify</a> (student mental health).
         </p>
         <div style="display: flex; gap: 24px; justify-content: center; flex-wrap: wrap;">
           <a href="https://jamesondaines.com" target="_blank" rel="noopener" style="color: var(--text-body); text-decoration: none; font-weight: 500;">jamesondaines.com →</a>
@@ -1998,7 +1875,7 @@
           <p style="font-size: 1.125rem; color: var(--text-body); margin-bottom: 40px;">Projelli is free to download. Your files stay on your computer, and the app runs without an account.</p>
           <a id="cta-download" href="https://github.com/projelli/projelli/releases/latest" class="btn btn-primary btn-lg" style="font-size: 18px; padding: 18px 48px;">Download for Free</a>
           <div style="margin-top: 16px; font-size: 0.875rem; color: var(--text-muted);">
-            <a href="https://github.com/projelli/projelli/releases/latest" style="color: inherit; text-decoration: underline;">All platforms</a> — Windows, Mac (Apple Silicon + Intel), Linux
+            <a href="https://github.com/projelli/projelli/releases/latest" style="color: inherit; text-decoration: underline;">All platforms</a>, Windows, Mac (Apple Silicon + Intel), Linux
           </div>
         </div>
       </div>
@@ -2030,7 +1907,8 @@
           <h4>Product</h4>
           <ul>
             <li><a href="#features">Features</a></li>
-            <li><a href="#workflows">Templates</a></li>
+            <li><a href="/templates/">Templates</a></li>
+            <li><a href="/vs/">vs Obsidian / Notion / ChatGPT</a></li>
             <li><a href="#pricing">Pricing</a></li>
             <li><a href="https://github.com/projelli/projelli/releases" target="_blank" rel="noopener">Releases</a></li>
             <li><a href="https://github.com/projelli/projelli" target="_blank" rel="noopener">GitHub</a></li>
@@ -2219,7 +2097,7 @@
         <p>A local-first project planner for indie founders who want AI as a co-pilot, not a replacement.</p>
         <p>Every conversation produces real files. Nothing lives in someone else's cloud.</p>`;
 
-      const launchPlanContent = `<h2>Launch Plan — 8 Weeks</h2>
+      const launchPlanContent = `<h2>Launch Plan, 8 Weeks</h2>
         <p><strong>Week 1-2:</strong> Polish, legal docs, support email, GitHub Actions CI</p>
         <p><strong>Week 3:</strong> macOS code signing + notarization, missing templates</p>
         <p><strong>Week 4:</strong> LemonSqueezy + license validation</p>
