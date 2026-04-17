@@ -33,6 +33,8 @@ import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/components/WhatsNew
 import { UpdateManager, manualUpdateCheck } from '@/components/updater/UpdateManager';
 import { openExternal } from '@/utils/openExternal';
 import { SettingsModal } from '@/components/settings/SettingsModal';
+import { FeatureTour } from '@/components/onboarding/FeatureTour';
+import { useFeatureTour } from '@/hooks/useFeatureTour';
 import { useSettingsStore } from '@/stores/settingsStore';
 // M1 (v1.5) Memory: workspace RAG indexer + status UI.
 import { RagProgressBanner } from '@/components/memory/RagProgressBanner';
@@ -111,6 +113,16 @@ function App() {
   const [showQuickOpen, setShowQuickOpen] = useState(false);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+  const featureTour = useFeatureTour();
+
+  // v1.6: auto-show feature tour on first launch (post-first-run wizard) once
+  // the sidebar testids exist in the DOM. Persistent flag stops re-triggering.
+  useEffect(() => {
+    if (!featureTour.shouldAutoShow) return;
+    const timeoutId = setTimeout(() => setTourOpen(true), 800);
+    return () => clearTimeout(timeoutId);
+  }, [featureTour.shouldAutoShow]);
   // Direct trigger for the WhatsNew changelog modal from outside the
   // WhatsNewLayer (e.g. the Settings → About → "What's new" action).
   // The local hook in WhatsNewLayer still owns the toast + first-run
@@ -2667,6 +2679,20 @@ This file contains rules and guidelines for AI assistants in this workspace.
           } else if (actionId === 'open-github') {
             void openExternal('https://github.com/projelli/projelli');
           }
+        }}
+      />
+
+      {/* v1.6: 5-step Feature Tour (auto-shows on first launch) */}
+      <FeatureTour
+        open={tourOpen}
+        onClose={() => setTourOpen(false)}
+        onComplete={() => {
+          featureTour.complete();
+          setTourOpen(false);
+        }}
+        onSkip={() => {
+          featureTour.skipForNow();
+          setTourOpen(false);
         }}
       />
 
