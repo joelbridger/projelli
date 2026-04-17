@@ -1,8 +1,20 @@
 # Board Action Items
 
-> **What this is:** Things only Jameson can do — they require his identity, payment, browser access, or hands on a keyboard outside this Claude session. Everything else has already been built by Claude during the 2026-04-08 marathon session.
->
-> **Status:** Generated 2026-04-08. Update or delete items as Jameson completes them.
+> **What this is:** Things only Jameson can do — they require his identity, payment, browser access, or hands on a keyboard outside this Claude session.
+
+## v1.5 ship gate (2026-04-17) — READ FIRST
+
+For the v1.5 release, the active ship gate + dogfood checklist lives at:
+
+**`docs/operations/SESSION_2026-04-17_v1.5_NIGHT.md`**
+
+That doc has: the RC iteration history, per-flag dogfood steps, the numbered ship procedure (tag v1.5, manually sign Windows for updater, patch `latest.json`, publish draft, merge to master, deploy website, email announce), and known gaps. Start there before working through the pre-v1.5 items below.
+
+The items below are from the 2026-04-08 pre-v1.0.8 push. Most are complete; kept for history.
+
+---
+
+## Pre-v1.0.8 items (historical — 2026-04-08)
 
 ## TL;DR
 
