@@ -32,6 +32,7 @@
 import { readFileSync, writeFileSync, statSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { argv, exit } from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { crc32 } from 'node:zlib';
 import { Buffer } from 'node:buffer';
 
@@ -283,6 +284,11 @@ function main() {
 }
 
 // Only invoke when run as a script (keeps the module importable by tests).
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Use fileURLToPath so the comparison works on Windows (where argv[1] is a
+// backslash-separated drive-letter path) as well as Unix. The naive
+// `file://${argv[1]}` check silently no-ops on Windows, which is how this
+// bug first surfaced — the v1.5-rc.7 Windows .mcpb step succeeded but never
+// wrote a file, causing the upload step to fail.
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   main();
 }
