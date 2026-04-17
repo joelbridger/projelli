@@ -1,0 +1,164 @@
+/**
+ * Per-provider API-key tutorial content for the ApiKeyWizard Step 2.
+ *
+ * Shape: one `ProviderTutorial` per provider, with 3-5 short steps
+ * each describing a click or value. Intentionally text-first + SVG-
+ * illustrated so the tutorial doesn't depend on live screenshots
+ * (which rot when providers redesign their dashboards).
+ *
+ * Accessed from:
+ *   1. ApiKeyWizard step 2 (tabbed content)
+ *   2. Settings, Onboarding, "View API Key Tutorial" action
+ */
+import type { ReactNode } from 'react';
+
+export type ProviderId = 'anthropic' | 'openai' | 'google';
+
+export interface TutorialStep {
+  title: string;
+  body: string;
+  /** Optional hint line rendered under the body. */
+  hint?: string;
+}
+
+export interface ProviderTutorial {
+  providerId: ProviderId;
+  providerName: string;
+  /** Direct URL to the API keys page. */
+  consoleUrl: string;
+  /** Direct URL to billing / usage page (shown at end of tutorial). */
+  billingUrl: string;
+  /** Rough per-month cost for typical founder use. */
+  costHint: string;
+  steps: TutorialStep[];
+}
+
+export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
+  anthropic: {
+    providerId: 'anthropic',
+    providerName: 'Anthropic (Claude)',
+    consoleUrl: 'https://console.anthropic.com/settings/keys',
+    billingUrl: 'https://console.anthropic.com/settings/billing',
+    costHint: '$2-5/month typical use with Claude Haiku 4.5',
+    steps: [
+      {
+        title: 'Open console.anthropic.com',
+        body: 'Sign up or log in. First-time users get free tier credits automatically.',
+      },
+      {
+        title: 'Go to Settings, then API Keys',
+        body: 'The left sidebar has a "Settings" entry. Inside, click "API Keys" (NOT "Workspaces" or "Members").',
+      },
+      {
+        title: 'Click "Create Key"',
+        body: 'A dialog opens. Give it a label like "Projelli" so you remember where it goes. Leave "Workspace" as default.',
+      },
+      {
+        title: 'Copy the key IMMEDIATELY',
+        body: 'Anthropic shows the key ONCE. Copy it to your clipboard. Paste it into the Projelli wizard step 3.',
+        hint: 'Keys start with sk-ant-. If you lose it, create a new one; the old one stays valid but is unrecoverable.',
+      },
+      {
+        title: 'Add credits (if needed)',
+        body: 'New accounts have free-tier credits for ~1 week. After that, add credits at Settings, then Billing. $5 lasts most founders a month.',
+      },
+    ],
+  },
+  openai: {
+    providerId: 'openai',
+    providerName: 'OpenAI (GPT)',
+    consoleUrl: 'https://platform.openai.com/api-keys',
+    billingUrl: 'https://platform.openai.com/settings/organization/billing',
+    costHint: '$3-10/month typical use with GPT-4o-mini',
+    steps: [
+      {
+        title: 'Open platform.openai.com',
+        body: 'This is NOT the same as chat.openai.com (your ChatGPT subscription). API access is a separate product with separate billing.',
+        hint: 'If you only have ChatGPT Plus, you need a new account here. They do not share credits.',
+      },
+      {
+        title: 'Go to API Keys',
+        body: 'Left sidebar, then "API Keys" (under "Organization" section).',
+      },
+      {
+        title: 'Click "Create new secret key"',
+        body: 'Name it "Projelli". Permissions: "All" is fine. Click Create.',
+      },
+      {
+        title: 'Copy the key',
+        body: 'Shown once. Starts with sk-proj- or sk-. Paste into Projelli step 3.',
+      },
+      {
+        title: 'Add $5 to billing',
+        body: 'OpenAI requires prepaid credit for API use (unlike ChatGPT Plus). Go to Billing, add payment method, add $5-10 to start.',
+      },
+    ],
+  },
+  google: {
+    providerId: 'google',
+    providerName: 'Google (Gemini)',
+    consoleUrl: 'https://aistudio.google.com/app/apikey',
+    billingUrl: 'https://ai.google.dev/pricing',
+    costHint: 'Free tier: 1500 requests/day with Gemini Flash (most users never hit a paid charge)',
+    steps: [
+      {
+        title: 'Open aistudio.google.com',
+        body: 'Sign in with a regular Google account. No credit card required for the free tier.',
+      },
+      {
+        title: 'Click "Get API key"',
+        body: 'Usually a big button in the top-right. If not, the left nav has "API keys".',
+      },
+      {
+        title: 'Click "Create API key"',
+        body: 'A dialog asks whether to create in an existing Cloud project or a new one. Pick "Create API key in new project" if unsure; easiest path.',
+      },
+      {
+        title: 'Copy the key',
+        body: 'Shown permanently (you can return to view it). Starts with AIza. Paste into Projelli step 3.',
+        hint: 'Google keys are the most forgiving, visible anytime in the AI Studio UI, unlike Anthropic/OpenAI which show once.',
+      },
+      {
+        title: 'Free tier is usually enough',
+        body: 'Gemini Flash free tier is 1500 requests/day with 1M tokens/minute. Most founders never exceed this. No billing setup needed unless you want higher limits.',
+      },
+    ],
+  },
+};
+
+export function ProviderTutorialList({ tutorial }: { tutorial: ProviderTutorial }): ReactNode {
+  return (
+    <div className="space-y-4" data-testid={`api-key-tutorial-${tutorial.providerId}`}>
+      <div className="text-sm text-muted-foreground">
+        <strong>{tutorial.providerName}</strong> · {tutorial.costHint}
+      </div>
+      <ol className="space-y-3 list-decimal list-inside">
+        {tutorial.steps.map((step, index) => (
+          <li
+            key={index}
+            className="text-sm"
+            data-testid={`api-key-tutorial-step-${tutorial.providerId}-${index + 1}`}
+          >
+            <span className="font-semibold">{step.title}</span>
+            <p className="ml-6 mt-1 text-muted-foreground">{step.body}</p>
+            {step.hint && (
+              <p className="ml-6 mt-1 text-xs italic text-muted-foreground border-l-2 border-muted pl-3">
+                {step.hint}
+              </p>
+            )}
+          </li>
+        ))}
+      </ol>
+      <div className="text-xs text-muted-foreground pt-2 border-t">
+        Links:{' '}
+        <a href={tutorial.consoleUrl} target="_blank" rel="noopener noreferrer" className="underline">
+          API keys page
+        </a>
+        {' · '}
+        <a href={tutorial.billingUrl} target="_blank" rel="noopener noreferrer" className="underline">
+          Billing / pricing
+        </a>
+      </div>
+    </div>
+  );
+}
