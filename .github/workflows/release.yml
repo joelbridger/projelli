@@ -343,6 +343,24 @@ jobs:
           Get-ChildItem -Path src-tauri/target/release/bundle/nsis -Recurse -ErrorAction SilentlyContinue | Format-Table FullName,Length
           Write-Host "=== MSI bundles ==="
           Get-ChildItem -Path src-tauri/target/release/bundle/msi -Recurse -ErrorAction SilentlyContinue | Format-Table FullName,Length
+          Write-Host "=== standalone binary ==="
+          Get-ChildItem -Path src-tauri/target/release/projelli.exe -ErrorAction SilentlyContinue | Format-Table FullName,Length
+
+      # v1.6 W-PX: stage the portable .exe.
+      # Tauri produces target/release/projelli.exe as the native app binary
+      # before NSIS wraps it into an installer. That same exe IS the portable
+      # version, we just rename it + sign it + upload it alongside the
+      # installer. Data still lives in %APPDATA%\Projelli (true portable
+      # data dir requires Rust refactor; v1.7).
+      - name: Copy portable Windows .exe
+        shell: pwsh
+        working-directory: src-tauri
+        run: |
+          $version = (node -p "require('../package.json').version")
+          $portableDir = "target/release/portable"
+          New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+          Copy-Item "target/release/projelli.exe" "$portableDir/Projelli_${version}_x64-portable.exe"
+          Get-ChildItem $portableDir | Format-Table Name,Length
 
       - name: Sign Windows artifacts with Azure Trusted Signing
         uses: azure/trusted-signing-action@v0.5.1
@@ -356,6 +374,26 @@ jobs:
           files-folder: src-tauri/target/release/bundle
           files-folder-filter: exe,msi
           files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      # v1.6 W-PX: sign the portable .exe with the same Azure cert as the
+      # installer. Separate signing step because Azure's action scopes by
+      # folder; the portable lives in target/release/portable, not under
+      # bundle/.
+      - name: Sign portable Windows .exe with Azure Trusted Signing
+        uses: azure/trusted-signing-action@v0.5.1
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_TRUSTED_SIGNING_CERT_PROFILE }}
+          files-folder: src-tauri/target/release/portable
+          files-folder-filter: exe
+          files-folder-recurse: false
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
@@ -394,6 +432,8 @@ jobs:
           $files = @()
           $files += Get-ChildItem -Path src-tauri/target/release/bundle/nsis -Filter *.exe -Recurse -ErrorAction SilentlyContinue
           $files += Get-ChildItem -Path src-tauri/target/release/bundle/msi -Filter *.msi -Recurse -ErrorAction SilentlyContinue
+          # v1.6 W-PX: include the signed portable .exe in the upload list.
+          $files += Get-ChildItem -Path src-tauri/target/release/portable -Filter *.exe -ErrorAction SilentlyContinue
           if ($files.Count -eq 0) {
             Write-Error "No signed artifacts found to upload"
             exit 1
