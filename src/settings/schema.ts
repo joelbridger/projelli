@@ -21,6 +21,7 @@ export type SettingCategory =
   | 'templates'
   | 'integrations'
   | 'updates'
+  | 'onboarding'
   | 'about';
 
 export interface SettingOption {
@@ -60,6 +61,7 @@ export const SETTING_CATEGORIES: { id: SettingCategory; label: string }[] = [
   { id: 'templates', label: 'Templates' },
   { id: 'integrations', label: 'Integrations' },
   { id: 'updates', label: 'Updates' },
+  { id: 'onboarding', label: 'Onboarding' },
   { id: 'about', label: 'About' },
 ];
 
@@ -336,6 +338,17 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'text', // rendered as action link
     defaultValue: '',
     action: { label: 'Check now', actionId: 'updater-check-now' },
+  },
+
+  // ── Onboarding ────────────────────────────────────────────────────────
+  {
+    key: 'viewApiKeyTutorial',
+    category: 'onboarding',
+    label: 'API Key Tutorial',
+    description: 'Step-by-step guide to get an API key from Anthropic, OpenAI, or Google.',
+    type: 'text',
+    defaultValue: '',
+    action: { label: 'View guide', actionId: 'open-api-key-tutorial' },
   },
 
   // ── About ─────────────────────────────────────────────────────────────

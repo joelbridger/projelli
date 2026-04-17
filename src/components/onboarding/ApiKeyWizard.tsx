@@ -111,6 +111,13 @@ export interface ApiKeyWizardProps {
   onSaveKey: (provider: WizardProvider, key: string) => void | Promise<void>;
   /** Initial provider to show. Defaults to `'anthropic'`. */
   initialProvider?: WizardProvider;
+  /**
+   * When true, the wizard renders only the step 2 tutorial content
+   * (no step 1 console-launcher, no step 3 key-paste). Used by Settings,
+   * Onboarding, "View API Key Tutorial" so users can revisit the guide
+   * any time without going through the save path.
+   */
+  tutorialOnly?: boolean;
 }
 
 export function ApiKeyWizard({
@@ -118,6 +125,7 @@ export function ApiKeyWizard({
   onOpenChange,
   onSaveKey,
   initialProvider = 'anthropic',
+  tutorialOnly = false,
 }: ApiKeyWizardProps) {
   const [provider, setProvider] = useState<WizardProvider>(initialProvider);
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -224,36 +232,64 @@ export function ApiKeyWizard({
     >
       <DialogContent className="max-w-xl" data-testid="api-key-wizard">
         <DialogHeader>
-          <DialogTitle>Add an AI provider key</DialogTitle>
+          <DialogTitle>{tutorialOnly ? 'API Key Tutorial' : 'Add an AI provider key'}</DialogTitle>
           <DialogDescription>
-            A 3-step walk-through. Your key never leaves your computer.
+            {tutorialOnly
+              ? 'Step-by-step guide to get an API key from each provider. Revisit any time.'
+              : 'A 3-step walk-through. Your key never leaves your computer.'}
           </DialogDescription>
         </DialogHeader>
 
-        {/* Provider selector (tabs) */}
+        {/* Provider selector (tabs) — exclude Ollama in tutorialOnly mode (no key needed) */}
         <div className="flex gap-2 border-b border-border pb-3">
-          {(Object.values(PROVIDERS) as ProviderMeta[]).map((p) => (
-            <button
-              key={p.id}
-              data-testid={`api-key-wizard-provider-${p.id}`}
-              onClick={() => changeProvider(p.id)}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                provider === p.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              {p.name}
-            </button>
-          ))}
+          {(Object.values(PROVIDERS) as ProviderMeta[])
+            .filter((p) => !tutorialOnly || p.id !== 'ollama')
+            .map((p) => (
+              <button
+                key={p.id}
+                data-testid={`api-key-wizard-provider-${p.id}`}
+                onClick={() => changeProvider(p.id)}
+                className={cn(
+                  'px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+                  provider === p.id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+              >
+                {p.name}
+              </button>
+            ))}
         </div>
 
-        {/* Stepper */}
-        <Stepper currentStep={step} />
+        {/* Stepper (hidden in tutorial-only mode) */}
+        {!tutorialOnly && <Stepper currentStep={step} />}
 
-        {/* Step bodies */}
-        {step === 1 && (
+        {/* Tutorial-only mode: render the same step-2 tabbed body, no save path */}
+        {tutorialOnly && provider !== 'ollama' && (
+          <StepShell testid="api-key-wizard-step-2" title={meta.step2Title} description="Follow these steps on the provider's dashboard.">
+            <Tabs value={step2Tab} onValueChange={(v) => setStep2Tab(v as 'steps' | 'visual')} className="w-full">
+              <div data-testid="api-key-wizard-step-2-tabs">
+                <TabsList className="grid w-full grid-cols-2">
+                  <div data-testid="api-key-wizard-tab-steps">
+                    <TabsTrigger value="steps" className="w-full">Step-by-step</TabsTrigger>
+                  </div>
+                  <div data-testid="api-key-wizard-tab-visual">
+                    <TabsTrigger value="visual" className="w-full">Visual</TabsTrigger>
+                  </div>
+                </TabsList>
+              </div>
+              <TabsContent value="steps" className="mt-4">
+                <ProviderTutorialList tutorial={PROVIDER_TUTORIALS[provider as ProviderId]} />
+              </TabsContent>
+              <TabsContent value="visual" className="mt-4">
+                <ProviderMockSvg label={meta.dashboardLabel} />
+              </TabsContent>
+            </Tabs>
+          </StepShell>
+        )}
+
+        {/* Step bodies (skipped entirely in tutorial-only mode) */}
+        {!tutorialOnly && step === 1 && (
           <StepShell testid="api-key-wizard-step-1" title="Step 1. Go to the provider" description="We'll open their API keys page in your default browser.">
             <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3 text-sm">
               <p className="text-muted-foreground">
@@ -271,7 +307,7 @@ export function ApiKeyWizard({
           </StepShell>
         )}
 
-        {step === 2 && provider !== 'ollama' && (
+        {!tutorialOnly && step === 2 && provider !== 'ollama' && (
           <StepShell testid="api-key-wizard-step-2" title="Step 2. Find the Create Key button" description={meta.step2Title}>
             <Tabs value={step2Tab} onValueChange={(v) => setStep2Tab(v as 'steps' | 'visual')} className="w-full">
               <div data-testid="api-key-wizard-step-2-tabs">
@@ -299,7 +335,7 @@ export function ApiKeyWizard({
           </StepShell>
         )}
 
-        {step === 2 && provider === 'ollama' && (
+        {!tutorialOnly && step === 2 && provider === 'ollama' && (
           <StepShell testid="api-key-wizard-step-2" title="Step 2. Install Ollama and pull a model" description={meta.step2Title}>
             <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2 text-sm">
               <p className="text-muted-foreground">
@@ -310,7 +346,7 @@ export function ApiKeyWizard({
           </StepShell>
         )}
 
-        {step === 3 && provider !== 'ollama' && (
+        {!tutorialOnly && step === 3 && provider !== 'ollama' && (
           <StepShell testid="api-key-wizard-step-3" title="Step 3. Paste your key" description="We'll store it in your OS keychain (or localStorage in browser mode).">
             <div className="space-y-3">
               <div className="relative">
@@ -345,7 +381,7 @@ export function ApiKeyWizard({
           </StepShell>
         )}
 
-        {step === 3 && provider === 'ollama' && (
+        {!tutorialOnly && step === 3 && provider === 'ollama' && (
           <StepShell
             testid="api-key-wizard-step-3"
             title="Step 3. Check your Ollama connection"
@@ -400,6 +436,19 @@ export function ApiKeyWizard({
         )}
 
         {/* Footer actions */}
+        {tutorialOnly ? (
+          <div className="flex items-center justify-end pt-4 border-t border-border">
+            <Button
+              data-testid="api-key-wizard-tutorial-close"
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              className="gap-1.5"
+            >
+              <Check className="h-3.5 w-3.5" />
+              Close
+            </Button>
+          </div>
+        ) : (
         <div className="flex items-center justify-between pt-4 border-t border-border">
           <Button
             variant="ghost"
@@ -440,6 +489,7 @@ export function ApiKeyWizard({
             </Button>
           )}
         </div>
+        )}
       </DialogContent>
     </Dialog>
   );

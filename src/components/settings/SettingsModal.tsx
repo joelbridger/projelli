@@ -34,6 +34,7 @@ import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
 import { McpSettingsSection } from '@/components/settings/McpSettingsSection';
 import { OllamaSettingsSection } from '@/components/settings/OllamaSettingsSection';
 import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';
+import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
 import type { AuditEntry } from '@/types/audit';
 import type { WorkflowTemplate } from '@/types/workflow';
 import {
@@ -539,8 +540,14 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
     }
   }, [resetAll]);
 
+  const [showApiKeyTutorial, setShowApiKeyTutorial] = useState(false);
+
   const handleAction = useCallback(
     (actionId: string) => {
+      if (actionId === 'open-api-key-tutorial') {
+        setShowApiKeyTutorial(true);
+        return;
+      }
       onOpenChange(false);
       onAction?.(actionId);
     },
@@ -548,6 +555,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
   );
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-testid="settings-modal"
@@ -698,6 +706,15 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
         </div>
       </DialogContent>
     </Dialog>
+    {showApiKeyTutorial && (
+      <ApiKeyWizard
+        open={showApiKeyTutorial}
+        onOpenChange={(v) => setShowApiKeyTutorial(v)}
+        onSaveKey={() => { /* no-op: tutorial-only mode */ }}
+        tutorialOnly
+      />
+    )}
+    </>
   );
 }
 
