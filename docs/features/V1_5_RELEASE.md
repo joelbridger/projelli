@@ -9,16 +9,29 @@
 
 ---
 
-## Phase 0 — Pre-flight (in progress)
+## Phase 0 — Pre-flight ✅ COMPLETE
 
 | Step | Status | Notes |
 |---|---|---|
 | Sync local master to v1.0.8 (`2644a9c`) | ✅ | Was stale at `5a7bb0c`; fast-forward pulled 152 files / 23k+ lines |
 | Preserve uncommitted work | ✅ | Stashed, popped on `release/v1.5`, committed in 2 commits (`a8835d7` strategy docs, `f7e9783` website prep) |
 | Create `release/v1.5` branch | ✅ | Branched from synced master |
-| Re-audit against fresh code | 🟡 | Below |
-| Baseline test run | 🔲 | Next |
+| Re-audit against fresh code | ✅ | Q16 + Q18 confirmed shipped in v1.0.8 (`ShortcutsOverlay.tsx`, `WhatsNew.tsx`); rest required net new work, see Quick Wins table below |
+| Baseline test run | ✅ | Originally 730/23 Vitest fail floor + 174/15 Playwright. **Night-run swept all 23 Vitest baseline failures (commit `d496d62`) → now 753/0 passing.** |
 | Create this tracking doc | ✅ | You are here |
+
+---
+
+## Night-run additions (2026-04-17)
+
+After Phase 7's RC tag push, the overnight pass added:
+
+- **CI fix chain rc.2 → rc.8** (8 layers; see `docs/operations/SESSION_2026-04-17_v1.5_NIGHT.md` table)
+- **Vitest baseline → 0 failures** (`d496d62`): App brand text, jsdom Blob.arrayBuffer polyfill, workspace integration mock fixes for `exists('')`/`stat('')`/`list('')`/relative-path `rename`
+- **Em-dash sweep across press-kit + docs + legal** (`939bd36`, 7 files / 61 dashes); content-lint expanded (`3aaf613`) to enforce going forward
+- **`.mcpb` zip date polished** (`ae55a3d`) from invalid `0x5000` to valid `0x5021` (2020-01-01)
+- **Night handoff doc** at `docs/operations/SESSION_2026-04-17_v1.5_NIGHT.md` with ship procedure + dogfood checklist + memory-update snippet
+- **Playwright stress + edge + a11y suite** (commits `bcc8ba9`, `0159b85`, `56859ac`) — adds 3 stress + 3 edge specs, an a11y sweep, integration flows. Final Playwright count pending Night Phase B subagent's last commits.
 
 ---
 
