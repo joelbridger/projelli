@@ -149,7 +149,13 @@
 
     <details>
       <summary>Why does Windows show a SmartScreen warning when I install?</summary>
-      <p>Until we get a code signing certificate set up (Week 2 of our launch ramp), the installer is "unsigned," which means Windows warns you on first run. Click "More info" → "Run anyway" to proceed. The app itself is safe, you can verify the source code at <a href="https://github.com/projelli/projelli">github.com/projelli/projelli</a>, but the warning will keep showing until we get the certificate.</p>
+      <p>The Windows installer is signed via Azure Trusted Signing with a Public Trust cert (publisher reads "Jameson Daines"). The warning you may see is SmartScreen's "unrecognized app" reputation warning, not a malware warning, because the cert is new and SmartScreen reputation hasn't built yet. Click "More info" then "Run anyway" to proceed. Windows remembers the choice per user. The warning clears automatically once a few hundred people install it, typically 2 to 4 weeks. You can verify the source at <a href="https://github.com/projelli/projelli">github.com/projelli/projelli</a>.</p>
+    </details>
+
+    <details>
+      <summary>What's the "portable" Windows .exe?</summary>
+      <p>v1.6 adds a portable Windows build. It's a single <code>.exe</code> you can drop anywhere, no install step, no Start Menu entry, no Admin rights needed. Useful if you want to run Projelli from a USB drive, try it without committing to a full install, or install on a machine where you can't run installers.</p>
+      <p><strong>Caveats:</strong> the portable build still saves your workspaces and settings to <code>%APPDATA%\Projelli</code> (not next to the .exe). The auto-updater is disabled; you re-download manually. The MCP extension (<code>.mcpb</code>) isn't supported in portable mode. Use the full installer if you need MCP or automatic updates.</p>
     </details>
 
     <details>
