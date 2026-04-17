@@ -79,6 +79,14 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
+      # Required by lance-encoding's build.rs (prost-build). Added for v1.5
+      # M1 (LanceDB RAG). Mac/Linux path.
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "25.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -258,6 +266,14 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+
+      # Required by lance-encoding's build.rs (prost-build). Added for v1.5
+      # M1 (LanceDB RAG). Windows path.
+      - name: Install protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "25.x"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install frontend dependencies
         run: npm ci
