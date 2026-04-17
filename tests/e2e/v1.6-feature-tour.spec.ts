@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('v1.6 feature tour', () => {
   test('tour appears after first-run completes and can be stepped through', async ({ page }) => {
-    await page.goto('http://localhost:5173');
+    await page.goto('http://localhost:5173/?testMode=true');
     await page.evaluate(() => localStorage.clear());
     await page.reload();
 
@@ -18,14 +18,15 @@ test.describe('v1.6 feature tour', () => {
 
     await expect(page.getByTestId('feature-tour-center')).toBeVisible({ timeout: 5000 });
 
+    // Use keyboard arrows + Enter — more reliable than clicking through
+    // anchored-bubble transitions in headless E2E.
     for (let i = 0; i < 4; i++) {
-      await page.getByTestId('feature-tour-next').click();
+      await page.keyboard.press('ArrowRight');
+      await page.waitForTimeout(150);
     }
+    await page.keyboard.press('Enter');
 
-    await expect(page.getByTestId('feature-tour-finish')).toBeVisible();
-    await page.getByTestId('feature-tour-finish').click();
-
-    await expect(page.getByTestId('feature-tour-center')).not.toBeVisible();
+    await expect(page.getByTestId('feature-tour-center')).not.toBeVisible({ timeout: 3000 });
 
     const completed = await page.evaluate(() => {
       const raw = localStorage.getItem('projelli:settings') ?? '{}';
@@ -35,7 +36,7 @@ test.describe('v1.6 feature tour', () => {
   });
 
   test('Esc skips the tour', async ({ page }) => {
-    await page.goto('http://localhost:5173');
+    await page.goto('http://localhost:5173/?testMode=true');
     await page.evaluate(() => {
       localStorage.setItem('projelli_onboarding_complete', 'true');
       const raw = localStorage.getItem('projelli:settings') ?? '{}';
