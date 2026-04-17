@@ -552,8 +552,18 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     };
   }, []);
 
-  // Load AI Rules from workspace
+  // Load AI Rules from workspace.
+  //
+  // DEPS DISCIPLINE: `workspaceServiceRef` must NOT be in this array.
+  // Refs are stable by object identity but their `.current` mutates
+  // without signaling React; including a ref in deps trips effect
+  // re-runs on ref-pointer changes that look like deps changes to the
+  // tracker, producing a setState -> render -> setState loop (React
+  // #185). See tests/unit/ai-rules-loading.test.tsx for the regression
+  // guard.
   useEffect(() => {
+    let isMounted = true;
+
     const loadAIRules = async () => {
       if (!rootPath || !workspaceServiceRef?.current) return;
 
@@ -561,20 +571,25 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         const rulesPath = `${rootPath}/ai-rules.md`;
         const exists = await workspaceServiceRef.current.exists(rulesPath);
 
+        if (!isMounted) return;
         if (exists) {
           const content = await workspaceServiceRef.current.readFile(rulesPath);
-          setAiRules(content);
+          if (isMounted) setAiRules(content);
         } else {
           setAiRules('');
         }
       } catch (error) {
         console.error('Failed to load AI rules:', error);
-        setAiRules('');
+        if (isMounted) setAiRules('');
       }
     };
 
     loadAIRules();
-  }, [rootPath, workspaceServiceRef]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [rootPath]);
 
   // Get messages and loading state from store
   const messages = session?.messages ?? chatData.messages;
