@@ -40,6 +40,24 @@ Document these for release notes + docs + launch-day reply bank:
 - **First-run behavior is identical.** Welcome dialog, workspace picker, API key wizard, sample files, and the new feature tour all work.
 - **WebView2 required.** Pre-installed on Windows 11 and on most Windows 10 via Windows Update. ~2% of users may need to install it manually (prompt will show if missing). A bundled WebView2 runtime is a v1.7 consideration.
 
+## Test results
+
+- **Vitest**: 808 pass / 0 fail (baseline + 14 new tutorial-content tests + 9 new feature-tour tests)
+- **Playwright (chromium, full sweep)**: 231 pass / 15 fail / 4 skipped
+  - The 15 failures are the **same pre-existing v1.5 baseline failures** (visual snapshots, ai-assistant-tab tests that pre-date this branch, theme persistence in test mode). v1.6 adds **two new passes** (the dedicated v1.6-feature-tour spec) and zero new failures.
+- **Targeted v1.6 regression**: api-keys-panel + v1.6-feature-tour = 9/9 pass
+
+## Ship procedure (Phase 7+8)
+
+When ready to publish:
+1. `git push origin release/v1.6`
+2. `git tag v1.6.0-rc.1 && git push origin v1.6.0-rc.1` — CI builds signed installer + portable
+3. Dogfood rc.1 on Windows (silent install, portable .exe, tour, tutorial)
+4. If clean: `git tag v1.6.0 && git push origin v1.6.0`
+5. Per v1.5 procedure: manual Windows updater-sign + patch `latest.json`
+6. `gh release edit v1.6.0 --draft=false --latest --repo projelli/projelli`
+7. Fast-forward merge to master, then `cd ~/projelli && ./infra/deploy.sh`
+
 ## Commit log
 
-(Appended as phases complete.)
+All v1.6 commits on `release/v1.6` since fork point. See `git log --oneline release/v1.6 ^master`.
