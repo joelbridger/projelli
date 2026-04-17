@@ -31,7 +31,9 @@ After Phase 7's RC tag push, the overnight pass added:
 - **Em-dash sweep across press-kit + docs + legal** (`939bd36`, 7 files / 61 dashes); content-lint expanded (`3aaf613`) to enforce going forward
 - **`.mcpb` zip date polished** (`ae55a3d`) from invalid `0x5000` to valid `0x5021` (2020-01-01)
 - **Night handoff doc** at `docs/operations/SESSION_2026-04-17_v1.5_NIGHT.md` with ship procedure + dogfood checklist + memory-update snippet
-- **Playwright stress + edge + a11y suite** (commits `bcc8ba9`, `0159b85`, `56859ac`), adds 3 stress + 3 edge specs, an a11y sweep, integration flows. Final Playwright count pending Night Phase B subagent's last commits.
+- **Playwright suite expansion** (commits `bcc8ba9`, `0159b85`, `56859ac`, `c8301e7`): 9 new spec files / 54 new tests across stress, edge cases, accessibility sweep, error paths, integration flows, and 2 regression guards (build-mcpb main-check + Tauri version alignment). All 54 pass; zero new failures. Playwright total now **229 pass / 15 pre-existing fail / 4 skipped** (was 175/15/4 at baseline).
+- **Vitest total at handoff: 781 pass / 0 fail.** 28 of those are net-new (subagent + my work); the 753 baseline rose because of the 23-fail floor sweep.
+- **Pre-existing accessibility limitations** documented in this doc's a11y section (3 issues in TemplateModelSettings + ApiKeySettings + a few text-muted-foreground combos). Filtered out via `PRE_EXISTING_IGNORES` in `tests/e2e/v1.5-accessibility-full.spec.ts` so new regressions still fail; clearing one means dropping it from the set.
 
 ---
 
