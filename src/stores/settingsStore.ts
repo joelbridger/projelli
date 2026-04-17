@@ -23,11 +23,20 @@ interface SettingsState {
   /** True once the one-shot legacy migration has run. */
   _migrated: boolean;
 
+  // v1.6: feature tour flags
+  featuresTourCompleted: boolean;
+  featuresTourSkippedThisSession: boolean;
+
   getSetting: <T = unknown>(key: string) => T;
   setSetting: (key: string, value: unknown) => void;
   resetAll: () => void;
   exportSettings: () => string;
   importSettings: (json: string) => boolean;
+
+  // v1.6: feature tour actions
+  markFeatureTourCompleted: () => void;
+  skipFeatureTourThisSession: () => void;
+  resetFeatureTour: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -45,6 +54,13 @@ export const useSettingsStore = create<SettingsState>()(
     (set, get) => ({
       values: {},
       _migrated: false,
+      featuresTourCompleted: false,
+      featuresTourSkippedThisSession: false,
+
+      markFeatureTourCompleted: () => set({ featuresTourCompleted: true }),
+      skipFeatureTourThisSession: () => set({ featuresTourSkippedThisSession: true }),
+      resetFeatureTour: () =>
+        set({ featuresTourCompleted: false, featuresTourSkippedThisSession: false }),
 
       getSetting: <T = unknown>(key: string): T => {
         const stored = get().values[key];
@@ -99,6 +115,8 @@ export const useSettingsStore = create<SettingsState>()(
       partialize: (state) => ({
         values: state.values,
         _migrated: state._migrated,
+        featuresTourCompleted: state.featuresTourCompleted,
+        // featuresTourSkippedThisSession is intentionally session-only
       }),
     }
   )
