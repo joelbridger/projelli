@@ -692,7 +692,23 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
               <span className="text-xs text-muted-foreground font-medium">({tabs.length})</span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-[200px]">
+          <DropdownMenuContent
+            align="start"
+            className="min-w-[200px]"
+            // R2-P1: close the dropdown when a drag in progress leaves its
+            // bounds. Without this the Radix portal layer above the tab bar
+            // eats drop events aimed at other tabs or the empty bar area,
+            // so outbound drags silently fail. We keep it open for in-group
+            // reorder (cursor stays inside the dropdown).
+            onDragLeave={(e) => {
+              const next = e.relatedTarget as Node | null;
+              if (!next || !e.currentTarget.contains(next)) {
+                setOpenDropdownGroupId(null);
+                setDragOverDropdownIndex(null);
+                setDropdownDropPosition(null);
+              }
+            }}
+          >
             {/* Group-level actions live at the top so they're discoverable
                 even without remembering the double-click shortcut. */}
             <DropdownMenuItem
