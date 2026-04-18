@@ -11,6 +11,9 @@
  *   2. Settings, Onboarding, "View API Key Tutorial" action
  */
 import type { ReactNode } from 'react';
+import { ExternalLink } from 'lucide-react';
+import { openExternal } from '@/utils/openExternal';
+import { Button } from '@/components/ui/button';
 
 export type ProviderId = 'anthropic' | 'openai' | 'google';
 
@@ -127,10 +130,34 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
 };
 
 export function ProviderTutorialList({ tutorial }: { tutorial: ProviderTutorial }): ReactNode {
+  const handleOpen = (url: string) => {
+    void openExternal(url);
+  };
   return (
     <div className="space-y-4" data-testid={`api-key-tutorial-${tutorial.providerId}`}>
       <div className="text-sm text-muted-foreground">
         <strong>{tutorial.providerName}</strong> · {tutorial.costHint}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          size="sm"
+          onClick={() => handleOpen(tutorial.consoleUrl)}
+          data-testid={`api-key-tutorial-open-console-${tutorial.providerId}`}
+          className="gap-1.5"
+        >
+          Open API keys page
+          <ExternalLink className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleOpen(tutorial.billingUrl)}
+          data-testid={`api-key-tutorial-open-billing-${tutorial.providerId}`}
+          className="gap-1.5"
+        >
+          Billing / pricing
+          <ExternalLink className="h-3.5 w-3.5" />
+        </Button>
       </div>
       <ol className="space-y-3 list-decimal list-inside">
         {tutorial.steps.map((step, index) => (
@@ -149,15 +176,26 @@ export function ProviderTutorialList({ tutorial }: { tutorial: ProviderTutorial 
           </li>
         ))}
       </ol>
-      <div className="text-xs text-muted-foreground pt-2 border-t">
-        Links:{' '}
-        <a href={tutorial.consoleUrl} target="_blank" rel="noopener noreferrer" className="underline">
-          API keys page
-        </a>
-        {' · '}
-        <a href={tutorial.billingUrl} target="_blank" rel="noopener noreferrer" className="underline">
-          Billing / pricing
-        </a>
+      <div className="text-xs text-muted-foreground pt-2 border-t space-y-1">
+        <div>
+          Direct URLs (click to open in your browser):
+        </div>
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          <button
+            type="button"
+            onClick={() => handleOpen(tutorial.consoleUrl)}
+            className="underline text-left break-all hover:text-foreground"
+          >
+            {tutorial.consoleUrl}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleOpen(tutorial.billingUrl)}
+            className="underline text-left break-all hover:text-foreground"
+          >
+            {tutorial.billingUrl}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -350,6 +350,15 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     defaultValue: '',
     action: { label: 'View guide', actionId: 'open-api-key-tutorial' },
   },
+  {
+    key: 'resetFeatureTour',
+    category: 'onboarding',
+    label: 'Feature Tour',
+    description: 'Replay the 10-step tour that introduces the Projelli workspace.',
+    type: 'text',
+    defaultValue: '',
+    action: { label: 'Start tour', actionId: 'reset-feature-tour' },
+  },
 
   // ── About ─────────────────────────────────────────────────────────────
   {

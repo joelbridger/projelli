@@ -9,6 +9,7 @@
  * selector returns no element (e.g. the AI tab isn't mounted yet).
  */
 import { useState, useEffect, useMemo, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { FEATURE_TOUR_STEPS, type FeatureTourStep } from './featureTourSteps';
@@ -210,26 +211,69 @@ function AnchoredBubble({ target, placement, testid, children }: AnchoredBubbleP
 
   if (!rect) return null;
 
-  const gap = 12;
-  const bubbleStyle: React.CSSProperties = { position: 'fixed', zIndex: 60, width: 360 };
-  switch (placement) {
+  const BUBBLE_WIDTH = 360;
+  const BUBBLE_HEIGHT_ESTIMATE = 200;
+  const GAP = 12;
+  const MARGIN = 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  // First try the requested placement. If it puts the bubble off-screen,
+  // auto-flip to the opposite side. Then clamp to viewport.
+  const spaceRight = vw - rect.right - GAP;
+  const spaceLeft = rect.left - GAP;
+  const spaceBottom = vh - rect.bottom - GAP;
+  const spaceTop = rect.top - GAP;
+
+  let actualPlacement = placement;
+  if (placement === 'left' && spaceLeft < BUBBLE_WIDTH && spaceRight >= BUBBLE_WIDTH) {
+    actualPlacement = 'right';
+  } else if (placement === 'right' && spaceRight < BUBBLE_WIDTH && spaceLeft >= BUBBLE_WIDTH) {
+    actualPlacement = 'left';
+  } else if (placement === 'top' && spaceTop < BUBBLE_HEIGHT_ESTIMATE && spaceBottom >= BUBBLE_HEIGHT_ESTIMATE) {
+    actualPlacement = 'bottom';
+  } else if (placement === 'bottom' && spaceBottom < BUBBLE_HEIGHT_ESTIMATE && spaceTop >= BUBBLE_HEIGHT_ESTIMATE) {
+    actualPlacement = 'top';
+  }
+
+  let bubbleLeft = 0;
+  let bubbleTop = 0;
+  switch (actualPlacement) {
     case 'top':
-      bubbleStyle.bottom = window.innerHeight - rect.top + gap;
-      bubbleStyle.left = Math.max(8, rect.left + rect.width / 2 - 180);
+      bubbleTop = rect.top - BUBBLE_HEIGHT_ESTIMATE - GAP;
+      bubbleLeft = rect.left + rect.width / 2 - BUBBLE_WIDTH / 2;
       break;
     case 'bottom':
-      bubbleStyle.top = rect.bottom + gap;
-      bubbleStyle.left = Math.max(8, rect.left + rect.width / 2 - 180);
+      bubbleTop = rect.bottom + GAP;
+      bubbleLeft = rect.left + rect.width / 2 - BUBBLE_WIDTH / 2;
       break;
     case 'left':
-      bubbleStyle.right = window.innerWidth - rect.left + gap;
-      bubbleStyle.top = Math.max(8, rect.top + rect.height / 2 - 80);
+      bubbleLeft = rect.left - BUBBLE_WIDTH - GAP;
+      bubbleTop = rect.top + rect.height / 2 - BUBBLE_HEIGHT_ESTIMATE / 2;
       break;
     case 'right':
-      bubbleStyle.left = rect.right + gap;
-      bubbleStyle.top = Math.max(8, rect.top + rect.height / 2 - 80);
+      bubbleLeft = rect.right + GAP;
+      bubbleTop = rect.top + rect.height / 2 - BUBBLE_HEIGHT_ESTIMATE / 2;
       break;
   }
+
+  // Clamp into viewport so the bubble is always visible.
+  bubbleLeft = Math.max(MARGIN, Math.min(bubbleLeft, vw - BUBBLE_WIDTH - MARGIN));
+  bubbleTop = Math.max(MARGIN, Math.min(bubbleTop, vh - BUBBLE_HEIGHT_ESTIMATE - MARGIN));
+
+  const bubbleStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: bubbleTop,
+    left: bubbleLeft,
+    width: BUBBLE_WIDTH,
+    zIndex: 10001,
+    backgroundColor: 'hsl(var(--popover, 0 0% 100%))',
+    color: 'hsl(var(--popover-foreground, 222 47% 11%))',
+    border: '1px solid hsl(var(--border, 214 32% 91%))',
+    borderRadius: 8,
+    padding: 16,
+    boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+  };
 
   const highlightStyle: React.CSSProperties = {
     position: 'fixed',
@@ -241,20 +285,19 @@ function AnchoredBubble({ target, placement, testid, children }: AnchoredBubbleP
     border: '2px solid rgb(247, 99, 82)',
     borderRadius: 6,
     boxShadow: '0 0 0 9999px rgba(0,0,0,0.35)',
-    zIndex: 50,
+    zIndex: 10000,
   };
 
-  return (
+  // Portal to body so fixed positioning isn't trapped by any parent
+  // transform/filter/contain that would change the containing block.
+  return createPortal(
     <>
       <div style={highlightStyle} aria-hidden />
-      <div
-        style={bubbleStyle}
-        data-testid={testid}
-        className="rounded-lg border border-border bg-popover text-popover-foreground shadow-lg p-4"
-      >
+      <div style={bubbleStyle} data-testid={testid}>
         {children}
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 

@@ -38,7 +38,6 @@ import { openExternal } from '@/utils/openExternal';
 import { ExternalLink, Eye, EyeOff, Check, AlertCircle, ArrowLeft, ArrowRight, RefreshCw, Cpu } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { detectOllama } from '@/modules/models/OllamaProvider';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PROVIDER_TUTORIALS, ProviderTutorialList, type ProviderId } from './ProviderTutorialSteps';
 
 export type WizardProvider = 'anthropic' | 'openai' | 'google' | 'ollama';
@@ -135,7 +134,6 @@ export function ApiKeyWizard({
   const [submitting, setSubmitting] = useState(false);
   const [ollamaStatus, setOllamaStatus] = useState<'idle' | 'checking' | 'ok' | 'missing'>('idle');
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
-  const [step2Tab, setStep2Tab] = useState<'steps' | 'visual'>('steps');
 
   const meta = PROVIDERS[provider];
 
@@ -264,27 +262,11 @@ export function ApiKeyWizard({
         {/* Stepper (hidden in tutorial-only mode) */}
         {!tutorialOnly && <Stepper currentStep={step} />}
 
-        {/* Tutorial-only mode: render the same step-2 tabbed body, no save path */}
+        {/* Tutorial-only mode: render the step-by-step content directly,
+            no Visual tab and no save path. */}
         {tutorialOnly && provider !== 'ollama' && (
           <StepShell testid="api-key-wizard-step-2" title={meta.step2Title} description="Follow these steps on the provider's dashboard.">
-            <Tabs value={step2Tab} onValueChange={(v) => setStep2Tab(v as 'steps' | 'visual')} className="w-full">
-              <div data-testid="api-key-wizard-step-2-tabs">
-                <TabsList className="grid w-full grid-cols-2">
-                  <div data-testid="api-key-wizard-tab-steps">
-                    <TabsTrigger value="steps" className="w-full">Step-by-step</TabsTrigger>
-                  </div>
-                  <div data-testid="api-key-wizard-tab-visual">
-                    <TabsTrigger value="visual" className="w-full">Visual</TabsTrigger>
-                  </div>
-                </TabsList>
-              </div>
-              <TabsContent value="steps" className="mt-4">
-                <ProviderTutorialList tutorial={PROVIDER_TUTORIALS[provider as ProviderId]} />
-              </TabsContent>
-              <TabsContent value="visual" className="mt-4">
-                <ProviderMockSvg label={meta.dashboardLabel} />
-              </TabsContent>
-            </Tabs>
+            <ProviderTutorialList tutorial={PROVIDER_TUTORIALS[provider as ProviderId]} />
           </StepShell>
         )}
 
@@ -309,29 +291,7 @@ export function ApiKeyWizard({
 
         {!tutorialOnly && step === 2 && provider !== 'ollama' && (
           <StepShell testid="api-key-wizard-step-2" title="Step 2. Find the Create Key button" description={meta.step2Title}>
-            <Tabs value={step2Tab} onValueChange={(v) => setStep2Tab(v as 'steps' | 'visual')} className="w-full">
-              <div data-testid="api-key-wizard-step-2-tabs">
-                <TabsList className="grid w-full grid-cols-2">
-                  <div data-testid="api-key-wizard-tab-steps">
-                    <TabsTrigger value="steps" className="w-full">Step-by-step</TabsTrigger>
-                  </div>
-                  <div data-testid="api-key-wizard-tab-visual">
-                    <TabsTrigger value="visual" className="w-full">Visual</TabsTrigger>
-                  </div>
-                </TabsList>
-              </div>
-              <TabsContent value="steps" className="mt-4">
-                <ProviderTutorialList tutorial={PROVIDER_TUTORIALS[provider as ProviderId]} />
-              </TabsContent>
-              <TabsContent value="visual" className="mt-4">
-                <ProviderMockSvg label={meta.dashboardLabel} />
-                <p className="text-xs text-muted-foreground mt-3">
-                  Look for a button labeled <strong className="text-foreground">Create API key</strong> (or similar).
-                  Click it, give the key a name like "Projelli", and copy the key it gives you.
-                  Most providers only show the full key once, so copy it right away.
-                </p>
-              </TabsContent>
-            </Tabs>
+            <ProviderTutorialList tutorial={PROVIDER_TUTORIALS[provider as ProviderId]} />
           </StepShell>
         )}
 
@@ -557,92 +517,6 @@ function StepShell({ testid, title, description, children }: StepShellProps) {
       <h3 className="text-sm font-semibold">{title}</h3>
       <p className="text-xs text-muted-foreground">{description}</p>
       <div className="pt-1">{children}</div>
-    </div>
-  );
-}
-
-/**
- * Stylized SVG mock of a generic provider "API keys" dashboard, with the
- * "Create API key" button highlighted. Deliberately abstract so it works for
- * all three providers without misrepresenting any of them.
- */
-function ProviderMockSvg({ label }: { label: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-muted/20 p-3">
-      <svg
-        viewBox="0 0 420 200"
-        className="w-full h-auto"
-        role="img"
-        aria-label={`${label} mock showing the Create API key button`}
-      >
-        {/* Window chrome */}
-        <rect x="0" y="0" width="420" height="200" rx="8" className="fill-background" stroke="currentColor" strokeOpacity="0.15" />
-        <circle cx="14" cy="14" r="3" className="fill-red-500/70" />
-        <circle cx="26" cy="14" r="3" className="fill-yellow-500/70" />
-        <circle cx="38" cy="14" r="3" className="fill-green-500/70" />
-        {/* URL bar */}
-        <rect x="54" y="8" width="340" height="14" rx="3" className="fill-muted" />
-        <text x="62" y="18" fontSize="8" className="fill-muted-foreground" fontFamily="monospace">
-          {label}
-        </text>
-        {/* Page header */}
-        <text x="20" y="50" fontSize="14" fontWeight="bold" className="fill-foreground">
-          API Keys
-        </text>
-        <text x="20" y="66" fontSize="9" className="fill-muted-foreground">
-          Manage keys that authenticate your applications.
-        </text>
-        {/* Highlighted Create API key button */}
-        <g>
-          <rect
-            x="290"
-            y="44"
-            width="110"
-            height="28"
-            rx="6"
-            className="fill-primary"
-          />
-          <text x="345" y="62" fontSize="11" fontWeight="600" textAnchor="middle" className="fill-primary-foreground">
-            Create API key
-          </text>
-          {/* pulsing ring */}
-          <rect
-            x="287"
-            y="41"
-            width="116"
-            height="34"
-            rx="8"
-            fill="none"
-            className="stroke-primary"
-            strokeWidth="2"
-            strokeDasharray="4 3"
-            opacity="0.6"
-          />
-        </g>
-        {/* Existing-keys table */}
-        <rect x="20" y="90" width="380" height="1" className="fill-border" />
-        <text x="20" y="108" fontSize="9" className="fill-muted-foreground">Name</text>
-        <text x="180" y="108" fontSize="9" className="fill-muted-foreground">Created</text>
-        <text x="280" y="108" fontSize="9" className="fill-muted-foreground">Last used</text>
-        <rect x="20" y="114" width="380" height="1" className="fill-border" />
-        {/* Empty state text */}
-        <text x="210" y="155" fontSize="10" textAnchor="middle" className="fill-muted-foreground">
-          You haven't created any keys yet. Click Create API key above.
-        </text>
-        {/* Arrow pointing at the button */}
-        <path
-          d="M 260 60 Q 275 60 285 58"
-          fill="none"
-          className="stroke-primary"
-          strokeWidth="1.5"
-          markerEnd="url(#arrowhead)"
-        />
-        <defs>
-          <marker id="arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L6,3 z" className="fill-primary" />
-          </marker>
-        </defs>
-      </svg>
     </div>
   );
 }

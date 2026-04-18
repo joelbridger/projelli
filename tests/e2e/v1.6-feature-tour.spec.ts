@@ -20,7 +20,7 @@ test.describe('v1.6 feature tour', () => {
 
     // Use keyboard arrows + Enter — more reliable than clicking through
     // anchored-bubble transitions in headless E2E.
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 9; i++) {
       await page.keyboard.press('ArrowRight');
       await page.waitForTimeout(150);
     }

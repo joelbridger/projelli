@@ -15,6 +15,11 @@ function seedTargets(): () => void {
     'sidebar-tab-files',
     'sidebar-tab-ai-assistant',
     'sidebar-tab-workflows',
+    'sidebar-tab-search',
+    'sidebar-tab-research',
+    'sidebar-tab-whiteboard',
+    'sidebar-tab-audit',
+    'command-palette-button',
     'settings-gear',
   ];
   for (const testid of targets) {
@@ -48,7 +53,7 @@ describe('FeatureTour', () => {
         onSkip={() => {}}
       />,
     );
-    expect(screen.getAllByText("Let's take a 60-second tour").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Let's take a 2-minute tour").length).toBeGreaterThan(0);
   });
 
   it('advances to the next step on Next click', () => {
@@ -111,8 +116,8 @@ describe('FeatureTour', () => {
 });
 
 describe('Feature tour content integrity', () => {
-  it('has exactly 5 steps', () => {
-    expect(FEATURE_TOUR_STEPS.length).toBe(5);
+  it('has exactly 10 steps', () => {
+    expect(FEATURE_TOUR_STEPS.length).toBe(10);
   });
 
   it('every step has title + body longer than threshold', () => {

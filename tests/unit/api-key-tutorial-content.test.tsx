@@ -59,11 +59,22 @@ describe('ProviderTutorialList rendering', () => {
     }
   });
 
-  it('renders console + billing links', () => {
+  it('renders console + billing as clickable openExternal triggers', () => {
     render(<ProviderTutorialList tutorial={PROVIDER_TUTORIALS.openai} />);
-    const links = screen.getAllByRole('link');
-    const hrefs = links.map((l) => (l as HTMLAnchorElement).href);
-    expect(hrefs).toContain(PROVIDER_TUTORIALS.openai.consoleUrl);
-    expect(hrefs).toContain(PROVIDER_TUTORIALS.openai.billingUrl);
+    // Primary action buttons + the raw-URL fallback buttons both route
+    // through openExternal. We assert by data-testid on the prominent
+    // buttons and by label presence for the raw URLs.
+    expect(
+      screen.getByTestId('api-key-tutorial-open-console-openai'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('api-key-tutorial-open-billing-openai'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(PROVIDER_TUTORIALS.openai.consoleUrl),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(PROVIDER_TUTORIALS.openai.billingUrl),
+    ).toBeInTheDocument();
   });
 });

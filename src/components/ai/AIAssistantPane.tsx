@@ -21,7 +21,7 @@ import {
   ExternalLink,
   X,
 } from 'lucide-react';
-import { ApiKeyHelpDialog } from '@/components/common/ApiKeyHelpDialog';
+import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
 import { getCorsSafeFetch, getProviderBaseUrl } from '@/modules/models/fetchUtils';
 import { openExternal } from '@/utils/openExternal';
 import { getDefaultModelsForTier } from '@/utils/defaultModel';
@@ -689,11 +689,17 @@ export function AIAssistantPane({
         )}
       </div>
 
-      {/* API Key Help Dialog */}
-      <ApiKeyHelpDialog
-        open={showHelpDialog}
-        onOpenChange={setShowHelpDialog}
-      />
+      {/* API Key Tutorial — same tutorialOnly wizard surface as
+          Settings, Onboarding, "View guide". Keeps one canonical
+          tutorial UI so the AI Assistant entry-point matches. */}
+      {showHelpDialog && (
+        <ApiKeyWizard
+          open={showHelpDialog}
+          onOpenChange={setShowHelpDialog}
+          onSaveKey={() => { /* no-op: tutorial-only mode */ }}
+          tutorialOnly
+        />
+      )}
     </div>
   );
 }
