@@ -10,7 +10,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
+import { waitForTestModeLoad } from './helpers/test-utils';
 
 test.describe('AI Assistant main-panel tab (UX-21)', () => {
   test('Ctrl+Shift+A adds an ai-assistant tab to the editor store', async ({ page }) => {
@@ -51,19 +51,6 @@ test.describe('AI Assistant main-panel tab (UX-21)', () => {
       return (editor?.openTabs ?? []).filter((t: { type?: string }) => t.type === 'ai-assistant').length;
     });
     expect(secondCount).toBe(1);
-  });
-
-  test('sidebar AI Assistant pane has a Pop out button that opens the tab', async ({ page }) => {
-    await page.goto('/?testMode=true');
-    await waitForTestModeLoad(page);
-
-    await hardClick(page.getByTestId('sidebar-tab-ai-assistant'));
-    const popOut = page.getByTestId('ai-pop-out-button');
-    await expect(popOut).toBeVisible();
-
-    await hardClick(popOut);
-
-    await expect(page.getByTestId('ai-assistant-tab')).toBeVisible();
   });
 
   test('existing .aichat flow keeps rendering an AI chat tab (regression)', async ({ page }) => {

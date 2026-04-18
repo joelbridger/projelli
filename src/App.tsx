@@ -119,12 +119,13 @@ function App() {
   // v1.6: auto-show feature tour on first launch (post-first-run wizard) once
   // the sidebar testids exist in the DOM. Persistent flag stops re-triggering.
   // Suppressed in test mode (other E2E specs) unless the URL explicitly opts
-  // in via ?forceTour=true. The dedicated tour spec uses the opt-in.
+  // in via ?forceTour=true. The dedicated tour spec uses the opt-in, which
+  // also bypasses the persistent completed/skipped flags for fast iteration.
   const FORCE_TOUR = typeof window !== 'undefined' &&
                      window.location.search.includes('forceTour=true');
   useEffect(() => {
     if (IS_TEST_MODE && !FORCE_TOUR) return;
-    if (!featureTour.shouldAutoShow) return;
+    if (!FORCE_TOUR && !featureTour.shouldAutoShow) return;
     const timeoutId = setTimeout(() => setTourOpen(true), 800);
     return () => clearTimeout(timeoutId);
   }, [IS_TEST_MODE, FORCE_TOUR, featureTour.shouldAutoShow]);
@@ -2456,6 +2457,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
             <Settings className="h-4 w-4" />
           </Button>
           <Button
+            data-testid="command-palette-button"
             variant="ghost"
             size="sm"
             className="h-7 px-2 text-xs text-muted-foreground"
@@ -2548,7 +2550,6 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onOpenAIRules={handleOpenAIRules}
               requestedTab={aiAssistantRequestedTab}
               onRequestedTabApplied={() => setAiAssistantRequestedTab(undefined)}
-              onPopOut={openAIAssistantTab}
             />
           }
           researchContent={
@@ -2683,6 +2684,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
             void openExternal('https://projelli.com');
           } else if (actionId === 'open-github') {
             void openExternal('https://github.com/projelli/projelli');
+          } else if (actionId === 'reset-feature-tour') {
+            featureTour.restart();
+            setTimeout(() => setTourOpen(true), 300);
           }
         }}
       />
