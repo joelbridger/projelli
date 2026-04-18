@@ -122,31 +122,33 @@ export function WorkflowPanel({
       data-testid="workflows-panel"
       className="h-full flex flex-col overflow-hidden"
     >
-      {/* Header - fixed */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-        <h3 className="text-sm font-semibold">Available Workflows</h3>
-        <div className="flex items-center gap-1">
+      {/* Header — sized for the narrow sidebar slot. Title truncates,
+          actions collapse to icon-only with tooltips so nothing runs
+          off the right edge. */}
+      <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-2 shrink-0">
+        <h3 className="text-sm font-semibold min-w-0 truncate">Workflows</h3>
+        <div className="flex items-center gap-0.5 shrink-0">
           <Button
             data-testid="workflows-chain-templates"
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs gap-1"
+            className="h-7 w-7 p-0"
             onClick={() => setShowChainBuilder(true)}
             title="Chain templates into a multi-step pipeline"
+            aria-label="Chain templates"
           >
             <LinkIcon className="h-3.5 w-3.5" />
-            Chain
           </Button>
           <Button
             data-testid="workflows-open-full-view"
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs gap-1"
+            className="h-7 w-7 p-0"
             onClick={() => setShowFullView(true)}
-            title="Open workflows in a full-screen browser"
+            title="Open full view"
+            aria-label="Open full view"
           >
             <Maximize2 className="h-3.5 w-3.5" />
-            Open full view
           </Button>
         </div>
       </div>
