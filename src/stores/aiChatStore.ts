@@ -11,6 +11,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 import type { ChatMessage } from '@/types/ai';
 
 export interface ChatCostEntry {
@@ -437,14 +438,21 @@ export interface ChatCostSummary {
  * v1.5 or for the first turn of a new chat).
  */
 export function useChatCost(chatId: string): ChatCostSummary {
-  return useAIChatStore((s) => {
-    const session = s.sessions[chatId];
-    return {
-      cost: session?.cost ?? 0,
-      inputTokens: session?.inputTokens ?? 0,
-      outputTokens: session?.outputTokens ?? 0,
-    };
-  });
+  // useShallow: the selector returns a fresh object on every call, which
+  // trips React's useSyncExternalStore identity check and causes an
+  // infinite re-render loop when two ChatCostChip instances mount in the
+  // same tree (e.g., Pop out creates a second AIChatViewer). Shallow
+  // comparison treats equal-by-value objects as unchanged.
+  return useAIChatStore(
+    useShallow((s) => {
+      const session = s.sessions[chatId];
+      return {
+        cost: session?.cost ?? 0,
+        inputTokens: session?.inputTokens ?? 0,
+        outputTokens: session?.outputTokens ?? 0,
+      };
+    }),
+  );
 }
 
 export interface TodayCostSummary {
@@ -459,20 +467,29 @@ export interface TodayCostSummary {
  * when localStorage is empty or when today's bucket doesn't yet exist
  * (first response of the day will create it).
  */
+// Stable empty byProvider map so the empty-bucket path doesn't produce
+// a fresh `{}` on every selector call — shallow equality only checks
+// the top-level keys, so a new inner `{}` would still trip the
+// getSnapshot-should-be-cached warning and loop.
+const EMPTY_BY_PROVIDER: Record<string, number> = {};
+
 export function useTodayCost(): TodayCostSummary {
-  return useAIChatStore((s) => {
-    const key = todayKey();
-    const bucket = s.dailyCosts[key];
-    if (!bucket) {
-      return { cost: 0, inputTokens: 0, outputTokens: 0, byProvider: {} };
-    }
-    return {
-      cost: bucket.total,
-      inputTokens: bucket.inputTokens,
-      outputTokens: bucket.outputTokens,
-      byProvider: bucket.byProvider,
-    };
-  });
+  // See useChatCost above for why useShallow is required.
+  return useAIChatStore(
+    useShallow((s) => {
+      const key = todayKey();
+      const bucket = s.dailyCosts[key];
+      if (!bucket) {
+        return { cost: 0, inputTokens: 0, outputTokens: 0, byProvider: EMPTY_BY_PROVIDER };
+      }
+      return {
+        cost: bucket.total,
+        inputTokens: bucket.inputTokens,
+        outputTokens: bucket.outputTokens,
+        byProvider: bucket.byProvider,
+      };
+    }),
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────
