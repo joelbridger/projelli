@@ -2,7 +2,7 @@
 // Displays open file tabs with close buttons, dirty indicators, drag-to-reorder, and tab groups
 
 import { useCallback, useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { X, GripVertical, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
+import { X, GripVertical, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getFileIcon } from '@/utils/fileIcons';
 import { Button } from '@/components/ui/button';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
@@ -137,6 +137,8 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     mergeTabGroups,
     pendingRenamePath,
     setPendingRenamePath,
+    pendingGroupRenameId,
+    setPendingGroupRenameId,
   } = useEditorStore();
 
   // Tab overflow mode: canonical source is settingsStore. Falls back to the
@@ -187,6 +189,18 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     setEditingTabName(removeExtension(newTab.name));
     setPendingRenamePath(null);
   }, [pendingRenamePath, openTabs, setActiveTab, setPendingRenamePath]);
+
+  // R3-P2: when a brand-new tab group is created, open the rename dialog
+  // so the user can name it immediately. One-shot.
+  useEffect(() => {
+    if (!pendingGroupRenameId) return;
+    const group = tabGroups.find((g) => g.id === pendingGroupRenameId);
+    if (!group) return;
+    setRenamingGroupId(group.id);
+    setRenameGroupValue(group.name);
+    setShowRenameDialog(true);
+    setPendingGroupRenameId(null);
+  }, [pendingGroupRenameId, tabGroups, setPendingGroupRenameId]);
 
   // Horizontal scroll state for the tab-strip overflow arrows
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -332,18 +346,26 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     }
   }, []);
 
+  // R3-P1 unified model: on any tab drop target the drop zone splits
+  // into left 30% (reorder before), right 30% (after), middle 40%
+  // (combine — create/join/merge depending on source+target type). The
+  // same math runs on group chips via handleGroupDragOver.
+  const computeTabZone = (e: React.DragEvent): 'before' | 'combine' | 'after' => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (x < rect.width * 0.30) return 'before';
+    if (x > rect.width * 0.70) return 'after';
+    return 'combine';
+  };
+
   const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
-    // Per the v1.6 plan: dropping a tab onto another tab in the bar always
-    // creates or joins a group. The previous left-25%/right-25% zone math
-    // (which produced reorder swaps) was confusing — especially when a tab
-    // dragged out of a group landed on an edge and silently lost its group.
-    // Reorder still works inside a group's expanded dropdown and via drop
-    // onto the empty bar area (which ungroups).
-    const intent: 'group' | 'reorder' = 'group';
-    const position: 'before' | 'after' | null = null;
+    const zone = computeTabZone(e);
+    const intent: 'group' | 'reorder' = zone === 'combine' ? 'group' : 'reorder';
+    const position: 'before' | 'after' | null =
+      zone === 'before' ? 'before' : zone === 'after' ? 'after' : null;
 
     if (dragOverIndex !== index || dragIntent !== intent || dropPosition !== position) {
       requestAnimationFrame(() => {
@@ -353,7 +375,6 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
       });
     }
 
-    // Clear any existing hover timer
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
@@ -364,70 +385,113 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     setDragOverIndex(null);
     setDragIntent(null);
     setDropPosition(null);
-    // Clear hover timer if drag leaves
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
     }
   }, []);
 
+  // Helper: next available "Group N" name.
+  const nextGroupName = useCallback(() => {
+    const existingGroupNumbers = tabGroups
+      .map((g) => {
+        const match = g.name.match(/^Group (\d+)$/);
+        return match && match[1] ? parseInt(match[1], 10) : 0;
+      })
+      .filter((n) => n > 0);
+    const nextNumber = existingGroupNumbers.length > 0 ? Math.max(...existingGroupNumbers) + 1 : 1;
+    return `Group ${nextNumber}`;
+  }, [tabGroups]);
+
   const handleDrop = useCallback((e: React.DragEvent, toIndex: number) => {
     e.preventDefault();
 
-    // Clear hover timer
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
     }
 
-    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
-    if (!isNaN(fromIndex) && fromIndex !== toIndex) {
-      const draggedTab = openTabs[fromIndex];
-      const targetTab = openTabs[toIndex];
+    const zone = computeTabZone(e);
+    const payload = e.dataTransfer.getData('text/plain');
+    const targetTab = openTabs[toIndex];
+    if (!targetTab) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      setDragIntent(null);
+      setDropPosition(null);
+      return;
+    }
 
-      if (draggedTab && targetTab) {
-        // Tab-on-tab drop ALWAYS creates or joins a group (per v1.6 spec).
-        // No more reorder branch here; reorder happens inside the dropdown
-        // for same-group tabs, and ungroup happens via drop on empty bar.
+    // ──── Group payload ────────────────────────────────────────────
+    if (payload.startsWith('group:')) {
+      const sourceGroupId = payload.slice('group:'.length);
+      if (sourceGroupId && sourceGroupId !== targetTab.groupId) {
+        // Group-on-tab: edge = reorder, center = treat as 'after' (there's
+        // no sensible "combine a group with a single tab" — we reorder.
+        const position: 'before' | 'after' = zone === 'before' ? 'before' : 'after';
+        useEditorStore.getState().reorderInTabBar(
+          { type: 'group', id: sourceGroupId },
+          { type: 'tab', id: targetTab.path },
+          position,
+        );
+      }
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      setDragIntent(null);
+      setDropPosition(null);
+      return;
+    }
 
-        // Helper: next available "Group N" name.
-        const nextGroupName = () => {
-          const existingGroupNumbers = tabGroups
-            .map(g => {
-              const match = g.name.match(/^Group (\d+)$/);
-              return match && match[1] ? parseInt(match[1], 10) : 0;
-            })
-            .filter(n => n > 0);
-          const nextNumber = existingGroupNumbers.length > 0
-            ? Math.max(...existingGroupNumbers) + 1
-            : 1;
-          return `Group ${nextNumber}`;
-        };
+    // ──── Tab payload ─────────────────────────────────────────────
+    const fromIndex = parseInt(payload, 10);
+    if (isNaN(fromIndex) || fromIndex === toIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      setDragIntent(null);
+      setDropPosition(null);
+      return;
+    }
+    const draggedTab = openTabs[fromIndex];
+    if (!draggedTab) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      setDragIntent(null);
+      setDropPosition(null);
+      return;
+    }
 
-        // Case 1: Both tabs are ungrouped — create a new group.
-        if (!draggedTab.groupId && !targetTab.groupId) {
-          createTabGroup(nextGroupName(), [draggedTab.path, targetTab.path]);
-        }
-        // Case 2: Target tab has a group — add dragged tab to that group.
-        // (This also covers both-grouped; the dragged tab leaves its old
-        // group via Zustand's single-group membership contract.)
-        else if (targetTab.groupId) {
-          moveTabToGroup(draggedTab.path, targetTab.groupId);
-        }
-        // Case 3: Dragged tab has a group but target doesn't — create a
-        // BRAND NEW group pairing just these two tabs. The dragged tab
-        // leaves its old group in the process (createTabGroup + the
-        // moveTabToGroup single-membership contract pulls it out).
-        else if (draggedTab.groupId && !targetTab.groupId) {
-          createTabGroup(nextGroupName(), [draggedTab.path, targetTab.path]);
-        }
+    if (zone === 'combine') {
+      // Tab dropped on center of another tab:
+      //   both ungrouped  → new group with both
+      //   target grouped  → join target's group (dragged leaves its own)
+      //   dragged grouped, target ungrouped → new group pairing both
+      if (!draggedTab.groupId && !targetTab.groupId) {
+        const newId = createTabGroup(nextGroupName(), [draggedTab.path, targetTab.path]);
+        useEditorStore.getState().setPendingGroupRenameId(newId);
+      } else if (targetTab.groupId) {
+        moveTabToGroup(draggedTab.path, targetTab.groupId);
+      } else if (draggedTab.groupId && !targetTab.groupId) {
+        const newId = createTabGroup(nextGroupName(), [draggedTab.path, targetTab.path]);
+        useEditorStore.getState().setPendingGroupRenameId(newId);
+      }
+    } else {
+      // Tab dropped on edge of another tab → reorder. Ungroup the dragged
+      // tab if it was in a group (same contract as drop-on-empty-area).
+      useEditorStore.getState().reorderInTabBar(
+        { type: 'tab', id: draggedTab.path },
+        { type: 'tab', id: targetTab.path },
+        zone === 'before' ? 'before' : 'after',
+      );
+      if (draggedTab.groupId) {
+        ungroupTab(draggedTab.path);
       }
     }
+
     setDraggedIndex(null);
     setDragOverIndex(null);
     setDragIntent(null);
     setDropPosition(null);
-  }, [openTabs, moveTabToGroup, tabGroups, createTabGroup]);
+  }, [openTabs, moveTabToGroup, createTabGroup, nextGroupName, ungroupTab]);
 
 
   const handleGroupDoubleClick = useCallback((groupId: string, currentName: string) => {
@@ -796,17 +860,6 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
               }
             }}
           >
-            {/* Group-level actions live at the top so they're discoverable
-                even without remembering the double-click shortcut. */}
-            <DropdownMenuItem
-              onSelect={() => {
-                handleGroupDoubleClick(group.id, group.name);
-              }}
-            >
-              <Edit2 className="h-3.5 w-3.5 mr-2" />
-              Rename group...
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             {/* List of tabs in group */}
             {tabs.length > 0 && (
               <>
@@ -960,19 +1013,25 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     );
   };
 
-  // Build a flat list of items to render inline: groups and ungrouped tabs only
-  // Grouped tabs are ONLY shown inside the group dropdown menu, not in the main tab bar
+  // Walk openTabs in order. Render a group chip at the FIRST appearance of
+  // each group's tabs; skip subsequent tabs of the same group (they live
+  // inside the chip's dropdown). Ungrouped tabs render in their current
+  // openTabs position. This interleaves groups with ungrouped tabs so the
+  // bar reflects one flat ordered sequence that drag-and-drop can reorder.
   const renderItems: Array<{ type: 'tab' | 'group'; data: typeof openTabs[0] | typeof tabGroups[0] }> = [];
-
-  // Add groups first as chips
-  tabGroups.forEach((group) => {
-    renderItems.push({ type: 'group', data: group });
-  });
-
-  // Add ungrouped tabs only - grouped tabs stay hidden in their group dropdown
-  const ungroupedTabs = openTabs.filter((tab) => !tab.groupId);
-  ungroupedTabs.forEach((tab) => {
-    renderItems.push({ type: 'tab', data: tab });
+  const seenGroups = new Set<string>();
+  openTabs.forEach((tab) => {
+    if (tab.groupId) {
+      if (!seenGroups.has(tab.groupId)) {
+        const group = tabGroups.find((g) => g.id === tab.groupId);
+        if (group) {
+          renderItems.push({ type: 'group', data: group });
+          seenGroups.add(tab.groupId);
+        }
+      }
+    } else {
+      renderItems.push({ type: 'tab', data: tab });
+    }
   });
 
   return (

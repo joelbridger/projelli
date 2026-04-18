@@ -103,12 +103,27 @@ interface EditorState {
   // R2-P4: merge source group into target. All tabs from source get
   // target's groupId; source group is removed. Target name/position kept.
   mergeTabGroups: (sourceId: string, targetId: string) => void;
+  // R3-P1: unified reorder for tab bar. Moves a source (tab or group) to
+  // before/after a target (tab or group) in the openTabs array. Groups
+  // move as a contiguous block of all their tabs. Refs: tabs by path,
+  // groups by groupId.
+  reorderInTabBar: (
+    source: { type: 'tab' | 'group'; id: string },
+    target: { type: 'tab' | 'group'; id: string },
+    position: 'before' | 'after',
+  ) => void;
 
   // R2-P2: One-shot flag the file-creation flows set after creating a
   // tab; TabBar watches it and drops that tab straight into inline-rename
   // mode so users can name it without double-clicking.
   pendingRenamePath: string | null;
   setPendingRenamePath: (path: string | null) => void;
+
+  // R3-P2: One-shot flag set whenever a brand-new tab group is created
+  // (via drag-to-group, explicit createTabGroup, etc.). TabBar opens the
+  // Rename Tab Group dialog so the user can name the group immediately.
+  pendingGroupRenameId: string | null;
+  setPendingGroupRenameId: (id: string | null) => void;
 
   // Workspace tab persistence actions
   saveWorkspaceState: (rootPath: string) => void;
@@ -126,6 +141,8 @@ export const useEditorStore = create<EditorState>()(
   activeTabPath: null,
   pendingRenamePath: null,
   setPendingRenamePath: (path) => set({ pendingRenamePath: path }),
+  pendingGroupRenameId: null,
+  setPendingGroupRenameId: (id) => set({ pendingGroupRenameId: id }),
   layout: null,
 
   // Tab groups
@@ -458,6 +475,42 @@ export const useEditorStore = create<EditorState>()(
         openTabs: updatedTabs,
         tabGroups: state.tabGroups.filter((g) => g.id !== sourceId),
       };
+    });
+  },
+
+  reorderInTabBar: (source, target, position) => {
+    if (source.type === target.type && source.id === target.id) return;
+    set((state) => {
+      // Collect the source block: either a single tab or all tabs in a group.
+      const isGroupSource = source.type === 'group';
+      const sourceBlock = isGroupSource
+        ? state.openTabs.filter((t) => t.groupId === source.id)
+        : state.openTabs.filter((t) => t.path === source.id);
+      if (sourceBlock.length === 0) return state;
+
+      // Remove the source block from openTabs; preserve the rest's order.
+      const remaining = state.openTabs.filter((t) => !sourceBlock.includes(t));
+
+      // Find insertion index based on target type + position.
+      let insertIdx = remaining.length; // default = append
+      if (target.type === 'tab') {
+        const targetIdx = remaining.findIndex((t) => t.path === target.id);
+        if (targetIdx === -1) return state;
+        insertIdx = position === 'before' ? targetIdx : targetIdx + 1;
+      } else {
+        // Target is a group; find its span in remaining.
+        const indices = remaining
+          .map((t, i) => (t.groupId === target.id ? i : -1))
+          .filter((i) => i !== -1);
+        if (indices.length === 0) return state;
+        const firstIdx = Math.min(...indices);
+        const lastIdx = Math.max(...indices);
+        insertIdx = position === 'before' ? firstIdx : lastIdx + 1;
+      }
+
+      const spliced = [...remaining];
+      spliced.splice(insertIdx, 0, ...sourceBlock);
+      return { openTabs: spliced };
     });
   },
 
