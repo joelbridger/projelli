@@ -57,7 +57,7 @@ describe('AuditLog — Q6 filters', () => {
     expect(screen.getByText('apr10-claude-desc')).toBeInTheDocument();
     expect(screen.getByText('apr16-gpt-desc')).toBeInTheDocument();
     expect(screen.getByText('apr20-claude-desc')).toBeInTheDocument();
-    expect(screen.getByText('(3 entries)')).toBeInTheDocument();
+    expect(screen.getByText('(3)')).toBeInTheDocument();
   });
 
   it('filters to a single day inclusive when dateFrom === dateTo', () => {
@@ -72,7 +72,7 @@ describe('AuditLog — Q6 filters', () => {
     expect(screen.queryByText('apr10-claude-desc')).not.toBeInTheDocument();
     expect(screen.getByText('apr16-gpt-desc')).toBeInTheDocument();
     expect(screen.queryByText('apr20-claude-desc')).not.toBeInTheDocument();
-    expect(screen.getByText('(1 entries)')).toBeInTheDocument();
+    expect(screen.getByText('(1)')).toBeInTheDocument();
   });
 
   it('filters by model dropdown populated from unique models in data', () => {
@@ -120,13 +120,13 @@ describe('AuditLog — Q6 filters', () => {
     fireEvent.change(screen.getByTestId('audit-log-filter-model'), {
       target: { value: 'gpt-4o' },
     });
-    expect(screen.getByText('(1 entries)')).toBeInTheDocument();
+    expect(screen.getByText('(1)')).toBeInTheDocument();
 
     const reset = screen.getByTestId('audit-log-filter-reset');
     fireEvent.click(reset);
 
     // All entries visible again; reset button should be hidden.
-    expect(screen.getByText('(3 entries)')).toBeInTheDocument();
+    expect(screen.getByText('(3)')).toBeInTheDocument();
     expect(screen.queryByTestId('audit-log-filter-reset')).not.toBeInTheDocument();
   });
 

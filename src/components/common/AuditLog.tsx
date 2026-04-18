@@ -14,7 +14,6 @@ import {
 import {
   History,
   Search,
-  Download,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -201,60 +200,68 @@ export function AuditLog({
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <div className="flex items-center gap-2">
-          <History className="h-5 w-5" />
-          <span className="font-medium">AI Audit Log</span>
-          <span className="text-xs text-muted-foreground">
-            ({filteredEntries.length} entries)
+      {/* Header — sized for the narrow sidebar slot. Title is truncated,
+          export buttons are icon-only with tooltips, entry count hugs the
+          title so the whole row stays on one line. */}
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <History className="h-4 w-4 shrink-0" />
+          <span className="font-medium text-sm truncate">AI Audit</span>
+          <span className="text-xs text-muted-foreground shrink-0">
+            ({filteredEntries.length})
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-0.5 shrink-0">
           <Button
             variant="ghost"
             size="sm"
+            className="h-7 px-1.5 text-[10px] font-medium"
             onClick={handleExportJSON}
             data-testid="audit-log-export-json-btn"
             disabled={filteredEntries.length === 0}
+            title="Export JSON"
+            aria-label="Export JSON"
           >
-            <Download className="h-4 w-4 mr-1" />
             JSON
           </Button>
           <Button
             variant="ghost"
             size="sm"
+            className="h-7 px-1.5 text-[10px] font-medium"
             onClick={handleExportCSV}
             data-testid="audit-log-export-csv-btn"
             disabled={filteredEntries.length === 0}
+            title="Export CSV"
+            aria-label="Export CSV"
           >
-            <Download className="h-4 w-4 mr-1" />
             CSV
           </Button>
         </div>
       </div>
 
-      {/* Search and filters */}
-      <div className="px-4 py-2 border-b space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      {/* Search and filters — sized for the narrow sidebar slot. */}
+      <div className="px-3 py-2 border-b space-y-2">
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search logs..."
+              placeholder="Search..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-8"
+              className="pl-7 h-7 text-xs"
             />
           </div>
           <Button
             variant={showFilters ? 'secondary' : 'ghost'}
             size="sm"
+            className="h-7 px-1.5 shrink-0"
             onClick={() => setShowFilters(!showFilters)}
+            title={activeFilterCount > 0 ? `Filter ${activeFilterCount}` : 'Filter'}
+            aria-label={activeFilterCount > 0 ? `Filter ${activeFilterCount}` : 'Filter'}
           >
-            <Filter className="h-4 w-4 mr-1" />
-            Filter
+            <Filter className="h-3.5 w-3.5" />
             {activeFilterCount > 0 && (
-              <span className="ml-1 text-xs bg-primary text-primary-foreground rounded-full px-1.5">
+              <span className="ml-1 text-[10px] bg-primary text-primary-foreground rounded-full px-1">
                 {activeFilterCount}
               </span>
             )}
