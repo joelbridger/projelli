@@ -207,7 +207,7 @@ function App() {
     : theme;
 
   const { rootPath, setRootPath, setFileTree, recentWorkspaces, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore();
-  const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, toggleBacklinks, splitPane, closeSplit, isSplit } = useEditorStore();
+  const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, toggleBacklinks, splitPane, closeSplit, isSplit, setPendingRenamePath } = useEditorStore();
   const { runHistory, completeRun } = useWorkflowStore();
 
   // M1 (v1.5) Memory: install the workspace RAG indexer once we know
@@ -1012,11 +1012,13 @@ function App() {
         const fileTree = await workspaceServiceRef.current.getFileTree();
         setFileTree(fileTree);
         await handleFileOpen(filePath, name);
+        // R2-P2: drop the new tab into inline rename mode.
+        setPendingRenamePath(filePath);
       } catch (error) {
         console.error('Failed to create file:', error);
       }
     },
-    [setFileTree, handleFileOpen, prompt]
+    [setFileTree, handleFileOpen, prompt, setPendingRenamePath]
   );
 
   // Handle create new folder
@@ -1216,10 +1218,11 @@ function App() {
       const fileTree = await workspaceServiceRef.current.getFileTree();
       setFileTree(fileTree);
       await handleFileOpen(filePath, name);
+      setPendingRenamePath(filePath);
     } catch (error) {
       console.error('Failed to create file:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen, prompt]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt, setPendingRenamePath]);
 
   // Handle create markdown file at root (goes to docs folder)
   const handleCreateMarkdownAtRoot = useCallback(async () => {
@@ -1239,10 +1242,11 @@ function App() {
       const fileTree = await workspaceServiceRef.current.getFileTree();
       setFileTree(fileTree);
       await handleFileOpen(filePath, fileName);
+      setPendingRenamePath(filePath);
     } catch (error) {
       console.error('Failed to create markdown file:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen, prompt]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt, setPendingRenamePath]);
 
   // Handle create plain text file at root (goes to docs folder)
   const handleCreateTextFileAtRoot = useCallback(async () => {
@@ -1262,10 +1266,11 @@ function App() {
       const fileTree = await workspaceServiceRef.current.getFileTree();
       setFileTree(fileTree);
       await handleFileOpen(filePath, fileName);
+      setPendingRenamePath(filePath);
     } catch (error) {
       console.error('Failed to create text file:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen, prompt]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt, setPendingRenamePath]);
 
   // Handle create rich text file at root (goes to docs folder)
   const handleCreateRichTextFileAtRoot = useCallback(async () => {
@@ -1286,10 +1291,11 @@ function App() {
       const fileTree = await workspaceServiceRef.current.getFileTree();
       setFileTree(fileTree);
       await handleFileOpen(filePath, fileName);
+      setPendingRenamePath(filePath);
     } catch (error) {
       console.error('Failed to create rich text file:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen, prompt]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt, setPendingRenamePath]);
 
   // Handle create blank spreadsheet file at root (goes to docs folder)
   const handleCreateSpreadsheetAtRoot = useCallback(async () => {
@@ -1441,13 +1447,14 @@ function App() {
       const fileTree = await workspaceServiceRef.current.getFileTree();
       setFileTree(fileTree);
       await handleFileOpen(filePath, filename);
+      setPendingRenamePath(filePath);
 
       // Add to sources state
       setSourceCards(prev => [...prev, newSourceCard]);
     } catch (error) {
       console.error('Failed to create source file:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen, prompt]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt, setPendingRenamePath]);
 
   // Handle create folder at root
   const handleCreateFolderAtRoot = useCallback(async () => {
@@ -1491,11 +1498,12 @@ function App() {
         const fileTree = await workspaceServiceRef.current.getFileTree();
         setFileTree(fileTree);
         await handleFileOpen(filePath, fileName);
+        setPendingRenamePath(filePath);
       } catch (error) {
         console.error('Failed to create whiteboard:', error);
       }
     },
-    [setFileTree, handleFileOpen, prompt]
+    [setFileTree, handleFileOpen, prompt, setPendingRenamePath]
   );
 
   // Handle create whiteboard at root (goes to whiteboards folder)
@@ -1515,10 +1523,11 @@ function App() {
       const fileTree = await workspaceServiceRef.current.getFileTree();
       setFileTree(fileTree);
       await handleFileOpen(filePath, fileName);
+      setPendingRenamePath(filePath);
     } catch (error) {
       console.error('Failed to create whiteboard:', error);
     }
-  }, [rootPath, setFileTree, handleFileOpen, prompt]);
+  }, [rootPath, setFileTree, handleFileOpen, prompt, setPendingRenamePath]);
 
   // Handle open grid view
   const handleOpenGridView = useCallback(() => {

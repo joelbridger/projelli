@@ -133,6 +133,8 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     deleteTabGroup,
     moveTabToGroup,
     ungroupTab,
+    pendingRenamePath,
+    setPendingRenamePath,
   } = useEditorStore();
 
   // Tab overflow mode: canonical source is settingsStore. Falls back to the
@@ -163,6 +165,20 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   // the rename dialog instead. Without this Radix's pointerdown auto-open
   // would fire before dblclick is detected.
   const groupClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // R2-P2: when a file-creation flow sets pendingRenamePath and the new tab
+  // lands in openTabs, drop it into inline-rename mode so the user can
+  // type the name right away. The flag is one-shot so it doesn't re-fire
+  // when the user cancels rename and the same tab is still open.
+  useEffect(() => {
+    if (!pendingRenamePath) return;
+    const newTab = openTabs.find((t) => t.path === pendingRenamePath);
+    if (!newTab) return; // tab not yet in store; effect will re-run when it lands
+    setActiveTab(pendingRenamePath);
+    setEditingTabPath(pendingRenamePath);
+    setEditingTabName(removeExtension(newTab.name));
+    setPendingRenamePath(null);
+  }, [pendingRenamePath, openTabs, setActiveTab, setPendingRenamePath]);
 
   // Horizontal scroll state for the tab-strip overflow arrows
   const scrollRef = useRef<HTMLDivElement>(null);

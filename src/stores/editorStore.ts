@@ -97,6 +97,12 @@ interface EditorState {
   moveTabToGroup: (tabPath: string, groupId: string | null) => void;
   ungroupTab: (tabPath: string) => void;
 
+  // R2-P2: One-shot flag the file-creation flows set after creating a
+  // tab; TabBar watches it and drops that tab straight into inline-rename
+  // mode so users can name it without double-clicking.
+  pendingRenamePath: string | null;
+  setPendingRenamePath: (path: string | null) => void;
+
   // Workspace tab persistence actions
   saveWorkspaceState: (rootPath: string) => void;
   restoreWorkspaceState: (
@@ -111,6 +117,8 @@ export const useEditorStore = create<EditorState>()(
   (set, get) => ({
   openTabs: [],
   activeTabPath: null,
+  pendingRenamePath: null,
+  setPendingRenamePath: (path) => set({ pendingRenamePath: path }),
   layout: null,
 
   // Tab groups
