@@ -41,12 +41,22 @@ describe('Per-provider tutorial data shape', () => {
   it.each(providers)('%s tutorial is voice-rule compliant (no em dashes, no banned words)', (providerId) => {
     const t = PROVIDER_TUTORIALS[providerId];
     const allText = [
-      t.providerName, t.costHint,
+      t.providerName,
       ...t.steps.flatMap((s) => [s.title, s.body, s.hint ?? '']),
     ].join(' ');
     expect(allText).not.toMatch(/\u2014|&mdash;/);
     const banned = /\b(leverage|seamless|empower|unlock|delve|tapestry|elevate)\b/i;
     expect(allText).not.toMatch(banned);
+  });
+
+  it.each(providers)('%s tutorial has no dollar-amount estimates', (providerId) => {
+    const t = PROVIDER_TUTORIALS[providerId];
+    const allText = [
+      t.providerName,
+      ...t.steps.flatMap((s) => [s.title, s.body, s.hint ?? '']),
+    ].join(' ');
+    // Guard against reintroducing cost prose like "$5 lasts most founders a month".
+    expect(allText).not.toMatch(/\$\d/);
   });
 });
 

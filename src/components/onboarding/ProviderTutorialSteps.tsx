@@ -31,8 +31,6 @@ export interface ProviderTutorial {
   consoleUrl: string;
   /** Direct URL to billing / usage page (shown at end of tutorial). */
   billingUrl: string;
-  /** Rough per-month cost for typical founder use. */
-  costHint: string;
   steps: TutorialStep[];
 }
 
@@ -42,7 +40,6 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
     providerName: 'Anthropic (Claude)',
     consoleUrl: 'https://console.anthropic.com/settings/keys',
     billingUrl: 'https://console.anthropic.com/settings/billing',
-    costHint: '$2-5/month typical use with Claude Haiku 4.5',
     steps: [
       {
         title: 'Open console.anthropic.com',
@@ -63,7 +60,7 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       },
       {
         title: 'Add credits (if needed)',
-        body: 'New accounts have free-tier credits for ~1 week. After that, add credits at Settings, then Billing. $5 lasts most founders a month.',
+        body: 'New accounts have free-tier credits for about a week. After that, add a credit balance at Settings, then Billing.',
       },
     ],
   },
@@ -72,7 +69,6 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
     providerName: 'OpenAI (GPT)',
     consoleUrl: 'https://platform.openai.com/api-keys',
     billingUrl: 'https://platform.openai.com/settings/organization/billing',
-    costHint: '$3-10/month typical use with GPT-4o-mini',
     steps: [
       {
         title: 'Open platform.openai.com',
@@ -92,8 +88,8 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
         body: 'Shown once. Starts with sk-proj- or sk-. Paste into Projelli step 3.',
       },
       {
-        title: 'Add $5 to billing',
-        body: 'OpenAI requires prepaid credit for API use (unlike ChatGPT Plus). Go to Billing, add payment method, add $5-10 to start.',
+        title: 'Add billing credit',
+        body: 'OpenAI requires prepaid credit for API use (unlike ChatGPT Plus). Go to Billing, add a payment method, and add an initial credit balance.',
       },
     ],
   },
@@ -102,7 +98,6 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
     providerName: 'Google (Gemini)',
     consoleUrl: 'https://aistudio.google.com/app/apikey',
     billingUrl: 'https://ai.google.dev/pricing',
-    costHint: 'Free tier: 1500 requests/day with Gemini Flash (most users never hit a paid charge)',
     steps: [
       {
         title: 'Open aistudio.google.com',
@@ -136,7 +131,7 @@ export function ProviderTutorialList({ tutorial }: { tutorial: ProviderTutorial 
   return (
     <div className="space-y-4" data-testid={`api-key-tutorial-${tutorial.providerId}`}>
       <div className="text-sm text-muted-foreground">
-        <strong>{tutorial.providerName}</strong> · {tutorial.costHint}
+        <strong>{tutorial.providerName}</strong>
       </div>
       <div className="flex flex-wrap gap-2">
         <Button
