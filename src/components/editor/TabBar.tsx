@@ -156,6 +156,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const [showGroupManager, setShowGroupManager] = useState(false);
   const [openDropdownGroupId, setOpenDropdownGroupId] = useState<string | null>(null);
   const [dragOverDropdownIndex, setDragOverDropdownIndex] = useState<number | null>(null);
+  const [dropdownDropPosition, setDropdownDropPosition] = useState<'before' | 'after' | null>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Deferred-open timer for tab-group chips: a single click waits 250ms
   // before opening the dropdown so a double-click can intercept and open
@@ -763,16 +764,31 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                   const tabIndex = openTabs.indexOf(tab);
                   const isDraggingThis = draggedIndex === tabIndex;
                   const isDragOverThis = dragOverDropdownIndex === idx && !isDraggingThis;
+                  const isEditingThis = editingTabPath === tab.path;
 
                   return (
-                    <DropdownMenuItem
+                    <div
                       key={tab.path}
-                      onClick={() => handleTabClick(tab.path)}
+                      role="menuitem"
+                      tabIndex={-1}
                       className={cn(
-                        "gap-2 cursor-move",
+                        "relative flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none",
+                        !isEditingThis && "cursor-move hover:bg-accent hover:text-accent-foreground",
                         isDraggingThis && "opacity-50",
-                        isDragOverThis && "bg-primary/20"
+                        isDragOverThis && dropdownDropPosition === 'before' && "border-t-2 border-primary",
+                        isDragOverThis && dropdownDropPosition === 'after' && "border-b-2 border-primary",
                       )}
+                      onClick={(e) => {
+                        if (isEditingThis) return;
+                        e.stopPropagation();
+                        handleTabClick(tab.path);
+                        setOpenDropdownGroupId(null);
+                      }}
+                      onDoubleClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleTabDoubleClick(tab);
+                      }}
                       onDragStart={(e) => {
                         e.stopPropagation();
                         handleDragStart(e as any, tabIndex);
@@ -784,66 +800,104 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                       onDragEnd={(e) => {
                         e.stopPropagation();
                         handleDragEnd();
+                        setDragOverDropdownIndex(null);
+                        setDropdownDropPosition(null);
                       }}
                       onDragOver={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setDragOverDropdownIndex(idx);
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const isBefore = (e.clientY - rect.top) < rect.height / 2;
+                        setDropdownDropPosition(isBefore ? 'before' : 'after');
                       }}
                       onDragLeave={(e) => {
                         e.stopPropagation();
-                        setDragOverDropdownIndex(null);
+                        // Only clear when leaving the row, not when crossing into a child
+                        if (e.currentTarget === e.target) {
+                          setDragOverDropdownIndex(null);
+                          setDropdownDropPosition(null);
+                        }
                       }}
                       onDrop={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        const position = dropdownDropPosition;
                         setDragOverDropdownIndex(null);
+                        setDropdownDropPosition(null);
 
                         const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
-                        if (!isNaN(fromIndex) && fromIndex !== tabIndex) {
-                          const draggedTab = openTabs[fromIndex];
-                          const targetTab = openTabs[tabIndex];
+                        if (isNaN(fromIndex) || fromIndex === tabIndex) return;
 
-                          // Reorder within the same group
-                          if (draggedTab && targetTab && draggedTab.groupId === targetTab.groupId) {
-                            // Find positions within the group's tab array
-                            const groupTabs = tabs;
-                            const fromGroupIndex = groupTabs.findIndex(t => t.path === draggedTab.path);
-                            const toGroupIndex = groupTabs.findIndex(t => t.path === targetTab.path);
+                        const draggedTab = openTabs[fromIndex];
+                        const targetTab = openTabs[tabIndex];
+                        if (!draggedTab || !targetTab) return;
+                        // Reorder within the same group only
+                        if (draggedTab.groupId !== targetTab.groupId) return;
 
-                            if (fromGroupIndex !== -1 && toGroupIndex !== -1) {
-                              // Calculate actual indices in openTabs array
-                              const fromTab = groupTabs[fromGroupIndex];
-                              const toTab = groupTabs[toGroupIndex];
-                              if (fromTab && toTab) {
-                                const actualFromIndex = openTabs.indexOf(fromTab);
-                                const actualToIndex = openTabs.indexOf(toTab);
-                                reorderTabs(actualFromIndex, actualToIndex);
-                              }
-                            }
-                          }
-                        }
+                        const actualFromIndex = openTabs.indexOf(draggedTab);
+                        let actualToIndex = openTabs.indexOf(targetTab);
+                        if (position === 'after') actualToIndex += 1;
+                        // Reorder semantics: when moving forward, the target
+                        // shifts left by one as the source is removed first.
+                        if (actualFromIndex < actualToIndex) actualToIndex -= 1;
+                        reorderTabs(actualFromIndex, actualToIndex);
                       }}
-                      draggable
+                      draggable={!isEditingThis}
                     >
                       <GripVertical className="h-3 w-3 flex-shrink-0 opacity-40" />
                       {getTabIcon(tab)}
-                      <span className="truncate flex-1">{removeExtension(tab.name)}</span>
+                      {isEditingThis ? (
+                        <input
+                          type="text"
+                          value={editingTabName}
+                          onChange={(e) => setEditingTabName(e.target.value)}
+                          onBlur={handleTabRenameSubmit}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            // Stop arrow keys from triggering Radix typeahead.
+                            e.stopPropagation();
+                            if (e.key === 'Enter') {
+                              handleTabRenameSubmit();
+                            } else if (e.key === 'Escape') {
+                              setEditingTabPath(null);
+                              setEditingTabName('');
+                            }
+                          }}
+                          autoFocus
+                          className="truncate flex-1 min-w-0 px-1 py-0 bg-background border rounded text-xs"
+                        />
+                      ) : (
+                        <span className="truncate flex-1">{removeExtension(tab.name)}</span>
+                      )}
                       {tab.isDirty && (
                         <span className="text-amber-500 font-bold" title="Unsaved changes">
                           *
                         </span>
                       )}
-                    </DropdownMenuItem>
+                      {!isEditingThis && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 w-5 p-0 opacity-50 hover:opacity-100"
+                          title="Close tab"
+                          aria-label={`Close ${tab.name}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            closeTab(tab.path);
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
                   );
                 })}
-                <div className="h-px bg-border my-1" />
+                <DropdownMenuSeparator />
               </>
             )}
-            {/* Group actions */}
-            <DropdownMenuItem onClick={() => handleGroupDoubleClick(group.id, group.name)}>
-              Rename Group
-            </DropdownMenuItem>
+            {/* Destructive action — Rename now lives at the top of the menu. */}
             <DropdownMenuItem onClick={() => handleGroupDelete(group.id)} className="text-destructive">
               Delete Group
             </DropdownMenuItem>
