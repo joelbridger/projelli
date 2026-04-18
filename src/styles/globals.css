@@ -10,8 +10,9 @@
   --color-card-foreground: hsl(222.2 84% 4.9%);
   --color-popover: hsl(0 0% 100%);
   --color-popover-foreground: hsl(222.2 84% 4.9%);
-  --color-primary: hsl(222.2 47.4% 11.2%);
-  --color-primary-foreground: hsl(210 40% 98%);
+  /* Brand Coral #FF7C6E — matches projelli.com press kit. */
+  --color-primary: hsl(6 100% 72%);
+  --color-primary-foreground: hsl(0 0% 100%);
   --color-secondary: hsl(210 40% 96.1%);
   --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
   --color-muted: hsl(210 40% 96.1%);
@@ -22,7 +23,7 @@
   --color-destructive-foreground: hsl(210 40% 98%);
   --color-border: hsl(214.3 31.8% 91.4%);
   --color-input: hsl(214.3 31.8% 91.4%);
-  --color-ring: hsl(222.2 84% 4.9%);
+  --color-ring: hsl(6 100% 72%);
 
   /* Border radius */
   --radius-sm: calc(var(--radius) - 4px);
@@ -64,8 +65,9 @@
   --color-card-foreground: hsl(210 40% 98%);
   --color-popover: hsl(222.2 84% 4.9%);
   --color-popover-foreground: hsl(210 40% 98%);
-  --color-primary: hsl(210 40% 98%);
-  --color-primary-foreground: hsl(222.2 47.4% 11.2%);
+  /* Keep brand coral in dark mode too; white text reads cleanly on it. */
+  --color-primary: hsl(6 100% 72%);
+  --color-primary-foreground: hsl(0 0% 100%);
   --color-secondary: hsl(217.2 32.6% 17.5%);
   --color-secondary-foreground: hsl(210 40% 98%);
   --color-muted: hsl(217.2 32.6% 17.5%);
@@ -76,5 +78,5 @@
   --color-destructive-foreground: hsl(210 40% 98%);
   --color-border: hsl(217.2 32.6% 17.5%);
   --color-input: hsl(217.2 32.6% 17.5%);
-  --color-ring: hsl(212.7 26.8% 83.9%);
+  --color-ring: hsl(6 100% 72%);
 }

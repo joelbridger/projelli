@@ -282,7 +282,7 @@ function AnchoredBubble({ target, placement, testid, children }: AnchoredBubbleP
     width: rect.width + 8,
     height: rect.height + 8,
     pointerEvents: 'none',
-    border: '2px solid rgb(247, 99, 82)',
+    border: '2px solid #FF7C6E',
     borderRadius: 6,
     boxShadow: '0 0 0 9999px rgba(0,0,0,0.35)',
     zIndex: 10000,
