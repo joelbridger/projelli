@@ -59,43 +59,49 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
     }
   }, [editingGroupId]);
 
-  // Same auto-focus for per-tab rename — select up to the file extension so
-  // typing replaces the base name without clobbering ".md"/".aichat" etc.
+  // Auto-focus per-tab rename input. DEPS DISCIPLINE: only [editingTabPath].
+  // Including editingTabName here makes the effect fire on every keystroke,
+  // which re-runs select() and overwrites the user's just-typed character.
   useEffect(() => {
     if (editingTabPath && tabRenameInputRef.current) {
-      const input = tabRenameInputRef.current;
-      input.focus();
-      const dot = editingTabName.lastIndexOf('.');
-      if (dot > 0) {
-        input.setSelectionRange(0, dot);
-      } else {
-        input.select();
-      }
+      tabRenameInputRef.current.focus();
+      tabRenameInputRef.current.select();
     }
-  }, [editingTabPath, editingTabName]);
+  }, [editingTabPath]);
 
+  // Strip the extension at start so typing replaces the base name only;
+  // submit reattaches the original extension. Mirrors TabBar's working
+  // inline-rename pattern.
   const handleStartRenameTab = useCallback((path: string, currentName: string) => {
+    const dot = currentName.lastIndexOf('.');
+    const baseName = dot > 0 ? currentName.slice(0, dot) : currentName;
     setEditingTabPath(path);
-    setEditingTabName(currentName);
+    setEditingTabName(baseName);
   }, []);
 
   const handleRenameTabSubmit = useCallback(async () => {
     if (!editingTabPath || !onRenameTab) {
       setEditingTabPath(null);
+      setEditingTabName('');
       return;
     }
     const trimmed = editingTabName.trim();
     if (!trimmed) {
       setEditingTabPath(null);
+      setEditingTabName('');
       return;
     }
     const currentName = editingTabPath.split('/').pop() ?? '';
-    if (trimmed === currentName) {
+    const dot = currentName.lastIndexOf('.');
+    const ext = dot > 0 ? currentName.slice(dot) : '';
+    const newName = trimmed.includes('.') ? trimmed : `${trimmed}${ext}`;
+    if (newName === currentName) {
       setEditingTabPath(null);
+      setEditingTabName('');
       return;
     }
     try {
-      await onRenameTab(editingTabPath, trimmed);
+      await onRenameTab(editingTabPath, newName);
     } catch (error) {
       console.error('Tab rename failed:', error);
     } finally {

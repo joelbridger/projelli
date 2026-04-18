@@ -492,8 +492,35 @@ function App() {
           async delete(path: string) {
             mockFs.delete(path);
           },
+          async rename(oldPath: string, newName: string) {
+            // Real WorkspaceService.rename takes (oldPath, newName) where
+            // newName is just the basename; it derives the new path from
+            // oldPath's parent dir. Mirror that so dev-mode mirrors prod.
+            const slashIdx = oldPath.lastIndexOf('/');
+            const parent = slashIdx === -1 ? '' : oldPath.slice(0, slashIdx);
+            const newPath = parent ? `${parent}/${newName}` : newName;
+            const buf = mockFs.get(oldPath);
+            if (buf) {
+              const copy = new ArrayBuffer(buf.byteLength);
+              new Uint8Array(copy).set(new Uint8Array(buf));
+              mockFs.set(newPath, copy);
+              mockFs.delete(oldPath);
+            }
+          },
         };
         workspaceServiceRef.current = mockService as unknown as WorkspaceService;
+        // Seed the two demo tabs into the mock filesystem too so that any
+        // workspace op which goes through the real fs path (rename, exists,
+        // readFile during reopen-after-rename) finds them. Without this seed
+        // the editor store has tabs but mockFs has nothing.
+        const seedText = (path: string, content: string) => {
+          const bytes = textEncoder.encode(content);
+          const copy = new ArrayBuffer(bytes.byteLength);
+          new Uint8Array(copy).set(bytes);
+          mockFs.set(path, copy);
+        };
+        seedText('/test-workspace/docs/test1.md', '# Test Document 1\n\nThis is a test markdown document.');
+        seedText('/test-workspace/docs/test2.txt', 'This is a plain text document for testing the formatting toolbar.');
         (window as unknown as {
           __mockWorkspaceFs?: {
             list: () => string[];
