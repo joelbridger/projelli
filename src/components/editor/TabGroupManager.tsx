@@ -20,9 +20,15 @@ import { useEditorStore } from '@/stores/editorStore';
 interface TabGroupManagerProps {
   open: boolean;
   onClose: () => void;
+  /**
+   * Renames the underlying file for a tab. When provided, each tab row
+   * shows an inline edit pencil that opens a rename input. Omitting the
+   * prop hides the rename affordance entirely (read-only mode).
+   */
+  onRenameTab?: (path: string, newName: string) => Promise<void>;
 }
 
-export function TabGroupManager({ open, onClose }: TabGroupManagerProps) {
+export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerProps) {
   const {
     openTabs,
     tabGroups,
@@ -36,6 +42,11 @@ export function TabGroupManager({ open, onClose }: TabGroupManagerProps) {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editingGroupName, setEditingGroupName] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
+  // Per-tab rename state. Keyed by the tab's current path so opening a
+  // second rename closes any prior one without leaving stale UI.
+  const [editingTabPath, setEditingTabPath] = useState<string | null>(null);
+  const [editingTabName, setEditingTabName] = useState('');
+  const tabRenameInputRef = useRef<HTMLInputElement>(null);
 
   // Confirmation dialog
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
@@ -47,6 +58,51 @@ export function TabGroupManager({ open, onClose }: TabGroupManagerProps) {
       renameInputRef.current.select();
     }
   }, [editingGroupId]);
+
+  // Same auto-focus for per-tab rename — select up to the file extension so
+  // typing replaces the base name without clobbering ".md"/".aichat" etc.
+  useEffect(() => {
+    if (editingTabPath && tabRenameInputRef.current) {
+      const input = tabRenameInputRef.current;
+      input.focus();
+      const dot = editingTabName.lastIndexOf('.');
+      if (dot > 0) {
+        input.setSelectionRange(0, dot);
+      } else {
+        input.select();
+      }
+    }
+  }, [editingTabPath, editingTabName]);
+
+  const handleStartRenameTab = useCallback((path: string, currentName: string) => {
+    setEditingTabPath(path);
+    setEditingTabName(currentName);
+  }, []);
+
+  const handleRenameTabSubmit = useCallback(async () => {
+    if (!editingTabPath || !onRenameTab) {
+      setEditingTabPath(null);
+      return;
+    }
+    const trimmed = editingTabName.trim();
+    if (!trimmed) {
+      setEditingTabPath(null);
+      return;
+    }
+    const currentName = editingTabPath.split('/').pop() ?? '';
+    if (trimmed === currentName) {
+      setEditingTabPath(null);
+      return;
+    }
+    try {
+      await onRenameTab(editingTabPath, trimmed);
+    } catch (error) {
+      console.error('Tab rename failed:', error);
+    } finally {
+      setEditingTabPath(null);
+      setEditingTabName('');
+    }
+  }, [editingTabPath, editingTabName, onRenameTab]);
 
   const handleCreateGroup = useCallback(() => {
     if (!newGroupName.trim()) return;
@@ -196,17 +252,49 @@ export function TabGroupManager({ open, onClose }: TabGroupManagerProps) {
                           {groupTabs.map((tab) => (
                             <div
                               key={tab.path}
-                              className="text-sm flex items-center justify-between py-1 px-2 rounded hover:bg-muted/50"
+                              className="text-sm flex items-center justify-between gap-2 py-1 px-2 rounded hover:bg-muted/50"
                             >
-                              <span className="truncate">{tab.name}</span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2"
-                                onClick={() => handleToggleTabInGroup(tab.path, tab.groupId, group.id)}
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
+                              {editingTabPath === tab.path ? (
+                                <Input
+                                  ref={tabRenameInputRef}
+                                  value={editingTabName}
+                                  onChange={(e) => setEditingTabName(e.target.value)}
+                                  onBlur={() => void handleRenameTabSubmit()}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      void handleRenameTabSubmit();
+                                    } else if (e.key === 'Escape') {
+                                      setEditingTabPath(null);
+                                    }
+                                  }}
+                                  className="h-6 text-xs flex-1 min-w-0"
+                                />
+                              ) : (
+                                <span className="truncate flex-1 min-w-0">{tab.name}</span>
+                              )}
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                {onRenameTab && editingTabPath !== tab.path && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 px-2"
+                                    title="Rename file"
+                                    aria-label={`Rename ${tab.name}`}
+                                    onClick={() => handleStartRenameTab(tab.path, tab.name)}
+                                  >
+                                    <Edit2 className="h-3 w-3" />
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2"
+                                  title="Remove from group"
+                                  onClick={() => handleToggleTabInGroup(tab.path, tab.groupId, group.id)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -228,27 +316,58 @@ export function TabGroupManager({ open, onClose }: TabGroupManagerProps) {
                 {ungroupedTabs.map((tab) => (
                   <div
                     key={tab.path}
-                    className="text-sm flex items-center justify-between py-1 px-2 rounded hover:bg-muted/50"
+                    className="text-sm flex items-center justify-between gap-2 py-1 px-2 rounded hover:bg-muted/50"
                   >
-                    <span className="truncate">{tab.name}</span>
-                    {tabGroups.length > 0 && (
-                      <select
-                        className="text-xs border rounded px-2 py-1"
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value) {
-                            moveTabToGroup(tab.path, e.target.value);
+                    {editingTabPath === tab.path ? (
+                      <Input
+                        ref={tabRenameInputRef}
+                        value={editingTabName}
+                        onChange={(e) => setEditingTabName(e.target.value)}
+                        onBlur={() => void handleRenameTabSubmit()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            void handleRenameTabSubmit();
+                          } else if (e.key === 'Escape') {
+                            setEditingTabPath(null);
                           }
                         }}
-                      >
-                        <option value="">Add to group...</option>
-                        {tabGroups.map((group) => (
-                          <option key={group.id} value={group.id}>
-                            {group.name}
-                          </option>
-                        ))}
-                      </select>
+                        className="h-6 text-xs flex-1 min-w-0"
+                      />
+                    ) : (
+                      <span className="truncate flex-1 min-w-0">{tab.name}</span>
                     )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {onRenameTab && editingTabPath !== tab.path && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2"
+                          title="Rename file"
+                          aria-label={`Rename ${tab.name}`}
+                          onClick={() => handleStartRenameTab(tab.path, tab.name)}
+                        >
+                          <Edit2 className="h-3 w-3" />
+                        </Button>
+                      )}
+                      {tabGroups.length > 0 && (
+                        <select
+                          className="text-xs border rounded px-2 py-1"
+                          value=""
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              moveTabToGroup(tab.path, e.target.value);
+                            }
+                          }}
+                        >
+                          <option value="">Add to group...</option>
+                          {tabGroups.map((group) => (
+                            <option key={group.id} value={group.id}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

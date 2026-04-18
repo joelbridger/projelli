@@ -987,6 +987,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
       <TabGroupManager
         open={showGroupManager}
         onClose={() => setShowGroupManager(false)}
+        {...(onRenameFile ? { onRenameTab: onRenameFile } : {})}
       />
 
       {/* Rename Group Dialog */}
