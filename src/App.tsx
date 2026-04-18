@@ -1095,11 +1095,18 @@ function App() {
         const oldPath = path;
         const newPath = path.substring(0, path.lastIndexOf('/') + 1) + newName;
 
-        // Close old tab and open new one with same content if it was open
+        // Close old tab and open new one with same content if it was open.
+        // Preserve the tab's group membership across the close/reopen so
+        // renaming from the Tab Group Manager modal (or the dropdown) does
+        // not drop the tab out of its group.
         const tab = openTabs.find(t => t.path === oldPath);
         if (tab) {
+          const preservedGroupId = tab.groupId;
           closeTab(oldPath);
           await handleFileOpen(newPath, newName);
+          if (preservedGroupId) {
+            useEditorStore.getState().moveTabToGroup(newPath, preservedGroupId);
+          }
         }
 
         // UX-16: track the rename for session-level Ctrl+Z undo.

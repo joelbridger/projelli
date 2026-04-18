@@ -366,28 +366,36 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         // No more reorder branch here; reorder happens inside the dropdown
         // for same-group tabs, and ungroup happens via drop on empty bar.
 
-        // Case 1: Both tabs are ungrouped — create a new group.
-        if (!draggedTab.groupId && !targetTab.groupId) {
+        // Helper: next available "Group N" name.
+        const nextGroupName = () => {
           const existingGroupNumbers = tabGroups
             .map(g => {
               const match = g.name.match(/^Group (\d+)$/);
               return match && match[1] ? parseInt(match[1], 10) : 0;
             })
             .filter(n => n > 0);
-
           const nextNumber = existingGroupNumbers.length > 0
             ? Math.max(...existingGroupNumbers) + 1
             : 1;
+          return `Group ${nextNumber}`;
+        };
 
-          createTabGroup(`Group ${nextNumber}`, [draggedTab.path, targetTab.path]);
+        // Case 1: Both tabs are ungrouped — create a new group.
+        if (!draggedTab.groupId && !targetTab.groupId) {
+          createTabGroup(nextGroupName(), [draggedTab.path, targetTab.path]);
         }
         // Case 2: Target tab has a group — add dragged tab to that group.
+        // (This also covers both-grouped; the dragged tab leaves its old
+        // group via Zustand's single-group membership contract.)
         else if (targetTab.groupId) {
           moveTabToGroup(draggedTab.path, targetTab.groupId);
         }
-        // Case 3: Dragged tab has a group but target doesn't — add target.
+        // Case 3: Dragged tab has a group but target doesn't — create a
+        // BRAND NEW group pairing just these two tabs. The dragged tab
+        // leaves its old group in the process (createTabGroup + the
+        // moveTabToGroup single-membership contract pulls it out).
         else if (draggedTab.groupId && !targetTab.groupId) {
-          moveTabToGroup(targetTab.path, draggedTab.groupId);
+          createTabGroup(nextGroupName(), [draggedTab.path, targetTab.path]);
         }
       }
     }
@@ -734,10 +742,10 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                       onDragStart={(e) => {
                         e.stopPropagation();
                         handleDragStart(e as any, tabIndex);
-                        // Delay dropdown close to allow drag ghost to be created
-                        requestAnimationFrame(() => {
-                          setOpenDropdownGroupId(null);
-                        });
+                        // Keep the dropdown OPEN during drag so the user
+                        // can drop onto another row to reorder within the
+                        // group. Closing it here (the old behavior) killed
+                        // the drop target and made reorder impossible.
                       }}
                       onDragEnd={(e) => {
                         e.stopPropagation();
