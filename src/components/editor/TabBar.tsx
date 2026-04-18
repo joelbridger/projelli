@@ -312,34 +312,15 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
-    // Calculate hover position relative to the tab element
-    const target = e.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const width = rect.width;
+    // Per the v1.6 plan: dropping a tab onto another tab in the bar always
+    // creates or joins a group. The previous left-25%/right-25% zone math
+    // (which produced reorder swaps) was confusing — especially when a tab
+    // dragged out of a group landed on an edge and silently lost its group.
+    // Reorder still works inside a group's expanded dropdown and via drop
+    // onto the empty bar area (which ungroups).
+    const intent: 'group' | 'reorder' = 'group';
+    const position: 'before' | 'after' | null = null;
 
-    // Define zones: left 25% = before, right 25% = after, middle 50% = group
-    const leftThreshold = width * 0.25;
-    const rightThreshold = width * 0.75;
-
-    let intent: 'group' | 'reorder' = 'group';
-    let position: 'before' | 'after' | null = null;
-
-    if (x < leftThreshold) {
-      // Hovering on left edge - reorder before
-      intent = 'reorder';
-      position = 'before';
-    } else if (x > rightThreshold) {
-      // Hovering on right edge - reorder after
-      intent = 'reorder';
-      position = 'after';
-    } else {
-      // Hovering in middle - create/join group
-      intent = 'group';
-      position = null;
-    }
-
-    // Use requestAnimationFrame to reduce flicker by batching DOM updates
     if (dragOverIndex !== index || dragIntent !== intent || dropPosition !== position) {
       requestAnimationFrame(() => {
         setDragOverIndex(index);
@@ -381,71 +362,32 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
       const targetTab = openTabs[toIndex];
 
       if (draggedTab && targetTab) {
-        // Dual behavior: check drag intent
-        if (dragIntent === 'reorder') {
-          // REORDER: Drop between tabs
-          let finalToIndex = toIndex;
+        // Tab-on-tab drop ALWAYS creates or joins a group (per v1.6 spec).
+        // No more reorder branch here; reorder happens inside the dropdown
+        // for same-group tabs, and ungroup happens via drop on empty bar.
 
-          // Adjust index based on drop position
-          if (dropPosition === 'after') {
-            finalToIndex = toIndex + 1;
-          }
-          // 'before' uses toIndex as-is
+        // Case 1: Both tabs are ungrouped — create a new group.
+        if (!draggedTab.groupId && !targetTab.groupId) {
+          const existingGroupNumbers = tabGroups
+            .map(g => {
+              const match = g.name.match(/^Group (\d+)$/);
+              return match && match[1] ? parseInt(match[1], 10) : 0;
+            })
+            .filter(n => n > 0);
 
-          // Adjust for the dragged item being removed from the array
-          if (fromIndex < finalToIndex) {
-            finalToIndex -= 1;
-          }
+          const nextNumber = existingGroupNumbers.length > 0
+            ? Math.max(...existingGroupNumbers) + 1
+            : 1;
 
-          reorderTabs(fromIndex, finalToIndex);
-
-          // If the dragged tab was grouped, ungroup it when reordering
-          if (draggedTab.groupId) {
-            ungroupTab(draggedTab.path);
-          }
-        } else {
-          // GROUP: Drop on middle of tab - create or join a group
-
-          // Case 1: Both tabs are ungrouped - create a new group
-          if (!draggedTab.groupId && !targetTab.groupId) {
-            const existingGroupNumbers = tabGroups
-              .map(g => {
-                const match = g.name.match(/^Group (\d+)$/);
-                return match && match[1] ? parseInt(match[1], 10) : 0;
-              })
-              .filter(n => n > 0);
-
-            const nextNumber = existingGroupNumbers.length > 0
-              ? Math.max(...existingGroupNumbers) + 1
-              : 1;
-
-            createTabGroup(`Group ${nextNumber}`, [draggedTab.path, targetTab.path]);
-            setDraggedIndex(null);
-            setDragOverIndex(null);
-            setDragIntent(null);
-            setDropPosition(null);
-            return;
-          }
-
-          // Case 2: Target tab has a group - add dragged tab to that group
-          if (targetTab.groupId) {
-            moveTabToGroup(draggedTab.path, targetTab.groupId);
-            setDraggedIndex(null);
-            setDragOverIndex(null);
-            setDragIntent(null);
-            setDropPosition(null);
-            return;
-          }
-
-          // Case 3: Dragged tab has a group but target doesn't - add target to dragged's group
-          if (draggedTab.groupId && !targetTab.groupId) {
-            moveTabToGroup(targetTab.path, draggedTab.groupId);
-            setDraggedIndex(null);
-            setDragOverIndex(null);
-            setDragIntent(null);
-            setDropPosition(null);
-            return;
-          }
+          createTabGroup(`Group ${nextNumber}`, [draggedTab.path, targetTab.path]);
+        }
+        // Case 2: Target tab has a group — add dragged tab to that group.
+        else if (targetTab.groupId) {
+          moveTabToGroup(draggedTab.path, targetTab.groupId);
+        }
+        // Case 3: Dragged tab has a group but target doesn't — add target.
+        else if (draggedTab.groupId && !targetTab.groupId) {
+          moveTabToGroup(targetTab.path, draggedTab.groupId);
         }
       }
     }
@@ -453,7 +395,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     setDragOverIndex(null);
     setDragIntent(null);
     setDropPosition(null);
-  }, [reorderTabs, openTabs, moveTabToGroup, tabGroups, createTabGroup, dragIntent, dropPosition]);
+  }, [openTabs, moveTabToGroup, tabGroups, createTabGroup]);
 
 
   const handleGroupDoubleClick = useCallback((groupId: string, currentName: string) => {
