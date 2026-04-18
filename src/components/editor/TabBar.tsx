@@ -161,6 +161,10 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const [dragIntent, setDragIntent] = useState<'group' | 'reorder' | null>(null); // Track drag intent
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null); // Track drop position for reorder
   const [showRenameDialog, setShowRenameDialog] = useState(false);
+  // Distinguishes a brand-new group (dialog says "Name your group") from
+  // a rename of an existing group (dialog says "Rename Tab Group").
+  const [isNewGroupDialog, setIsNewGroupDialog] = useState(false);
+  const renameGroupInputRef = useRef<HTMLInputElement | null>(null);
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [renameGroupValue, setRenameGroupValue] = useState('');
   const [editingTabPath, setEditingTabPath] = useState<string | null>(null);
@@ -170,11 +174,6 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const [dragOverDropdownIndex, setDragOverDropdownIndex] = useState<number | null>(null);
   const [dropdownDropPosition, setDropdownDropPosition] = useState<'before' | 'after' | null>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
-  // Deferred-open timer for tab-group chips: a single click waits 250ms
-  // before opening the dropdown so a double-click can intercept and open
-  // the rename dialog instead. Without this Radix's pointerdown auto-open
-  // would fire before dblclick is detected.
-  const groupClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // R2-P2: when a file-creation flow sets pendingRenamePath and the new tab
   // lands in openTabs, drop it into inline-rename mode so the user can
@@ -198,9 +197,26 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     if (!group) return;
     setRenamingGroupId(group.id);
     setRenameGroupValue(group.name);
+    setIsNewGroupDialog(true);
     setShowRenameDialog(true);
     setPendingGroupRenameId(null);
   }, [pendingGroupRenameId, tabGroups, setPendingGroupRenameId]);
+
+  // Autofocus + select the group-name input whenever the dialog opens
+  // (either new-group or rename). Using useLayoutEffect so the selection
+  // runs before the next paint, avoiding a visible unselected flash.
+  useLayoutEffect(() => {
+    if (!showRenameDialog) return;
+    const input = renameGroupInputRef.current;
+    if (!input) return;
+    // The dialog mounts the input asynchronously — wait one tick so the
+    // DOM node is definitely in place and focusable.
+    const id = requestAnimationFrame(() => {
+      input.focus();
+      input.select();
+    });
+    return () => cancelAnimationFrame(id);
+  }, [showRenameDialog]);
 
   // Horizontal scroll state for the tab-strip overflow arrows
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -497,6 +513,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const handleGroupDoubleClick = useCallback((groupId: string, currentName: string) => {
     setRenamingGroupId(groupId);
     setRenameGroupValue(currentName);
+    setIsNewGroupDialog(false);
     setShowRenameDialog(true);
   }, []);
 
@@ -776,6 +793,9 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           e.dataTransfer.setData('text/plain', `group:${group.id}`);
           e.dataTransfer.effectAllowed = 'move';
           setDraggedGroupId(group.id);
+          // Close the dropdown if Radix just opened it on pointerdown —
+          // otherwise it'd sit over the tab bar and eat drop events.
+          setOpenDropdownGroupId(null);
         }}
         onDragEnd={() => {
           setDraggedGroupId(null);
@@ -804,33 +824,15 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
               variant="ghost"
               size="sm"
               className="h-full px-2 gap-1.5 hover:bg-muted"
-              onPointerDown={(e) => {
-                // Suppress Radix's open-on-pointerdown so we can defer the
-                // open by 250ms and let a double-click intercept it.
-                e.preventDefault();
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (groupClickTimerRef.current) {
-                  clearTimeout(groupClickTimerRef.current);
-                }
-                if (isOpen) {
-                  // Already open → click closes immediately.
-                  setOpenDropdownGroupId(null);
-                  return;
-                }
-                groupClickTimerRef.current = setTimeout(() => {
-                  setOpenDropdownGroupId(group.id);
-                  groupClickTimerRef.current = null;
-                }, 250);
-              }}
+              // Note: we intentionally do NOT preventDefault on pointerdown
+              // here. Blocking pointerdown prevents the browser from
+              // initiating the HTML5 drag on the outer wrapper, which made
+              // group chips un-draggable. Radix opens the dropdown on the
+              // first click; that's fine — when the user starts a drag, we
+              // close it in the wrapper's onDragStart below.
               onDoubleClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                if (groupClickTimerRef.current) {
-                  clearTimeout(groupClickTimerRef.current);
-                  groupClickTimerRef.current = null;
-                }
                 setOpenDropdownGroupId(null);
                 handleGroupDoubleClick(group.id, group.name);
               }}
@@ -1199,13 +1201,15 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         {...(onRenameFile ? { onRenameTab: onRenameFile } : {})}
       />
 
-      {/* Rename Group Dialog */}
+      {/* Rename / Name Group Dialog */}
       <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Rename Tab Group</DialogTitle>
+            <DialogTitle>{isNewGroupDialog ? 'Name your group' : 'Rename Tab Group'}</DialogTitle>
             <DialogDescription>
-              Enter a new name for the tab group.
+              {isNewGroupDialog
+                ? 'Give this new tab group a name.'
+                : 'Enter a new name for the tab group.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
@@ -1214,6 +1218,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                 Name
               </Label>
               <Input
+                ref={renameGroupInputRef}
                 id="group-name"
                 value={renameGroupValue}
                 onChange={(e) => setRenameGroupValue(e.target.value)}
@@ -1225,7 +1230,6 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                   }
                 }}
                 className="col-span-3"
-                autoFocus
               />
             </div>
           </div>
@@ -1234,7 +1238,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
               Cancel
             </Button>
             <Button onClick={handleGroupRenameSubmit}>
-              Rename
+              {isNewGroupDialog ? 'Create' : 'Rename'}
             </Button>
           </DialogFooter>
         </DialogContent>
