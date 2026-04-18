@@ -818,18 +818,17 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           onOpenChange={(open) => {
             setOpenDropdownGroupId(open ? group.id : null);
           }}
+          // modal={false} keeps the trigger interactive during drag.
+          // With modal (the default), Radix's DismissableLayer sets
+          // pointer-events: none on outside elements, which includes
+          // the trigger itself and kills the HTML5 drag gesture mid-press.
+          modal={false}
         >
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="sm"
               className="h-full px-2 gap-1.5 hover:bg-muted"
-              // The Button needs to be draggable AND carry the drag-start
-              // handler itself. If only the outer wrapper is draggable,
-              // clicking the Button (interactive child) absorbs the drag
-              // gesture so drags only initiate from the edges of the
-              // chip, not the text. Mirroring drag handlers on the Button
-              // lets the user grab the chip from anywhere.
               draggable
               onDragStart={(e) => {
                 e.dataTransfer.setData('text/plain', `group:${group.id}`);
