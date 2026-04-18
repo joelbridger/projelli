@@ -2,7 +2,7 @@
 // Displays open file tabs with close buttons, dirty indicators, drag-to-reorder, and tab groups
 
 import { useCallback, useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { X, GripVertical, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, GripVertical, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff, ChevronLeft, ChevronRight, Edit2 } from 'lucide-react';
 import { getFileIcon } from '@/utils/fileIcons';
 import { Button } from '@/components/ui/button';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
@@ -12,6 +12,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -156,6 +157,11 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const [openDropdownGroupId, setOpenDropdownGroupId] = useState<string | null>(null);
   const [dragOverDropdownIndex, setDragOverDropdownIndex] = useState<number | null>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Deferred-open timer for tab-group chips: a single click waits 250ms
+  // before opening the dropdown so a double-click can intercept and open
+  // the rename dialog instead. Without this Radix's pointerdown auto-open
+  // would fire before dblclick is detected.
+  const groupClickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Horizontal scroll state for the tab-strip overflow arrows
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -696,8 +702,34 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
               variant="ghost"
               size="sm"
               className="h-full px-2 gap-1.5 hover:bg-muted"
-              onDoubleClick={(e) => {
+              onPointerDown={(e) => {
+                // Suppress Radix's open-on-pointerdown so we can defer the
+                // open by 250ms and let a double-click intercept it.
+                e.preventDefault();
+              }}
+              onClick={(e) => {
                 e.stopPropagation();
+                if (groupClickTimerRef.current) {
+                  clearTimeout(groupClickTimerRef.current);
+                }
+                if (isOpen) {
+                  // Already open → click closes immediately.
+                  setOpenDropdownGroupId(null);
+                  return;
+                }
+                groupClickTimerRef.current = setTimeout(() => {
+                  setOpenDropdownGroupId(group.id);
+                  groupClickTimerRef.current = null;
+                }, 250);
+              }}
+              onDoubleClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (groupClickTimerRef.current) {
+                  clearTimeout(groupClickTimerRef.current);
+                  groupClickTimerRef.current = null;
+                }
+                setOpenDropdownGroupId(null);
                 handleGroupDoubleClick(group.id, group.name);
               }}
               onContextMenu={(e) => {
@@ -710,6 +742,17 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-[200px]">
+            {/* Group-level actions live at the top so they're discoverable
+                even without remembering the double-click shortcut. */}
+            <DropdownMenuItem
+              onSelect={() => {
+                handleGroupDoubleClick(group.id, group.name);
+              }}
+            >
+              <Edit2 className="h-3.5 w-3.5 mr-2" />
+              Rename group...
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             {/* List of tabs in group */}
             {tabs.length > 0 && (
               <>
