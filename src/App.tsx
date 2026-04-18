@@ -418,9 +418,19 @@ function App() {
       if (!workspaceServiceRef.current) {
         const mockFs = new Map<string, ArrayBuffer>();
         const textEncoder = new TextEncoder();
+        // Helpers that synthesize folder semantics over a flat key map so
+        // the AI chat persistence flow (mkdir + list + readFile) and any
+        // other code that recurses into folders keeps working in test mode.
+        const folderHasChildren = (folderPath: string) => {
+          const prefix = folderPath.endsWith('/') ? folderPath : `${folderPath}/`;
+          for (const key of mockFs.keys()) {
+            if (key.startsWith(prefix)) return true;
+          }
+          return false;
+        };
         const mockService = {
           async exists(path: string): Promise<boolean> {
-            return mockFs.has(path);
+            return mockFs.has(path) || folderHasChildren(path);
           },
           async readFile(path: string): Promise<string> {
             const buf = mockFs.get(path);
@@ -445,11 +455,39 @@ function App() {
             new Uint8Array(copy).set(new Uint8Array(content));
             mockFs.set(path, copy);
           },
+          async mkdir(_path: string): Promise<void> {
+            // Folders are implicit in path structure — no-op.
+          },
+          async list(path: string): Promise<Array<{ name: string; path: string; type: 'file' | 'folder' }>> {
+            const prefix = path.endsWith('/') ? path : `${path}/`;
+            const directChildren = new Map<string, 'file' | 'folder'>();
+            for (const key of mockFs.keys()) {
+              if (!key.startsWith(prefix)) continue;
+              const rest = key.slice(prefix.length);
+              const slashIdx = rest.indexOf('/');
+              if (slashIdx === -1) {
+                directChildren.set(rest, 'file');
+              } else {
+                directChildren.set(rest.slice(0, slashIdx), 'folder');
+              }
+            }
+            return Array.from(directChildren.entries()).map(([name, type]) => ({
+              name,
+              path: `${prefix}${name}`,
+              type,
+            }));
+          },
           async getFileTree() {
             return [];
           },
           async stat(path: string) {
-            return { type: 'file' as const, size: mockFs.get(path)?.byteLength ?? 0 };
+            if (mockFs.has(path)) {
+              return { type: 'file' as const, size: mockFs.get(path)?.byteLength ?? 0 };
+            }
+            if (folderHasChildren(path)) {
+              return { type: 'folder' as const, size: 0 };
+            }
+            throw new Error(`Not found: ${path}`);
           },
           async delete(path: string) {
             mockFs.delete(path);
