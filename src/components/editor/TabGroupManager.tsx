@@ -5,6 +5,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Plus, Edit2, Trash2, FolderOpen, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import {
@@ -36,7 +37,20 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
     renameTabGroup,
     deleteTabGroup,
     moveTabToGroup,
+    ungroupTab,
+    reorderInTabBar,
   } = useEditorStore();
+
+  // R3-P3: HTML5 drag state for reordering tabs inside the modal.
+  // draggedTabPath identifies what the user picked up. dragOverTarget
+  // tracks the row being hovered so we can render a coral indicator.
+  const [draggedTabPath, setDraggedTabPath] = useState<string | null>(null);
+  const [dragOverTarget, setDragOverTarget] = useState<
+    | { kind: 'tab'; path: string; position: 'before' | 'after' }
+    | { kind: 'group-empty'; groupId: string }
+    | { kind: 'ungrouped-zone' }
+    | null
+  >(null);
 
   const [newGroupName, setNewGroupName] = useState('');
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
@@ -78,6 +92,101 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
     setEditingTabPath(path);
     setEditingTabName(baseName);
   }, []);
+
+  // R3-P3: drag-and-drop helpers for reordering tabs inside the modal.
+  const handleTabDragStart = useCallback(
+    (e: React.DragEvent, path: string) => {
+      e.dataTransfer.setData('text/plain', `tabgm:${path}`);
+      e.dataTransfer.effectAllowed = 'move';
+      setDraggedTabPath(path);
+    },
+    [],
+  );
+
+  const handleTabDragEnd = useCallback(() => {
+    setDraggedTabPath(null);
+    setDragOverTarget(null);
+  }, []);
+
+  const handleRowDragOver = useCallback(
+    (e: React.DragEvent, path: string) => {
+      if (!draggedTabPath || draggedTabPath === path) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = e.currentTarget.getBoundingClientRect();
+      const isBefore = e.clientY - rect.top < rect.height / 2;
+      setDragOverTarget({ kind: 'tab', path, position: isBefore ? 'before' : 'after' });
+    },
+    [draggedTabPath],
+  );
+
+  const handleEmptyGroupDragOver = useCallback(
+    (e: React.DragEvent, groupId: string) => {
+      if (!draggedTabPath) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      setDragOverTarget({ kind: 'group-empty', groupId });
+    },
+    [draggedTabPath],
+  );
+
+  const handleUngroupedZoneDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!draggedTabPath) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      setDragOverTarget({ kind: 'ungrouped-zone' });
+    },
+    [draggedTabPath],
+  );
+
+  const handleTabDrop = useCallback(
+    (e: React.DragEvent) => {
+      if (!draggedTabPath || !dragOverTarget) {
+        setDraggedTabPath(null);
+        setDragOverTarget(null);
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      const draggedTab = openTabs.find((t) => t.path === draggedTabPath);
+      if (!draggedTab) {
+        setDraggedTabPath(null);
+        setDragOverTarget(null);
+        return;
+      }
+
+      if (dragOverTarget.kind === 'tab') {
+        const targetTab = openTabs.find((t) => t.path === dragOverTarget.path);
+        if (targetTab) {
+          // Align group membership first (so target-group tabs order as
+          // expected after the reorder).
+          if (draggedTab.groupId !== targetTab.groupId) {
+            // null → ungrouped; otherwise switch into the target group.
+            moveTabToGroup(draggedTab.path, targetTab.groupId ?? null);
+          }
+          reorderInTabBar(
+            { type: 'tab', id: draggedTab.path },
+            { type: 'tab', id: targetTab.path },
+            dragOverTarget.position,
+          );
+        }
+      } else if (dragOverTarget.kind === 'group-empty') {
+        moveTabToGroup(draggedTab.path, dragOverTarget.groupId);
+      } else if (dragOverTarget.kind === 'ungrouped-zone') {
+        if (draggedTab.groupId) {
+          ungroupTab(draggedTab.path);
+        }
+      }
+
+      setDraggedTabPath(null);
+      setDragOverTarget(null);
+    },
+    [draggedTabPath, dragOverTarget, openTabs, moveTabToGroup, reorderInTabBar, ungroupTab],
+  );
 
   const handleRenameTabSubmit = useCallback(async () => {
     if (!editingTabPath || !onRenameTab) {
@@ -253,12 +362,30 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
                       </div>
 
                       {/* Tabs in this group */}
-                      {groupTabs.length > 0 && (
+                      {groupTabs.length > 0 ? (
                         <div className="pl-6 space-y-1">
-                          {groupTabs.map((tab) => (
+                          {groupTabs.map((tab) => {
+                            const isDragOver =
+                              dragOverTarget?.kind === 'tab' && dragOverTarget.path === tab.path;
+                            const isBeingDragged = draggedTabPath === tab.path;
+                            return (
                             <div
                               key={tab.path}
-                              className="text-sm flex items-center justify-between gap-2 py-1 px-2 rounded hover:bg-muted/50"
+                              draggable={editingTabPath !== tab.path}
+                              onDragStart={(e) => handleTabDragStart(e, tab.path)}
+                              onDragEnd={handleTabDragEnd}
+                              onDragOver={(e) => handleRowDragOver(e, tab.path)}
+                              onDragLeave={(e) => {
+                                if (e.currentTarget === e.target) setDragOverTarget(null);
+                              }}
+                              onDrop={handleTabDrop}
+                              className={cn(
+                                "text-sm flex items-center justify-between gap-2 py-1 px-2 rounded hover:bg-muted/50",
+                                editingTabPath !== tab.path && "cursor-move",
+                                isBeingDragged && "opacity-50",
+                                isDragOver && dragOverTarget?.position === 'before' && "border-t-2 border-primary",
+                                isDragOver && dragOverTarget?.position === 'after' && "border-b-2 border-primary",
+                              )}
                             >
                               {editingTabPath === tab.path ? (
                                 <Input
@@ -302,7 +429,26 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
                                 </Button>
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        // R3-P3: an empty group still accepts drops so users
+                        // can move a tab into a previously emptied group.
+                        <div
+                          className={cn(
+                            "pl-6 py-3 text-xs text-muted-foreground text-center rounded border border-dashed",
+                            dragOverTarget?.kind === 'group-empty' && dragOverTarget.groupId === group.id
+                              ? "border-primary bg-primary/10"
+                              : "border-border/50",
+                          )}
+                          onDragOver={(e) => handleEmptyGroupDragOver(e, group.id)}
+                          onDragLeave={(e) => {
+                            if (e.currentTarget === e.target) setDragOverTarget(null);
+                          }}
+                          onDrop={handleTabDrop}
+                        >
+                          Drop tabs here to add them to this group
                         </div>
                       )}
                     </div>
@@ -312,17 +458,51 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
             )}
           </div>
 
-          {/* Ungrouped Tabs */}
-          {ungroupedTabs.length > 0 && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Ungrouped Tabs ({ungroupedTabs.length})
-              </label>
-              <div className="border rounded-lg p-3 space-y-1">
-                {ungroupedTabs.map((tab) => (
+          {/* Ungrouped Tabs — always rendered so users can drag a tab OUT of a
+              group by dropping it in this section even when it's currently empty. */}
+          <div
+            className="space-y-2"
+            onDragOver={handleUngroupedZoneDragOver}
+            onDragLeave={(e) => {
+              if (e.currentTarget === e.target) setDragOverTarget(null);
+            }}
+            onDrop={handleTabDrop}
+          >
+            <label className="text-sm font-medium">
+              Ungrouped Tabs ({ungroupedTabs.length})
+            </label>
+            <div
+              className={cn(
+                "border rounded-lg p-3 space-y-1",
+                dragOverTarget?.kind === 'ungrouped-zone' && "border-primary bg-primary/10",
+                ungroupedTabs.length === 0 && "min-h-[48px] text-xs text-muted-foreground flex items-center justify-center",
+              )}
+            >
+              {ungroupedTabs.length === 0 && dragOverTarget?.kind !== 'ungrouped-zone' && (
+                <span>Drag tabs here to ungroup them</span>
+              )}
+              {ungroupedTabs.map((tab) => {
+                const isDragOver =
+                  dragOverTarget?.kind === 'tab' && dragOverTarget.path === tab.path;
+                const isBeingDragged = draggedTabPath === tab.path;
+                return (
                   <div
                     key={tab.path}
-                    className="text-sm flex items-center justify-between gap-2 py-1 px-2 rounded hover:bg-muted/50"
+                    draggable={editingTabPath !== tab.path}
+                    onDragStart={(e) => handleTabDragStart(e, tab.path)}
+                    onDragEnd={handleTabDragEnd}
+                    onDragOver={(e) => handleRowDragOver(e, tab.path)}
+                    onDragLeave={(e) => {
+                      if (e.currentTarget === e.target) setDragOverTarget(null);
+                    }}
+                    onDrop={handleTabDrop}
+                    className={cn(
+                      "text-sm flex items-center justify-between gap-2 py-1 px-2 rounded hover:bg-muted/50",
+                      editingTabPath !== tab.path && "cursor-move",
+                      isBeingDragged && "opacity-50",
+                      isDragOver && dragOverTarget?.position === 'before' && "border-t-2 border-primary",
+                      isDragOver && dragOverTarget?.position === 'after' && "border-b-2 border-primary",
+                    )}
                   >
                     {editingTabPath === tab.path ? (
                       <Input
@@ -375,10 +555,10 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
+          </div>
         </div>
 
         <DialogFooter>
