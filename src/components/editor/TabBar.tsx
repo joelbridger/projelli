@@ -824,12 +824,24 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
               variant="ghost"
               size="sm"
               className="h-full px-2 gap-1.5 hover:bg-muted"
-              // Note: we intentionally do NOT preventDefault on pointerdown
-              // here. Blocking pointerdown prevents the browser from
-              // initiating the HTML5 drag on the outer wrapper, which made
-              // group chips un-draggable. Radix opens the dropdown on the
-              // first click; that's fine — when the user starts a drag, we
-              // close it in the wrapper's onDragStart below.
+              // The Button needs to be draggable AND carry the drag-start
+              // handler itself. If only the outer wrapper is draggable,
+              // clicking the Button (interactive child) absorbs the drag
+              // gesture so drags only initiate from the edges of the
+              // chip, not the text. Mirroring drag handlers on the Button
+              // lets the user grab the chip from anywhere.
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData('text/plain', `group:${group.id}`);
+                e.dataTransfer.effectAllowed = 'move';
+                setDraggedGroupId(group.id);
+                setOpenDropdownGroupId(null);
+              }}
+              onDragEnd={() => {
+                setDraggedGroupId(null);
+                setDragOverGroupId(null);
+                setDragOverGroupZone(null);
+              }}
               onDoubleClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
