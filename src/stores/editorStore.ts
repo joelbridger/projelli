@@ -96,6 +96,13 @@ interface EditorState {
   toggleGroupCollapsed: (groupId: string) => void;
   moveTabToGroup: (tabPath: string, groupId: string | null) => void;
   ungroupTab: (tabPath: string) => void;
+  // R2-P3: reorder groups horizontally. `position` is relative to the
+  // target group: 'before' places the source group just to its left,
+  // 'after' to its right.
+  reorderTabGroups: (sourceId: string, targetId: string, position: 'before' | 'after') => void;
+  // R2-P4: merge source group into target. All tabs from source get
+  // target's groupId; source group is removed. Target name/position kept.
+  mergeTabGroups: (sourceId: string, targetId: string) => void;
 
   // R2-P2: One-shot flag the file-creation flows set after creating a
   // tab; TabBar watches it and drops that tab straight into inline-rename
@@ -406,6 +413,50 @@ export const useEditorStore = create<EditorState>()(
       return {
         openTabs: updatedTabs,
         tabGroups: cleanedTabGroups,
+      };
+    });
+  },
+
+  reorderTabGroups: (sourceId, targetId, position) => {
+    if (sourceId === targetId) return;
+    set((state) => {
+      const groups = [...state.tabGroups];
+      const sourceIdx = groups.findIndex((g) => g.id === sourceId);
+      const targetIdx = groups.findIndex((g) => g.id === targetId);
+      if (sourceIdx === -1 || targetIdx === -1) return state;
+
+      const [moved] = groups.splice(sourceIdx, 1);
+      if (!moved) return state;
+      // After splice, target may have shifted left by 1.
+      const adjustedTargetIdx = sourceIdx < targetIdx ? targetIdx - 1 : targetIdx;
+      const insertIdx = position === 'before' ? adjustedTargetIdx : adjustedTargetIdx + 1;
+      groups.splice(insertIdx, 0, moved);
+
+      // Also reshuffle openTabs so tabs belonging to a group appear in
+      // the same visual order as the groups themselves. Ungrouped tabs
+      // keep their current positions relative to each other.
+      const ungrouped = state.openTabs.filter((t) => !t.groupId);
+      const reorderedGroupTabs = groups.flatMap((g) =>
+        state.openTabs.filter((t) => t.groupId === g.id),
+      );
+      return {
+        tabGroups: groups,
+        openTabs: [...reorderedGroupTabs, ...ungrouped],
+      };
+    });
+  },
+
+  mergeTabGroups: (sourceId, targetId) => {
+    if (sourceId === targetId) return;
+    set((state) => {
+      const target = state.tabGroups.find((g) => g.id === targetId);
+      if (!target) return state;
+      const updatedTabs = state.openTabs.map((tab) =>
+        tab.groupId === sourceId ? { ...tab, groupId: targetId } : tab,
+      );
+      return {
+        openTabs: updatedTabs,
+        tabGroups: state.tabGroups.filter((g) => g.id !== sourceId),
       };
     });
   },

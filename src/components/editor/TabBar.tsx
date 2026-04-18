@@ -133,6 +133,8 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     deleteTabGroup,
     moveTabToGroup,
     ungroupTab,
+    reorderTabGroups,
+    mergeTabGroups,
     pendingRenamePath,
     setPendingRenamePath,
   } = useEditorStore();
@@ -147,6 +149,12 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
+  // R2-P3/P4: zone the user is hovering on a target group chip. 'merge' =
+  // drop-on-chip-center tints the whole chip; 'before'/'after' = drop on
+  // edge shows a vertical coral line. Only meaningful while a group drag
+  // is in flight.
+  const [dragOverGroupZone, setDragOverGroupZone] = useState<'merge' | 'before' | 'after' | null>(null);
+  const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
   const [dragOverTabBar, setDragOverTabBar] = useState(false); // Track when dragging over tab bar to ungroup
   const [dragIntent, setDragIntent] = useState<'group' | 'reorder' | null>(null); // Track drag intent
   const [dropPosition, setDropPosition] = useState<'before' | 'after' | null>(null); // Track drop position for reorder
@@ -459,19 +467,58 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
     setDragOverGroupId(groupId);
-  }, []);
+    // Zone is only meaningful when dragging a group payload. For tab
+    // payloads we just use the whole-chip tint (moves tab to group).
+    if (draggedGroupId && draggedGroupId !== groupId) {
+      setDragOverGroupZone(computeGroupDropZone(e));
+    } else {
+      setDragOverGroupZone(null);
+    }
+  }, [draggedGroupId]);
 
   const handleGroupDragLeave = useCallback((e: React.DragEvent) => {
     e.stopPropagation();
     setDragOverGroupId(null);
+    setDragOverGroupZone(null);
   }, []);
+
+  // Drop a group payload on another group chip. Zone decides merge vs. reorder:
+  //  left 30 %  → reorder 'before'
+  //  right 30 % → reorder 'after'
+  //  middle 40 % → merge
+  const computeGroupDropZone = (e: React.DragEvent): 'merge' | 'before' | 'after' => {
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const leftCut = rect.width * 0.30;
+    const rightCut = rect.width * 0.70;
+    if (x < leftCut) return 'before';
+    if (x > rightCut) return 'after';
+    return 'merge';
+  };
 
   const handleGroupDrop = useCallback((e: React.DragEvent, groupId: string) => {
     e.preventDefault();
     e.stopPropagation();
+    const zone = dragOverGroupZone;
     setDragOverGroupId(null);
+    setDragOverGroupZone(null);
 
-    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    const payload = e.dataTransfer.getData('text/plain');
+    // Group payload takes the form "group:<sourceId>"; tab payload is a
+    // numeric index as a string. Branch on prefix so the two can share
+    // the same drop target without confusion.
+    if (payload.startsWith('group:')) {
+      const sourceId = payload.slice('group:'.length);
+      if (!sourceId || sourceId === groupId) return;
+      if (zone === 'before' || zone === 'after') {
+        reorderTabGroups(sourceId, groupId, zone);
+      } else {
+        mergeTabGroups(sourceId, groupId);
+      }
+      return;
+    }
+    const fromIndex = parseInt(payload, 10);
     if (!isNaN(fromIndex)) {
       const tab = openTabs[fromIndex];
       if (tab) {
@@ -479,7 +526,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         moveTabToGroup(tab.path, groupId);
       }
     }
-  }, [openTabs, moveTabToGroup]);
+  }, [openTabs, moveTabToGroup, dragOverGroupZone, reorderTabGroups, mergeTabGroups]);
 
   const handleTabDoubleClick = useCallback((tab: typeof openTabs[0]) => {
     setEditingTabPath(tab.path);
@@ -650,14 +697,38 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
       <div
         key={`group-${group.id}`}
         data-group-chip
+        draggable
         className={cn(
-          "flex items-center gap-1 px-2 py-1.5 border-r min-w-0 transition-colors h-9 flex-shrink-0 snap-start",
-          isGroupDragOver ? "bg-primary/20 border-primary" : "bg-muted/30"
+          "relative flex items-center gap-1 px-2 py-1.5 border-r min-w-0 transition-colors h-9 flex-shrink-0 snap-start",
+          isGroupDragOver && dragOverGroupZone === 'merge' && "bg-primary/20 border-primary",
+          // Full-chip highlight when a tab (not a group) is dragged over it.
+          isGroupDragOver && !draggedGroupId && "bg-primary/20 border-primary",
+          !isGroupDragOver && "bg-muted/30",
+          draggedGroupId === group.id && "opacity-50",
         )}
+        onDragStart={(e) => {
+          // Use a distinct prefix so tab and group payloads can share
+          // the same MIME type without being confused downstream.
+          e.dataTransfer.setData('text/plain', `group:${group.id}`);
+          e.dataTransfer.effectAllowed = 'move';
+          setDraggedGroupId(group.id);
+        }}
+        onDragEnd={() => {
+          setDraggedGroupId(null);
+          setDragOverGroupId(null);
+          setDragOverGroupZone(null);
+        }}
         onDragOver={(e) => handleGroupDragOver(e, group.id)}
         onDragLeave={handleGroupDragLeave}
         onDrop={(e) => handleGroupDrop(e, group.id)}
       >
+        {/* Reorder-position indicators for group-on-group drag. */}
+        {isGroupDragOver && dragOverGroupZone === 'before' && (
+          <span className="absolute left-0 top-0 bottom-0 w-0.5 bg-primary" aria-hidden />
+        )}
+        {isGroupDragOver && dragOverGroupZone === 'after' && (
+          <span className="absolute right-0 top-0 bottom-0 w-0.5 bg-primary" aria-hidden />
+        )}
         <DropdownMenu
           open={isOpen}
           onOpenChange={(open) => {
