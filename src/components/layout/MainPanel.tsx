@@ -850,7 +850,7 @@ export function MainPanel({
           return (
             <div className="px-3 py-2 border-b bg-muted/20 flex items-center gap-2">
               <Icon className={`h-4 w-4 ${color} flex-shrink-0`} />
-              <h2 className="text-sm font-medium text-foreground/80 truncate flex-1 min-w-0">
+              <h2 className="text-sm font-medium text-foreground/80 truncate min-w-0">
                 {tab.name}
               </h2>
               <button

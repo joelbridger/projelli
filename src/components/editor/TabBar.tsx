@@ -777,10 +777,13 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => e.stopPropagation()}
             autoFocus
-            className="truncate flex-1 min-w-0 px-1 py-0 bg-background border rounded"
+            // Size the rename input to the tab's display width rather
+            // than letting it flex-grow into the whole tab bar.
+            size={Math.max(editingTabName.length + 1, 6)}
+            className="min-w-0 max-w-[180px] px-1 py-0 bg-background border rounded"
           />
         ) : (
-          <span className="truncate flex-1 min-w-0">{removeExtension(tab.name)}</span>
+          <span className="truncate min-w-0 max-w-[140px]">{removeExtension(tab.name)}</span>
         )}
         <AIContextChip path={tab.path} />
         {tab.isDirty && (
