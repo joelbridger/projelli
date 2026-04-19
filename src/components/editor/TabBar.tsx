@@ -177,6 +177,9 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   // position the portaled popover with position: fixed so it can escape
   // the tab strip's overflow-y-hidden clip.
   const [popoverAnchorRect, setPopoverAnchorRect] = useState<{ top: number; left: number } | null>(null);
+  // Right-click context menu on a tab. Anchored at the mouse position;
+  // replaces the per-tab close X that used to take visual space.
+  const [tabContextMenu, setTabContextMenu] = useState<{ path: string; x: number; y: number } | null>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // R2-P2: when a file-creation flow sets pendingRenamePath and the new tab
@@ -480,14 +483,10 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     if (payload.startsWith('group:')) {
       const sourceGroupId = payload.slice('group:'.length);
       if (sourceGroupId && sourceGroupId !== targetTab.groupId) {
-        // Group-on-tab: edge = reorder, center = treat as 'after' (there's
-        // no sensible "combine a group with a single tab" — we reorder.
-        const position: 'before' | 'after' = zone === 'before' ? 'before' : 'after';
-        useEditorStore.getState().reorderInTabBar(
-          { type: 'group', id: sourceGroupId },
-          { type: 'tab', id: targetTab.path },
-          position,
-        );
+        // Group-on-tab always absorbs the target tab into the source
+        // group. Users expect "group eats tab" semantics — reorder only
+        // happens between chips or via the empty bar area.
+        moveTabToGroup(targetTab.path, sourceGroupId);
       }
       setDraggedIndex(null);
       setDragOverIndex(null);
@@ -746,8 +745,12 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         onClick={() => handleTabClick(tab.path)}
         onMouseDown={(e) => handleMiddleClick(e, tab.path)}
         onDoubleClick={() => handleTabDoubleClick(tab)}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setTabContextMenu({ path: tab.path, x: e.clientX, y: e.clientY });
+        }}
       >
-        <GripVertical className="h-3 w-3 flex-shrink-0 opacity-40 cursor-grab" />
         {getTabIcon(tab)}
         {editingTabPath === tab.path ? (
           <input
@@ -782,28 +785,6 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
             ✓
           </span>
         )}
-        <Button
-          data-testid={`tab-close-${pathToTestId(tab.path)}`}
-          variant="ghost"
-          size="sm"
-          // UX-22: Close X shows only when the tab is active, hovered, or
-          // focused (keyboard users). `opacity-0` hides by default;
-          // `group-hover:opacity-100` and `focus-visible:opacity-100` bring
-          // it back when the tab's container is hovered or the button
-          // itself gets keyboard focus. `isActive` forces it visible so
-          // active tabs always have a close affordance.
-          className={cn(
-            'h-5 w-5 p-0 ml-1 rounded-sm hover:bg-muted transition-opacity',
-            isActive
-              ? 'opacity-100'
-              : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
-          )}
-          onClick={(e) => handleTabClose(e, tab.path)}
-          aria-label="Close tab"
-          title="Close tab (Ctrl+W)"
-        >
-          <X className="h-3 w-3" />
-        </Button>
       </div>
     );
   };
@@ -1269,6 +1250,63 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         onClose={() => setShowGroupManager(false)}
         {...(onRenameFile ? { onRenameTab: onRenameFile } : {})}
       />
+
+      {/* Tab right-click context menu — portaled, closes on outside click. */}
+      {tabContextMenu && createPortal(
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setTabContextMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setTabContextMenu(null);
+            }}
+          />
+          <div
+            role="menu"
+            style={{ position: 'fixed', top: tabContextMenu.y, left: tabContextMenu.x, zIndex: 50 }}
+            className="min-w-[160px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md text-sm"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center rounded-sm px-2 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground"
+              onClick={() => {
+                const tab = openTabs.find((t) => t.path === tabContextMenu.path);
+                if (tab) handleTabDoubleClick(tab);
+                setTabContextMenu(null);
+              }}
+            >
+              Rename
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center rounded-sm px-2 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground"
+              onClick={() => {
+                closeTab(tabContextMenu.path);
+                setTabContextMenu(null);
+              }}
+            >
+              Close tab
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center rounded-sm px-2 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground"
+              onClick={() => {
+                openTabs
+                  .filter((t) => t.path !== tabContextMenu.path)
+                  .forEach((t) => closeTab(t.path));
+                setTabContextMenu(null);
+              }}
+            >
+              Close other tabs
+            </button>
+          </div>
+        </>,
+        document.body,
+      )}
 
       {/* Rename / Name Group Dialog */}
       <Dialog open={showRenameDialog} onOpenChange={setShowRenameDialog}>

@@ -9,6 +9,7 @@ import {
 } from '@/components/onboarding/ApiKeySetupCard';
 import { TabBar } from '@/components/editor/TabBar';
 import { AutoSaveIndicator } from '@/components/editor/AutoSaveIndicator';
+import { getFileIcon } from '@/utils/fileIcons';
 import { MarkdownEditor, type MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
@@ -839,14 +840,21 @@ export function MainPanel({
             fileName={tab.name}
           />
         )}
-        {/* File title display - useful when accessing files via tab groups */}
-        {tab.path !== '__grid_view__' && (
-          <div className="px-3 py-2 border-b bg-muted/20">
-            <h2 className="text-sm font-medium text-foreground/80 truncate">
-              {tab.name}
-            </h2>
-          </div>
-        )}
+        {/* File title display with the same colored file-type icon shown
+            in the file tree + tab bar, so the active file's identity is
+            consistent across every surface. */}
+        {tab.path !== '__grid_view__' && (() => {
+          const ext = tab.name.split('.').pop()?.toLowerCase();
+          const { Icon, color } = getFileIcon(ext);
+          return (
+            <div className="px-3 py-2 border-b bg-muted/20 flex items-center gap-2">
+              <Icon className={`h-4 w-4 ${color} flex-shrink-0`} />
+              <h2 className="text-sm font-medium text-foreground/80 truncate">
+                {tab.name}
+              </h2>
+            </div>
+          );
+        })()}
         <div className="flex-1 overflow-hidden">
           {renderContent()}
         </div>
