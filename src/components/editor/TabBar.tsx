@@ -2,6 +2,7 @@
 // Displays open file tabs with close buttons, dirty indicators, drag-to-reorder, and tab groups
 
 import { useCallback, useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, GripVertical, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getFileIcon } from '@/utils/fileIcons';
 import { Button } from '@/components/ui/button';
@@ -172,6 +173,10 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   const [openDropdownGroupId, setOpenDropdownGroupId] = useState<string | null>(null);
   const [dragOverDropdownIndex, setDragOverDropdownIndex] = useState<number | null>(null);
   const [dropdownDropPosition, setDropdownDropPosition] = useState<'before' | 'after' | null>(null);
+  // Captured bounding rect of the currently open group chip. Used to
+  // position the portaled popover with position: fixed so it can escape
+  // the tab strip's overflow-y-hidden clip.
+  const [popoverAnchorRect, setPopoverAnchorRect] = useState<{ top: number; left: number } | null>(null);
   const hoverTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // R2-P2: when a file-creation flow sets pendingRenamePath and the new tab
@@ -206,9 +211,13 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         el = el.parentNode;
       }
       setOpenDropdownGroupId(null);
+      setPopoverAnchorRect(null);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenDropdownGroupId(null);
+      if (e.key === 'Escape') {
+        setOpenDropdownGroupId(null);
+        setPopoverAnchorRect(null);
+      }
     };
     document.addEventListener('pointerdown', onPointerDown, true);
     document.addEventListener('keydown', onKey);
@@ -865,7 +874,14 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           }}
           onClick={(e) => {
             e.stopPropagation();
-            setOpenDropdownGroupId(isOpen ? null : group.id);
+            if (isOpen) {
+              setOpenDropdownGroupId(null);
+              setPopoverAnchorRect(null);
+              return;
+            }
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            setOpenDropdownGroupId(group.id);
+            setPopoverAnchorRect({ top: rect.bottom + 4, left: rect.left });
           }}
           onDoubleClick={(e) => {
             e.preventDefault();
@@ -883,18 +899,26 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           <span className="text-sm font-medium truncate max-w-24">{group.name}</span>
           <span className="text-xs text-muted-foreground font-medium">({tabs.length})</span>
         </Button>
-        {/* Custom popover. Rendered inline (not in a portal) so click-
-            outside / ESC close semantics use simple document listeners. */}
-        {isOpen && (
+        {/* Custom popover. Portaled to document.body so it escapes the
+            tab strip's overflow-y-hidden clip. Position is captured at
+            click time from the chip's bounding rect. */}
+        {isOpen && popoverAnchorRect && createPortal(
           <div
             role="menu"
-            className="absolute left-0 top-full mt-1 z-50 min-w-[200px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+            style={{
+              position: 'fixed',
+              top: popoverAnchorRect.top,
+              left: popoverAnchorRect.left,
+              zIndex: 50,
+            }}
+            className="min-w-[200px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
             onDragLeave={(e) => {
               const next = e.relatedTarget as Node | null;
               if (!next || !e.currentTarget.contains(next)) {
                 setOpenDropdownGroupId(null);
                 setDragOverDropdownIndex(null);
                 setDropdownDropPosition(null);
+                setPopoverAnchorRect(null);
               }
             }}
           >
@@ -1053,7 +1077,8 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
             >
               Delete Group
             </button>
-          </div>
+          </div>,
+          document.body,
         )}
       </div>
     );
