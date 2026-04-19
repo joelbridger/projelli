@@ -1,7 +1,7 @@
 // Main Panel Component
 // Contains the editor area with tabs, split panes, and side panels
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   ApiKeySetupCard,
   hasDismissedApiKeyCard,
@@ -261,7 +261,6 @@ export function MainPanel({
     showBacklinks,
     toggleOutline,
     toggleBacklinks,
-    setPendingRenamePath,
   } = useEditorStore();
 
   const activeTab = openTabs.find((t) => t.path === activeTabPath);
@@ -274,6 +273,60 @@ export function MainPanel({
   // Preview mode state - default to false due to WYSIWYG usability issues
   // (cursor placement broken, Enter creates hashtags instead of line breaks)
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+
+  // Inline rename state for the editor title strip. Independent from the
+  // tab-bar inline rename (which is double-click) so this works whether
+  // the tab is visible in the bar or hidden inside a group chip.
+  const [titleEditingPath, setTitleEditingPath] = useState<string | null>(null);
+  const [titleEditingName, setTitleEditingName] = useState('');
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+
+  const startTitleRename = useCallback((path: string, currentName: string) => {
+    const dot = currentName.lastIndexOf('.');
+    const base = dot > 0 ? currentName.slice(0, dot) : currentName;
+    setTitleEditingPath(path);
+    setTitleEditingName(base);
+  }, []);
+
+  const submitTitleRename = useCallback(async () => {
+    if (!titleEditingPath || !onRename) {
+      setTitleEditingPath(null);
+      setTitleEditingName('');
+      return;
+    }
+    const trimmed = titleEditingName.trim();
+    const tab = openTabs.find((t) => t.path === titleEditingPath);
+    if (!tab || !trimmed) {
+      setTitleEditingPath(null);
+      setTitleEditingName('');
+      return;
+    }
+    const dot = tab.name.lastIndexOf('.');
+    const ext = dot > 0 ? tab.name.slice(dot) : '';
+    const newName = trimmed.includes('.') ? trimmed : `${trimmed}${ext}`;
+    if (newName === tab.name) {
+      setTitleEditingPath(null);
+      setTitleEditingName('');
+      return;
+    }
+    try {
+      await onRename(titleEditingPath, newName);
+    } catch (err) {
+      console.error('Title rename failed:', err);
+    } finally {
+      setTitleEditingPath(null);
+      setTitleEditingName('');
+    }
+  }, [titleEditingPath, titleEditingName, onRename, openTabs]);
+
+  // Autofocus + select the basename when rename kicks in.
+  useLayoutEffect(() => {
+    if (!titleEditingPath) return;
+    const input = titleInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, [titleEditingPath]);
 
   // Version history state
   const [showVersionHistory, setShowVersionHistory] = useState(false);
@@ -847,27 +900,44 @@ export function MainPanel({
         {tab.path !== '__grid_view__' && (() => {
           const ext = tab.name.split('.').pop()?.toLowerCase();
           const { Icon, color } = getFileIcon(ext);
+          const isEditing = titleEditingPath === tab.path;
           return (
             <div className="px-3 py-2 border-b bg-muted/20 flex items-center gap-2">
               <Icon className={`h-4 w-4 ${color} flex-shrink-0`} />
-              <h2 className="text-sm font-medium text-foreground/80 truncate min-w-0">
-                {tab.name}
-              </h2>
-              <button
-                type="button"
-                className="h-6 w-6 p-0 rounded hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0"
-                title="Rename file"
-                aria-label={`Rename ${tab.name}`}
-                onClick={() => {
-                  // Reuse the TabBar inline-rename path: setting
-                  // pendingRenamePath makes the active tab enter its
-                  // inline-rename mode (same UX as double-clicking
-                  // the tab). No new modal needed.
-                  setPendingRenamePath(tab.path);
-                }}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
+              {isEditing ? (
+                <input
+                  ref={titleInputRef}
+                  type="text"
+                  value={titleEditingName}
+                  onChange={(e) => setTitleEditingName(e.target.value)}
+                  onBlur={() => void submitTitleRename()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      void submitTitleRename();
+                    } else if (e.key === 'Escape') {
+                      setTitleEditingPath(null);
+                      setTitleEditingName('');
+                    }
+                  }}
+                  className="text-sm font-medium bg-background border rounded px-1 py-0 min-w-0 max-w-[280px]"
+                  size={Math.max(titleEditingName.length + 1, 8)}
+                />
+              ) : (
+                <h2 className="text-sm font-medium text-foreground/80 truncate min-w-0">
+                  {tab.name}
+                </h2>
+              )}
+              {!isEditing && (
+                <button
+                  type="button"
+                  className="h-6 w-6 p-0 rounded hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0"
+                  title="Rename file"
+                  aria-label={`Rename ${tab.name}`}
+                  onClick={() => startTitleRename(tab.path, tab.name)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           );
         })()}
