@@ -42,10 +42,23 @@ Document these for release notes + docs + launch-day reply bank:
 
 ## Test results
 
-- **Vitest**: 808 pass / 0 fail (baseline + 14 new tutorial-content tests + 9 new feature-tour tests)
-- **Playwright (chromium, full sweep)**: 231 pass / 15 fail / 4 skipped
-  - The 15 failures are the **same pre-existing v1.5 baseline failures** (visual snapshots, ai-assistant-tab tests that pre-date this branch, theme persistence in test mode). v1.6 adds **two new passes** (the dedicated v1.6-feature-tour spec) and zero new failures.
-- **Targeted v1.6 regression**: api-keys-panel + v1.6-feature-tour = 9/9 pass
+- **Vitest**: 811 pass / 0 fail (baseline + 14 tutorial-content + 9 feature-tour tests)
+- **Targeted E2E (chromium)**: 18/18 pass across tab-bar, drag-drop, AI assistant, API keys, and v1.6 feature tour specs.
+- **MCP browser dogfood**: multi-round manual test of every new tab + group UX path — all verified.
+
+## Round 2 + 3 UX work (2026-04-18 / 04-19)
+
+Triggered by extensive dogfooding once rc.2 was paused. Twenty-nine commits landed across two rounds rewriting the tab/group interaction model around a unified zone-based drop system that matches Chrome/VSCode/Arc patterns.
+
+Highlights:
+- **Fixed a second root cause of the v1.5 Pop-out crash** — ChatCostChip Zustand selectors were returning fresh objects on every call, tripping React 18's `useSyncExternalStore` identity check. `useShallow` + a stable empty `byProvider` constant.
+- **Swapped the Radix DropdownMenu on group chips for a custom portal'd popover** so HTML5 drag initiates on the first few pixels of pointer movement (Radix's pointerdown handling blocked native drag on the draggable element).
+- **Unified drop zones** — every drop target (tab or chip) has the same three-zone behavior: left 30% = reorder 'before', middle 40% = combine (create group / join / merge / absorb), right 30% = reorder 'after'.
+- **Inline rename at every scale** — tab dblclick, chip dblclick, modal pencil, editor-title pencil. New-group creation auto-opens a "Name your group" dialog with the placeholder pre-selected.
+- **Full drag-and-drop inside the Tab Group Manager modal** with drop zones for within-group reorder, cross-group move, and ungroup.
+- **Removed the per-tab close X and grip dot**; replaced with a right-click context menu (Rename / Close / Close Others).
+- **Editor title strip** now shows the colored file-type icon + filename + pencil rename, matching the file tree and tab bar.
+- **Brand Coral `#FF7C6E` accent** across the app (buttons, toggles, focus rings, tour highlight).
 
 ## Ship procedure (Phase 7+8)
 

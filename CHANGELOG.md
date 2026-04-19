@@ -9,10 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 No changes since v1.6.0.
 
-## [1.6.0] - 2026-04-17
+## [1.6.0] - 2026-04-19
 
 A polish + onboarding release driven by founder feedback on the v1.5
-installer experience and one critical AI-chat bug.
+installer experience, one critical AI-chat bug, and an extensive
+dogfood pass that reshaped the tab + tab-group interaction model.
 
 ### Added
 - Windows silent install as the double-click default. Installer shows a
@@ -22,25 +23,67 @@ installer experience and one critical AI-chat bug.
 - Portable Windows `.exe` artifact (`Projelli_1.6.0_x64-portable.exe`).
   Single file you can drop anywhere, no install step. Signed via
   Azure Trusted Signing.
-- API-key tutorial tab in the first-run wizard's API key step. Real
-  5-step guides for Anthropic, OpenAI, and Google with direct links
-  to each console's API-keys page and billing page.
-- Settings, Onboarding, "API Key Tutorial" action. Users can revisit
-  the tutorial any time from a new Onboarding category in Settings.
-- 5-step interactive feature tour after the first-run wizard. Covers
-  file tree, AI chat, workflow templates, and settings. Skip with Esc,
-  arrow keys to navigate, persistent flag stops re-triggering.
+- API key tutorial dialog with per-provider 5-step guides for
+  Anthropic, OpenAI, and Google. Reachable from the first-run wizard,
+  Settings → Onboarding → "API Key Tutorial", and the AI Assistant
+  pane's "How to get API keys" link (all route to the same surface).
+  Each tutorial has prominent "Open API keys page" + "Billing / pricing"
+  buttons that open the provider's console in the default browser.
+- 10-step interactive feature tour after the first-run wizard. Every
+  step anchors to a visible element in the app (sidebar tabs,
+  Ctrl+K button, settings gear) with a coral highlight outline.
+  Skip with Esc, arrow keys to navigate, persistent flag stops
+  re-triggering. Revisitable from Settings → Onboarding → "Start tour".
+- **Tab bar — reorder tabs between and within groups.** Drop a tab
+  on the left/right edge of another tab or group chip to reorder;
+  drop on the center to create or join a group.
+- **Tab groups.** Drag two tabs together to create a group. Groups
+  appear as chips in the tab bar with an instant popover showing the
+  contained tabs. Chips are draggable themselves — drop onto another
+  chip's center to merge, or onto the edge of a tab/chip to reorder
+  the group's block. Creating a new group immediately opens a
+  "Name your group" dialog with the placeholder name pre-selected.
+- **Tab Group Manager modal.** Fully interactive: drag tabs between
+  groups, into the ungrouped section, or to a different position
+  inside the same group. Each tab row has a pencil for inline rename.
+- Inline rename at every scale: double-click any tab, double-click
+  any group chip, click the pencil in a tab-group-manager row, or
+  click the pencil next to the filename in the editor title strip.
+- Editor title strip shows the same colored file-type icon used in
+  the file tree and tab bar, with the filename and a rename pencil.
+- Right-click context menu on any tab: Rename / Close tab /
+  Close other tabs.
+- Brand Coral `#FF7C6E` is the primary accent throughout the app
+  (buttons, toggles, focus rings, feature tour highlight) — matches
+  the press kit color.
 
 ### Changed
 - Windows installer defaults from full wizard to silent install.
 - Windows `.msi` (WiX) dropped from release artifacts. Only NSIS
   `.exe` + portable `.exe` ship for Windows.
+- Tabs no longer show the per-tab close X (the blank-until-hover
+  space felt awkward). Close is now available via right-click menu,
+  middle-click, Ctrl+W, and the Tab Group Manager.
+- Tabs no longer show the 6-dot grip icon; drag is now the assumed
+  behavior, same as for group chips.
+- Sidebar panels (AI Audit, Workflows) tightened to fit the narrow
+  256 px slot — shorter titles, icon-only export buttons.
+
+### Removed
+- "Pop out" button from the AI Assistant pane (it opened a blank AI
+  tab that didn't mirror the sidebar conversation, which confused
+  users). Ctrl+Shift+A still opens a main-panel AI tab for power users.
 
 ### Fixed
-- React #185 infinite loop crash on AI chat "Pop out" and new-chat
-  creation. Root cause: `loadAIRules` useEffect had a React ref in
-  its dependency array, which broke effect-dep tracking and produced
-  a setState-render loop. Fix also shipped in v1.5-rc.9.
+- React #185 infinite-loop crash on AI chat "Pop out" and new-chat
+  creation. Root cause: `ChatCostChip`'s Zustand selectors returned a
+  fresh object on every call, tripping React 18's `useSyncExternalStore`
+  identity check. Also fixes the original v1.5 complaint about the
+  Pop-out crash (a secondary ref-in-useEffect-deps bug in AIChatViewer
+  was also patched, shipped in v1.5-rc.9).
+- New-chat creation in dev mode no longer overwrites the previous
+  chat — the mock workspace now supports `mkdir` + `list` so the
+  chat-file reload path works correctly.
 
 ### Known issues
 - Portable `.exe` does not auto-update (requires manual re-download).
