@@ -483,10 +483,18 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     if (payload.startsWith('group:')) {
       const sourceGroupId = payload.slice('group:'.length);
       if (sourceGroupId && sourceGroupId !== targetTab.groupId) {
-        // Group-on-tab always absorbs the target tab into the source
-        // group. Users expect "group eats tab" semantics — reorder only
-        // happens between chips or via the empty bar area.
-        moveTabToGroup(targetTab.path, sourceGroupId);
+        // Zone decides: center = absorb tab into group, edges = reorder
+        // the group's block before/after the target tab.
+        if (zone === 'combine') {
+          moveTabToGroup(targetTab.path, sourceGroupId);
+        } else {
+          const position: 'before' | 'after' = zone === 'before' ? 'before' : 'after';
+          useEditorStore.getState().reorderInTabBar(
+            { type: 'group', id: sourceGroupId },
+            { type: 'tab', id: targetTab.path },
+            position,
+          );
+        }
       }
       setDraggedIndex(null);
       setDragOverIndex(null);
