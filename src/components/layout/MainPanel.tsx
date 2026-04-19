@@ -66,7 +66,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { FileText, List, Link2, PanelRightClose, FileType, X, History, Download, ChevronDown, Loader2, MoreHorizontal, Columns, Rows } from 'lucide-react';
+import { FileText, List, Link2, PanelRightClose, FileType, X, History, Download, ChevronDown, Loader2, MoreHorizontal, Columns, Rows, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/utils/saveFile';
 import { markdownToDocxBytes } from '@/utils/docx-io';
@@ -261,6 +261,7 @@ export function MainPanel({
     showBacklinks,
     toggleOutline,
     toggleBacklinks,
+    setPendingRenamePath,
   } = useEditorStore();
 
   const activeTab = openTabs.find((t) => t.path === activeTabPath);
@@ -849,9 +850,24 @@ export function MainPanel({
           return (
             <div className="px-3 py-2 border-b bg-muted/20 flex items-center gap-2">
               <Icon className={`h-4 w-4 ${color} flex-shrink-0`} />
-              <h2 className="text-sm font-medium text-foreground/80 truncate">
+              <h2 className="text-sm font-medium text-foreground/80 truncate flex-1 min-w-0">
                 {tab.name}
               </h2>
+              <button
+                type="button"
+                className="h-6 w-6 p-0 rounded hover:bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground shrink-0"
+                title="Rename file"
+                aria-label={`Rename ${tab.name}`}
+                onClick={() => {
+                  // Reuse the TabBar inline-rename path: setting
+                  // pendingRenamePath makes the active tab enter its
+                  // inline-rename mode (same UX as double-clicking
+                  // the tab). No new modal needed.
+                  setPendingRenamePath(tab.path);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
             </div>
           );
         })()}
