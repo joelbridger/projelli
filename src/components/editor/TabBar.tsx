@@ -12,7 +12,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -188,6 +187,36 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     setEditingTabName(removeExtension(newTab.name));
     setPendingRenamePath(null);
   }, [pendingRenamePath, openTabs, setActiveTab, setPendingRenamePath]);
+
+  // Close the custom group popover on outside click or Escape.
+  useEffect(() => {
+    if (!openDropdownGroupId) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      // Clicks inside a chip wrapper (the wrapper has data-group-chip) or
+      // inside the popover div itself stay open. Anything else closes.
+      let el: Node | null = target;
+      while (el) {
+        if (el instanceof HTMLElement) {
+          if (el.dataset['groupChip'] !== undefined || el.getAttribute('role') === 'menu') {
+            return;
+          }
+        }
+        el = el.parentNode;
+      }
+      setOpenDropdownGroupId(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenDropdownGroupId(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [openDropdownGroupId]);
 
   // R3-P2: when a brand-new tab group is created, open the rename dialog
   // so the user can name it immediately. One-shot.
@@ -813,57 +842,53 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         {isGroupDragOver && dragOverGroupZone === 'after' && (
           <span className="absolute right-0 top-0 bottom-0 w-0.5 bg-primary" aria-hidden />
         )}
-        <DropdownMenu
-          open={isOpen}
-          onOpenChange={(open) => {
-            setOpenDropdownGroupId(open ? group.id : null);
+        {/* Chip button — plain <button>, not a Radix trigger. Opens the
+            popover on CLICK (pointerup without movement) so the browser's
+            HTML5 drag heuristic can initiate dragstart on any pointerdown
+            that moves past the drag threshold. This is the same pattern
+            Chrome/VSCode/Arc use for draggable tabs. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-full px-2 gap-1.5 hover:bg-muted"
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData('text/plain', `group:${group.id}`);
+            e.dataTransfer.effectAllowed = 'move';
+            setDraggedGroupId(group.id);
+            setOpenDropdownGroupId(null);
           }}
-          // modal={false} keeps the trigger interactive during drag.
-          // With modal (the default), Radix's DismissableLayer sets
-          // pointer-events: none on outside elements, which includes
-          // the trigger itself and kills the HTML5 drag gesture mid-press.
-          modal={false}
+          onDragEnd={() => {
+            setDraggedGroupId(null);
+            setDragOverGroupId(null);
+            setDragOverGroupZone(null);
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenDropdownGroupId(isOpen ? null : group.id);
+          }}
+          onDoubleClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpenDropdownGroupId(null);
+            handleGroupDoubleClick(group.id, group.name);
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          aria-expanded={isOpen}
+          aria-haspopup="menu"
         >
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-full px-2 gap-1.5 hover:bg-muted"
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData('text/plain', `group:${group.id}`);
-                e.dataTransfer.effectAllowed = 'move';
-                setDraggedGroupId(group.id);
-                setOpenDropdownGroupId(null);
-              }}
-              onDragEnd={() => {
-                setDraggedGroupId(null);
-                setDragOverGroupId(null);
-                setDragOverGroupZone(null);
-              }}
-              onDoubleClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setOpenDropdownGroupId(null);
-                handleGroupDoubleClick(group.id, group.name);
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-            >
-              <span className="text-sm font-medium truncate max-w-24">{group.name}</span>
-              <span className="text-xs text-muted-foreground font-medium">({tabs.length})</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            className="min-w-[200px]"
-            // R2-P1: close the dropdown when a drag in progress leaves its
-            // bounds. Without this the Radix portal layer above the tab bar
-            // eats drop events aimed at other tabs or the empty bar area,
-            // so outbound drags silently fail. We keep it open for in-group
-            // reorder (cursor stays inside the dropdown).
+          <span className="text-sm font-medium truncate max-w-24">{group.name}</span>
+          <span className="text-xs text-muted-foreground font-medium">({tabs.length})</span>
+        </Button>
+        {/* Custom popover. Rendered inline (not in a portal) so click-
+            outside / ESC close semantics use simple document listeners. */}
+        {isOpen && (
+          <div
+            role="menu"
+            className="absolute left-0 top-full mt-1 z-50 min-w-[200px] rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
             onDragLeave={(e) => {
               const next = e.relatedTarget as Node | null;
               if (!next || !e.currentTarget.contains(next)) {
@@ -1013,15 +1038,23 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                     </div>
                   );
                 })}
-                <DropdownMenuSeparator />
+                <div className="-mx-1 my-1 h-px bg-muted" role="separator" />
               </>
             )}
             {/* Destructive action — Rename now lives at the top of the menu. */}
-            <DropdownMenuItem onClick={() => handleGroupDelete(group.id)} className="text-destructive">
+            <button
+              type="button"
+              role="menuitem"
+              className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-destructive hover:bg-accent hover:text-destructive focus:bg-accent focus:text-destructive"
+              onClick={() => {
+                setOpenDropdownGroupId(null);
+                void handleGroupDelete(group.id);
+              }}
+            >
               Delete Group
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            </button>
+          </div>
+        )}
       </div>
     );
   };
