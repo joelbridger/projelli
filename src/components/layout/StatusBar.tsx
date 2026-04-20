@@ -4,7 +4,8 @@
 import { useCallback, useMemo } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
-import { FolderOpen, File, Edit, ChevronRight } from 'lucide-react';
+import { FolderOpen, File, Edit, ChevronRight, Bug } from 'lucide-react';
+import { openExternal } from '@/utils/openExternal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -289,6 +290,39 @@ export function StatusBar() {
       <div data-testid="status-bar-tab-count" className="ml-4">
         {openTabs.length} file{openTabs.length !== 1 ? 's' : ''} open
       </div>
+
+      {/* Bug report — pre-fills an email to Jameson with version + OS so
+          the message has enough context without requiring a form backend.
+          Fits Projelli's local-first / no-phone-home philosophy; the user
+          reviews before sending. */}
+      <button
+        type="button"
+        data-testid="status-bar-bug-report"
+        className="ml-auto flex items-center gap-1 text-muted-foreground hover:text-foreground"
+        title="Open your email client with a pre-filled bug report"
+        onClick={() => {
+          const version =
+            (import.meta.env['VITE_APP_VERSION'] as string | undefined) ?? 'unknown';
+          const platform =
+            typeof navigator !== 'undefined' && navigator.platform
+              ? navigator.platform
+              : 'unknown';
+          const subject = `Projelli ${version} bug report`;
+          const body = [
+            '',
+            '',
+            '---',
+            `Projelli version: ${version}`,
+            `Platform: ${platform}`,
+            `User agent: ${typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown'}`,
+          ].join('\n');
+          const url = `mailto:jamesondaines@outlook.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+          void openExternal(url);
+        }}
+      >
+        <Bug className="h-3 w-3" />
+        <span>Something broken? Let us know!</span>
+      </button>
     </div>
   );
 }

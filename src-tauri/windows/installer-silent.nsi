@@ -454,16 +454,23 @@ Function .onInit
   ; Projelli v1.6: silent install is the DEFAULT for double-click UX.
   ; Passing /INTERACTIVE on the command line reverts to the full wizard.
   ; Passing /S is equivalent to the default (passive). /P also works.
+  ;
+  ; Setting $PassiveMode alone is NOT enough — the MUI pages ignore
+  ; that variable. We must call SetSilent at runtime so NSIS skips
+  ; the wizard pages and shows only the built-in progress window.
   StrCpy $PassiveMode 1
+  SetSilent silent
 
   ${GetOptions} $CMDLINE "/INTERACTIVE" $R0
   ${IfNot} ${Errors}
     StrCpy $PassiveMode 0
+    SetSilent normal
   ${EndIf}
 
   ${GetOptions} $CMDLINE "/P" $PassiveMode
   ${IfNot} ${Errors}
     StrCpy $PassiveMode 1
+    SetSilent silent
   ${EndIf}
 
   ${GetOptions} $CMDLINE "/NS" $NoShortcutMode
