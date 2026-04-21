@@ -1,11 +1,10 @@
 // Status Bar Component
 // Shows workspace info and status indicators
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { FolderOpen, File, Edit, ChevronRight, Bug } from 'lucide-react';
-import { openExternal } from '@/utils/openExternal';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 // M1 (v1.5) Memory: RAG indexer status badge.
 import { RagStatusBadge } from '@/components/memory/RagStatusBadge';
+import { BugReportDialog } from '@/components/common/BugReportDialog';
 
 /**
  * Extract project name from full path
@@ -118,6 +118,7 @@ export function StatusBar() {
     useWorkspaceStore();
   const { openTabs, activeTabPath } = useEditorStore();
   const activeTab = openTabs.find((t) => t.path === activeTabPath);
+  const [bugReportOpen, setBugReportOpen] = useState(false);
 
   const projectName = getProjectName(rootPath);
 
@@ -291,38 +292,22 @@ export function StatusBar() {
         {openTabs.length} file{openTabs.length !== 1 ? 's' : ''} open
       </div>
 
-      {/* Bug report — pre-fills an email to Jameson with version + OS so
-          the message has enough context without requiring a form backend.
-          Fits Projelli's local-first / no-phone-home philosophy; the user
-          reviews before sending. */}
+      {/* Bug report — opens an in-app dialog that POSTs to the shared
+          form-handler service. Storage + email notification happen server
+          side; the dialog falls back to a mailto link if the POST fails so
+          the user's message is never lost. */}
       <button
         type="button"
         data-testid="status-bar-bug-report"
         className="ml-auto flex items-center gap-1 text-muted-foreground hover:text-foreground"
-        title="Open your email client with a pre-filled bug report"
-        onClick={() => {
-          const version =
-            (import.meta.env['VITE_APP_VERSION'] as string | undefined) ?? 'unknown';
-          const platform =
-            typeof navigator !== 'undefined' && navigator.platform
-              ? navigator.platform
-              : 'unknown';
-          const subject = `Projelli ${version} bug report`;
-          const body = [
-            '',
-            '',
-            '---',
-            `Projelli version: ${version}`,
-            `Platform: ${platform}`,
-            `User agent: ${typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown'}`,
-          ].join('\n');
-          const url = `mailto:jamesondaines@outlook.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-          void openExternal(url);
-        }}
+        title="Report a bug — sends directly to Jameson"
+        onClick={() => setBugReportOpen(true)}
       >
         <Bug className="h-3 w-3" />
         <span>Something broken? Let us know!</span>
       </button>
+
+      <BugReportDialog open={bugReportOpen} onOpenChange={setBugReportOpen} />
     </div>
   );
 }
