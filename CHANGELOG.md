@@ -7,7 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No changes since v1.6.0.
+### Changed
+- **Windows silent install now auto-launches the app** after a fresh
+  double-click install. Previously the installer only created a desktop
+  shortcut and left the app unopened, so users had to click the
+  shortcut themselves to figure out if anything had installed.
+  Auto-launch is skipped on in-place updates (the Tauri updater has
+  its own relaunch flow). Pass `/NORUN` to opt out.
+  Files: `src-tauri/windows/installer-silent.nsi` — `.onInstSuccess`.
+
+### Fixed
+- **Status-bar spacing.** Right-side elements (active file, modified
+  indicator, RAG badge, tab count, "Something broken?" link) now have
+  consistent 16px gap between them. Previously the bug-report link
+  sat visually flush against the tab-count label because one used
+  `ml-auto` and the other used `ml-4`, giving the impression of two
+  items bolted together.
+  File: `src/components/layout/StatusBar.tsx`.
 
 ## [1.6.0] - 2026-04-19
 

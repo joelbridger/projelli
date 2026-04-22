@@ -260,52 +260,48 @@ export function StatusBar() {
 
       <div className="flex-1" />
 
-      {/* Active file meta — modified indicator only (name is now in the
-          breadcrumb trail to its left). */}
-      {activeTab && (
-        <>
-          <div
-            data-testid="status-bar-active-file"
-            className="flex items-center gap-1 mr-4"
-          >
-            <File className="h-3 w-3" />
-            <span className="truncate max-w-[200px]">{activeTab.name}</span>
-          </div>
-
-          {activeTab.isDirty && (
+      {/* Right-side cluster. gap-4 gives every segment consistent breathing
+          room so nothing feels mashed together (v1.6 rc.6). */}
+      <div className="flex items-center gap-4">
+        {activeTab && (
+          <>
             <div
-              data-testid="status-bar-modified"
-              className="flex items-center gap-1 text-amber-500"
+              data-testid="status-bar-active-file"
+              className="flex items-center gap-1"
             >
-              <Edit className="h-3 w-3" />
-              <span>Modified</span>
+              <File className="h-3 w-3" />
+              <span className="truncate max-w-[200px]">{activeTab.name}</span>
             </div>
-          )}
-        </>
-      )}
 
-      {/* M1 (v1.5) Memory: workspace RAG indexer status. */}
-      <RagStatusBadge />
+            {activeTab.isDirty && (
+              <div
+                data-testid="status-bar-modified"
+                className="flex items-center gap-1 text-amber-500"
+              >
+                <Edit className="h-3 w-3" />
+                <span>Modified</span>
+              </div>
+            )}
+          </>
+        )}
 
-      {/* Tab count */}
-      <div data-testid="status-bar-tab-count" className="ml-4">
-        {openTabs.length} file{openTabs.length !== 1 ? 's' : ''} open
+        <RagStatusBadge />
+
+        <div data-testid="status-bar-tab-count">
+          {openTabs.length} file{openTabs.length !== 1 ? 's' : ''} open
+        </div>
+
+        <button
+          type="button"
+          data-testid="status-bar-bug-report"
+          className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
+          title="Report a bug — sends directly to Jameson"
+          onClick={() => setBugReportOpen(true)}
+        >
+          <Bug className="h-3 w-3" />
+          <span>Something broken? Let us know!</span>
+        </button>
       </div>
-
-      {/* Bug report — opens an in-app dialog that POSTs to the shared
-          form-handler service. Storage + email notification happen server
-          side; the dialog falls back to a mailto link if the POST fails so
-          the user's message is never lost. */}
-      <button
-        type="button"
-        data-testid="status-bar-bug-report"
-        className="ml-auto flex items-center gap-1 text-muted-foreground hover:text-foreground"
-        title="Report a bug — sends directly to Jameson"
-        onClick={() => setBugReportOpen(true)}
-      >
-        <Bug className="h-3 w-3" />
-        <span>Something broken? Let us know!</span>
-      </button>
 
       <BugReportDialog open={bugReportOpen} onOpenChange={setBugReportOpen} />
     </div>

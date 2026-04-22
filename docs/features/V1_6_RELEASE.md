@@ -1,13 +1,16 @@
 # Projelli v1.6 Release Tracking
 
-> **Current state:** `v1.6.0-rc.5` tagged 2026-04-21, CI building (run id
-> 24745895127). Only diff vs rc.4 is the in-app bug-report dialog
-> replacing the mailto button. Awaiting Jameson's Windows dogfood pass.
+> **Current state:** `v1.6.0-rc.6` in progress, 2026-04-22. Fixes two
+> items Jameson caught dogfooding rc.5: (1) silent-install did nothing
+> visible until the user hunted for the new desktop shortcut — rc.6
+> auto-launches the app after a fresh install, (2) the "Something
+> broken?" link sat flush against the tab-count text — rc.6 gives the
+> entire status bar consistent spacing. Awaits Jameson's Windows pass.
 > If clean, tag `v1.6.0` final.
 >
 > **Integration branch:** `release/v1.6` (forked from `release/v1.5` after
 > v1.5-rc.9 bug fix, 2026-04-17).
-> **Commits since fork:** 148.
+> **Commits since fork:** 148+.
 
 ---
 
@@ -31,7 +34,8 @@
 | `v1.6.0-rc.2` | 2026-04-17 | ⚠️ Cancelled by Jameson mid-build to switch to dev-mode iteration |
 | `v1.6.0-rc.3` | 2026-04-19 | ⚠️ Built green, but Windows silent install didn't work (`$PassiveMode=1` without `SetSilent`) |
 | `v1.6.0-rc.4` | 2026-04-20 | ✅ Built green, published. Silent install + mailto link confirmed working by Jameson. Mailto bounced as a UX cost — replaced in rc.5. |
-| `v1.6.0-rc.5` | 2026-04-21 | 🟡 Building. Adds in-app bug-report dialog (POSTs to form-handler, mailto fallback) replacing the rc.4 mailto button. **Pending user dogfood.** |
+| `v1.6.0-rc.5` | 2026-04-21 | ✅ Built + promoted. Silent install + bug-report dialog confirmed working; POST + Brevo email verified by Jameson. Uncovered two UX gaps fixed in rc.6. |
+| `v1.6.0-rc.6` | 2026-04-22 | 🟡 In progress. Fresh silent install auto-launches the app (skips on updates). Status-bar right-side cluster uses `gap-4` for consistent 16px separation. **Pending user dogfood.** |
 
 ---
 
