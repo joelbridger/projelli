@@ -734,14 +734,26 @@ Section Install
 SectionEnd
 
 Function .onInstSuccess
-  ; Check for `/R` flag only in silent and passive installers because
-  ; GUI installer has a toggle for the user to (re)start the app
+  ; Projelli v1.6 rc.6: a fresh silent/passive install auto-launches the
+  ; app so double-clicking the setup.exe doesn't leave the user staring
+  ; at an empty desktop wondering if anything happened. Skipped for
+  ; updates because the Tauri updater has its own relaunch flow — we
+  ; would fight it and crash the handoff. Pass /NORUN to opt out.
   ${If} $PassiveMode = 1
   ${OrIf} ${Silent}
-    ${GetOptions} $CMDLINE "/R" $R0
-    ${IfNot} ${Errors}
-      ${GetOptions} $CMDLINE "/ARGS" $R0
-      nsis_tauri_utils::RunAsUser "$INSTDIR\${MAINBINARYNAME}.exe" "$R0"
+    ${If} $UpdateMode <> 1
+      ${GetOptions} $CMDLINE "/NORUN" $R1
+      ${If} ${Errors}
+        ${GetOptions} $CMDLINE "/ARGS" $R0
+        nsis_tauri_utils::RunAsUser "$INSTDIR\${MAINBINARYNAME}.exe" "$R0"
+      ${EndIf}
+    ${Else}
+      ; Update path: legacy behavior — only launch if /R explicitly set.
+      ${GetOptions} $CMDLINE "/R" $R0
+      ${IfNot} ${Errors}
+        ${GetOptions} $CMDLINE "/ARGS" $R0
+        nsis_tauri_utils::RunAsUser "$INSTDIR\${MAINBINARYNAME}.exe" "$R0"
+      ${EndIf}
     ${EndIf}
   ${EndIf}
 FunctionEnd
