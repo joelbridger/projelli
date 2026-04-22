@@ -1,11 +1,13 @@
 # Projelli v1.6 Release Tracking
 
-> **Current state:** `v1.6.0-rc.4` published as pre-release on 2026-04-20.
-> Awaiting Jameson's Windows dogfood pass. If clean, tag `v1.6.0` final.
+> **Current state:** `v1.6.0-rc.5` tagged 2026-04-21, CI building (run id
+> 24745895127). Only diff vs rc.4 is the in-app bug-report dialog
+> replacing the mailto button. Awaiting Jameson's Windows dogfood pass.
+> If clean, tag `v1.6.0` final.
 >
 > **Integration branch:** `release/v1.6` (forked from `release/v1.5` after
 > v1.5-rc.9 bug fix, 2026-04-17).
-> **Commits since fork:** 147.
+> **Commits since fork:** 148.
 
 ---
 
@@ -19,7 +21,7 @@
 | T-AKT | API key tutorial in wizard + Settings + AI pane | ✅ Done |
 | T-FT | Feature tour (expanded from 5 → 10 steps) | ✅ Done |
 | R2+R3 | Tab/group UX overhaul (30+ commits) | ✅ Done |
-| BUG-REPORT | "Something broken?" mailto link in status bar | ✅ Done in rc.4 |
+| BUG-REPORT | "Something broken?" status-bar link | ✅ rc.4 = mailto, rc.5 = in-app dialog → form-handler |
 
 ## RC history
 
@@ -28,7 +30,8 @@
 | `v1.6.0-rc.1` | 2026-04-17 | ❌ Failed: invalid `"updater"` in bundle.targets array |
 | `v1.6.0-rc.2` | 2026-04-17 | ⚠️ Cancelled by Jameson mid-build to switch to dev-mode iteration |
 | `v1.6.0-rc.3` | 2026-04-19 | ⚠️ Built green, but Windows silent install didn't work (`$PassiveMode=1` without `SetSilent`) |
-| `v1.6.0-rc.4` | 2026-04-20 | ✅ Built green, published pre-release, **pending user dogfood** |
+| `v1.6.0-rc.4` | 2026-04-20 | ✅ Built green, published. Silent install + mailto link confirmed working by Jameson. Mailto bounced as a UX cost — replaced in rc.5. |
+| `v1.6.0-rc.5` | 2026-04-21 | 🟡 Building. Adds in-app bug-report dialog (POSTs to form-handler, mailto fallback) replacing the rc.4 mailto button. **Pending user dogfood.** |
 
 ---
 
@@ -73,7 +76,7 @@ Rewrote the drag/drop model around a unified zone-based pattern matching Chrome/
 
 ### Other
 - `AuditLog` and `WorkflowPanel` sidebar headers tightened to fit the 256px sidebar slot (shorter titles, icon-only export buttons).
-- **"Something broken? Let us know!"** link (bug icon, far-right of status bar) opens `mailto:jamesondaines@outlook.com` with pre-filled subject `Projelli <version> bug report` and body containing app version + OS + user agent.
+- **"Something broken? Let us know!"** link (bug icon, far-right of status bar). In rc.5+, opens an in-app dialog (`src/components/common/BugReportDialog.tsx`) with a textarea, optional reply-email field, and an opt-in metadata checkbox (version + OS + user agent). Submit POSTs to `https://projelli.com/api/forms/projelli/bug-report`, which is reverse-proxied by system Caddy to the shared form-handler service at `~/services/form-handler/server.ts`. The handler stores a JSONL record in `~/projelli/sign-ups/projelli-bug-report-YYYY-MM.jsonl` and emails Jameson via Brevo. On network failure the dialog shows an "Open email client instead" link that falls back to the rc.4 mailto behavior so the user's message is never lost.
 
 ---
 
@@ -106,6 +109,15 @@ All drag events use `dataTransfer.setData('text/plain', payload)`:
 - Groups: `"group:<groupId>"` prefix
 - Tab Group Manager rows: `"tabgm:<path>"` prefix
 Handlers branch on `payload.startsWith('group:')` vs `startsWith('tabgm:')` vs numeric.
+
+### Bug-report dialog uses the shared form-handler service (rc.5+)
+The dialog's POST target (`https://projelli.com/api/forms/projelli/bug-report`) is reverse-proxied by Caddy to the Bun service at `~/services/form-handler/server.ts` (already used by healthful, heardify, behaviorux, and the Projelli email-list signup). The form-handler validates the form ID, sanitizes fields, stores a JSONL record in `~/projelli/sign-ups/`, and best-effort emails Jameson via Brevo. CORS headers are added to all `/api/forms/*` responses so the Tauri webview's `tauri://localhost` origin can read the response. The Tauri app uses `getCorsSafeFetch()` (from `src/modules/models/fetchUtils.ts`) which routes through `@tauri-apps/plugin-http` in production builds (CORS bypass via Rust) and native fetch in dev.
+
+Two Tauri allowlists must include `https://projelli.com`:
+1. `src-tauri/tauri.conf.json` → `app.security.csp` `connect-src` (covers Tauri-dev native fetch).
+2. `src-tauri/capabilities/default.json` → `http:default.allow` (covers Tauri-prod plugin-http fetch). The narrow scope `https://projelli.com/api/forms/**` is intentional — don't widen it.
+
+Failure path: dialog catches the error, shows "Open email client instead" link that triggers `openExternal()` with a pre-filled mailto. The user's typed message is preserved across the failure-to-fallback transition.
 
 ### Brand Coral in one place
 `src/styles/globals.css` defines `--color-primary: hsl(6 100% 72%)` for both light and dark themes. Any new surface that needs the accent should use `text-primary` / `bg-primary` Tailwind classes and inherit. Hard-coded hex `#FF7C6E` only appears in `FeatureTour.tsx` (highlight border) and `ProjelliLogo.tsx` (SVG fills).
