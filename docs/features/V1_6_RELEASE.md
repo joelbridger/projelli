@@ -35,7 +35,8 @@
 | `v1.6.0-rc.3` | 2026-04-19 | ⚠️ Built green, but Windows silent install didn't work (`$PassiveMode=1` without `SetSilent`) |
 | `v1.6.0-rc.4` | 2026-04-20 | ✅ Built green, published. Silent install + mailto link confirmed working by Jameson. Mailto bounced as a UX cost — replaced in rc.5. |
 | `v1.6.0-rc.5` | 2026-04-21 | ✅ Built + promoted. Silent install + bug-report dialog confirmed working; POST + Brevo email verified by Jameson. Uncovered two UX gaps fixed in rc.6. |
-| `v1.6.0-rc.6` | 2026-04-22 | 🟡 In progress. Fresh silent install auto-launches the app (skips on updates). Status-bar right-side cluster uses `gap-4` for consistent 16px separation. **Pending user dogfood.** |
+| `v1.6.0-rc.6` | 2026-04-22 | ⚠️ Built green but never dogfooded — rc.5 Mac testing uncovered a critical fs:scope bug that blocks workspace creation on macOS. Fix rolled into rc.7. |
+| `v1.6.0-rc.7` | 2026-04-23 | 🟡 In progress. Fixes Mac fs:scope (standalone `**` glob rejected by glob crate). Carries forward the rc.6 silent-install auto-launch + status-bar spacing fixes. **First Mac-testable build.** |
 
 ---
 

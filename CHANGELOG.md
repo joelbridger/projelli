@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Files: `src-tauri/windows/installer-silent.nsi` — `.onInstSuccess`.
 
 ### Fixed
+- **Mac could not create any workspace.** `fs:scope` contained a
+  standalone `**` pattern that the underlying `glob` crate rejects
+  because `**` must form a single path component (i.e. be followed
+  by a `/`). On Windows the scope check matched the drive-letter
+  patterns first and never evaluated the bad entry; on macOS it
+  was the first pattern encountered, so every `exists()` check
+  failed with `"invalid glob pattern: recursive wildcards must form
+  a single path component"` and the workspace picker bailed out.
+  Removed the standalone `**`; the already-present `**/*` covers
+  the same intent correctly.
+  File: `src-tauri/capabilities/default.json`.
 - **Status-bar spacing.** Right-side elements (active file, modified
   indicator, RAG badge, tab count, "Something broken?" link) now have
   consistent 16px gap between them. Previously the bug-report link
