@@ -37,7 +37,8 @@
 | `v1.6.0-rc.5` | 2026-04-21 | ✅ Built + promoted. Silent install + bug-report dialog confirmed working; POST + Brevo email verified by Jameson. Uncovered two UX gaps fixed in rc.6. |
 | `v1.6.0-rc.6` | 2026-04-22 | ⚠️ Built green but never dogfooded — rc.5 Mac testing uncovered a critical fs:scope bug that blocks workspace creation on macOS. Fix rolled into rc.7. |
 | `v1.6.0-rc.7` | 2026-04-23 | ❌ Mac DMG still threw the glob error — rc.7 dropped the standalone `**` but the real culprit was `C:\**` (backslashes not path separators in the `glob` crate). Superseded by rc.8. |
-| `v1.6.0-rc.8` | 2026-04-23 | 🟡 In progress. Reproduced the scope error locally with `glob v0.3.3` and narrowed it to backslash patterns. Replaced all `C:\**`-style patterns with forward-slash `C:/**`, collapsed allow list to universal `**/*`. |
+| `v1.6.0-rc.8` | 2026-04-23 | ⚠️ Glob parse bug fixed but workspace creation still failed at `.trash` with `forbidden path`. Root cause: Tauri plugin-fs defaults `require_literal_leading_dot=true` on Unix, and `**/*` does not match dotfiles under that option. |
+| `v1.6.0-rc.9` | 2026-04-23 | 🟡 In progress. Sets `plugins.fs.requireLiteralLeadingDot: false` so Mac matches Windows dotfile behavior. Also folds in the CSP fix (`ipc: http://ipc.localhost` in `connect-src`) that was deferred from rc.8. |
 
 ---
 

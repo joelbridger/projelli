@@ -17,6 +17,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Files: `src-tauri/windows/installer-silent.nsi` — `.onInstSuccess`.
 
 ### Fixed
+- **Mac workspace creation failed at `.trash` with `forbidden path`.**
+  Tauri plugin-fs reads `require_literal_leading_dot` from the plugin
+  config and defaults it to `true` on Unix (false on Windows) — when
+  true, `**/*` does NOT match paths whose final component starts with
+  a dot. Projelli's default workspace structure creates a `.trash`
+  folder, which is a dotfile under Unix glob rules, so the scope
+  check rejected it. Set `plugins.fs.requireLiteralLeadingDot: false`
+  in `tauri.conf.json` to make Mac match Windows behavior. Verified
+  against Tauri plugin-fs 2.4.5 source (`commands.rs:1126`).
+  File: `src-tauri/tauri.conf.json`.
+- **Devtools IPC blocked by CSP on first launch.** The `connect-src`
+  directive didn't include `ipc: http://ipc.localhost`, so Tauri's
+  IPC protocol was rejected and it silently fell back to the slower
+  postMessage transport. Harmless in practice (the fallback works)
+  but prints an alarming-looking error in the console every time
+  devtools is toggled. Added the scheme per Tauri 2 docs.
+  File: `src-tauri/tauri.conf.json`.
 - **Mac could not create any workspace.** The `fs:scope` allow/deny
   lists contained patterns like `C:\**` and `C:\Windows\**` that use
   backslashes. The `glob` crate only treats forward slashes as path
