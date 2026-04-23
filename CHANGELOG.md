@@ -17,16 +17,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Files: `src-tauri/windows/installer-silent.nsi` — `.onInstSuccess`.
 
 ### Fixed
-- **Mac could not create any workspace.** `fs:scope` contained a
-  standalone `**` pattern that the underlying `glob` crate rejects
-  because `**` must form a single path component (i.e. be followed
-  by a `/`). On Windows the scope check matched the drive-letter
-  patterns first and never evaluated the bad entry; on macOS it
-  was the first pattern encountered, so every `exists()` check
+- **Mac could not create any workspace.** The `fs:scope` allow/deny
+  lists contained patterns like `C:\**` and `C:\Windows\**` that use
+  backslashes. The `glob` crate only treats forward slashes as path
+  separators, so `\**` parsed as the two chars `\` and `**`, and the
+  trailing `**` was not a valid standalone path component — compile
   failed with `"invalid glob pattern: recursive wildcards must form
-  a single path component"` and the workspace picker bailed out.
-  Removed the standalone `**`; the already-present `**/*` covers
-  the same intent correctly.
+  a single path component"` at position 2 (the backslash). Windows
+  somehow short-circuited before reaching the bad pattern; macOS
+  walked straight into it and every `exists()` call threw.
+  Replaced backslash patterns with forward-slash equivalents
+  (`C:/Windows/**` etc.), and reduced the allow list to a single
+  universal `**/*` — one pattern matches every absolute path on
+  every platform, so the drive-letter allow patterns were redundant
+  as well as broken. Validated every remaining pattern compiles
+  against `glob v0.3.3` (the version Tauri plugin-fs 2.4.5 uses).
   File: `src-tauri/capabilities/default.json`.
 - **Status-bar spacing.** Right-side elements (active file, modified
   indicator, RAG badge, tab count, "Something broken?" link) now have

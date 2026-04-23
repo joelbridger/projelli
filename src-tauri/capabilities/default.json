@@ -38,18 +38,12 @@
     {
       "identifier": "fs:scope",
       "allow": [
-        { "path": "**/*" },
-        { "path": "C:\\**" },
-        { "path": "D:\\**" },
-        { "path": "E:\\**" },
-        { "path": "F:\\**" },
-        { "path": "G:\\**" },
-        { "path": "/**" }
+        { "path": "**/*" }
       ],
       "deny": [
-        { "path": "C:\\Windows\\**" },
-        { "path": "C:\\Program Files\\**" },
-        { "path": "C:\\Program Files (x86)\\**" },
+        { "path": "C:/Windows/**" },
+        { "path": "C:/Program Files/**" },
+        { "path": "C:/Program Files (x86)/**" },
         { "path": "/etc/**" },
         { "path": "/usr/bin/**" },
         { "path": "/bin/**" },
