@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  body { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-size: 13px; color: #1d1d1f; }
+  .finder { width: 480px; background: #fff; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 24px 48px rgba(0,0,0,0.22), 0 8px 16px rgba(0,0,0,0.10); }
+  .titlebar { height: 28px; background: linear-gradient(180deg,#ECECEC 0%,#DCDCDC 100%);
+              border-bottom: 1px solid rgba(0,0,0,0.12); display: flex; align-items: center; padding: 0 12px; }
+  .traffic-lights { display: flex; gap: 8px; }
+  .traffic-lights .dot { width: 12px; height: 12px; border-radius: 50%; border: 0.5px solid rgba(0,0,0,0.18); }
+  .traffic-lights .close { background: #FF5F57; }
+  .traffic-lights .min { background: #FEBC2E; }
+  .traffic-lights .max { background: #28C840; }
+  .title { flex: 1; text-align: center; font-size: 12px; font-weight: 500; color: #4A4A4A; margin-right: 60px; }
+  .body { display: flex; height: 280px; }
+  .sidebar { width: 140px; background: #F5F5F7; padding: 8px 6px; border-right: 1px solid rgba(0,0,0,0.08); }
+  .sidebar .item { padding: 4px 8px; border-radius: 6px; display: flex; gap: 6px; align-items: center; font-size: 12px; }
+  .sidebar .item.active { background: rgba(0,122,255,0.12); color: #0066D9; font-weight: 500; }
+  .files { flex: 1; padding: 8px 12px; }
+  .file { padding: 4px 0; display: flex; gap: 8px; align-items: center; }
+  .file .icon { width: 20px; height: 22px; background: #DCDCDC; border-radius: 3px;
+                position: relative; border: 1px solid #B0B0B0; }
+  .file .icon::after { content: 'md'; font-size: 7px; color: #666; position: absolute;
+                       bottom: 1px; left: 50%; transform: translateX(-50%); }
+  .file .name { font-size: 12px; }
+</style></head><body>
+  <div class="finder">
+    <div class="titlebar">
+      <div class="traffic-lights"><span class="dot close"></span><span class="dot min"></span><span class="dot max"></span></div>
+      <div class="title">Linterly</div>
+    </div>
+    <div class="body">
+      <div class="sidebar">
+        <div class="item">&#128193; Documents</div>
+        <div class="item active">&#128193; Linterly</div>
+        <div class="item">&#128193; Downloads</div>
+      </div>
+      <div class="files">
+        <div class="file"><div class="icon"></div><div class="name">Brand Voice.md</div></div>
+        <div class="file"><div class="icon"></div><div class="name">Competitive Analysis.md</div></div>
+        <div class="file"><div class="icon"></div><div class="name">Customers.md</div></div>
+        <div class="file"><div class="icon"></div><div class="name">Founder Notes.md</div></div>
+        <div class="file"><div class="icon"></div><div class="name">Launch Plan.md</div></div>
+        <div class="file"><div class="icon"></div><div class="name">Pricing.md</div></div>
+        <div class="file"><div class="icon"></div><div class="name">Q1 Goals.md</div></div>
+        <div class="file"><div class="icon"></div><div class="name">Vision.md</div></div>
+      </div>
+    </div>
+  </div>
+</body></html>
