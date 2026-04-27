@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Why I built Projelli on Markdown instead of a database | Projelli Blog</title>
+  <meta name="description" content="The early architecture decision that shaped everything else about Projelli was: should chat conversations live in a database, or as plain Markdown files? Eight weeks in, I'm convinced the Markdown choice was the right one for reasons that go beyond the obvious. Here's the story.">
+  <link rel="canonical" href="https://projelli.com/blog/why-i-built-projelli-on-markdown-not-a-database">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://projelli.com/blog/why-i-built-projelli-on-markdown-not-a-database">
+  <meta property="og:title" content="Why I built Projelli on Markdown instead of a database">
+  <meta property="og:description" content="The early architecture decision that shaped everything else about Projelli.">
+  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg-white:#FFFFFF; --bg-surface:#F8FAFC; --border-gray:#E2E8F0; --text-heading:#111F35; --text-body:#475569; --text-muted:#94A3B8; --accent-blue:#3B82F6; --accent-coral:#FF7C6E; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.75; padding: 0 24px 100px; -webkit-font-smoothing: antialiased; }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    pre { background: #0F172A; color: #E2E8F0; padding: 16px 20px; border-radius: 8px; margin: 24px 0; overflow-x: auto; font-size: 0.875rem; line-height: 1.6; }
+    pre code { background: transparent; color: inherit; padding: 0; font-size: 1em; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #FF7C6E 0%, #FF6554 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.js" defer></script>
+
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">← All posts</a>
+
+    <h1>Why I built Projelli on Markdown instead of a database.</h1>
+    <p class="meta">By Jameson Daines · 2026-04-27 · 9 min read</p>
+
+    <p>The first real architecture decision I made for Projelli, sometime in week 1, was: where do AI conversations live on disk? The default answer for an app like this is "in a database, probably SQLite." That's what most note-taking apps do. That's what Obsidian's chat plugins do. That's what Reflect, Mem.ai, and Tana do (in their cases, in the cloud rather than locally, but the data model is the same).</p>
+
+    <p>I went with the other option. Every Projelli AI conversation is a single Markdown file in a folder you pick. Eight weeks in, I'm convinced this was the right call for reasons that took me a while to articulate. Worth writing down because the trade-offs aren't obvious until you've lived with both.</p>
+
+    <h2>The conventional architecture, briefly</h2>
+
+    <p>Most chat apps store conversations in a database. SQLite for local, Postgres for cloud. The schema looks roughly like:</p>
+
+    <pre><code>CREATE TABLE conversations (
+  id TEXT PRIMARY KEY,
+  title TEXT,
+  model TEXT,
+  created_at INTEGER,
+  updated_at INTEGER
+);
+
+CREATE TABLE messages (
+  id TEXT PRIMARY KEY,
+  conversation_id TEXT REFERENCES conversations(id),
+  role TEXT,
+  content TEXT,
+  tokens INTEGER,
+  created_at INTEGER
+);</code></pre>
+
+    <p>This is what ChatGPT, Claude.ai, Notion AI, and basically every "modern" chat app has under the hood. It's the right shape for the things you'd naturally want to do: query messages by date, count tokens, build a chat history view, export to JSON.</p>
+
+    <p>It's also the wrong shape for what I actually wanted Projelli to be.</p>
+
+    <h2>The thing I wanted Projelli to be</h2>
+
+    <p>I wanted a tool where, two years from now, an indie founder could grep across every strategic conversation they'd had with the AI and find the one thing they'd written about a pricing experiment. They could open it in Vim if Projelli stopped existing. They could put the whole thing in a git repo and version-control their evolving thinking.</p>
+
+    <p>None of those work with a SQLite chat database. The data is technically yours. Practically, you need a tool that knows how to read the schema, and the schema is mine to change.</p>
+
+    <p>The Markdown-files approach inverts every one of those:</p>
+
+    <ul>
+      <li>Grep across conversations: <code>grep -ri "pricing" ~/projelli-workspace/</code>. Works in any terminal.</li>
+      <li>Open in Vim if Projelli disappears: open the file. Done. It's text.</li>
+      <li>Version-control: drop the workspace in a git repo. Every commit is a snapshot of your thinking that day.</li>
+    </ul>
+
+    <p>The deeper version of this argument is in the cornerstone page at <a href="/markdown-for-ai">/markdown-for-ai</a>. This post is the engineering version: what it's actually like to build with this constraint.</p>
+
+    <h2>What changed in the architecture</h2>
+
+    <p>The Markdown-first decision flowed through to a lot of secondary choices. The biggest:</p>
+
+    <h3>1. The "current state" of the app is the file system</h3>
+
+    <p>Most apps have an authoritative in-memory state that's serialized to disk for persistence. The pattern is: load on startup, modify in memory, save changes. The disk format is a serialization of the in-memory model.</p>
+
+    <p>Projelli inverts this. The file system is the source of truth. The in-memory representation is a cached projection. When you change a file from outside Projelli (in your text editor, via a script, by syncing from Dropbox), Projelli notices and updates its cached view. The disk format is human-first; the in-memory model is the secondary.</p>
+
+    <p>Concretely: <code>.aichat</code> files are Markdown with a YAML frontmatter. The Markdown body is the conversation. The frontmatter has the provider, model, timestamps, tags. When you open Projelli, it scans the workspace folder, parses each file's frontmatter, builds the chat list. Edit a file in TextEdit, save, the chat list updates.</p>
+
+    <h3>2. There's no SQL</h3>
+
+    <p>I was prepared to add SQLite for full-text search across the workspace. Turned out I didn't need to. <a href="https://github.com/lucaong/minisearch" target="_blank" rel="noopener">MiniSearch</a> handles full-text search across thousands of Markdown files in milliseconds with a tiny index footprint. The whole search subsystem is one file.</p>
+
+    <p>This is partly because the data volumes for an individual workspace are small (a few thousand files at most for any reasonable founder archive). At a scale of millions of files, you'd need a real index. At the scale of one founder's strategic archive, you don't.</p>
+
+    <h3>3. Sync becomes the user's problem in a good way</h3>
+
+    <p>I'd been planning to ship a Projelli sync feature in v2. Eight weeks of using the Markdown-files approach later, I'm not going to. Users put the workspace folder in Dropbox or iCloud and sync just works. It's also more reliable than any sync I'd build myself, because Dropbox and iCloud are dedicated sync companies with hundreds of engineering years invested in the problem.</p>
+
+    <p>"Use the user's existing sync layer" is a real architecture pattern. Most apps reflexively try to own sync because it sounds like a feature. For local-first single-user tools, BYO sync is genuinely better.</p>
+
+    <h3>4. The "export" feature doesn't exist</h3>
+
+    <p>One of the awkward parts of building a chat app on a database is that you have to ship an export feature. Users want their data. The export is usually JSON, which is tool-readable but not user-readable. Inevitably someone asks for Markdown export of their JSON dump.</p>
+
+    <p>With Markdown-first, there's no export. The data is already in the format you'd export to. Users can <code>cp -r</code> their workspace folder anywhere. They can email it to themselves. They can put it on a USB stick. Built-in.</p>
+
+    <h2>The trade-offs I accepted</h2>
+
+    <p>The Markdown-files approach isn't free. There are real costs:</p>
+
+    <h3>1. Some queries are slower</h3>
+
+    <p>"Show me every conversation where I used GPT-4 between March and April with more than 5,000 tokens" is a SQL query. With Markdown files, it's a script that walks the workspace, parses frontmatter, applies the filter. The walk is fast (MiniSearch's index is rebuilt on workspace open) but for ad-hoc filtered queries, you don't have the SQL primitive available.</p>
+
+    <p>For an indie founder workspace this rarely matters. For a multi-tenant cloud product where you'd run analytics queries across millions of conversations, it would matter a lot. Different shapes for different scales.</p>
+
+    <h3>2. Concurrent writes are tricky</h3>
+
+    <p>If two processes write to the same file at the same time, you can lose data. With a database transaction, you don't. Projelli is single-user single-process so this is rarely an issue, but if a user runs two Projelli instances pointed at the same workspace folder (which Dropbox-synced setups can produce), you can hit conflicts.</p>
+
+    <p>The mitigation: every file write goes through a debounce + atomic-rename pattern. Conflicts are still possible but rare. For a multi-user collaborative app, this approach would not scale; for single-user, it's fine.</p>
+
+    <h3>3. The frontmatter parsing is its own subsystem</h3>
+
+    <p>Reading a YAML frontmatter from each file on workspace open is more work than a SQL <code>SELECT</code>. The cold-start indexing of a 1,000-file workspace takes ~200ms. Once indexed in memory, queries are fast, but the first open is slower than a SQLite-backed alternative.</p>
+
+    <p>Acceptable for a desktop app where workspace open is a once-per-session event. Not acceptable if you needed to start fresh on every API request, which a cloud app would.</p>
+
+    <h2>The cultural side of the decision</h2>
+
+    <p>The architecture decision was also a cultural one. By choosing Markdown files, I committed Projelli to a specific worldview:</p>
+
+    <ul>
+      <li>Your data is more important than my data model</li>
+      <li>The tool should be replaceable; the archive shouldn't</li>
+      <li>I'd rather be one of many tools that can read your workspace than the only tool that can</li>
+      <li>The promise to users is durable in a way "we'll let you export" never is</li>
+    </ul>
+
+    <p>This is the part that's hard to feel until you've used a tool that does the opposite. If you've ever paid for a notes app for years and then watched it sunset and discovered the export feature was JSON, you know the cost of vendor lock-in by data format. The Markdown-first decision is the architectural defense against that pain.</p>
+
+    <h2>What I'd do differently if I were starting over</h2>
+
+    <p>Honestly, not much. The Markdown-files approach has been more flexible than I expected. The two things I'd consider:</p>
+
+    <h3>1. Start with the format design, not the editor</h3>
+
+    <p>I designed Projelli's <code>.aichat</code> file format somewhat opportunistically. Frontmatter, then alternating <code>## You</code> / <code>## Claude</code> sections. It works, but I'd version the format spec from day one and write a formal document about how it should be parsed by other tools. Right now the spec lives in code; that's fine for me but suboptimal for other tool builders who might want to read or write the format.</p>
+
+    <h3>2. Ship a CLI from day one</h3>
+
+    <p>Markdown-as-data should come with a CLI. <code>projelli list</code>, <code>projelli search "pricing"</code>, <code>projelli export-as-pdf</code>. I haven't built one yet because the GUI handles 95% of use cases. But CLI access is what makes the "your data is yours" claim more than rhetoric, and shipping it from day one would have been the right move.</p>
+
+    <h2>The takeaway for other builders</h2>
+
+    <p>If you're building a personal-data tool (notes, AI workspace, journal, knowledge base) and you're considering whether to use a database or files, here's the test: <strong>do you want your users to be able to read their data 20 years from now without your software?</strong></p>
+
+    <p>If yes, files. The trade-offs of databases (SQL queries, strict schemas, transactional safety) don't outweigh the loss of long-term data ownership for a personal tool.</p>
+
+    <p>If no (because you're building a multi-user collaborative app, or your data model is genuinely too complex for files, or you're building for a context where SQL queries matter), databases. There are good reasons for them.</p>
+
+    <p>For Projelli specifically, the answer was clearly "files." Eight weeks of building on that foundation has been smoother than I expected, and the marketing claim ("your data is yours") is structurally true rather than aspirationally true. That distinction matters more than I realized at the time.</p>
+
+    <a href="/#download" class="cta">Try a Markdown-first AI workspace, free download</a>
+  </div>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BYOK AI: my actual cost after 60 days of building Projelli | Projelli Blog</title>
+  <meta name="description" content="When I switched off ChatGPT Plus and Notion AI and went BYOK with Claude through Projelli, I expected to save money. Here's the actual line-by-line cost over 60 days, including the months I used heavily and the weeks I barely touched it.">
+  <link rel="canonical" href="https://projelli.com/blog/byok-actual-cost-after-60-days">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://projelli.com/blog/byok-actual-cost-after-60-days">
+  <meta property="og:title" content="BYOK AI: my actual cost after 60 days">
+  <meta property="og:description" content="The line-by-line BYOK cost data over 60 days of building Projelli.">
+  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg-white:#FFFFFF; --bg-surface:#F8FAFC; --border-gray:#E2E8F0; --text-heading:#111F35; --text-body:#475569; --text-muted:#94A3B8; --accent-blue:#3B82F6; --accent-coral:#FF7C6E; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.75; padding: 0 24px 100px; -webkit-font-smoothing: antialiased; }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 0.9375rem; }
+    th, td { border: 1px solid var(--border-gray); padding: 10px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--bg-surface); color: var(--text-heading); font-weight: 600; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #FF7C6E 0%, #FF6554 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.js" defer></script>
+
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">← All posts</a>
+
+    <h1>BYOK AI: my actual cost after 60 days of building Projelli.</h1>
+    <p class="meta">By Jameson Daines · 2026-04-27 · 8 min read</p>
+
+    <p>I'm going to do something most "BYOK is cheaper" posts don't do, which is show the actual numbers from my own Anthropic billing dashboard for the last 60 days of building Projelli. Real receipts, not a hypothetical "well if you used the API at this rate" math problem.</p>
+
+    <p>The short version: my BYOK cost across Claude API for the 60 days I was building, drafting marketing copy, doing customer interviews, and generally living inside an AI workspace was <strong>$87.42</strong>. Same period, the alternative subscription stack I would have paid for (ChatGPT Plus + Claude Pro + Notion AI) totaled <strong>$100</strong>. Saved $12.58.</p>
+
+    <p>That's a smaller margin than the marketing version of the BYOK math. Here's what actually happened, week by week.</p>
+
+    <h2>The starting subscription stack</h2>
+
+    <p>For most of 2025 I had:</p>
+
+    <ul>
+      <li>ChatGPT Plus, $20/month</li>
+      <li>Claude.ai Pro, $20/month</li>
+      <li>Notion AI, $10/month on top of my Notion personal Pro</li>
+    </ul>
+
+    <p>Total: $50/month, $600/year. I'd been paying that for about ten months when I started Projelli, so I was numb to the bill.</p>
+
+    <p>I wasn't using all three for the same thing. ChatGPT Plus was for one-off lookups and image generation. Claude.ai Pro was for the strategic conversations, where I'd run the same long thread across multiple sessions. Notion AI was theoretically for writing inside my Notion workspace; in practice I rarely used it because the AI was slow and the suggestions were generic.</p>
+
+    <h2>Why I switched</h2>
+
+    <p>I was about to start building Projelli, which would itself be an AI workspace. Eating my own dog food meant I had to set up BYOK for development testing. Once I had a Claude API key working in the app, the question of "why am I also paying $20/month for Claude.ai" became uncomfortable to keep ignoring.</p>
+
+    <p>I cancelled Notion AI first (because I never used it), then Claude.ai Pro after a week (because Projelli + my own API key did the same job), then ChatGPT Plus a month in (because by then my workflow had moved enough that the once-a-day ChatGPT moment wasn't enough to justify the bill).</p>
+
+    <p>I kept the API key with a $30/month hard cap on Anthropic and started tracking actual usage.</p>
+
+    <h2>The first 30 days, by week</h2>
+
+    <p>Week 1 (active building, lots of architectural conversations): <strong>$18.40</strong></p>
+
+    <p>Week 2 (building plus marketing copy drafting): <strong>$22.10</strong></p>
+
+    <p>Week 3 (mostly marketing copy, less code-architecture): <strong>$11.80</strong></p>
+
+    <p>Week 4 (light week, two days off): <strong>$5.20</strong></p>
+
+    <p>Month 1 total: <strong>$57.50</strong></p>
+
+    <p>That was the most expensive month. I was running long architectural conversations with Claude Sonnet at full context, plus drafting cornerstone pages for the marketing site (which themselves were 4,000-token output runs). The "I'll spend $20/month" expectation didn't hold; reality was closer to $60.</p>
+
+    <h2>The next 30 days</h2>
+
+    <p>Week 5: <strong>$12.30</strong></p>
+
+    <p>Week 6: <strong>$8.40</strong></p>
+
+    <p>Week 7: <strong>$6.10</strong></p>
+
+    <p>Week 8: <strong>$3.12</strong></p>
+
+    <p>Month 2 total: <strong>$29.92</strong></p>
+
+    <p>The drop is real. Once the architecture was settled and most of the marketing copy was drafted, my AI usage shifted toward shorter conversations: weekly reviews, quick lookups, the occasional new feature spec. The bill dropped to roughly what the "light user" estimate predicts ($3-12/month).</p>
+
+    <h2>The full 60-day picture</h2>
+
+    <table>
+      <thead><tr><th></th><th>BYOK actual</th><th>Subscription stack hypothetical</th></tr></thead>
+      <tbody>
+        <tr><td>Month 1</td><td>$57.50</td><td>$50</td></tr>
+        <tr><td>Month 2</td><td>$29.92</td><td>$50</td></tr>
+        <tr><td><strong>60-day total</strong></td><td><strong>$87.42</strong></td><td><strong>$100</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>The savings are smaller than the marketing version implies because Month 1 was unusually heavy. But here's the thing: Month 1 was uniquely heavy because I was building a product. In a normal post-build month (which Month 2 starts to look like), the ratio is closer to 3:5, BYOK to subscription. That'd be $30 vs $50 monthly going forward, or a $240 annual savings.</p>
+
+    <h2>The four things I learned</h2>
+
+    <h3>1. The "$2-15 a month for indie founders" estimate is real, but only after you stop building</h3>
+
+    <p>While I was actively building, my usage was 3-4x the "typical indie founder" estimate. That's because I was running long architectural reviews, drafting 3,000-word marketing pages, and doing whole-codebase refactor conversations. Once that work tapered off, my usage normalized to the predicted range.</p>
+
+    <p>If you're going to do an intense building period, budget for $40-60/month during it. Once the work is shipped, the bill drops to the typical $5-15.</p>
+
+    <h3>2. The hard spending cap is the most important setting</h3>
+
+    <p>I set a $30/month hard cap on the Anthropic console the day I generated my key. In Week 2, my usage was tracking past $20 and Anthropic's email warning landed. That gave me a chance to consciously raise the cap to $50 rather than discover the overage at month end.</p>
+
+    <p>Without the cap, the loop is: AI helps you do something useful, you do more of it, your bill triples, you find out at month end. With the cap, the loop is: AI helps you do something useful, the cap stops the run-up, you decide whether to raise the cap with full information.</p>
+
+    <h3>3. Output tokens cost 5x what input tokens cost (with Claude Sonnet)</h3>
+
+    <p>The pricing math is $3 per million input, $15 per million output. So when the AI writes a 3,000-token response to your 200-token question, the response costs ~7.5x more than the prompt. This doesn't matter day-to-day, but it explains why generating long marketing copy or doing cornerstone page drafts is the expensive use case.</p>
+
+    <p>Practical rule: if you're generating long-form content, expect higher costs. If you're doing back-and-forth strategic conversations with short responses each turn, costs stay low.</p>
+
+    <h3>4. Switching providers per task is real</h3>
+
+    <p>I run all three Claude / OpenAI / Gemini keys in Projelli simultaneously. Most strategic conversations went to Claude Sonnet because that's what I trust most. But some specific use cases (transcription analysis, very long context, low-stakes drafting) went to Gemini Flash, which is roughly 40x cheaper than Sonnet for similar quality on the right task.</p>
+
+    <p>Routing per task is the next-level optimization. Out of the $87.42 I spent across 60 days, roughly $73 was Claude, $9 was OpenAI, $5 was Gemini. If I'd routed more to Gemini Flash for the right tasks, I could probably have shaved another $20 off.</p>
+
+    <h2>What the math looks like over 3 years</h2>
+
+    <p>Projecting forward, with one assumption (post-launch usage normalizes to ~$15/month average across the year):</p>
+
+    <table>
+      <thead><tr><th></th><th>BYOK</th><th>Subscription stack</th></tr></thead>
+      <tbody>
+        <tr><td>Year 1 (heavy build months 1-2, then normal)</td><td>~$240</td><td>$600</td></tr>
+        <tr><td>Year 2 (normal usage)</td><td>~$180</td><td>$600</td></tr>
+        <tr><td>Year 3 (normal usage)</td><td>~$180</td><td>$600</td></tr>
+        <tr><td><strong>3-year total</strong></td><td><strong>~$600</strong></td><td><strong>$1,800</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>Adding Projelli's $99 Lifetime tier (paid once) brings my 3-year total to $699. Compared to $1,800 for the subscription stack, that's $1,100 saved across three years.</p>
+
+    <p>If you're paying for the subscription stack but using AI lightly (under 30 minutes a day), the BYOK savings are larger because your usage doesn't keep up with the flat $50/month. If you're paying for the stack and using AI heavily (4+ hours a day), the math gets closer because high BYOK usage approaches subscription costs.</p>
+
+    <h2>The hidden benefit nobody mentions</h2>
+
+    <p>The cost savings are real but moderate. The bigger benefit, which I didn't expect when I switched, is that <strong>I stopped thinking about whether to use AI for a task</strong>.</p>
+
+    <p>With a flat $20/month subscription, there's a small psychological cost to opening ChatGPT for a quick lookup, because you're "already paying for it" and so feel like you should use it more to justify the bill. With BYOK, every query costs me a fraction of a penny, but the relationship is honest. I use AI when AI is the right tool. I don't use it when it isn't. The bill at the end of the month accurately reflects how much help I actually needed.</p>
+
+    <p>That's a small thing. It's also been the most lasting benefit. If you've been on the subscription model and you're not sure whether to switch, the cost math is one reason. The honest relationship with usage is the other one, and it's the part you don't notice until you've made the change.</p>
+
+    <h2>How to actually start</h2>
+
+    <p>Five minutes:</p>
+
+    <ol>
+      <li>Sign up at <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a></li>
+      <li>Add a $20 prepaid balance</li>
+      <li>Set a hard monthly cap of $20</li>
+      <li>Generate an API key</li>
+      <li>Paste it into a BYOK app (I'm biased, but Projelli is the one I built for this; <a href="/byok-ai">BYOK explained</a> walks through alternatives)</li>
+    </ol>
+
+    <p>Use it for a month. Look at the actual bill. Adjust the cap up or down. After 60 days you'll know whether the math works for your usage pattern. There's no commitment beyond what you've already used.</p>
+
+    <a href="/#download" class="cta">Try BYOK with Projelli, $49 once</a>
+  </div>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 100%; height: 100%;
+    background: linear-gradient(135deg, #F5F5F7 0%, #EAEAEC 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  }
+  .window { box-shadow: 0 24px 48px rgba(0,0,0,0.18), 0 8px 16px rgba(0,0,0,0.10);
+            border-radius: 12px; overflow: hidden; background: white; }
+  .titlebar { height: 28px; background: linear-gradient(180deg,#ECECEC 0%,#DCDCDC 100%);
+              border-bottom: 1px solid rgba(0,0,0,0.12); display: flex;
+              align-items: center; padding: 0 12px; }
+  .traffic-lights { display: flex; gap: 8px; }
+  .traffic-lights .dot { width: 12px; height: 12px; border-radius: 50%;
+                         border: 0.5px solid rgba(0,0,0,0.18); }
+  .traffic-lights .close { background: #FF5F57; }
+  .traffic-lights .min   { background: #FEBC2E; }
+  .traffic-lights .max   { background: #28C840; }
+  .title { flex: 1; text-align: center; font-size: 13px; font-weight: 500;
+           color: #4A4A4A; margin-right: 60px; }
+  .content img { display: block; width: 100%; height: auto; }
+</style></head><body>
+  <div class="window" id="window">
+    <div class="titlebar">
+      <div class="traffic-lights">
+        <span class="dot close"></span><span class="dot min"></span><span class="dot max"></span>
+      </div>
+      <div class="title" id="title">Projelli</div>
+    </div>
+    <div class="content"><img id="screenshot" alt=""></div>
+  </div>
+</body></html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projelli vs Claude Projects | Projelli</title>
+  <meta name="description" content="Claude Projects is Anthropic's cloud workspace for organizing chats. Projelli is a local-first desktop alternative where every Claude conversation becomes a Markdown file on your machine. Honest comparison: where each wins, what they cost, how to migrate.">
+  <link rel="canonical" href="https://projelli.com/vs/claude-projects">
+  <meta name="robots" content="index, follow">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://projelli.com/vs/claude-projects">
+  <meta property="og:title" content="Projelli vs Claude Projects">
+  <meta property="og:description" content="Claude Projects is cloud-based; Projelli is local-first. Same Claude under the hood, very different ownership posture.">
+  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script type="application/ld+json">
+  { "@context": "https://schema.org", "@type": "Article", "headline": "Projelli vs Claude Projects", "description": "Local-first desktop alternative to Anthropic's Claude Projects.", "url": "https://projelli.com/vs/claude-projects", "datePublished": "2026-04-27", "dateModified": "2026-04-27", "image": "https://projelli.com/og-image.png", "publisher": { "@type": "Organization", "name": "Projelli", "url": "https://projelli.com", "logo": "https://projelli.com/og-image.png" }, "mainEntityOfPage": "https://projelli.com/vs/claude-projects" }
+  </script>
+  <script type="application/ld+json">
+  { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
+    { "@type": "Question", "name": "Is Projelli the same as Claude Projects?", "acceptedAnswer": { "@type": "Answer", "text": "No. Both work with Claude, but they have different shapes. Claude Projects is a cloud-based workspace inside claude.ai where conversations live on Anthropic's servers. Projelli is a local-first desktop app where every conversation lives on your hard drive as a Markdown file, and you bring your own Claude API key." } },
+    { "@type": "Question", "name": "Do I need a Claude.ai subscription to use Projelli?", "acceptedAnswer": { "@type": "Answer", "text": "No. Projelli uses the Anthropic API tier (BYOK), which is separate from claude.ai. You sign up at console.anthropic.com, generate an API key, paste it into Projelli. You pay Anthropic per token used, typically $5-15/month for indie founder usage." } },
+    { "@type": "Question", "name": "Does Anthropic see my Projelli conversations?", "acceptedAnswer": { "@type": "Answer", "text": "Anthropic sees the specific text you send for inference, the same way they would with any API call. They do not see your full conversation history across files; that lives on your machine. Their commercial API does not train on inputs by default." } },
+    { "@type": "Question", "name": "Can I migrate my Claude.ai conversations to Projelli?", "acceptedAnswer": { "@type": "Answer", "text": "You can export conversations from claude.ai using the export feature, then import the Markdown into your Projelli workspace folder. Projelli reads any folder of Markdown files you point it at." } }
+  ] }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg-white:#FFFFFF; --bg-surface:#F8FAFC; --border-gray:#E2E8F0; --text-heading:#111F35; --text-body:#475569; --text-muted:#94A3B8; --accent-blue:#3B82F6; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.75; -webkit-font-smoothing: antialiased; }
+    .nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-gray); }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; max-width: 900px; margin: 0 auto; }
+    .nav a.brand { font-weight: 700; color: var(--text-heading); text-decoration: none; font-size: 18px; }
+    .nav-links { display: flex; gap: 24px; font-size: 14px; }
+    .nav-links a { color: var(--text-body); text-decoration: none; font-weight: 500; }
+    .nav-links a:hover { color: var(--accent-blue); }
+    .container { max-width: 800px; margin: 0 auto; padding: 56px 24px 80px; }
+    .back { display: inline-block; margin-bottom: 24px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; line-height: 1.15; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); font-weight: 700; margin-top: 48px; margin-bottom: 16px; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); font-weight: 600; margin-top: 32px; margin-bottom: 12px; }
+    p { margin-bottom: 18px; font-size: 1.0625rem; }
+    ul { margin: 0 0 20px 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    .verdict { background: var(--bg-surface); border-left: 4px solid var(--accent-blue); padding: 20px 24px; border-radius: 0 8px 8px 0; font-size: 1.0625rem; margin: 24px 0 40px; }
+    .verdict strong { color: var(--text-heading); }
+    table { border-collapse: collapse; margin: 24px 0; width: 100%; font-size: 0.9375rem; }
+    th, td { border: 1px solid var(--border-gray); padding: 12px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--bg-surface); color: var(--text-heading); font-weight: 600; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .pill.yes { background: rgba(16,185,129,0.14); color: #046148; }
+    .pill.no { background: rgba(239,68,68,0.12); color: #a1201c; }
+    .pill.maybe { background: rgba(245,158,11,0.14); color: #8a5b0c; }
+    .faq details { border-bottom: 1px solid var(--border-gray); padding: 14px 0; }
+    .faq details summary { font-weight: 600; color: var(--text-heading); cursor: pointer; font-size: 1.0625rem; }
+    .faq details[open] summary { margin-bottom: 12px; }
+    .cta-row { text-align: center; margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--border-gray); }
+    .cta { display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white; border-radius: 999px; text-decoration: none; font-weight: 600; }
+    .cta:hover { opacity: 0.92; }
+    footer { text-align: center; padding: 32px; color: var(--text-muted); font-size: 0.875rem; border-top: 1px solid var(--border-gray); margin-top: 32px; }
+    footer a { color: var(--text-body); text-decoration: none; margin: 0 8px; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand">Projelli</a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/templates/">Templates</a>
+        <a href="/vs/">vs Others</a>
+        <a href="/blog/">Blog</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <a href="/vs/" class="back">← All comparisons</a>
+    <h1>Projelli vs Claude Projects.</h1>
+
+    <div class="verdict">
+      <p>Claude Projects is Anthropic's cloud workspace for organizing your Claude.ai conversations. Projelli is a local-first desktop alternative where every Claude conversation becomes a Markdown file on your machine. Same Claude model under the hood. The split: who owns the conversation history and where it lives.</p>
+    </div>
+
+    <h2>The TL;DR table</h2>
+
+    <table>
+      <thead><tr><th>Feature</th><th>Claude Projects</th><th>Projelli</th></tr></thead>
+      <tbody>
+        <tr><td>Where conversations live</td><td>Anthropic's servers</td><td>Your hard drive (Markdown files)</td></tr>
+        <tr><td>AI provider</td><td>Claude only</td><td>Claude + OpenAI + Gemini + local Ollama</td></tr>
+        <tr><td>Pricing</td><td>$20/mo Claude.ai Pro subscription</td><td>$49 once + your Anthropic API costs (~$5-15/mo)</td></tr>
+        <tr><td>Custom instructions per project</td><td><span class="pill yes">Yes</span></td><td><span class="pill yes">Yes (per workspace + per chat)</span></td></tr>
+        <tr><td>Project knowledge (file uploads)</td><td><span class="pill yes">Yes</span></td><td><span class="pill yes">Yes (any folder, any size)</span></td></tr>
+        <tr><td>Searchable across conversations</td><td><span class="pill maybe">Within a single project</span></td><td><span class="pill yes">Full-text across the entire workspace</span></td></tr>
+        <tr><td>Wiki-links between conversations</td><td><span class="pill no">No</span></td><td><span class="pill yes">Yes ([[wiki-link]] syntax)</span></td></tr>
+        <tr><td>Workflow templates</td><td><span class="pill no">No</span></td><td><span class="pill yes">15 founder-specific templates</span></td></tr>
+        <tr><td>Offline editing</td><td><span class="pill no">No</span></td><td><span class="pill yes">Yes (AI calls need network)</span></td></tr>
+        <tr><td>Multi-device sync</td><td><span class="pill yes">Built-in</span></td><td><span class="pill maybe">BYO via Dropbox/iCloud</span></td></tr>
+        <tr><td>Mobile</td><td><span class="pill yes">Native apps</span></td><td><span class="pill no">Desktop only</span></td></tr>
+        <tr><td>Real-time multi-user</td><td><span class="pill no">No</span></td><td><span class="pill no">No</span></td></tr>
+        <tr><td>Data export</td><td>JSON dump</td><td>Already in standard files</td></tr>
+        <tr><td>Vendor lock-in</td><td>High</td><td>Low</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Where Projelli wins</h2>
+
+    <h3>1. Multi-provider, not just Claude</h3>
+
+    <p>Claude Projects only works with Claude. Projelli supports Claude, OpenAI, and Gemini side-by-side, plus local Ollama for the most sensitive content. You pick the model per conversation. If Claude is having an outage, you switch to GPT in one click without losing your workspace.</p>
+
+    <h3>2. Local-first ownership</h3>
+
+    <p>Every conversation in Projelli is a real Markdown file on your hard drive. You can grep across years of conversations. You can back them up with Time Machine. You can move them to a different tool. You can read them in 20 years. With Claude Projects, that history is in Anthropic's database, exportable as a JSON dump but not as a usable archive.</p>
+
+    <h3>3. Founder-specific workflow templates</h3>
+
+    <p>Projelli ships with 15 templates designed specifically for indie-founder work: pitch deck, customer interview, financial projections, MVP scope, go-to-market, investor update, board prep, first hire. Each runs as a structured interview that produces a real document. Claude Projects has custom instructions but no templated workflows.</p>
+
+    <h3>4. Cost flexibility</h3>
+
+    <p>Claude.ai Pro is $20/mo flat. Projelli is $49 once plus typical $5-15/mo in API tokens via BYOK. Over 3 years that's ~$229 vs $720. Heavy users may pay similar or more on BYOK; most indie founders pay less.</p>
+
+    <h3>5. Wiki-links and backlinks across conversations</h3>
+
+    <p>Projelli treats each conversation as a Markdown note that can be wiki-linked from other notes (`[[Customer Interview - Acme Corp]]`). Backlinks panel shows every conversation that referenced this one. Claude Projects has no equivalent; conversations within a project are siblings without explicit links.</p>
+
+    <h2>Where Claude Projects wins</h2>
+
+    <h3>1. Mobile and multi-device convenience</h3>
+
+    <p>If you draft on your phone during a commute and edit on your laptop later, Claude Projects' native mobile apps and built-in sync are genuinely better. Projelli is desktop-only; mobile sync is BYO via Dropbox or iCloud, which works but isn't real-time.</p>
+
+    <h3>2. Lower setup friction for non-technical users</h3>
+
+    <p>Claude Projects: sign up at claude.ai, click new project. Projelli: download desktop app, sign up at console.anthropic.com, generate API key, paste it. Both take ~5 minutes; the Claude.ai path is more familiar for someone new to AI tools.</p>
+
+    <h3>3. Built-in artifacts and tool calling for Claude features</h3>
+
+    <p>Claude.ai gets new Anthropic features (Artifacts, Computer Use, Skills, etc.) at the moment Anthropic ships them. Projelli supports Anthropic's API capabilities and adds support for new ones over time, but there's a small lag.</p>
+
+    <h2>Pricing comparison over 3 years</h2>
+
+    <table>
+      <thead><tr><th></th><th>Claude.ai Pro</th><th>Projelli + BYOK</th></tr></thead>
+      <tbody>
+        <tr><td>Year 1</td><td>$240</td><td>$49 once + $60-180 BYOK = $109-229</td></tr>
+        <tr><td>Year 2</td><td>$240</td><td>$60-180 BYOK = $60-180</td></tr>
+        <tr><td>Year 3</td><td>$240</td><td>$60-180 BYOK = $60-180</td></tr>
+        <tr><td><strong>3-year total</strong></td><td><strong>$720</strong></td><td><strong>$229-589</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>Note: Projelli Lifetime ($99) gets the same long-term discount with explicit lifetime updates. Founder's tier ($29 lifetime, first 100 buyers) is the cheapest of all.</p>
+
+    <h2>Migrating from Claude.ai to Projelli</h2>
+
+    <ol>
+      <li>Export your Claude.ai data from claude.ai → Settings → Account → Export</li>
+      <li>The export is a JSON dump of conversations</li>
+      <li>Convert each conversation to Markdown (a small Python script handles this; or paste each into Projelli manually for the ones you want to keep)</li>
+      <li>Drop the Markdown files into a new Projelli workspace folder</li>
+      <li>Get an Anthropic API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> and paste into Projelli</li>
+      <li>Start a new conversation in Projelli; it shows up in the same workspace alongside your imported history</li>
+    </ol>
+
+    <p>Most founders don't need to migrate everything. The 5-10 strategically important conversations make sense to bring over; the rest can stay in claude.ai or be discarded.</p>
+
+    <h2>Frequently asked questions</h2>
+
+    <div class="faq">
+      <details>
+        <summary>Is Projelli the same as Claude Projects?</summary>
+        <p>No. Both work with Claude, but they have different shapes. Claude Projects is a cloud-based workspace inside claude.ai where conversations live on Anthropic's servers. Projelli is a local-first desktop app where every conversation lives on your hard drive as a Markdown file, and you bring your own Claude API key.</p>
+      </details>
+      <details>
+        <summary>Do I need a Claude.ai subscription to use Projelli?</summary>
+        <p>No. Projelli uses the Anthropic API tier (BYOK), which is separate from claude.ai. You sign up at console.anthropic.com, generate an API key, paste it into Projelli. You pay Anthropic per token used, typically $5-15/month for indie founder usage.</p>
+      </details>
+      <details>
+        <summary>Does Anthropic see my Projelli conversations?</summary>
+        <p>Anthropic sees the specific text you send for inference, the same way they would with any API call. They do not see your full conversation history across files; that lives on your machine. Their commercial API does not train on inputs by default.</p>
+      </details>
+      <details>
+        <summary>Can I migrate my Claude.ai conversations to Projelli?</summary>
+        <p>You can export conversations from claude.ai using the export feature, then convert the JSON to Markdown and drop into your Projelli workspace folder. Projelli reads any folder of Markdown files you point it at.</p>
+      </details>
+      <details>
+        <summary>Does Projelli get new Claude features as fast as Claude.ai?</summary>
+        <p>For API-based features (new models, longer context, tool use), yes. For features that are Claude.ai-specific UI (like the in-product Artifacts panel), Projelli has its own equivalent that ships independently. Both keep up with Anthropic's model releases.</p>
+      </details>
+      <details>
+        <summary>Can I use Claude Projects and Projelli at the same time?</summary>
+        <p>Yes. Many users do. Claude Projects for the chats they want on mobile or shared with a teammate; Projelli for the ones they want as a permanent archive on their machine.</p>
+      </details>
+    </div>
+
+    <div class="cta-row">
+      <p>Free download. Pro is $49 one-time. Lifetime is $99. The first 100 buyers get Lifetime at $29.</p>
+      <a href="/#download" class="cta">Get Projelli</a>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/eula">EULA</a> · <a href="/press-kit/">Press kit</a> · <a href="/blog/">Blog</a>
+  </footer>
+</body>
+</html>

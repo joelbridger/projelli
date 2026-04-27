@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projelli vs Reflect | Projelli</title>
+  <meta name="description" content="Reflect Notes is an AI-first cloud notes app focused on networked thinking. Projelli is a local-first AI workspace for indie founders. Same AI muscle, different ownership and pricing posture. Honest comparison with feature table and migration notes.">
+  <link rel="canonical" href="https://projelli.com/vs/reflect">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://projelli.com/vs/reflect">
+  <meta property="og:title" content="Projelli vs Reflect">
+  <meta property="og:description" content="Reflect is cloud-based AI notes. Projelli is local-first AI workspace. Same Claude under the hood, different ownership posture.">
+  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script type="application/ld+json">
+  { "@context": "https://schema.org", "@type": "Article", "headline": "Projelli vs Reflect", "description": "Local-first desktop alternative to Reflect Notes.", "url": "https://projelli.com/vs/reflect", "datePublished": "2026-04-27", "dateModified": "2026-04-27", "image": "https://projelli.com/og-image.png", "publisher": { "@type": "Organization", "name": "Projelli", "url": "https://projelli.com", "logo": "https://projelli.com/og-image.png" }, "mainEntityOfPage": "https://projelli.com/vs/reflect" }
+  </script>
+  <script type="application/ld+json">
+  { "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": [
+    { "@type": "Question", "name": "Is Reflect a good Notion alternative?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect is closer to Roam Research or Logseq in shape, with strong networked-thinking features. It's not really a Notion alternative; Notion is a team workspace, Reflect is single-user notes with AI." } },
+    { "@type": "Question", "name": "Does Reflect work offline?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect has cached offline access for reading existing notes, but it's a cloud-first app. Editing while offline syncs once you reconnect, and the cloud is the source of truth." } },
+    { "@type": "Question", "name": "Can I migrate from Reflect to Projelli?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Reflect supports Markdown export. Drop the exported folder into a Projelli workspace and you're done. Wiki-links convert mostly cleanly, since Reflect uses [[link]] syntax similar to Projelli's." } },
+    { "@type": "Question", "name": "What does Reflect cost?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect is $15/month or $144/year. AI is bundled into the subscription. Projelli is $49 one-time for Pro plus your own AI provider's API costs (typically $5-15/month)." } }
+  ] }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg-white:#FFFFFF; --bg-surface:#F8FAFC; --border-gray:#E2E8F0; --text-heading:#111F35; --text-body:#475569; --text-muted:#94A3B8; --accent-blue:#3B82F6; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.75; -webkit-font-smoothing: antialiased; }
+    .nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-gray); }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; max-width: 900px; margin: 0 auto; }
+    .nav a.brand { font-weight: 700; color: var(--text-heading); text-decoration: none; font-size: 18px; }
+    .nav-links { display: flex; gap: 24px; font-size: 14px; }
+    .nav-links a { color: var(--text-body); text-decoration: none; font-weight: 500; }
+    .nav-links a:hover { color: var(--accent-blue); }
+    .container { max-width: 800px; margin: 0 auto; padding: 56px 24px 80px; }
+    .back { display: inline-block; margin-bottom: 24px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; line-height: 1.15; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); font-weight: 700; margin-top: 48px; margin-bottom: 16px; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); font-weight: 600; margin-top: 32px; margin-bottom: 12px; }
+    p { margin-bottom: 18px; font-size: 1.0625rem; }
+    ul { margin: 0 0 20px 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    .verdict { background: var(--bg-surface); border-left: 4px solid var(--accent-blue); padding: 20px 24px; border-radius: 0 8px 8px 0; font-size: 1.0625rem; margin: 24px 0 40px; }
+    table { border-collapse: collapse; margin: 24px 0; width: 100%; font-size: 0.9375rem; }
+    th, td { border: 1px solid var(--border-gray); padding: 12px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--bg-surface); color: var(--text-heading); font-weight: 600; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .pill.yes { background: rgba(16,185,129,0.14); color: #046148; }
+    .pill.no { background: rgba(239,68,68,0.12); color: #a1201c; }
+    .pill.maybe { background: rgba(245,158,11,0.14); color: #8a5b0c; }
+    .faq details { border-bottom: 1px solid var(--border-gray); padding: 14px 0; }
+    .faq details summary { font-weight: 600; color: var(--text-heading); cursor: pointer; font-size: 1.0625rem; }
+    .faq details[open] summary { margin-bottom: 12px; }
+    .cta-row { text-align: center; margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--border-gray); }
+    .cta { display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white; border-radius: 999px; text-decoration: none; font-weight: 600; }
+    footer { text-align: center; padding: 32px; color: var(--text-muted); font-size: 0.875rem; border-top: 1px solid var(--border-gray); margin-top: 32px; }
+    footer a { color: var(--text-body); text-decoration: none; margin: 0 8px; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.js" defer></script>
+
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand">Projelli</a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/templates/">Templates</a>
+        <a href="/vs/">vs Others</a>
+        <a href="/blog/">Blog</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <a href="/vs/" class="back">← All comparisons</a>
+    <h1>Projelli vs Reflect.</h1>
+
+    <div class="verdict">
+      <p>Reflect Notes is a cloud-based AI-first notes app, polished and oriented toward networked thinking. Projelli is a local-first desktop AI workspace built for indie founders. Both can read your conversation history, both have AI built in, both lean heavy on Markdown. The split: where the data lives, what you're building toward, and how the pricing scales.</p>
+    </div>
+
+    <h2>The TL;DR table</h2>
+
+    <table>
+      <thead><tr><th>Feature</th><th>Reflect</th><th>Projelli</th></tr></thead>
+      <tbody>
+        <tr><td>Where data lives</td><td>Reflect's cloud (encrypted at rest)</td><td>Your hard drive (Markdown files)</td></tr>
+        <tr><td>Pricing</td><td>$15/mo or $144/yr</td><td>$49 once + your AI provider's API costs</td></tr>
+        <tr><td>3-year total cost (typical)</td><td>~$432</td><td>~$229</td></tr>
+        <tr><td>AI model</td><td>Whatever Reflect provides (currently Claude + others)</td><td>Bring your own Claude / OpenAI / Gemini key</td></tr>
+        <tr><td>Wiki-links / backlinks</td><td><span class="pill yes">Yes (excellent)</span></td><td><span class="pill yes">Yes</span></td></tr>
+        <tr><td>Daily notes</td><td><span class="pill yes">Yes (default flow)</span></td><td><span class="pill yes">Yes (template)</span></td></tr>
+        <tr><td>Founder workflow templates</td><td><span class="pill no">No</span></td><td><span class="pill yes">15 specific templates</span></td></tr>
+        <tr><td>Audio recording + transcription</td><td><span class="pill yes">Yes</span></td><td><span class="pill yes">Yes (waveform editor + transcript)</span></td></tr>
+        <tr><td>Cloud sync</td><td><span class="pill yes">Built-in</span></td><td><span class="pill maybe">BYO via Dropbox/iCloud</span></td></tr>
+        <tr><td>Mobile app</td><td><span class="pill yes">iOS, web</span></td><td><span class="pill no">Desktop only</span></td></tr>
+        <tr><td>Real-time sync across devices</td><td><span class="pill yes">Yes</span></td><td><span class="pill maybe">Within seconds via sync layer</span></td></tr>
+        <tr><td>Works offline</td><td>Read-only cache; full edit on cloud reconnect</td><td>Full editing offline; AI calls need network</td></tr>
+        <tr><td>Data export</td><td>Markdown export (.zip)</td><td>Already in Markdown, no export needed</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Where Projelli wins</h2>
+
+    <h3>1. Local-first ownership over a long archive</h3>
+
+    <p>If you're treating your notes as a multi-year strategic archive, Projelli's "files in a folder" architecture pays off. You can grep, back up, version-control, and outlive Projelli the company without losing your work. Reflect's data is exportable but not as natively yours.</p>
+
+    <h3>2. Per-conversation AI provider choice (BYOK)</h3>
+
+    <p>Projelli lets you switch between Claude, OpenAI, Gemini, or local Ollama per conversation. Reflect uses whatever model their app currently provides; you don't see the underlying API and you can't bring your own key.</p>
+
+    <h3>3. Founder-specific workflow templates</h3>
+
+    <p>Reflect leans toward a "blank canvas" notes paradigm with daily-notes as the spine. Projelli ships with 15 structured templates designed specifically for founder work: pitch deck, customer interview synthesis, financial projections, weekly review, MVP scope. Each is a guided interview that produces a finished doc.</p>
+
+    <h3>4. Lower cost over multiple years</h3>
+
+    <p>Reflect at $15/mo is $540 over 3 years. Projelli at $49 once + ~$5-15/mo BYOK is roughly $229-589 over 3 years for typical usage. The Lifetime tier at $99 makes Projelli's 3-year cost capped at ~$280. Reflect's pricing is simpler; Projelli's is usually cheaper.</p>
+
+    <h3>5. Privacy posture</h3>
+
+    <p>Reflect stores your notes on their servers (encrypted). Projelli stores nothing on its servers; the only servers your data ever touches are the AI provider's, only for the specific text you send for inference. For founders who want their strategic content out of any vendor's database, the difference matters.</p>
+
+    <h2>Where Reflect wins</h2>
+
+    <h3>1. Multi-device sync without setup</h3>
+
+    <p>Reflect's cloud-first architecture means open-on-iPad, edit-on-laptop, real-time sync. Projelli requires you to put your workspace folder in Dropbox or iCloud yourself; this works well but adds an explicit setup step.</p>
+
+    <h3>2. Mobile editing</h3>
+
+    <p>Reflect has a polished iOS app. Projelli is desktop-only. If you draft on your phone during commutes, Reflect is genuinely better.</p>
+
+    <h3>3. Networked-thinking polish</h3>
+
+    <p>Reflect's networked-thinking experience (graph view, related notes surfacing, "today's insights") is mature and elegant. Projelli has the building blocks (wiki-links, backlinks, search) but the experience is closer to Obsidian's understated style than Reflect's polished AI-curated feed.</p>
+
+    <h3>4. Audio note workflow</h3>
+
+    <p>Reflect's audio capture + transcription flow is tight. Projelli has audio capture and a waveform editor, but the integration with note-taking is less integrated than Reflect's "record a thought, get a transcript, get a summary" pipeline.</p>
+
+    <h2>Pricing comparison over 3 years</h2>
+
+    <table>
+      <thead><tr><th></th><th>Reflect</th><th>Projelli + BYOK</th></tr></thead>
+      <tbody>
+        <tr><td>Year 1</td><td>$144 ($12 effective monthly)</td><td>$49 once + $60-180 BYOK</td></tr>
+        <tr><td>Year 2</td><td>$144</td><td>$60-180 BYOK</td></tr>
+        <tr><td>Year 3</td><td>$144</td><td>$60-180 BYOK</td></tr>
+        <tr><td><strong>3-year total</strong></td><td><strong>$432</strong></td><td><strong>$229-589</strong></td></tr>
+      </tbody>
+    </table>
+
+    <p>Reflect's monthly price is $15; the annual is $144 ($12/mo effective). Projelli with the Founder's $29 lifetime tier (first 100 buyers) caps year one at ~$209 including BYOK costs.</p>
+
+    <h2>Migrating from Reflect to Projelli</h2>
+
+    <ol>
+      <li>In Reflect, go to Settings → Export → Markdown</li>
+      <li>Download the .zip and unzip it into a folder</li>
+      <li>That folder is now a valid Projelli workspace; open Projelli and point it at the folder</li>
+      <li>Reflect's `[[wiki-link]]` syntax is the same as Projelli's; backlinks should resolve</li>
+      <li>Get an Anthropic / OpenAI / Gemini API key, paste into Projelli, start chatting</li>
+    </ol>
+
+    <p>This is the cleanest migration of any vs-page; Reflect's Markdown export and wiki-link syntax are directly compatible with Projelli's.</p>
+
+    <h2>Frequently asked questions</h2>
+
+    <div class="faq">
+      <details>
+        <summary>Is Reflect a good Notion alternative?</summary>
+        <p>Reflect is closer to Roam Research or Logseq in shape, with strong networked-thinking features. It's not really a Notion alternative; Notion is a team workspace, Reflect is single-user notes with AI.</p>
+      </details>
+      <details>
+        <summary>Does Reflect work offline?</summary>
+        <p>Reflect has cached offline access for reading existing notes, but it's a cloud-first app. Editing while offline syncs once you reconnect, and the cloud is the source of truth.</p>
+      </details>
+      <details>
+        <summary>Can I migrate from Reflect to Projelli?</summary>
+        <p>Yes. Reflect supports Markdown export. Drop the exported folder into a Projelli workspace and you're done. Wiki-links convert mostly cleanly, since Reflect uses [[link]] syntax similar to Projelli's.</p>
+      </details>
+      <details>
+        <summary>What does Reflect cost?</summary>
+        <p>Reflect is $15/month or $144/year. AI is bundled into the subscription. Projelli is $49 one-time for Pro plus your own AI provider's API costs (typically $5-15/month).</p>
+      </details>
+      <details>
+        <summary>Which has better AI quality?</summary>
+        <p>Both can use Claude, so the underlying model is the same when paired correctly. Reflect's UI for AI-curated insights is more polished; Projelli's gives you direct access to the model and lets you switch providers per conversation.</p>
+      </details>
+      <details>
+        <summary>Is Reflect or Projelli better for daily notes?</summary>
+        <p>Reflect is more polished out of the box for the daily-notes paradigm (it's the default flow). Projelli supports daily notes but it's not the central organizing principle; the workflows-and-templates system is. Pick based on whether your work is more "stream of thought" (Reflect) or "structured strategic docs" (Projelli).</p>
+      </details>
+    </div>
+
+    <div class="cta-row">
+      <p>Free download. Pro is $49 one-time. Lifetime is $99. The first 100 buyers get Lifetime at $29.</p>
+      <a href="/#download" class="cta">Get Projelli</a>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/eula">EULA</a> · <a href="/press-kit/">Press kit</a> · <a href="/blog/">Blog</a>
+  </footer>
+</body>
+</html>

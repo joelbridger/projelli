@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projelli vs Tana | Projelli</title>
+  <meta name="description" content="Tana is a cloud outliner with structured nodes, supertags, and built-in AI. Projelli is a local-first AI workspace built on Markdown files. Different paradigms for different brains. Honest comparison with feature table and migration notes.">
+  <link rel="canonical" href="https://projelli.com/vs/tana">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://projelli.com/vs/tana">
+  <meta property="og:title" content="Projelli vs Tana">
+  <meta property="og:description" content="Tana's outliner-with-supertags vs Projelli's Markdown-files-with-templates. Different shapes, different audiences.">
+  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script type="application/ld+json">
+  { "@context": "https://schema.org", "@type": "Article", "headline": "Projelli vs Tana", "description": "Local-first Markdown alternative to Tana's cloud outliner.", "url": "https://projelli.com/vs/tana", "datePublished": "2026-04-27", "dateModified": "2026-04-27", "image": "https://projelli.com/og-image.png", "publisher": { "@type": "Organization", "name": "Projelli", "url": "https://projelli.com", "logo": "https://projelli.com/og-image.png" }, "mainEntityOfPage": "https://projelli.com/vs/tana" }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg-white:#FFFFFF; --bg-surface:#F8FAFC; --border-gray:#E2E8F0; --text-heading:#111F35; --text-body:#475569; --text-muted:#94A3B8; --accent-blue:#3B82F6; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.75; -webkit-font-smoothing: antialiased; }
+    .nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-gray); }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; max-width: 900px; margin: 0 auto; }
+    .nav a.brand { font-weight: 700; color: var(--text-heading); text-decoration: none; font-size: 18px; }
+    .nav-links { display: flex; gap: 24px; font-size: 14px; }
+    .nav-links a { color: var(--text-body); text-decoration: none; font-weight: 500; }
+    .nav-links a:hover { color: var(--accent-blue); }
+    .container { max-width: 800px; margin: 0 auto; padding: 56px 24px 80px; }
+    .back { display: inline-block; margin-bottom: 24px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; line-height: 1.15; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); font-weight: 700; margin-top: 48px; margin-bottom: 16px; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); font-weight: 600; margin-top: 32px; margin-bottom: 12px; }
+    p { margin-bottom: 18px; font-size: 1.0625rem; }
+    ul { margin: 0 0 20px 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    .verdict { background: var(--bg-surface); border-left: 4px solid var(--accent-blue); padding: 20px 24px; border-radius: 0 8px 8px 0; font-size: 1.0625rem; margin: 24px 0 40px; }
+    table { border-collapse: collapse; margin: 24px 0; width: 100%; font-size: 0.9375rem; }
+    th, td { border: 1px solid var(--border-gray); padding: 12px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--bg-surface); color: var(--text-heading); font-weight: 600; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .pill.yes { background: rgba(16,185,129,0.14); color: #046148; }
+    .pill.no { background: rgba(239,68,68,0.12); color: #a1201c; }
+    .pill.maybe { background: rgba(245,158,11,0.14); color: #8a5b0c; }
+    .cta-row { text-align: center; margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--border-gray); }
+    .cta { display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white; border-radius: 999px; text-decoration: none; font-weight: 600; }
+    footer { text-align: center; padding: 32px; color: var(--text-muted); font-size: 0.875rem; border-top: 1px solid var(--border-gray); margin-top: 32px; }
+    footer a { color: var(--text-body); text-decoration: none; margin: 0 8px; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.js" defer></script>
+
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand">Projelli</a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/templates/">Templates</a>
+        <a href="/vs/">vs Others</a>
+        <a href="/blog/">Blog</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <a href="/vs/" class="back">← All comparisons</a>
+    <h1>Projelli vs Tana.</h1>
+
+    <div class="verdict">
+      <p>Tana is a cloud outliner built around supertags, fields, and structured nodes. It's powerful, polished, and beloved by people who think in graphs. Projelli is a local-first Markdown workspace with founder-specific templates. The same indie founder might love either one; they're different shapes for different brains. The honest split: Tana for "I want to build a knowledge graph and query it." Projelli for "I want my strategic content as files I own."</p>
+    </div>
+
+    <h2>The TL;DR table</h2>
+
+    <table>
+      <thead><tr><th>Feature</th><th>Tana</th><th>Projelli</th></tr></thead>
+      <tbody>
+        <tr><td>Where data lives</td><td>Tana's cloud</td><td>Your hard drive (Markdown)</td></tr>
+        <tr><td>Pricing</td><td>$10/mo Plus, $14/mo Pro (annual)</td><td>$49 once + your AI provider's API</td></tr>
+        <tr><td>3-year cost (typical)</td><td>~$360-504</td><td>~$229</td></tr>
+        <tr><td>Data model</td><td>Outliner with supertags, fields, queries</td><td>Files with frontmatter, wiki-links</td></tr>
+        <tr><td>AI</td><td>Built-in AI commands</td><td>BYOK Claude / OpenAI / Gemini / Ollama</td></tr>
+        <tr><td>Founder workflow templates</td><td><span class="pill no">No (templates exist but generic)</span></td><td><span class="pill yes">15 specific templates</span></td></tr>
+        <tr><td>Wiki-links / backlinks</td><td><span class="pill yes">Yes (deep)</span></td><td><span class="pill yes">Yes</span></td></tr>
+        <tr><td>Query language</td><td><span class="pill yes">Powerful structured queries</span></td><td><span class="pill no">Full-text search only</span></td></tr>
+        <tr><td>Mobile</td><td><span class="pill yes">iOS, Android</span></td><td><span class="pill no">Desktop only</span></td></tr>
+        <tr><td>Multi-device sync</td><td>Built-in cloud</td><td>BYO via Dropbox/iCloud</td></tr>
+        <tr><td>Offline editing</td><td>Limited</td><td>Full editing offline</td></tr>
+        <tr><td>Real-time collab</td><td><span class="pill yes">Yes (Pro tier)</span></td><td><span class="pill no">No</span></td></tr>
+        <tr><td>Data export</td><td>JSON / Markdown</td><td>Already in Markdown</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Where Projelli wins</h2>
+
+    <h3>1. Local-first ownership</h3>
+
+    <p>Tana's data lives in their cloud. Export is available but the working format is theirs. Projelli's data lives on your machine in Markdown. The compounding-archive value over multiple years tilts toward Projelli for founders building a long strategic record.</p>
+
+    <h3>2. Founder-specific templates with structured AI interview</h3>
+
+    <p>Tana has templates (it's actually one of its strengths) but they're general-purpose, user-built. Projelli ships 15 templates designed for founder workflows, each running as a guided AI interview that produces a finished doc. Pitch deck, customer interview synthesis, financial projections, weekly review.</p>
+
+    <h3>3. BYOK economics and provider flexibility</h3>
+
+    <p>Tana's AI is bundled into the subscription. Projelli is BYOK: you bring your own Claude / OpenAI / Gemini key, switch per conversation. Most users pay less in BYOK API tokens than in a Tana Pro subscription.</p>
+
+    <h3>4. Simplicity for documents that aren't graphs</h3>
+
+    <p>Tana's outliner-plus-supertags model rewards a specific working style. If you're a pitch-deck-writer more than a knowledge-graph-builder, the data model is overhead. Projelli's flat-Markdown model fits document-shaped work more naturally.</p>
+
+    <h2>Where Tana wins</h2>
+
+    <h3>1. Structured queries over your knowledge graph</h3>
+
+    <p>Tana's signature feature is the ability to define a "supertag" (e.g., #person, #project, #meeting) and then query across all instances ("show me all #project where #status = 'active' and #owner = me"). This is a real superpower for users who think in structured data. Projelli has no equivalent; full-text search only.</p>
+
+    <h3>2. Networked-thinking polish</h3>
+
+    <p>Tana's UX for outlining, breadcrumbs, indents, transclusion is the most polished in the category. If you're already a Roam/Logseq/Workflowy user, Tana feels like the natural next step.</p>
+
+    <h3>3. Mobile</h3>
+
+    <p>Tana has native iOS and Android apps. Projelli is desktop-only.</p>
+
+    <h3>4. Real-time collaboration</h3>
+
+    <p>Tana Pro supports multi-user editing. Projelli is single-user.</p>
+
+    <h2>Pricing comparison over 3 years</h2>
+
+    <table>
+      <thead><tr><th></th><th>Tana Plus</th><th>Tana Pro</th><th>Projelli + BYOK</th></tr></thead>
+      <tbody>
+        <tr><td>Year 1</td><td>$120</td><td>$168</td><td>$49 + $60-180 BYOK</td></tr>
+        <tr><td>Year 2</td><td>$120</td><td>$168</td><td>$60-180 BYOK</td></tr>
+        <tr><td>Year 3</td><td>$120</td><td>$168</td><td>$60-180 BYOK</td></tr>
+        <tr><td><strong>3-year total</strong></td><td><strong>$360</strong></td><td><strong>$504</strong></td><td><strong>$229-589</strong></td></tr>
+      </tbody>
+    </table>
+
+    <h2>Migrating from Tana to Projelli</h2>
+
+    <ol>
+      <li>In Tana, export your workspace as Markdown</li>
+      <li>The export contains your nodes converted to nested bullet lists in Markdown</li>
+      <li>Drop into a new Projelli workspace folder</li>
+      <li>Tana's supertag fields will appear as inline tags or YAML frontmatter (depending on export options); Projelli treats both as searchable text</li>
+      <li>Wiki-links convert mostly cleanly</li>
+    </ol>
+
+    <p>The biggest adjustment: you lose the structured-query feature. If your Tana workflow depends heavily on supertag queries, Projelli will feel less expressive. If your Tana workflow is mostly outlining + AI assistance, the migration is straightforward and you'll barely notice.</p>
+
+    <div class="cta-row">
+      <p>Free download. Pro is $49 one-time. Lifetime is $99. The first 100 buyers get Lifetime at $29.</p>
+      <a href="/#download" class="cta">Get Projelli</a>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/eula">EULA</a> · <a href="/press-kit/">Press kit</a> · <a href="/blog/">Blog</a>
+  </footer>
+</body>
+</html>

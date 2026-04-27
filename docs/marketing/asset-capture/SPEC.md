@@ -2,9 +2,11 @@
 name: Marketing Asset Capture System
 description: Reproducible Playwright pipeline that produces a full library of macOS-styled product screenshots and videos for Projelli
 type: design-spec
-status: approved
+status: shipped (v1 + video expansion)
 date: 2026-04-27
 ---
+
+> **NOTE for the next reader:** this is the original design spec, captured before implementation began. The actual library that shipped includes 7 additional videos (V02-V08) on top of the 10 stills + V01 documented here. **For the current state of what exists and how to operate it, read `RUNBOOK.md` in this folder first.** This SPEC.md remains as the historical design record.
 
 # Marketing Asset Capture System — Design Spec
 
@@ -56,6 +58,7 @@ Running the actual Tauri Linux build under Xvfb was rejected: it produces a wors
 
 ### Out of scope (deferred to v2)
 
+- **S05 Multi-model side-by-side** — deferred 2026-04-27. Confirmed absent: `grep -rE "MultiModel|multiModel|side-by-side" src/components/ src/stores/` returns no matches. The product does not yet have a multi-model comparison UI. When shipped, the shot can be captured via `shots/05-multi-model.ts` against the new store/component.
 - **5-frame carousel story** (originally proposed as Tier 2 item but cut from v1 — high scripting cost, marginal lift over the static OG cards)
 - Tier 3: Product Hunt gallery (1240×760 reframes of S01–S06)
 - Tier 4: Short social videos (V02–V05, 9:16 + 1:1 derivatives, 60-second master walkthrough)

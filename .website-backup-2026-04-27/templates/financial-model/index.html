@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Financial Model example | Projelli</title>
+  <meta name="description" content="A worked example of Projelli's Financial Model template, run against a fictional freelancer finance startup.">
+  <link rel="canonical" href="https://projelli.com/templates/financial-model">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://projelli.com/templates/financial-model">
+  <meta property="og:title" content="Financial Model example | Projelli">
+  <meta property="og:description" content="A worked example of the Financial Model template.">
+  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+    }
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(255,255,255,0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border-gray);
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .nav a.brand { font-weight: 700; color: var(--text-heading); text-decoration: none; font-size: 18px; }
+    .nav-links { display: flex; gap: 24px; font-size: 14px; }
+    .nav-links a { color: var(--text-body); text-decoration: none; font-weight: 500; }
+    .nav-links a:hover { color: var(--accent-blue); }
+    .container { max-width: 780px; margin: 0 auto; padding: 48px 24px 80px; }
+    .back { display: inline-block; margin-bottom: 24px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    .example-banner {
+      background: var(--bg-surface);
+      border-left: 3px solid var(--accent-blue);
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.9375rem;
+      margin-bottom: 32px;
+    }
+    .example-banner strong { color: var(--text-heading); }
+    .doc h1 { font-size: 2.25rem; color: var(--text-heading); font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 20px; }
+    .doc h2 { font-size: 1.5rem; color: var(--text-heading); font-weight: 700; margin-top: 40px; margin-bottom: 14px; }
+    .doc h3 { font-size: 1.1875rem; color: var(--text-heading); font-weight: 600; margin-top: 28px; margin-bottom: 10px; }
+    .doc p { margin-bottom: 18px; font-size: 1.0625rem; }
+    .doc ul, .doc ol { margin: 0 0 20px 24px; }
+    .doc li { margin-bottom: 6px; font-size: 1.0625rem; }
+    .doc strong { color: var(--text-heading); font-weight: 600; }
+    .doc em { color: var(--text-body); }
+    .doc a { color: var(--accent-blue); text-decoration: none; }
+    .doc a:hover { text-decoration: underline; }
+    .doc blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 16px 20px; margin: 20px 0; border-radius: 0 8px 8px 0; font-style: italic; }
+    .doc code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    .doc table { border-collapse: collapse; margin: 20px 0; width: 100%; font-size: 0.9375rem; }
+    .doc th, .doc td { border: 1px solid var(--border-gray); padding: 10px 14px; text-align: left; vertical-align: top; }
+    .doc th { background: var(--bg-surface); color: var(--text-heading); font-weight: 600; }
+    .cta-card {
+      background: var(--bg-surface);
+      padding: 32px;
+      border-radius: 12px;
+      margin-top: 56px;
+      text-align: center;
+    }
+    .cta-card h3 { font-size: 1.25rem; color: var(--text-heading); margin-bottom: 10px; font-weight: 700; }
+    .cta-card p { margin-bottom: 20px; }
+    .cta-btn {
+      display: inline-block;
+      padding: 12px 28px;
+      background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%);
+      color: white;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 600;
+    }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand">Projelli</a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/templates/">Templates</a>
+        <a href="/vs/">vs Others</a>
+        <a href="/blog/">Blog</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <a href="/templates/" class="back">&larr; All templates</a>
+
+    <div class="example-banner">
+      <strong>Example output.</strong> The content below was produced by running Projelli's <em>Financial Model</em> template against a fictional personal finance app called <strong>Acme Budget</strong>, built by a fictional founder named Maya. Same founder, same product, across every template in the gallery, so you can see how the documents connect.
+    </div>
+
+    <article class="doc" id="doc"></article>
+
+    <div class="cta-card">
+      <h3>Run this template on your own project</h3>
+      <p>Projelli is free to download. Every template runs against your own files, on your machine, with your own API key.</p>
+      <a href="/#pricing" class="cta-btn">Download Projelli</a>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" integrity="sha384-1+ZuKfotq5HnzKifLJ3cSp9L8wOn/xXn4aVk9Q2X8L1zOZhk0j8ttxqFLYvU6KQC" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.9/dist/purify.min.js" crossorigin="anonymous"></script>
+  <script>
+    (async function() {
+      const doc = document.getElementById('doc');
+      try {
+        const res = await fetch('/templates/examples/financial-model.md');
+        if (!res.ok) throw new Error('fetch failed');
+        const md = await res.text();
+        const rawHtml = marked.parse(md);
+        const clean = window.DOMPurify ? DOMPurify.sanitize(rawHtml, { ADD_ATTR: ['target', 'rel'] }) : rawHtml;
+        // eslint-disable-next-line no-unsanitized/property
+        doc.innerHTML = clean;
+      } catch (err) {
+        doc.textContent = 'Could not load example. See the templates list at /templates/.';
+      }
+    })();
+  </script>
+</body>
+</html>

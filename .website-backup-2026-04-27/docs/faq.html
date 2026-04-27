@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FAQ, Projelli</title>
+  <meta name="description" content="Frequently asked questions about Projelli, the local-first AI workspace for indie founders.">
+  <link rel="canonical" href="https://projelli.com/docs/faq">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 2.25rem; color: #111F35; margin-bottom: 8px; font-weight: 800; }
+    h2 { font-size: 1.5rem; color: #111F35; margin-top: 48px; margin-bottom: 16px; font-weight: 700; }
+    h3 { font-size: 1.125rem; color: #111F35; margin-top: 24px; margin-bottom: 8px; font-weight: 600; }
+    p, ul, ol { margin-bottom: 16px; font-size: 1rem; }
+    ul, ol { padding-left: 24px; }
+    li { margin-bottom: 8px; }
+    strong { color: #111F35; font-weight: 600; }
+    a { color: #3B82F6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta { color: #94A3B8; font-size: 0.875rem; margin-bottom: 32px; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; }
+    details { background: #F8FAFC; padding: 16px 20px; margin: 12px 0; border-radius: 8px; border: 1px solid #E2E8F0; }
+    details summary { font-weight: 600; color: #111F35; cursor: pointer; font-size: 1rem; }
+    details[open] summary { margin-bottom: 12px; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back">← Back to Projelli</a>
+    <h1>Frequently Asked Questions</h1>
+    <p class="meta">If you don't see your question here, email <a href="mailto:support@projelli.com">support@projelli.com</a>.</p>
+
+    <h2>About the product</h2>
+
+    <details>
+      <summary>What is Projelli?</summary>
+      <p>Projelli is a desktop app that combines a Markdown editor with an AI chat interface. Every AI conversation produces real Markdown files in a real folder on your computer. It's built for indie founders who use AI to plan, write, and run their businesses, but want their work to live locally, not in someone else's cloud.</p>
+    </details>
+
+    <details>
+      <summary>How is this different from Notion or Obsidian?</summary>
+      <p><strong>vs Notion:</strong> Notion is cloud-only, your data lives on Notion's servers and you pay them for the privilege. Notion's AI features are bolted on top, not native to the document model. Projelli is local-first (your files live on your hard drive) and AI is the primary input method, not an add-on.</p>
+      <p><strong>vs Obsidian:</strong> Obsidian is also local-first, but its AI features come from community plugins that are inconsistent and often charge separately. Projelli has AI native, with three providers built in and a workflow template system designed specifically for founder use cases.</p>
+      <p><strong>vs ChatGPT:</strong> ChatGPT throws conversations away. Projelli persists every conversation as editable Markdown files you own.</p>
+    </details>
+
+    <details>
+      <summary>What does "local-first" actually mean?</summary>
+      <p>It means your data lives on your hard drive in a folder you choose, in plain Markdown files you can read with any text editor. Nothing is uploaded to our servers. The app works offline (except when you're actually making AI calls). If we shut down tomorrow, your files are still on your computer, you just can't get updates anymore.</p>
+    </details>
+
+    <details>
+      <summary>What's "BYOK"?</summary>
+      <p>Bring Your Own Key. You sign up directly with Anthropic, OpenAI, or Google for an API account, get an API key, and paste it into Projelli. AI requests then go from your computer directly to the provider, Projelli is never in the middle. See the <a href="/docs/api-keys">API Keys Guide</a> for details.</p>
+    </details>
+
+    <details>
+      <summary>Do I need to be technical to use this?</summary>
+      <p>No. If you can install a desktop app, paste an API key into a settings screen, and type into a chat box, you have all the skills you need. The hardest part is signing up for an AI provider account, which takes about 5 minutes and is well-documented.</p>
+    </details>
+
+    <h2>Pricing and licensing</h2>
+
+    <details>
+      <summary>How much does it cost?</summary>
+      <p>Free tier: $0 forever (limited to 1 AI provider, 3 templates, 1 workspace).<br>
+      Pro: $49 one-time (all AI providers, all templates, unlimited workspaces, 1 year of updates).<br>
+      Lifetime: $99 one-time (everything, plus updates forever).<br>
+      Founder's Launch: $29 lifetime, first 100 buyers only.</p>
+      <p>Plus whatever you pay your AI provider directly for your API usage (typically $5-$20/month for active use).</p>
+    </details>
+
+    <details>
+      <summary>Why one-time pricing instead of subscription?</summary>
+      <p>Because subscriptions feel wrong for software with no server. We don't host your data, we don't run AI inference for you, we don't have ongoing infrastructure costs that justify monthly fees. Pay once, own the version you bought, get updates if you bought a tier that includes them.</p>
+    </details>
+
+    <details>
+      <summary>Can I use my license on multiple computers?</summary>
+      <p>Yes, your single-user license works on multiple devices that you personally own (e.g., your desktop and your laptop), as long as it's not in active use by more than one person at a time.</p>
+    </details>
+
+    <details>
+      <summary>Do I get a refund if I don't like it?</summary>
+      <p>Yes. 14-day no-questions-asked refund. Email <a href="mailto:support@projelli.com">support@projelli.com</a> or use LemonSqueezy's customer portal.</p>
+    </details>
+
+    <details>
+      <summary>What happens after my Pro tier's 1 year of updates ends?</summary>
+      <p>The Software keeps working. You just don't get new updates unless you buy another year (or upgrade to Lifetime). There's no remote kill switch, if you bought v1.5, you keep v1.5 forever.</p>
+    </details>
+
+    <h2>Privacy and data</h2>
+
+    <details>
+      <summary>Do you see my files?</summary>
+      <p>No. Your files live on your hard drive in plain Markdown format. We have no server that stores them. The only thing our server sees is your license key when you activate the app.</p>
+    </details>
+
+    <details>
+      <summary>Do you see my AI conversations?</summary>
+      <p>No. AI requests go directly from your computer to your chosen provider (Anthropic, OpenAI, or Google) using your API key. We are never in the loop. Read the <a href="/legal/privacy">Privacy Policy</a> for the full breakdown.</p>
+    </details>
+
+    <details>
+      <summary>What if Projelli shuts down? Do I lose my work?</summary>
+      <p>No. Because everything is plain Markdown in a regular folder on your hard drive, you can keep using your files in any other Markdown editor (Obsidian, Notion, VS Code, even Notepad) forever. The Software might stop getting updates, but your data is yours.</p>
+    </details>
+
+    <h2>AI providers</h2>
+
+    <details>
+      <summary>Which AI provider should I start with?</summary>
+      <p>Most people should start with Claude (Anthropic). It's the best at long-form writing and following complex instructions, which is what most Projelli workflows need. New Anthropic accounts get $5 in free credits, enough for ~50 workflow runs.</p>
+    </details>
+
+    <details>
+      <summary>Can I switch between providers?</summary>
+      <p>Yes. Each AI chat in Projelli has a per-chat model selector. You can have a Claude conversation about your business plan and a GPT-4 conversation about your pricing strategy in the same workspace, and switch between them whenever you want.</p>
+    </details>
+
+    <details>
+      <summary>What does it cost to actually use the AI?</summary>
+      <p>You pay your AI provider directly. For Claude Sonnet (the default model), expect about $0.05-$0.20 per workflow run. Heavy daily use is typically $5-$15/month. Gemini Flash has a generous free tier, 1500 requests per day, enough for most users to never hit a paid charge.</p>
+    </details>
+
+    <details>
+      <summary>Why isn't there a "ChatGPT login" option?</summary>
+      <p>ChatGPT consumer subscriptions ($20/mo for Plus, $200/mo for Pro) are entirely separate from OpenAI's API. They're different products with different billing. To use OpenAI's models with Projelli, you need an API account at platform.openai.com, your ChatGPT Plus subscription does NOT transfer.</p>
+    </details>
+
+    <h2>Technical questions</h2>
+
+    <details>
+      <summary>What platforms does Projelli support?</summary>
+      <p>Officially supported as of v1.6: <strong>Windows 10/11</strong> and <strong>macOS</strong> (both Apple Silicon and Intel). Linux builds (AppImage, .deb, .rpm) are produced by our CI and published on the releases page, but Linux is not officially supported in v1.6 — we'll polish and announce Linux as a v1.7 release after the v1.6 launch settles.</p>
+    </details>
+
+    <details>
+      <summary>Why does Windows show a SmartScreen warning when I install?</summary>
+      <p>The Windows installer is signed via Azure Trusted Signing with a Public Trust cert (publisher reads "Jameson Daines"). The warning you may see is SmartScreen's "unrecognized app" reputation warning, not a malware warning, because the cert is new and SmartScreen reputation hasn't built yet. Click "More info" then "Run anyway" to proceed. Windows remembers the choice per user. The warning clears automatically once a few hundred people install it, typically 2 to 4 weeks. You can verify the source at <a href="https://github.com/projelli/projelli">github.com/projelli/projelli</a>.</p>
+    </details>
+
+    <details>
+      <summary>What's the "portable" Windows .exe?</summary>
+      <p>v1.6 adds a portable Windows build. It's a single <code>.exe</code> you can drop anywhere, no install step, no Start Menu entry, no Admin rights needed. Useful if you want to run Projelli from a USB drive, try it without committing to a full install, or install on a machine where you can't run installers.</p>
+      <p><strong>Caveats:</strong> the portable build still saves your workspaces and settings to <code>%APPDATA%\Projelli</code> (not next to the .exe). The auto-updater is disabled; you re-download manually. The MCP extension (<code>.mcpb</code>) isn't supported in portable mode. Use the full installer if you need MCP or automatic updates.</p>
+    </details>
+
+    <details>
+      <summary>Can I sync my workspace across devices?</summary>
+      <p>Yes, by putting your workspace folder inside Dropbox, iCloud Drive, OneDrive, or any other file sync service. Projelli writes plain Markdown files, so any file sync tool can handle it. We don't have built-in sync because we don't want to be in the cloud-storage business, and using a dedicated sync tool is usually better than what we'd build anyway.</p>
+    </details>
+
+    <details>
+      <summary>Is the source code open?</summary>
+      <p>The full source code is visible at <a href="https://github.com/projelli/projelli">github.com/projelli/projelli</a>, but Projelli is closed-source proprietary software, you cannot redistribute, fork, or build a competing product from it. The source is visible so you can verify what the app does (privacy, security, etc.) but not so you can ship it yourself.</p>
+    </details>
+
+    <details>
+      <summary>Where can I report bugs?</summary>
+      <p>Either by email to <a href="mailto:support@projelli.com">support@projelli.com</a> or by opening an issue at <a href="https://github.com/projelli/projelli/issues">github.com/projelli/projelli/issues</a>.</p>
+    </details>
+
+    <details>
+      <summary>Will there be a mobile app?</summary>
+      <p>Not in v1. Projelli is a desktop product. A mobile app would need to solve sync (since mobile and desktop need to share the same workspace), which contradicts the local-first design. If we ever do mobile, it'll be a separate product, not the same one.</p>
+    </details>
+
+    <details>
+      <summary>Will there be a "Projelli for Teams"?</summary>
+      <p>Possibly, but as a separate product, not a feature added to the v1. Real-time collaboration, multi-user permissions, and team accounts are a different problem with different infrastructure and a different price point. v1 is solo-founder-first and stays that way.</p>
+    </details>
+
+    <h2>Still stuck?</h2>
+
+    <p>Email <a href="mailto:support@projelli.com">support@projelli.com</a>. We typically respond within 1-2 business days.</p>
+  </div>
+</body>
+</html>
