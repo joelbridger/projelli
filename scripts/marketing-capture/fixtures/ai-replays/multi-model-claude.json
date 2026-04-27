@@ -1,0 +1,10 @@
+{
+  "model": "claude-opus-4-7",
+  "chunks": [
+    { "delayMs": 0,   "text": "Linterly is the writing coach that lives" },
+    { "delayMs": 80,  "text": " in your editor. It catches grammar slips," },
+    { "delayMs": 90,  "text": " surfaces tone mismatches, and respects" },
+    { "delayMs": 80,  "text": " the voice of founders who didn't grow up" },
+    { "delayMs": 90,  "text": " writing English." }
+  ]
+}

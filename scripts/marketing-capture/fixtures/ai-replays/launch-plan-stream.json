@@ -1,0 +1,18 @@
+{
+  "model": "claude-opus-4-7",
+  "chunks": [
+    { "delayMs": 0,   "text": "Here's a brand-voice draft for Linterly:" },
+    { "delayMs": 200, "text": "\n\n**Voice principles**\n\n" },
+    { "delayMs": 80,  "text": "Linterly writes the way a senior PM" },
+    { "delayMs": 70,  "text": " Slacks: short, specific, contraction-heavy," },
+    { "delayMs": 90,  "text": " never breathless.\n\n" },
+    { "delayMs": 120, "text": "**Banned words:** leverage, delve, seamless," },
+    { "delayMs": 60,  "text": " transform, empower, elevate, unlock.\n\n" },
+    { "delayMs": 100, "text": "**Banned patterns:** \"It's not X, it's Y.\"" },
+    { "delayMs": 80,  "text": " Italicized fragments at the end of sentences." },
+    { "delayMs": 70,  "text": " Em dashes in marketing copy.\n\n" },
+    { "delayMs": 150, "text": "I'll save this to Brand Voice.md in your" },
+    { "delayMs": 60,  "text": " workspace." }
+  ],
+  "createdFile": "Brand Voice.md"
+}

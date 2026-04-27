@@ -10,16 +10,25 @@ if (!rootElement) {
   throw new Error('Failed to find root element');
 }
 
-createRoot(rootElement).render(
-  <StrictMode>
-    {/*
-      UX-23: single Tooltip Provider at root. delayDuration=300ms means
-      tooltips appear after a small pause (avoids noise) and hide instantly
-      when the user moves to another tooltipped element (because Radix shares
-      the timer across triggers under a single provider).
-    */}
-    <TooltipProvider delayDuration={300} skipDelayDuration={100}>
-      <App />
-    </TooltipProvider>
-  </StrictMode>
-);
+async function bootstrap() {
+  if (import.meta.env['VITE_MARKETING_CAPTURE'] === '1') {
+    const { mountMarketingCaptureBridge } = await import('./dev/marketing-capture-bridge');
+    mountMarketingCaptureBridge();
+  }
+
+  createRoot(rootElement as HTMLElement).render(
+    <StrictMode>
+      {/*
+        UX-23: single Tooltip Provider at root. delayDuration=300ms means
+        tooltips appear after a small pause (avoids noise) and hide instantly
+        when the user moves to another tooltipped element (because Radix shares
+        the timer across triggers under a single provider).
+      */}
+      <TooltipProvider delayDuration={300} skipDelayDuration={100}>
+        <App />
+      </TooltipProvider>
+    </StrictMode>
+  );
+}
+
+bootstrap();
