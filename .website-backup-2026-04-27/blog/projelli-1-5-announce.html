@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projelli 1.5: The AI workspace that remembers your stuff | Projelli</title>
+  <meta name="description" content="v1.5 is out. Memory, an MCP server, side-by-side AI editing, voice input, and local models. Here's what changed and why.">
+  <link rel="canonical" href="https://projelli.com/blog/projelli-1-5-announce">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://projelli.com/blog/projelli-1-5-announce">
+  <meta property="og:title" content="Projelli 1.5: The AI workspace that remembers your stuff">
+  <meta property="og:description" content="Memory, MCP, side-by-side editing, voice, Ollama. Local-first AI workspace for indie founders.">
+  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      padding: 60px 24px 100px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #FF7C6E 0%, #FF6554 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">&larr; All posts</a>
+
+    <h1>Projelli 1.5: The AI workspace that remembers your stuff</h1>
+    <p class="meta">By Jameson Daines &middot; 2026-04-16 &middot; 7 min read</p>
+
+    <p>Projelli 1.5 is out today. It's the biggest release since launch, and it closes the gap between "an AI chat that produces files" (what 1.0 was) and "an AI workspace that's actually aware of what you've already written" (what 1.5 is). Four new capabilities ship together. I'll walk through each one, say what didn't make it, and explain how to upgrade.</p>
+
+    <p>The short version, and the new headline: <strong>Projelli is the AI workspace that remembers your stuff</strong>. Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use.</p>
+
+    <h2>Flag 1: Memory that indexes your work</h2>
+
+    <p>The thing that most annoyed me about Projelli 1.0 was that every new conversation started from zero. The AI had no idea what I'd written last week. I built 1.5's memory layer to fix that.</p>
+
+    <p>Under the hood, Projelli now runs a local vector index over every Markdown file in your workspace. The embedder is <a href="https://huggingface.co/intfloat/e5-small-v2" target="_blank" rel="noopener">e5-small-v2</a>, running through <a href="https://github.com/Anush008/fastembed-rs" target="_blank" rel="noopener">fastembed-rs</a>. The vector store is <a href="https://lancedb.github.io/lancedb/" target="_blank" rel="noopener">LanceDB</a>. It all lives in a hidden <code>.projelli/vectors/</code> folder inside your workspace. A file watcher keeps the index in sync as you write.</p>
+
+    <p>You use it in two ways. First, type <code>@workspace</code> in any chat and Projelli retrieves the most relevant paragraphs from your workspace and injects them into the prompt as <code>&lt;workspace_context&gt;</code>. The chat response cites which file and paragraph each claim came from, and clicking a citation opens the file at the right spot. Second, Projelli extracts facts from your conversations (every 10 messages) and writes them to <code>memory.json</code>. Those facts get injected ahead of workspace context on every future chat. You can Accept, Edit, or Reject each proposed fact.</p>
+
+    <p>The whole thing is toggleable in Settings and opt-out per chat. See the <a href="/blog/chat-shouldnt-disappear-when-you-close-the-tab">full argument for why chat shouldn't disappear</a>.</p>
+
+    <h2>Flag 2: Available in every AI tool you use</h2>
+
+    <p>Projelli 1.5 ships a <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener">Model Context Protocol</a> server. MCP is Anthropic's open spec for exposing tools and data to AI clients, and <a href="https://github.com/modelcontextprotocol/servers" target="_blank" rel="noopener">the ecosystem around it</a> has grown fast in the last six months.</p>
+
+    <p>The Projelli MCP server is bundled as a <code>.mcpb</code> Desktop Extension. One-click install into Claude Desktop, Cursor, or any other MCP-compatible client, and that client can now read your Projelli workspace. Five tools are exposed: <code>list_workspace_files</code>, <code>read_workspace_file</code>, <code>search_workspace</code> (reuses the same LanceDB index as Flag 1, so retrieval quality matches <code>@workspace</code>), <code>write_workspace_file</code> (requires in-app approval by default), and <code>get_memory_facts</code>.</p>
+
+    <p>The server is a hand-rolled JSON-RPC 2.0 binary, not pulled from <a href="https://github.com/modelcontextprotocol/rust-sdk" target="_blank" rel="noopener">rmcp</a>, because five tools is tractable and I wanted the binary small. The whole sidecar is ~151 MiB stripped, dominated by the LanceDB + fastembed deps we already ship for Flag 1.</p>
+
+    <h2>Flag 3: AI edits side-by-side with you</h2>
+
+    <p>Select a paragraph in the Markdown editor, hit <code>Ctrl+Shift+E</code>, type "tighten this to three sentences," and watch the AI's revision stream into the document as a live diff. Deleted lines are red and struck through; added lines are green. Once the stream completes, the diff splits into hunks and you accept or reject each one individually.</p>
+
+    <p>This is the same pattern you've seen in <a href="https://www.anthropic.com/news/artifacts" target="_blank" rel="noopener">Claude Artifacts</a> and <a href="https://openai.com/index/introducing-canvas/" target="_blank" rel="noopener">ChatGPT Canvas</a>, but local. The file stays on your disk. Every accepted hunk gets a version-history entry tagged <code>author: 'ai'</code> with the prompt, model, and offset range. You can see what the AI changed weeks later and roll it back hunk by hunk.</p>
+
+    <p>Ships for the Markdown and plain-text editors in 1.5. TipTap, DOCX, and RTF editors are a follow-up for 1.6.</p>
+
+    <h2>Flag 4: Talk to it offline</h2>
+
+    <p>Two capabilities here, both offline-capable.</p>
+
+    <p>First, voice input. Hold <code>Ctrl+Shift+Space</code> to dictate into whatever field is focused (chat, editor, any textarea). Hold <code>Ctrl+Shift+N</code> instead and the transcript saves to <code>Inbox/note-&lt;timestamp&gt;.md</code>. Transcription runs through a bundled <a href="https://github.com/ggerganov/whisper.cpp" target="_blank" rel="noopener">whisper.cpp</a>-family sidecar (Parakeet.cpp when a release is available) that takes WAV bytes on stdin and returns text on stdout with a 30-second timeout. Audio never leaves your machine.</p>
+
+    <p>Second, <a href="https://ollama.com/" target="_blank" rel="noopener">Ollama</a> is now a fourth provider alongside Claude, OpenAI, and Gemini. Run <code>llama3.2:3b</code> or <code>qwen2.5</code> or <code>mistral</code> or any other model you've pulled with <code>ollama pull</code>, and Projelli talks to it on <code>127.0.0.1:11434</code> with zero network round-trip. Cost is always $0. The Settings panel auto-detects whether Ollama is running and lists your installed models.</p>
+
+    <p>Together, Memory + Ollama + Voice means you can dictate "what did I say about pricing last week?" on a plane, with no internet, and get a useful answer citing your own files.</p>
+
+    <h2>What didn't make it into 1.5</h2>
+
+    <p>A few honest omissions.</p>
+
+    <ul>
+      <li><strong>The TipTap / DOCX / RTF editors do not yet have side-by-side AI editing.</strong> Only Markdown and plain-text do in 1.5. The rich editors have their own selection APIs; a clean port belongs in its own release.</li>
+      <li><strong>The Parakeet.cpp binary is not bundled in the first build.</strong> Voice UI renders "Sidecar missing" until a reliable per-platform release artifact is pinned in CI. Mac and Linux users can manually drop a whisper.cpp binary into the app's resources folder today.</li>
+      <li><strong>No cloud sync.</strong> Still not in 1.5. Still deliberate. See the <a href="/blog/why-local-first-ai-for-founders">local-first essay</a>.</li>
+      <li><strong>No mobile app.</strong> Desktop remains the whole product.</li>
+      <li><strong>No real-time collaboration.</strong> If you need two editors in the same document, Notion is still the right answer.</li>
+      <li><strong>No "AI co-founder" positioning.</strong> Projelli proposes, you accept. The AI is a contributor tracked in version history, not an autonomous decision-maker.</li>
+    </ul>
+
+    <p>The deferred "Big Bets" (B1-B6 in the internal planning doc) include a true agent layer, multiplayer, mobile, a plugin API, and a hosted sync option. None of these are on the 2026 roadmap. Projelli stays small, local, and founder-scoped.</p>
+
+    <h2>Quality-of-life extras</h2>
+
+    <p>Five smaller additions that happened alongside the big four.</p>
+
+    <ul>
+      <li>A live API cost meter in the chat pane ("$0.14 this chat, $3.80 today"), plus a 30-day cost dashboard in Settings.</li>
+      <li>A <code>?</code> keyboard-shortcuts overlay listing every hotkey in the app.</li>
+      <li>Per-template model selection, so you can assign Claude Sonnet to Pitch Deck and Haiku to Weekly Review.</li>
+      <li><a href="https://mermaid.js.org/" target="_blank" rel="noopener">Mermaid</a> diagram and <a href="https://katex.org/" target="_blank" rel="noopener">KaTeX</a> math rendering in the Markdown preview.</li>
+      <li>A 3-step API-key onboarding wizard for your first install, with an illustrated mock of where to click on each provider's console.</li>
+    </ul>
+
+    <h2>How to upgrade</h2>
+
+    <p>If you're on Projelli 1.0.8 or later, the <a href="https://github.com/projelli/projelli/releases" target="_blank" rel="noopener">auto-updater</a> will deliver 1.5 within a day or two. You'll get an in-app banner when it's downloaded. Click, relaunch, you're on 1.5.</p>
+
+    <p>If you're on 1.0.0 through 1.0.7, the auto-updater won't migrate you cleanly. Grab the installer from the <a href="https://github.com/projelli/projelli/releases/latest" target="_blank" rel="noopener">releases page</a> and install over the top. Your workspace, settings, and API keys carry over.</p>
+
+    <p>If you've never installed Projelli, the <a href="/#pricing">download page</a> has the installer for Windows, Mac (Apple Silicon + Intel), and Linux. Free tier is unchanged. Pro stays at $49 one-time. The first-100-buyers Founder's Launch Lifetime is still $29 (26 sold as of this post).</p>
+
+    <h2>Credit</h2>
+
+    <p>Projelli is built by me, <a href="https://jamesondaines.com" target="_blank" rel="noopener">Jameson Daines</a>, on 5-10 hours a week around a full-time day job as a Senior Product Designer at Wheel Health. Not a funded startup. Not a team. One person, nights and weekends, shipping a local-first AI workspace because the cloud tools kept losing my business plans.</p>
+
+    <p>If this post is useful, share it. Tell one freelance founder you know who's fighting their pitch deck on ChatGPT. That's how Projelli grows.</p>
+
+    <a href="/#pricing" class="cta">Download Projelli 1.5</a>
+
+    <p style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-gray); color: var(--text-muted); font-size: 0.9375rem;">
+      <em>Read the <a href="/vs/">competitive comparisons</a> or see real worked examples in the <a href="/templates/">template gallery</a>.</em>
+    </p>
+  </div>
+</body>
+</html>
