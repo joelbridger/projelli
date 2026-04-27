@@ -1,8 +1,19 @@
 # Projelli Backlog
 
-> **Last updated:** 2026-04-08 (marathon session: Phases 0 → 5 advance work)
+> **🚀 LAUNCH STATUS (2026-04-27):** v1.6.0 is the first commercial release.
+> Public, signed, notarized, license-activated, end-to-end paid loop verified
+> on a real LemonSqueezy purchase. See
+> `docs/operations/SESSION_2026-04-27_v1.6.0_SHIPPED.md` for the full launch
+> session record and the rc.5 → rc.17 → v1.6.0 fix arc.
+>
+> **Last updated:** 2026-04-27 (post-launch).
 > **Plan:** See `PROJELLI_BUSINESS_PLAN.md` for the full 8-week roadmap and reasoning behind each ticket.
 > **How to use:** Tickets are organized by week of the launch roadmap. Within each week, work top to bottom. Use status `TODO` / `IN PROGRESS` / `DONE` / `BLOCKED`. When something is `BLOCKED`, name what's blocking it.
+>
+> **What's next post-launch:** marketing push (PH/HN/IH per `docs/marketing/`),
+> beta tester outreach (`docs/marketing/action-packs/BETA_TESTER_CANDIDATES.md`),
+> demo videos (in progress), CF cache purge automation, UX-42 (Windows
+> updater-sign in CI), v1.7 (Linux as a supported platform).
 
 ---
 

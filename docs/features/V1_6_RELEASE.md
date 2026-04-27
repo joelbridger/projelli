@@ -1,16 +1,16 @@
 # Projelli v1.6 Release Tracking
 
-> **Current state:** `v1.6.0-rc.6` in progress, 2026-04-22. Fixes two
-> items Jameson caught dogfooding rc.5: (1) silent-install did nothing
-> visible until the user hunted for the new desktop shortcut — rc.6
-> auto-launches the app after a fresh install, (2) the "Something
-> broken?" link sat flush against the tab-count text — rc.6 gives the
-> entire status bar consistent spacing. Awaits Jameson's Windows pass.
-> If clean, tag `v1.6.0` final.
+> **Current state:** ✅ **SHIPPED 2026-04-27.** `v1.6.0` is the public
+> Latest release on GitHub. Mac (aarch64 + Intel) DMGs are notarized,
+> Windows installer is Azure-signed + auto-updater-signed, Linux builds
+> available but officially deferred to v1.7. End-to-end LemonSqueezy
+> buy → activate → unlock loop verified by Allison's test purchase
+> rehearsal during the ship session. Auto-updater path valid for the
+> v1.0.8 → v1.6.0 upgrade (pubkey unchanged across releases).
 >
-> **Integration branch:** `release/v1.6` (forked from `release/v1.5` after
-> v1.5-rc.9 bug fix, 2026-04-17).
-> **Commits since fork:** 148+.
+> **Public URL:** https://github.com/projelli/projelli/releases/tag/v1.6.0
+> **Integration branch:** `release/v1.6` (ff-merged into `master` at ship time).
+> **Commits since fork:** ~165 across rc.1 → rc.17 → v1.6.0.
 
 ---
 
@@ -39,7 +39,15 @@
 | `v1.6.0-rc.7` | 2026-04-23 | ❌ Mac DMG still threw the glob error — rc.7 dropped the standalone `**` but the real culprit was `C:\**` (backslashes not path separators in the `glob` crate). Superseded by rc.8. |
 | `v1.6.0-rc.8` | 2026-04-23 | ⚠️ Glob parse bug fixed but workspace creation still failed at `.trash` with `forbidden path`. Root cause: Tauri plugin-fs defaults `require_literal_leading_dot=true` on Unix, and `**/*` does not match dotfiles under that option. |
 | `v1.6.0-rc.9` | 2026-04-23 | ✅ Mac workspace creation works end-to-end. Allison successfully created workspace, added folders, opened files. Surfaced two new bugs: API key validation 404 + modal input overflow. |
-| `v1.6.0-rc.10` | 2026-04-23 | 🟡 In progress. Anthropic key validator switched to `GET /v1/models` (was POSTing to retired `claude-3-haiku-20240307`). PromptDialog body + flex container get `min-w-0` to stop long workspace paths from expanding the grid track. |
+| `v1.6.0-rc.10` | 2026-04-23 | ✅ Anthropic key validator switched to `GET /v1/models` (was POSTing to retired `claude-3-haiku-20240307`). PromptDialog body + flex container get `min-w-0` to stop long workspace paths from expanding the grid track. Allison's first successful Mac dogfood. |
+| `v1.6.0-rc.11` | 2026-04-23 | ❌ Probed Apple notarization. Notary responded but rejected the build because the embedded MCP sidecar wasn't signed with Developer ID + hardened runtime + secure timestamp. |
+| `v1.6.0-rc.12` | 2026-04-23 | ✅ Added explicit codesign step for the MCP sidecar before Tauri bundles it into `.app/Contents/Resources/binaries/`. Notarization passed. First fully-Gatekeeper-clean Mac build. |
+| `v1.6.0-rc.13` | 2026-04-27 | ⚠️ Wired LicenseSettings into the Settings modal (component existed but was never imported). Built green; rc.14 bug surfaced when Allison opened Settings. |
+| `v1.6.0-rc.14` | 2026-04-27 | ⚠️ Added `'license'` to the `visibleCategories` auto-add block so the License nav button actually renders. Built green; CSP error on activation surfaced rc.15. |
+| `v1.6.0-rc.15` | 2026-04-27 | ⚠️ Added `https://licenses.projelli.com` to CSP `connect-src` AND http:default capability scope. CI build failed at protoc install (GitHub releases API returning empty for authenticated requests). |
+| `v1.6.0-rc.16` | 2026-04-27 | ❌ Pinned arduino/setup-protoc version to "25.9" (was "25.x"). Same auth-token-API failure — the action queries the API even with a pinned version. |
+| `v1.6.0-rc.17` | 2026-04-27 | ✅ Replaced `arduino/setup-protoc` with native package managers (`brew install protobuf` on Mac, `apt-get install protobuf-compiler` on Linux, `choco install protoc` on Windows). All 4 platforms green. **Validated as launch candidate via Allison's full LemonSqueezy buy → activate rehearsal.** |
+| `v1.6.0` | 2026-04-27 | ✅ **SHIPPED.** Tagged on rc.17 commit. Manual Windows updater-sign per the v1.0.8 procedure. `latest.json` patched with all 4 platform entries. Promoted as Latest non-prerelease, ff-merged to master, website deployed. |
 
 ---
 

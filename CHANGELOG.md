@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No changes since v1.6.0.
+
+## [1.6.0] - 2026-04-27
+
+First commercially-launched release. Mac support, end-to-end license
+activation, and 6+ rounds of polish caught during the rc.5 → rc.17
+dogfood arc on real Mac and Windows installs.
+
+### Added
+- **macOS support** as a first-class platform. `Projelli_1.6.0_aarch64.dmg`
+  for Apple Silicon and `Projelli_1.6.0_x64.dmg` for Intel. Both are signed
+  with the Projelli Developer ID cert AND notarized by Apple, so the first
+  launch goes through macOS's standard "downloaded from the Internet" prompt
+  with the green "Apple checked it for malicious software" line. No
+  right-click → Open dance.
+- **License activation panel** in Settings, second item under General.
+  Paste the license key from the LemonSqueezy purchase email, click
+  Activate, and the app talks to `licenses.projelli.com` to verify and
+  unlock all paid features. Validator service handles the LemonSqueezy
+  /activate API call, issues a signed JWT, persists activation records
+  for revocation tracking.
+
 ### Changed
 - **Windows silent install now auto-launches the app** after a fresh
   double-click install. Previously the installer only created a desktop
