@@ -204,6 +204,7 @@ export async function video02() {
     shots,
     captions,
     trimSec,
+  videoTitle: 'Open files and split panes',
   });
 
   mkdirSync(PRESS_KIT_DIR, { recursive: true });

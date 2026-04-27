@@ -64,6 +64,104 @@
       max-width: 720px;
     }
 
+    /* ── Horizontal timeline ─────────────────────────────────────────── */
+    .timeline {
+      position: relative;
+      margin: 24px 0 56px;
+      padding: 0 0 80px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .timeline-track {
+      position: relative;
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      min-width: 100%;
+      padding: 60px 16px 0;
+    }
+    /* The horizontal rule that runs through every milestone */
+    .timeline-rail {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      top: 96px;
+      height: 3px;
+      background: linear-gradient(to right, var(--accent-green) 0%, var(--accent-green) var(--progress, 50%), var(--border-gray) var(--progress, 50%), var(--border-gray) 100%);
+      border-radius: 2px;
+    }
+    .tl-stop {
+      flex: 1 0 180px;
+      position: relative;
+      padding-top: 48px;
+      text-align: center;
+    }
+    .tl-stop .tl-quarter {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .tl-stop .tl-dot {
+      position: absolute;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #FFFFFF;
+      border: 3px solid var(--border-gray);
+      z-index: 2;
+    }
+    .tl-stop.done .tl-dot { background: var(--accent-green); border-color: var(--accent-green); }
+    .tl-stop.now .tl-dot {
+      background: var(--accent-coral);
+      border-color: var(--accent-coral);
+      box-shadow: 0 0 0 6px rgba(255, 124, 110, 0.18);
+    }
+    .tl-stop.next .tl-dot { background: #FFFFFF; border-color: var(--accent-blue); }
+    .tl-stop .tl-title {
+      font-size: 0.9375rem;
+      font-weight: 600;
+      color: var(--text-heading);
+      margin-top: 16px;
+      line-height: 1.3;
+      padding: 0 8px;
+    }
+    .tl-stop .tl-sub {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      padding: 0 8px;
+    }
+    .tl-legend {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+    .tl-legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .tl-legend i {
+      width: 10px; height: 10px; border-radius: 50%;
+      display: inline-block;
+    }
+    .tl-legend .li-done { background: var(--accent-green); }
+    .tl-legend .li-now { background: var(--accent-coral); }
+    .tl-legend .li-next { background: #FFFFFF; border: 2px solid var(--accent-blue); }
+
+    @media (max-width: 720px) {
+      .tl-stop { flex: 0 0 160px; }
+    }
+
     .item-list { display: flex; flex-direction: column; gap: 12px; }
     .item {
       background: var(--bg-surface);
@@ -208,14 +306,64 @@
   <script src="/scripts/projelli-nav.v2.js" defer></script>
 
 <body>
-  <nav class="nav"><!-- replaced by projelli-nav script --></nav>
-
   <section class="hero">
     <h1>Roadmap</h1>
     <p>What I'm building, in the open. Here's what shipped recently, what's in flight, and what's queued up next. Vote on the polls below to nudge what comes after that.</p>
   </section>
 
   <main class="container">
+
+    <!-- ── Horizontal timeline ───────────────────────────────────── -->
+    <section class="section">
+      <div class="section-eyebrow">At a glance</div>
+      <h2 class="section-title">From here to there</h2>
+      <div class="timeline">
+        <div class="timeline-track">
+          <div class="timeline-rail" style="--progress: 50%;"></div>
+          <div class="tl-stop done">
+            <span class="tl-quarter">Q4 2025</span>
+            <span class="tl-dot"></span>
+            <div class="tl-title">v1.0 launches on Windows</div>
+            <div class="tl-sub">Editor, AI chat, BYOK, file tree</div>
+          </div>
+          <div class="tl-stop done">
+            <span class="tl-quarter">Q1 2026</span>
+            <span class="tl-dot"></span>
+            <div class="tl-title">Workflows + version history</div>
+            <div class="tl-sub">15 founder templates, every save snapshotted</div>
+          </div>
+          <div class="tl-stop done">
+            <span class="tl-quarter">Apr 2026</span>
+            <span class="tl-dot"></span>
+            <div class="tl-title">Document suite + auto-updater</div>
+            <div class="tl-sub">.xlsx · .docx · .pptx · .csv · .rtf, in-app updates</div>
+          </div>
+          <div class="tl-stop now">
+            <span class="tl-quarter">May 2026</span>
+            <span class="tl-dot"></span>
+            <div class="tl-title">Mac signed build + MCP support</div>
+            <div class="tl-sub">Notarized .dmg, plug any MCP server in</div>
+          </div>
+          <div class="tl-stop next">
+            <span class="tl-quarter">Jun 2026</span>
+            <span class="tl-dot"></span>
+            <div class="tl-title">Linux .deb + .AppImage</div>
+            <div class="tl-sub">One binary, packaged for Debian/Ubuntu and portable</div>
+          </div>
+          <div class="tl-stop next">
+            <span class="tl-quarter">Q3 2026</span>
+            <span class="tl-dot"></span>
+            <div class="tl-title">Top-voted feature ships</div>
+            <div class="tl-sub">Whatever wins the polls below — your call</div>
+          </div>
+        </div>
+        <div class="tl-legend">
+          <span><i class="li-done"></i>Shipped</span>
+          <span><i class="li-now"></i>Building now</span>
+          <span><i class="li-next"></i>Up next</span>
+        </div>
+      </div>
+    </section>
 
     <!-- ── Recently shipped ───────────────────────────────────────── -->
     <section class="section">

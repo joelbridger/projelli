@@ -52,6 +52,43 @@
     return a;
   }
 
+  // CANONICAL NAV ITEMS — change here once, every page picks it up.
+  var ITEMS = [
+    { href: '/tour', label: 'Tour' },
+    { href: '/templates/', label: 'Templates' },
+    { href: '/vs/', label: 'vs Others' },
+    { href: '/#pricing', label: 'Pricing' },
+    { href: '/roadmap/', label: 'Roadmap' },
+    { href: '/blog/', label: 'Blog' }
+  ];
+
+  function buildLink(href, label, cls) {
+    var a = document.createElement('a');
+    a.href = href;
+    a.textContent = label;
+    if (cls) a.className = cls;
+    return a;
+  }
+
+  function buildBurger() {
+    var b = document.createElement('button');
+    b.className = 'projelli-nav-burger';
+    b.setAttribute('aria-label', 'Open menu');
+    b.setAttribute('aria-expanded', 'false');
+    // Trusted SVG markup — no user input.
+    var svg = new DOMParser().parseFromString(
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+      '<path d="M3 6h18M3 12h18M3 18h18"/></svg>',
+      'image/svg+xml',
+    ).documentElement;
+    if (svg && svg.tagName.toLowerCase() === 'svg') {
+      b.appendChild(document.importNode(svg, true));
+    } else {
+      b.textContent = '☰';
+    }
+    return b;
+  }
+
   function buildNav() {
     var nav = document.createElement('nav');
     nav.className = 'projelli-nav';
@@ -62,31 +99,38 @@
 
     inner.appendChild(buildLogo());
 
+    // Desktop: full-width links row + CTA on the right.
     var links = document.createElement('div');
     links.className = 'projelli-nav-links';
-    var items = [
-      { href: '/tour', label: 'Tour' },
-      { href: '/templates/', label: 'Templates' },
-      { href: '/vs/', label: 'vs Others' },
-      { href: '/#pricing', label: 'Pricing' },
-      { href: '/roadmap/', label: 'Roadmap' },
-      { href: '/blog/', label: 'Blog' }
-    ];
-    items.forEach(function (item) {
-      var a = document.createElement('a');
-      a.href = item.href;
-      a.textContent = item.label;
-      links.appendChild(a);
-    });
+    ITEMS.forEach(function (item) { links.appendChild(buildLink(item.href, item.label)); });
     inner.appendChild(links);
 
-    var cta = document.createElement('a');
-    cta.href = '/#download';
-    cta.className = 'projelli-nav-cta';
-    cta.textContent = 'Get Started Free';
+    var cta = buildLink('/#download', 'Get Started Free', 'projelli-nav-cta');
     inner.appendChild(cta);
 
+    // Mobile: burger button toggles a slide-down panel with the same items + CTA.
+    var burger = buildBurger();
+    inner.appendChild(burger);
+
+    var mobile = document.createElement('div');
+    mobile.className = 'projelli-nav-mobile';
+    ITEMS.forEach(function (item) { mobile.appendChild(buildLink(item.href, item.label)); });
+    mobile.appendChild(buildLink('/#download', 'Get Started Free', 'projelli-nav-cta'));
     nav.appendChild(inner);
+    nav.appendChild(mobile);
+
+    burger.addEventListener('click', function () {
+      var isOpen = mobile.classList.toggle('is-open');
+      burger.setAttribute('aria-expanded', String(isOpen));
+    });
+    // Close mobile menu on navigation.
+    mobile.addEventListener('click', function (e) {
+      if (e.target.tagName === 'A') {
+        mobile.classList.remove('is-open');
+        burger.setAttribute('aria-expanded', 'false');
+      }
+    });
+
     return nav;
   }
 

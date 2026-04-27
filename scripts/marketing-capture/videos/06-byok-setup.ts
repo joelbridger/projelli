@@ -293,7 +293,7 @@ export async function video06() {
   const PRE_ROLL_SEC = 0.4;
   const trimSec = Math.max(0, (beats.heroSettled ?? 2) - 0.5 - PRE_ROLL_SEC);
 
-  await renderCinematic({ webmPath, chromePngPath: CHROME_PNG, outPath, shots, captions, trimSec });
+  await renderCinematic({ webmPath, chromePngPath: CHROME_PNG, outPath, shots, captions, trimSec, videoTitle: 'Bring your own AI key in 30 seconds' });
 
   mkdirSync(PRESS_KIT_DIR, { recursive: true });
   copyFileSync(outPath, path.join(PRESS_KIT_DIR, 'byok-setup.mp4'));

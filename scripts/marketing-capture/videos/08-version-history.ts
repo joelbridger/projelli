@@ -366,7 +366,7 @@ export async function video08() {
   const PRE_ROLL_SEC = 0.4;
   const trimSec = Math.max(0, (beats.editStart ?? 2) - 0.5 - PRE_ROLL_SEC);
 
-  await renderCinematic({ webmPath, chromePngPath: CHROME_PNG, outPath, shots, captions, trimSec });
+  await renderCinematic({ webmPath, chromePngPath: CHROME_PNG, outPath, shots, captions, trimSec, videoTitle: 'Roll back to any older version' });
 
   mkdirSync(PRESS_KIT_DIR, { recursive: true });
   copyFileSync(outPath, path.join(PRESS_KIT_DIR, 'version-history.mp4'));

@@ -140,7 +140,7 @@ export async function video05() {
   const PRE_ROLL_SEC = 0.4;
   const trimSec = Math.max(0, (beats.mdShown ?? 2) - 0.5 - PRE_ROLL_SEC);
 
-  await renderCinematic({ webmPath, chromePngPath: CHROME_PNG, outPath, shots, captions, trimSec });
+  await renderCinematic({ webmPath, chromePngPath: CHROME_PNG, outPath, shots, captions, trimSec, videoTitle: 'Edit Excel, Word, and PowerPoint here too' });
 
   mkdirSync(PRESS_KIT_DIR, { recursive: true });
   copyFileSync(outPath, path.join(PRESS_KIT_DIR, 'feature-document-suite-15s.mp4'));

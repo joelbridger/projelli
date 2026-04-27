@@ -483,7 +483,7 @@ export async function video04() {
   const PRE_ROLL_SEC = 0.4;
   const trimSec = Math.max(0, (beats.galleryShown ?? 3) - 0.5 - PRE_ROLL_SEC);
 
-  await renderCinematic({ webmPath, chromePngPath: CHROME_PNG, outPath, shots, captions, trimSec });
+  await renderCinematic({ webmPath, chromePngPath: CHROME_PNG, outPath, shots, captions, trimSec, videoTitle: 'Run a workflow, get a finished doc' });
 
   mkdirSync(PRESS_KIT_DIR, { recursive: true });
   copyFileSync(outPath, path.join(PRESS_KIT_DIR, 'workflow-templates.mp4'));
