@@ -7,7 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No changes since v1.6.0.
+No changes since v1.7.0.
+
+## [1.7.0] - 2026-04-27
+
+Pricing model rewrite + honest license-state UI.
+
+### Added
+- **30-day full-feature trial.** First launch records a timestamp in
+  localStorage. For 30 days every Projelli feature is unlocked: AI
+  chat with your own keys, all 15 workflow templates, all workspaces,
+  all panels. After 30 days, AI chat sends and workflow runs are
+  paused until a license is activated; existing files stay fully
+  readable. Code: `src/hooks/useTrial.ts` exposes `useTrial()` (raw
+  state) and `useTrialGate()` (combined trial + license check).
+  Banners in `AIChatViewer` and `WorkflowPanel` explain the locked
+  state and point to Settings → License.
+
+### Changed
+- **License Settings UI** rewritten. The old "Free tier" copy
+  promised six feature gates (multi-provider, all-templates,
+  unlimited workspaces, whiteboard, audio, research-citations) that
+  were never actually enforced in the rendered app. Replaced with
+  honest trial-state messaging: a countdown during the trial
+  ("12 days left"), and a clear "Trial ended — activate a license
+  to continue" state with the activation flow.
+- The "what your license unlocks" list when activated now matches
+  what the code actually gates: AI chat with your own keys, the
+  workflow library, the editor + every panel, plus multi-model
+  comparison and commercial use rights on the Lifetime tier.
+
+### Notes
+- **No silent change for existing v1.6.0 users.** If you upgrade
+  from v1.6.0 to v1.7.0, the first-launch timestamp is written on
+  your first v1.7.0 launch — i.e. your trial starts fresh from
+  upgrade day. Fresh installs on clean machines see the trial start
+  from day zero.
 
 ## [1.6.0] - 2026-04-27
 
