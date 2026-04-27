@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Deploy the Projelli marketing website to the live server.
+# Sudo-free deploy. Requires: jameson is in www-data group AND /var/www/projelli.com
+# has the setgid bit on directories. Run setup-claude-deploy.sh ONCE to set both up.
 #
-# Usage:  ~/projelli/infra/deploy.sh
+# What this does:
+#   1. rsync website/ → /var/www/projelli.com/  (no sudo; jameson can write because
+#      jameson is in www-data group and the dir is group-writable)
+#   2. New files inherit www-data group via setgid, so Caddy can still serve them
+#   3. Optional Cloudflare cache purge if token + zone are configured
 #
-# What it does:
-#   1. rsync website/ → /var/www/projelli.com/
-#   2. set ownership to www-data:www-data
-#   3. purge Cloudflare cache for projelli.com so visitors see changes immediately
+# Usage:
+#   ~/projelli-marketing/infra/deploy-noroot.sh
 #
-# Requires sudo for the file ownership step. The Cloudflare API token must be
-# set in ~/.cloudflare-projelli-token (chmod 600).
-#
-# Same pattern as ~/jameson-daines-portfolio/infra/deploy.sh.
+# Replaces deploy.sh for routine deploys. Original deploy.sh is preserved as fallback.
 
 set -e
 
@@ -31,18 +31,24 @@ if [[ ! -d "$WEB_ROOT" ]]; then
   exit 1
 fi
 
+if [[ ! -w "$WEB_ROOT" ]]; then
+  echo "ERROR: $WEB_ROOT is not writable by $(whoami)."
+  echo "Run setup-claude-deploy.sh once (with sudo) to fix permissions, then re-run this."
+  exit 1
+fi
+
 echo "==> Syncing $WEBSITE_DIR/ → $WEB_ROOT/"
 # `_*.html` are source templates (underscore prefix is the convention).
 # `_detail_template.html` in /templates/ contains unrendered {{SLUG}}
 # placeholders that would leak if served. Exclude them from deploy.
-sudo rsync -av --delete \
+# --no-perms / --no-owner / --no-group: don't try to preserve file ownership
+# from the source (we run as jameson; the dest is owned by www-data via setgid).
+rsync -rlD --delete \
+  --no-perms --no-owner --no-group \
   --exclude='.DS_Store' \
   --exclude='*.swp' \
   --exclude='_*.html' \
   "$WEBSITE_DIR/" "$WEB_ROOT/"
-
-echo "==> Setting ownership to www-data:www-data"
-sudo chown -R www-data:www-data "$WEB_ROOT"
 
 echo "==> Verifying live file"
 ls -la "$WEB_ROOT/index.html"

@@ -15,15 +15,15 @@
   <meta property="og:title" content="Projelli, the AI workspace that remembers your stuff">
   <meta property="og:description" content="Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use.">
   <meta property="og:site_name" content="Projelli">
-  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <meta property="og:image" content="https://projelli.com/press-kit/assets/og-linkedin-card.png">
   <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
+  <meta property="og:image:height" content="627">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Projelli, the AI workspace that remembers your stuff">
   <meta name="twitter:description" content="Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use.">
-  <meta name="twitter:image" content="https://projelli.com/og-image.png">
+  <meta name="twitter:image" content="https://projelli.com/press-kit/assets/og-twitter-card.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -395,7 +395,21 @@
       flex-wrap: wrap;
     }
 
-    /* App Mockup */
+    /* Hero video (real product capture; transparent wrap so the page bg shows around the macOS chrome) */
+    .hero-video-wrap {
+      max-width: 1000px;
+      margin: 0 auto;
+      line-height: 0;
+      background: transparent;
+    }
+    .hero-video {
+      width: 100%;
+      height: auto;
+      display: block;
+      filter: drop-shadow(0 20px 40px rgba(15, 23, 42, 0.12));
+    }
+
+    /* App Mockup (legacy, retained for any other uses) */
     .app-mockup {
       max-width: 1000px;
       margin: 0 auto;
@@ -511,7 +525,7 @@
       display: flex;
       gap: 8px;
       margin-top: 24px;
-      max-width: 480px;
+      width: 100%;
     }
 
     .email-signup-input {
@@ -780,34 +794,63 @@
       margin: 0 auto;
     }
 
-    /* Social Proof */
-    .social-proof {
-      padding: 48px 0;
+    /* Product preview strip (3 real product screenshots) */
+    .product-strip {
+      padding: 64px 0 48px;
       border-top: 1px solid var(--border-gray);
-      border-bottom: 1px solid var(--border-gray);
     }
-
-    .stats-row {
-      display: flex;
-      justify-content: center;
-      gap: 64px;
-      flex-wrap: wrap;
+    .product-strip-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
     }
-
-    .stat-item {
-      text-align: center;
+    @media (min-width: 768px) {
+      .product-strip-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+      }
     }
-
-    .stat-value {
-      font-size: 2rem;
-      font-weight: 700;
+    .product-strip-card {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-gray);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .product-strip-card:hover {
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+    }
+    .product-strip-card img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .product-strip-caption {
+      padding: 16px 18px;
+      font-size: 0.9375rem;
+      color: var(--text-body);
+    }
+    .product-strip-caption strong {
+      display: block;
       color: var(--text-heading);
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
-
-    .stat-label {
-      font-size: 14px;
-      color: var(--text-muted);
+    .product-strip-tour-link {
+      text-align: center;
+      margin-top: 32px;
+      font-size: 0.9375rem;
+    }
+    .product-strip-tour-link a {
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .product-strip-tour-link a:hover {
+      text-decoration: underline;
     }
 
     /* Features Grid */
@@ -1371,59 +1414,15 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <!-- Shared site nav (single source of truth across all pages) -->
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.v2.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
 
   <!-- Navigation -->
-  <header class="nav" id="nav">
-    <div class="container nav-inner">
-      <a href="#" class="nav-logo">
-        <svg width="140" height="30" viewBox="0 0 2697 727" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M236.565 0C373.994 0 478.215 124.076 454.667 259.652L443.272 325.261C438.907 350.393 438.907 376.091 443.272 401.223L454.667 466.832C478.214 602.41 373.993 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0Z" fill="#FF7C6E"/>
-          <path d="M288.008 720.487C271.55 724.395 254.34 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0C254.339 0 271.549 2.09148 288.007 5.99776C206.645 25.3475 141.289 89.8628 122.897 174.581C95.9067 298.903 95.9067 427.581 122.897 551.903C141.291 636.622 206.646 701.138 288.008 720.487Z" fill="#FF6554"/>
-          <path d="M339.552 102.656C339.552 124.462 321.875 142.139 300.069 142.139C278.263 142.139 260.586 124.462 260.586 102.656C260.586 80.8499 278.263 63.173 300.069 63.173C321.875 63.173 339.552 80.8499 339.552 102.656ZM363.242 157.931C350.16 157.931 339.552 168.538 339.552 181.621C339.552 194.705 350.158 205.312 363.242 205.312C376.324 205.312 386.932 194.705 386.932 181.621C386.932 168.538 376.324 157.931 363.242 157.931Z" fill="#FFA69F"/>
-          <path d="M2601.16 522.463V205.311H2686.11V522.463H2601.16ZM2643.95 161.892C2628.85 161.892 2616.26 157.487 2606.19 148.677C2596.55 139.448 2591.72 127.911 2591.72 114.067C2591.72 100.223 2596.55 88.8963 2606.19 80.0865C2616.26 70.8573 2628.85 66.2426 2643.95 66.2426C2659.47 66.2426 2672.06 70.8573 2681.71 80.0865C2691.78 88.8963 2696.81 100.223 2696.81 114.067C2696.81 127.911 2691.78 139.448 2681.71 148.677C2672.06 157.487 2659.47 161.892 2643.95 161.892Z" fill="#111F35"/>
-          <path d="M2431.51 522.463V69.389H2516.46V522.463H2431.51Z" fill="#111F35"/>
-          <path d="M2263.74 522.463V69.389H2348.7V522.463H2263.74Z" fill="#111F35"/>
-          <path d="M2037.48 530.014C2005.6 530.014 1977.28 523.302 1952.53 509.878C1928.2 496.034 1909.11 476.946 1895.27 452.614C1881.84 427.863 1875.13 399.336 1875.13 367.033C1875.13 333.892 1881.84 304.736 1895.27 279.565C1909.11 253.975 1928.2 234.048 1952.53 219.784C1976.86 205.101 2005.18 197.76 2037.48 197.76C2068.95 197.76 2096.42 204.682 2119.92 218.526C2143.41 232.37 2161.66 251.038 2174.66 274.531C2187.67 298.023 2194.17 324.663 2194.17 354.448C2194.17 358.643 2194.17 363.467 2194.17 368.921C2194.17 373.955 2193.75 379.199 2192.91 384.653H1935.54V333.053H2108.59C2107.33 312.497 2099.99 296.345 2086.57 284.599C2073.56 272.853 2057.2 266.979 2037.48 266.979C2023.22 266.979 2010 270.336 1997.84 277.048C1985.67 283.34 1976.02 293.199 1968.89 306.623C1962.18 320.048 1958.82 337.038 1958.82 357.594V375.843C1958.82 393.043 1961.97 408.146 1968.26 421.151C1974.98 433.736 1984.2 443.594 1995.95 450.726C2007.7 457.438 2021.33 460.794 2036.85 460.794C2052.38 460.794 2065.17 457.438 2075.24 450.726C2085.73 444.014 2093.49 435.414 2098.52 424.926H2185.36C2179.49 444.643 2169.63 462.473 2155.79 478.414C2141.94 494.355 2124.95 506.941 2104.81 516.17C2084.68 525.399 2062.23 530.014 2037.48 530.014Z" fill="#111F35"/>
-          <path d="M1652.74 660.902V588.536H1678.54C1691.96 588.536 1701.4 585.81 1706.86 580.356C1712.73 574.902 1715.67 566.092 1715.67 553.927V205.311H1800.62V553.297C1800.62 579.307 1796 600.073 1786.77 615.595C1777.96 631.536 1765.38 643.073 1749.02 650.205C1732.66 657.336 1713.36 660.902 1691.12 660.902H1652.74ZM1758.46 161.892C1742.93 161.892 1730.35 157.487 1720.7 148.677C1711.05 139.448 1706.23 127.911 1706.23 114.067C1706.23 100.223 1711.05 88.8963 1720.7 80.0865C1730.35 70.8573 1742.93 66.2426 1758.46 66.2426C1773.98 66.2426 1786.56 70.8573 1796.21 80.0865C1805.86 88.8963 1810.69 100.223 1810.69 114.067C1810.69 127.911 1805.86 139.448 1796.21 148.677C1786.56 157.487 1773.98 161.892 1758.46 161.892Z" fill="#111F35"/>
-          <path d="M1478.21 530.014C1448 530.014 1420.74 523.092 1396.4 509.248C1372.49 494.985 1353.4 475.477 1339.14 450.726C1325.3 425.555 1318.38 396.819 1318.38 364.516C1318.38 331.375 1325.3 302.428 1339.14 277.677C1353.4 252.506 1372.7 232.999 1397.03 219.155C1421.37 204.892 1448.63 197.76 1478.84 197.76C1509.46 197.76 1536.73 204.892 1560.64 219.155C1584.98 232.999 1604.06 252.506 1617.91 277.677C1632.17 302.428 1639.3 331.165 1639.3 363.887C1639.3 396.609 1632.17 425.555 1617.91 450.726C1604.06 475.477 1584.98 494.985 1560.64 509.248C1536.31 523.092 1508.83 530.014 1478.21 530.014ZM1478.21 456.39C1492.47 456.39 1505.06 453.033 1515.97 446.321C1527.29 439.609 1536.1 429.331 1542.4 415.487C1549.11 401.643 1552.46 384.443 1552.46 363.887C1552.46 343.331 1549.11 326.341 1542.4 312.916C1536.1 299.072 1527.29 288.794 1515.97 282.082C1505.06 274.95 1492.68 271.384 1478.84 271.384C1465.41 271.384 1453.04 274.95 1441.71 282.082C1430.39 288.794 1421.37 299.072 1414.65 312.916C1408.36 326.341 1405.21 343.331 1405.21 363.887C1405.21 384.443 1408.36 401.643 1414.65 415.487C1421.37 429.331 1430.18 439.609 1441.08 446.321C1452.41 453.033 1464.79 456.39 1478.21 456.39Z" fill="#111F35"/>
-          <path d="M1075.88 522.463V205.311H1151.39L1159.57 263.833C1167.12 249.989 1176.56 238.243 1187.89 228.594C1199.63 218.945 1212.85 211.394 1227.53 205.94C1242.63 200.487 1259.2 197.76 1277.24 197.76V287.745H1248.3C1235.71 287.745 1223.96 289.214 1213.06 292.15C1202.57 295.087 1193.34 299.911 1185.37 306.623C1177.4 312.916 1171.31 321.726 1167.12 333.053C1162.92 344.38 1160.83 358.643 1160.83 375.843V522.463H1075.88Z" fill="#111F35"/>
-          <path d="M663.532 660.902V205.311H739.044L748.483 249.36C755.195 240.131 763.166 231.74 772.395 224.189C781.625 216.218 792.532 209.926 805.117 205.311C818.122 200.277 833.225 197.76 850.425 197.76C880.21 197.76 906.43 205.101 929.083 219.784C951.737 234.467 969.566 254.394 982.571 279.565C995.996 304.316 1002.71 332.633 1002.71 364.516C1002.71 396.399 995.996 424.926 982.571 450.097C969.147 474.848 951.108 494.356 928.454 508.619C905.801 522.882 880 530.014 851.054 530.014C827.561 530.014 807.215 525.819 790.015 517.429C773.234 508.619 759.39 496.663 748.483 481.56V660.902H663.532ZM830.917 455.76C847.698 455.76 862.381 451.985 874.966 444.433C887.971 436.882 898.04 426.185 905.171 412.341C912.303 398.497 915.869 382.555 915.869 364.516C915.869 346.477 912.303 330.536 905.171 316.692C898.04 302.428 887.971 291.521 874.966 283.97C862.381 275.999 847.698 272.014 830.917 272.014C814.556 272.014 799.873 275.999 786.869 283.97C774.283 291.521 764.215 302.219 756.664 316.062C749.532 329.906 745.966 345.848 745.966 363.887C745.966 381.926 749.532 398.077 756.664 412.341C764.215 426.185 774.283 436.882 786.869 444.433C799.873 451.985 814.556 455.76 830.917 455.76Z" fill="#111F35"/>
-        </svg>
-      </a>
-
-      <nav class="nav-links">
-        <a href="#features">Features</a>
-        <a href="/templates/">Templates</a>
-        <a href="/vs/">vs Others</a>
-        <a href="#pricing">Pricing</a>
-        <a href="/blog/">Blog</a>
-      </nav>
-
-      <div class="nav-actions">
-        <a href="#pricing" class="btn btn-primary">Get Started Free</a>
-      </div>
-
-      <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Toggle menu">
-        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-          <path d="M3 12h18M3 6h18M3 18h18"/>
-        </svg>
-      </button>
-    </div>
-
-    <div class="mobile-menu" id="mobile-menu">
-      <nav>
-        <a href="#features">Features</a>
-        <a href="/templates/">Templates</a>
-        <a href="/vs/">vs Others</a>
-        <a href="#pricing">Pricing</a>
-        <a href="/blog/">Blog</a>
-        <a href="https://github.com/projelli/projelli/releases/latest" class="btn btn-primary" style="margin-top: 24px;">Download</a>
-      </nav>
-    </div>
-  </header>
+  <!-- Navigation injected by /scripts/projelli-nav.v2.js — single source of truth across all pages. -->
 
   <main id="main">
     <!-- Hero Section -->
@@ -1434,12 +1433,12 @@
       <div class="container hero-inner">
         <div class="hero-content">
           <h1>
-            The AI workspace<br>
-            <span class="gradient-text">that remembers your stuff.</span>
+            Your AI conversations<br>
+            <span class="gradient-text">as files you actually own.</span>
           </h1>
 
           <p class="hero-subtitle">
-            Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use. Projelli is a desktop AI workspace for indie founders, with memory that actually indexes what you've already written, voice that works offline, and side-by-side editing where the AI proposes and you accept only what you like.
+            A local-first AI workspace for indie founders. Bring your own Claude, OpenAI, or Gemini key. Every chat becomes a real Markdown file on your machine. $49 once, no subscription.
           </p>
 
           <div class="hero-ctas">
@@ -1459,76 +1458,52 @@
             />
             <button type="submit" class="email-signup-btn">Get launch updates</button>
           </form>
-          <p class="email-signup-note" id="email-signup-note">Pricing locks in for the first 100 buyers. Be one of them.</p>
+          <p class="email-signup-note" id="email-signup-note">First 100 buyers get Lifetime at $29. Get notified when sales open.</p>
         </div>
 
-        <!-- Animated App Demo -->
-        <div class="app-mockup" id="demo-mockup">
-          <div class="mockup-titlebar">
-            <div class="mockup-dot"></div>
-            <div class="mockup-dot"></div>
-            <div class="mockup-dot"></div>
-            <div class="mockup-title-text">Projelli, My SaaS Launch</div>
-          </div>
-
-          <div class="mockup-body">
-            <div class="mockup-sidebar" id="demo-sidebar">
-              <div class="mockup-folder">📁 My SaaS Launch</div>
-              <div class="mockup-file" data-file="vision">📄 VISION.md</div>
-              <div class="mockup-file" data-file="prd">📄 PRD.md</div>
-              <div class="mockup-file new-file" data-file="launch-plan">📄 LAUNCH_PLAN.md</div>
-            </div>
-
-            <div class="mockup-main">
-              <div class="mockup-tabs">
-                <div class="mockup-tab active" id="demo-active-tab">VISION.md</div>
-              </div>
-
-              <div class="mockup-editor" id="demo-editor">
-                <h2>Vision</h2>
-                <p>A local-first project planner for indie founders who want AI as a co-pilot, not a replacement.</p>
-                <p>Every conversation produces real files. Nothing lives in someone else's cloud.</p>
-              </div>
-            </div>
-
-            <div class="mockup-chat" id="demo-chat">
-              <div class="chat-label">AI Chat</div>
-              <div class="chat-messages" id="demo-chat-messages">
-                <!-- Messages injected by JS -->
-              </div>
-              <div class="chat-input-row">
-                <div class="chat-input" id="demo-chat-input">
-                  <span id="demo-typed-text"></span><span class="chat-cursor"></span>
-                </div>
-                <button class="chat-send" id="demo-send-btn">↑</button>
-              </div>
-            </div>
-          </div>
+        <!-- Hero demo video: real product capture, 51-second tutorial walkthrough -->
+        <div class="hero-video-wrap">
+          <video
+            class="hero-video"
+            src="/press-kit/assets/tutorial-walkthrough-v4.mp4"
+            poster="/press-kit/assets/screenshot-01-workspace.png"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            aria-label="A guided walkthrough of Projelli's 10-step initial tour: file tree, AI chat, founder workflows, search, research, whiteboard, audit log, command palette, and settings"
+          ></video>
         </div>
       </div>
     </section>
 
-    <!-- Social Proof -->
-    <section class="social-proof">
+    <!-- Product preview strip: 3 real screenshots from the asset-capture pipeline -->
+    <section class="product-strip">
       <div class="container">
-        <div class="stats-row">
-          <div class="stat-item">
-            <div class="stat-value">15</div>
-            <div class="stat-label">Founder Templates</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">3</div>
-            <div class="stat-label">AI Models</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">100%</div>
-            <div class="stat-label">Offline Capable</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">0</div>
-            <div class="stat-label">Cloud Dependencies</div>
-          </div>
+        <div class="product-strip-grid">
+          <a href="/tour" class="product-strip-card">
+            <img src="/press-kit/assets/screenshot-02-ai-chat.png" alt="AI chat producing a real Markdown file" loading="lazy">
+            <div class="product-strip-caption">
+              <strong>Chat creates files.</strong> Every conversation saves as Markdown.
+            </div>
+          </a>
+          <a href="/tour" class="product-strip-card">
+            <img src="/press-kit/assets/screenshot-04-templates.png" alt="The 15 founder workflow templates gallery" loading="lazy">
+            <div class="product-strip-caption">
+              <strong>15 founder templates.</strong> Pitch decks, customer interviews, financials.
+            </div>
+          </a>
+          <a href="/tour" class="product-strip-card">
+            <img src="/press-kit/assets/screenshot-03-wikilinks.png" alt="Wiki-links and backlinks panel" loading="lazy">
+            <div class="product-strip-caption">
+              <strong>Wiki-links and backlinks.</strong> Your archive, connected.
+            </div>
+          </a>
         </div>
+        <p class="product-strip-tour-link">
+          <a href="/tour">See all 8 demo videos &rarr;</a>
+        </p>
       </div>
     </section>
 
@@ -1536,9 +1511,9 @@
     <section class="features" id="features">
       <div class="container">
         <div class="section-header">
-          <span class="eyebrow">V1.5</span>
+          <span class="eyebrow">WHAT PROJELLI DOES</span>
           <h2>Four capabilities, one local-first app</h2>
-          <p>Every feature below runs on your machine with your own API keys. Nothing you type is ever sent to a Projelli server. The four things v1.5 leads with, in order.</p>
+          <p>Every feature below runs on your machine with your own API keys. Nothing you type is ever sent to a Projelli server.</p>
         </div>
 
         <div class="features-grid">
@@ -1579,23 +1554,10 @@
             <a href="/blog/projelli-1-5-announce" style="color: var(--accent-blue); font-size: 0.9rem; margin-top: 12px; display: inline-block;">See the 1.5 announcement &rarr;</a>
           </div>
 
-          <div class="feature-card animate-on-scroll">
-            <div class="feature-icon amber">
-              <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                <line x1="12" y1="19" x2="12" y2="23"/>
-                <line x1="8" y1="23" x2="16" y2="23"/>
-              </svg>
-            </div>
-            <h3>Talk to it offline</h3>
-            <p><strong>Voice + local models.</strong> Hold <code>Ctrl+Shift+Space</code> to dictate into any field via bundled <a href="https://github.com/ggerganov/whisper.cpp" target="_blank" rel="noopener" style="color: var(--accent-blue);">whisper.cpp</a>-family transcription. Or run <a href="https://ollama.com/" target="_blank" rel="noopener" style="color: var(--accent-blue);">Ollama</a> as your 4th provider and do everything, inference included, without a network round trip.</p>
-            <a href="https://ollama.com/" target="_blank" rel="noopener" style="color: var(--accent-blue); font-size: 0.9rem; margin-top: 12px; display: inline-block;">Get Ollama &rarr;</a>
-          </div>
         </div>
 
         <p style="text-align: center; color: var(--text-muted); font-size: 0.9375rem; margin-top: 40px;">
-          Plus the v1.0.8+v1.5 quality-of-life additions: a real-time API cost meter, a 30-day cost dashboard, a <code>?</code> keyboard-shortcuts overlay, a memory status badge, per-template model selection, Mermaid diagrams, KaTeX math, and a 3-step API-key wizard for your first run.
+          Plus a real-time API cost meter so you always know what AI is costing you.
         </p>
       </div>
     </section>
@@ -1605,86 +1567,53 @@
       <div class="container">
         <div class="feature-row animate-on-scroll">
           <div class="feature-visual">
-            <h3 style="margin-bottom: 16px; font-size: 1.125rem;">💬 AI Chat Interface</h3>
-            <div style="background: #F8FAFC; padding: 16px; border-radius: 12px; margin-bottom: 12px;">
-              <div style="font-size: 13px; color: #94A3B8; margin-bottom: 8px;">You:</div>
-              <div style="font-size: 14px; line-height: 1.6;">Help me ship my first paying customer in 30 days. I have an MVP built but no users yet.</div>
-            </div>
-            <div style="background: rgba(59, 130, 246, 0.05); padding: 16px; border-radius: 12px; border-left: 3px solid #3B82F6;">
-              <div style="font-size: 13px; color: #3B82F6; margin-bottom: 8px; font-weight: 600;">AI:</div>
-              <div style="font-size: 14px; line-height: 1.6;">Got it. Let&rsquo;s start with a 30-day GTM plan and the three channels you&rsquo;ll actually try first&hellip;</div>
-              <div style="margin-top: 12px; padding: 12px; background: white; border-radius: 8px; border: 1px solid #E2E8F0; font-size: 13px;">
-                ✓ Created: <strong>30-Day GTM Plan.md</strong>
-              </div>
-            </div>
+            <img src="/press-kit/assets/screenshot-02-ai-chat.png" alt="Projelli AI chat mid-stream with a new Markdown file appearing in the file tree" loading="lazy" style="width:100%; height:auto; border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,0.1); display:block;">
           </div>
 
           <div class="feature-text">
             <span class="eyebrow">AI WORKSPACE</span>
             <h2>Chat that leaves something behind</h2>
-            <p>Most AI chats evaporate the moment you close the tab. In Projelli, every conversation drops real documents into your project folder: plans, research notes, character sheets, strategy guides. Edit them inline, keep old versions, link them to the rest of your notes.</p>
+            <p>Most AI chats evaporate the moment you close the tab. In Projelli, every conversation drops real Markdown files into your workspace folder: plans, research notes, customer interviews, draft pitches. Edit inline, keep old versions, link them to anything else.</p>
             <ul class="feature-list">
-              <li>Documents get saved to your folder, not buried in chat history</li>
-              <li>You can see what the AI did and walk it back</li>
+              <li>Conversations save to your folder, not buried in chat history</li>
+              <li>Every AI action is logged and reversible</li>
               <li>Follow-up prompts rewrite the document in place</li>
-              <li>Export to Markdown or PDF whenever you want</li>
+              <li>Export to Markdown, PDF, Word, or PowerPoint</li>
             </ul>
           </div>
         </div>
 
         <div class="feature-row reverse animate-on-scroll">
           <div class="feature-visual">
-            <h3 style="margin-bottom: 16px; font-size: 1.125rem;">🔗 Connected Knowledge</h3>
-            <div style="font-size: 14px; line-height: 1.8; color: #475569;">
-              <p style="margin-bottom: 12px;"><span style="background: rgba(59, 130, 246, 0.1); color: #3B82F6; padding: 2px 6px; border-radius: 4px;">[[Pricing Strategy]]</span> needs to anchor against <span style="background: rgba(59, 130, 246, 0.1); color: #3B82F6; padding: 2px 6px; border-radius: 4px;">[[Notion AI]]</span> but undercut on lifetime value.</p>
-              <div style="margin-top: 16px; padding: 12px; background: #F8FAFC; border-radius: 8px; border-left: 3px solid #10B981; font-size: 13px;">
-                <div style="color: #10B981; font-weight: 600; margin-bottom: 6px;">Backlinks (2)</div>
-                <div>← <a href="#" style="color: #3B82F6; text-decoration: none;">Competitor: Notion AI.md</a></div>
-                <div>← <a href="#" style="color: #3B82F6; text-decoration: none;">FAQ: Why one-time pricing.md</a></div>
-              </div>
-            </div>
+            <img src="/press-kit/assets/screenshot-03-wikilinks.png" alt="Editor with wiki-link autocomplete and the backlinks panel showing every doc that references this one" loading="lazy" style="width:100%; height:auto; border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,0.1); display:block;">
           </div>
 
           <div class="feature-text">
             <span class="eyebrow">CONNECTED KNOWLEDGE</span>
-            <h2>A workspace that keeps your thoughts connected</h2>
-            <p>Any document in Projelli can link to any other. Wiki-style links, automatic backlinks, and full-text search across the whole project. Split panes let you keep one file open while you write in another, which is how most people actually work.</p>
+            <h2>A workspace that keeps your thinking connected</h2>
+            <p>Any document in Projelli can link to any other. Wiki-style links, automatic backlinks, and full-text search across the whole workspace. Split panes let you keep one file open while you write in another.</p>
             <ul class="feature-list">
               <li>[[Wiki-links]] between any two documents</li>
               <li>Automatic backlinks so nothing gets orphaned</li>
               <li>Split-pane editing</li>
-              <li>Full-text search across your whole project</li>
+              <li>Full-text search across your entire workspace</li>
             </ul>
           </div>
         </div>
 
         <div class="feature-row animate-on-scroll">
           <div class="feature-visual">
-            <div style="text-align: center; padding: 40px 20px;">
-              <div style="width: 80px; height: 80px; margin: 0 auto 24px; border-radius: 50%; background: rgba(16, 185, 129, 0.1); display: flex; align-items: center; justify-content: center;">
-                <svg width="40" height="40" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-              </div>
-              <h3 style="font-size: 1.5rem; color: #111F35; margin-bottom: 12px;">100% Local</h3>
-              <p style="color: #475569; font-size: 15px; line-height: 1.6;">Your files stay on your computer. Built on Tauri with SQLite and plain files on disk.</p>
-              <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-                <span style="padding: 6px 12px; background: rgba(16, 185, 129, 0.1); color: #10B981; border-radius: 9999px; font-size: 12px; font-weight: 600;">No Cloud</span>
-                <span style="padding: 6px 12px; background: rgba(16, 185, 129, 0.1); color: #10B981; border-radius: 9999px; font-size: 12px; font-weight: 600;">No Account</span>
-                <span style="padding: 6px 12px; background: rgba(16, 185, 129, 0.1); color: #10B981; border-radius: 9999px; font-size: 12px; font-weight: 600;">Full Privacy</span>
-              </div>
-            </div>
+            <img src="/press-kit/assets/feature-local-first.png" alt="A Projelli file appears as a real Markdown file in the Mac Finder, proving the data lives on the user's machine" loading="lazy" style="width:100%; height:auto; border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,0.1); display:block;">
           </div>
 
           <div class="feature-text">
             <span class="eyebrow">LOCAL-FIRST</span>
             <h2>Your data lives on your computer</h2>
-            <p>Projelli stores everything locally using SQLite and plain files on disk. No account to create, nothing syncing to someone else&rsquo;s server. Native desktop app built on Tauri, so it stays fast and the install is small.</p>
+            <p>Projelli stores everything locally using plain Markdown files on disk. No account, nothing syncing to someone else's server. Open the workspace folder in Finder and your conversations are right there as files you can read in any text editor.</p>
             <ul class="feature-list">
-              <li>SQLite and plain files on disk</li>
-              <li>Works fully offline</li>
-              <li>No account required</li>
+              <li>Plain Markdown files in a folder you pick</li>
+              <li>Works fully offline (except for AI calls)</li>
+              <li>No account required, no telemetry</li>
               <li>Native desktop app built on Tauri (Rust)</li>
             </ul>
           </div>
@@ -1728,15 +1657,6 @@
             <h3>Financial Model</h3>
             <p style="font-size: 0.875rem; color: var(--text-muted); font-style: italic; border-left: 2px solid var(--border-gray); padding-left: 12px; margin: 10px 0;">"ARR target year 1: $120K. Gross margin 78%. Contribution margin per paid user: $85/year. Breakeven at 2,800 paid users in month 18."</p>
             <a href="/templates/financial-model" style="color: var(--accent-blue); font-size: 0.875rem; font-weight: 600;">See the full example &rarr;</a>
-          </div>
-
-          <div class="feature-card animate-on-scroll">
-            <div class="feature-icon amber">
-              <span style="font-size: 22px;">🧩</span>
-            </div>
-            <h3>User Interview Synthesis</h3>
-            <p style="font-size: 0.875rem; color: var(--text-muted); font-style: italic; border-left: 2px solid var(--border-gray); padding-left: 12px; margin: 10px 0;">"Ten interviews. Three themes emerged 10 of 10 times. Every freelancer raids their tax account. Nobody knows their effective hourly rate."</p>
-            <a href="/templates/user-interviews-synthesis" style="color: var(--accent-blue); font-size: 0.875rem; font-weight: 600;">See the full example &rarr;</a>
           </div>
 
         </div>

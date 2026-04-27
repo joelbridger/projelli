@@ -168,6 +168,8 @@ A list of who said yes, with names + email addresses + license keys assigned. Cl
 
 ## Item D — Take 6 product screenshots on Windows
 
+> ✅ **SHIPPED 2026-04-27** via `scripts/marketing-capture/` pipeline. 5 of 6 slots filled (S01–S04, S06). S05 multi-model deferred — UI absent in product. See `docs/marketing/asset-capture/RUNBOOK.md`. Reproducible via `npm run capture:all`. Original Windows-screenshot path obsolete.
+
 ### What needs doing
 
 6 high-quality screenshots of Projelli in action, exported as PNG at minimum 1920×1080, saved to `website/press-kit/assets/`.
@@ -221,6 +223,8 @@ The 6 PNG files. Easiest path: scp them to the server at `/tmp/projelli-screensh
 ---
 
 ## Item E — Record the demo video
+
+> ✅ **SHIPPED 2026-04-27** as V01 (`demo-30s.mp4`) plus 7 additional feature videos (V02–V08, ~160s of content) via `scripts/marketing-capture/videos/`. See `docs/marketing/asset-capture/RUNBOOK.md`. Reproducible via `npm run capture:all`. Original screen-recording path obsolete.
 
 ### What needs doing
 
