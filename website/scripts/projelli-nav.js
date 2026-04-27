@@ -68,6 +68,7 @@
       { href: '/tour', label: 'Tour' },
       { href: '/templates/', label: 'Templates' },
       { href: '/vs/', label: 'vs Others' },
+      { href: '/#pricing', label: 'Pricing' },
       { href: '/blog/', label: 'Blog' }
     ];
     items.forEach(function (item) {
