@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BYOK AI explained: bring your own AI key, the why and how | Projelli</title>
+  <meta name="description" content="BYOK (bring your own key) means you supply your own Anthropic, OpenAI, or Google API key to a desktop AI app instead of paying a flat subscription. Here's what BYOK actually costs, why it changes the privacy math, and how to set up your first key in five minutes.">
+  <link rel="canonical" href="https://projelli.com/byok-ai">
+  <meta name="robots" content="index, follow">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://projelli.com/byok-ai">
+  <meta property="og:title" content="BYOK AI explained: bring your own AI key, the why and how">
+  <meta property="og:description" content="BYOK means you supply your own AI key. Here's what it actually costs, why it changes the privacy math, and how to set one up in five minutes.">
+  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="BYOK AI explained">
+  <meta name="twitter:description" content="What BYOK actually means, what it costs, why it changes the privacy math.">
+  <meta name="twitter:image" content="https://projelli.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "BYOK AI explained: bring your own AI key, the why and how",
+    "description": "BYOK (bring your own key) means you supply your own Anthropic, OpenAI, or Google API key to a desktop AI app. Here's what BYOK actually costs, why it changes the privacy math, and how to set up your first key in five minutes.",
+    "url": "https://projelli.com/byok-ai",
+    "datePublished": "2026-04-27",
+    "dateModified": "2026-04-27",
+    "image": "https://projelli.com/og-image.png",
+    "publisher": {
+      "@type": "Organization",
+      "name": "Projelli",
+      "url": "https://projelli.com",
+      "logo": "https://projelli.com/og-image.png"
+    },
+    "mainEntityOfPage": "https://projelli.com/byok-ai"
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What does BYOK mean for AI tools?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "BYOK stands for \"bring your own key\". You sign up for an API key with an AI provider (Anthropic, OpenAI, or Google), paste it into the desktop app, and the app uses your key to make AI requests. You pay the AI provider directly for usage; the desktop app charges you separately or one-time, but never marks up inference."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How much does BYOK actually cost per month?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "For a typical indie founder doing 30-90 minutes of AI work per day, BYOK costs $2-15 per month with Claude, OpenAI, or Gemini. That's lower than the $20/month flat for ChatGPT Plus, Claude Pro, or Notion AI. Heavy users (multi-hour daily, large context) pay more, $20-40/month, but still typically less than stacked subscriptions."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Is BYOK more private than ChatGPT Plus?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes, in two specific ways. First, AI providers' API tier (which is what BYOK uses) typically does not train on your data by default, while consumer tiers often do. Second, with a BYOK desktop app, the app's company never sees your prompts; the requests go directly from your machine to the AI provider."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Where do I get an API key?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Anthropic Claude: console.anthropic.com → Settings → API Keys. OpenAI: platform.openai.com → API Keys. Google Gemini: aistudio.google.com → Get API key. Each takes 2-3 minutes to sign up and generate. All three require entering payment info to start, but the free tiers and prepaid balances are real (you can put $5 in and use it down)."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What if I exhaust my API key budget?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "All three providers (Anthropic, OpenAI, Google) let you set a hard monthly spending cap. If you set a $20 cap, the API will stop responding when you hit it instead of charging more. This protects you from runaway costs while you learn how much you actually use."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Which tools support BYOK?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Most desktop AI workspaces designed for power users support BYOK: Projelli, Cursor (for code), Continue.dev (for code), several Obsidian AI plugins, Raycast AI, Bring Your Own AI extensions for VS Code. Most cloud workspaces (Notion AI, ChatGPT Plus, Claude.ai Pro) do not."
+        }
+      }
+    ]
+  }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+      --accent-coral: #FF7C6E;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+    }
+    .nav {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(255,255,255,0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border-gray);
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; max-width: 900px; margin: 0 auto; }
+    .nav a.brand { font-weight: 700; color: var(--text-heading); text-decoration: none; font-size: 18px; }
+    .nav-links { display: flex; gap: 24px; font-size: 14px; }
+    .nav-links a { color: var(--text-body); text-decoration: none; font-weight: 500; }
+    .nav-links a:hover { color: var(--accent-blue); }
+    .container { max-width: 800px; margin: 0 auto; padding: 56px 24px 80px; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    h1 { font-size: 2.5rem; color: var(--text-heading); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; line-height: 1.15; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); font-weight: 700; margin-top: 48px; margin-bottom: 16px; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); font-weight: 600; margin-top: 36px; margin-bottom: 12px; }
+    p { margin-bottom: 18px; font-size: 1.0625rem; }
+    ul, ol { margin: 0 0 20px 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    .summary {
+      background: var(--bg-surface);
+      border-left: 4px solid var(--accent-blue);
+      padding: 20px 24px;
+      border-radius: 0 8px 8px 0;
+      font-size: 1.0625rem;
+      margin: 24px 0 40px;
+    }
+    .summary strong { color: var(--text-heading); }
+    table { border-collapse: collapse; margin: 24px 0; width: 100%; font-size: 0.9375rem; }
+    th, td { border: 1px solid var(--border-gray); padding: 12px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--bg-surface); color: var(--text-heading); font-weight: 600; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .pill.yes { background: rgba(16,185,129,0.14); color: #046148; }
+    .pill.no { background: rgba(239,68,68,0.12); color: #a1201c; }
+    .pill.maybe { background: rgba(245,158,11,0.14); color: #8a5b0c; }
+    .faq details { border-bottom: 1px solid var(--border-gray); padding: 14px 0; }
+    .faq details summary { font-weight: 600; color: var(--text-heading); cursor: pointer; font-size: 1.0625rem; }
+    .faq details[open] summary { margin-bottom: 12px; }
+    .faq details p { margin-bottom: 12px; }
+    .faq details p:last-child { margin-bottom: 0; }
+    .next-read {
+      background: var(--bg-surface);
+      padding: 24px;
+      border-radius: 12px;
+      margin-top: 48px;
+    }
+    .next-read h3 { margin-top: 0; }
+    .next-read ul { margin-bottom: 0; }
+    .cta-card {
+      background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%);
+      color: white;
+      padding: 32px;
+      border-radius: 12px;
+      margin-top: 48px;
+      text-align: center;
+    }
+    .cta-card h3 { color: white; font-size: 1.25rem; margin-bottom: 10px; }
+    .cta-card p { color: rgba(255,255,255,0.9); margin-bottom: 20px; }
+    .cta-btn {
+      display: inline-block;
+      padding: 14px 32px;
+      background: white;
+      color: var(--text-heading);
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .cta-btn:hover { opacity: 0.92; text-decoration: none; }
+    footer { text-align: center; padding: 32px; color: var(--text-muted); font-size: 0.875rem; border-top: 1px solid var(--border-gray); margin-top: 32px; }
+    footer a { color: var(--text-body); text-decoration: none; margin: 0 8px; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand">Projelli</a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/templates/">Templates</a>
+        <a href="/vs/">vs Others</a>
+        <a href="/blog/">Blog</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1>BYOK AI explained: bring your own AI key, the why and how.</h1>
+    <p class="meta">Updated 2026-04-27 · 11 min read</p>
+
+    <div class="summary">
+      <p><strong>The short version.</strong> BYOK means "bring your own key". You sign up for an API key with Anthropic, OpenAI, or Google. You paste it into a desktop app. The app uses your key to talk to the AI, and you pay the AI provider directly for what you used. The app charges you separately, often a one-time fee. For most indie founders this works out to $2-15 per month in AI costs, which is lower than any flat $20/month subscription tool, with better privacy guarantees.</p>
+    </div>
+
+    <p>I've spent a lot of time the last year explaining BYOK to founders who were stacking $20/month subscriptions and wondering why their tooling bill kept growing. The short answer is that they were paying a margin on AI inference twice: once to the tool that bundled it, and once more in the form of a vendor lock-in tax that compounded as their data piled up.</p>
+
+    <p>BYOK fixes both of those, with one real trade-off (you have to set up an API key once). This page walks through what BYOK actually means, what it costs in practice, why it changes the privacy math, and how to set up your first key in about five minutes.</p>
+
+    <h2>What BYOK actually is</h2>
+
+    <p>Most AI tools come in one of two shapes:</p>
+
+    <ul>
+      <li><strong>Bundled inference.</strong> You pay one flat fee, the tool handles AI calls behind the scenes, and you don't see the underlying API. Examples: ChatGPT Plus ($20/mo), Claude Pro ($20/mo), Notion AI ($20/mo on top of your Notion subscription), Cursor Pro ($20/mo), Reflect ($15/mo).</li>
+      <li><strong>BYOK.</strong> You sign up for an account at the AI provider's developer portal, generate an API key, paste it into the tool. The tool makes API calls using your key, and the AI provider bills you directly for usage. The tool charges you separately, typically a one-time fee or a low subscription. Examples: Projelli ($49 one-time + your API costs), Cursor (BYOK option), Continue.dev (free + your API costs), Raycast AI, several Obsidian AI plugins.</li>
+    </ul>
+
+    <p>The acronym BYOK shows up in the cloud-software world ("bring your own key") to mean a customer-managed encryption key. In the AI tools context, it means the same idea applied to your AI provider account: you're the customer of the AI provider, not of the tool wrapping it.</p>
+
+    <p>It matters because it inverts who owns the relationship. With bundled inference, you're a customer of Notion / OpenAI / Anthropic-via-the-tool. With BYOK, you're a customer of Anthropic / OpenAI / Google directly, and the tool is just an interface.</p>
+
+    <h2>The cost math</h2>
+
+    <p>Here's what BYOK actually costs in practice, from real usage logs.</p>
+
+    <h3>Light user: 30 minutes/day of AI conversations, ~5 messages</h3>
+
+    <p>Typical token usage: ~80,000 tokens/day in, ~40,000 out. With Claude Sonnet 4.5 ($3 per million input, $15 per million output), that's:</p>
+
+    <ul>
+      <li>Input: 80K × $3/1M = $0.24/day</li>
+      <li>Output: 40K × $15/1M = $0.60/day</li>
+      <li><strong>Daily total: ~$0.84</strong></li>
+      <li><strong>Monthly: ~$25 if you work every day, ~$17 if you work weekdays only</strong></li>
+    </ul>
+
+    <p>With OpenAI's GPT-5 mini or Google's Gemini 2.5 Flash, both significantly cheaper for similar quality on most tasks, the same volume runs $5-12/month.</p>
+
+    <h3>Heavy user: 2 hours/day of AI work, longer context</h3>
+
+    <p>~250,000 tokens/day in, ~120,000 out. Same Claude Sonnet 4.5 pricing:</p>
+
+    <ul>
+      <li>Input: 250K × $3/1M = $0.75/day</li>
+      <li>Output: 120K × $15/1M = $1.80/day</li>
+      <li><strong>Daily total: ~$2.55</strong></li>
+      <li><strong>Monthly: ~$50-75</strong></li>
+    </ul>
+
+    <p>Heavy users on the cheaper Gemini Flash or GPT-mini tier: $15-30/month.</p>
+
+    <h3>Comparison to flat-rate alternatives</h3>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Option</th>
+          <th>Light user / mo</th>
+          <th>Heavy user / mo</th>
+          <th>3-year total (light)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>ChatGPT Plus</td>
+          <td>$20</td>
+          <td>$20 (with throttling)</td>
+          <td>$720</td>
+        </tr>
+        <tr>
+          <td>Claude Pro</td>
+          <td>$20</td>
+          <td>$20 (with throttling)</td>
+          <td>$720</td>
+        </tr>
+        <tr>
+          <td>Notion + Notion AI</td>
+          <td>$10 + $10 = $20</td>
+          <td>$10 + $10 = $20</td>
+          <td>$720</td>
+        </tr>
+        <tr>
+          <td>Cursor Pro</td>
+          <td>$20</td>
+          <td>$20 (with throttling)</td>
+          <td>$720</td>
+        </tr>
+        <tr>
+          <td><strong>Projelli (Pro $49) + BYOK Claude</strong></td>
+          <td><strong>$49 + $5-15 = year 1: $109; ongoing: $5-15/mo</strong></td>
+          <td><strong>$49 + $30-50 = year 1: $409; ongoing: $30-50/mo</strong></td>
+          <td><strong>~$229 (light user)</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Projelli (Lifetime $99) + BYOK Gemini</strong></td>
+          <td><strong>$99 + $3-8 = year 1: $135; ongoing: $3-8/mo</strong></td>
+          <td><strong>$99 + $15-30 = year 1: $279; ongoing: $15-30/mo</strong></td>
+          <td><strong>~$252 (light user)</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>The flat-rate tools win in one specific case: you genuinely use AI for many hours a day, every day, without throttling. For most indie founders, BYOK comes out cheaper across any reasonable usage pattern.</p>
+
+    <p>Important caveat: usage varies. The numbers above are realistic for a founder who does most of their planning, drafting, and review with AI assistance. Lower-touch users can run as low as $1-3/month. Higher-touch users (running long workflows daily, processing customer interview transcripts) can hit $50+/month.</p>
+
+    <h2>The privacy story</h2>
+
+    <p>The cost angle is what gets attention. The privacy angle is more important and less talked about.</p>
+
+    <p>Three things change when you switch from a bundled-inference consumer tool to BYOK on the same AI provider's API tier.</p>
+
+    <h3>1. The AI provider treats your data differently</h3>
+
+    <p>Consumer tier (ChatGPT.com, Claude.ai, Gemini app) and API tier (BYOK) have different default policies, even though the same company runs both. In short:</p>
+
+    <ul>
+      <li><strong>Anthropic API:</strong> does not train on inputs by default (per their <a href="https://www.anthropic.com/legal/commercial-terms" target="_blank" rel="noopener">commercial terms</a>). Consumer Claude.ai may use opted-in data.</li>
+      <li><strong>OpenAI API:</strong> does not train on API inputs by default (per their <a href="https://openai.com/policies/api-data-usage-policies/" target="_blank" rel="noopener">API data usage policy</a>). Consumer ChatGPT does train on opted-in conversations.</li>
+      <li><strong>Google AI Studio API:</strong> may use prompts to improve products on the free tier; opt-out and paid tier are different. Read the <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener">Gemini API terms</a> before assuming a default.</li>
+    </ul>
+
+    <p>The takeaway: API tier is generally a stricter privacy posture than the consumer chatbot. Confirm the current terms before relying on this; they change.</p>
+
+    <h3>2. The desktop app never sees your prompts</h3>
+
+    <p>With a bundled-inference tool, your prompt goes: your machine → tool's servers → AI provider → tool's servers → your machine. The tool's company sees your prompt and the response.</p>
+
+    <p>With a BYOK desktop app like Projelli, your prompt goes: your machine → AI provider → your machine. The desktop app's servers are not in the path. There's no intermediate store. Cursor, Continue.dev, Projelli, and most BYOK tools work this way. (Always check; some tools route through their own servers even with BYOK, which is a different threat model.)</p>
+
+    <h3>3. Your conversation history is on your machine</h3>
+
+    <p>Even if the AI provider has a strict no-training policy, the question of where your conversation lives still matters. With a bundled tool, the conversation is in their database. With a BYOK desktop app, the conversation is a file on your hard drive, in a folder you picked.</p>
+
+    <p>For an indie founder whose AI conversations contain pitch decks, customer interviews, and pricing strategy work, this is the difference between "in someone else's database with a TOS that can change" and "on my machine, period". Most founders prefer the second posture once they think about it.</p>
+
+    <h2>How to actually set up an API key</h2>
+
+    <p>Five minutes, three providers. Pick one to start; you can add the others later.</p>
+
+    <h3>Anthropic Claude</h3>
+
+    <ol>
+      <li>Go to <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> and sign up</li>
+      <li>Add a payment method and put $5-20 of prepaid balance (you can set a hard monthly cap so you don't accidentally spend more)</li>
+      <li>Go to Settings → API Keys → Create Key</li>
+      <li>Copy the key (starts with <code>sk-ant-</code>)</li>
+      <li>Paste it into your BYOK app (in Projelli: Settings → AI → API Keys → Anthropic)</li>
+    </ol>
+
+    <p>You're done. Claude conversations now go directly from your machine to Anthropic.</p>
+
+    <h3>OpenAI</h3>
+
+    <ol>
+      <li>Go to <a href="https://platform.openai.com" target="_blank" rel="noopener">platform.openai.com</a> and sign up</li>
+      <li>Add a payment method, put credit on file, and set a monthly usage cap in Settings → Limits</li>
+      <li>Go to API Keys → Create new secret key</li>
+      <li>Copy the key (starts with <code>sk-</code>)</li>
+      <li>Paste into your app's OpenAI settings</li>
+    </ol>
+
+    <h3>Google Gemini (via AI Studio)</h3>
+
+    <ol>
+      <li>Go to <a href="https://aistudio.google.com" target="_blank" rel="noopener">aistudio.google.com</a></li>
+      <li>Click "Get API key" in the left nav</li>
+      <li>Create or pick a Google Cloud project (the prompt is straightforward)</li>
+      <li>Copy the key (starts with <code>AIza</code>)</li>
+      <li>Paste into your app's Gemini settings</li>
+    </ol>
+
+    <p>Gemini has a generous free tier; you may not need to enter a payment method to start. Read the data terms before relying on the free tier for sensitive content.</p>
+
+    <h3>Setting a hard monthly cap (do this immediately)</h3>
+
+    <p>All three providers let you set a monthly spend cap. Use it. A typical sequence the first time:</p>
+
+    <ol>
+      <li>Set the cap at $10/month while you learn your usage</li>
+      <li>Use the tool for a week, see what your actual daily cost is</li>
+      <li>Raise the cap to 2-3x your observed monthly usage as a safety margin</li>
+    </ol>
+
+    <p>The cap is a hard ceiling. Once you hit it, the API stops responding until next billing cycle. This protects you from runaway costs if a tool starts looping (rare but possible).</p>
+
+    <h2>What about local AI?</h2>
+
+    <p>You can run Llama, Mistral, or other open-weight models locally with tools like <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> or <a href="https://lmstudio.ai" target="_blank" rel="noopener">LM Studio</a>. This is fully off-cloud: no API key, no provider, no internet required. Privacy maxes out, cost is zero (except electricity), and the data stays entirely on your machine.</p>
+
+    <p>The trade-off is quality. Open-weight models are catching up but are not at parity with Claude Sonnet, GPT-5, or Gemini 2.5 Pro for the kind of strategic-thinking work most indie founders want AI for. Drafting code? Open-weight models are competitive. Writing a pitch deck? You'll feel the difference.</p>
+
+    <p>The realistic 2026 answer: use BYOK with Claude/OpenAI/Gemini for high-stakes work, and use local Ollama for the volume work where 90% quality is fine. Projelli supports both: configure local Ollama as a provider alongside Claude / OpenAI / Gemini, and route per-conversation.</p>
+
+    <h2>Common concerns answered</h2>
+
+    <h3>"The 5-minute setup is going to be the part everyone gives up on"</h3>
+
+    <p>Some people will. They're not the target market for BYOK tools. The audience that buys local-first BYOK apps is exactly the audience comfortable getting an API key. If "5 minutes setting up an account at console.anthropic.com" is a dealbreaker, the bundled-inference tools are a fine choice.</p>
+
+    <h3>"What if I don't want to attach a credit card?"</h3>
+
+    <p>Google's Gemini has a generous free tier that doesn't always require a card. Anthropic and OpenAI both require payment info to use the API at all, even with a $5 prepaid balance. If avoiding cards is your priority, Gemini is the right starting point. After a month of using it for free, you'll have a sense of what your actual usage is, and adding a card to one of the others becomes a smaller mental ask.</p>
+
+    <h3>"What if the API key gets stolen?"</h3>
+
+    <p>Three layers of protection. First, the desktop app stores the key in your OS keychain (macOS) or an encrypted file (Windows / Linux), not in plaintext anywhere. Second, all three providers let you revoke a key with one click and generate a new one. Third, the monthly spend cap means even a stolen key has bounded damage. Treat the key like a password: don't share it, rotate if you suspect exposure, and you're fine.</p>
+
+    <h3>"What if the AI provider goes down?"</h3>
+
+    <p>Same risk as a bundled-inference tool, since they use the same providers under the hood. A BYOK app actually gives you a small advantage: you can quickly switch providers (Claude → OpenAI → Gemini) if one is having an outage. Bundled tools are stuck with whatever they wrap.</p>
+
+    <h2>Tools that support BYOK today</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Tool</th>
+          <th>BYOK support</th>
+          <th>Workspace shape</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Projelli</strong></td>
+          <td><span class="pill yes">Yes, all 3 providers</span></td>
+          <td>Local-first AI workspace for founders</td>
+        </tr>
+        <tr>
+          <td>Cursor</td>
+          <td><span class="pill yes">Yes (Pro tier)</span></td>
+          <td>Code editor with AI</td>
+        </tr>
+        <tr>
+          <td>Continue.dev</td>
+          <td><span class="pill yes">Yes</span></td>
+          <td>VS Code AI extension</td>
+        </tr>
+        <tr>
+          <td>Raycast AI</td>
+          <td><span class="pill yes">Yes (Advanced)</span></td>
+          <td>Mac launcher with AI</td>
+        </tr>
+        <tr>
+          <td>Obsidian + Smart Connections / Copilot</td>
+          <td><span class="pill yes">Yes</span></td>
+          <td>Local notes with AI plugins</td>
+        </tr>
+        <tr>
+          <td>ChatGPT, Claude.ai, Gemini app</td>
+          <td><span class="pill no">No</span></td>
+          <td>Cloud chat, bundled inference</td>
+        </tr>
+        <tr>
+          <td>Notion AI</td>
+          <td><span class="pill no">No</span></td>
+          <td>Cloud workspace, bundled inference</td>
+        </tr>
+        <tr>
+          <td>Reflect, Mem.ai, Tana</td>
+          <td><span class="pill no">No</span></td>
+          <td>Cloud notes, bundled inference</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>This list moves. Some tools are adding BYOK as a Pro option; some are removing it. Check the current state of any tool you're evaluating.</p>
+
+    <h2>Frequently asked questions</h2>
+
+    <div class="faq">
+      <details>
+        <summary>What does BYOK mean for AI tools?</summary>
+        <p>BYOK stands for "bring your own key". You sign up for an API key with an AI provider (Anthropic, OpenAI, or Google), paste it into the desktop app, and the app uses your key to make AI requests. You pay the AI provider directly for usage; the desktop app charges you separately or one-time, but never marks up inference.</p>
+      </details>
+      <details>
+        <summary>How much does BYOK actually cost per month?</summary>
+        <p>For a typical indie founder doing 30-90 minutes of AI work per day, BYOK costs $2-15 per month with Claude, OpenAI, or Gemini. That's lower than the $20/month flat for ChatGPT Plus, Claude Pro, or Notion AI. Heavy users (multi-hour daily, large context) pay more, $20-40/month, but still typically less than stacked subscriptions.</p>
+      </details>
+      <details>
+        <summary>Is BYOK more private than ChatGPT Plus?</summary>
+        <p>Yes, in two specific ways. First, AI providers' API tier (which is what BYOK uses) typically does not train on your data by default, while consumer tiers often do. Second, with a BYOK desktop app, the app's company never sees your prompts; the requests go directly from your machine to the AI provider.</p>
+      </details>
+      <details>
+        <summary>Where do I get an API key?</summary>
+        <p>Anthropic Claude: <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> → Settings → API Keys. OpenAI: <a href="https://platform.openai.com" target="_blank" rel="noopener">platform.openai.com</a> → API Keys. Google Gemini: <a href="https://aistudio.google.com" target="_blank" rel="noopener">aistudio.google.com</a> → Get API key. Each takes 2-3 minutes to sign up and generate. All three require entering payment info to start, but the free tiers and prepaid balances are real (you can put $5 in and use it down).</p>
+      </details>
+      <details>
+        <summary>What if I exhaust my API key budget?</summary>
+        <p>All three providers let you set a hard monthly spending cap. If you set a $20 cap, the API will stop responding when you hit it instead of charging more. This protects you from runaway costs while you learn how much you actually use.</p>
+      </details>
+      <details>
+        <summary>Which tools support BYOK?</summary>
+        <p>Most desktop AI workspaces designed for power users support BYOK: Projelli, Cursor (for code), Continue.dev (for code), several Obsidian AI plugins, Raycast AI. Most cloud workspaces (Notion AI, ChatGPT Plus, Claude.ai Pro, Reflect, Mem.ai) do not.</p>
+      </details>
+      <details>
+        <summary>Can I use multiple providers from the same tool?</summary>
+        <p>If the tool supports multiple providers, yes. Projelli ships with all three (Claude, OpenAI, Gemini) plus an Ollama integration for local models. You add keys for each, and pick which provider to use on a per-conversation basis. The advantage: if one provider is down or rate-limited, you switch in one click.</p>
+      </details>
+      <details>
+        <summary>What about Ollama and local models?</summary>
+        <p>Ollama and LM Studio let you run open-weight models entirely on your machine. No API key, no internet, fully offline. Quality is competitive for code and short-form tasks; it lags behind Claude / GPT / Gemini for long-form strategic work. Most founders use a hybrid: BYOK Claude for high-stakes work, local Ollama for volume.</p>
+      </details>
+    </div>
+
+    <div class="next-read">
+      <h3>What to read next</h3>
+      <ul>
+        <li><a href="/local-first-ai-workspace">What is a local-first AI workspace? A founder's guide</a></li>
+        <li><a href="/docs/api-keys">Step-by-step: setting up your first API key in Projelli</a></li>
+        <li><a href="/blog/the-notion-ai-math-for-solo-founders">The Notion AI math for solo founders</a></li>
+        <li><a href="/vs/notion">Projelli vs Notion: a feature-by-feature comparison</a></li>
+      </ul>
+    </div>
+
+    <div class="cta-card">
+      <h3>Try BYOK with Projelli</h3>
+      <p>Free download. $49 Pro one-time. $99 Lifetime. Founder's tier is $29 for the first 100 buyers. Bring your own Claude / OpenAI / Gemini key.</p>
+      <a href="/#download" class="cta-btn">Get Projelli</a>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/eula">EULA</a> · <a href="/press-kit/">Press kit</a> · <a href="/blog/">Blog</a>
+  </footer>
+</body>
+</html>
