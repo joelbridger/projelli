@@ -395,20 +395,18 @@
       flex-wrap: wrap;
     }
 
-    /* Hero video (real product capture, replaces JS-animated mockup) */
+    /* Hero video (real product capture; transparent wrap so the page bg shows around the macOS chrome) */
     .hero-video-wrap {
       max-width: 1000px;
       margin: 0 auto;
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1), 0 0 40px rgba(59, 130, 246, 0.08);
-      background: #000;
       line-height: 0;
+      background: transparent;
     }
     .hero-video {
       width: 100%;
       height: auto;
       display: block;
+      filter: drop-shadow(0 20px 40px rgba(15, 23, 42, 0.12));
     }
 
     /* App Mockup (legacy, retained for any other uses) */
@@ -527,7 +525,7 @@
       display: flex;
       gap: 8px;
       margin-top: 24px;
-      max-width: 480px;
+      width: 100%;
     }
 
     .email-signup-input {
@@ -1411,7 +1409,7 @@
       </a>
 
       <nav class="nav-links">
-        <a href="#features">Features</a>
+        <a href="/tour">Tour</a>
         <a href="/templates/">Templates</a>
         <a href="/vs/">vs Others</a>
         <a href="#pricing">Pricing</a>
@@ -1431,7 +1429,7 @@
 
     <div class="mobile-menu" id="mobile-menu">
       <nav>
-        <a href="#features">Features</a>
+        <a href="/tour">Tour</a>
         <a href="/templates/">Templates</a>
         <a href="/vs/">vs Others</a>
         <a href="#pricing">Pricing</a>
