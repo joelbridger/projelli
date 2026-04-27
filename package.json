@@ -4,19 +4,20 @@
   "version": "1.6.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "lint": "eslint .",
+    "capture:all": "cd scripts/marketing-capture && npm install --silent && npm run run-all",
+    "dev": "vite",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:build": "tauri build",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",
