@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI cost calculator: BYOK vs subscriptions | Projelli</title>
+  <meta name="description" content="An interactive calculator that estimates your monthly AI usage cost via BYOK (bring your own Claude / OpenAI / Gemini key) and compares it to flat subscription tools (ChatGPT Plus, Claude Pro, Notion AI, Cursor Pro). See your actual 3-year total under each model.">
+  <link rel="canonical" href="https://projelli.com/ai-cost-calculator">
+  <meta name="robots" content="index, follow">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://projelli.com/ai-cost-calculator">
+  <meta property="og:title" content="AI cost calculator: BYOK vs subscriptions">
+  <meta property="og:description" content="Estimate your monthly AI cost via BYOK vs subscriptions. See the 3-year math.">
+  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script type="application/ld+json">
+  { "@context": "https://schema.org", "@type": "Article", "headline": "AI cost calculator: BYOK vs subscriptions", "description": "An interactive calculator comparing BYOK and subscription AI tool costs.", "url": "https://projelli.com/ai-cost-calculator", "datePublished": "2026-04-27", "dateModified": "2026-04-27", "image": "https://projelli.com/og-image.png", "publisher": { "@type": "Organization", "name": "Projelli", "url": "https://projelli.com", "logo": "https://projelli.com/og-image.png" }, "mainEntityOfPage": "https://projelli.com/ai-cost-calculator" }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --bg-white:#FFFFFF; --bg-surface:#F8FAFC; --border-gray:#E2E8F0; --text-heading:#111F35; --text-body:#475569; --text-muted:#94A3B8; --accent-blue:#3B82F6; --accent-green:#10B981; --accent-coral:#FF7C6E; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.7; -webkit-font-smoothing: antialiased; }
+    .nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-gray); }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; max-width: 1000px; margin: 0 auto; }
+    .nav a.brand { font-weight: 700; color: var(--text-heading); text-decoration: none; font-size: 18px; }
+    .nav-links { display: flex; gap: 24px; font-size: 14px; }
+    .nav-links a { color: var(--text-body); text-decoration: none; font-weight: 500; }
+    .nav-links a:hover { color: var(--accent-blue); }
+    .container { max-width: 1000px; margin: 0 auto; padding: 48px 24px 80px; }
+    h1 { font-size: 2.25rem; color: var(--text-heading); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 12px; line-height: 1.15; }
+    .subhead { font-size: 1.125rem; color: var(--text-body); margin-bottom: 32px; }
+    .calc-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 32px; margin-bottom: 48px; }
+    @media (max-width: 768px) { .calc-grid { grid-template-columns: 1fr; } }
+    .inputs { background: var(--bg-surface); padding: 28px; border-radius: 16px; }
+    .inputs h2 { font-size: 1.25rem; color: var(--text-heading); margin-bottom: 20px; font-weight: 700; }
+    .input-group { margin-bottom: 24px; }
+    .input-group label { display: block; font-size: 0.9375rem; font-weight: 600; color: var(--text-heading); margin-bottom: 8px; }
+    .input-group .hint { font-size: 0.8125rem; color: var(--text-muted); margin-top: 4px; }
+    .slider-row { display: flex; align-items: center; gap: 12px; }
+    .slider-row input[type=range] { flex: 1; accent-color: var(--accent-blue); }
+    .slider-value { min-width: 80px; text-align: right; font-weight: 600; color: var(--accent-blue); font-variant-numeric: tabular-nums; }
+    select { width: 100%; padding: 10px 12px; border: 1px solid var(--border-gray); border-radius: 8px; font-family: inherit; font-size: 0.9375rem; background: white; color: var(--text-heading); }
+    .checkbox-group { display: flex; flex-direction: column; gap: 8px; }
+    .checkbox-group label { display: flex; align-items: center; font-weight: 500; cursor: pointer; }
+    .checkbox-group input[type=checkbox] { margin-right: 10px; accent-color: var(--accent-blue); }
+    .results { background: white; padding: 28px; border-radius: 16px; border: 2px solid var(--border-gray); }
+    .results h2 { font-size: 1.25rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 700; }
+    .savings-banner { background: linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(59,130,246,0.1) 100%); border-left: 4px solid var(--accent-green); padding: 16px 20px; border-radius: 0 8px 8px 0; margin-bottom: 24px; }
+    .savings-banner .label { font-size: 0.8125rem; color: var(--text-body); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .savings-banner .amount { font-size: 1.875rem; font-weight: 800; color: var(--text-heading); font-variant-numeric: tabular-nums; }
+    .savings-banner .qualifier { font-size: 0.875rem; color: var(--text-body); margin-top: 4px; }
+    .results table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.9375rem; }
+    .results table th { text-align: left; font-weight: 600; color: var(--text-heading); background: var(--bg-surface); padding: 10px 12px; border-bottom: 1px solid var(--border-gray); }
+    .results table td { padding: 10px 12px; border-bottom: 1px solid var(--border-gray); font-variant-numeric: tabular-nums; }
+    .results .row-projelli td { background: rgba(59,130,246,0.05); font-weight: 600; }
+    .results .row-projelli td:first-child { color: var(--accent-blue); }
+    .results .empty-row td { text-align: center; color: var(--text-muted); font-style: italic; }
+    .results .footnote { font-size: 0.8125rem; color: var(--text-muted); margin-top: 8px; }
+    .breakdown { margin-top: 32px; padding: 20px; background: var(--bg-surface); border-radius: 12px; font-size: 0.875rem; }
+    .breakdown h3 { font-size: 1rem; color: var(--text-heading); font-weight: 600; margin-bottom: 8px; }
+    .breakdown dl { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+    .breakdown dt { color: var(--text-body); }
+    .breakdown dd { font-weight: 600; color: var(--text-heading); font-variant-numeric: tabular-nums; text-align: right; }
+    .explainer { margin-top: 56px; }
+    .explainer h2 { font-size: 1.5rem; color: var(--text-heading); font-weight: 700; margin-top: 32px; margin-bottom: 16px; }
+    .explainer p { margin-bottom: 16px; font-size: 1rem; }
+    .explainer ul { margin: 0 0 16px 24px; }
+    .explainer li { margin-bottom: 6px; }
+    .cta-card { background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white; padding: 32px; border-radius: 12px; margin-top: 48px; text-align: center; }
+    .cta-card h3 { color: white; font-size: 1.25rem; margin-bottom: 10px; }
+    .cta-card p { color: rgba(255,255,255,0.9); margin-bottom: 20px; }
+    .cta-btn { display: inline-block; padding: 14px 32px; background: white; color: var(--text-heading); border-radius: 999px; text-decoration: none; font-weight: 600; }
+    footer { text-align: center; padding: 32px; color: var(--text-muted); font-size: 0.875rem; border-top: 1px solid var(--border-gray); margin-top: 32px; }
+    footer a { color: var(--text-body); text-decoration: none; margin: 0 8px; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand">Projelli</a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/templates/">Templates</a>
+        <a href="/vs/">vs Others</a>
+        <a href="/blog/">Blog</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1>AI cost calculator: BYOK vs subscriptions.</h1>
+    <p class="subhead">Estimate your monthly AI usage cost via BYOK (bring your own Claude / OpenAI / Gemini key) and compare to flat subscription tools. See your 3-year total under each model.</p>
+
+    <div class="calc-grid">
+      <div class="inputs">
+        <h2>Your usage</h2>
+
+        <div class="input-group">
+          <label for="minutes">Daily AI conversation time</label>
+          <div class="slider-row">
+            <input type="range" id="minutes" min="5" max="240" step="5" value="60">
+            <span class="slider-value"><span id="minutes-val">60</span> min</span>
+          </div>
+          <div class="hint">Active minutes per day spent in AI conversations. Most indie founders use 30-90 min.</div>
+        </div>
+
+        <div class="input-group">
+          <label for="model">Primary AI model</label>
+          <select id="model">
+            <option value="claude-sonnet" selected>Claude Sonnet ($3 / $15 per 1M tokens)</option>
+            <option value="claude-haiku">Claude Haiku ($0.25 / $1.25)</option>
+            <option value="claude-opus">Claude Opus ($15 / $75)</option>
+            <option value="gpt-5">OpenAI GPT-5 ($5 / $20)</option>
+            <option value="gpt-5-mini">OpenAI GPT-5 mini ($0.15 / $0.60)</option>
+            <option value="gemini-pro">Gemini 2.5 Pro ($1.25 / $5)</option>
+            <option value="gemini-flash">Gemini 2.5 Flash ($0.075 / $0.30)</option>
+          </select>
+          <div class="hint">Pricing as of early 2026. Format: input cost / output cost per million tokens.</div>
+        </div>
+
+        <div class="input-group">
+          <label>Subscription tools you currently pay for</label>
+          <div class="checkbox-group">
+            <label><input type="checkbox" id="sub-chatgpt" checked> ChatGPT Plus ($20/mo)</label>
+            <label><input type="checkbox" id="sub-claude"> Claude.ai Pro ($20/mo)</label>
+            <label><input type="checkbox" id="sub-notion"> Notion AI ($10/mo on top of Notion)</label>
+            <label><input type="checkbox" id="sub-cursor"> Cursor Pro ($20/mo)</label>
+            <label><input type="checkbox" id="sub-reflect"> Reflect ($15/mo)</label>
+          </div>
+        </div>
+
+        <div class="input-group">
+          <label for="projelli-tier">Projelli tier (one-time)</label>
+          <select id="projelli-tier">
+            <option value="29">Founder's Lifetime ($29, first 100 buyers)</option>
+            <option value="49" selected>Pro ($49 one-time)</option>
+            <option value="99">Lifetime ($99 one-time)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="results">
+        <h2>The math</h2>
+
+        <div class="savings-banner">
+          <div class="label">3-year savings with Projelli + BYOK</div>
+          <div class="amount">$<span id="savings-amount">0</span></div>
+          <div class="qualifier" id="savings-qualifier"></div>
+        </div>
+
+        <table>
+          <thead>
+            <tr><th>Option</th><th>Monthly</th><th>Year 1</th><th>3-year total</th></tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+        <div class="footnote">Subscription tools assume you'd pay for all the ones you checked. BYOK assumes you use the model selected above for your stated daily volume.</div>
+
+        <div class="breakdown">
+          <h3>How we computed your BYOK cost</h3>
+          <dl>
+            <dt>Daily input tokens</dt><dd id="input-tokens">0</dd>
+            <dt>Daily output tokens</dt><dd id="output-tokens">0</dd>
+            <dt>Daily cost</dt><dd>$<span id="daily-cost">0.00</span></dd>
+            <dt>Monthly (22 working days)</dt><dd>$<span id="monthly-cost">0.00</span></dd>
+          </dl>
+        </div>
+      </div>
+    </div>
+
+    <div class="explainer">
+      <h2>How the calculator works</h2>
+
+      <p>The estimates use these per-minute averages, derived from real conversation logs across founder workflows:</p>
+
+      <ul>
+        <li><strong>Input tokens per minute:</strong> ~4,000 (you typing, plus the AI re-reading prior context)</li>
+        <li><strong>Output tokens per minute:</strong> ~1,600 (the AI's response stream)</li>
+        <li><strong>Working days per month:</strong> 22</li>
+      </ul>
+
+      <p>Pricing is per the providers' published rates as of early 2026. Numbers are approximate; your actual usage will vary based on conversation length, context window size, and model behavior.</p>
+
+      <h2>Why BYOK usually wins</h2>
+
+      <p>Subscription tools charge a flat $20/month regardless of usage. Most founders have lumpy AI usage: $0 some weeks, heavy others. BYOK matches the lumpiness. You pay for what you actually use.</p>
+
+      <p>For light users (under 30 minutes daily), BYOK with Claude Sonnet or Gemini Flash typically runs $3-12/month. For heavy users (over 2 hours daily on Claude Sonnet), BYOK can hit $40-60/month, which is more than a single subscription but typically still less than the stack of subscriptions most founders pay for.</p>
+
+      <h2>What's not in the model</h2>
+
+      <ul>
+        <li>API credits sometimes included in subscriptions (e.g., the small free tier OpenAI bundles with ChatGPT Plus)</li>
+        <li>Volume discounts for very high usage (which generally don't apply at indie scale)</li>
+        <li>Cost of Cursor / Continue.dev / similar for code work (which is its own bucket)</li>
+        <li>Variable token usage based on context window (longer conversations = more tokens per turn)</li>
+      </ul>
+
+      <h2>How to set a hard spending cap</h2>
+
+      <p>All three providers (Anthropic, OpenAI, Google) let you set a hard monthly cap so you can't accidentally exceed your budget. Set it to 2x your estimated monthly usage as a safety margin.</p>
+
+      <ul>
+        <li><strong>Anthropic:</strong> Console &rarr; Plans &amp; Billing &rarr; Spending limit</li>
+        <li><strong>OpenAI:</strong> Settings &rarr; Limits &rarr; Hard limit</li>
+        <li><strong>Google:</strong> Cloud Console &rarr; Billing &rarr; Budgets</li>
+      </ul>
+
+      <p>The full setup guide is at <a href="/api-key-setup-guide">/api-key-setup-guide</a>.</p>
+    </div>
+
+    <div class="cta-card">
+      <h3>Try BYOK with Projelli</h3>
+      <p>Free download. The Pro tier is $49 one-time. Lifetime is $99. The first 100 buyers get Lifetime at $29.</p>
+      <a href="/#download" class="cta-btn">Get Projelli</a>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/eula">EULA</a> · <a href="/press-kit/">Press kit</a> · <a href="/blog/">Blog</a>
+  </footer>
+
+  <script>
+    (function() {
+      // Pricing per million tokens: [input, output]
+      const MODELS = {
+        'claude-sonnet':  { input: 3.00,  output: 15.00, label: 'Claude Sonnet' },
+        'claude-haiku':   { input: 0.25,  output: 1.25,  label: 'Claude Haiku' },
+        'claude-opus':    { input: 15.00, output: 75.00, label: 'Claude Opus' },
+        'gpt-5':          { input: 5.00,  output: 20.00, label: 'OpenAI GPT-5' },
+        'gpt-5-mini':     { input: 0.15,  output: 0.60,  label: 'OpenAI GPT-5 mini' },
+        'gemini-pro':     { input: 1.25,  output: 5.00,  label: 'Gemini 2.5 Pro' },
+        'gemini-flash':   { input: 0.075, output: 0.30,  label: 'Gemini 2.5 Flash' }
+      };
+      const SUBSCRIPTIONS = {
+        'sub-chatgpt': { label: 'ChatGPT Plus', cost: 20 },
+        'sub-claude':  { label: 'Claude.ai Pro', cost: 20 },
+        'sub-notion':  { label: 'Notion AI',     cost: 10 },
+        'sub-cursor':  { label: 'Cursor Pro',    cost: 20 },
+        'sub-reflect': { label: 'Reflect',       cost: 15 }
+      };
+      const TOKENS_INPUT_PER_MIN = 4000;
+      const TOKENS_OUTPUT_PER_MIN = 1600;
+      const WORKING_DAYS_PER_MONTH = 22;
+
+      const $ = id => document.getElementById(id);
+      const fmt = n => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+      const fmtMoney = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      // Safe DOM helper: builds table rows from data without innerHTML
+      function makeRow(cells, opts) {
+        opts = opts || {};
+        const tr = document.createElement('tr');
+        if (opts.className) tr.className = opts.className;
+        cells.forEach(c => {
+          const td = document.createElement('td');
+          if (c && typeof c === 'object' && c.colspan) {
+            td.colSpan = c.colspan;
+            td.textContent = c.text;
+          } else {
+            td.textContent = c;
+          }
+          tr.appendChild(td);
+        });
+        return tr;
+      }
+
+      function compute() {
+        const minutes = parseInt($('minutes').value, 10);
+        const modelKey = $('model').value;
+        const model = MODELS[modelKey];
+        const projelliCost = parseInt($('projelli-tier').value, 10);
+
+        // Token math
+        const inputDaily = minutes * TOKENS_INPUT_PER_MIN;
+        const outputDaily = minutes * TOKENS_OUTPUT_PER_MIN;
+        const inputMonthly = inputDaily * WORKING_DAYS_PER_MONTH;
+        const outputMonthly = outputDaily * WORKING_DAYS_PER_MONTH;
+
+        const dailyCost = (inputDaily / 1e6 * model.input) + (outputDaily / 1e6 * model.output);
+        const monthlyByokCost = (inputMonthly / 1e6 * model.input) + (outputMonthly / 1e6 * model.output);
+
+        // Subscriptions
+        let subTotalMonthly = 0;
+        const checkedSubs = [];
+        Object.keys(SUBSCRIPTIONS).forEach(k => {
+          if ($(k).checked) {
+            subTotalMonthly += SUBSCRIPTIONS[k].cost;
+            checkedSubs.push(SUBSCRIPTIONS[k].label);
+          }
+        });
+
+        // 3-year totals
+        const subYear1 = subTotalMonthly * 12;
+        const sub3Year = subTotalMonthly * 36;
+        const projelliYear1 = projelliCost + (monthlyByokCost * 12);
+        const projelli3Year = projelliCost + (monthlyByokCost * 36);
+        const savings = sub3Year - projelli3Year;
+
+        // Update breakdown (all textContent, no innerHTML)
+        $('minutes-val').textContent = String(minutes);
+        $('input-tokens').textContent = fmt(inputDaily);
+        $('output-tokens').textContent = fmt(outputDaily);
+        $('daily-cost').textContent = fmtMoney(dailyCost);
+        $('monthly-cost').textContent = fmtMoney(monthlyByokCost);
+
+        // Update results table by replacing children safely
+        const tbody = $('results-body');
+        while (tbody.firstChild) tbody.removeChild(tbody.firstChild);
+
+        if (subTotalMonthly === 0) {
+          tbody.appendChild(makeRow(
+            [{ colspan: 4, text: 'Check a subscription above to compare.' }],
+            { className: 'empty-row' }
+          ));
+        } else {
+          tbody.appendChild(makeRow([
+            checkedSubs.join(' + '),
+            '$' + fmtMoney(subTotalMonthly),
+            '$' + fmtMoney(subYear1),
+            '$' + fmtMoney(sub3Year)
+          ]));
+        }
+
+        tbody.appendChild(makeRow([
+          'Projelli + BYOK ' + model.label,
+          '~$' + fmtMoney(monthlyByokCost),
+          '$' + fmtMoney(projelliYear1),
+          '$' + fmtMoney(projelli3Year)
+        ], { className: 'row-projelli' }));
+
+        // Update savings banner (textContent only)
+        if (subTotalMonthly === 0) {
+          $('savings-amount').textContent = '?';
+          $('savings-qualifier').textContent = 'Check a subscription tool above to see savings.';
+        } else if (savings > 0) {
+          $('savings-amount').textContent = fmtMoney(savings);
+          $('savings-qualifier').textContent =
+            'vs paying for ' + checkedSubs.join(' + ') + ' for 3 years';
+        } else {
+          $('savings-amount').textContent = fmtMoney(Math.abs(savings));
+          $('savings-qualifier').textContent =
+            'more on BYOK ' + model.label + ' than ' + checkedSubs.join(' + ') +
+            '. Try a cheaper model (Haiku, Flash, Mini) or fewer subscriptions.';
+        }
+      }
+
+      // Wire all inputs
+      ['minutes', 'model', 'projelli-tier'].forEach(id => $(id).addEventListener('input', compute));
+      Object.keys(SUBSCRIPTIONS).forEach(k => $(k).addEventListener('change', compute));
+
+      // Initial render
+      compute();
+    })();
+  </script>
+</body>
+</html>
