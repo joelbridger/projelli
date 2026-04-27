@@ -1957,30 +1957,12 @@
   </footer>
 
   <script>
-    // Navigation scroll effect
-    const nav = document.getElementById('nav');
-    window.addEventListener('scroll', () => {
-      if (window.scrollY > 60) {
-        nav.classList.add('scrolled');
-      } else {
-        nav.classList.remove('scrolled');
-      }
-    });
-
-    // Mobile menu toggle
-    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-    const mobileMenu = document.getElementById('mobile-menu');
-
-    mobileMenuBtn.addEventListener('click', () => {
-      mobileMenu.classList.toggle('open');
-    });
-
-    // Close mobile menu when clicking a link
-    mobileMenu.querySelectorAll('a').forEach(link => {
-      link.addEventListener('click', () => {
-        mobileMenu.classList.remove('open');
-      });
-    });
+    // Nav scroll-shadow + mobile menu are owned by the shared
+    // /scripts/projelli-nav.v2.js. The old `#nav` / `#mobile-menu-btn`
+    // references that lived here have been removed — keeping them
+    // around after the inline header was deleted threw a TypeError at
+    // module load, which halted this whole script and left every
+    // .animate-on-scroll element invisible.
 
     // Scroll animations
     const observer = new IntersectionObserver((entries) => {
