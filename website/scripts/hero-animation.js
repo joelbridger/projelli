@@ -1,22 +1,20 @@
-/* Hero animation — vanilla JS state machine (no React, no build step).
- * Modeled on BehaviorUX's BehaviorDemoHero.tsx pattern: a precomputed
- * timing schedule + RAF tick that updates DOM/classes per phase.
+/* Hero animation — vanilla JS state machine driving a faithful Projelli
+ * replica. RAF tick + precomputed timing schedule.
  *
- * All content (file names, message text, markdown chunks) is hardcoded
- * in this file. We build DOM via createElement / textContent — no
- * innerHTML — so there's no XSS surface even though the inputs are
- * fully trusted.
+ * All DOM is built via createElement / textContent (no innerHTML), so
+ * there's no XSS surface even though every input is a trusted constant.
  *
  * Story (~22s, then loops):
- *   t=0.0  — workspace settled, file tree visible, Linterly tabs (Launch Plan)
- *   t=1.5  — cursor moves to chat input
- *   t=2.0  — types "Draft a brand voice guide for Linterly" char-by-char
- *   t=6.5  — cursor moves to send button + clicks
- *   t=7.0  — user message bubble appears; thinking dots
- *   t=8.0  — AI streams a response in chunks (markdown-ish)
+ *   t=0    — workspace settled, Launch Plan tab active
+ *   t=1.4  — cursor moves to chat input
+ *   t=2.1  — types prompt char-by-char
+ *   t=6.5  — cursor moves to coral send button + clicks
+ *   t=7.0  — user message bubble appears (with You · time meta)
+ *           thinking dots + Stop button appear
+ *   t=8.0  — AI assistant streams response in chunks
  *   t=12.5 — Brand Voice.md pops into the file tree
- *   t=15.0 — cursor moves to Brand Voice.md in tree
- *   t=15.5 — clicks; new tab opens; editor view shown with rendered MD
+ *   t=15.0 — cursor moves to Brand Voice.md
+ *   t=15.5 — clicks; new tab "Drafting brand voic..." opens; editor view
  *   t=20.0 — hold final state
  *   t=22.0 — reset and loop
  */
@@ -27,7 +25,6 @@
     return;
   }
 
-  // DOM refs (all elements set up in the markup with data-anim attributes)
   var inputText  = root.querySelector('[data-anim="input-text"]');
   var inputCaret = root.querySelector('[data-anim="input-caret"]');
   var messages   = root.querySelector('[data-anim="messages"]');
@@ -36,24 +33,24 @@
   var chatPane   = root.querySelector('[data-anim="pane-chat"]');
   var editorPane = root.querySelector('[data-anim="pane-editor"]');
   var cursor     = root.querySelector('[data-anim="cursor"]');
+  var statusFile  = root.querySelector('[data-anim="status-file"]');
+  var statusFile2 = root.querySelector('[data-anim="status-file2"]');
+  var statusFiles = root.querySelector('[data-anim="status-files-open"]');
 
   if (!inputText || !messages || !fileTree || !tabsEl || !chatPane || !editorPane || !cursor) return;
 
-  var PROMPT = 'Draft a brand voice guide for Linterly';
-  // Each chunk is one of: { text } or { bold } or { br }.
-  // Rendering helper below converts these to safe DOM nodes (textContent
-  // for text, <strong>textContent</strong> for bold, <br> for br).
-  var ASSISTANT_CHUNKS = [
-    [{ text: "Here's a brand voice draft:" }, { br: 1 }, { br: 1 }],
-    [{ bold: 'Voice principles' }, { br: 1 }, { br: 1 }],
-    [{ text: 'Linterly writes the way a senior PM ' }],
-    [{ text: 'Slacks: short, specific, ' }],
-    [{ text: 'contraction-heavy, never breathless.' }, { br: 1 }, { br: 1 }],
-    [{ bold: 'Banned words:' }, { text: ' leverage, delve, ' }],
-    [{ text: 'seamless, transform, empower.' }, { br: 1 }, { br: 1 }],
-    [{ text: 'I’ll save this to ' }, { bold: 'Brand Voice.md' }, { text: ' ' }],
-    [{ text: 'in your workspace.' }],
+  var PROMPT = 'Write a brand voice guide for Linterly and save it to Brand Voice.md';
+
+  // Each block is one paragraph in the assistant card, rendered as its
+  // own <div>. parts may be { text } or { bold }.
+  var ASSISTANT_BLOCKS = [
+    { parts: [{ text: "Here's a brand-voice draft for Linterly:" }] },
+    { parts: [{ bold: 'Voice principles' }] },
+    { parts: [{ text: 'Linterly writes the way a senior PM Slacks: short, specific, contraction-heavy, never breathless.' }] },
+    { parts: [{ bold: 'Banned words:' }, { text: ' leverage, delve, seamless, transform, empower' }] },
   ];
+
+  var NEW_TAB_LABEL = 'Drafting brand voic…';
 
   // ── tiny DOM helpers ───────────────────────────────────────────────
   function el(tag, props, children) {
@@ -75,12 +72,8 @@
     }
     return node;
   }
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 
-  function clear(node) {
-    while (node.firstChild) node.removeChild(node.firstChild);
-  }
-
-  // SVG icons via DOMParser (trusted constants). Returns a fresh node each call.
   function svg(markup) {
     var doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
     var n = doc.documentElement;
@@ -101,10 +94,9 @@
     cursor.style.top  = y + 'px';
     cursor.classList.add('hero-anim__cursor--visible');
   }
-
   function pulseClick() {
     cursor.classList.remove('hero-anim__cursor--clicking');
-    void cursor.offsetWidth; // restart the animation
+    void cursor.offsetWidth;
     cursor.classList.add('hero-anim__cursor--clicking');
   }
 
@@ -122,19 +114,18 @@
   function makeTab(name, active, animate) {
     var icon = fileIcon();
     var label = el('span', { text: name });
+    var pencil = el('span', { 'class': 'hero-anim__pencil', 'aria-hidden': 'true', text: '✎' });
     var classes = 'hero-anim__tab';
     if (active) classes += ' hero-anim__tab--active';
     if (animate) classes += ' hero-anim__tab--enter';
-    var t = el('div', { 'class': classes, 'data-tab': name }, [icon, label]);
-    return t;
+    return el('div', { 'class': classes, 'data-tab': name }, [icon, label, pencil]);
   }
 
   function makeFile(name) {
-    var li = el('div', {
+    return el('div', {
       'class': 'hero-anim__file hero-anim__file--new',
       'data-file': name,
     }, [fileIcon(), el('span', { text: name })]);
-    return li;
   }
 
   function activateOnlyTab(name) {
@@ -145,6 +136,12 @@
         t.classList.remove('hero-anim__tab--active');
       }
     });
+  }
+
+  function setStatusFile(name, count) {
+    if (statusFile)  statusFile.textContent  = name;
+    if (statusFile2) statusFile2.textContent = name;
+    if (statusFiles) statusFiles.textContent = count + (count === 1 ? ' file open' : ' files open');
   }
 
   function reset() {
@@ -167,49 +164,59 @@
 
     clear(tabsEl);
     tabsEl.appendChild(makeTab('Launch Plan', true, false));
+    setStatusFile('Drafting brand voice for Linterly', 1);
+  }
+
+  function timeNow() {
+    var d = new Date();
+    var h = d.getHours();
+    var m = d.getMinutes();
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return h + ':' + (m < 10 ? '0' + m : m) + ' ' + ampm;
   }
 
   function addUserMessage(text) {
+    var t = timeNow();
+    messages.appendChild(el('div', { 'class': 'hero-anim__msg-meta hero-anim__msg-meta--right' }, [
+      el('span', { text: 'You' }),
+      el('span', { text: t }),
+    ]));
     messages.appendChild(el('div', { 'class': 'hero-anim__msg hero-anim__msg--user', text: text }));
   }
 
   function showThinking() {
-    messages.appendChild(el('div', { 'class': 'hero-anim__thinking', 'data-anim-thinking': '1' }, [
-      el('span'), el('span'), el('span'),
-    ]));
+    var dots = el('div', { 'class': 'hero-anim__thinking' }, [el('span'), el('span'), el('span')]);
+    var stop = el('span', { 'class': 'hero-anim__stop-btn', text: 'Stop' });
+    messages.appendChild(el('div', { 'class': 'hero-anim__thinking-row', 'data-anim-thinking': '1' }, [dots, stop]));
   }
-
   function removeThinking() {
     var t = messages.querySelector('[data-anim-thinking]');
     if (t) t.remove();
   }
 
-  // Streaming assistant message: appends typed nodes one chunk at a time.
-  // Each chunk is an array of { text } / { bold } / { br } parts.
   function startAssistantStream() {
+    messages.appendChild(el('div', { 'class': 'hero-anim__msg-meta' }, [
+      el('span', { text: 'Assistant' }),
+      el('span', { text: timeNow() }),
+    ]));
     var m = el('div', { 'class': 'hero-anim__msg hero-anim__msg--assistant', 'data-anim-stream': '1' });
     messages.appendChild(m);
   }
 
-  function appendAssistantChunk(parts, isLast) {
+  function appendAssistantBlock(block, isLast) {
     var m = messages.querySelector('[data-anim-stream]');
     if (!m) return;
-    // Remove the existing trailing caret (if any) before appending more.
-    var caret = m.querySelector('.hero-anim__caret');
-    if (caret) caret.remove();
-    parts.forEach(function (p) {
-      if (p.text != null) {
-        m.appendChild(document.createTextNode(p.text));
-      } else if (p.bold != null) {
-        m.appendChild(el('strong', { text: p.bold }));
-      } else if (p.br != null) {
-        m.appendChild(document.createElement('br'));
-      }
+    var trailingCaret = m.querySelector('.hero-anim__caret');
+    if (trailingCaret) trailingCaret.remove();
+
+    var line = el('div');
+    block.parts.forEach(function (p) {
+      if (p.text != null) line.appendChild(document.createTextNode(p.text));
+      else if (p.bold != null) line.appendChild(el('strong', { text: p.bold }));
     });
-    if (!isLast) {
-      m.appendChild(el('span', { 'class': 'hero-anim__caret' }));
-    }
-    messages.scrollTop = messages.scrollHeight;
+    m.appendChild(line);
+    if (!isLast) m.appendChild(el('span', { 'class': 'hero-anim__caret' }));
   }
 
   function finishAssistantStream() {
@@ -232,11 +239,14 @@
     });
     var bv = fileTree.querySelector('[data-file="Brand Voice.md"]');
     if (bv) bv.classList.add('hero-anim__file--active');
-    if (!tabsEl.querySelector('[data-tab="Brand Voice"]')) {
-      tabsEl.appendChild(makeTab('Brand Voice', false, true));
+    if (!tabsEl.querySelector('[data-tab="Brand Voice.md"]')) {
+      tabsEl.appendChild(makeTab(NEW_TAB_LABEL, false, true));
+      // Use the visible label text as the data-tab key for the active toggle
+      tabsEl.lastChild.setAttribute('data-tab', 'Brand Voice.md');
     }
-    activateOnlyTab('Brand Voice');
+    activateOnlyTab('Brand Voice.md');
     setActivePane('editor');
+    setStatusFile('Brand Voice.md', 2);
   }
 
   // ── timing schedule ────────────────────────────────────────────────
@@ -247,7 +257,7 @@
     s.push([1.9, function () { if (inputCaret) inputCaret.style.display = ''; }]);
 
     var typeStart = 2.1;
-    var perChar = 0.075;
+    var perChar = 0.055;
     for (var i = 1; i <= PROMPT.length; i++) {
       (function (n) {
         s.push([typeStart + (n - 1) * perChar, function () {
@@ -266,29 +276,30 @@
       showThinking();
     }]);
 
-    var streamStart = sendT + 1.1;
+    var streamStart = sendT + 1.2;
     s.push([streamStart, function () {
       removeThinking();
       startAssistantStream();
     }]);
+
     var t = streamStart + 0.05;
-    var perChunk = 0.45;
-    for (var c = 0; c < ASSISTANT_CHUNKS.length; c++) {
+    var perBlock = 0.7;
+    for (var c = 0; c < ASSISTANT_BLOCKS.length; c++) {
       (function (idx) {
         s.push([t, function () {
-          appendAssistantChunk(ASSISTANT_CHUNKS[idx], idx === ASSISTANT_CHUNKS.length - 1);
+          appendAssistantBlock(ASSISTANT_BLOCKS[idx], idx === ASSISTANT_BLOCKS.length - 1);
         }]);
       })(c);
-      t += perChunk;
+      t += perBlock;
     }
     s.push([t + 0.1, finishAssistantStream]);
 
-    var fileAppearT = streamStart + 1.6;
+    var fileAppearT = t + 0.4;
     s.push([fileAppearT, appearBrandVoiceFile]);
 
-    var openT = t + 0.7;
+    var openT = fileAppearT + 1.6;
     s.push([openT, function () { setCursor('[data-file="Brand Voice.md"]'); }]);
-    s.push([openT + 0.5, function () { pulseClick(); openBrandVoice(); }]);
+    s.push([openT + 0.55, function () { pulseClick(); openBrandVoice(); }]);
 
     return { schedule: s, total: openT + 5.0 };
   }

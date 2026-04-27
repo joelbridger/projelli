@@ -1432,8 +1432,8 @@
   <link rel="stylesheet" href="/styles/projelli-nav.css">
   <script src="/scripts/projelli-nav.v2.js" defer></script>
   <!-- Hero animation (vanilla JS, no build step) -->
-  <link rel="stylesheet" href="/styles/hero-animation.css">
-  <script src="/scripts/hero-animation.js" defer></script>
+  <link rel="stylesheet" href="/styles/hero-animation.css?v=2026042703">
+  <script src="/scripts/hero-animation.js?v=2026042703" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -1489,7 +1489,7 @@
           <div class="hero-anim" id="hero-anim" role="img"
                aria-label="Animation: typing a prompt into Projelli, watching AI stream a response, a new Brand Voice.md file appearing in the file tree, and opening it as a new tab.">
 
-            <!-- macOS chrome -->
+            <!-- macOS window chrome -->
             <div class="hero-anim__chrome">
               <div class="hero-anim__lights">
                 <span class="hero-anim__light hero-anim__light--close"></span>
@@ -1499,64 +1499,228 @@
               <div class="hero-anim__title">Linterly — Projelli</div>
             </div>
 
+            <!-- Top toolbar (workspace dropdown + display/settings/⌘K) -->
+            <div class="hero-anim__topbar">
+              <div class="hero-anim__workspace-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4"/><path d="M3 17l9 4 9-4"/></svg>
+                <span>Linterly</span>
+                <span class="hero-anim__caret-down">▾</span>
+              </div>
+              <div class="hero-anim__topbar-right">
+                <span class="hero-anim__icon-btn" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="4" width="20" height="14" rx="2"/><line x1="8" y1="20" x2="16" y2="20"/><line x1="12" y1="18" x2="12" y2="20"/></svg>
+                </span>
+                <span class="hero-anim__icon-btn" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                </span>
+                <span class="hero-anim__kbd">⌘+K</span>
+              </div>
+            </div>
+
             <div class="hero-anim__body">
-              <!-- File tree sidebar -->
+              <!-- Two-tier sidebar: workspace nav above, file tree below -->
               <aside class="hero-anim__sidebar">
-                <div class="hero-anim__sidebar-label">Workspace</div>
-                <div data-anim="file-tree">
-                  <div class="hero-anim__file" data-file="Vision.md">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    <span>Vision.md</span>
+                <div class="hero-anim__sidebar-section">
+                  <div class="hero-anim__sidebar-head">
+                    <span>WORKSPACE</span>
+                    <span class="hero-anim__sidebar-collapse">‹</span>
                   </div>
-                  <div class="hero-anim__file" data-file="Customers.md">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    <span>Customers.md</span>
+                  <div class="hero-anim__nav">
+                    <div class="hero-anim__nav-item hero-anim__nav-item--active">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      <span>Files</span>
+                    </div>
+                    <div class="hero-anim__nav-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      <span>Search</span>
+                    </div>
+                    <div class="hero-anim__nav-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M9 6h6M6 9v6M9 18h6"/></svg>
+                      <span>Workflows</span>
+                    </div>
+                    <div class="hero-anim__nav-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 8V4H8"/><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/></svg>
+                      <span>AI Assistant</span>
+                    </div>
+                    <div class="hero-anim__nav-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 6.5C8 4 5 5 4 7c-1 2 0 5 8 12 8-7 9-10 8-12-1-2-4-3-8-.5z"/></svg>
+                      <span>Research</span>
+                    </div>
+                    <div class="hero-anim__nav-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="3" y="4" width="18" height="14" rx="2"/><line x1="3" y1="20" x2="21" y2="20"/></svg>
+                      <span>Whiteboard</span>
+                    </div>
+                    <div class="hero-anim__nav-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>
+                      <span>AI Audit</span>
+                    </div>
+                    <div class="hero-anim__nav-item">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                      <span>Trash</span>
+                    </div>
                   </div>
-                  <div class="hero-anim__file hero-anim__file--active" data-file="Launch Plan.md">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    <span>Launch Plan.md</span>
+                </div>
+
+                <div class="hero-anim__sidebar-files">
+                  <div class="hero-anim__files-head">
+                    <span>Files</span>
+                    <span class="hero-anim__files-icons" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                    </span>
                   </div>
+                  <div class="hero-anim__files-actions">
+                    <span class="hero-anim__chip">+ File</span>
+                    <span class="hero-anim__chip">+ Folder</span>
+                    <span class="hero-anim__chip">↑ Upload</span>
+                  </div>
+                  <div class="hero-anim__file-list" data-anim="file-tree">
+                    <div class="hero-anim__file" data-file="Vision.md">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      <span>Vision.md</span>
+                    </div>
+                    <div class="hero-anim__file" data-file="Pricing.md">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      <span>Pricing.md</span>
+                    </div>
+                    <div class="hero-anim__file" data-file="Customers.md">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      <span>Customers.md</span>
+                    </div>
+                    <div class="hero-anim__file hero-anim__file--active" data-file="Launch Plan.md">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      <span>Launch Plan.md</span>
+                    </div>
+                    <div class="hero-anim__file" data-file="Competitive Analysis.md">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      <span>Competitive Analysis.md</span>
+                    </div>
+                    <div class="hero-anim__file" data-file="Q1 Goals.md">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      <span>Q1 Goals.md</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="hero-anim__sidebar-bottom">
+                  <span class="hero-anim__open-desktop">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M7 17l10-10M9 7h8v8"/></svg>
+                    Open on Desktop
+                  </span>
                 </div>
               </aside>
 
-              <!-- Main panel: tab strip + chat OR editor pane -->
+              <!-- Main panel -->
               <main class="hero-anim__main">
-                <div class="hero-anim__tabs" data-anim="tabs">
-                  <div class="hero-anim__tab hero-anim__tab--active" data-tab="Launch Plan">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    <span>Launch Plan</span>
+                <!-- Tab bar with formatting toolbar (right side) -->
+                <div class="hero-anim__tabbar">
+                  <div class="hero-anim__tabs" data-anim="tabs">
+                    <div class="hero-anim__tab hero-anim__tab--active" data-tab="Launch Plan">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      <span>Launch Plan</span>
+                      <span class="hero-anim__pencil" aria-hidden="true">✎</span>
+                    </div>
+                  </div>
+                  <div class="hero-anim__toolbar">
+                    <span class="hero-anim__t-btn"><strong>B</strong></span>
+                    <span class="hero-anim__t-btn"><em>I</em></span>
+                    <span class="hero-anim__t-btn">H1</span>
+                    <span class="hero-anim__t-btn">H2</span>
+                    <span class="hero-anim__t-btn">H3</span>
+                    <span class="hero-anim__t-sep"></span>
+                    <span class="hero-anim__t-btn">Preview</span>
+                    <span class="hero-anim__t-spacer"></span>
+                    <span class="hero-anim__t-text">Saved</span>
+                    <span class="hero-anim__t-btn">Export ▾</span>
                   </div>
                 </div>
 
+                <!-- Content swap: chat OR editor -->
                 <div class="hero-anim__content">
-                  <!-- Chat pane (default visible) -->
+                  <!-- Chat pane -->
                   <div class="hero-anim__pane hero-anim__pane--active" data-anim="pane-chat">
+                    <!-- Sub-header strip -->
+                    <div class="hero-anim__subhead">
+                      <div class="hero-anim__subhead-file">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span>Drafting brand voice for Linterly</span>
+                        <span class="hero-anim__pencil" aria-hidden="true">✎</span>
+                      </div>
+                    </div>
                     <div class="hero-anim__chat-header">
-                      <div class="hero-anim__chat-title">AI Assistant</div>
-                      <div class="hero-anim__chat-meta">claude-opus-4-7 · BYOK</div>
+                      <div>
+                        <div class="hero-anim__chat-title">
+                          Drafting brand voice for Linterly
+                          <span class="hero-anim__model-badge">claude-opus-4-7</span>
+                        </div>
+                        <div class="hero-anim__chat-meta">Created 4/27/2026</div>
+                      </div>
+                      <div class="hero-anim__chat-actions">
+                        <span class="hero-anim__pill-btn">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2l2.4 5 5.6.5-4.2 3.7 1.3 5.5L12 14l-5.1 2.7 1.3-5.5L4 7.5 9.6 7z"/></svg>
+                          Ask my workspace
+                        </span>
+                        <span class="hero-anim__pill-btn">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Export
+                        </span>
+                      </div>
                     </div>
                     <div class="hero-anim__messages" data-anim="messages"></div>
-                    <div class="hero-anim__input" data-anim="input">
-                      <div class="hero-anim__input-text" data-anim="input-text"></div>
-                      <div class="hero-anim__caret" data-anim="input-caret" style="display:none"></div>
-                      <div class="hero-anim__send-btn" data-anim="send-btn" aria-label="Send message">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    <div class="hero-anim__input-wrap">
+                      <div class="hero-anim__input-meta"><span>· this chat</span><span>· today</span></div>
+                      <div class="hero-anim__input" data-anim="input">
+                        <div class="hero-anim__input-text" data-anim="input-text"></div>
+                        <div class="hero-anim__caret" data-anim="input-caret" style="display:none"></div>
+                        <span class="hero-anim__mic" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+                        </span>
+                        <div class="hero-anim__send-btn" data-anim="send-btn" aria-label="Send message">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <!-- Editor pane (shown after Brand Voice.md opens) -->
+                  <!-- Editor pane -->
                   <div class="hero-anim__pane" data-anim="pane-editor">
+                    <div class="hero-anim__subhead">
+                      <div class="hero-anim__subhead-file">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span>Brand Voice.md</span>
+                        <span class="hero-anim__pencil" aria-hidden="true">✎</span>
+                      </div>
+                    </div>
                     <div class="hero-anim__editor">
-                      <h1>Brand Voice</h1>
-                      <h2>Voice principles</h2>
-                      <p>Linterly writes the way a senior PM Slacks: short, specific, contraction-heavy, never breathless.</p>
-                      <h2>Banned words</h2>
-                      <p><strong>Banned:</strong> leverage, delve, seamless, transform, empower.</p>
+                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">1</span><span class="hero-anim__editor-h1"># Brand Voice</span></div>
+                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">2</span><span></span></div>
+                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">3</span><span class="hero-anim__editor-h2">## Voice principles</span></div>
+                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">4</span><span></span></div>
+                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">5</span><span>Linterly writes the way a senior PM Slacks: short, specific,</span></div>
+                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">6</span><span>contraction-heavy, never breathless.</span></div>
+                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">7</span><span></span></div>
+                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">8</span><span class="hero-anim__editor-h2">## Banned words</span></div>
+                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">9</span><span></span></div>
+                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">10</span><span><strong>Banned:</strong> leverage, delve, seamless, transform, empower.</span></div>
                     </div>
                   </div>
                 </div>
               </main>
+            </div>
+
+            <!-- Bottom status bar -->
+            <div class="hero-anim__statusbar">
+              <div class="hero-anim__status-left">
+                <span>Linterly</span>
+                <span class="hero-anim__status-sep">›</span>
+                <span data-anim="status-file">Drafting brand voice for Linterly</span>
+              </div>
+              <div class="hero-anim__status-right">
+                <span data-anim="status-file2">Drafting brand voice for Linterly</span>
+                <span class="hero-anim__status-dot">·</span>
+                <span>Memory: ready</span>
+                <span class="hero-anim__status-dot">·</span>
+                <span data-anim="status-files-open">1 file open</span>
+              </div>
             </div>
 
             <!-- Floating cursor -->

@@ -1,21 +1,30 @@
 /* ──────────────────────────────────────────────────────────────────────
- * Hero animation — a miniature Projelli window showing the magic moment:
- * user types a prompt → AI streams a response → a real Markdown file
- * appears in the file tree → user opens that file in a new tab.
+ * Hero animation — faithful Projelli replica.
+ * Layout matches the real desktop app screenshot: macOS chrome, top
+ * toolbar (workspace dropdown + ⌘K), two-tier left sidebar (workspace
+ * nav + file list), tab bar with formatting toolbar, AI chat sub-header
+ * (model badge + Ask my workspace + Export), chat content with sender
+ * timestamps, mic + coral send button, bottom status bar.
  *
- * State is driven by /scripts/hero-animation.js (vanilla JS, RAF-based
- * state machine modeled on BehaviorUX's BehaviorDemoHero pattern).
- * CSS handles layout + transitions; JS handles content + class toggles.
+ * Color tokens lifted from src/styles/globals.css:
+ *   primary  hsl(6 100% 72%)   #FF8B7E   (coral)
+ *   border   hsl(214 32% 91%)  #E2E8F0
+ *   muted    hsl(210 40% 96%)  #F1F5F9
+ *   muted-fg hsl(215 16% 47%)  #64748B
  * ────────────────────────────────────────────────────────────────────── */
 
 .hero-anim {
   --bg: #FFFFFF;
   --bg-soft: #F8FAFC;
-  --bg-sidebar: #F1F5F9;
+  --bg-sidebar: #F8FAFC;
+  --bg-tab: #F1F5F9;
   --border: #E2E8F0;
-  --text: #111F35;
+  --border-strong: #CBD5E1;
+  --text: #0F172A;
   --text-muted: #64748B;
-  --accent-coral: #FF7C6E;
+  --text-subtle: #94A3B8;
+  --accent-coral: #FF8B7E;
+  --accent-coral-soft: #FFE5E1;
   --accent-blue: #3B82F6;
   --shadow: 0 24px 56px rgba(15, 23, 42, 0.18);
 
@@ -23,37 +32,32 @@
   width: 100%;
   aspect-ratio: 16 / 10;
   background: var(--bg);
-  border-radius: 14px;
+  border-radius: 12px;
   box-shadow: var(--shadow);
   overflow: hidden;
   font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
   color: var(--text);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.45;
   isolation: isolate;
   user-select: none;
+  display: flex;
+  flex-direction: column;
 }
 
-/* macOS-style title bar */
+/* ── macOS title bar ──────────────────────────────────────────────── */
 .hero-anim__chrome {
-  height: 28px;
-  background: linear-gradient(180deg, #EBEBEB, #D8D8D8);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.10);
+  height: 24px;
+  background: linear-gradient(180deg, #ECECEC, #DADADA);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 10px;
   position: relative;
   flex-shrink: 0;
 }
-.hero-anim__lights {
-  display: flex;
-  gap: 6px;
-}
-.hero-anim__light {
-  width: 11px;
-  height: 11px;
-  border-radius: 50%;
-}
+.hero-anim__lights { display: flex; gap: 6px; }
+.hero-anim__light { width: 10px; height: 10px; border-radius: 50%; }
 .hero-anim__light--close { background: #FF5F57; }
 .hero-anim__light--min   { background: #FEBC2E; }
 .hero-anim__light--max   { background: #28C840; }
@@ -61,112 +65,252 @@
   position: absolute;
   left: 0; right: 0;
   text-align: center;
-  font-size: 12px;
+  font-size: 10.5px;
   font-weight: 500;
   color: rgba(0, 0, 0, 0.55);
   pointer-events: none;
 }
 
-/* Body grid: sidebar | main area */
-.hero-anim__body {
-  display: grid;
-  grid-template-columns: 156px 1fr;
-  height: calc(100% - 28px);
+/* ── Top toolbar ──────────────────────────────────────────────────── */
+.hero-anim__topbar {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.hero-anim__workspace-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--text);
+}
+.hero-anim__workspace-pill svg { width: 12px; height: 12px; opacity: 0.85; }
+.hero-anim__caret-down {
+  font-size: 9px;
+  color: var(--text-muted);
+  margin-left: 1px;
+}
+.hero-anim__topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+}
+.hero-anim__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.hero-anim__icon-btn svg { width: 13px; height: 13px; }
+.hero-anim__kbd {
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
 }
 
-/* ── File tree sidebar ───────────────────────────────────────────────── */
+/* ── Body grid: sidebar | main ───────────────────────────────────── */
+.hero-anim__body {
+  display: grid;
+  grid-template-columns: 158px 1fr;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────── */
 .hero-anim__sidebar {
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
-  padding: 14px 8px;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
-.hero-anim__sidebar-label {
-  font-size: 10px;
+.hero-anim__sidebar-section {
+  padding: 6px 5px 4px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.hero-anim__sidebar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 5px 4px;
+  font-size: 8.5px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
+  color: var(--text-subtle);
+}
+.hero-anim__sidebar-collapse {
+  font-size: 10px;
+  color: var(--text-subtle);
+}
+.hero-anim__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.hero-anim__nav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--text);
+}
+.hero-anim__nav-item svg { width: 10px; height: 10px; opacity: 0.7; flex-shrink: 0; }
+.hero-anim__nav-item--active {
+  background: rgba(15, 23, 42, 0.05);
+  font-weight: 500;
+}
+.hero-anim__nav-item--active svg { opacity: 1; }
+
+.hero-anim__sidebar-files {
+  padding: 6px 5px 4px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.hero-anim__files-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 5px 3px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.hero-anim__files-icons svg { width: 10px; height: 10px; color: var(--text-muted); }
+.hero-anim__files-actions {
+  display: flex;
+  gap: 3px;
+  padding: 0 3px 4px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.hero-anim__chip {
+  font-size: 9px;
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
   color: var(--text-muted);
-  padding: 0 8px;
-  margin-bottom: 8px;
-  text-transform: uppercase;
+  background: var(--bg);
+  white-space: nowrap;
+}
+.hero-anim__file-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 .hero-anim__file {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 8px;
-  border-radius: 5px;
-  cursor: pointer;
+  gap: 5px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  line-height: 1.4;
   color: var(--text);
-  font-size: 12.5px;
   position: relative;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
-.hero-anim__file--new {
-  /* Pop-in animation when the AI creates a new file */
-  animation: heroFilePop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+.hero-anim__file svg { width: 10px; height: 10px; flex-shrink: 0; opacity: 0.6; }
+.hero-anim__file > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .hero-anim__file--active {
-  background: rgba(59, 130, 246, 0.10);
-  color: var(--accent-blue);
+  background: rgba(15, 23, 42, 0.06);
   font-weight: 500;
 }
-.hero-anim__file svg {
-  width: 13px;
-  height: 13px;
-  flex-shrink: 0;
-  opacity: 0.65;
-}
 .hero-anim__file--active svg { opacity: 1; }
+.hero-anim__file--new {
+  animation: heroFilePop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
 @keyframes heroFilePop {
   from {
     opacity: 0;
     transform: translateY(-6px) scale(0.94);
-    background: rgba(255, 124, 110, 0.45);
+    background: var(--accent-coral-soft);
   }
-  60% {
-    background: rgba(255, 124, 110, 0.18);
-  }
+  60% { background: rgba(255, 139, 126, 0.18); }
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
     background: transparent;
   }
 }
+.hero-anim__sidebar-bottom {
+  padding: 6px 8px 8px;
+  border-top: 1px solid var(--border);
+}
+.hero-anim__open-desktop {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--text);
+}
+.hero-anim__open-desktop svg { width: 11px; height: 11px; }
 
-/* ── Main panel ──────────────────────────────────────────────────────── */
+/* ── Main panel ──────────────────────────────────────────────────── */
 .hero-anim__main {
   display: flex;
   flex-direction: column;
   background: var(--bg);
   min-width: 0;
+  min-height: 0;
 }
 
-/* Tab strip */
-.hero-anim__tabs {
-  height: 30px;
-  display: flex;
-  background: var(--bg-soft);
+/* Tab bar = file tabs (left) + formatting toolbar (right) */
+.hero-anim__tabbar {
+  display: grid;
+  grid-template-columns: minmax(0, auto) 1fr;
+  gap: 6px;
+  align-items: end;
+  background: var(--bg-tab);
   border-bottom: 1px solid var(--border);
   padding: 0 8px;
-  gap: 2px;
-  align-items: end;
+  height: 28px;
   flex-shrink: 0;
+}
+.hero-anim__tabs {
+  display: flex;
+  gap: 1px;
+  align-items: end;
+  height: 100%;
+  min-width: 0;
 }
 .hero-anim__tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  font-size: 12px;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 10.5px;
   color: var(--text-muted);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px 6px 0 0;
-  position: relative;
+  border-radius: 5px 5px 0 0;
   white-space: nowrap;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  height: 22px;
 }
-.hero-anim__tab svg { width: 11px; height: 11px; opacity: 0.7; }
+.hero-anim__tab svg { width: 10px; height: 10px; opacity: 0.7; }
 .hero-anim__tab--active {
   background: var(--bg);
   border-color: var(--border);
@@ -182,8 +326,54 @@
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+.hero-anim__pencil {
+  font-size: 9px;
+  color: var(--text-subtle);
+  margin-left: 2px;
+}
 
-/* Content scroller */
+.hero-anim__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.hero-anim__t-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 3px;
+  color: var(--text-muted);
+}
+.hero-anim__t-btn svg { width: 10px; height: 10px; }
+.hero-anim__t-btn strong, .hero-anim__t-btn em {
+  font-size: 10px;
+  color: var(--text);
+  font-weight: 700;
+  font-style: normal;
+}
+.hero-anim__t-btn em { font-style: italic; font-weight: 500; }
+.hero-anim__t-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--border);
+  margin: 0 2px;
+}
+.hero-anim__t-spacer { flex: 1; }
+.hero-anim__t-text {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+/* Content swap: chat OR editor pane */
 .hero-anim__content {
   flex: 1;
   display: flex;
@@ -200,86 +390,150 @@
   opacity: 0;
   transition: opacity 0.35s ease;
   pointer-events: none;
+  min-height: 0;
 }
 .hero-anim__pane--active {
   opacity: 1;
   pointer-events: auto;
 }
 
-/* ── AI chat pane ────────────────────────────────────────────────────── */
-.hero-anim__chat-header {
-  padding: 14px 18px 10px;
+/* Sub-header: file path strip just above content */
+.hero-anim__subhead {
+  padding: 4px 14px;
   border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-shrink: 0;
 }
-.hero-anim__chat-title {
-  font-size: 14px;
-  font-weight: 600;
+.hero-anim__subhead-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
   color: var(--text);
 }
-.hero-anim__chat-meta {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 2px;
+.hero-anim__subhead-file svg { width: 10px; height: 10px; opacity: 0.7; }
+
+/* ── Chat header: title + model badge + actions ───────────────────── */
+.hero-anim__chat-header {
+  padding: 10px 16px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-shrink: 0;
 }
+.hero-anim__chat-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hero-anim__model-badge {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+.hero-anim__chat-meta {
+  font-size: 10px;
+  color: var(--text-subtle);
+  margin-top: 1px;
+}
+.hero-anim__chat-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.hero-anim__pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  font-size: 10px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.hero-anim__pill-btn svg { width: 10px; height: 10px; opacity: 0.8; }
+
+/* ── Messages ─────────────────────────────────────────────────────── */
 .hero-anim__messages {
   flex: 1;
   overflow: hidden;
-  padding: 14px 18px;
+  padding: 4px 16px 8px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 6px;
   min-height: 0;
 }
+.hero-anim__msg-meta {
+  font-size: 9.5px;
+  color: var(--text-subtle);
+  display: flex;
+  gap: 6px;
+}
+.hero-anim__msg-meta--right { align-self: flex-end; }
 .hero-anim__msg {
-  max-width: 85%;
-  font-size: 12.5px;
-  line-height: 1.55;
+  max-width: 78%;
+  font-size: 11px;
+  line-height: 1.5;
 }
 .hero-anim__msg--user {
   align-self: flex-end;
   background: var(--accent-coral);
   color: white;
-  padding: 8px 12px;
-  border-radius: 12px 12px 4px 12px;
+  padding: 6px 10px;
+  border-radius: 10px 10px 2px 10px;
 }
 .hero-anim__msg--assistant {
   align-self: flex-start;
-  background: var(--bg-soft);
+  background: #EFF1F5;
   color: var(--text);
-  padding: 10px 14px;
-  border-radius: 12px 12px 12px 4px;
+  padding: 8px 12px;
+  border-radius: 8px;
   white-space: pre-wrap;
   word-break: break-word;
+  max-width: 70%;
 }
 .hero-anim__msg--assistant strong {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
+  display: inline-block;
+  margin-bottom: 1px;
 }
 .hero-anim__caret {
   display: inline-block;
-  width: 6px;
-  height: 12px;
+  width: 5px;
+  height: 11px;
   background: var(--accent-coral);
   vertical-align: -2px;
   margin-left: 1px;
   animation: heroCaretBlink 0.8s steps(2) infinite;
 }
-@keyframes heroCaretBlink {
-  50% { opacity: 0; }
+@keyframes heroCaretBlink { 50% { opacity: 0; } }
+
+.hero-anim__thinking-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
 }
 .hero-anim__thinking {
   display: inline-flex;
   gap: 4px;
-  padding: 8px 12px;
-  background: var(--bg-soft);
-  border-radius: 12px;
-  align-self: flex-start;
+  padding: 6px 10px;
+  background: #EFF1F5;
+  border-radius: 8px;
 }
 .hero-anim__thinking span {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--text-muted);
+  background: var(--text);
   animation: heroThinkingDots 1.2s ease-in-out infinite;
 }
 .hero-anim__thinking span:nth-child(2) { animation-delay: 0.15s; }
@@ -288,29 +542,67 @@
   0%, 60%, 100% { opacity: 0.3; transform: scale(0.85); }
   30%           { opacity: 1;   transform: scale(1); }
 }
+.hero-anim__stop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  font-size: 10px;
+  color: var(--text);
+}
+.hero-anim__stop-btn::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: var(--text);
+  border-radius: 1px;
+}
 
-/* Chat input bar */
-.hero-anim__input {
+/* ── Chat input area ──────────────────────────────────────────────── */
+.hero-anim__input-wrap {
   border-top: 1px solid var(--border);
-  padding: 10px 14px;
+  padding: 4px 12px 8px;
+  background: var(--bg);
+  flex-shrink: 0;
+}
+.hero-anim__input-meta {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  font-size: 9.5px;
+  color: var(--text-subtle);
+  padding: 2px 4px 4px;
+}
+.hero-anim__input {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
   background: var(--bg);
 }
 .hero-anim__input-text {
   flex: 1;
-  font-size: 12.5px;
+  font-size: 11px;
   color: var(--text);
-  min-height: 18px;
+  min-height: 16px;
+  display: flex;
+  align-items: center;
 }
 .hero-anim__input-text:empty::before {
-  content: 'Type your message…';
-  color: var(--text-muted);
+  content: 'Type your message... (Enter to send, Shift+Enter for new line)';
+  color: var(--text-subtle);
 }
+.hero-anim__mic { color: var(--text-muted); display: inline-flex; }
+.hero-anim__mic svg { width: 12px; height: 12px; }
 .hero-anim__send-btn {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: var(--accent-coral);
   display: flex;
@@ -318,39 +610,63 @@
   justify-content: center;
   color: white;
   flex-shrink: 0;
-  opacity: 0.9;
 }
-.hero-anim__send-btn svg { width: 12px; height: 12px; }
+.hero-anim__send-btn svg { width: 11px; height: 11px; }
 
-/* ── Editor pane (when Brand Voice.md opens) ─────────────────────────── */
+/* ── Editor pane (after Brand Voice.md opens) ─────────────────────── */
 .hero-anim__editor {
   flex: 1;
-  padding: 16px 22px;
+  padding: 12px 16px;
   overflow: hidden;
-  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
-  font-size: 12.5px;
-  line-height: 1.65;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.7;
   color: var(--text);
 }
-.hero-anim__editor h1 {
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 10px;
+.hero-anim__editor-line {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
 }
-.hero-anim__editor h2 {
-  font-size: 14px;
-  font-weight: 600;
-  margin-top: 16px;
-  margin-bottom: 6px;
+.hero-anim__editor-num {
+  color: var(--text-subtle);
+  text-align: right;
+  font-size: 10px;
 }
-.hero-anim__editor p { margin-bottom: 10px; color: var(--text); }
-.hero-anim__editor strong { color: var(--text); font-weight: 600; }
+.hero-anim__editor-h1 { font-size: 14px; font-weight: 700; color: var(--text); }
+.hero-anim__editor-h2 { font-size: 12px; font-weight: 600; color: var(--text); }
+.hero-anim__editor strong { font-weight: 700; color: var(--text); }
 
-/* ── Cursor (the floating arrow that "drives" interactions) ──────────── */
+/* ── Bottom status bar ────────────────────────────────────────────── */
+.hero-anim__statusbar {
+  height: 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--bg-tab);
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.hero-anim__status-left,
+.hero-anim__status-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hero-anim__status-sep,
+.hero-anim__status-dot { color: var(--text-subtle); }
+
+/* ── Floating cursor ──────────────────────────────────────────────── */
 .hero-anim__cursor {
   position: absolute;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   pointer-events: none;
   z-index: 10;
   transition: top 0.7s cubic-bezier(0.4, 0, 0.2, 1),
@@ -364,7 +680,6 @@
   height: 100%;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
 }
-/* Click ripple */
 .hero-anim__cursor::after {
   content: '';
   position: absolute;
@@ -382,12 +697,13 @@
   100% { opacity: 0;    transform: scale(2.2); }
 }
 
-/* Respect reduced motion: kill the loop, show a static "after" frame. */
+/* ── Reduced motion: kill animations, show a static after-frame ──── */
 @media (prefers-reduced-motion: reduce) {
   .hero-anim__cursor,
   .hero-anim__caret,
   .hero-anim__thinking span,
-  .hero-anim__file--new {
+  .hero-anim__file--new,
+  .hero-anim__tab--enter {
     animation: none !important;
   }
 }
