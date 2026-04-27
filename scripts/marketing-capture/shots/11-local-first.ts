@@ -19,13 +19,13 @@ const FINDER_HTML = path.resolve(HERE, '../chrome-template/finder-overlay.html')
 
 /**
  * Render the Finder HTML at 2x DPI and return the PNG buffer.
- * Finder widget is 480×308 logical pixels (titlebar 28 + body 280).
+ * Finder widget is 540×392 logical pixels (titlebar 28 + toolbar 38 + body + statusbar).
  */
 async function renderFinder(): Promise<Buffer> {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage({
-      viewport: { width: 480, height: 308 },
+      viewport: { width: 540, height: 392 },
       deviceScaleFactor: 2,
     });
     await page.setContent(readFileSync(FINDER_HTML, 'utf-8'), { waitUntil: 'load' });

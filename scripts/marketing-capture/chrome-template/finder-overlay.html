@@ -2,49 +2,615 @@
 <html><head><meta charset="utf-8"><style>
   html, body { margin: 0; padding: 0; background: transparent; }
   body { font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; font-size: 13px; color: #1d1d1f; }
-  .finder { width: 480px; background: #fff; border-radius: 12px; overflow: hidden;
-            box-shadow: 0 24px 48px rgba(0,0,0,0.22), 0 8px 16px rgba(0,0,0,0.10); }
-  .titlebar { height: 28px; background: linear-gradient(180deg,#ECECEC 0%,#DCDCDC 100%);
-              border-bottom: 1px solid rgba(0,0,0,0.12); display: flex; align-items: center; padding: 0 12px; }
-  .traffic-lights { display: flex; gap: 8px; }
-  .traffic-lights .dot { width: 12px; height: 12px; border-radius: 50%; border: 0.5px solid rgba(0,0,0,0.18); }
-  .traffic-lights .close { background: #FF5F57; }
-  .traffic-lights .min { background: #FEBC2E; }
-  .traffic-lights .max { background: #28C840; }
-  .title { flex: 1; text-align: center; font-size: 12px; font-weight: 500; color: #4A4A4A; margin-right: 60px; }
-  .body { display: flex; height: 280px; }
-  .sidebar { width: 140px; background: #F5F5F7; padding: 8px 6px; border-right: 1px solid rgba(0,0,0,0.08); }
-  .sidebar .item { padding: 4px 8px; border-radius: 6px; display: flex; gap: 6px; align-items: center; font-size: 12px; }
-  .sidebar .item.active { background: rgba(0,122,255,0.12); color: #0066D9; font-weight: 500; }
-  .files { flex: 1; padding: 8px 12px; }
-  .file { padding: 4px 0; display: flex; gap: 8px; align-items: center; }
-  .file .icon { width: 20px; height: 22px; background: #DCDCDC; border-radius: 3px;
-                position: relative; border: 1px solid #B0B0B0; }
-  .file .icon::after { content: 'md'; font-size: 7px; color: #666; position: absolute;
-                       bottom: 1px; left: 50%; transform: translateX(-50%); }
-  .file .name { font-size: 12px; }
-</style></head><body>
-  <div class="finder">
-    <div class="titlebar">
-      <div class="traffic-lights"><span class="dot close"></span><span class="dot min"></span><span class="dot max"></span></div>
-      <div class="title">Linterly</div>
+
+  /* ─── Window shell ─────────────────────────────────────────────────────── */
+  .finder {
+    width: 540px;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 24px 48px rgba(0,0,0,0.22), 0 8px 16px rgba(0,0,0,0.10);
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+
+  /* ─── Title bar ─────────────────────────────────────────────────────────── */
+  .titlebar {
+    height: 28px;
+    background: linear-gradient(180deg, #EBEBEB 0%, #D8D8D8 100%);
+    border-bottom: 1px solid rgba(0,0,0,0.12);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .traffic-lights {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    z-index: 1;
+  }
+  .tl {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.18);
+    flex-shrink: 0;
+  }
+  .tl-close  { background: #FF5F57; }
+  .tl-min    { background: #FEBC2E; }
+  .tl-max    { background: #28C840; }
+  .titlebar-title {
+    position: absolute;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1d1d1f;
+    pointer-events: none;
+  }
+
+  /* ─── Toolbar ───────────────────────────────────────────────────────────── */
+  .toolbar {
+    height: 38px;
+    background: linear-gradient(180deg, #DCDCDC 0%, #D2D2D2 100%);
+    border-bottom: 1px solid rgba(0,0,0,0.10);
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .tb-btn {
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .tb-btn svg { color: #6c6c70; }
+  .tb-spacer { flex: 1; }
+  /* Segmented controls */
+  .seg {
+    display: flex;
+    background: rgba(0,0,0,0.08);
+    border-radius: 6px;
+    padding: 2px;
+    gap: 1px;
+  }
+  .seg-btn {
+    width: 28px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .seg-btn.active {
+    background: rgba(255,255,255,0.85);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+  }
+  .seg-btn svg { color: #6c6c70; }
+  .seg-btn.active svg { color: #3c3c3e; }
+  /* Search pill */
+  .tb-search {
+    width: 140px;
+    height: 22px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 11px;
+    border: 1px solid rgba(0,0,0,0.14);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    gap: 5px;
+    flex-shrink: 0;
+  }
+  .tb-search svg { color: #8e8e93; flex-shrink: 0; }
+  .tb-search span { font-size: 11px; color: #8e8e93; }
+
+  /* ─── Body ──────────────────────────────────────────────────────────────── */
+  .body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ─── Sidebar ───────────────────────────────────────────────────────────── */
+  .sidebar {
+    width: 180px;
+    flex-shrink: 0;
+    background: rgba(238,238,242,0.95);
+    border-right: 1px solid rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    padding: 6px 0;
+    overflow: hidden;
+  }
+  .sb-section-header {
+    font-size: 11px;
+    font-weight: 600;
+    color: #8e8e93;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    padding: 8px 16px 4px;
+    margin-top: 2px;
+  }
+  .sb-section-header:first-child { margin-top: 0; padding-top: 4px; }
+  .sb-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 8px 3px 10px;
+    border-radius: 6px;
+    margin: 1px 6px;
+    font-size: 12.5px;
+    color: #3c3c3e;
+    cursor: default;
+  }
+  .sb-item.selected {
+    background: rgba(0,122,255,0.10);
+    color: #1d1d1f;
+    font-weight: 500;
+  }
+  .sb-item svg, .sb-item .sb-icon { flex-shrink: 0; }
+  .sb-item .label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .tag-dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  }
+
+  /* ─── File area ─────────────────────────────────────────────────────────── */
+  .file-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    overflow: hidden;
+  }
+
+  /* Path bar */
+  .path-bar {
+    height: 24px;
+    background: #F5F5F7;
+    border-bottom: 1px solid rgba(0,0,0,0.07);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    flex-shrink: 0;
+    gap: 3px;
+    font-size: 11px;
+    color: #6c6c70;
+  }
+  .path-bar .crumb { white-space: nowrap; }
+  .path-bar .sep { color: #aaaaaf; font-size: 10px; }
+  .path-bar .crumb.last { color: #1d1d1f; font-weight: 600; }
+
+  /*
+   * Grid layout shared by col-headers and file-rows.
+   * File area width = 540 - 180(sidebar) = 360px.
+   * Padding 8px each side = 344px usable.
+   * Name: 152px (icon 22px + name text 130px)
+   * Date: 130px  Size: 62px   Total: 344px exactly.
+   * Grid: [icon+name] [date] [size] — Kind omitted at this width like real Finder.
+   */
+  .col-row-grid {
+    display: grid;
+    grid-template-columns: 152px 130px 62px;
+    align-items: center;
+    padding: 0 8px;
+    gap: 0;
+  }
+
+  /* Column headers */
+  .col-headers {
+    height: 22px;
+    background: #F9F9F9;
+    border-bottom: 1px solid rgba(0,0,0,0.07);
+    flex-shrink: 0;
+  }
+  .col-header {
+    font-size: 11px;
+    color: #6c6c70;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  /* File rows */
+  .file-list {
+    flex: 1;
+    overflow: hidden;
+  }
+  .file-row {
+    height: 22px;
+    font-size: 12px;
+    color: #1d1d1f;
+  }
+  .file-row.selected {
+    background: #0066D9;
+    color: #ffffff;
+  }
+  .file-row.selected .file-meta {
+    color: rgba(255,255,255,0.75);
+  }
+  /* Name cell = icon + label side-by-side */
+  .file-name-col {
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    min-width: 0;
+  }
+  .file-icon {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    flex-shrink: 0;
+    margin-right: 6px;
+  }
+  .file-name-cell {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+  .file-meta {
+    font-size: 11px;
+    color: #6c6c70;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Status bar */
+  .statusbar {
+    height: 24px;
+    background: #F9F9F9;
+    border-top: 1px solid rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: #6c6c70;
+  }
+</style></head>
+<body>
+<div class="finder">
+
+  <!-- ── Title bar ── -->
+  <div class="titlebar">
+    <div class="traffic-lights">
+      <div class="tl tl-close"></div>
+      <div class="tl tl-min"></div>
+      <div class="tl tl-max"></div>
     </div>
-    <div class="body">
-      <div class="sidebar">
-        <div class="item">&#128193; Documents</div>
-        <div class="item active">&#128193; Linterly</div>
-        <div class="item">&#128193; Downloads</div>
+    <div class="titlebar-title">Linterly</div>
+  </div>
+
+  <!-- ── Toolbar ── -->
+  <div class="toolbar">
+    <!-- Back / Forward -->
+    <div class="tb-btn">
+      <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
+        <path d="M7.5 1L1.5 7L7.5 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="tb-btn" style="opacity:0.35;">
+      <svg width="9" height="14" viewBox="0 0 9 14" fill="none">
+        <path d="M1.5 1L7.5 7L1.5 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <!-- View-mode segmented control -->
+    <div class="seg" style="margin-left:4px;">
+      <!-- Icon view -->
+      <div class="seg-btn">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <rect x="0.5" y="0.5" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.1"/>
+          <rect x="7.5" y="0.5" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.1"/>
+          <rect x="0.5" y="7.5" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.1"/>
+          <rect x="7.5" y="7.5" width="4" height="4" rx="1" stroke="currentColor" stroke-width="1.1"/>
+        </svg>
       </div>
-      <div class="files">
-        <div class="file"><div class="icon"></div><div class="name">Brand Voice.md</div></div>
-        <div class="file"><div class="icon"></div><div class="name">Competitive Analysis.md</div></div>
-        <div class="file"><div class="icon"></div><div class="name">Customers.md</div></div>
-        <div class="file"><div class="icon"></div><div class="name">Founder Notes.md</div></div>
-        <div class="file"><div class="icon"></div><div class="name">Launch Plan.md</div></div>
-        <div class="file"><div class="icon"></div><div class="name">Pricing.md</div></div>
-        <div class="file"><div class="icon"></div><div class="name">Q1 Goals.md</div></div>
-        <div class="file"><div class="icon"></div><div class="name">Vision.md</div></div>
+      <!-- List view — ACTIVE -->
+      <div class="seg-btn active">
+        <svg width="13" height="11" viewBox="0 0 13 11" fill="none">
+          <line x1="0" y1="1.5" x2="13" y2="1.5" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="0" y1="5.5" x2="13" y2="5.5" stroke="currentColor" stroke-width="1.2"/>
+          <line x1="0" y1="9.5" x2="13" y2="9.5" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
       </div>
+      <!-- Column view -->
+      <div class="seg-btn">
+        <svg width="13" height="11" viewBox="0 0 13 11" fill="none">
+          <rect x="0" y="0" width="3.5" height="11" rx="0.8" fill="currentColor" opacity="0.55"/>
+          <rect x="4.75" y="0" width="3.5" height="11" rx="0.8" fill="currentColor" opacity="0.55"/>
+          <rect x="9.5" y="0" width="3.5" height="11" rx="0.8" fill="currentColor" opacity="0.55"/>
+        </svg>
+      </div>
+      <!-- Gallery view -->
+      <div class="seg-btn">
+        <svg width="13" height="11" viewBox="0 0 13 11" fill="none">
+          <rect x="0.5" y="0.5" width="11" height="7" rx="1" stroke="currentColor" stroke-width="1.1"/>
+          <rect x="0.5" y="9" width="2.5" height="2" rx="0.5" fill="currentColor" opacity="0.55"/>
+          <rect x="4" y="9" width="2.5" height="2" rx="0.5" fill="currentColor" opacity="0.55"/>
+          <rect x="7.5" y="9" width="2.5" height="2" rx="0.5" fill="currentColor" opacity="0.55"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Action segmented control -->
+    <div class="seg">
+      <!-- Share -->
+      <div class="seg-btn">
+        <svg width="11" height="13" viewBox="0 0 11 13" fill="none">
+          <path d="M5.5 1v8M2 4l3.5-3 3.5 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M1 8v3.5h9V8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <!-- Tag -->
+      <div class="seg-btn">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.1"/>
+          <circle cx="4" cy="4.5" r="1" fill="currentColor" opacity="0.7"/>
+        </svg>
+      </div>
+      <!-- Action menu -->
+      <div class="seg-btn">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <circle cx="2.5" cy="6" r="1" fill="currentColor" opacity="0.7"/>
+          <circle cx="6" cy="6" r="1" fill="currentColor" opacity="0.7"/>
+          <circle cx="9.5" cy="6" r="1" fill="currentColor" opacity="0.7"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="tb-spacer"></div>
+
+    <!-- Search -->
+    <div class="tb-search">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+        <circle cx="4.5" cy="4.5" r="3.5" stroke="currentColor" stroke-width="1.2"/>
+        <line x1="7.5" y1="7.5" x2="10" y2="10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      <span>Search</span>
     </div>
   </div>
+
+  <!-- ── Body ── -->
+  <div class="body">
+
+    <!-- ── Sidebar ── -->
+    <div class="sidebar">
+      <div class="sb-section-header">Favorites</div>
+
+      <!-- Recents -->
+      <div class="sb-item">
+        <svg class="sb-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="5.5" stroke="#8e8e93" stroke-width="1.1"/>
+          <polyline points="7,4 7,7.5 9,9" stroke="#8e8e93" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="label">Recents</span>
+      </div>
+
+      <!-- AirDrop -->
+      <div class="sb-item">
+        <svg class="sb-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M4.5 9.5C3.2 8.8 2.5 7.5 2.5 6a4.5 4.5 0 0 1 9 0c0 1.5-.7 2.8-2 3.5" stroke="#007AFF" stroke-width="1.1" stroke-linecap="round"/>
+          <path d="M6 11.5C4.8 11 4 9.7 4 8.5a3 3 0 0 1 6 0c0 1.2-.8 2.5-2 3" stroke="#007AFF" stroke-width="1.1" stroke-linecap="round"/>
+          <circle cx="7" cy="11" r="1" fill="#007AFF"/>
+        </svg>
+        <span class="label">AirDrop</span>
+      </div>
+
+      <!-- Applications -->
+      <div class="sb-item">
+        <svg class="sb-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="1.5" y="1.5" width="5" height="5" rx="1.2" fill="#007AFF" opacity="0.9"/>
+          <rect x="7.5" y="1.5" width="5" height="5" rx="1.2" fill="#FF9500" opacity="0.9"/>
+          <rect x="1.5" y="7.5" width="5" height="5" rx="1.2" fill="#FF3B30" opacity="0.9"/>
+          <rect x="7.5" y="7.5" width="5" height="5" rx="1.2" fill="#34C759" opacity="0.9"/>
+        </svg>
+        <span class="label">Applications</span>
+      </div>
+
+      <!-- Desktop -->
+      <div class="sb-item">
+        <svg class="sb-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <rect x="1" y="1.5" width="12" height="8.5" rx="1.5" stroke="#6c6c70" stroke-width="1.1"/>
+          <line x1="5" y1="10" x2="4" y2="12.5" stroke="#6c6c70" stroke-width="1.1" stroke-linecap="round"/>
+          <line x1="9" y1="10" x2="10" y2="12.5" stroke="#6c6c70" stroke-width="1.1" stroke-linecap="round"/>
+          <line x1="3.5" y1="12.5" x2="10.5" y2="12.5" stroke="#6c6c70" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+        <span class="label">Desktop</span>
+      </div>
+
+      <!-- Documents — SELECTED -->
+      <div class="sb-item selected">
+        <svg class="sb-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M2 2.5C2 1.67 2.67 1 3.5 1H8.5L12 4.5V11.5C12 12.33 11.33 13 10.5 13H3.5C2.67 13 2 12.33 2 11.5V2.5Z" fill="#007AFF" opacity="0.15" stroke="#007AFF" stroke-width="1.1"/>
+          <path d="M8.5 1V4.5H12" stroke="#007AFF" stroke-width="1.1" stroke-linecap="round"/>
+          <line x1="4" y1="6.5" x2="10" y2="6.5" stroke="#007AFF" stroke-width="0.9" stroke-linecap="round"/>
+          <line x1="4" y1="8.5" x2="8" y2="8.5" stroke="#007AFF" stroke-width="0.9" stroke-linecap="round"/>
+        </svg>
+        <span class="label">Documents</span>
+      </div>
+
+      <!-- Downloads -->
+      <div class="sb-item">
+        <svg class="sb-icon" width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M7 1v8M4.5 6.5L7 9l2.5-2.5" stroke="#6c6c70" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="2" y1="12.5" x2="12" y2="12.5" stroke="#6c6c70" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+        <span class="label">Downloads</span>
+      </div>
+
+      <div class="sb-section-header" style="margin-top:4px;">iCloud</div>
+
+      <!-- iCloud Drive -->
+      <div class="sb-item">
+        <svg class="sb-icon" width="16" height="11" viewBox="0 0 16 11" fill="none">
+          <path d="M4.5 9.5a3 3 0 1 1 0-6 4 4 0 0 1 7.9 1.3A2.5 2.5 0 1 1 12.5 9.5H4.5Z" fill="#007AFF" opacity="0.2" stroke="#007AFF" stroke-width="1.0"/>
+        </svg>
+        <span class="label">iCloud Drive</span>
+      </div>
+
+      <div class="sb-section-header" style="margin-top:4px;">Tags</div>
+
+      <!-- Red -->
+      <div class="sb-item">
+        <div class="tag-dot" style="background:#FF3B30;"></div>
+        <span class="label">Red</span>
+      </div>
+      <!-- Yellow -->
+      <div class="sb-item">
+        <div class="tag-dot" style="background:#FFCC00;"></div>
+        <span class="label">Yellow</span>
+      </div>
+      <!-- Green -->
+      <div class="sb-item">
+        <div class="tag-dot" style="background:#34C759;"></div>
+        <span class="label">Green</span>
+      </div>
+      <!-- Blue -->
+      <div class="sb-item">
+        <div class="tag-dot" style="background:#007AFF;"></div>
+        <span class="label">Blue</span>
+      </div>
+    </div>
+
+    <!-- ── File area ── -->
+    <div class="file-area">
+
+      <!-- Path bar breadcrumb -->
+      <div class="path-bar">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style="flex-shrink:0;">
+          <rect x="0.5" y="0.5" width="9" height="7.5" rx="1.2" stroke="#8e8e93" stroke-width="1"/>
+          <line x1="3" y1="8" x2="2.5" y2="9.5" stroke="#8e8e93" stroke-width="1" stroke-linecap="round"/>
+          <line x1="7" y1="8" x2="7.5" y2="9.5" stroke="#8e8e93" stroke-width="1" stroke-linecap="round"/>
+          <line x1="2" y1="9.5" x2="8" y2="9.5" stroke="#8e8e93" stroke-width="1" stroke-linecap="round"/>
+        </svg>
+        <span class="crumb">Macintosh HD</span>
+        <span class="sep">›</span>
+        <span class="crumb">Users</span>
+        <span class="sep">›</span>
+        <span class="crumb">jameson</span>
+        <span class="sep">›</span>
+        <span class="crumb">Projelli</span>
+        <span class="sep">›</span>
+        <span class="crumb last">Linterly</span>
+      </div>
+
+      <!-- Column headers -->
+      <div class="col-headers col-row-grid">
+        <div class="col-header">
+          Name
+          <svg width="7" height="7" viewBox="0 0 7 7" fill="none" style="margin-top:1px;">
+            <path d="M1 4.5L3.5 2 6 4.5" stroke="#3c3c3e" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="col-header">Date Modified</div>
+        <div class="col-header">Size</div>
+      </div>
+
+      <!-- File rows -->
+      <div class="file-list">
+
+        <!-- Shared MD icon path (normal and selected variants) -->
+
+        <!-- 1. Brand Voice.md -->
+        <div class="file-row col-row-grid">
+          <div class="file-name-col">
+            <svg class="file-icon" viewBox="0 0 16 16" fill="none"><path d="M2 2.5C2 1.67 2.67 1 3.5 1H9.5L14 5V13.5C14 14.33 13.33 15 12.5 15H3.5C2.67 15 2 14.33 2 13.5V2.5Z" fill="#E8F0FE" stroke="#7BAEFF" stroke-width="0.8"/><path d="M9.5 1V5H14" stroke="#7BAEFF" stroke-width="0.8" stroke-linecap="round"/><text x="8" y="11.5" text-anchor="middle" font-family="-apple-system,system-ui" font-size="4.5" font-weight="700" fill="#4A80E0" letter-spacing="-0.1">MD</text></svg>
+            <div class="file-name-cell">Brand Voice.md</div>
+          </div>
+          <div class="file-meta">Apr 21, 2026, 9:14 AM</div>
+          <div class="file-meta">521 bytes</div>
+        </div>
+
+        <!-- 2. Competitive Analysis.md -->
+        <div class="file-row col-row-grid">
+          <div class="file-name-col">
+            <svg class="file-icon" viewBox="0 0 16 16" fill="none"><path d="M2 2.5C2 1.67 2.67 1 3.5 1H9.5L14 5V13.5C14 14.33 13.33 15 12.5 15H3.5C2.67 15 2 14.33 2 13.5V2.5Z" fill="#E8F0FE" stroke="#7BAEFF" stroke-width="0.8"/><path d="M9.5 1V5H14" stroke="#7BAEFF" stroke-width="0.8" stroke-linecap="round"/><text x="8" y="11.5" text-anchor="middle" font-family="-apple-system,system-ui" font-size="4.5" font-weight="700" fill="#4A80E0" letter-spacing="-0.1">MD</text></svg>
+            <div class="file-name-cell">Competitive Analysis.md</div>
+          </div>
+          <div class="file-meta">Apr 21, 2026, 3:44 PM</div>
+          <div class="file-meta">1.2 KB</div>
+        </div>
+
+        <!-- 3. Customers.md -->
+        <div class="file-row col-row-grid">
+          <div class="file-name-col">
+            <svg class="file-icon" viewBox="0 0 16 16" fill="none"><path d="M2 2.5C2 1.67 2.67 1 3.5 1H9.5L14 5V13.5C14 14.33 13.33 15 12.5 15H3.5C2.67 15 2 14.33 2 13.5V2.5Z" fill="#E8F0FE" stroke="#7BAEFF" stroke-width="0.8"/><path d="M9.5 1V5H14" stroke="#7BAEFF" stroke-width="0.8" stroke-linecap="round"/><text x="8" y="11.5" text-anchor="middle" font-family="-apple-system,system-ui" font-size="4.5" font-weight="700" fill="#4A80E0" letter-spacing="-0.1">MD</text></svg>
+            <div class="file-name-cell">Customers.md</div>
+          </div>
+          <div class="file-meta">Apr 22, 2026, 10:03 AM</div>
+          <div class="file-meta">684 bytes</div>
+        </div>
+
+        <!-- 4. Founder Notes.md -->
+        <div class="file-row col-row-grid">
+          <div class="file-name-col">
+            <svg class="file-icon" viewBox="0 0 16 16" fill="none"><path d="M2 2.5C2 1.67 2.67 1 3.5 1H9.5L14 5V13.5C14 14.33 13.33 15 12.5 15H3.5C2.67 15 2 14.33 2 13.5V2.5Z" fill="#E8F0FE" stroke="#7BAEFF" stroke-width="0.8"/><path d="M9.5 1V5H14" stroke="#7BAEFF" stroke-width="0.8" stroke-linecap="round"/><text x="8" y="11.5" text-anchor="middle" font-family="-apple-system,system-ui" font-size="4.5" font-weight="700" fill="#4A80E0" letter-spacing="-0.1">MD</text></svg>
+            <div class="file-name-cell">Founder Notes.md</div>
+          </div>
+          <div class="file-meta">Apr 20, 2026, 2:18 PM</div>
+          <div class="file-meta">892 bytes</div>
+        </div>
+
+        <!-- 5. Launch Plan.md — SELECTED -->
+        <div class="file-row selected col-row-grid">
+          <div class="file-name-col">
+            <svg class="file-icon" viewBox="0 0 16 16" fill="none"><path d="M2 2.5C2 1.67 2.67 1 3.5 1H9.5L14 5V13.5C14 14.33 13.33 15 12.5 15H3.5C2.67 15 2 14.33 2 13.5V2.5Z" fill="rgba(255,255,255,0.25)" stroke="rgba(255,255,255,0.7)" stroke-width="0.8"/><path d="M9.5 1V5H14" stroke="rgba(255,255,255,0.7)" stroke-width="0.8" stroke-linecap="round"/><text x="8" y="11.5" text-anchor="middle" font-family="-apple-system,system-ui" font-size="4.5" font-weight="700" fill="white" letter-spacing="-0.1">MD</text></svg>
+            <div class="file-name-cell">Launch Plan.md</div>
+          </div>
+          <div class="file-meta">Apr 23, 2026, 11:52 AM</div>
+          <div class="file-meta">2.1 KB</div>
+        </div>
+
+        <!-- 6. Pricing.md -->
+        <div class="file-row col-row-grid">
+          <div class="file-name-col">
+            <svg class="file-icon" viewBox="0 0 16 16" fill="none"><path d="M2 2.5C2 1.67 2.67 1 3.5 1H9.5L14 5V13.5C14 14.33 13.33 15 12.5 15H3.5C2.67 15 2 14.33 2 13.5V2.5Z" fill="#E8F0FE" stroke="#7BAEFF" stroke-width="0.8"/><path d="M9.5 1V5H14" stroke="#7BAEFF" stroke-width="0.8" stroke-linecap="round"/><text x="8" y="11.5" text-anchor="middle" font-family="-apple-system,system-ui" font-size="4.5" font-weight="700" fill="#4A80E0" letter-spacing="-0.1">MD</text></svg>
+            <div class="file-name-cell">Pricing.md</div>
+          </div>
+          <div class="file-meta">Apr 19, 2026, 4:06 PM</div>
+          <div class="file-meta">748 bytes</div>
+        </div>
+
+        <!-- 7. Q1 Goals.md -->
+        <div class="file-row col-row-grid">
+          <div class="file-name-col">
+            <svg class="file-icon" viewBox="0 0 16 16" fill="none"><path d="M2 2.5C2 1.67 2.67 1 3.5 1H9.5L14 5V13.5C14 14.33 13.33 15 12.5 15H3.5C2.67 15 2 14.33 2 13.5V2.5Z" fill="#E8F0FE" stroke="#7BAEFF" stroke-width="0.8"/><path d="M9.5 1V5H14" stroke="#7BAEFF" stroke-width="0.8" stroke-linecap="round"/><text x="8" y="11.5" text-anchor="middle" font-family="-apple-system,system-ui" font-size="4.5" font-weight="700" fill="#4A80E0" letter-spacing="-0.1">MD</text></svg>
+            <div class="file-name-cell">Q1 Goals.md</div>
+          </div>
+          <div class="file-meta">Apr 18, 2026, 9:00 AM</div>
+          <div class="file-meta">556 bytes</div>
+        </div>
+
+        <!-- 8. Vision.md -->
+        <div class="file-row col-row-grid">
+          <div class="file-name-col">
+            <svg class="file-icon" viewBox="0 0 16 16" fill="none"><path d="M2 2.5C2 1.67 2.67 1 3.5 1H9.5L14 5V13.5C14 14.33 13.33 15 12.5 15H3.5C2.67 15 2 14.33 2 13.5V2.5Z" fill="#E8F0FE" stroke="#7BAEFF" stroke-width="0.8"/><path d="M9.5 1V5H14" stroke="#7BAEFF" stroke-width="0.8" stroke-linecap="round"/><text x="8" y="11.5" text-anchor="middle" font-family="-apple-system,system-ui" font-size="4.5" font-weight="700" fill="#4A80E0" letter-spacing="-0.1">MD</text></svg>
+            <div class="file-name-cell">Vision.md</div>
+          </div>
+          <div class="file-meta">Apr 17, 2026, 1:37 PM</div>
+          <div class="file-meta">1.8 KB</div>
+        </div>
+
+      </div><!-- /file-list -->
+
+      <!-- Status bar -->
+      <div class="statusbar">8 items, 4.8 GB available</div>
+
+    </div><!-- /file-area -->
+  </div><!-- /body -->
+</div><!-- /finder -->
 </body></html>
