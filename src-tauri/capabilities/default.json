@@ -32,7 +32,8 @@
         { "url": "https://api.anthropic.com/**" },
         { "url": "https://api.openai.com/**" },
         { "url": "https://generativelanguage.googleapis.com/**" },
-        { "url": "https://projelli.com/api/forms/**" }
+        { "url": "https://projelli.com/api/forms/**" },
+        { "url": "https://licenses.projelli.com/**" }
       ]
     },
     {
