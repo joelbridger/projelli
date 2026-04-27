@@ -355,21 +355,36 @@
     .hero-inner {
       position: relative;
       z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+      gap: 56px;
+      align-items: center;
+    }
+    @media (max-width: 980px) {
+      .hero-inner {
+        grid-template-columns: 1fr;
+        gap: 40px;
+        text-align: center;
+      }
     }
 
     .hero-content {
-      text-align: center;
-      max-width: 900px;
-      margin: 0 auto 60px;
+      max-width: 560px;
+    }
+    @media (max-width: 980px) {
+      .hero-content { max-width: 720px; margin: 0 auto; }
     }
 
     .hero h1 {
-      font-size: 4rem;
+      font-size: 3.5rem;
       font-weight: 800;
-      line-height: 1.1;
+      line-height: 1.08;
       letter-spacing: -0.02em;
       color: var(--text-heading);
-      margin-bottom: 24px;
+      margin-bottom: 22px;
+    }
+    @media (max-width: 980px) {
+      .hero h1 { font-size: 2.75rem; }
     }
 
     .gradient-text {
@@ -380,25 +395,24 @@
     }
 
     .hero-subtitle {
-      font-size: 1.25rem;
+      font-size: 1.1875rem;
       color: var(--text-body);
-      margin-bottom: 40px;
-      max-width: 700px;
-      margin-left: auto;
-      margin-right: auto;
+      line-height: 1.55;
+      margin-bottom: 32px;
     }
 
     .hero-ctas {
       display: flex;
-      gap: 16px;
-      justify-content: center;
+      gap: 14px;
       flex-wrap: wrap;
+    }
+    @media (max-width: 980px) {
+      .hero-ctas { justify-content: center; }
     }
 
     /* Hero video (real product capture; transparent wrap so the page bg shows around the macOS chrome) */
     .hero-video-wrap {
-      max-width: 1000px;
-      margin: 0 auto;
+      width: 100%;
       line-height: 0;
       background: transparent;
     }
@@ -1442,32 +1456,11 @@
           </p>
 
           <div class="hero-ctas">
-            <!-- Auto-fills with the visitor's OS via JS below; falls back to
-                 the GitHub releases page if detection fails. -->
-            <a id="primary-download" href="https://github.com/projelli/projelli/releases/latest"
-               class="btn btn-primary btn-lg">Download Projelli</a>
-            <button type="button" id="other-platforms-toggle" class="btn btn-outline btn-lg"
-                    aria-expanded="false" aria-controls="other-platforms-panel">
-              Other platforms ▾
-            </button>
-          </div>
-          <!-- Reveals on toggle. Direct .exe / .dmg / .deb / .AppImage / .rpm
-               links to the latest GitHub release. The build constants below
-               are kept in sync at deploy time (see scripts/update-download-links.py). -->
-          <div id="other-platforms-panel" hidden
-               style="margin-top: 16px; padding: 18px 20px; background: var(--bg-surface); border: 1px solid var(--border-gray); border-radius: 12px; max-width: 540px;">
-            <p style="font-size: 0.8125rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px;">Pick your platform</p>
-            <ul id="platform-links" style="list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: 0.9375rem;">
-              <li><a class="platform-link" data-os="windows" href="#" style="color: var(--text-heading); text-decoration: none; font-weight: 500;">⊞ Windows installer (.exe)</a></li>
-              <li><a class="platform-link" data-os="windows-portable" href="#" style="color: var(--text-heading); text-decoration: none; font-weight: 500;">⊞ Windows portable (.exe)</a></li>
-              <li><a class="platform-link" data-os="mac-arm" href="#" style="color: var(--text-heading); text-decoration: none; font-weight: 500;">🍎 Mac, Apple Silicon (.dmg)</a></li>
-              <li><a class="platform-link" data-os="mac-intel" href="#" style="color: var(--text-heading); text-decoration: none; font-weight: 500;">🍎 Mac, Intel (.dmg)</a></li>
-              <li><a class="platform-link" data-os="linux-deb" href="#" style="color: var(--text-heading); text-decoration: none; font-weight: 500;">🐧 Linux .deb</a></li>
-              <li><a class="platform-link" data-os="linux-appimage" href="#" style="color: var(--text-heading); text-decoration: none; font-weight: 500;">🐧 Linux AppImage</a></li>
-            </ul>
-            <p style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 12px;">
-              <a href="https://github.com/projelli/projelli/releases/latest" style="color: var(--accent-blue);">All releases on GitHub →</a>
-            </p>
+            <!-- Hero CTA does NOT trigger a download directly. It scrolls to
+                 the #pricing section where users see free + paid options
+                 with per-platform installers. -->
+            <a href="#pricing" class="btn btn-primary btn-lg">Download Projelli</a>
+            <a href="#take-the-tour" class="btn btn-outline btn-lg">Watch the tour</a>
           </div>
 
           <!-- Email list signup -->
@@ -1503,7 +1496,7 @@
     </section>
 
     <!-- Product preview strip: 3 real screenshots from the asset-capture pipeline -->
-    <section class="product-strip">
+    <section class="product-strip" id="take-the-tour">
       <div class="container">
         <div class="section-header" style="margin-bottom: 32px; text-align: center;">
           <span class="eyebrow">TAKE THE TOUR</span>
@@ -1670,7 +1663,26 @@
               <li>3 starter templates</li>
               <li>1 workspace</li>
             </ul>
-            <a href="https://github.com/projelli/projelli/releases/latest" class="btn btn-outline btn-lg" style="width: 100%;">Download Free</a>
+            <!-- Auto-detected by JS at the bottom of the page; falls back to
+                 GitHub releases page if detection fails. -->
+            <a id="primary-download" href="https://github.com/projelli/projelli/releases/latest"
+               class="btn btn-outline btn-lg" style="width: 100%;">Download Free</a>
+            <button type="button" id="other-platforms-toggle"
+                    class="btn-link"
+                    aria-expanded="false" aria-controls="other-platforms-panel"
+                    style="background: none; border: none; color: var(--text-muted); font-size: 13px; margin-top: 10px; cursor: pointer; text-decoration: underline; padding: 0;">
+              Other platforms ▾
+            </button>
+            <div id="other-platforms-panel" hidden style="margin-top: 12px; padding: 12px 14px; background: var(--bg-surface); border: 1px solid var(--border-gray); border-radius: 8px; text-align: left;">
+              <ul id="platform-links" style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.875rem;">
+                <li><a class="platform-link" data-os="windows" href="#" style="color: var(--text-heading); text-decoration: none;">⊞ Windows installer (.exe)</a></li>
+                <li><a class="platform-link" data-os="windows-portable" href="#" style="color: var(--text-heading); text-decoration: none;">⊞ Windows portable (.exe)</a></li>
+                <li><a class="platform-link" data-os="mac-arm" href="#" style="color: var(--text-heading); text-decoration: none;">🍎 Mac, Apple Silicon (.dmg)</a></li>
+                <li><a class="platform-link" data-os="mac-intel" href="#" style="color: var(--text-heading); text-decoration: none;">🍎 Mac, Intel (.dmg)</a></li>
+                <li><a class="platform-link" data-os="linux-deb" href="#" style="color: var(--text-heading); text-decoration: none;">🐧 Linux .deb</a></li>
+                <li><a class="platform-link" data-os="linux-appimage" href="#" style="color: var(--text-heading); text-decoration: none;">🐧 Linux AppImage</a></li>
+              </ul>
+            </div>
           </div>
 
           <!-- Founder's Launch tier (highlighted) -->
@@ -1712,6 +1724,9 @@
         </p>
         <p style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 12px;">
           14-day refund, no questions asked. Sold via <a href="https://www.lemonsqueezy.com/" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">LemonSqueezy</a> as merchant of record (handles tax for you).
+        </p>
+        <p style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 6px;">
+          One license unlocks all platforms — download Windows, Mac, or Linux from your purchase email.
         </p>
       </div>
     </section>
