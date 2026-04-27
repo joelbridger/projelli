@@ -19,6 +19,12 @@ export default defineConfig({
   define: {
     // Surfaced via `import.meta.env.VITE_APP_VERSION` in the renderer.
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(packageJson.version),
+    // Marketing-capture bridge gate. When unset at build time, Rollup
+    // statically evaluates the condition to false and tree-shakes the
+    // dynamic import of marketing-capture-bridge.ts out of the bundle.
+    'import.meta.env.VITE_MARKETING_CAPTURE': JSON.stringify(
+      process.env['VITE_MARKETING_CAPTURE'] ?? ''
+    ),
   },
   resolve: {
     alias: {
