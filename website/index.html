@@ -1432,8 +1432,8 @@
   <link rel="stylesheet" href="/styles/projelli-nav.css">
   <script src="/scripts/projelli-nav.v2.js" defer></script>
   <!-- Hero animation (vanilla JS, no build step) -->
-  <link rel="stylesheet" href="/styles/hero-animation.css?v=2026042703">
-  <script src="/scripts/hero-animation.js?v=2026042703" defer></script>
+  <link rel="stylesheet" href="/styles/hero-animation.css?v=2026042704">
+  <script src="/scripts/hero-animation.js?v=2026042704" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -1681,26 +1681,73 @@
                     </div>
                   </div>
 
-                  <!-- Editor pane -->
-                  <div class="hero-anim__pane" data-anim="pane-editor">
-                    <div class="hero-anim__subhead">
-                      <div class="hero-anim__subhead-file">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <!-- Grid view pane -->
+                  <div class="hero-anim__pane" data-anim="pane-grid">
+                    <div class="hero-anim__breadcrumb">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg>
+                      <span>Linterly</span>
+                    </div>
+                    <div class="hero-anim__grid" data-anim="grid">
+                      <div class="hero-anim__grid-cell" data-grid="Brand">
+                        <svg class="hero-anim__grid-icon hero-anim__grid-icon--folder" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/></svg>
+                        <span>Brand</span>
+                      </div>
+                      <div class="hero-anim__grid-cell" data-grid="Customers">
+                        <svg class="hero-anim__grid-icon hero-anim__grid-icon--folder" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6z"/></svg>
+                        <span>Customers</span>
+                      </div>
+                      <div class="hero-anim__grid-cell" data-grid="Vision.md">
+                        <svg class="hero-anim__grid-icon hero-anim__grid-icon--file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span>Vision.md</span>
+                      </div>
+                      <div class="hero-anim__grid-cell" data-grid="Pricing.md">
+                        <svg class="hero-anim__grid-icon hero-anim__grid-icon--file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span>Pricing.md</span>
+                      </div>
+                      <div class="hero-anim__grid-cell" data-grid="Launch Plan.md">
+                        <svg class="hero-anim__grid-icon hero-anim__grid-icon--file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span>Launch Plan.md</span>
+                      </div>
+                      <div class="hero-anim__grid-cell" data-grid="Brand Voice.md">
+                        <svg class="hero-anim__grid-icon hero-anim__grid-icon--file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                         <span>Brand Voice.md</span>
-                        <span class="hero-anim__pencil" aria-hidden="true">✎</span>
                       </div>
                     </div>
-                    <div class="hero-anim__editor">
-                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">1</span><span class="hero-anim__editor-h1"># Brand Voice</span></div>
-                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">2</span><span></span></div>
-                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">3</span><span class="hero-anim__editor-h2">## Voice principles</span></div>
-                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">4</span><span></span></div>
-                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">5</span><span>Linterly writes the way a senior PM Slacks: short, specific,</span></div>
-                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">6</span><span>contraction-heavy, never breathless.</span></div>
-                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">7</span><span></span></div>
-                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">8</span><span class="hero-anim__editor-h2">## Banned words</span></div>
-                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">9</span><span></span></div>
-                      <div class="hero-anim__editor-line"><span class="hero-anim__editor-num">10</span><span><strong>Banned:</strong> leverage, delve, seamless, transform, empower.</span></div>
+                  </div>
+
+                  <!-- Whiteboard pane -->
+                  <div class="hero-anim__pane" data-anim="pane-whiteboard">
+                    <div class="hero-anim__wb-toolbar">
+                      <span class="hero-anim__wb-tool" title="Select">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 3l8 18 2-8 8-2z"/></svg>
+                      </span>
+                      <span class="hero-anim__wb-tool hero-anim__wb-tool--active" title="Pencil">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7H12v-3z"/><path d="M18 13l-1.5-7.5L2 20"/></svg>
+                      </span>
+                      <span class="hero-anim__wb-tool" title="Text">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M4 7V5h16v2"/><path d="M9 19h6M12 5v14"/></svg>
+                      </span>
+                      <span class="hero-anim__wb-tool" title="Rectangle">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                      </span>
+                      <span class="hero-anim__wb-tool" title="Ellipse">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>
+                      </span>
+                      <span class="hero-anim__wb-tool" title="Line">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><line x1="5" y1="19" x2="19" y2="5"/></svg>
+                      </span>
+                      <span class="hero-anim__wb-tool-sep"></span>
+                      <span class="hero-anim__wb-tool" title="Undo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M3 7v6h6"/><path d="M3 13a9 9 0 1 0 3-7"/></svg>
+                      </span>
+                      <span class="hero-anim__wb-tool" title="Save">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+                      </span>
+                    </div>
+                    <div class="hero-anim__wb-canvas-wrap">
+                      <svg class="hero-anim__wb-canvas" data-anim="wb-canvas" viewBox="0 0 600 320" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+                        <path data-anim="wb-path" d="M 80 230 C 140 100, 220 80, 300 180 S 460 280, 540 120" stroke="#FF8B7E" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
                     </div>
                   </div>
                 </div>
@@ -1721,6 +1768,12 @@
                 <span class="hero-anim__status-dot">·</span>
                 <span data-anim="status-files-open">1 file open</span>
               </div>
+            </div>
+
+            <!-- Drag ghost (file being dragged) -->
+            <div class="hero-anim__drag-ghost" data-anim="drag-ghost" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span>Brand Voice.md</span>
             </div>
 
             <!-- Floating cursor -->

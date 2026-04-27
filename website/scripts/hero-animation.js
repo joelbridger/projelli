@@ -31,13 +31,16 @@
   var fileTree   = root.querySelector('[data-anim="file-tree"]');
   var tabsEl     = root.querySelector('[data-anim="tabs"]');
   var chatPane   = root.querySelector('[data-anim="pane-chat"]');
-  var editorPane = root.querySelector('[data-anim="pane-editor"]');
+  var gridPane   = root.querySelector('[data-anim="pane-grid"]');
+  var wbPane     = root.querySelector('[data-anim="pane-whiteboard"]');
+  var wbPath     = root.querySelector('[data-anim="wb-path"]');
+  var dragGhost  = root.querySelector('[data-anim="drag-ghost"]');
   var cursor     = root.querySelector('[data-anim="cursor"]');
   var statusFile  = root.querySelector('[data-anim="status-file"]');
   var statusFile2 = root.querySelector('[data-anim="status-file2"]');
   var statusFiles = root.querySelector('[data-anim="status-files-open"]');
 
-  if (!inputText || !messages || !fileTree || !tabsEl || !chatPane || !editorPane || !cursor) return;
+  if (!inputText || !messages || !fileTree || !tabsEl || !chatPane || !gridPane || !wbPane || !cursor) return;
 
   var PROMPT = 'Write a brand voice guide for Linterly and save it to Brand Voice.md';
 
@@ -101,13 +104,99 @@
   }
 
   function setActivePane(which) {
-    if (which === 'chat') {
-      chatPane.classList.add('hero-anim__pane--active');
-      editorPane.classList.remove('hero-anim__pane--active');
-    } else {
-      editorPane.classList.add('hero-anim__pane--active');
-      chatPane.classList.remove('hero-anim__pane--active');
+    [chatPane, gridPane, wbPane].forEach(function (p) {
+      p.classList.remove('hero-anim__pane--active');
+    });
+    var target = which === 'grid' ? gridPane
+              : which === 'wb'   ? wbPane
+              : chatPane;
+    target.classList.add('hero-anim__pane--active');
+  }
+
+  // Place the drag ghost at the cursor's current position
+  function placeGhostAtCursor() {
+    if (!dragGhost) return;
+    dragGhost.style.left = cursor.style.left;
+    dragGhost.style.top  = cursor.style.top;
+  }
+  function showGhost() { if (dragGhost) dragGhost.classList.add('hero-anim__drag-ghost--visible'); }
+  function hideGhost() { if (dragGhost) dragGhost.classList.remove('hero-anim__drag-ghost--visible'); }
+
+  // Highlight a grid folder cell as a drag target
+  function highlightFolder(name, on) {
+    var cell = root.querySelector('[data-grid="' + name + '"]');
+    if (!cell) return;
+    if (on) cell.classList.add('hero-anim__grid-cell--target');
+    else    cell.classList.remove('hero-anim__grid-cell--target');
+  }
+
+  function vanishGridCell(name) {
+    var cell = root.querySelector('[data-grid="' + name + '"]');
+    if (cell) cell.classList.add('hero-anim__grid-cell--vanish');
+  }
+  function restoreGridCell(name) {
+    var cell = root.querySelector('[data-grid="' + name + '"]');
+    if (cell) cell.classList.remove('hero-anim__grid-cell--vanish');
+  }
+
+  // Switch nav-item active state by label
+  function activateNavItem(label) {
+    root.querySelectorAll('.hero-anim__nav-item').forEach(function (n) {
+      var span = n.querySelector('span');
+      var match = span && span.textContent === label;
+      n.classList.toggle('hero-anim__nav-item--active', match);
+    });
+  }
+
+  // ── Whiteboard draw control ──────────────────────────────────────
+  // Reset the path to invisible (full dashoffset = full path length).
+  function wbReset() {
+    if (!wbPath) return;
+    var len = wbPath.getTotalLength();
+    wbPath.style.transition = 'none';
+    wbPath.style.strokeDasharray = len + ' ' + len;
+    wbPath.style.strokeDashoffset = len;
+    // Force reflow so the next transition takes effect.
+    void wbPath.getBoundingClientRect();
+    wbPath.style.transition = 'stroke-dashoffset 2.4s linear';
+  }
+  // Start the draw animation: dashoffset → 0 over 2.4s.
+  function wbDraw() {
+    if (!wbPath) return;
+    wbPath.style.strokeDashoffset = '0';
+  }
+  // Walk the cursor along the path while it draws so the cursor "is"
+  // the pencil. Returns an array of [time, fn] schedule entries.
+  function wbCursorTrail(startTime, durationS, samples) {
+    var entries = [];
+    if (!wbPath) return entries;
+    var len = wbPath.getTotalLength();
+    var canvasRect = function () {
+      var rect = root.getBoundingClientRect();
+      var svgRect = wbPath.ownerSVGElement.getBoundingClientRect();
+      return { offX: svgRect.left - rect.left, offY: svgRect.top - rect.top, sw: svgRect.width, sh: svgRect.height };
+    };
+    var vb = wbPath.ownerSVGElement.viewBox.baseVal;
+    for (var i = 0; i <= samples; i++) {
+      (function (i) {
+        var t = i / samples;
+        entries.push([startTime + t * durationS, function () {
+          var pt = wbPath.getPointAtLength(t * len);
+          var c = canvasRect();
+          var x = c.offX + (pt.x / vb.width) * c.sw;
+          var y = c.offY + (pt.y / vb.height) * c.sh;
+          // Move cursor without easing transition by overriding briefly
+          cursor.style.transition = 'none';
+          cursor.style.left = x + 'px';
+          cursor.style.top  = y + 'px';
+          // Restore default transition for any future setCursor calls
+          requestAnimationFrame(function () {
+            cursor.style.transition = '';
+          });
+        }]);
+      })(i);
     }
+    return entries;
   }
 
   // ── builders ───────────────────────────────────────────────────────
@@ -151,8 +240,12 @@
     setActivePane('chat');
     cursor.classList.remove('hero-anim__cursor--visible');
     cursor.classList.remove('hero-anim__cursor--clicking');
+    cursor.style.transition = '';
     cursor.style.left = '40%';
     cursor.style.top  = '60%';
+
+    hideGhost();
+    activateNavItem('Files');
 
     var brandVoiceLi = fileTree.querySelector('[data-file="Brand Voice.md"]');
     if (brandVoiceLi) brandVoiceLi.remove();
@@ -165,6 +258,13 @@
     clear(tabsEl);
     tabsEl.appendChild(makeTab('Launch Plan', true, false));
     setStatusFile('Drafting brand voice for Linterly', 1);
+
+    // Restore grid Brand Voice.md cell + clear any folder highlight
+    restoreGridCell('Brand Voice.md');
+    highlightFolder('Brand', false);
+
+    // Reset the whiteboard path so it can re-draw cleanly each loop
+    wbReset();
   }
 
   function timeNow() {
@@ -233,20 +333,18 @@
     fileTree.appendChild(makeFile('Brand Voice.md'));
   }
 
-  function openBrandVoice() {
-    fileTree.querySelectorAll('.hero-anim__file').forEach(function (e) {
-      e.classList.remove('hero-anim__file--active');
-    });
-    var bv = fileTree.querySelector('[data-file="Brand Voice.md"]');
-    if (bv) bv.classList.add('hero-anim__file--active');
-    if (!tabsEl.querySelector('[data-tab="Brand Voice.md"]')) {
-      tabsEl.appendChild(makeTab(NEW_TAB_LABEL, false, true));
-      // Use the visible label text as the data-tab key for the active toggle
-      tabsEl.lastChild.setAttribute('data-tab', 'Brand Voice.md');
-    }
-    activateOnlyTab('Brand Voice.md');
-    setActivePane('editor');
-    setStatusFile('Brand Voice.md', 2);
+  // Switch the main panel to the Files grid view.
+  function openGridView() {
+    activateNavItem('Files');
+    setActivePane('grid');
+    setStatusFile('Files', 1);
+  }
+
+  // Switch the main panel to the Whiteboard.
+  function openWhiteboard() {
+    activateNavItem('Whiteboard');
+    setActivePane('wb');
+    setStatusFile('Untitled whiteboard', 1);
   }
 
   // ── timing schedule ────────────────────────────────────────────────
@@ -297,11 +395,74 @@
     var fileAppearT = t + 0.4;
     s.push([fileAppearT, appearBrandVoiceFile]);
 
-    var openT = fileAppearT + 1.6;
-    s.push([openT, function () { setCursor('[data-file="Brand Voice.md"]'); }]);
-    s.push([openT + 0.55, function () { pulseClick(); openBrandVoice(); }]);
+    // Scene 2: switch to Files grid view
+    var gridT = fileAppearT + 1.4;
+    s.push([gridT, function () { setCursor('.hero-anim__nav-item--active'); }]);
+    s.push([gridT + 0.55, function () { pulseClick(); openGridView(); }]);
 
-    return { schedule: s, total: openT + 5.0 };
+    // Scene 3: drag Brand Voice.md into the Brand folder
+    var dragStartT = gridT + 1.6;
+    s.push([dragStartT, function () { setCursor('[data-grid="Brand Voice.md"]'); }]);
+    s.push([dragStartT + 0.7, function () {
+      pulseClick();
+      placeGhostAtCursor();
+      showGhost();
+    }]);
+    s.push([dragStartT + 0.9, function () {
+      // Move cursor (and ghost) toward the Brand folder
+      setCursor('[data-grid="Brand"]');
+      // Re-place the ghost at the new cursor target after the transition
+      // (use a one-shot RAF so the ghost transition tracks the cursor)
+      requestAnimationFrame(function () { placeGhostAtCursor(); });
+      highlightFolder('Brand', true);
+    }]);
+    s.push([dragStartT + 1.7, function () {
+      // Drop animation: file vanishes into the folder
+      hideGhost();
+      vanishGridCell('Brand Voice.md');
+      pulseClick();
+    }]);
+    s.push([dragStartT + 2.3, function () { highlightFolder('Brand', false); }]);
+
+    // Scene 4: switch to Whiteboard
+    var wbT = dragStartT + 2.8;
+    s.push([wbT, function () {
+      // Move cursor to the Whiteboard nav item (4th from bottom of nav)
+      var wbNav = root.querySelectorAll('.hero-anim__nav-item')[5];
+      if (wbNav) {
+        var rect = root.getBoundingClientRect();
+        var r = wbNav.getBoundingClientRect();
+        cursor.style.left = (r.left - rect.left + r.width / 2) + 'px';
+        cursor.style.top  = (r.top  - rect.top  + r.height / 2) + 'px';
+      }
+    }]);
+    s.push([wbT + 0.55, function () { pulseClick(); openWhiteboard(); }]);
+
+    // Scene 5: draw on the whiteboard. Use a small delay so the canvas
+    // renders + transitions in before drawing starts.
+    var drawT = wbT + 1.2;
+    s.push([drawT, function () {
+      // Move cursor to the start of the path
+      if (wbPath) {
+        var pt = wbPath.getPointAtLength(0);
+        var rect = root.getBoundingClientRect();
+        var svgRect = wbPath.ownerSVGElement.getBoundingClientRect();
+        var vb = wbPath.ownerSVGElement.viewBox.baseVal;
+        var x = (svgRect.left - rect.left) + (pt.x / vb.width) * svgRect.width;
+        var y = (svgRect.top  - rect.top)  + (pt.y / vb.height) * svgRect.height;
+        cursor.style.left = x + 'px';
+        cursor.style.top  = y + 'px';
+      }
+    }]);
+    s.push([drawT + 0.5, function () {
+      wbReset();
+      wbDraw();
+    }]);
+    // Cursor follows the pencil along the path while it draws
+    var trail = wbCursorTrail(drawT + 0.5, 2.4, 30);
+    trail.forEach(function (entry) { s.push(entry); });
+
+    return { schedule: s, total: drawT + 4.5 };
   }
 
   var built = buildSchedule();
