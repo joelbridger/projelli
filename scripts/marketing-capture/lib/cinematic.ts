@@ -406,11 +406,16 @@ export async function renderCinematic(options: CinematicRenderOptions): Promise<
 // Title + end card composition
 // ────────────────────────────────────────────────────────────────────────
 
-interface ComposeWithCardsOpts {
+export interface ComposeWithCardsOpts {
+  /** Path to the rendered "main" mp4 (output of the composite pipeline). */
   mainPath: string;
+  /** Final output path. */
   outPath: string;
+  /** Title shown on the intro card. */
   videoTitle: string;
+  /** Tagline under the logo on the end card. */
   endTagline: string;
+  /** Scratch dir for the rendered title/end PNGs and intermediate mp4s. */
   cardDir: string;
 }
 
@@ -418,7 +423,7 @@ interface ComposeWithCardsOpts {
  * Render a navy-gradient title PNG + end PNG, build them into 3-second
  * mp4 segments with fade-in, then concat title + main + end → outPath.
  */
-async function composeWithCards(opts: ComposeWithCardsOpts): Promise<void> {
+export async function composeWithCards(opts: ComposeWithCardsOpts): Promise<void> {
   const { mainPath, outPath, videoTitle, endTagline, cardDir } = opts;
   const W = 1808, H = 1032;
   const TITLE_DUR = 2.6;

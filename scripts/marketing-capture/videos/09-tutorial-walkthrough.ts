@@ -21,6 +21,7 @@ import { mkdirSync, readdirSync, copyFileSync, readFileSync, rmSync, statSync, w
 import { linterlyFixture } from '../fixtures/linterly-workspace';
 import { seedState } from '../lib/seed-state';
 import { macStyles } from '../lib/inject-mac-styles';
+import { composeWithCards } from '../lib/cinematic';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS_DIR = path.resolve(HERE, '../../../Assets/marketing');
@@ -433,6 +434,10 @@ export async function video09() {
   // (1x) = 1240 (4K) crop, source pixels per output pixel = 1240/1808 =
   // 0.69. So each output pixel is averaged from ~1.5 source pixels.
   // Sharp on retina without obvious blocking.
+  // Render the composite to a `.main.mp4`; we'll prepend the title
+  // card and append the end card via composeWithCards so V09 matches
+  // the rest of the demo videos.
+  const mainPath = outPath.replace(/\.mp4$/, '.main.mp4');
   execFileSync(
     'ffmpeg',
     [
@@ -455,10 +460,20 @@ export async function video09() {
       '-preset', 'slow',
       '-crf', '18',
       '-r', '30',
-      outPath,
+      mainPath,
     ],
     { stdio: 'inherit' },
   );
+
+  // Wrap with intro + outro cards (matches V01-V08 treatment).
+  const cardDir = path.join(VIDEO_TMP, 'cards');
+  await composeWithCards({
+    mainPath,
+    outPath,
+    videoTitle: 'Start here: the first launch tour',
+    endTagline: 'projelli.com',
+    cardDir,
+  });
 
   mkdirSync(PRESS_KIT_DIR, { recursive: true });
   copyFileSync(outPath, path.join(PRESS_KIT_DIR, 'tutorial-walkthrough.mp4'));
