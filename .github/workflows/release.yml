@@ -138,6 +138,47 @@ jobs:
           echo "MCP_TARGET=$TARGET" >> "$GITHUB_ENV"
           ls -la binaries/
 
+      # rc.11 (2026-04-27): Apple notarization rejects the .app if any
+      # embedded binary isn't signed with the Developer ID cert + hardened
+      # runtime + secure timestamp. Tauri's outer codesign call only signs
+      # the top-level .app bundle; it does NOT recursively re-sign nested
+      # binaries like the MCP sidecar in Contents/Resources/binaries/.
+      # So we sign the MCP binary explicitly here, BEFORE tauri-action
+      # bundles it into the .app. This step sets up its own temp keychain
+      # so it can coexist with the keychain tauri-action creates later.
+      - name: Sign MCP sidecar binary (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: src-tauri
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/projelli-mcp-sign.keychain-db"
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          CERT_PATH="$RUNNER_TEMP/projelli-mcp-cert.p12"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+          security import "$CERT_PATH" -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          # Add our keychain to the search list (don't replace user's, append).
+          security list-keychains -d user -s "$KEYCHAIN_PATH" \
+            $(security list-keychains -d user | sed -E 's/[[:space:]]*"([^"]+)"[[:space:]]*/\1 /g')
+          BIN="binaries/projelli-mcp-${MCP_TARGET}"
+          codesign --force --options runtime --timestamp \
+            --sign "$APPLE_SIGNING_IDENTITY" \
+            "$BIN"
+          codesign --verify --verbose=2 "$BIN"
+          codesign -dvvv "$BIN" 2>&1 | grep -E "Authority|Timestamp|Runtime|flags" || true
+          rm -f "$CERT_PATH"
+
       # Phase 4 M6 (v1.5 Flag 4) - Fetch the voice sidecar binary
       # (Parakeet.cpp or whisper.cpp) and stage it at
       # `src-tauri/binaries/parakeet[-<triple>]` so tauri build can bundle
