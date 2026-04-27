@@ -2,9 +2,11 @@
 name: Marketing Asset Capture System
 description: Reproducible Playwright pipeline that produces a full library of macOS-styled product screenshots and videos for Projelli
 type: design-spec
-status: approved
+status: shipped (v1 + video expansion)
 date: 2026-04-27
 ---
+
+> **NOTE for the next reader:** this is the original design spec, captured before implementation began. The actual library that shipped includes 7 additional videos (V02-V08) on top of the 10 stills + V01 documented here. **For the current state of what exists and how to operate it, read `RUNBOOK.md` in this folder first.** This SPEC.md remains as the historical design record.
 
 # Marketing Asset Capture System — Design Spec
 
