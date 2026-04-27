@@ -11,6 +11,7 @@ export type SettingType = 'toggle' | 'select' | 'number' | 'text' | 'shortcut-di
 
 export type SettingCategory =
   | 'general'
+  | 'license'
   | 'editor'
   | 'ai'
   | 'memory'
@@ -51,6 +52,7 @@ export interface SettingDefinition {
 
 export const SETTING_CATEGORIES: { id: SettingCategory; label: string }[] = [
   { id: 'general', label: 'General' },
+  { id: 'license', label: 'License' },
   { id: 'editor', label: 'Editor' },
   { id: 'ai', label: 'AI' },
   { id: 'memory', label: 'Memory' },

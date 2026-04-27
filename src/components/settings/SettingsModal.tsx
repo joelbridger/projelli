@@ -30,6 +30,7 @@ import {
 import { useSettingsStore } from '@/stores/settingsStore';
 import { CostMetrics } from '@/components/analysis/CostMetrics';
 import { TemplateModelSettings } from '@/components/settings/TemplateModelSettings';
+import { LicenseSettings } from '@/components/settings/LicenseSettings';
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
 import { McpSettingsSection } from '@/components/settings/McpSettingsSection';
 import { OllamaSettingsSection } from '@/components/settings/OllamaSettingsSection';
@@ -635,6 +636,8 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
               <CostMetrics entries={auditEntries ?? []} />
             ) : activeCategory === 'templates' ? (
               <TemplateModelSettings templates={templates ?? []} />
+            ) : activeCategory === 'license' ? (
+              <LicenseSettings />
             ) : activeCategory === 'integrations' ? (
               <>
                 <McpSettingsSection />
