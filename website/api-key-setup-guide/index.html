@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API key setup guide: Claude, OpenAI, and Gemini in 5 minutes | Projelli</title>
+  <meta name="description" content="A step-by-step guide to getting an API key from Anthropic Claude, OpenAI, or Google Gemini. Includes billing setup, spending caps, key rotation, and how to troubleshoot the most common setup errors.">
+  <link rel="canonical" href="https://projelli.com/api-key-setup-guide">
+  <meta name="robots" content="index, follow">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://projelli.com/api-key-setup-guide">
+  <meta property="og:title" content="API key setup guide: Claude, OpenAI, and Gemini in 5 minutes">
+  <meta property="og:description" content="Step-by-step guide to setting up an AI API key. Billing, caps, security, troubleshooting.">
+  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="API key setup guide: Claude, OpenAI, Gemini">
+  <meta name="twitter:description" content="Step-by-step setup, billing, caps, and security best practices.">
+  <meta name="twitter:image" content="https://projelli.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "Set up an API key for Anthropic Claude, OpenAI, or Google Gemini",
+    "description": "How to sign up, get an API key, set a spending cap, and paste it into a desktop app. 5 minutes per provider.",
+    "totalTime": "PT5M",
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Sign up at the provider's developer portal",
+        "text": "Visit console.anthropic.com (Claude), platform.openai.com (OpenAI), or aistudio.google.com (Gemini). Create an account."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Add a payment method and prepaid balance",
+        "text": "Add a card. Add $5-20 of prepaid balance. Set a hard monthly spending cap to protect against runaway costs."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Generate the API key",
+        "text": "Navigate to the API Keys section. Click Create Key. Copy the key immediately; it won't be shown again."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Paste the key into your desktop app",
+        "text": "In your BYOK app's settings, paste the key into the matching provider field. The key stores in your OS keychain."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Test with a short message",
+        "text": "Send a short message through the app to confirm the key works. If you get an authentication error, regenerate and re-paste."
+      }
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "How long does it take to set up an API key?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "About 5 minutes per provider. Sign up (1 min), add billing (2 min), generate key (1 min), paste into app (1 min). Setting a spending cap adds another minute and is strongly recommended."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do I have to add a credit card?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Anthropic and OpenAI both require payment information to use the API at all. Google Gemini has a generous free tier that can work without payment info, with usage caveats. You can typically start with $5 of prepaid balance and use it down at your own pace."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What if my key gets exposed?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "All three providers let you revoke a key with one click and generate a new one. Revoke the exposed key immediately. The hard monthly spending cap (which you should always set) limits damage even if a key leaks. After revocation, the old key returns auth errors and the new key works normally."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can one API key power multiple apps?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. One key works across any number of apps. Most people generate one key per app though, because then revoking one key doesn't break other apps. Keys are free to create."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How much will I actually spend?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "For typical indie founder usage (30-90 minutes/day of AI conversation), expect $2-15/month per provider. Heavy users (multi-hour daily) might see $20-50/month. Setting a hard cap of $20 is a reasonable starting point that you can raise once you see your real usage pattern."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What if I get an authentication error?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Common causes: typo when pasting (extra space at start or end), key was regenerated and the old one is in the app, or the provider's account is in a payment-failed state. Fix: regenerate the key, paste cleanly, verify billing is active."
+        }
+      }
+    ]
+  }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+      --accent-coral: #FF7C6E;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.75; -webkit-font-smoothing: antialiased; }
+    .nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-gray); }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; max-width: 900px; margin: 0 auto; }
+    .nav a.brand { font-weight: 700; color: var(--text-heading); text-decoration: none; font-size: 18px; }
+    .nav-links { display: flex; gap: 24px; font-size: 14px; }
+    .nav-links a { color: var(--text-body); text-decoration: none; font-weight: 500; }
+    .nav-links a:hover { color: var(--accent-blue); }
+    .container { max-width: 800px; margin: 0 auto; padding: 56px 24px 80px; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    h1 { font-size: 2.5rem; color: var(--text-heading); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; line-height: 1.15; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); font-weight: 700; margin-top: 48px; margin-bottom: 16px; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); font-weight: 600; margin-top: 36px; margin-bottom: 12px; }
+    p { margin-bottom: 18px; font-size: 1.0625rem; }
+    ul, ol { margin: 0 0 20px 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    .summary { background: var(--bg-surface); border-left: 4px solid var(--accent-blue); padding: 20px 24px; border-radius: 0 8px 8px 0; font-size: 1.0625rem; margin: 24px 0 40px; }
+    .summary strong { color: var(--text-heading); }
+    .provider { background: var(--bg-surface); padding: 24px 28px; margin: 24px 0; border-radius: 12px; border: 1px solid var(--border-gray); }
+    .provider h3 { margin-top: 0; }
+    .warning { background: #FEF3C7; border-left: 3px solid #F59E0B; padding: 16px 20px; margin: 24px 0; border-radius: 4px; font-size: 0.9375rem; }
+    .warning strong { color: var(--text-heading); }
+    table { border-collapse: collapse; margin: 24px 0; width: 100%; font-size: 0.9375rem; }
+    th, td { border: 1px solid var(--border-gray); padding: 12px 14px; text-align: left; vertical-align: top; }
+    th { background: var(--bg-surface); color: var(--text-heading); font-weight: 600; }
+    .faq details { border-bottom: 1px solid var(--border-gray); padding: 14px 0; }
+    .faq details summary { font-weight: 600; color: var(--text-heading); cursor: pointer; font-size: 1.0625rem; }
+    .faq details[open] summary { margin-bottom: 12px; }
+    .faq details p { margin-bottom: 12px; }
+    .faq details p:last-child { margin-bottom: 0; }
+    .next-read { background: var(--bg-surface); padding: 24px; border-radius: 12px; margin-top: 48px; }
+    .next-read h3 { margin-top: 0; }
+    .next-read ul { margin-bottom: 0; }
+    .cta-card { background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white; padding: 32px; border-radius: 12px; margin-top: 48px; text-align: center; }
+    .cta-card h3 { color: white; font-size: 1.25rem; margin-bottom: 10px; }
+    .cta-card p { color: rgba(255,255,255,0.9); margin-bottom: 20px; }
+    .cta-btn { display: inline-block; padding: 14px 32px; background: white; color: var(--text-heading); border-radius: 999px; text-decoration: none; font-weight: 600; }
+    .cta-btn:hover { opacity: 0.92; text-decoration: none; }
+    footer { text-align: center; padding: 32px; color: var(--text-muted); font-size: 0.875rem; border-top: 1px solid var(--border-gray); margin-top: 32px; }
+    footer a { color: var(--text-body); text-decoration: none; margin: 0 8px; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand">Projelli</a>
+      <div class="nav-links">
+        <a href="/">Home</a>
+        <a href="/templates/">Templates</a>
+        <a href="/vs/">vs Others</a>
+        <a href="/blog/">Blog</a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <h1>API key setup guide: Claude, OpenAI, and Gemini in 5 minutes.</h1>
+    <p class="meta">Updated 2026-04-27 · 9 min read</p>
+
+    <div class="summary">
+      <p><strong>The short version.</strong> An AI API key is a password that lets a desktop app talk to an AI provider on your behalf. Setup takes 5 minutes per provider: sign up at the provider's developer portal, add a payment method, set a spending cap, generate the key, paste it into your app. After that, the app uses the key to send requests, the provider bills you directly for usage, and your data goes from your machine to the provider with nothing in the middle.</p>
+    </div>
+
+    <p>Most desktop AI tools that respect your privacy ask you to bring your own API key. The benefit, lower cost and better privacy posture, is real. The first-time setup is also unfamiliar to a lot of indie founders, which is why people sometimes bounce on the signup step.</p>
+
+    <p>This page walks through getting a key from Anthropic (Claude), OpenAI, and Google Gemini, with the specific clicks for each. It also covers the things people miss: the spending cap, the security defaults, and the most common errors when pasting the key into a tool.</p>
+
+    <h2>What an API key actually is</h2>
+
+    <p>An API key is a long string of letters and numbers that a desktop app sends along with each request to an AI provider. The provider checks the key, decides whether you're authorized, runs the request, and bills your account for the tokens used.</p>
+
+    <p>The key is like a password. Treat it like one. Don't paste it into a public document, don't commit it to a Git repo, don't share it on Slack. If it leaks, anyone with the key can run requests on your account until you revoke it.</p>
+
+    <p>Mental model:</p>
+    <ul>
+      <li><strong>API key:</strong> a password for your AI account, stored in your OS keychain by good apps</li>
+      <li><strong>Tokens:</strong> the unit of measurement for AI usage, roughly 0.75 words per token</li>
+      <li><strong>Spending cap:</strong> a hard ceiling you set on monthly billing</li>
+      <li><strong>Rate limit:</strong> how many requests per minute the provider allows you to make (you almost never hit this)</li>
+    </ul>
+
+    <h2>Anthropic Claude (5 minutes)</h2>
+
+    <div class="provider">
+      <h3>Step-by-step</h3>
+      <ol>
+        <li>Go to <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> and click <strong>Sign Up</strong></li>
+        <li>Verify your email</li>
+        <li>You'll land on the Console. Click your name in the top right → <strong>Plans &amp; Billing</strong></li>
+        <li>Click <strong>Add Payment Method</strong> and enter a card</li>
+        <li>Click <strong>Buy Credits</strong> and add $5-20 to start (you can always add more)</li>
+        <li>Set a monthly spending cap. Click <strong>Plans &amp; Billing</strong> → look for the spending limit option, set to a number you're comfortable with ($20 is a reasonable starting point)</li>
+        <li>Now generate the key. Click your name → <strong>API Keys</strong> → <strong>Create Key</strong></li>
+        <li>Give the key a name (e.g., "Projelli on my MacBook"). Click <strong>Create</strong></li>
+        <li>Copy the key (it starts with <code>sk-ant-</code> and is about 100 characters long)</li>
+        <li><strong>Paste the key immediately into your desktop app.</strong> Anthropic only shows the full key once. If you lose it, you'll have to create a new one.</li>
+      </ol>
+    </div>
+
+    <p>Claude offers three model tiers as of 2026:</p>
+    <ul>
+      <li><strong>Claude Haiku</strong>: cheapest, fastest, good for short responses ($0.25/$1.25 per million tokens in/out)</li>
+      <li><strong>Claude Sonnet</strong>: balanced, the default for most work ($3/$15)</li>
+      <li><strong>Claude Opus</strong>: largest, slowest, for hardest reasoning tasks ($15/$75)</li>
+    </ul>
+
+    <p>For most founder workflows, Sonnet is the right pick. Switch to Haiku when you want fast / cheap, switch to Opus when you want maximum reasoning depth.</p>
+
+    <h2>OpenAI (5 minutes)</h2>
+
+    <div class="provider">
+      <h3>Step-by-step</h3>
+      <ol>
+        <li>Go to <a href="https://platform.openai.com" target="_blank" rel="noopener">platform.openai.com</a> and sign up (or log in if you already have a ChatGPT account; the API uses the same account)</li>
+        <li>Click your profile in the top right → <strong>Billing</strong> → <strong>Add Payment Method</strong></li>
+        <li>Add a card and put initial credit on file ($5-20)</li>
+        <li><strong>Set a hard monthly limit.</strong> Click <strong>Settings</strong> → <strong>Limits</strong>. Set both the "soft limit" (you get an email) and "hard limit" (the API stops working). $20 hard limit is reasonable to start.</li>
+        <li>Now the key. Click your profile → <strong>API Keys</strong> → <strong>Create new secret key</strong></li>
+        <li>Name the key, optionally pick which models it can access (default "All" is fine)</li>
+        <li>Click <strong>Create secret key</strong></li>
+        <li>Copy the key (starts with <code>sk-</code>, then either <code>proj-</code> for project keys or a longer prefix for legacy keys)</li>
+        <li>Paste into your app. OpenAI also only shows the key once.</li>
+      </ol>
+    </div>
+
+    <p>OpenAI's GPT model family in 2026:</p>
+    <ul>
+      <li><strong>GPT-5 mini</strong>: fast, cheap, the default for most usage</li>
+      <li><strong>GPT-5</strong>: full-quality, slower and more expensive</li>
+      <li><strong>o3</strong>: reasoning-focused; takes longer per response but handles harder logic</li>
+    </ul>
+
+    <h2>Google Gemini via AI Studio (5 minutes)</h2>
+
+    <div class="provider">
+      <h3>Step-by-step</h3>
+      <ol>
+        <li>Go to <a href="https://aistudio.google.com" target="_blank" rel="noopener">aistudio.google.com</a> and log in with a Google account</li>
+        <li>Click <strong>Get API key</strong> in the left navigation</li>
+        <li>Pick or create a Google Cloud project (the prompt is straightforward; "default project" is fine)</li>
+        <li>Click <strong>Create API key</strong></li>
+        <li>Copy the key (starts with <code>AIza</code>)</li>
+        <li>Paste into your app</li>
+      </ol>
+    </div>
+
+    <div class="warning">
+      <strong>Important Gemini caveat.</strong> The free tier of Gemini may use your prompts to improve Google's products by default. If you're going to send sensitive content through Gemini, either upgrade to the paid tier (Pay as You Go pricing in Google Cloud Console) or only send non-sensitive prompts. Read the <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener">Gemini API terms</a> before relying on the free tier.
+    </div>
+
+    <p>Gemini's models in 2026:</p>
+    <ul>
+      <li><strong>Gemini 2.5 Flash</strong>: fast, very cheap, the default for most usage</li>
+      <li><strong>Gemini 2.5 Pro</strong>: full-quality, larger context window</li>
+    </ul>
+
+    <h2>The hard spending cap (do this first time, every time)</h2>
+
+    <p>I cannot stress this enough. <strong>Set a hard monthly spending cap on every provider you use.</strong> Three reasons:</p>
+
+    <ol>
+      <li><strong>Protects against bugs.</strong> If a tool starts looping, you don't want to find out via a $1,200 bill. The cap stops the bleed at whatever number you set.</li>
+      <li><strong>Protects against leaked keys.</strong> If your key leaks (you accidentally paste it in a Slack message, you get phished), the cap limits damage to one month's worth.</li>
+      <li><strong>Helps you learn your usage.</strong> Setting a cap of $10 the first month forces you to notice your actual usage. You can raise the cap later once you see real numbers.</li>
+    </ol>
+
+    <p>Recommended starting caps: $20/month per provider. Adjust upward after a month of real usage data.</p>
+
+    <h2>Security best practices</h2>
+
+    <h3>1. Use one key per app</h3>
+
+    <p>If a key leaks or you stop using an app, revoking that one key doesn't break anything else. Keys are free to create. Don't reuse them across apps.</p>
+
+    <h3>2. Never commit keys to Git</h3>
+
+    <p>If you're a developer using these keys in code, add the file containing them to your <code>.gitignore</code>. If you accidentally commit a key, GitHub's secret scanning will email you within minutes; revoke and rotate immediately. The provider's logs will show you any unauthorized use.</p>
+
+    <h3>3. Use OS-level secret storage</h3>
+
+    <p>Good apps store API keys in:</p>
+    <ul>
+      <li><strong>macOS:</strong> the system Keychain (encrypted with your account password)</li>
+      <li><strong>Windows:</strong> Windows Credential Manager or DPAPI-encrypted files</li>
+      <li><strong>Linux:</strong> libsecret (GNOME Keyring or KWallet)</li>
+    </ul>
+
+    <p>Avoid apps that store keys in <code>localStorage</code> or plaintext files. Projelli uses the OS keychain on each platform.</p>
+
+    <h3>4. Rotate periodically</h3>
+
+    <p>Once a year, regenerate your keys. Easy ritual: pick a date (your birthday, January 1st, whatever), set a calendar reminder, generate new keys, paste into your apps, revoke old keys. Takes 10 minutes. Limits the blast radius of any unnoticed exposure.</p>
+
+    <h3>5. Watch for suspicious usage</h3>
+
+    <p>Each provider's dashboard shows usage by day. Once a month, glance at your usage chart. If you see a spike on a day you weren't working, that's a signal a key might be in use somewhere unexpected.</p>
+
+    <h2>Common errors and how to fix them</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Error</th>
+          <th>Likely cause</th>
+          <th>Fix</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>401 Unauthorized</code> / "Invalid API Key"</td>
+          <td>Typo, extra space, or the key was regenerated</td>
+          <td>Regenerate, paste cleanly without trailing whitespace</td>
+        </tr>
+        <tr>
+          <td><code>402 Payment Required</code> / "Insufficient credits"</td>
+          <td>Prepaid balance ran out, or card declined</td>
+          <td>Add credits in the provider's billing section</td>
+        </tr>
+        <tr>
+          <td><code>429 Rate Limit Exceeded</code></td>
+          <td>Too many requests in a short window</td>
+          <td>Wait a minute. If persistent, your account tier may be capped, request a tier upgrade</td>
+        </tr>
+        <tr>
+          <td><code>403 Forbidden</code> / "Model not allowed"</td>
+          <td>The key doesn't have access to the model you're requesting</td>
+          <td>Check the key's permissions; some providers scope keys to specific models</td>
+        </tr>
+        <tr>
+          <td>"Hard limit reached"</td>
+          <td>You hit your monthly spending cap</td>
+          <td>Wait until next billing cycle, or raise the cap</td>
+        </tr>
+        <tr>
+          <td>App says "key works" but no response</td>
+          <td>Network issue, or AI provider is having an outage</td>
+          <td>Check the provider's status page; switch to a different provider if your app supports multiple</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>How to paste the key into Projelli specifically</h2>
+
+    <p>If you're using Projelli, the flow after generating a key is:</p>
+
+    <ol>
+      <li>Open Projelli</li>
+      <li>Press <code>Ctrl+,</code> (Windows / Linux) or <code>Cmd+,</code> (Mac) to open Settings</li>
+      <li>Go to the <strong>AI</strong> tab</li>
+      <li>Click <strong>Manage API Keys</strong></li>
+      <li>Find the row for the provider you set up (Claude, OpenAI, or Gemini)</li>
+      <li>Paste the key into the input</li>
+      <li>Click <strong>Save</strong></li>
+      <li>Click <strong>Test connection</strong> to verify the key works</li>
+    </ol>
+
+    <p>The key encrypts to your OS keychain and never appears in plaintext anywhere afterward, including in localStorage, log files, or sent over the network. If you uninstall Projelli, the key stays in the keychain unless you remove it manually.</p>
+
+    <p>For the Projelli-specific user guide that goes deeper, see <a href="/docs/api-keys">/docs/api-keys</a>.</p>
+
+    <h2>Frequently asked questions</h2>
+
+    <div class="faq">
+      <details>
+        <summary>How long does it take to set up an API key?</summary>
+        <p>About 5 minutes per provider. Sign up (1 min), add billing (2 min), generate key (1 min), paste into app (1 min). Setting a spending cap adds another minute and is strongly recommended.</p>
+      </details>
+      <details>
+        <summary>Do I have to add a credit card?</summary>
+        <p>Anthropic and OpenAI both require payment information to use the API at all. Google Gemini has a generous free tier that can work without payment info, with usage caveats. You can typically start with $5 of prepaid balance and use it down at your own pace.</p>
+      </details>
+      <details>
+        <summary>What if my key gets exposed?</summary>
+        <p>All three providers let you revoke a key with one click and generate a new one. Revoke the exposed key immediately. The hard monthly spending cap (which you should always set) limits damage even if a key leaks. After revocation, the old key returns auth errors and the new key works normally.</p>
+      </details>
+      <details>
+        <summary>Can one API key power multiple apps?</summary>
+        <p>Yes. One key works across any number of apps. Most people generate one key per app though, because then revoking one key doesn't break other apps. Keys are free to create.</p>
+      </details>
+      <details>
+        <summary>How much will I actually spend?</summary>
+        <p>For typical indie founder usage (30-90 minutes/day of AI conversation), expect $2-15/month per provider. Heavy users (multi-hour daily) might see $20-50/month. Setting a hard cap of $20 is a reasonable starting point that you can raise once you see your real usage pattern.</p>
+      </details>
+      <details>
+        <summary>What if I get an authentication error?</summary>
+        <p>Common causes: typo when pasting (extra space at start or end), key was regenerated and the old one is in the app, or the provider's account is in a payment-failed state. Fix: regenerate the key, paste cleanly, verify billing is active.</p>
+      </details>
+      <details>
+        <summary>Can I use the same key on multiple machines?</summary>
+        <p>Yes, but it's better to generate one key per machine. If your laptop is lost or stolen, revoking that machine's key doesn't break your desktop's setup.</p>
+      </details>
+      <details>
+        <summary>Do I need to set up all three providers?</summary>
+        <p>No. Pick one to start. Most founders use Claude for the bulk of their work and add OpenAI or Gemini later if they want a second opinion or to take advantage of model strengths. The cost overhead of having keys for all three is zero (you only pay for what you use).</p>
+      </details>
+    </div>
+
+    <div class="next-read">
+      <h3>What to read next</h3>
+      <ul>
+        <li><a href="/byok-ai">BYOK AI explained: bring your own key, the why and how</a></li>
+        <li><a href="/local-first-ai-workspace">What is a local-first AI workspace?</a></li>
+        <li><a href="/ai-workspace-privacy">AI workspace privacy: a founder's data flow guide</a></li>
+        <li><a href="/docs/api-keys">Projelli's user-specific API keys guide</a></li>
+      </ul>
+    </div>
+
+    <div class="cta-card">
+      <h3>Try it with Projelli</h3>
+      <p>Free download. Pro is $49 one-time, Lifetime is $99 one-time. The first 100 buyers get Lifetime at $29. Bring your own Claude / OpenAI / Gemini key.</p>
+      <a href="/#download" class="cta-btn">Get Projelli</a>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/eula">EULA</a> · <a href="/press-kit/">Press kit</a> · <a href="/blog/">Blog</a>
+  </footer>
+</body>
+</html>
