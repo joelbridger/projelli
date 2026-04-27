@@ -22,15 +22,17 @@ The pitch in one sentence: it's Obsidian for the AI era, built for founders, sol
 
 ## Status
 
-- **v1.0.0** is live on GitHub Releases (Windows installer)
-- Currently in **Phase 0 reorganization** ahead of an 8-week launch ramp — see [`PROJELLI_BUSINESS_PLAN.md`](./PROJELLI_BUSINESS_PLAN.md) and [`BACKLOG.md`](./BACKLOG.md)
-- macOS, code signing, payments, license validation, and the official launch are all coming in Weeks 2-6
+- **v1.5** is the latest stable release (Windows). v1.6 is in active release-candidate testing with macOS as the new addition.
+- Code signing, payments via LemonSqueezy, license validation, auto-updater, and legal docs are all live.
+- See [`PROJELLI_BUSINESS_PLAN.md`](./PROJELLI_BUSINESS_PLAN.md) for the full strategy and [`BACKLOG.md`](./BACKLOG.md) for week-by-week tasks.
 
-## Install (current state)
+## Install
 
-**Windows:** Download the latest `.exe` from [Releases](https://github.com/projelli/projelli/releases). The installer is currently **unsigned** (Windows SmartScreen will warn you "unrecognized app" — click "More info" → "Run anyway"). This will be fixed in Week 2 of the launch ramp once code signing is in place.
+**Windows:** Download `Projelli_x.y.z_x64-setup.exe` from [Releases](https://github.com/projelli/projelli/releases). Double-click — installer runs silently, then Projelli auto-launches. Signed via Azure Trusted Signing (no SmartScreen warning).
 
-**macOS / Linux:** Not yet shipped. Coming in Week 3.
+**macOS:** Download the DMG that matches your chip (`aarch64` for M-series, `x64` for Intel) from Releases, drag to Applications. First launch hits a Gatekeeper warning because Apple's notary service has been intermittent since spring 2026 — right-click → Open → "Open Anyway" to bypass (one time only). Signed with our Apple Developer ID.
+
+**Linux:** AppImage / `.deb` / `.rpm` builds are produced but Linux is not officially supported in v1.6. Coming as v1.7 after the launch settles.
 
 ## Development
 
@@ -137,16 +139,16 @@ Projelli is local-first by design.
 - Projelli's servers never see your files, your prompts, or your responses
 - The only call Projelli's server gets is a one-time license validation when you activate
 
-Privacy policy: [https://projelli.com/legal/privacy](https://projelli.com/legal/privacy) (live in Week 1)
+Privacy policy: [https://projelli.com/legal/privacy](https://projelli.com/legal/privacy)
 
 ## Support
 
-- **Email:** `support@projelli.com` (live in Week 1)
+- **Email:** `support@projelli.com`
 - **Issues:** [GitHub Issues](https://github.com/projelli/projelli/issues)
 
 ## License
 
-Closed-source proprietary software. End-User License Agreement: [https://projelli.com/legal/eula](https://projelli.com/legal/eula) (live in Week 1).
+Closed-source proprietary software. End-User License Agreement: [https://projelli.com/legal/eula](https://projelli.com/legal/eula).
 
 A "Projelli Lite" open-source version may be released later as a marketing funnel — not on the v1 roadmap.
 

@@ -49,22 +49,26 @@
     <div class="step">
       <h3>Windows</h3>
       <ol>
-        <li>Click <a href="https://github.com/projelli/projelli/releases/latest">Download for Windows</a></li>
-        <li>Run the <code>.exe</code> installer</li>
-        <li>If Windows shows a SmartScreen warning ("Microsoft Defender SmartScreen prevented an unrecognized app from starting"), click <strong>"More info"</strong> → <strong>"Run anyway"</strong>. We're working on getting code signing set up to remove this warning, until then, this extra click is required.</li>
-        <li>Follow the installer prompts. Projelli installs to your user profile by default.</li>
-        <li>Launch Projelli from the Start Menu</li>
+        <li>Click <a href="https://github.com/projelli/projelli/releases/latest">Download for Windows</a> and grab <code>Projelli_x.y.z_x64-setup.exe</code></li>
+        <li>Double-click the installer. There's no wizard, just a brief progress window — that's intentional. Projelli is signed via Azure Trusted Signing so SmartScreen will not warn you.</li>
+        <li>Projelli launches automatically when install finishes, and you'll find a desktop shortcut for next time.</li>
+        <li>Want the full installer wizard instead? Open a terminal and run <code>Projelli_x.y.z_x64-setup.exe /INTERACTIVE</code></li>
       </ol>
     </div>
 
     <div class="step">
-      <h3>macOS (coming Week 3)</h3>
-      <p>macOS support is being added in week 3 of our launch ramp. Watch <a href="https://github.com/projelli/projelli/releases">the releases page</a> for the first macOS build.</p>
+      <h3>macOS</h3>
+      <ol>
+        <li>Click <a href="https://github.com/projelli/projelli/releases/latest">Download for macOS</a>. Pick <code>Projelli_x.y.z_aarch64.dmg</code> for Apple Silicon (M1/M2/M3/M4) or <code>Projelli_x.y.z_x64.dmg</code> for Intel Macs.</li>
+        <li>Open the DMG and drag Projelli into Applications.</li>
+        <li>The first time you launch, macOS will say <em>"Apple cannot verify Projelli is free of malware."</em> Projelli is signed with our Apple Developer ID, but Apple's notary service has been intermittently slow since spring 2026, so we're shipping signed-only for now. To open: <strong>right-click Projelli in Applications → Open → "Open Anyway"</strong>. You only need to do this once.</li>
+        <li>If the right-click flow doesn't work on your version of macOS, go to <strong>System Settings → Privacy &amp; Security</strong>, scroll to the bottom, and click "Open Anyway" next to the Projelli entry.</li>
+      </ol>
     </div>
 
     <div class="step">
-      <h3>Linux (post-launch)</h3>
-      <p>Linux support is on the post-launch roadmap. We'll ship AppImage and .deb builds for Ubuntu/Debian once macOS is stable.</p>
+      <h3>Linux (coming after launch)</h3>
+      <p>AppImage, .deb, and .rpm builds are produced by our CI and live on the releases page, but Linux is not officially supported in v1.6. We'll polish + announce Linux as a v1.7 release after the v1.6 launch settles.</p>
     </div>
 
     <h2>Step 2: Create your first workspace</h2>
