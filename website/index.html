@@ -15,15 +15,15 @@
   <meta property="og:title" content="Projelli, the AI workspace that remembers your stuff">
   <meta property="og:description" content="Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use.">
   <meta property="og:site_name" content="Projelli">
-  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <meta property="og:image" content="https://projelli.com/press-kit/assets/og-linkedin-card.png">
   <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
+  <meta property="og:image:height" content="627">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Projelli, the AI workspace that remembers your stuff">
   <meta name="twitter:description" content="Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use.">
-  <meta name="twitter:image" content="https://projelli.com/og-image.png">
+  <meta name="twitter:image" content="https://projelli.com/press-kit/assets/og-twitter-card.png">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -395,7 +395,23 @@
       flex-wrap: wrap;
     }
 
-    /* App Mockup */
+    /* Hero video (real product capture, replaces JS-animated mockup) */
+    .hero-video-wrap {
+      max-width: 1000px;
+      margin: 0 auto;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1), 0 0 40px rgba(59, 130, 246, 0.08);
+      background: #000;
+      line-height: 0;
+    }
+    .hero-video {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* App Mockup (legacy, retained for any other uses) */
     .app-mockup {
       max-width: 1000px;
       margin: 0 auto;
@@ -1462,48 +1478,19 @@
           <p class="email-signup-note" id="email-signup-note">Pricing locks in for the first 100 buyers. Be one of them.</p>
         </div>
 
-        <!-- Animated App Demo -->
-        <div class="app-mockup" id="demo-mockup">
-          <div class="mockup-titlebar">
-            <div class="mockup-dot"></div>
-            <div class="mockup-dot"></div>
-            <div class="mockup-dot"></div>
-            <div class="mockup-title-text">Projelli, My SaaS Launch</div>
-          </div>
-
-          <div class="mockup-body">
-            <div class="mockup-sidebar" id="demo-sidebar">
-              <div class="mockup-folder">📁 My SaaS Launch</div>
-              <div class="mockup-file" data-file="vision">📄 VISION.md</div>
-              <div class="mockup-file" data-file="prd">📄 PRD.md</div>
-              <div class="mockup-file new-file" data-file="launch-plan">📄 LAUNCH_PLAN.md</div>
-            </div>
-
-            <div class="mockup-main">
-              <div class="mockup-tabs">
-                <div class="mockup-tab active" id="demo-active-tab">VISION.md</div>
-              </div>
-
-              <div class="mockup-editor" id="demo-editor">
-                <h2>Vision</h2>
-                <p>A local-first project planner for indie founders who want AI as a co-pilot, not a replacement.</p>
-                <p>Every conversation produces real files. Nothing lives in someone else's cloud.</p>
-              </div>
-            </div>
-
-            <div class="mockup-chat" id="demo-chat">
-              <div class="chat-label">AI Chat</div>
-              <div class="chat-messages" id="demo-chat-messages">
-                <!-- Messages injected by JS -->
-              </div>
-              <div class="chat-input-row">
-                <div class="chat-input" id="demo-chat-input">
-                  <span id="demo-typed-text"></span><span class="chat-cursor"></span>
-                </div>
-                <button class="chat-send" id="demo-send-btn">↑</button>
-              </div>
-            </div>
-          </div>
+        <!-- Hero demo video: real product capture, 30s loop -->
+        <div class="hero-video-wrap">
+          <video
+            class="hero-video"
+            src="/press-kit/assets/demo-30s.mp4"
+            poster="/press-kit/assets/screenshot-01-workspace.png"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="metadata"
+            aria-label="A 30-second screen capture of Projelli: type into AI chat, watch a Markdown file appear, switch into the editor"
+          ></video>
         </div>
       </div>
     </section>
