@@ -81,15 +81,25 @@ jobs:
 
       # Required by lance-encoding's build.rs (prost-build). Added for v1.5
       # M1 (LanceDB RAG). Mac/Linux path.
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          # Pinned exact version (was "25.x") because arduino/setup-protoc's
-          # "resolve latest in range" GitHub API call has been flaking with
-          # "unable to get latest version" errors. Pinning skips that call
-          # and goes straight to a deterministic release-asset download.
-          version: "25.9"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      #
+      # Switched FROM arduino/setup-protoc@v3 because that action queries
+      # GitHub's protocolbuffers/protobuf releases API to resolve asset
+      # URLs, and that endpoint has been returning empty arrays for
+      # authenticated requests (the action passes GITHUB_TOKEN). Result:
+      # "Error: unable to get latest version" failures across many runs.
+      # Native package managers bypass the API entirely and ship a
+      # working protoc on PATH within seconds.
+      - name: Install protoc (Mac/Linux)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew install protobuf
+          else
+            sudo apt-get update
+            sudo apt-get install -y protobuf-compiler
+          fi
+          protoc --version
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -313,15 +323,15 @@ jobs:
 
       # Required by lance-encoding's build.rs (prost-build). Added for v1.5
       # M1 (LanceDB RAG). Windows path.
-      - name: Install protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          # Pinned exact version (was "25.x") because arduino/setup-protoc's
-          # "resolve latest in range" GitHub API call has been flaking with
-          # "unable to get latest version" errors. Pinning skips that call
-          # and goes straight to a deterministic release-asset download.
-          version: "25.9"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      #
+      # Switched FROM arduino/setup-protoc@v3 for the same reason as the
+      # Mac/Linux path above. Chocolatey is preinstalled on the
+      # windows-latest runners and ships protoc on PATH.
+      - name: Install protoc (Windows)
+        shell: pwsh
+        run: |
+          choco install protoc -y --no-progress
+          protoc --version
 
       - name: Install frontend dependencies
         run: npm ci
