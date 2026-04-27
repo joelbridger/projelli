@@ -2156,48 +2156,70 @@
   </script>
 
   <!-- Platform-aware download UI: detect OS, fill primary CTA + the
-       full per-platform list. Bump VERSION on every release. -->
+       full per-platform list.
+       FALLBACK_VERSION is what we point at if the GitHub API fetch
+       below fails or returns nothing. Bump it after each release.
+       The async fetch below replaces the URLs with whatever the
+       /releases/latest endpoint reports — so a future release that
+       hasn't yet been bumped here still gets served correctly. -->
   <script>
     (function() {
-      var VERSION = '1.7.0';
-      var BASE = 'https://github.com/projelli/projelli/releases/download/v' + VERSION + '/';
+      var FALLBACK_VERSION = '1.6.0';
+      var version = FALLBACK_VERSION;
 
-      // Direct installer URLs per platform (must match the artifact names
-      // produced by .github/workflows/release.yml).
-      var URLS = {
-        'windows':          BASE + 'Projelli_' + VERSION + '_x64-setup.exe',
-        'windows-portable': BASE + 'Projelli_' + VERSION + '_x64-portable.exe',
-        'mac-arm':          BASE + 'Projelli_' + VERSION + '_aarch64.dmg',
-        'mac-intel':        BASE + 'Projelli_' + VERSION + '_x64.dmg',
-        'linux-deb':        BASE + 'Projelli_' + VERSION + '_amd64.deb',
-        'linux-appimage':   BASE + 'Projelli_' + VERSION + '_amd64.AppImage',
-      };
+      function buildUrls(v) {
+        var BASE = 'https://github.com/projelli/projelli/releases/download/v' + v + '/';
+        return {
+          'windows':          BASE + 'Projelli_' + v + '_x64-setup.exe',
+          'windows-portable': BASE + 'Projelli_' + v + '_x64-portable.exe',
+          'mac-arm':          BASE + 'Projelli_' + v + '_aarch64.dmg',
+          'mac-intel':        BASE + 'Projelli_' + v + '_x64.dmg',
+          'linux-deb':        BASE + 'Projelli_' + v + '_amd64.deb',
+          'linux-appimage':   BASE + 'Projelli_' + v + '_amd64.AppImage',
+        };
+      }
 
-      // Wire each platform link in the dropdown.
-      document.querySelectorAll('.platform-link').forEach(function(a) {
-        var os = a.getAttribute('data-os');
-        if (URLS[os]) a.href = URLS[os];
-      });
-
-      // Auto-detect visitor OS for the primary CTA.
-      var ua = navigator.userAgent;
-      var primary = document.getElementById('primary-download');
-      if (primary) {
+      function applyUrls(URLS) {
+        document.querySelectorAll('.platform-link').forEach(function(a) {
+          var os = a.getAttribute('data-os');
+          if (URLS[os]) a.href = URLS[os];
+        });
+        var ua = navigator.userAgent;
+        var primary = document.getElementById('primary-download');
+        if (!primary) return;
         if (/Windows/.test(ua)) {
           primary.href = URLS['windows'];
           primary.textContent = 'Download for Windows';
         } else if (/Mac/.test(ua)) {
-          // Apple Silicon detection is unreliable from the UA alone, so
-          // default to ARM (covers M1/M2/M3/M4 — the majority of new Macs).
-          // Intel users can pick from the "Other platforms" panel.
           primary.href = URLS['mac-arm'];
           primary.textContent = 'Download for Mac';
         } else if (/Linux/.test(ua)) {
           primary.href = URLS['linux-deb'];
           primary.textContent = 'Download for Linux';
         }
-        // Else: leaves default text "Download Projelli" + GitHub releases link.
       }
+
+      // Apply fallback URLs immediately so something works even if the
+      // network is slow / API rate-limits / GitHub is down.
+      applyUrls(buildUrls(FALLBACK_VERSION));
+
+      // Then asynchronously fetch the actual latest release and update.
+      // /releases/latest only returns a release once it's been published
+      // (in-progress workflows don't count), so this can't 404 visitors
+      // onto a half-built release.
+      fetch('https://api.github.com/repos/projelli/projelli/releases/latest', {
+        headers: { 'Accept': 'application/vnd.github+json' },
+      })
+        .then(function(r) { return r.ok ? r.json() : null; })
+        .then(function(data) {
+          if (!data || !data.tag_name) return;
+          var v = data.tag_name.replace(/^v/, '');
+          if (v && v !== version) {
+            version = v;
+            applyUrls(buildUrls(v));
+          }
+        })
+        .catch(function() { /* keep the fallback */ });
 
       // Toggle "Other platforms" panel.
       var toggle = document.getElementById('other-platforms-toggle');
