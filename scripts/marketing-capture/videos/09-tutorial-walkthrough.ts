@@ -91,14 +91,14 @@ const OUT_W = 1808, OUT_H = 1032;
 const OUT_ASPECT = OUT_W / OUT_H;
 
 // Tightest zoom — content this big inside 1808x1032 means roughly a
-// 2.4x camera zoom. Tight enough that each sidebar tab gets its own
-// crop window (so the camera pans vertically down the sidebar as the
-// highlighted tab moves) without making text pixelate noticeably.
-const TIGHT_W = 760;
+// 3.8x camera zoom. The bubble's body text fills ~70% of the output
+// width, so it reads at full size on mobile. Some text pixelation in
+// the surrounding UI is the cost; the bubble is the focus.
+const TIGHT_W = 480;
 const TIGHT_H = TIGHT_W / OUT_ASPECT;
 
 // Padding around the union(target, bubble) bounding box, in post-composite px.
-const PAD = 36;
+const PAD = 20;
 
 function mapPageRectToPost(r: PageRect): { x1: number; y1: number; x2: number; y2: number } {
   return {
@@ -155,8 +155,15 @@ function computeCropWindow(target: PageRect | null, bubble: PageRect | null): Cr
  * `transitionSec` with a cubic ease-in-out. The transition WINDOW ends at
  * the next keyframe time, so by the moment the next bubble appears the
  * camera has already settled.
+ *
+ * Important: ffmpeg's crop filter doesn't expose a working `t` (timestamp)
+ * variable for webm input — `t` is NaN, so any `lt(t, ...)` evaluates to
+ * 0 and the expression always takes the else branch. We use `n` (input
+ * frame number) instead and convert keyframe seconds to frame numbers
+ * using the source webm's frame rate.
  */
-function buildExpr(values: Array<{ t: number; v: number }>, transitionSec: number): string {
+function buildExpr(values: Array<{ t: number; v: number }>, transitionSec: number, fps: number): string {
+  const toFrame = (sec: number) => Math.round(sec * fps);
   if (values.length === 0) return '0';
   if (values.length === 1) return values[0]!.v.toFixed(2);
 
@@ -166,14 +173,16 @@ function buildExpr(values: Array<{ t: number; v: number }>, transitionSec: numbe
     const prev = values[i - 1]!;
     const curr = values[i]!;
     const tStart = Math.max(prev.t, curr.t - transitionSec);
-    const dur = curr.t - tStart;
-    const p = `((t-${tStart.toFixed(3)})/${dur.toFixed(3)})`;
+    const nStart = toFrame(tStart);
+    const nEnd = toFrame(curr.t);
+    const dur = Math.max(1, nEnd - nStart); // frames
+    const p = `((n-${nStart})/${dur})`;
     // Cubic ease-in-out: p<.5 ? 4p^3 : 1 - (-2p+2)^3 / 2
     const eased = `if(lt(${p},0.5),4*${p}*${p}*${p},1-pow(-2*${p}+2\\,3)/2)`;
     const lerp = `(${prev.v.toFixed(2)}+(${(curr.v - prev.v).toFixed(2)})*(${eased}))`;
-    expr = `if(lt(t,${tStart.toFixed(3)}),${prev.v.toFixed(2)},if(lt(t,${curr.t.toFixed(3)}),${lerp},${expr}))`;
+    expr = `if(lt(n,${nStart}),${prev.v.toFixed(2)},if(lt(n,${nEnd}),${lerp},${expr}))`;
   }
-  expr = `if(lt(t,${values[0]!.t.toFixed(3)}),${values[0]!.v.toFixed(2)},${expr})`;
+  expr = `if(lt(n,${toFrame(values[0]!.t)}),${values[0]!.v.toFixed(2)},${expr})`;
   return expr;
 }
 
@@ -275,10 +284,10 @@ export async function video09() {
     );
 
     const tSec = (Date.now() - recordingStartMs) / 1000;
-    const crop =
-      step.kind === 'center'
-        ? wideCrop()
-        : computeCropWindow(rects.target, rects.bubble);
+    // Even the centered intro modal gets a zoom — the bubble itself
+    // becomes the framing target, so the very first second feels close
+    // and intentional rather than a wide shot of the whole product.
+    const crop = computeCropWindow(rects.target, rects.bubble);
     keyframes.push({ stepId: step.id, tSec, crop });
     console.log(
       `[V09] keyframe step=${step.id.padEnd(16)} t=${tSec.toFixed(2)}s ` +
@@ -356,20 +365,40 @@ export async function video09() {
   mkdirSync(ASSETS_DIR, { recursive: true });
   const outPath = path.join(ASSETS_DIR, 'tutorial-walkthrough.mp4');
 
+  // ── Detect input fps so the frame-number expression matches reality ──
+  // Playwright's recordVideo writes webm at a fixed rate (typically 25
+  // fps). The crop filter's `t` variable is NaN for webm, so we drive
+  // animation off `n` (input frame number) instead.
+  const probeOut = execFileSync('ffprobe', [
+    '-v', 'error',
+    '-select_streams', 'v:0',
+    '-show_entries', 'stream=r_frame_rate',
+    '-of', 'default=noprint_wrappers=1:nokey=1',
+    webmPath,
+  ]).toString().trim();
+  const [num, den] = probeOut.split('/').map(Number);
+  const FPS_IN = (num ?? 25) / (den ?? 1);
+  console.log(`[V09] source webm fps = ${FPS_IN}`);
+
   // ── Build animated crop expressions from the keyframe timeline ──────
   // Trim the noisy lead-in (test-workspace fallback before seedState
   // swaps to Linterly + intro modal). Keep ~0.7s of pre-roll so the wide
   // intro shot has a moment to register before any camera movement.
   const PRE_ROLL_SEC = 0.7;
   const trimSec = Math.max(0, keyframes[0]!.tSec - PRE_ROLL_SEC);
-  const adjusted = keyframes.map((k) => ({ ...k, tSec: k.tSec - trimSec }));
+  // We DON'T pass -ss to ffmpeg — that would make `n` reset relative to
+  // the seek point but in unpredictable ways depending on keyframes.
+  // Instead, keep the full webm and adjust keyframe times so the
+  // expression-based crop ignores the lead-in (camera holds at first
+  // keyframe value through the lead-in), then trim the output later.
+  const adjusted = keyframes.map((k) => ({ ...k, tSec: k.tSec /* no shift */ }));
 
   const TRANSITION_SEC = 0.5;
-  const exprX = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.x })), TRANSITION_SEC);
-  const exprY = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.y })), TRANSITION_SEC);
-  const exprW = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.w })), TRANSITION_SEC);
-  const exprH = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.h })), TRANSITION_SEC);
-  console.log(`[V09] trimming first ${trimSec.toFixed(2)}s from webm`);
+  const exprX = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.x })), TRANSITION_SEC, FPS_IN);
+  const exprY = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.y })), TRANSITION_SEC, FPS_IN);
+  const exprW = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.w })), TRANSITION_SEC, FPS_IN);
+  const exprH = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.h })), TRANSITION_SEC, FPS_IN);
+  console.log(`[V09] trimming first ${trimSec.toFixed(2)}s from webm output`);
 
   // Persist the timeline next to the temp webm so future debugging /
   // tweaks can replay the same camera moves without recapturing.
@@ -390,9 +419,12 @@ export async function video09() {
     'ffmpeg',
     [
       '-y',
-      '-ss', trimSec.toFixed(3),
       '-i', webmPath,
       '-i', CHROME_PNG,
+      // -ss after -i = output seek: trims the first N seconds of the
+      // ENCODED output (after filter graph runs). This avoids the
+      // PTS/`n` reset issues that -ss before -i would cause.
+      '-ss', trimSec.toFixed(3),
       '-filter_complex',
       '[0:v]scale=1808:1004[scaled];' +
       '[scaled]pad=1920:1080:56:52:color=0x1a1a1a[padded];' +
