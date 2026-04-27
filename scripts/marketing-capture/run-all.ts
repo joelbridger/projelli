@@ -14,6 +14,13 @@ import { reframeAll } from './shots/07-09-social-reframes';
 import { shot10 } from './shots/10-document-suite';
 import { shot11 } from './shots/11-local-first';
 import { video01 } from './videos/01-demo-30s';
+import { video02 } from './videos/02-workspace-tour';
+import { video03 } from './videos/03-wikilinks';
+import { video04 } from './videos/04-workflow-templates';
+import { video05 } from './videos/05-document-suite';
+import { video06 } from './videos/06-byok-setup';
+import { video07 } from './videos/07-local-first';
+import { video08 } from './videos/08-version-history';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROJELLI_ROOT = path.resolve(HERE, '../../');
@@ -83,8 +90,15 @@ async function main() {
     await shot10();              console.log('✓ S10 document suite');
     await shot11();              console.log('✓ S11 local-first');
 
-    console.log('--- Video ---');
-    await video01();             console.log('✓ V01 30-second demo');
+    console.log('--- Videos ---');
+    await video01(); console.log('✓ V01 30-second demo');
+    await video02(); console.log('✓ V02 workspace tour');
+    await video03(); console.log('✓ V03 wiki-links');
+    await video04(); console.log('✓ V04 workflow templates');
+    await video05(); console.log('✓ V05 document suite');
+    await video06(); console.log('✓ V06 BYOK setup');
+    await video07(); console.log('✓ V07 local-first');
+    await video08(); console.log('✓ V08 version history');
   } finally {
     if (dev) {
       dev.kill();
