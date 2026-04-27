@@ -794,34 +794,63 @@
       margin: 0 auto;
     }
 
-    /* Social Proof */
-    .social-proof {
-      padding: 48px 0;
+    /* Product preview strip (3 real product screenshots) */
+    .product-strip {
+      padding: 64px 0 48px;
       border-top: 1px solid var(--border-gray);
-      border-bottom: 1px solid var(--border-gray);
     }
-
-    .stats-row {
-      display: flex;
-      justify-content: center;
-      gap: 64px;
-      flex-wrap: wrap;
+    .product-strip-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
     }
-
-    .stat-item {
-      text-align: center;
+    @media (min-width: 768px) {
+      .product-strip-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+      }
     }
-
-    .stat-value {
-      font-size: 2rem;
-      font-weight: 700;
+    .product-strip-card {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-gray);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .product-strip-card:hover {
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+    }
+    .product-strip-card img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .product-strip-caption {
+      padding: 16px 18px;
+      font-size: 0.9375rem;
+      color: var(--text-body);
+    }
+    .product-strip-caption strong {
+      display: block;
       color: var(--text-heading);
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
-
-    .stat-label {
-      font-size: 14px;
-      color: var(--text-muted);
+    .product-strip-tour-link {
+      text-align: center;
+      margin-top: 32px;
+      font-size: 0.9375rem;
+    }
+    .product-strip-tour-link a {
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .product-strip-tour-link a:hover {
+      text-decoration: underline;
     }
 
     /* Features Grid */
@@ -1448,12 +1477,12 @@
       <div class="container hero-inner">
         <div class="hero-content">
           <h1>
-            The AI workspace<br>
-            <span class="gradient-text">that remembers your stuff.</span>
+            Your AI conversations<br>
+            <span class="gradient-text">as files you actually own.</span>
           </h1>
 
           <p class="hero-subtitle">
-            Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use. Projelli is a desktop AI workspace for indie founders, with memory that actually indexes what you've already written, voice that works offline, and side-by-side editing where the AI proposes and you accept only what you like.
+            A local-first AI workspace for indie founders. Bring your own Claude, OpenAI, or Gemini key. Every chat becomes a real Markdown file on your machine. $49 once, no subscription.
           </p>
 
           <div class="hero-ctas">
@@ -1473,7 +1502,7 @@
             />
             <button type="submit" class="email-signup-btn">Get launch updates</button>
           </form>
-          <p class="email-signup-note" id="email-signup-note">Pricing locks in for the first 100 buyers. Be one of them.</p>
+          <p class="email-signup-note" id="email-signup-note">First 100 buyers get Lifetime at $29. Get notified when sales open.</p>
         </div>
 
         <!-- Hero demo video: real product capture, 30s loop -->
@@ -1493,27 +1522,32 @@
       </div>
     </section>
 
-    <!-- Social Proof -->
-    <section class="social-proof">
+    <!-- Product preview strip: 3 real screenshots from the asset-capture pipeline -->
+    <section class="product-strip">
       <div class="container">
-        <div class="stats-row">
-          <div class="stat-item">
-            <div class="stat-value">15</div>
-            <div class="stat-label">Founder Templates</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">3</div>
-            <div class="stat-label">AI Models</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">100%</div>
-            <div class="stat-label">Offline Capable</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">0</div>
-            <div class="stat-label">Cloud Dependencies</div>
-          </div>
+        <div class="product-strip-grid">
+          <a href="/tour" class="product-strip-card">
+            <img src="/press-kit/assets/screenshot-02-ai-chat.png" alt="AI chat producing a real Markdown file" loading="lazy">
+            <div class="product-strip-caption">
+              <strong>Chat creates files.</strong> Every conversation saves as Markdown.
+            </div>
+          </a>
+          <a href="/tour" class="product-strip-card">
+            <img src="/press-kit/assets/screenshot-04-templates.png" alt="The 15 founder workflow templates gallery" loading="lazy">
+            <div class="product-strip-caption">
+              <strong>15 founder templates.</strong> Pitch decks, customer interviews, financials.
+            </div>
+          </a>
+          <a href="/tour" class="product-strip-card">
+            <img src="/press-kit/assets/screenshot-03-wikilinks.png" alt="Wiki-links and backlinks panel" loading="lazy">
+            <div class="product-strip-caption">
+              <strong>Wiki-links and backlinks.</strong> Your archive, connected.
+            </div>
+          </a>
         </div>
+        <p class="product-strip-tour-link">
+          <a href="/tour">See all 8 demo videos &rarr;</a>
+        </p>
       </div>
     </section>
 
@@ -1521,9 +1555,9 @@
     <section class="features" id="features">
       <div class="container">
         <div class="section-header">
-          <span class="eyebrow">V1.5</span>
+          <span class="eyebrow">WHAT PROJELLI DOES</span>
           <h2>Four capabilities, one local-first app</h2>
-          <p>Every feature below runs on your machine with your own API keys. Nothing you type is ever sent to a Projelli server. The four things v1.5 leads with, in order.</p>
+          <p>Every feature below runs on your machine with your own API keys. Nothing you type is ever sent to a Projelli server.</p>
         </div>
 
         <div class="features-grid">
@@ -1580,7 +1614,7 @@
         </div>
 
         <p style="text-align: center; color: var(--text-muted); font-size: 0.9375rem; margin-top: 40px;">
-          Plus the v1.0.8+v1.5 quality-of-life additions: a real-time API cost meter, a 30-day cost dashboard, a <code>?</code> keyboard-shortcuts overlay, a memory status badge, per-template model selection, Mermaid diagrams, KaTeX math, and a 3-step API-key wizard for your first run.
+          Plus a real-time API cost meter so you always know what AI is costing you.
         </p>
       </div>
     </section>
@@ -1590,86 +1624,53 @@
       <div class="container">
         <div class="feature-row animate-on-scroll">
           <div class="feature-visual">
-            <h3 style="margin-bottom: 16px; font-size: 1.125rem;">💬 AI Chat Interface</h3>
-            <div style="background: #F8FAFC; padding: 16px; border-radius: 12px; margin-bottom: 12px;">
-              <div style="font-size: 13px; color: #94A3B8; margin-bottom: 8px;">You:</div>
-              <div style="font-size: 14px; line-height: 1.6;">Help me ship my first paying customer in 30 days. I have an MVP built but no users yet.</div>
-            </div>
-            <div style="background: rgba(59, 130, 246, 0.05); padding: 16px; border-radius: 12px; border-left: 3px solid #3B82F6;">
-              <div style="font-size: 13px; color: #3B82F6; margin-bottom: 8px; font-weight: 600;">AI:</div>
-              <div style="font-size: 14px; line-height: 1.6;">Got it. Let&rsquo;s start with a 30-day GTM plan and the three channels you&rsquo;ll actually try first&hellip;</div>
-              <div style="margin-top: 12px; padding: 12px; background: white; border-radius: 8px; border: 1px solid #E2E8F0; font-size: 13px;">
-                ✓ Created: <strong>30-Day GTM Plan.md</strong>
-              </div>
-            </div>
+            <img src="/press-kit/assets/screenshot-02-ai-chat.png" alt="Projelli AI chat mid-stream with a new Markdown file appearing in the file tree" loading="lazy" style="width:100%; height:auto; border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,0.1); display:block;">
           </div>
 
           <div class="feature-text">
             <span class="eyebrow">AI WORKSPACE</span>
             <h2>Chat that leaves something behind</h2>
-            <p>Most AI chats evaporate the moment you close the tab. In Projelli, every conversation drops real documents into your project folder: plans, research notes, character sheets, strategy guides. Edit them inline, keep old versions, link them to the rest of your notes.</p>
+            <p>Most AI chats evaporate the moment you close the tab. In Projelli, every conversation drops real Markdown files into your workspace folder: plans, research notes, customer interviews, draft pitches. Edit inline, keep old versions, link them to anything else.</p>
             <ul class="feature-list">
-              <li>Documents get saved to your folder, not buried in chat history</li>
-              <li>You can see what the AI did and walk it back</li>
+              <li>Conversations save to your folder, not buried in chat history</li>
+              <li>Every AI action is logged and reversible</li>
               <li>Follow-up prompts rewrite the document in place</li>
-              <li>Export to Markdown or PDF whenever you want</li>
+              <li>Export to Markdown, PDF, Word, or PowerPoint</li>
             </ul>
           </div>
         </div>
 
         <div class="feature-row reverse animate-on-scroll">
           <div class="feature-visual">
-            <h3 style="margin-bottom: 16px; font-size: 1.125rem;">🔗 Connected Knowledge</h3>
-            <div style="font-size: 14px; line-height: 1.8; color: #475569;">
-              <p style="margin-bottom: 12px;"><span style="background: rgba(59, 130, 246, 0.1); color: #3B82F6; padding: 2px 6px; border-radius: 4px;">[[Pricing Strategy]]</span> needs to anchor against <span style="background: rgba(59, 130, 246, 0.1); color: #3B82F6; padding: 2px 6px; border-radius: 4px;">[[Notion AI]]</span> but undercut on lifetime value.</p>
-              <div style="margin-top: 16px; padding: 12px; background: #F8FAFC; border-radius: 8px; border-left: 3px solid #10B981; font-size: 13px;">
-                <div style="color: #10B981; font-weight: 600; margin-bottom: 6px;">Backlinks (2)</div>
-                <div>← <a href="#" style="color: #3B82F6; text-decoration: none;">Competitor: Notion AI.md</a></div>
-                <div>← <a href="#" style="color: #3B82F6; text-decoration: none;">FAQ: Why one-time pricing.md</a></div>
-              </div>
-            </div>
+            <img src="/press-kit/assets/screenshot-03-wikilinks.png" alt="Editor with wiki-link autocomplete and the backlinks panel showing every doc that references this one" loading="lazy" style="width:100%; height:auto; border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,0.1); display:block;">
           </div>
 
           <div class="feature-text">
             <span class="eyebrow">CONNECTED KNOWLEDGE</span>
-            <h2>A workspace that keeps your thoughts connected</h2>
-            <p>Any document in Projelli can link to any other. Wiki-style links, automatic backlinks, and full-text search across the whole project. Split panes let you keep one file open while you write in another, which is how most people actually work.</p>
+            <h2>A workspace that keeps your thinking connected</h2>
+            <p>Any document in Projelli can link to any other. Wiki-style links, automatic backlinks, and full-text search across the whole workspace. Split panes let you keep one file open while you write in another.</p>
             <ul class="feature-list">
               <li>[[Wiki-links]] between any two documents</li>
               <li>Automatic backlinks so nothing gets orphaned</li>
               <li>Split-pane editing</li>
-              <li>Full-text search across your whole project</li>
+              <li>Full-text search across your entire workspace</li>
             </ul>
           </div>
         </div>
 
         <div class="feature-row animate-on-scroll">
           <div class="feature-visual">
-            <div style="text-align: center; padding: 40px 20px;">
-              <div style="width: 80px; height: 80px; margin: 0 auto 24px; border-radius: 50%; background: rgba(16, 185, 129, 0.1); display: flex; align-items: center; justify-content: center;">
-                <svg width="40" height="40" fill="none" stroke="#10B981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-              </div>
-              <h3 style="font-size: 1.5rem; color: #111F35; margin-bottom: 12px;">100% Local</h3>
-              <p style="color: #475569; font-size: 15px; line-height: 1.6;">Your files stay on your computer. Built on Tauri with SQLite and plain files on disk.</p>
-              <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
-                <span style="padding: 6px 12px; background: rgba(16, 185, 129, 0.1); color: #10B981; border-radius: 9999px; font-size: 12px; font-weight: 600;">No Cloud</span>
-                <span style="padding: 6px 12px; background: rgba(16, 185, 129, 0.1); color: #10B981; border-radius: 9999px; font-size: 12px; font-weight: 600;">No Account</span>
-                <span style="padding: 6px 12px; background: rgba(16, 185, 129, 0.1); color: #10B981; border-radius: 9999px; font-size: 12px; font-weight: 600;">Full Privacy</span>
-              </div>
-            </div>
+            <img src="/press-kit/assets/feature-local-first.png" alt="A Projelli file appears as a real Markdown file in the Mac Finder, proving the data lives on the user's machine" loading="lazy" style="width:100%; height:auto; border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,0.1); display:block;">
           </div>
 
           <div class="feature-text">
             <span class="eyebrow">LOCAL-FIRST</span>
             <h2>Your data lives on your computer</h2>
-            <p>Projelli stores everything locally using SQLite and plain files on disk. No account to create, nothing syncing to someone else&rsquo;s server. Native desktop app built on Tauri, so it stays fast and the install is small.</p>
+            <p>Projelli stores everything locally using plain Markdown files on disk. No account, nothing syncing to someone else's server. Open the workspace folder in Finder and your conversations are right there as files you can read in any text editor.</p>
             <ul class="feature-list">
-              <li>SQLite and plain files on disk</li>
-              <li>Works fully offline</li>
-              <li>No account required</li>
+              <li>Plain Markdown files in a folder you pick</li>
+              <li>Works fully offline (except for AI calls)</li>
+              <li>No account required, no telemetry</li>
               <li>Native desktop app built on Tauri (Rust)</li>
             </ul>
           </div>
