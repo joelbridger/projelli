@@ -9,11 +9,27 @@ This folder is the canonical home for **all ongoing marketing work** for Projell
 ```
 docs/marketing/
 ├── README.md          ← you are here
+├── strategy/          The 12-month strategic plan. Read FIRST before any tactical work.
 ├── playbook/          Reusable how-to docs that apply across channels and campaigns
 ├── channels/          Per-platform launch + ongoing materials (PH, HN, IH, Reddit, etc.)
 ├── action-packs/      To-do bundles scoped to a specific person or audience
 └── campaigns/         One folder per discrete marketing campaign (NEW work goes here)
 ```
+
+### `strategy/` — read this first
+Authored 2026-04-27. The 12-month strategic plan: definition of winning, ICP, positioning, message hierarchy, two-engine model (SEO compounding + spike booster), retention, personal brand binding, measurement cadence, anti-patterns. Channel-level tactics in `channels/` and `playbook/` are subordinate to this plan.
+
+| File | What it covers |
+|---|---|
+| `strategy/README.md` | Index + 1-page summary of the entire strategy |
+| `strategy/00-master-strategy.md` | Strategic spine: ICP, positioning, two-engine model, hours allocation, eight non-goals |
+| `strategy/01-seo-engine.md` | Compounding engine: 30-40 page architecture, AI-search optimization, 12-week cadence |
+| `strategy/02-launch-fuel.md` | Launch week reframed as engine fuel: 5-day sequence, harvest mechanics |
+| `strategy/03-partnership-spikes.md` | Newsletter sponsorships, integrations, podcasts, affiliate program |
+| `strategy/04-retention-and-wom.md` | Buyer-to-advocate engine: onboarding, upgrades, testimonials |
+| `strategy/05-personal-brand-binding.md` | The selective hybrid: brand voice + Jameson 1-2x/month amplification |
+| `strategy/06-measurement-cadence.md` | KPIs, weekly/monthly/quarterly review rituals, abort triggers |
+| `strategy/07-anti-patterns.md` | 22 traps we won't fall into |
 
 ### `playbook/`
 Generic how-to docs that apply across channels and campaigns. The shared toolbox. Current contents:
