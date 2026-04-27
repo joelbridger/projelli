@@ -35,7 +35,8 @@ interface Replay { chunks: ReplayChunk[]; createdFile?: string; }
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 const TOUR_STEP_DWELL_MS = 4500; // read time per anchored step
-const INTRO_DWELL_MS = 5000;     // first step is the centered intro modal
+const INTRO_DWELL_MS = 200;      // skip past the intro modal almost instantly
+                                 // — the camera timeline starts at file-tree
 
 // Each step's anchored target — used by the camera math to compute a
 // crop window around (target ∪ bubble). Mirrors featureTourSteps.ts.
@@ -90,15 +91,17 @@ const VISIBLE_X = 56, VISIBLE_Y = 24, VISIBLE_W = 1808, VISIBLE_H = 1032;
 const OUT_W = 1808, OUT_H = 1032;
 const OUT_ASPECT = OUT_W / OUT_H;
 
-// Tightest zoom — content this big inside 1808x1032 means roughly a
-// 3.8x camera zoom. The bubble's body text fills ~70% of the output
-// width, so it reads at full size on mobile. Some text pixelation in
-// the surrounding UI is the cost; the bubble is the focus.
-const TIGHT_W = 480;
+// Tightest zoom — ~2.9x camera zoom. The bubble's body text reads at
+// large size with comfortable padding around it. We have 4K source
+// pixels to draw from, so this zoom level looks crisp on retina.
+const TIGHT_W = 620;
 const TIGHT_H = TIGHT_W / OUT_ASPECT;
 
-// Padding around the union(target, bubble) bounding box, in post-composite px.
-const PAD = 20;
+// Padding around the union(target, bubble) bounding box. Generous on
+// the right specifically because top-right bubbles (Ctrl+K, settings)
+// sit close to the chrome edge and need slack so they don't clip.
+const PAD = 36;
+const PAD_RIGHT_EXTRA = 24;
 
 function mapPageRectToPost(r: PageRect): { x1: number; y1: number; x2: number; y2: number } {
   return {
@@ -121,7 +124,7 @@ function computeCropWindow(target: PageRect | null, bubble: PageRect | null): Cr
     .map(mapPageRectToPost);
   const xMin = Math.min(...boxes.map((b) => b.x1)) - PAD;
   const yMin = Math.min(...boxes.map((b) => b.y1)) - PAD;
-  const xMax = Math.max(...boxes.map((b) => b.x2)) + PAD;
+  const xMax = Math.max(...boxes.map((b) => b.x2)) + PAD + PAD_RIGHT_EXTRA;
   const yMax = Math.max(...boxes.map((b) => b.y2)) + PAD;
   const uw = xMax - xMin;
   const uh = yMax - yMin;
@@ -197,11 +200,22 @@ export async function video09() {
   mkdirSync(VIDEO_TMP, { recursive: true });
   const replay: Replay = JSON.parse(readFileSync(REPLAY_PATH, 'utf-8'));
 
-  const browser = await chromium.launch();
+  // Record at 4K (DPR=2) so we have the pixel headroom to zoom in 3x
+  // without pixelation. The viewport stays at 1920x1080 CSS so the
+  // React app's layout is unchanged; only the captured bitmap is 2x.
+  //
+  // `deviceScaleFactor` alone doesn't change recordVideo's pixel
+  // density — Playwright happily wrote a 1920x1080 page into a 4K
+  // black-padded canvas. The fix is `--force-device-scale-factor=2`
+  // at the Chromium command-line level, which makes the compositor
+  // render at 2x pixels for real.
+  const browser = await chromium.launch({
+    args: ['--force-device-scale-factor=2', '--high-dpi-support=1'],
+  });
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
-    deviceScaleFactor: 1,
-    recordVideo: { dir: VIDEO_TMP, size: { width: 1920, height: 1080 } },
+    deviceScaleFactor: 2,
+    recordVideo: { dir: VIDEO_TMP, size: { width: 3840, height: 2160 } },
   });
   const page = await context.newPage();
   // Recording starts when the page is created, so anchor t=0 here. All
@@ -284,15 +298,17 @@ export async function video09() {
     );
 
     const tSec = (Date.now() - recordingStartMs) / 1000;
-    // Even the centered intro modal gets a zoom — the bubble itself
-    // becomes the framing target, so the very first second feels close
-    // and intentional rather than a wide shot of the whole product.
-    const crop = computeCropWindow(rects.target, rects.bubble);
-    keyframes.push({ stepId: step.id, tSec, crop });
-    console.log(
-      `[V09] keyframe step=${step.id.padEnd(16)} t=${tSec.toFixed(2)}s ` +
-      `crop=(${Math.round(crop.x)},${Math.round(crop.y)},${Math.round(crop.w)},${Math.round(crop.h)})`,
-    );
+    // Skip the intro modal as a camera keyframe — we auto-advance past
+    // it in 200ms (the user wants to jump straight into the actual
+    // tour content). The camera starts at file-tree's crop instead.
+    if (step.id !== 'intro') {
+      const crop = computeCropWindow(rects.target, rects.bubble);
+      keyframes.push({ stepId: step.id, tSec, crop });
+      console.log(
+        `[V09] keyframe step=${step.id.padEnd(16)} t=${tSec.toFixed(2)}s ` +
+        `crop=(${Math.round(crop.x)},${Math.round(crop.y)},${Math.round(crop.w)},${Math.round(crop.h)})`,
+      );
+    }
 
     await sleep(step.dwell - 120);
 
@@ -381,24 +397,23 @@ export async function video09() {
   console.log(`[V09] source webm fps = ${FPS_IN}`);
 
   // ── Build animated crop expressions from the keyframe timeline ──────
-  // Trim the noisy lead-in (test-workspace fallback before seedState
-  // swaps to Linterly + intro modal). Keep ~0.7s of pre-roll so the wide
-  // intro shot has a moment to register before any camera movement.
-  const PRE_ROLL_SEC = 0.7;
+  // Trim the lead-in (test-workspace + intro modal flash before
+  // file-tree appears). Keep ~0.4s of pre-roll so the camera is
+  // pre-positioned on the file-tree zoom when the bubble pops in.
+  const PRE_ROLL_SEC = 0.4;
   const trimSec = Math.max(0, keyframes[0]!.tSec - PRE_ROLL_SEC);
-  // We DON'T pass -ss to ffmpeg — that would make `n` reset relative to
-  // the seek point but in unpredictable ways depending on keyframes.
-  // Instead, keep the full webm and adjust keyframe times so the
-  // expression-based crop ignores the lead-in (camera holds at first
-  // keyframe value through the lead-in), then trim the output later.
+  // Source recording is 4K (DPR=2). All keyframes are computed in 1x
+  // post-composite coords; multiply by 2 here so they index into the
+  // 4K composite frame.
+  const SCALE_TO_4K = 2;
   const adjusted = keyframes.map((k) => ({ ...k, tSec: k.tSec /* no shift */ }));
 
   const TRANSITION_SEC = 0.5;
-  const exprX = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.x })), TRANSITION_SEC, FPS_IN);
-  const exprY = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.y })), TRANSITION_SEC, FPS_IN);
-  const exprW = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.w })), TRANSITION_SEC, FPS_IN);
-  const exprH = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.h })), TRANSITION_SEC, FPS_IN);
-  console.log(`[V09] trimming first ${trimSec.toFixed(2)}s from webm output`);
+  const exprX = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.x * SCALE_TO_4K })), TRANSITION_SEC, FPS_IN);
+  const exprY = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.y * SCALE_TO_4K })), TRANSITION_SEC, FPS_IN);
+  const exprW = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.w * SCALE_TO_4K })), TRANSITION_SEC, FPS_IN);
+  const exprH = buildExpr(adjusted.map((k) => ({ t: k.tSec, v: k.crop.h * SCALE_TO_4K })), TRANSITION_SEC, FPS_IN);
+  console.log(`[V09] trimming first ${trimSec.toFixed(2)}s from output`);
 
   // Persist the timeline next to the temp webm so future debugging /
   // tweaks can replay the same camera moves without recapturing.
@@ -406,15 +421,18 @@ export async function video09() {
   writeFileSync(timelinePath, JSON.stringify({ transitionSec: TRANSITION_SEC, keyframes }, null, 2));
   console.log(`[V09] camera timeline written → ${timelinePath}`);
 
-  // Composite + animated crop pipeline:
-  //   1. Scale source video into chrome's content area (1808x1004)
-  //   2. Pad to 1920x1080, content offset (56, 52)
-  //   3. Overlay chrome PNG
-  //   4. Animated crop=W(t):H(t):X(t):Y(t) — the camera move
-  //   5. Scale crop output back up to fixed 1808x1032 — the zoom payoff
+  // Composite + animated crop pipeline (4K source path):
+  //   1. Scale 4K source video into chrome's content area (3616x2008)
+  //   2. Pad to 3840x2160, content offset (112, 104)
+  //   3. Scale chrome PNG 1920x1080 → 3840x2160 with lanczos
+  //   4. Overlay chrome PNG on top
+  //   5. Animated crop in 4K coords = time-varying camera window
+  //   6. Lanczos downscale to 1808x1032 — the final video output
   //
-  // Commas inside ffmpeg crop's nested if() must be escaped as `\,` (already
-  // done in buildExpr's `pow(...,3)` call).
+  // The downscale is what makes the zoomed result crisp: at TIGHT_W=620
+  // (1x) = 1240 (4K) crop, source pixels per output pixel = 1240/1808 =
+  // 0.69. So each output pixel is averaged from ~1.5 source pixels.
+  // Sharp on retina without obvious blocking.
   execFileSync(
     'ffmpeg',
     [
@@ -426,16 +444,16 @@ export async function video09() {
       // PTS/`n` reset issues that -ss before -i would cause.
       '-ss', trimSec.toFixed(3),
       '-filter_complex',
-      '[0:v]scale=1808:1004[scaled];' +
-      '[scaled]pad=1920:1080:56:52:color=0x1a1a1a[padded];' +
-      '[1:v]format=rgba[chrome];' +
+      '[0:v]scale=3616:2008:flags=lanczos[scaled];' +
+      '[scaled]pad=3840:2160:112:104:color=0x1a1a1a[padded];' +
+      '[1:v]scale=3840:2160:flags=lanczos,format=rgba[chrome];' +
       '[padded][chrome]overlay=0:0[composed];' +
       `[composed]crop=w='${exprW}':h='${exprH}':x='${exprX}':y='${exprY}'[zoomed];` +
-      '[zoomed]scale=1808:1032,format=yuv420p[v]',
+      '[zoomed]scale=1808:1032:flags=lanczos,format=yuv420p[v]',
       '-map', '[v]',
       '-c:v', 'libx264',
       '-preset', 'slow',
-      '-crf', '20',
+      '-crf', '18',
       '-r', '30',
       outPath,
     ],
