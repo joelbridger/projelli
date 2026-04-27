@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Roadmap | Projelli</title>
+  <meta name="description" content="What I'm building next on Projelli, in the open. See what's shipped, what's in flight, and vote on what's next.">
+  <link rel="canonical" href="https://projelli.com/roadmap/">
+  <meta name="robots" content="index, follow">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://projelli.com/roadmap/">
+  <meta property="og:title" content="Projelli Roadmap">
+  <meta property="og:description" content="See what's shipped, what's in flight, and vote on what's next.">
+  <meta property="og:image" content="https://projelli.com/press-kit/assets/og-linkedin-card.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Projelli Roadmap">
+  <meta name="twitter:description" content="See what's shipped, what's in flight, and vote on what's next.">
+  <meta name="twitter:image" content="https://projelli.com/press-kit/assets/og-twitter-card.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+      --accent-coral: #FF7C6E;
+      --accent-green: #10B981;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.65; -webkit-font-smoothing: antialiased; }
+
+    .hero { padding: 80px 24px 32px; text-align: center; max-width: 880px; margin: 0 auto; }
+    .hero h1 { font-size: 2.75rem; color: var(--text-heading); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; line-height: 1.15; }
+    .hero p { font-size: 1.125rem; max-width: 640px; margin: 0 auto; color: var(--text-body); }
+
+    .container { max-width: 880px; margin: 0 auto; padding: 32px 24px 80px; }
+    .section { margin-bottom: 56px; }
+    .section-eyebrow {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent-coral);
+      margin-bottom: 8px;
+    }
+    .section-title {
+      font-size: 1.625rem;
+      color: var(--text-heading);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 16px;
+    }
+    .section-intro {
+      font-size: 1rem;
+      color: var(--text-body);
+      margin-bottom: 24px;
+      max-width: 720px;
+    }
+
+    .item-list { display: flex; flex-direction: column; gap: 12px; }
+    .item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-gray);
+      border-radius: 10px;
+      padding: 18px 22px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .item-status {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+      margin-top: 2px;
+    }
+    .item-status.shipped { background: rgba(16, 185, 129, 0.12); color: var(--accent-green); }
+    .item-status.flight  { background: rgba(255, 124, 110, 0.14); color: var(--accent-coral); }
+    .item-status.next    { background: rgba(59, 130, 246, 0.12); color: var(--accent-blue); }
+    .item-body h3 { color: var(--text-heading); font-size: 1.0625rem; font-weight: 600; line-height: 1.4; margin-bottom: 4px; }
+    .item-body p { font-size: 0.9375rem; color: var(--text-body); margin: 0; }
+    .item-body .when { font-size: 0.8125rem; color: var(--text-muted); margin-top: 4px; }
+
+    /* ── Polls ─────────────────────────────────────────────────────────── */
+    .poll {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-gray);
+      border-radius: 14px;
+      padding: 24px 26px;
+      margin-bottom: 20px;
+    }
+    .poll h3 {
+      color: var(--text-heading);
+      font-size: 1.125rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .poll-sub {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+    .poll-options { display: flex; flex-direction: column; gap: 10px; }
+    .poll-option {
+      position: relative;
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: #FFFFFF;
+      border: 1px solid var(--border-gray);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font: inherit;
+      color: var(--text-heading);
+      cursor: pointer;
+      overflow: hidden;
+      transition: border-color 0.15s, transform 0.05s;
+    }
+    .poll-option:hover { border-color: var(--accent-coral); }
+    .poll-option:active { transform: scale(0.998); }
+    .poll-option .fill {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 124, 110, 0.10);
+      width: 0%;
+      transition: width 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      pointer-events: none;
+    }
+    .poll-option .row {
+      position: relative;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .poll-option .label { font-weight: 500; flex: 1; }
+    .poll-option .pct {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .poll.results-shown .poll-option .pct { opacity: 1; }
+    .poll-option.you-voted { border-color: var(--accent-coral); }
+    .poll-option.you-voted .label::after {
+      content: ' · your pick';
+      color: var(--accent-coral);
+      font-size: 0.8125rem;
+      font-weight: 500;
+    }
+    .poll-footer {
+      margin-top: 14px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .poll-thanks {
+      color: var(--accent-green);
+      font-weight: 500;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .poll.voted .poll-thanks { opacity: 1; }
+
+    .suggest-box {
+      background: linear-gradient(135deg, #111F35 0%, #1e3a5f 100%);
+      color: white;
+      border-radius: 14px;
+      padding: 28px 30px;
+      margin-top: 32px;
+    }
+    .suggest-box h3 { color: white; font-size: 1.125rem; font-weight: 700; margin-bottom: 6px; }
+    .suggest-box p { color: rgba(255,255,255,0.85); font-size: 0.9375rem; margin-bottom: 14px; }
+    .suggest-box a {
+      color: white; background: var(--accent-coral);
+      display: inline-block; padding: 10px 20px;
+      border-radius: 999px; text-decoration: none; font-weight: 600;
+    }
+
+    .feature-banner { max-width: 880px; margin: 64px auto 0; padding: 32px 24px; }
+    .feature-banner-card { background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white; padding: 48px 40px; border-radius: 20px; text-align: center; }
+    .feature-banner-card h2 { color: white; font-size: 1.625rem; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.01em; }
+    .feature-banner-card p { color: rgba(255,255,255,0.92); margin-bottom: 24px; max-width: 600px; margin-left: auto; margin-right: auto; }
+    .cta-btn { display: inline-block; padding: 14px 36px; background: white; color: var(--text-heading); border-radius: 999px; text-decoration: none; font-weight: 600; }
+
+    footer { text-align: center; padding: 32px 24px; color: var(--text-muted); font-size: 0.875rem; border-top: 1px solid var(--border-gray); margin-top: 32px; }
+    footer a { color: var(--text-body); text-decoration: none; margin: 0 8px; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.v2.js" defer></script>
+
+<body>
+  <nav class="nav"><!-- replaced by projelli-nav script --></nav>
+
+  <section class="hero">
+    <h1>Roadmap</h1>
+    <p>What I'm building, in the open. Here's what shipped recently, what's in flight, and what's queued up next. Vote on the polls below to nudge what comes after that.</p>
+  </section>
+
+  <main class="container">
+
+    <!-- ── Recently shipped ───────────────────────────────────────── -->
+    <section class="section">
+      <div class="section-eyebrow">Recently shipped</div>
+      <h2 class="section-title">In your hands today</h2>
+      <div class="item-list">
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Document suite — .xlsx, .docx, .pptx, .csv, .rtf</h3>
+            <p>Edit Excel, Word, PowerPoint, CSV, and RTF files natively in the workspace. Round-trip preserves formatting.</p>
+            <p class="when">Shipped v1.0.8 · April 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Auto-updater</h3>
+            <p>The desktop app now checks for updates on launch and applies them in the background. No more chasing GitHub releases.</p>
+            <p class="when">Shipped v1.0.8 · April 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>10-step Feature Tour</h3>
+            <p>The first time you launch Projelli, a guided tour walks through every part of the workspace.</p>
+            <p class="when">Shipped v1.6 · April 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Auto-versioning + version history</h3>
+            <p>Every save is snapshotted automatically. Browse the full timeline and restore any version with one click.</p>
+            <p class="when">Shipped v1.5</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── In flight ──────────────────────────────────────────────── -->
+    <section class="section">
+      <div class="section-eyebrow">In flight</div>
+      <h2 class="section-title">Building right now</h2>
+      <div class="item-list">
+        <div class="item">
+          <span class="item-status flight">Building</span>
+          <div class="item-body">
+            <h3>macOS desktop build (signed + notarized)</h3>
+            <p>Native .dmg with Apple Developer ID signing, so installing doesn't require right-click-Open. Windows already ships signed.</p>
+            <p class="when">Targeting May 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status flight">Building</span>
+          <div class="item-body">
+            <h3>MCP server support</h3>
+            <p>Plug any Model Context Protocol server (Notion, Linear, GitHub, your custom one) directly into the AI chat. Bring your own integrations.</p>
+            <p class="when">Targeting May 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status flight">Building</span>
+          <div class="item-body">
+            <h3>Linux .deb + .AppImage builds</h3>
+            <p>Same Tauri binary, packaged for Debian/Ubuntu and as a portable AppImage so anyone on Linux can run Projelli without compiling.</p>
+            <p class="when">Targeting June 2026</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Public polls ───────────────────────────────────────────── -->
+    <section class="section">
+      <div class="section-eyebrow">You decide</div>
+      <h2 class="section-title">What should I build next?</h2>
+      <p class="section-intro">After what's already in flight, here's what's on the maybe-list. Vote for whatever you'd actually use — the highest-vote items get prioritized.</p>
+
+      <div class="poll" data-poll-id="next-major-feature">
+        <h3>Which big feature should ship first?</h3>
+        <div class="poll-sub">Pick one. You can change your vote anytime.</div>
+        <div class="poll-options">
+          <button class="poll-option" data-option-id="mobile-companion">
+            <div class="fill"></div>
+            <div class="row"><span class="label">Mobile companion app (iOS / Android, read-only)</span><span class="pct">—</span></div>
+          </button>
+          <button class="poll-option" data-option-id="cloud-sync-optional">
+            <div class="fill"></div>
+            <div class="row"><span class="label">Optional cloud sync (your own S3/Dropbox/iCloud bucket, end-to-end encrypted)</span><span class="pct">—</span></div>
+          </button>
+          <button class="poll-option" data-option-id="multi-workspace">
+            <div class="fill"></div>
+            <div class="row"><span class="label">Multiple workspaces (one per project, switch with Ctrl+1/2/3)</span><span class="pct">—</span></div>
+          </button>
+          <button class="poll-option" data-option-id="local-llm-better">
+            <div class="fill"></div>
+            <div class="row"><span class="label">First-class local-LLM mode (sane Ollama defaults, no API keys ever needed)</span><span class="pct">—</span></div>
+          </button>
+          <button class="poll-option" data-option-id="rag-on-workspace">
+            <div class="fill"></div>
+            <div class="row"><span class="label">Workspace RAG (the AI semantically searches all your notes, not just by name)</span><span class="pct">—</span></div>
+          </button>
+        </div>
+        <div class="poll-footer">
+          <span class="poll-count">Loading votes…</span>
+          <span class="poll-thanks">✓ Thanks for voting</span>
+        </div>
+      </div>
+
+      <div class="poll" data-poll-id="next-workflow-template">
+        <h3>Which workflow template would you use most?</h3>
+        <div class="poll-sub">Workflows are the structured AI interviews that produce a finished doc. Pick what'd save you the most time.</div>
+        <div class="poll-options">
+          <button class="poll-option" data-option-id="weekly-investor-update">
+            <div class="fill"></div>
+            <div class="row"><span class="label">Weekly investor update (MRR, asks, narrative)</span><span class="pct">—</span></div>
+          </button>
+          <button class="poll-option" data-option-id="user-interview-synth">
+            <div class="fill"></div>
+            <div class="row"><span class="label">User interview synthesis (paste 5 transcripts, get themes + quotes)</span><span class="pct">—</span></div>
+          </button>
+          <button class="poll-option" data-option-id="prd-generator">
+            <div class="fill"></div>
+            <div class="row"><span class="label">PRD generator (problem → solution → success metrics → out-of-scope)</span><span class="pct">—</span></div>
+          </button>
+          <button class="poll-option" data-option-id="competitor-watch">
+            <div class="fill"></div>
+            <div class="row"><span class="label">Competitor watch (paste their changelog/blog, get a "what changed for us" doc)</span><span class="pct">—</span></div>
+          </button>
+          <button class="poll-option" data-option-id="meeting-prep">
+            <div class="fill"></div>
+            <div class="row"><span class="label">Meeting prep (agenda, talking points, expected pushback)</span><span class="pct">—</span></div>
+          </button>
+        </div>
+        <div class="poll-footer">
+          <span class="poll-count">Loading votes…</span>
+          <span class="poll-thanks">✓ Thanks for voting</span>
+        </div>
+      </div>
+
+      <div class="suggest-box">
+        <h3>Don't see what you need?</h3>
+        <p>Email me a one-liner about what'd make Projelli a daily-driver for you. I read every one.</p>
+        <a href="mailto:hello@projelli.com?subject=Roadmap%20idea">hello@projelli.com</a>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="feature-banner">
+    <div class="feature-banner-card">
+      <h2>Try Projelli yourself</h2>
+      <p>Free download. Pro is $49 one-time, Lifetime $99. The first 100 buyers get Lifetime at $29.</p>
+      <a href="/#download" class="cta-btn">Get Projelli</a>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/eula">EULA</a> · <a href="/press-kit/">Press kit</a> · <a href="/blog/">Blog</a> · <a href="/tour">Tour</a> · <a href="/roadmap/">Roadmap</a>
+  </footer>
+
+  <script>
+    (function () {
+      var POLL_API = '/api/forms/projelli/poll-vote';
+      var STORAGE_KEY = 'projelli_poll_votes_v1';
+
+      function getStoredVotes() {
+        try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
+        catch (e) { return {}; }
+      }
+      function setStoredVote(pollId, optionId) {
+        var v = getStoredVotes();
+        v[pollId] = optionId;
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(v)); } catch (e) {}
+      }
+
+      function renderResults(pollEl, tally, myVote) {
+        var total = 0;
+        Object.keys(tally).forEach(function (k) { total += tally[k]; });
+        var options = pollEl.querySelectorAll('.poll-option');
+        options.forEach(function (opt) {
+          var id = opt.getAttribute('data-option-id');
+          var count = tally[id] || 0;
+          var pct = total > 0 ? Math.round((count / total) * 100) : 0;
+          var fill = opt.querySelector('.fill');
+          var pctEl = opt.querySelector('.pct');
+          if (fill) fill.style.width = pct + '%';
+          if (pctEl) pctEl.textContent = pct + '%';
+          opt.classList.toggle('you-voted', id === myVote);
+        });
+        pollEl.classList.add('results-shown');
+        var countEl = pollEl.querySelector('.poll-count');
+        if (countEl) countEl.textContent = total === 0
+          ? 'No votes yet — be the first.'
+          : (total === 1 ? '1 vote' : total + ' votes');
+        if (myVote) pollEl.classList.add('voted');
+      }
+
+      function loadAllResults() {
+        fetch(POLL_API + '/results')
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var stored = getStoredVotes();
+            document.querySelectorAll('.poll').forEach(function (pollEl) {
+              var pollId = pollEl.getAttribute('data-poll-id');
+              var tally = (data && data.tallies && data.tallies[pollId]) || {};
+              renderResults(pollEl, tally, stored[pollId] || null);
+            });
+          })
+          .catch(function () {
+            document.querySelectorAll('.poll-count').forEach(function (el) {
+              el.textContent = 'Couldn’t load votes — refresh to retry.';
+            });
+          });
+      }
+
+      function vote(pollId, optionId, pollEl) {
+        // Optimistic UI: mark immediately so the click feels responsive.
+        setStoredVote(pollId, optionId);
+        pollEl.classList.add('voted');
+        var options = pollEl.querySelectorAll('.poll-option');
+        options.forEach(function (opt) {
+          opt.classList.toggle('you-voted', opt.getAttribute('data-option-id') === optionId);
+        });
+        // Send the vote, then re-fetch tallies.
+        fetch(POLL_API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ poll_id: pollId, option_id: optionId }),
+        }).then(loadAllResults);
+      }
+
+      document.querySelectorAll('.poll').forEach(function (pollEl) {
+        var pollId = pollEl.getAttribute('data-poll-id');
+        pollEl.querySelectorAll('.poll-option').forEach(function (opt) {
+          opt.addEventListener('click', function () {
+            vote(pollId, opt.getAttribute('data-option-id'), pollEl);
+          });
+        });
+      });
+
+      loadAllResults();
+    })();
+  </script>
+
+</body>
+</html>

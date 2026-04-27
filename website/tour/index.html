@@ -54,7 +54,6 @@
       border-radius: 14px;
       overflow: hidden;
       filter: drop-shadow(0 12px 24px rgba(15, 23, 42, 0.12));
-      cursor: zoom-in;
       background: #0f0f17;
     }
     .video-card video {
@@ -62,21 +61,31 @@
       height: auto;
       display: block;
     }
-    /* Subtle "click to enlarge" hint pill on each thumbnail */
-    .video-card .enlarge-hint {
+    /* "Enlarge" button — its own clickable target so it doesn't fight
+       the native video controls (play / scrub / volume). */
+    .video-card .enlarge-btn {
       position: absolute;
       top: 12px;
       right: 12px;
       background: rgba(15, 23, 42, 0.78);
       color: #FFFFFF;
-      font-size: 0.75rem;
+      font-size: 0.8125rem;
       font-weight: 500;
-      padding: 6px 12px;
+      padding: 8px 14px;
       border-radius: 999px;
-      pointer-events: none;
+      border: none;
+      cursor: pointer;
       backdrop-filter: blur(8px);
-      opacity: 0.92;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, transform 0.15s;
     }
+    .video-card .enlarge-btn:hover {
+      background: rgba(15, 23, 42, 0.92);
+      transform: scale(1.04);
+    }
+    .video-card .enlarge-btn svg { width: 14px; height: 14px; }
     .video-card .meta { display: flex; align-items: baseline; gap: 12px; margin-top: 18px; margin-bottom: 8px; }
     .video-card .meta .badge { font-size: 0.75rem; color: var(--accent-coral); background: rgba(255, 124, 110, 0.12); padding: 3px 10px; border-radius: 999px; font-weight: 600; }
     .video-card h2 { font-size: 1.5rem; color: var(--text-heading); font-weight: 700; line-height: 1.3; }
@@ -148,7 +157,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.js" defer></script>
+  <script src="/scripts/projelli-nav.v2.js" defer></script>
 
 <body>
   <nav class="nav">
@@ -172,31 +181,31 @@
   <section class="videos">
 
     <div class="video-card">
-      <div class="video-wrap" data-src="/press-kit/assets/tutorial-walkthrough-v3.mp4">
-        <video src="/press-kit/assets/tutorial-walkthrough-v3.mp4" autoplay muted loop playsinline preload="metadata"></video>
-        <div class="enlarge-hint">Click to enlarge</div>
+      <div class="video-wrap">
+        <video src="/press-kit/assets/tutorial-walkthrough-v3.mp4" muted loop playsinline preload="metadata" controls></video>
+        <button class="enlarge-btn" data-src="/press-kit/assets/tutorial-walkthrough-v3.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
       </div>
       <div class="meta"><span class="badge">51 sec</span></div>
-      <h2>The 10-step tutorial walkthrough</h2>
+      <h2>Initial Tutorial</h2>
       <p>The exact tour that opens the first time you launch Projelli. Files on your disk, AI chat with your own keys, 15 founder workflows, full-text search, research mode, whiteboard, audit log, command palette, and settings. The whole product in under a minute.</p>
       <p class="related"><a href="/local-first-ai-workspace">What is a local-first AI workspace? →</a></p>
     </div>
 
     <div class="video-card">
-      <div class="video-wrap" data-src="/press-kit/assets/demo-30s-v3.mp4">
-        <video src="/press-kit/assets/demo-30s-v3.mp4" autoplay muted loop playsinline preload="metadata"></video>
-        <div class="enlarge-hint">Click to enlarge</div>
+      <div class="video-wrap">
+        <video src="/press-kit/assets/demo-30s-v3.mp4" muted loop playsinline preload="metadata" controls></video>
+        <button class="enlarge-btn" data-src="/press-kit/assets/demo-30s-v3.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
       </div>
       <div class="meta"><span class="badge">30 sec</span></div>
-      <h2>The 30-second demo</h2>
+      <h2>30 second demo</h2>
       <p>Type into AI chat, watch it stream a response, and see a real Markdown file appear in your workspace. The "magic moment" of Projelli, in one continuous take.</p>
       <p class="related"><a href="/markdown-for-ai">Why Markdown beats database notes →</a></p>
     </div>
 
     <div class="video-card">
-      <div class="video-wrap" data-src="/press-kit/assets/workspace-tour-v2.mp4">
-        <video src="/press-kit/assets/workspace-tour-v2.mp4" autoplay muted loop playsinline preload="metadata"></video>
-        <div class="enlarge-hint">Click to enlarge</div>
+      <div class="video-wrap">
+        <video src="/press-kit/assets/workspace-tour-v2.mp4" muted loop playsinline preload="metadata" controls></video>
+        <button class="enlarge-btn" data-src="/press-kit/assets/workspace-tour-v2.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
       </div>
       <div class="meta"><span class="badge">25 sec</span></div>
       <h2>Workspace tour</h2>
@@ -205,9 +214,9 @@
     </div>
 
     <div class="video-card">
-      <div class="video-wrap" data-src="/press-kit/assets/wiki-links-v2.mp4">
-        <video src="/press-kit/assets/wiki-links-v2.mp4" autoplay muted loop playsinline preload="metadata"></video>
-        <div class="enlarge-hint">Click to enlarge</div>
+      <div class="video-wrap">
+        <video src="/press-kit/assets/wiki-links-v2.mp4" muted loop playsinline preload="metadata" controls></video>
+        <button class="enlarge-btn" data-src="/press-kit/assets/wiki-links-v2.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
       </div>
       <div class="meta"><span class="badge">15 sec</span></div>
       <h2>Wiki-links and backlinks</h2>
@@ -216,9 +225,9 @@
     </div>
 
     <div class="video-card">
-      <div class="video-wrap" data-src="/press-kit/assets/workflow-templates-v2.mp4">
-        <video src="/press-kit/assets/workflow-templates-v2.mp4" autoplay muted loop playsinline preload="metadata"></video>
-        <div class="enlarge-hint">Click to enlarge</div>
+      <div class="video-wrap">
+        <video src="/press-kit/assets/workflow-templates-v2.mp4" muted loop playsinline preload="metadata" controls></video>
+        <button class="enlarge-btn" data-src="/press-kit/assets/workflow-templates-v2.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
       </div>
       <div class="meta"><span class="badge">30 sec</span></div>
       <h2>Founder workflow templates</h2>
@@ -227,9 +236,9 @@
     </div>
 
     <div class="video-card">
-      <div class="video-wrap" data-src="/press-kit/assets/feature-document-suite-15s-v2.mp4">
-        <video src="/press-kit/assets/feature-document-suite-15s-v2.mp4" autoplay muted loop playsinline preload="metadata"></video>
-        <div class="enlarge-hint">Click to enlarge</div>
+      <div class="video-wrap">
+        <video src="/press-kit/assets/feature-document-suite-15s-v2.mp4" muted loop playsinline preload="metadata" controls></video>
+        <button class="enlarge-btn" data-src="/press-kit/assets/feature-document-suite-15s-v2.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
       </div>
       <div class="meta"><span class="badge">15 sec</span></div>
       <h2>Document suite (xlsx, docx, pptx)</h2>
@@ -237,9 +246,9 @@
     </div>
 
     <div class="video-card">
-      <div class="video-wrap" data-src="/press-kit/assets/byok-setup-v2.mp4">
-        <video src="/press-kit/assets/byok-setup-v2.mp4" autoplay muted loop playsinline preload="metadata"></video>
-        <div class="enlarge-hint">Click to enlarge</div>
+      <div class="video-wrap">
+        <video src="/press-kit/assets/byok-setup-v2.mp4" muted loop playsinline preload="metadata" controls></video>
+        <button class="enlarge-btn" data-src="/press-kit/assets/byok-setup-v2.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
       </div>
       <div class="meta"><span class="badge">15 sec</span></div>
       <h2>BYOK setup</h2>
@@ -248,9 +257,9 @@
     </div>
 
     <div class="video-card">
-      <div class="video-wrap" data-src="/press-kit/assets/local-first-v2.mp4">
-        <video src="/press-kit/assets/local-first-v2.mp4" autoplay muted loop playsinline preload="metadata"></video>
-        <div class="enlarge-hint">Click to enlarge</div>
+      <div class="video-wrap">
+        <video src="/press-kit/assets/local-first-v2.mp4" muted loop playsinline preload="metadata" controls></video>
+        <button class="enlarge-btn" data-src="/press-kit/assets/local-first-v2.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
       </div>
       <div class="meta"><span class="badge">12 sec</span></div>
       <h2>Local-first proof</h2>
@@ -259,9 +268,9 @@
     </div>
 
     <div class="video-card">
-      <div class="video-wrap" data-src="/press-kit/assets/version-history-v2.mp4">
-        <video src="/press-kit/assets/version-history-v2.mp4" autoplay muted loop playsinline preload="metadata"></video>
-        <div class="enlarge-hint">Click to enlarge</div>
+      <div class="video-wrap">
+        <video src="/press-kit/assets/version-history-v2.mp4" muted loop playsinline preload="metadata" controls></video>
+        <button class="enlarge-btn" data-src="/press-kit/assets/version-history-v2.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
       </div>
       <div class="meta"><span class="badge">18 sec</span></div>
       <h2>Version history</h2>
@@ -316,9 +325,10 @@
         document.body.style.overflow = '';
       }
 
-      document.querySelectorAll('.video-wrap').forEach(function (wrap) {
-        wrap.addEventListener('click', function () {
-          var src = wrap.getAttribute('data-src');
+      document.querySelectorAll('.enlarge-btn').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          var src = btn.getAttribute('data-src');
           if (src) open(src);
         });
       });

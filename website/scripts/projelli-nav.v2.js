@@ -69,6 +69,7 @@
       { href: '/templates/', label: 'Templates' },
       { href: '/vs/', label: 'vs Others' },
       { href: '/#pricing', label: 'Pricing' },
+      { href: '/roadmap/', label: 'Roadmap' },
       { href: '/blog/', label: 'Blog' }
     ];
     items.forEach(function (item) {
