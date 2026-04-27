@@ -440,7 +440,7 @@ export async function video01() {
     shots,
     captions,
     trimSec,
-  videoTitle: 'Get AI when you need it',
+  videoTitle: 'Watch an AI chat become a real file',
   });
 
   mkdirSync(PRESS_KIT_DIR, { recursive: true });
