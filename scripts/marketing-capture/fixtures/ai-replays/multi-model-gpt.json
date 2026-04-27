@@ -1,0 +1,9 @@
+{
+  "model": "gpt-4o",
+  "chunks": [
+    { "delayMs": 0,   "text": "Linterly empowers global founders to" },
+    { "delayMs": 70,  "text": " communicate with confidence by leveraging" },
+    { "delayMs": 80,  "text": " AI to refine grammar, polish tone, and" },
+    { "delayMs": 80,  "text": " elevate every message they ship." }
+  ]
+}
