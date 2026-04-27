@@ -41,7 +41,8 @@ export function mountMarketingCaptureBridge(): void {
     if (payload.settings) useSettingsStore.setState(payload.settings);
     if (payload.workflow) useWorkflowStore.setState(payload.workflow);
     if (payload.skipOnboarding) {
-      localStorage.setItem('projelli.onboarding.complete', 'true');
+      // Key matches FirstRunWizard.tsx STORAGE_KEY = 'projelli_onboarding_complete'
+      localStorage.setItem('projelli_onboarding_complete', 'true');
     }
   };
 
