@@ -187,22 +187,21 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS signing. NOTE: notarization env vars (APPLE_ID, APPLE_PASSWORD,
-          # APPLE_TEAM_ID) are INTENTIONALLY omitted because Apple's notary service
-          # has been degraded since March 2026 with submissions stuck in 'In
-          # Progress' for 8-24+ hours. Without these env vars, Tauri signs the .app
-          # and .dmg with the Developer ID cert but skips the notarization step.
-          # Users installing unnotarized Mac builds will see a Gatekeeper warning
-          # on first open and must right-click → Open to bypass.
-          #
-          # TO RE-ENABLE NOTARIZATION once Apple's service recovers:
-          #   Uncomment the three APPLE_* env vars below and re-run the workflow.
+          # macOS signing + notarization. Apple's notary service was
+          # unreliable for several weeks in spring 2026 (submissions stuck
+          # "In Progress" for 8-24+ hours), which is why the three
+          # notarization env vars were originally commented out.
+          # Re-enabled in rc.11 (2026-04-27) to probe whether the service
+          # has recovered. If a notarized build ships clean, this stays on.
+          # If submissions stall again, comment the three APPLE_ID /
+          # APPLE_PASSWORD / APPLE_TEAM_ID lines back out and ship the
+          # signed-but-unnotarized fallback (Gatekeeper "Open Anyway" UX).
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           # Updater signing. tauri-action signs the bundle artifacts with
           # the minisign keypair embedded in tauri.conf.json (pubkey) and
           # this private key (secret). Without these vars the build still
@@ -218,8 +217,8 @@ jobs:
 
             ## Downloads
             - **Windows:** `.exe` installer (signed via Azure Artifact Signing)
-            - **macOS Apple Silicon:** `.dmg` (signed with Developer ID, unnotarized — Gatekeeper warning on first open)
-            - **macOS Intel:** `.dmg` (signed with Developer ID, unnotarized — Gatekeeper warning on first open)
+            - **macOS Apple Silicon:** `.dmg` (signed with Developer ID + notarized by Apple — opens cleanly with no Gatekeeper warning)
+            - **macOS Intel:** `.dmg` (signed with Developer ID + notarized by Apple — opens cleanly with no Gatekeeper warning)
             - **Linux:** `.AppImage` or `.deb`
             - **MCP bundle:** `projelli-<platform>.mcpb` (install into Claude Desktop)
           releaseDraft: true
