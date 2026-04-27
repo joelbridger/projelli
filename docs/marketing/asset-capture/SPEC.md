@@ -56,6 +56,7 @@ Running the actual Tauri Linux build under Xvfb was rejected: it produces a wors
 
 ### Out of scope (deferred to v2)
 
+- **S05 Multi-model side-by-side** — deferred 2026-04-27. Confirmed absent: `grep -rE "MultiModel|multiModel|side-by-side" src/components/ src/stores/` returns no matches. The product does not yet have a multi-model comparison UI. When shipped, the shot can be captured via `shots/05-multi-model.ts` against the new store/component.
 - **5-frame carousel story** (originally proposed as Tier 2 item but cut from v1 — high scripting cost, marginal lift over the static OG cards)
 - Tier 3: Product Hunt gallery (1240×760 reframes of S01–S06)
 - Tier 4: Short social videos (V02–V05, 9:16 + 1:1 derivatives, 60-second master walkthrough)
