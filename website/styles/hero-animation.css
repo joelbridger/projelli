@@ -1,0 +1,393 @@
+/* ──────────────────────────────────────────────────────────────────────
+ * Hero animation — a miniature Projelli window showing the magic moment:
+ * user types a prompt → AI streams a response → a real Markdown file
+ * appears in the file tree → user opens that file in a new tab.
+ *
+ * State is driven by /scripts/hero-animation.js (vanilla JS, RAF-based
+ * state machine modeled on BehaviorUX's BehaviorDemoHero pattern).
+ * CSS handles layout + transitions; JS handles content + class toggles.
+ * ────────────────────────────────────────────────────────────────────── */
+
+.hero-anim {
+  --bg: #FFFFFF;
+  --bg-soft: #F8FAFC;
+  --bg-sidebar: #F1F5F9;
+  --border: #E2E8F0;
+  --text: #111F35;
+  --text-muted: #64748B;
+  --accent-coral: #FF7C6E;
+  --accent-blue: #3B82F6;
+  --shadow: 0 24px 56px rgba(15, 23, 42, 0.18);
+
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background: var(--bg);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  isolation: isolate;
+  user-select: none;
+}
+
+/* macOS-style title bar */
+.hero-anim__chrome {
+  height: 28px;
+  background: linear-gradient(180deg, #EBEBEB, #D8D8D8);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.10);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  position: relative;
+  flex-shrink: 0;
+}
+.hero-anim__lights {
+  display: flex;
+  gap: 6px;
+}
+.hero-anim__light {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+.hero-anim__light--close { background: #FF5F57; }
+.hero-anim__light--min   { background: #FEBC2E; }
+.hero-anim__light--max   { background: #28C840; }
+.hero-anim__title {
+  position: absolute;
+  left: 0; right: 0;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+/* Body grid: sidebar | main area */
+.hero-anim__body {
+  display: grid;
+  grid-template-columns: 156px 1fr;
+  height: calc(100% - 28px);
+}
+
+/* ── File tree sidebar ───────────────────────────────────────────────── */
+.hero-anim__sidebar {
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  padding: 14px 8px;
+  overflow: hidden;
+}
+.hero-anim__sidebar-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 0 8px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+.hero-anim__file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 12.5px;
+  position: relative;
+}
+.hero-anim__file--new {
+  /* Pop-in animation when the AI creates a new file */
+  animation: heroFilePop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.hero-anim__file--active {
+  background: rgba(59, 130, 246, 0.10);
+  color: var(--accent-blue);
+  font-weight: 500;
+}
+.hero-anim__file svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  opacity: 0.65;
+}
+.hero-anim__file--active svg { opacity: 1; }
+@keyframes heroFilePop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.94);
+    background: rgba(255, 124, 110, 0.45);
+  }
+  60% {
+    background: rgba(255, 124, 110, 0.18);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    background: transparent;
+  }
+}
+
+/* ── Main panel ──────────────────────────────────────────────────────── */
+.hero-anim__main {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  min-width: 0;
+}
+
+/* Tab strip */
+.hero-anim__tabs {
+  height: 30px;
+  display: flex;
+  background: var(--bg-soft);
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+  gap: 2px;
+  align-items: end;
+  flex-shrink: 0;
+}
+.hero-anim__tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px 6px 0 0;
+  position: relative;
+  white-space: nowrap;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.hero-anim__tab svg { width: 11px; height: 11px; opacity: 0.7; }
+.hero-anim__tab--active {
+  background: var(--bg);
+  border-color: var(--border);
+  border-bottom-color: var(--bg);
+  color: var(--text);
+  font-weight: 500;
+  margin-bottom: -1px;
+}
+.hero-anim__tab--enter {
+  animation: heroTabSlide 0.45s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes heroTabSlide {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Content scroller */
+.hero-anim__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+.hero-anim__pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+}
+.hero-anim__pane--active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── AI chat pane ────────────────────────────────────────────────────── */
+.hero-anim__chat-header {
+  padding: 14px 18px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.hero-anim__chat-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.hero-anim__chat-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.hero-anim__messages {
+  flex: 1;
+  overflow: hidden;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+.hero-anim__msg {
+  max-width: 85%;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.hero-anim__msg--user {
+  align-self: flex-end;
+  background: var(--accent-coral);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 12px 12px 4px 12px;
+}
+.hero-anim__msg--assistant {
+  align-self: flex-start;
+  background: var(--bg-soft);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 12px 12px 12px 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.hero-anim__msg--assistant strong {
+  font-weight: 600;
+  color: var(--text);
+}
+.hero-anim__caret {
+  display: inline-block;
+  width: 6px;
+  height: 12px;
+  background: var(--accent-coral);
+  vertical-align: -2px;
+  margin-left: 1px;
+  animation: heroCaretBlink 0.8s steps(2) infinite;
+}
+@keyframes heroCaretBlink {
+  50% { opacity: 0; }
+}
+.hero-anim__thinking {
+  display: inline-flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--bg-soft);
+  border-radius: 12px;
+  align-self: flex-start;
+}
+.hero-anim__thinking span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: heroThinkingDots 1.2s ease-in-out infinite;
+}
+.hero-anim__thinking span:nth-child(2) { animation-delay: 0.15s; }
+.hero-anim__thinking span:nth-child(3) { animation-delay: 0.30s; }
+@keyframes heroThinkingDots {
+  0%, 60%, 100% { opacity: 0.3; transform: scale(0.85); }
+  30%           { opacity: 1;   transform: scale(1); }
+}
+
+/* Chat input bar */
+.hero-anim__input {
+  border-top: 1px solid var(--border);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+}
+.hero-anim__input-text {
+  flex: 1;
+  font-size: 12.5px;
+  color: var(--text);
+  min-height: 18px;
+}
+.hero-anim__input-text:empty::before {
+  content: 'Type your message…';
+  color: var(--text-muted);
+}
+.hero-anim__send-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-coral);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+.hero-anim__send-btn svg { width: 12px; height: 12px; }
+
+/* ── Editor pane (when Brand Voice.md opens) ─────────────────────────── */
+.hero-anim__editor {
+  flex: 1;
+  padding: 16px 22px;
+  overflow: hidden;
+  font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.hero-anim__editor h1 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.hero-anim__editor h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 16px;
+  margin-bottom: 6px;
+}
+.hero-anim__editor p { margin-bottom: 10px; color: var(--text); }
+.hero-anim__editor strong { color: var(--text); font-weight: 600; }
+
+/* ── Cursor (the floating arrow that "drives" interactions) ──────────── */
+.hero-anim__cursor {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+  z-index: 10;
+  transition: top 0.7s cubic-bezier(0.4, 0, 0.2, 1),
+              left 0.7s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.3s;
+  opacity: 0;
+}
+.hero-anim__cursor--visible { opacity: 1; }
+.hero-anim__cursor svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+}
+/* Click ripple */
+.hero-anim__cursor::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-coral);
+  opacity: 0;
+  transform: scale(0.6);
+}
+.hero-anim__cursor--clicking::after {
+  animation: heroClickRipple 0.55s ease-out;
+}
+@keyframes heroClickRipple {
+  0%   { opacity: 0.85; transform: scale(0.6); }
+  100% { opacity: 0;    transform: scale(2.2); }
+}
+
+/* Respect reduced motion: kill the loop, show a static "after" frame. */
+@media (prefers-reduced-motion: reduce) {
+  .hero-anim__cursor,
+  .hero-anim__caret,
+  .hero-anim__thinking span,
+  .hero-anim__file--new {
+    animation: none !important;
+  }
+}

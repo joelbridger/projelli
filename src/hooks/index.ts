@@ -23,3 +23,9 @@ export {
   type LicenseTier,
   type LicenseState,
 } from './useLicense';
+
+export {
+  useTrial,
+  useTrialGate,
+  type TrialState,
+} from './useTrial';

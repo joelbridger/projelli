@@ -11,12 +11,14 @@
 
 import { useState } from 'react';
 import { useLicense } from '@/hooks/useLicense';
+import { useTrial } from '@/hooks/useTrial';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export function LicenseSettings() {
   const { tier, isLoading, isActivated, expiresAt, error, activate, deactivate, refresh } = useLicense();
+  const trial = useTrial();
   const [licenseKeyInput, setLicenseKeyInput] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
 
@@ -83,29 +85,60 @@ export function LicenseSettings() {
             </div>
           </div>
           <div className="border-t pt-4 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground mb-2">Unlocked features:</p>
+            <p className="font-medium text-foreground mb-2">What your license unlocks:</p>
             <ul className="space-y-1 text-xs">
-              <li>✓ All 3 AI providers (Claude, OpenAI, Gemini)</li>
-              <li>✓ All 15 workflow templates</li>
-              <li>✓ Unlimited workspaces</li>
+              <li>✓ AI chat with your own keys (Claude, OpenAI, Gemini)</li>
+              <li>✓ All 15 founder workflow templates</li>
+              <li>✓ Unlimited workspaces, files, and version history</li>
               <li>✓ Whiteboard, audio recording, research citations</li>
-              <li>✓ Multi-model comparison</li>
+              {tier === 'lifetime' && <li>✓ Multi-model comparison</li>}
               {tier === 'lifetime' && <li>✓ Commercial use license</li>}
               {tier === 'lifetime' && <li>✓ Updates forever</li>}
+              {tier !== 'lifetime' && <li className="opacity-60">+ Multi-model comparison &amp; commercial use on Lifetime</li>}
             </ul>
           </div>
         </div>
       )}
 
-      {/* Not activated state */}
+      {/* Not activated state — trial in progress OR trial expired */}
       {!isActivated && (
         <div className="rounded-lg border border-border bg-card p-6 space-y-4">
           <div>
-            <h3 className="text-base font-medium">Free tier</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              You're using the free version of Projelli. The free tier includes the core editor, file tree, version history, audit log,
-              one AI provider (Claude), three workflow templates, and one workspace. To unlock all features, activate a paid license.
-            </p>
+            {trial.isExpired ? (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
+                    TRIAL ENDED
+                  </span>
+                  <span className="text-base font-medium">Activate to continue</span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your {trial.trialDays}-day free trial ended on{' '}
+                  <strong>{new Date(trial.firstLaunchAt.getTime() + trial.trialDays * 86400000).toLocaleDateString()}</strong>.
+                  AI chat and workflows are paused. Your existing files are still here, fully readable. Activate
+                  a license to keep building.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-900 dark:bg-blue-900/30 dark:text-blue-200">
+                    TRIAL
+                  </span>
+                  <span className="text-base font-medium">
+                    {trial.daysRemaining === 1
+                      ? '1 day left'
+                      : `${trial.daysRemaining} days left`}
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  You're on the free trial. Every Projelli feature is unlocked for {trial.trialDays} days from
+                  first launch — bring your own AI keys, run workflows, edit files, the works.
+                  When the trial ends, AI chat and workflows pause until you activate a license; your files
+                  stay accessible.
+                </p>
+              </>
+            )}
           </div>
           <div className="border-t pt-4">
             <Label htmlFor="license-key">License key</Label>

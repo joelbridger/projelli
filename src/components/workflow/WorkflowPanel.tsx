@@ -43,6 +43,7 @@ import {
   setSystemPrompt,
 } from '@/modules/workflow/userTemplates';
 import { ChainBuilderModal } from './ChainBuilderModal';
+import { useTrialGate } from '@/hooks/useTrial';
 
 interface WorkflowPanelProps {
   onStartWorkflow: (template: WorkflowTemplate) => void;
@@ -64,6 +65,8 @@ export function WorkflowPanel({
   onFocusExecutionTab,
   onRunChain,
 }: WorkflowPanelProps) {
+  // 30-day trial gate. Locks template + chain runs when expired and not paid.
+  const trialGate = useTrialGate();
   const [showFullView, setShowFullView] = useState(false);
   // M7 — chain builder open state
   const [showChainBuilder, setShowChainBuilder] = useState(false);
@@ -84,10 +87,12 @@ export function WorkflowPanel({
   const [forkOriginal, setForkOriginal] = useState<WorkflowTemplate | null>(null);
 
   const handleStartClick = (template: WorkflowTemplate) => {
+    if (trialGate.isLocked) return;
     onStartWorkflow(template);
   };
 
   const startFromModal = (template: WorkflowTemplate) => {
+    if (trialGate.isLocked) return;
     onStartWorkflow(template);
     setShowFullView(false);
   };
@@ -122,6 +127,17 @@ export function WorkflowPanel({
       data-testid="workflows-panel"
       className="h-full flex flex-col overflow-hidden"
     >
+      {/* Trial-expired banner. Sits at the very top so the user sees
+           why the run buttons below are disabled. */}
+      {trialGate.isLocked && (
+        <div
+          data-testid="workflows-trial-expired-banner"
+          className="mx-3 mt-3 mb-1 px-3 py-2 rounded border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200 text-xs shrink-0"
+        >
+          <strong>Trial ended.</strong>{' '}
+          Activate a license in Settings → License to run workflows.
+        </div>
+      )}
       {/* Header — sized for the narrow sidebar slot. Title truncates,
           actions collapse to icon-only with tooltips so nothing runs
           off the right edge. */}
@@ -232,9 +248,13 @@ export function WorkflowPanel({
                       variant="ghost"
                       className="h-7 w-7 p-0"
                       onClick={() => handleStartClick(workflow)}
-                      disabled={currentExecution !== null}
+                      disabled={currentExecution !== null || trialGate.isLocked}
                       aria-label={`Start workflow: ${workflow.name}`}
-                      title={`Start workflow: ${workflow.name}`}
+                      title={
+                        trialGate.isLocked
+                          ? `Trial ended — activate a license to run workflows`
+                          : `Start workflow: ${workflow.name}`
+                      }
                     >
                       {currentExecution?.template.id === workflow.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

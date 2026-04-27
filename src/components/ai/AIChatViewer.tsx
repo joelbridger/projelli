@@ -18,6 +18,7 @@ import { useAIChatStore, getDraftInput, useAskWorkspaceMode } from '@/stores/aiC
 import { useFileContextStore } from '@/stores/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
 import { ChatCostChip } from '@/components/ai/ChatCostChip';
+import { useTrialGate } from '@/hooks/useTrial';
 import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
 import {
   DEFAULT_WORKSPACE_TOP_K,
@@ -489,6 +490,8 @@ function chatToMarkdown(chat: AIChatFile): string {
 }
 
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onOpenFileAtPath, className }: AIChatViewerProps) {
+  // 30-day trial gate. Locks chat send + voice when expired and not paid.
+  const trialGate = useTrialGate();
   // Use global store for chat state (persists across navigation)
   const { sessions, initSession, addMessage, updateLastMessage, setLoading, setDraftInput, clearDraftInput, recordCost, setAskWorkspaceMode } = useAIChatStore();
   const chatId = chatData.id;
@@ -1604,6 +1607,19 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
       {/* Input */}
       <div data-testid="chat-input-area" className="border-t p-4">
+        {/* Trial-expired banner. Sits above the input so the user knows
+             *why* the send button is disabled. */}
+        {trialGate.isLocked && (
+          <div
+            data-testid="chat-trial-expired-banner"
+            className="mb-3 px-3 py-2 rounded border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200 text-xs"
+          >
+            <strong>Your {trialGate.trialDays}-day trial has ended.</strong>{' '}
+            Activate a license in Settings → License to keep chatting with AI.
+            Your existing files stay accessible — only AI calls and workflows
+            are paused.
+          </div>
+        )}
         {/* M2 — inline toast for missing source files. Rendered as a
              dismissable strip above the input so the user can keep
              typing while the warning is visible. */}
@@ -1633,15 +1649,19 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
+            placeholder={
+              trialGate.isLocked
+                ? 'Trial ended — activate a license to chat'
+                : 'Type your message... (Enter to send, Shift+Enter for new line)'
+            }
             className="min-h-[60px] max-h-[200px] resize-none"
-            disabled={isLoading}
+            disabled={isLoading || trialGate.isLocked}
           />
           <div className="flex flex-col gap-2 shrink-0">
             <Button
               data-testid="chat-voice-button"
               onClick={toggleVoiceRecording}
-              disabled={isLoading}
+              disabled={isLoading || trialGate.isLocked}
               size="icon"
               variant={isRecording ? 'destructive' : 'outline'}
               className={`h-[60px] w-[60px] ${isRecording ? 'animate-pulse' : ''}`}
@@ -1653,7 +1673,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           <Button
             data-testid="chat-send-button"
             onClick={handleSendMessage}
-            disabled={!inputValue.trim() || isLoading}
+            disabled={!inputValue.trim() || isLoading || trialGate.isLocked}
             size="icon"
             className="h-[60px] w-[60px] shrink-0"
           >

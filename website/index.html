@@ -1431,6 +1431,9 @@
   <!-- Shared site nav (single source of truth across all pages) -->
   <link rel="stylesheet" href="/styles/projelli-nav.css">
   <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <!-- Hero animation (vanilla JS, no build step) -->
+  <link rel="stylesheet" href="/styles/hero-animation.css">
+  <script src="/scripts/hero-animation.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -1452,7 +1455,7 @@
           </h1>
 
           <p class="hero-subtitle">
-            A local-first AI workspace for indie founders. Bring your own Claude, OpenAI, or Gemini key. Every chat becomes a real Markdown file on your machine. $49 once, no subscription.
+            A local-first AI workspace for indie founders. Bring your own Claude, OpenAI, or Gemini key. Every chat becomes a real Markdown file on your machine. Free 30-day trial, then $49 once.
           </p>
 
           <div class="hero-ctas">
@@ -1478,19 +1481,91 @@
           <p class="email-signup-note" id="email-signup-note">First 100 buyers get Lifetime at $29. Get notified when sales open.</p>
         </div>
 
-        <!-- Hero demo video: real product capture, 51-second tutorial walkthrough -->
+        <!-- Hero animation: chat → AI streams → file appears → opens in tab.
+             Vanilla JS state machine in /scripts/hero-animation.js. Markup
+             below is the static "before" frame (visible to crawlers + users
+             with prefers-reduced-motion). The script wires the animation. -->
         <div class="hero-video-wrap">
-          <video
-            class="hero-video"
-            src="/press-kit/assets/tutorial-walkthrough-v4.mp4"
-            poster="/press-kit/assets/screenshot-01-workspace.png"
-            autoplay
-            muted
-            loop
-            playsinline
-            preload="metadata"
-            aria-label="A guided walkthrough of Projelli's 10-step initial tour: file tree, AI chat, founder workflows, search, research, whiteboard, audit log, command palette, and settings"
-          ></video>
+          <div class="hero-anim" id="hero-anim" role="img"
+               aria-label="Animation: typing a prompt into Projelli, watching AI stream a response, a new Brand Voice.md file appearing in the file tree, and opening it as a new tab.">
+
+            <!-- macOS chrome -->
+            <div class="hero-anim__chrome">
+              <div class="hero-anim__lights">
+                <span class="hero-anim__light hero-anim__light--close"></span>
+                <span class="hero-anim__light hero-anim__light--min"></span>
+                <span class="hero-anim__light hero-anim__light--max"></span>
+              </div>
+              <div class="hero-anim__title">Linterly — Projelli</div>
+            </div>
+
+            <div class="hero-anim__body">
+              <!-- File tree sidebar -->
+              <aside class="hero-anim__sidebar">
+                <div class="hero-anim__sidebar-label">Workspace</div>
+                <div data-anim="file-tree">
+                  <div class="hero-anim__file" data-file="Vision.md">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>Vision.md</span>
+                  </div>
+                  <div class="hero-anim__file" data-file="Customers.md">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>Customers.md</span>
+                  </div>
+                  <div class="hero-anim__file hero-anim__file--active" data-file="Launch Plan.md">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>Launch Plan.md</span>
+                  </div>
+                </div>
+              </aside>
+
+              <!-- Main panel: tab strip + chat OR editor pane -->
+              <main class="hero-anim__main">
+                <div class="hero-anim__tabs" data-anim="tabs">
+                  <div class="hero-anim__tab hero-anim__tab--active" data-tab="Launch Plan">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>Launch Plan</span>
+                  </div>
+                </div>
+
+                <div class="hero-anim__content">
+                  <!-- Chat pane (default visible) -->
+                  <div class="hero-anim__pane hero-anim__pane--active" data-anim="pane-chat">
+                    <div class="hero-anim__chat-header">
+                      <div class="hero-anim__chat-title">AI Assistant</div>
+                      <div class="hero-anim__chat-meta">claude-opus-4-7 · BYOK</div>
+                    </div>
+                    <div class="hero-anim__messages" data-anim="messages"></div>
+                    <div class="hero-anim__input" data-anim="input">
+                      <div class="hero-anim__input-text" data-anim="input-text"></div>
+                      <div class="hero-anim__caret" data-anim="input-caret" style="display:none"></div>
+                      <div class="hero-anim__send-btn" data-anim="send-btn" aria-label="Send message">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Editor pane (shown after Brand Voice.md opens) -->
+                  <div class="hero-anim__pane" data-anim="pane-editor">
+                    <div class="hero-anim__editor">
+                      <h1>Brand Voice</h1>
+                      <h2>Voice principles</h2>
+                      <p>Linterly writes the way a senior PM Slacks: short, specific, contraction-heavy, never breathless.</p>
+                      <h2>Banned words</h2>
+                      <p><strong>Banned:</strong> leverage, delve, seamless, transform, empower.</p>
+                    </div>
+                  </div>
+                </div>
+              </main>
+            </div>
+
+            <!-- Floating cursor -->
+            <div class="hero-anim__cursor" data-anim="cursor" aria-hidden="true">
+              <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0 0 L0 12 L4 9 L6.5 14.5 L8.5 13.5 L6 8 L11 8 Z" fill="white" stroke="black" stroke-width="0.8"/>
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -1642,8 +1717,8 @@
       <div class="container">
         <div class="section-header">
           <span class="eyebrow">PRICING</span>
-          <h2>Pay once. Own it.</h2>
-          <p>No subscriptions. No usage limits. No surprises. Bring your own API keys for Claude, OpenAI, Gemini, or Ollama and pay your AI provider directly. Projelli takes nothing out of your inference budget.</p>
+          <h2>30 days free. Then $49 once.</h2>
+          <p>Try every Projelli feature for 30 days, no card required. Bring your own API keys for Claude, OpenAI, Gemini, or Ollama — Projelli takes nothing out of your inference budget. After 30 days, activate a license to keep going.</p>
         </div>
 
         <div class="founders-banner">
@@ -1651,17 +1726,17 @@
         </div>
 
         <div class="pricing-cards pricing-cards-three">
-          <!-- Free tier -->
+          <!-- Free trial card -->
           <div class="pricing-card animate-on-scroll">
-            <div class="pricing-name">Free</div>
-            <div class="pricing-price">$0<span> / forever</span></div>
-            <div class="pricing-description">Try Projelli for free. No account, no signup, no card.</div>
+            <div class="pricing-name">Free trial</div>
+            <div class="pricing-price">$0<span> / 30 days</span></div>
+            <div class="pricing-description">Every feature unlocked for 30 days. No card, no signup.</div>
             <ul class="pricing-features">
-              <li>Core editor + workspace</li>
-              <li>Wiki-links, backlinks, version history</li>
-              <li>1 AI provider (Claude only)</li>
-              <li>3 starter templates</li>
-              <li>1 workspace</li>
+              <li>The full Projelli experience</li>
+              <li>All 15 founder workflow templates</li>
+              <li>Bring your own AI keys (Claude, OpenAI, Gemini)</li>
+              <li>Unlimited workspaces and files</li>
+              <li>After 30 days: existing files stay readable; AI &amp; workflows pause until you activate</li>
             </ul>
             <!-- Auto-detected by JS at the bottom of the page; falls back to
                  GitHub releases page if detection fails. -->
@@ -1690,12 +1765,13 @@
             <div class="pricing-badge">FOUNDER'S LAUNCH</div>
             <div class="pricing-name">Lifetime <span style="font-size: 0.75em; color: var(--text-muted); font-weight: 400;">(first 100 buyers)</span></div>
             <div class="pricing-price">$29<span> one-time</span></div>
-            <div class="pricing-description">Lifetime tier at the founder price. Locked to the first 100 buyers.</div>
+            <div class="pricing-description">Lifetime license at the founder price. Limited to the first 100 buyers.</div>
             <ul class="pricing-features">
               <li>Everything in Pro</li>
               <li><strong>Updates forever</strong></li>
-              <li>Early access to new features</li>
+              <li>Multi-model comparison</li>
               <li>Commercial use license</li>
+              <li>Early access to new features</li>
               <li>Priority support</li>
             </ul>
             <a href="https://projelli.lemonsqueezy.com/checkout/buy/33cd497b-bffd-404c-910e-f8dd1f4453bd" class="btn btn-primary btn-lg" style="width: 100%;">Get Lifetime for $29</a>
@@ -1706,14 +1782,13 @@
           <div class="pricing-card animate-on-scroll">
             <div class="pricing-name">Pro</div>
             <div class="pricing-price">$49<span> one-time</span></div>
-            <div class="pricing-description">The full experience, with 1 year of updates included.</div>
+            <div class="pricing-description">Keeps every feature you used in the trial. 1 year of updates.</div>
             <ul class="pricing-features">
-              <li>All 3 AI providers</li>
-              <li><strong>All 15 founder templates</strong></li>
-              <li>Unlimited workspaces</li>
+              <li>Everything you tried in the trial, kept on</li>
+              <li>All 15 founder templates</li>
+              <li>Unlimited workspaces and files</li>
               <li>Whiteboard, audio, research citations</li>
-              <li>Multi-model comparison</li>
-              <li>1 year of updates</li>
+              <li>1 year of free updates</li>
             </ul>
             <a href="https://projelli.lemonsqueezy.com/checkout/buy/9a5a7f48-0ffe-448a-a1af-889af99a0f47" class="btn btn-outline btn-lg" style="width: 100%;">Get Pro for $49</a>
           </div>
