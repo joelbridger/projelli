@@ -84,7 +84,11 @@ jobs:
       - name: Install protoc
         uses: arduino/setup-protoc@v3
         with:
-          version: "25.x"
+          # Pinned exact version (was "25.x") because arduino/setup-protoc's
+          # "resolve latest in range" GitHub API call has been flaking with
+          # "unable to get latest version" errors. Pinning skips that call
+          # and goes straight to a deterministic release-asset download.
+          version: "25.9"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Linux dependencies
@@ -312,7 +316,11 @@ jobs:
       - name: Install protoc
         uses: arduino/setup-protoc@v3
         with:
-          version: "25.x"
+          # Pinned exact version (was "25.x") because arduino/setup-protoc's
+          # "resolve latest in range" GitHub API call has been flaking with
+          # "unable to get latest version" errors. Pinning skips that call
+          # and goes straight to a deterministic release-asset download.
+          version: "25.9"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install frontend dependencies
