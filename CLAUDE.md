@@ -6,7 +6,7 @@
 >
 > **Current state:** Read `~/projelli/BACKLOG.md` for the live week-by-week task list, what's done, what's in flight, and what's blocked.
 >
-> **If you're working on marketing:** Read `~/projelli/docs/features/MARKETING_PLAYBOOK.md` first. It's the index doc that ties together all 8 marketing artifacts (competitive analysis, launch packages for PH/HN/IH, email sequences, newsletter outreach, press kit, blog drafts) and walks through the critical-path timeline from pre-launch to post-launch. **Don't write any new marketing content without checking what's already there** — the launch packages have pre-staged FAQ replies and reply templates that should be reused, not duplicated.
+> **If you're working on marketing:** Read `~/projelli/docs/marketing/README.md` first. It's the canonical entry point for all marketing work — explains the marketing/ folder structure (playbook/, channels/, action-packs/, campaigns/) and where new campaigns land. The playbook subfolder ties together email sequences, master playbook, and reply bank; channels/ has per-platform launch packages (PH, HN, IH, Reddit, newsletter, etc.). **Don't write any new marketing content without checking what's already there** — the channel playbooks have pre-staged FAQ replies and reply templates that should be reused, not duplicated. New marketing pushes get a folder under `docs/marketing/campaigns/YYYY-MM-<slug>/`.
 >
 > **User profile:** Jameson is **NOT a developer**. He's a Senior Product Designer at Wheel Health. Explain technical concepts in plain language. Don't assume he can read code. Don't dump stack traces on him — translate them. The persistent project memory file at `~/.claude/projects/-home-jameson/memory/project_projelli.md` has the full user/project context.
 >
@@ -22,16 +22,17 @@
 | **Deploy script** | `~/projelli/infra/deploy.sh` | rsync website/ → /var/www/projelli.com + CF cache purge |
 | **Business plan** | `~/projelli/PROJELLI_BUSINESS_PLAN.md` | Operating contract — every CEO decision lives here |
 | **Backlog** | `~/projelli/BACKLOG.md` | Week-by-week tickets, includes marketing asset inventory section |
-| **Board action items** | `~/projelli/BOARD_ACTION_ITEMS.md` | Engineering / financial / identity work that needs Jameson's hands (Azure signing, Apple Developer, LemonSqueezy, etc.) |
-| **Marketing playbook** | `~/projelli/docs/features/MARKETING_PLAYBOOK.md` | **Index of all 8 marketing artifacts + critical-path launch timeline. Read first before any marketing work.** |
-| **Marketing action pack** | `~/projelli/docs/features/JAMESON_ACTION_PACK.md` | The 8 marketing tasks only Jameson can do (PH hunters, beta testers, screenshots, demo video, X posts, etc.) with pre-staged drafts. Complementary to BOARD_ACTION_ITEMS.md, not a duplicate. |
+| **Board action items** | `~/projelli/docs/operations/BOARD_ACTION_ITEMS.md` | Engineering / financial / identity work that needs Jameson's hands (Azure signing, Apple Developer, LemonSqueezy, etc.) |
+| **Marketing entry point** | `~/projelli/docs/marketing/README.md` | **Read first before any marketing work.** Explains the marketing/ folder structure (playbook, channels, action-packs, campaigns) and where new campaigns land. |
+| **Marketing playbook** | `~/projelli/docs/marketing/playbook/MARKETING_PLAYBOOK.md` | Master index tying all marketing artifacts together + critical-path launch timeline. |
+| **Marketing action pack** | `~/projelli/docs/marketing/action-packs/JAMESON_ACTION_PACK.md` | The 8 marketing tasks only Jameson can do (PH hunters, beta testers, screenshots, demo video, X posts, etc.) with pre-staged drafts. Complementary to BOARD_ACTION_ITEMS.md, not a duplicate. |
 | **Competitive landscape** | `~/projelli/docs/reference/COMPETITIVE_LANDSCAPE.md` | Side-by-side vs Notion AI / Obsidian / ChatGPT / Reflect / Tana / etc. with reply paragraphs ready for PH/HN comments. |
-| **Launch packages** | `~/projelli/docs/features/PRODUCT_HUNT_LAUNCH.md`, `SHOW_HN_LAUNCH.md`, `INDIE_HACKERS_LAUNCH.md` | Per-channel launch playbooks with title variants, reply templates, anti-patterns. |
-| **Email sequences** | `~/projelli/docs/features/EMAIL_SEQUENCES.md` | 10 plain-text emails covering signup → purchase → retention → refund → re-engagement. |
-| **Newsletter outreach** | `~/projelli/docs/features/NEWSLETTER_OUTREACH.md` | 15+ targets + cold pitch template + tracking spreadsheet structure. |
+| **Channel playbooks** | `~/projelli/docs/marketing/channels/{PRODUCT_HUNT_LAUNCH,SHOW_HN_LAUNCH,INDIE_HACKERS_LAUNCH,NEWSLETTER_OUTREACH,REDDIT_SIDEPROJECT_POST,DIRECTORY_SUBMISSIONS,PH_HUNTERS,BUILD_IN_PUBLIC_TWEETS}.md` | Per-channel launch playbooks with title variants, reply templates, anti-patterns. |
+| **Email sequences** | `~/projelli/docs/marketing/playbook/EMAIL_SEQUENCES.md` | 10 plain-text emails covering signup → purchase → retention → refund → re-engagement. |
 | **Press kit** | `~/projelli/website/press-kit/` | Live at projelli.com/press-kit/ — founder bio (3 lengths), fact sheet, brand colors, screenshot slots, demo video links. |
-| **Blog** | `~/projelli/website/blog/` | Live at projelli.com/blog/ — 3 publishable posts as of 2026-04-09 (8-week launch story, why local-first, picking templates). |
-| **Docs** | `~/projelli/docs/{reference,operations,features,quality,archive}/` | Mirrors jameworld convention. `features/` holds marketing playbook + launch packages. |
+| **Blog** | `~/projelli/website/blog/` | Live at projelli.com/blog/ — multiple publishable posts (8-week launch story, why local-first, picking templates, Notion AI math, hidden tokenizer tax, chat persistence, v1.5 announce). |
+| **Docs** | `~/projelli/docs/{reference,operations,features,marketing,quality,strategy,launch-v1.0,archive}/` | Reorganized 2026-04-22: `features/` = product release plans only; `marketing/` = ALL marketing work; `launch-v1.0/` = one-time v1.0 launch operational docs (renamed from `launch/`). |
+| **Financial / legal** | `~/financial/` | Server-wide repository for tax, entity, banking, legal, insurance, retirement decisions. **Read first for any tax/legal/banking question.** Core timeline: `~/financial/08-recommendations/minimum-viable-launch.md` (milestone-gated launch framework reusable across projects). |
 | **CI** | `~/projelli/.github/workflows/release.yml` | Tauri matrix build for Win/Mac/Linux on git tag |
 
 ## Quick Reference (development)
