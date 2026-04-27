@@ -475,11 +475,16 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
         (k) => lowerQ.includes(k)
       );
       if (integrationsMatch) cats.add('integrations');
+      const licenseMatch = ['license', 'activate', 'lifetime', 'pro tier', 'paid'].some(
+        (k) => lowerQ.includes(k)
+      );
+      if (licenseMatch) cats.add('license');
     } else {
       cats.add('shortcuts');
       cats.add('costs');
       cats.add('templates');
       cats.add('integrations');
+      cats.add('license');
     }
     return cats;
   }, [filteredSchema, searchQuery]);
