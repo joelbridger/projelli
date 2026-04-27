@@ -99,18 +99,21 @@ export function PromptDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="py-4 space-y-2">
+        <div className="py-4 space-y-2 min-w-0">
           {/* UX-15: destination path, so the user knows where the file
-              will be created. Rendered only when the caller passed one. */}
+              will be created. Rendered only when the caller passed one.
+              `min-w-0` on the parent grid item + the flex children lets
+              the long unbreakable workspace path truncate instead of
+              expanding the modal beyond its `max-w-lg` cap. */}
           {destinationPath && (
             <div
               data-testid="prompt-dialog-destination"
-              className="flex items-center gap-1.5 text-xs text-muted-foreground"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0"
               title={destinationPath}
             >
               <FolderOpen className="h-3.5 w-3.5 flex-shrink-0" />
-              <span>Creating in</span>
-              <code className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded truncate">
+              <span className="flex-shrink-0">Creating in</span>
+              <code className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded truncate min-w-0">
                 {destinationPath}
               </code>
             </div>

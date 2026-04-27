@@ -166,10 +166,13 @@ export function AIAssistantPane({
       const baseUrl = getProviderBaseUrl(provider);
 
       if (provider === 'anthropic') {
-        const resp = await safeFetch(`${baseUrl}/v1/messages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-          body: JSON.stringify({ model: 'claude-3-haiku-20240307', max_tokens: 1, messages: [{ role: 'user', content: 'test' }] }),
+        // GET /v1/models validates the key without depending on any specific
+        // model still being live. Previously we POSTed /v1/messages with
+        // claude-3-haiku-20240307; that model was retired and started
+        // returning 404 even for valid keys.
+        const resp = await safeFetch(`${baseUrl}/v1/models`, {
+          method: 'GET',
+          headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
         });
         if (resp.ok) return { ok: true };
         if (resp.status === 401) return { ok: false, error: 'Invalid API key' };

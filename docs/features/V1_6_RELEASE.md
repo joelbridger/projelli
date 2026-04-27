@@ -38,7 +38,8 @@
 | `v1.6.0-rc.6` | 2026-04-22 | ⚠️ Built green but never dogfooded — rc.5 Mac testing uncovered a critical fs:scope bug that blocks workspace creation on macOS. Fix rolled into rc.7. |
 | `v1.6.0-rc.7` | 2026-04-23 | ❌ Mac DMG still threw the glob error — rc.7 dropped the standalone `**` but the real culprit was `C:\**` (backslashes not path separators in the `glob` crate). Superseded by rc.8. |
 | `v1.6.0-rc.8` | 2026-04-23 | ⚠️ Glob parse bug fixed but workspace creation still failed at `.trash` with `forbidden path`. Root cause: Tauri plugin-fs defaults `require_literal_leading_dot=true` on Unix, and `**/*` does not match dotfiles under that option. |
-| `v1.6.0-rc.9` | 2026-04-23 | 🟡 In progress. Sets `plugins.fs.requireLiteralLeadingDot: false` so Mac matches Windows dotfile behavior. Also folds in the CSP fix (`ipc: http://ipc.localhost` in `connect-src`) that was deferred from rc.8. |
+| `v1.6.0-rc.9` | 2026-04-23 | ✅ Mac workspace creation works end-to-end. Allison successfully created workspace, added folders, opened files. Surfaced two new bugs: API key validation 404 + modal input overflow. |
+| `v1.6.0-rc.10` | 2026-04-23 | 🟡 In progress. Anthropic key validator switched to `GET /v1/models` (was POSTing to retired `claude-3-haiku-20240307`). PromptDialog body + flex container get `min-w-0` to stop long workspace paths from expanding the grid track. |
 
 ---
 

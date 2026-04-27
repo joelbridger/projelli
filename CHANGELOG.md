@@ -17,6 +17,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Files: `src-tauri/windows/installer-silent.nsi` — `.onInstSuccess`.
 
 ### Fixed
+- **"API returned 404" when adding a Claude API key.** The key validator
+  POSTed to `/v1/messages` with `model: 'claude-3-haiku-20240307'`,
+  which Anthropic has retired. With a valid key, hitting that endpoint
+  for a retired model returns 404, not 401, so the UI showed
+  "API returned 404" instead of "Invalid API key" — even when the key
+  was perfectly fine. Switched the validator to `GET /v1/models`,
+  which doesn't depend on any specific model staying alive.
+  Also removed the retired model from the `DEFAULT_ANTHROPIC` fallback
+  list so it never shows up in the model picker.
+  Files: `src/components/ai/AIAssistantPane.tsx`,
+         `src/modules/models/ModelListService.ts`.
+- **"Add new file" modal input fields hung off the right edge.**
+  `DialogContent` uses CSS Grid, and grid items default to
+  `min-width: auto`, refusing to shrink below their content's intrinsic
+  width. The destination path shown above the input (e.g.
+  `/Users/.../Projelli Test Projects/3/docs/`) is one long unbreakable
+  string, so it expanded the grid track wider than the modal's
+  `max-w-lg` cap. The full-width `<Input>` then followed the
+  overinflated track. Added `min-w-0` to the body wrapper and the
+  path's flex container so the path truncates properly and the
+  modal stays within its size.
+  File: `src/components/common/PromptDialog.tsx`.
 - **Mac workspace creation failed at `.trash` with `forbidden path`.**
   Tauri plugin-fs reads `require_literal_leading_dot` from the plugin
   config and defaults it to `true` on Unix (false on Windows) — when
