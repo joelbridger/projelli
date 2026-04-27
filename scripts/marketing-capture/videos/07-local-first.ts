@@ -15,38 +15,42 @@
  */
 
 import { chromium } from 'playwright';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdirSync, readdirSync, copyFileSync, unlinkSync } from 'node:fs';
+import { mkdirSync, readdirSync, copyFileSync, rmSync, statSync } from 'node:fs';
 import { linterlyFixture } from '../fixtures/linterly-workspace';
 import { macStyles } from '../lib/inject-mac-styles';
+import { renderCinematic, wideCrop, type CameraShot, type Caption } from '../lib/cinematic';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS_DIR = path.resolve(HERE, '../../../Assets/marketing');
 const PRESS_KIT_DIR = path.resolve(HERE, '../../../website/press-kit/assets');
 const CHROME_PNG = path.resolve(HERE, '../chrome-template/sequoia-chrome-1920x1080.png');
-const VIDEO_TMP = path.resolve(HERE, '../.tmp/video');
+const VIDEO_TMP = path.resolve(HERE, '../.tmp/video-07');
 const ROOT = linterlyFixture.rootPath;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export async function video07() {
+  rmSync(VIDEO_TMP, { recursive: true, force: true });
   mkdirSync(VIDEO_TMP, { recursive: true });
-  for (const f of readdirSync(VIDEO_TMP)) {
-    if (f.endsWith('.webm')) unlinkSync(path.join(VIDEO_TMP, f));
-  }
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({
+    args: ['--force-device-scale-factor=2', '--high-dpi-support=1'],
+  });
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
-    deviceScaleFactor: 1,
-    recordVideo: { dir: VIDEO_TMP, size: { width: 1920, height: 1080 } },
+    deviceScaleFactor: 2,
+    recordVideo: { dir: VIDEO_TMP, size: { width: 3840, height: 2160 } },
   });
   const page = await context.newPage();
+  const recordingStartMs = Date.now();
+  const elapsedSec = () => (Date.now() - recordingStartMs) / 1000;
+  const beats: Record<string, number> = {};
 
-  await page.goto('http://localhost:5173/?testMode=true', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:5175/?testMode=true', { waitUntil: 'networkidle' });
   await page.addStyleTag({ content: macStyles() });
+  beats.pageReady = elapsedSec();
 
   // ── t=0-2s: Workspace hero (Launch Plan.md, file tree visible, no Brand Voice) ──
   const filesWithoutBrandVoice = linterlyFixture.files.filter((f) => f.name !== 'Brand Voice.md');
@@ -72,6 +76,7 @@ export async function video07() {
     { rootPath: ROOT, files: filesWithoutBrandVoice },
   );
   await sleep(2000);
+  beats.heroSettled = elapsedSec();
 
   // ── t=2-3s: Brand Voice.md appears in the file tree ──
   const brandVoiceFile = linterlyFixture.files.find((f) => f.name === 'Brand Voice.md')!;
@@ -81,6 +86,7 @@ export async function video07() {
     },
     { rootPath: ROOT, files: [...filesWithoutBrandVoice, brandVoiceFile] },
   );
+  beats.fileAppeared = elapsedSec();
   await sleep(1000);
 
   // ── t=3-5s: Brand Voice.md becomes active ──
@@ -104,6 +110,7 @@ export async function video07() {
     );
   }
   await sleep(2000);
+  beats.fileOpened = elapsedSec();
 
   // ── t=5-7s: Finder panel slides in from the right ──
   // Built entirely with safe DOM API calls; no innerHTML.
@@ -302,54 +309,48 @@ export async function video07() {
     { fileNames: linterlyFixture.files.map((f) => f.name) },
   );
   await sleep(2000);
+  beats.finderShown = elapsedSec();
 
   // ── t=7-12s: Hold both side-by-side ──
   await sleep(5000);
+  beats.end = elapsedSec();
 
   await page.close();
   await context.close();
   await browser.close();
 
-  const webm = readdirSync(VIDEO_TMP).find((f) => f.endsWith('.webm'));
-  if (!webm) throw new Error('No .webm produced by Playwright recordVideo');
-  const webmPath = path.join(VIDEO_TMP, webm);
+  const webms = readdirSync(VIDEO_TMP)
+    .filter((f) => f.endsWith('.webm'))
+    .map((f) => ({ f, mtime: statSync(path.join(VIDEO_TMP, f)).mtimeMs }))
+    .sort((a, b) => b.mtime - a.mtime);
+  if (webms.length === 0) throw new Error('No .webm produced');
+  const webmPath = path.join(VIDEO_TMP, webms[0]!.f);
 
   mkdirSync(ASSETS_DIR, { recursive: true });
   const outPath = path.join(ASSETS_DIR, 'local-first.mp4');
 
-  const rawDurationStr = execFileSync('ffprobe', [
-    '-v', 'quiet', '-show_entries', 'format=duration', '-of', 'csv=p=0', webmPath,
-  ], { encoding: 'utf-8' }).trim();
-  const rawDuration = parseFloat(rawDurationStr);
-  const TARGET_DURATION = 12;
-  const skipSeconds = Math.max(0, rawDuration - TARGET_DURATION);
+  console.log('[V07] beats:', JSON.stringify(beats));
 
-  execFileSync(
-    'ffmpeg',
-    [
-      '-y',
-      '-ss', String(skipSeconds),
-      '-i', webmPath,
-      '-i', CHROME_PNG,
-      '-filter_complex',
-      '[0:v]scale=1808:1004[scaled];' +
-      '[scaled]pad=1920:1080:56:52:color=0x1a1a1a[padded];' +
-      '[1:v]format=rgba[chrome];' +
-      '[padded][chrome]overlay=0:0,format=yuv420p[v]',
-      '-map', '[v]',
-      '-t', String(TARGET_DURATION),
-      '-c:v', 'libx264',
-      '-preset', 'slow',
-      '-crf', '18',
-      '-r', '30',
-      outPath,
-    ],
-    { stdio: 'inherit' },
-  );
+  // Camera stays wide so both Projelli (left) and Finder (right) are visible
+  // when the Finder slides in.
+  const shots: CameraShot[] = [
+    { tSec: 0,                         crop: wideCrop(), label: 'wide' },
+    { tSec: (beats.end ?? 12),         crop: wideCrop(), label: 'hold-end' },
+  ];
+
+  const captions: Caption[] = [
+    { startSec: (beats.fileAppeared ?? 3) + 0.2, endSec: (beats.finderShown ?? 6) - 0.2, text: 'When the AI creates a file…' },
+    { startSec: (beats.finderShown ?? 6) + 0.4,  endSec: (beats.end ?? 12) - 0.2, text: '…it’s a real file on your disk' },
+  ];
+
+  const PRE_ROLL_SEC = 0.4;
+  const trimSec = Math.max(0, (beats.heroSettled ?? 2) - 0.5 - PRE_ROLL_SEC);
+
+  await renderCinematic({ webmPath, chromePngPath: CHROME_PNG, outPath, shots, captions, trimSec });
 
   mkdirSync(PRESS_KIT_DIR, { recursive: true });
   copyFileSync(outPath, path.join(PRESS_KIT_DIR, 'local-first.mp4'));
-  console.log(`✓ ${outPath}`);
+  console.log(`✓ press-kit copy → ${path.join(PRESS_KIT_DIR, 'local-first.mp4')}`);
   return outPath;
 }
 

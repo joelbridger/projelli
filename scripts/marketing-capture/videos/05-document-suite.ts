@@ -14,19 +14,19 @@
  */
 
 import { chromium, type Page } from 'playwright';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdirSync, readdirSync, copyFileSync, unlinkSync } from 'node:fs';
+import { mkdirSync, readdirSync, copyFileSync, rmSync, statSync } from 'node:fs';
 import { linterlyFixture } from '../fixtures/linterly-workspace';
 import { seedState } from '../lib/seed-state';
 import { macStyles } from '../lib/inject-mac-styles';
+import { renderCinematic, focusOn, wideCrop, type CameraShot, type Caption } from '../lib/cinematic';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS_DIR = path.resolve(HERE, '../../../Assets/marketing');
 const PRESS_KIT_DIR = path.resolve(HERE, '../../../website/press-kit/assets');
 const CHROME_PNG = path.resolve(HERE, '../chrome-template/sequoia-chrome-1920x1080.png');
-const VIDEO_TMP = path.resolve(HERE, '../.tmp/video');
+const VIDEO_TMP = path.resolve(HERE, '../.tmp/video-05');
 const ROOT = linterlyFixture.rootPath;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -58,90 +58,93 @@ async function switchTab(page: Page, activePath: string) {
 }
 
 export async function video05() {
-  // Wipe any prior webm so we grab the right one.
+  rmSync(VIDEO_TMP, { recursive: true, force: true });
   mkdirSync(VIDEO_TMP, { recursive: true });
-  for (const f of readdirSync(VIDEO_TMP)) {
-    if (f.endsWith('.webm')) unlinkSync(path.join(VIDEO_TMP, f));
-  }
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({
+    args: ['--force-device-scale-factor=2', '--high-dpi-support=1'],
+  });
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
-    deviceScaleFactor: 1,
-    recordVideo: { dir: VIDEO_TMP, size: { width: 1920, height: 1080 } },
+    deviceScaleFactor: 2,
+    recordVideo: { dir: VIDEO_TMP, size: { width: 3840, height: 2160 } },
   });
   const page = await context.newPage();
+  const recordingStartMs = Date.now();
+  const elapsedSec = () => (Date.now() - recordingStartMs) / 1000;
+  const beats: Record<string, number> = {};
 
-  await page.goto('http://localhost:5173/?testMode=true', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:5175/?testMode=true', { waitUntil: 'networkidle' });
   await page.addStyleTag({ content: macStyles() });
+  beats.pageReady = elapsedSec();
 
-  // ── t=0-2s: Pricing.md active, three tabs visible ──
   await seedState(page, linterlyFixture, 'documentSuite');
   await sleep(2000);
+  beats.mdShown = elapsedSec();
 
-  // ── t=2-4s: Switch to Q1 Forecast.xlsx ──
+  // Capture rect of the tab strip for camera focus.
+  const tabStripRect = await page.evaluate(() => {
+    const el = document.querySelector('[data-testid="tab-bar"], .tab-bar, header') as HTMLElement | null;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }).catch(() => null);
+
   await switchTab(page, `${ROOT}/Q1 Forecast.xlsx`);
-  await sleep(2000);
+  beats.xlsxShown = elapsedSec();
+  await sleep(5500);
 
-  // ── t=4-9s: Hold on xlsx tab ──
-  await sleep(5000);
-
-  // ── t=9-11s: Switch to Pitch Deck.pptx ──
   await switchTab(page, `${ROOT}/Pitch Deck.pptx`);
-  await sleep(2000);
+  beats.pptxShown = elapsedSec();
+  await sleep(3500);
 
-  // ── t=11-13s: Hold on pptx tab ──
-  await sleep(2000);
-
-  // ── t=13-15s: Switch back to Pricing.md, hold ──
   await switchTab(page, `${ROOT}/Pricing.md`);
-  await sleep(2000);
+  beats.backToMd = elapsedSec();
+  await sleep(2500);
+  beats.end = elapsedSec();
 
   await page.close();
   await context.close();
   await browser.close();
 
-  // Find recorded webm
-  const webm = readdirSync(VIDEO_TMP).find((f) => f.endsWith('.webm'));
-  if (!webm) throw new Error('No .webm produced by Playwright recordVideo');
-  const webmPath = path.join(VIDEO_TMP, webm);
+  const webms = readdirSync(VIDEO_TMP)
+    .filter((f) => f.endsWith('.webm'))
+    .map((f) => ({ f, mtime: statSync(path.join(VIDEO_TMP, f)).mtimeMs }))
+    .sort((a, b) => b.mtime - a.mtime);
+  if (webms.length === 0) throw new Error('No .webm produced');
+  const webmPath = path.join(VIDEO_TMP, webms[0]!.f);
 
   mkdirSync(ASSETS_DIR, { recursive: true });
   const outPath = path.join(ASSETS_DIR, 'feature-document-suite-15s.mp4');
 
-  const rawDurationStr = execFileSync('ffprobe', [
-    '-v', 'quiet', '-show_entries', 'format=duration', '-of', 'csv=p=0', webmPath,
-  ], { encoding: 'utf-8' }).trim();
-  const rawDuration = parseFloat(rawDurationStr);
-  const TARGET_DURATION = 15;
-  const skipSeconds = Math.max(0, rawDuration - TARGET_DURATION);
+  console.log('[V05] beats:', JSON.stringify(beats));
 
-  execFileSync(
-    'ffmpeg',
-    [
-      '-y',
-      '-ss', String(skipSeconds),
-      '-i', webmPath,
-      '-i', CHROME_PNG,
-      '-filter_complex',
-      '[0:v]scale=1808:1004[scaled];' +
-      '[scaled]pad=1920:1080:56:52:color=0x1a1a1a[padded];' +
-      '[1:v]format=rgba[chrome];' +
-      '[padded][chrome]overlay=0:0,format=yuv420p[v]',
-      '-map', '[v]',
-      '-t', String(TARGET_DURATION),
-      '-c:v', 'libx264',
-      '-preset', 'slow',
-      '-crf', '18',
-      '-r', '30',
-      outPath,
-    ],
-    { stdio: 'inherit' },
-  );
+  // Camera focuses on the tab bar so the user can see the file types
+  // (.md / .xlsx / .pptx) the active tab is changing.
+  const tabAreaFocus = tabStripRect
+    ? focusOn([{ x: tabStripRect.x, y: tabStripRect.y, width: 1700, height: 600 }], { minWidth: 1500, pad: 30 })
+    : { x: 56, y: 24, w: 1700, h: 970 };
+
+  const shots: CameraShot[] = [
+    { tSec: 0,                            crop: tabAreaFocus, label: 'tabs+content' },
+    { tSec: (beats.end ?? 14),            crop: tabAreaFocus, label: 'hold-end' },
+  ];
+
+  const captions: Caption[] = [
+    { startSec: (beats.mdShown ?? 2) + 0.3,    endSec: (beats.xlsxShown ?? 4) - 0.2, text: 'Open .md files' },
+    { startSec: (beats.xlsxShown ?? 4) + 0.4,  endSec: (beats.pptxShown ?? 9) - 0.3,  text: 'Spreadsheets too' },
+    { startSec: (beats.pptxShown ?? 10) + 0.3, endSec: (beats.backToMd ?? 13) - 0.2, text: 'And presentations' },
+    { startSec: (beats.backToMd ?? 13) + 0.3,  endSec: (beats.end ?? 15) - 0.2, text: 'All in one workspace' },
+  ];
+
+  const PRE_ROLL_SEC = 0.4;
+  const trimSec = Math.max(0, (beats.mdShown ?? 2) - 0.5 - PRE_ROLL_SEC);
+
+  await renderCinematic({ webmPath, chromePngPath: CHROME_PNG, outPath, shots, captions, trimSec });
 
   mkdirSync(PRESS_KIT_DIR, { recursive: true });
   copyFileSync(outPath, path.join(PRESS_KIT_DIR, 'feature-document-suite-15s.mp4'));
-  console.log(`✓ ${outPath}`);
+  console.log(`✓ press-kit copy → ${path.join(PRESS_KIT_DIR, 'feature-document-suite-15s.mp4')}`);
   return outPath;
 }
 

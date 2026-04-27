@@ -13,19 +13,19 @@
  */
 
 import { chromium } from 'playwright';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdirSync, readdirSync, copyFileSync, unlinkSync } from 'node:fs';
+import { mkdirSync, readdirSync, copyFileSync, rmSync, statSync } from 'node:fs';
 import { linterlyFixture } from '../fixtures/linterly-workspace';
 import { seedState } from '../lib/seed-state';
 import { macStyles } from '../lib/inject-mac-styles';
+import { renderCinematic, focusOn, type CameraShot, type Caption } from '../lib/cinematic';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ASSETS_DIR = path.resolve(HERE, '../../../Assets/marketing');
 const PRESS_KIT_DIR = path.resolve(HERE, '../../../website/press-kit/assets');
 const CHROME_PNG = path.resolve(HERE, '../chrome-template/sequoia-chrome-1920x1080.png');
-const VIDEO_TMP = path.resolve(HERE, '../.tmp/video');
+const VIDEO_TMP = path.resolve(HERE, '../.tmp/video-06');
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -34,21 +34,20 @@ const FAKE_ANTHROPIC_KEY = 'sk-ant-api03-abcdefghijk3xQ';
 const FAKE_OPENAI_KEY    = 'sk-projUSERKEYFAKE8aB';
 
 export async function video06() {
+  rmSync(VIDEO_TMP, { recursive: true, force: true });
   mkdirSync(VIDEO_TMP, { recursive: true });
-  for (const f of readdirSync(VIDEO_TMP)) {
-    if (f.endsWith('.webm')) unlinkSync(path.join(VIDEO_TMP, f));
-  }
 
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({
+    args: ['--force-device-scale-factor=2', '--high-dpi-support=1'],
+  });
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
-    deviceScaleFactor: 1,
-    recordVideo: { dir: VIDEO_TMP, size: { width: 1920, height: 1080 } },
-    // Pre-seed localStorage with a fake OpenAI key so that row shows as configured
+    deviceScaleFactor: 2,
+    recordVideo: { dir: VIDEO_TMP, size: { width: 3840, height: 2160 } },
     storageState: {
       cookies: [],
       origins: [{
-        origin: 'http://localhost:5173',
+        origin: 'http://localhost:5175',
         localStorage: [
           { name: 'apiKey_openai', value: FAKE_OPENAI_KEY },
         ],
@@ -56,13 +55,18 @@ export async function video06() {
     },
   });
   const page = await context.newPage();
+  const recordingStartMs = Date.now();
+  const elapsedSec = () => (Date.now() - recordingStartMs) / 1000;
+  const beats: Record<string, number> = {};
 
-  await page.goto('http://localhost:5173/?testMode=true', { waitUntil: 'networkidle' });
+  await page.goto('http://localhost:5175/?testMode=true', { waitUntil: 'networkidle' });
   await page.addStyleTag({ content: macStyles() });
+  beats.pageReady = elapsedSec();
 
   // ── t=0-2s: Workspace hero ──
   await seedState(page, linterlyFixture, 'workspaceHero');
   await sleep(2000);
+  beats.heroSettled = elapsedSec();
 
   // ── t=2-4s: Click the AI assistant sidebar tab ──
   const aiTab = page.locator('[data-testid="sidebar-tab-ai-assistant"]');
@@ -174,6 +178,7 @@ export async function video06() {
     });
   }
   await sleep(2000);
+  beats.keysVisible = elapsedSec();
 
   // ── t=6-10s: Click the Anthropic key input and type char-by-char ──
   const anthropicInput = page.locator('[data-testid="api-key-row-anthropic"] input, [data-testid="api-key-row-anthropic"] [placeholder]');
@@ -204,6 +209,7 @@ export async function video06() {
     }
   }
   await sleep(500);
+  beats.keyTyped = elapsedSec();
 
   // ── t=10-12s: Show "Saved" confirmation ──
   await page.evaluate(() => {
@@ -236,54 +242,62 @@ export async function video06() {
     });
   });
   await sleep(2000);
+  beats.savedShown = elapsedSec();
 
   // ── t=12-15s: Hold final state ──
   await sleep(3000);
+  beats.end = elapsedSec();
+
+  // Capture the keys panel rect BEFORE closing the browser.
+  const keysPanelRect = await page.evaluate(() => {
+    const el = document.querySelector('#__v06_keys_panel, [data-testid="api-key-row-anthropic"]') as HTMLElement | null;
+    if (!el) return null;
+    // Walk up to find a containing panel
+    const panel = (el.id === '__v06_keys_panel') ? el : (el.closest('aside, [role="dialog"], #__v06_keys_panel') ?? el.parentElement);
+    const r = (panel ?? el).getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width, height: r.height };
+  }).catch(() => null);
 
   await page.close();
   await context.close();
   await browser.close();
 
-  const webm = readdirSync(VIDEO_TMP).find((f) => f.endsWith('.webm'));
-  if (!webm) throw new Error('No .webm produced by Playwright recordVideo');
-  const webmPath = path.join(VIDEO_TMP, webm);
+  const webms = readdirSync(VIDEO_TMP)
+    .filter((f) => f.endsWith('.webm'))
+    .map((f) => ({ f, mtime: statSync(path.join(VIDEO_TMP, f)).mtimeMs }))
+    .sort((a, b) => b.mtime - a.mtime);
+  if (webms.length === 0) throw new Error('No .webm produced');
+  const webmPath = path.join(VIDEO_TMP, webms[0]!.f);
 
   mkdirSync(ASSETS_DIR, { recursive: true });
   const outPath = path.join(ASSETS_DIR, 'byok-setup.mp4');
 
-  const rawDurationStr = execFileSync('ffprobe', [
-    '-v', 'quiet', '-show_entries', 'format=duration', '-of', 'csv=p=0', webmPath,
-  ], { encoding: 'utf-8' }).trim();
-  const rawDuration = parseFloat(rawDurationStr);
-  const TARGET_DURATION = 15;
-  const skipSeconds = Math.max(0, rawDuration - TARGET_DURATION);
+  console.log('[V06] beats:', JSON.stringify(beats));
 
-  execFileSync(
-    'ffmpeg',
-    [
-      '-y',
-      '-ss', String(skipSeconds),
-      '-i', webmPath,
-      '-i', CHROME_PNG,
-      '-filter_complex',
-      '[0:v]scale=1808:1004[scaled];' +
-      '[scaled]pad=1920:1080:56:52:color=0x1a1a1a[padded];' +
-      '[1:v]format=rgba[chrome];' +
-      '[padded][chrome]overlay=0:0,format=yuv420p[v]',
-      '-map', '[v]',
-      '-t', String(TARGET_DURATION),
-      '-c:v', 'libx264',
-      '-preset', 'slow',
-      '-crf', '18',
-      '-r', '30',
-      outPath,
-    ],
-    { stdio: 'inherit' },
-  );
+  // Camera focuses on the keys panel (top-right of viewport).
+  const keysFocus = keysPanelRect
+    ? focusOn([{ x: keysPanelRect.x - 80, y: keysPanelRect.y - 20, width: keysPanelRect.width + 100, height: keysPanelRect.height + 40 }], { minWidth: 1200, pad: 20 })
+    : { x: 600, y: 60, w: 1200, h: 685 };
+
+  const shots: CameraShot[] = [
+    { tSec: 0,                                crop: keysFocus, label: 'keys-panel' },
+    { tSec: (beats.end ?? 14),                crop: keysFocus, label: 'hold-end' },
+  ];
+
+  const captions: Caption[] = [
+    { startSec: (beats.heroSettled ?? 2) + 0.3, endSec: (beats.keysVisible ?? 6) - 0.3, text: 'Open Settings → API Keys' },
+    { startSec: (beats.keysVisible ?? 6) + 0.3, endSec: (beats.savedShown ?? 12) - 0.3, text: 'Paste your own key' },
+    { startSec: (beats.savedShown ?? 12) + 0.3, endSec: (beats.end ?? 15) - 0.2, text: 'Stored in your OS keychain' },
+  ];
+
+  const PRE_ROLL_SEC = 0.4;
+  const trimSec = Math.max(0, (beats.heroSettled ?? 2) - 0.5 - PRE_ROLL_SEC);
+
+  await renderCinematic({ webmPath, chromePngPath: CHROME_PNG, outPath, shots, captions, trimSec });
 
   mkdirSync(PRESS_KIT_DIR, { recursive: true });
   copyFileSync(outPath, path.join(PRESS_KIT_DIR, 'byok-setup.mp4'));
-  console.log(`✓ ${outPath}`);
+  console.log(`✓ press-kit copy → ${path.join(PRESS_KIT_DIR, 'byok-setup.mp4')}`);
   return outPath;
 }
 
