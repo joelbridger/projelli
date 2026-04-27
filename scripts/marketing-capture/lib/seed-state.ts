@@ -131,6 +131,37 @@ export async function seedState(
       activeTabPath: `${rootPath}/${activeFile}`,
       showBacklinks: true,
     };
+  } else if (shot === 'documentSuite') {
+    // S10: Three tabs — Pricing.md (active), Q1 Forecast.xlsx, Pitch Deck.pptx.
+    // The xlsx/pptx tabs have no real content; they sit idle so the tab strip
+    // shows the full document-suite icon set.
+    const suiteActive = activeFile ?? 'Pricing.md';
+    editorPayload = {
+      openTabs: [
+        {
+          path: `${rootPath}/${suiteActive}`,
+          name: suiteActive,
+          content: fixture.fileContents[suiteActive] ?? '',
+          isDirty: false,
+          type: 'file',
+        },
+        {
+          path: `${rootPath}/Q1 Forecast.xlsx`,
+          name: 'Q1 Forecast.xlsx',
+          content: '',
+          isDirty: false,
+          type: 'file',
+        },
+        {
+          path: `${rootPath}/Pitch Deck.pptx`,
+          name: 'Pitch Deck.pptx',
+          content: '',
+          isDirty: false,
+          type: 'file',
+        },
+      ],
+      activeTabPath: `${rootPath}/${suiteActive}`,
+    };
   } else if (activeFile) {
     // Default: single tab for the active file.
     editorPayload = {
