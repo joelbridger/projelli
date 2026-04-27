@@ -1442,8 +1442,32 @@
           </p>
 
           <div class="hero-ctas">
-            <a href="#pricing" class="btn btn-primary btn-lg">Download for Free</a>
-            <a href="https://github.com/projelli/projelli" class="btn btn-outline btn-lg">View on GitHub</a>
+            <!-- Auto-fills with the visitor's OS via JS below; falls back to
+                 the GitHub releases page if detection fails. -->
+            <a id="primary-download" href="https://github.com/projelli/projelli/releases/latest"
+               class="btn btn-primary btn-lg">Download Projelli</a>
+            <button type="button" id="other-platforms-toggle" class="btn btn-outline btn-lg"
+                    aria-expanded="false" aria-controls="other-platforms-panel">
+              Other platforms ▾
+            </button>
+          </div>
+          <!-- Reveals on toggle. Direct .exe / .dmg / .deb / .AppImage / .rpm
+               links to the latest GitHub release. The build constants below
+               are kept in sync at deploy time (see scripts/update-download-links.py). -->
+          <div id="other-platforms-panel" hidden
+               style="margin-top: 16px; padding: 18px 20px; background: var(--bg-surface); border: 1px solid var(--border-gray); border-radius: 12px; max-width: 540px;">
+            <p style="font-size: 0.8125rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px;">Pick your platform</p>
+            <ul id="platform-links" style="list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: 0.9375rem;">
+              <li><a class="platform-link" data-os="windows" href="#" style="color: var(--text-heading); text-decoration: none; font-weight: 500;">⊞ Windows installer (.exe)</a></li>
+              <li><a class="platform-link" data-os="windows-portable" href="#" style="color: var(--text-heading); text-decoration: none; font-weight: 500;">⊞ Windows portable (.exe)</a></li>
+              <li><a class="platform-link" data-os="mac-arm" href="#" style="color: var(--text-heading); text-decoration: none; font-weight: 500;">🍎 Mac, Apple Silicon (.dmg)</a></li>
+              <li><a class="platform-link" data-os="mac-intel" href="#" style="color: var(--text-heading); text-decoration: none; font-weight: 500;">🍎 Mac, Intel (.dmg)</a></li>
+              <li><a class="platform-link" data-os="linux-deb" href="#" style="color: var(--text-heading); text-decoration: none; font-weight: 500;">🐧 Linux .deb</a></li>
+              <li><a class="platform-link" data-os="linux-appimage" href="#" style="color: var(--text-heading); text-decoration: none; font-weight: 500;">🐧 Linux AppImage</a></li>
+            </ul>
+            <p style="font-size: 0.8125rem; color: var(--text-muted); margin-top: 12px;">
+              <a href="https://github.com/projelli/projelli/releases/latest" style="color: var(--accent-blue);">All releases on GitHub →</a>
+            </p>
           </div>
 
           <!-- Email list signup -->
@@ -1481,6 +1505,10 @@
     <!-- Product preview strip: 3 real screenshots from the asset-capture pipeline -->
     <section class="product-strip">
       <div class="container">
+        <div class="section-header" style="margin-bottom: 32px; text-align: center;">
+          <span class="eyebrow">TAKE THE TOUR</span>
+          <h2 style="margin-top: 8px;">A 60-second look at what Projelli does</h2>
+        </div>
         <div class="product-strip-grid">
           <a href="/tour" class="product-strip-card">
             <img src="/press-kit/assets/screenshot-02-ai-chat-zoom.png" alt="AI chat showing user prompt, streaming assistant response with Markdown formatting, and a brand-voice draft saved to Brand Voice.md" loading="lazy">
@@ -1507,77 +1535,7 @@
       </div>
     </section>
 
-    <!-- Features Grid (v1.5: the four flags) -->
-    <section class="features" id="features">
-      <div class="container">
-        <div class="section-header">
-          <span class="eyebrow">WHAT PROJELLI DOES</span>
-          <h2>Four capabilities, one local-first app</h2>
-          <p>Every feature below runs on your machine with your own API keys. Nothing you type is ever sent to a Projelli server.</p>
-        </div>
-
-        <div class="features-grid">
-          <div class="feature-card animate-on-scroll">
-            <!-- Memory icon: stacked layers (notes) with a magnifying lens — "indexed knowledge" -->
-            <div class="feature-icon blue">
-              <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                <path d="M3 7l9-4 9 4-9 4-9-4z"/>
-                <path d="M3 12l9 4 9-4"/>
-                <path d="M3 17l9 4 9-4"/>
-                <circle cx="17" cy="17" r="3" fill="white" stroke="currentColor"/>
-                <path d="M19.5 19.5l2 2"/>
-              </svg>
-            </div>
-            <h3>Memory that indexes your work</h3>
-            <p><strong>The AI workspace that remembers your stuff.</strong> A local vector index (LanceDB + e5-small) over every Markdown file you've written, plus a <code>memory.json</code> facts file extracted from your chats. Ask "what did I say about pricing?" and the answer comes back with citations.</p>
-            <a href="/blog/chat-shouldnt-disappear-when-you-close-the-tab" style="color: var(--accent-blue); font-size: 0.9rem; margin-top: 12px; display: inline-block;">Read why chat shouldn't evaporate &rarr;</a>
-          </div>
-
-          <div class="feature-card animate-on-scroll">
-            <!-- MCP icon: hub-and-spokes (one workspace, many AI clients) -->
-            <div class="feature-icon green">
-              <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="3"/>
-                <circle cx="4" cy="5" r="2"/>
-                <circle cx="20" cy="5" r="2"/>
-                <circle cx="4" cy="19" r="2"/>
-                <circle cx="20" cy="19" r="2"/>
-                <path d="M5.5 6.5L10 10"/>
-                <path d="M18.5 6.5L14 10"/>
-                <path d="M5.5 17.5L10 14"/>
-                <path d="M18.5 17.5L14 14"/>
-              </svg>
-            </div>
-            <h3>Available in every AI tool you use</h3>
-            <p><strong>Your workspace, everywhere.</strong> Projelli ships a <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener" style="color: var(--accent-blue);">Model Context Protocol</a> server as a one-click <code>.mcpb</code> bundle. Install it in Claude Desktop, Cursor, or Zed and those clients can read, search, and (with approval) write your Projelli workspace.</p>
-            <a href="https://modelcontextprotocol.io" target="_blank" rel="noopener" style="color: var(--accent-blue); font-size: 0.9rem; margin-top: 12px; display: inline-block;">Learn about MCP &rarr;</a>
-          </div>
-
-          <div class="feature-card animate-on-scroll">
-            <!-- AI edits icon: document with a streaming diff line + sparkles ("AI suggested change") -->
-            <div class="feature-icon purple">
-              <svg fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-9"/>
-                <path d="M8 9h6"/>
-                <path d="M8 13h4"/>
-                <path d="M8 17h3"/>
-                <path d="M18 3l3 3-7 7-3 1 1-3 6-8z" fill="currentColor" fill-opacity="0.18"/>
-                <path d="M18 3l3 3-7 7-3 1 1-3 6-8z"/>
-                <path d="M21.5 8.5l1 1M19 11l.5.5"/>
-              </svg>
-            </div>
-            <h3>AI edits side-by-side with you</h3>
-            <p><strong>The Canvas pattern, but local.</strong> Select any paragraph, ask "tighten this," watch a streaming diff land in place. Per-hunk Accept or Reject, or accept-all. Every AI edit gets logged to version history with the prompt + model + offset range, so you can always see what the AI changed.</p>
-            <a href="/blog/projelli-1-5-announce" style="color: var(--accent-blue); font-size: 0.9rem; margin-top: 12px; display: inline-block;">See the 1.5 announcement &rarr;</a>
-          </div>
-
-        </div>
-
-        <p style="text-align: center; color: var(--text-muted); font-size: 0.9375rem; margin-top: 40px;">
-          Plus a real-time API cost meter so you always know what AI is costing you.
-        </p>
-      </div>
-    </section>
+    
 
     <!-- Feature Showcase -->
     <section class="feature-showcase">
@@ -1684,36 +1642,7 @@
       </div>
     </section>
 
-    <!-- How It Works -->
-    <section class="how-it-works" id="how-it-works">
-      <div class="container">
-        <div class="section-header">
-          <span class="eyebrow">HOW IT WORKS</span>
-          <h2>Three steps to get a project out of your head</h2>
-          <p>No setup, no tutorial. Open the app, pick a template, start typing.</p>
-        </div>
-
-        <div class="steps-row">
-          <div class="step animate-on-scroll">
-            <div class="step-number">1</div>
-            <h3>Pick a template</h3>
-            <p>Start from one of the 15 founder templates or a blank project. Each template already knows the documents you probably need and helps you fill them in.</p>
-          </div>
-
-          <div class="step animate-on-scroll">
-            <div class="step-number">2</div>
-            <h3>Talk to the AI</h3>
-            <p>Describe the project in your own words. The AI asks a few follow-up questions, then drafts the documents you would have written yourself if you had two extra hours.</p>
-          </div>
-
-          <div class="step animate-on-scroll">
-            <div class="step-number">3</div>
-            <h3>Edit and link</h3>
-            <p>Fix up the drafts in the Markdown editor, link related notes with wiki-links, and keep iterating until the whole project sits in one place you trust.</p>
-          </div>
-        </div>
-      </div>
-    </section>
+    
 
     <!-- Pricing -->
     <section class="pricing" id="pricing">
@@ -1786,21 +1715,7 @@
         </p>
       </div>
     </section>
-
-    <!-- Final CTA -->
-    <section class="cta-section">
-      <div class="cta-glow"></div>
-      <div class="container">
-        <div class="cta-content">
-          <h2>Ready to get that project out of six tabs?</h2>
-          <p style="font-size: 1.125rem; color: var(--text-body); margin-bottom: 40px;">Projelli is free to download. Your files stay on your computer, and the app runs without an account.</p>
-          <a id="cta-download" href="https://github.com/projelli/projelli/releases/latest" class="btn btn-primary btn-lg" style="font-size: 18px; padding: 18px 48px;">Download for Free</a>
-          <div style="margin-top: 16px; font-size: 0.875rem; color: var(--text-muted);">
-            <a href="https://github.com/projelli/projelli/releases/latest" style="color: inherit; text-decoration: underline;">All platforms</a>, Windows, Mac (Apple Silicon + Intel), Linux
-          </div>
-        </div>
-      </div>
-    </section>
+    
 
     <!-- Built by Jameson Daines (last section before footer) -->
     <section style="padding: 80px 24px; background: var(--bg-surface);">
@@ -2150,25 +2065,66 @@
     })();
   </script>
 
-  <!-- Platform-aware download button -->
+  <!-- Platform-aware download UI: detect OS, fill primary CTA + the
+       full per-platform list. Bump VERSION on every release. -->
   <script>
     (function() {
-      var el = document.getElementById('cta-download');
-      if (!el) return;
+      var VERSION = '1.6.0';
+      var BASE = 'https://github.com/projelli/projelli/releases/download/v' + VERSION + '/';
+
+      // Direct installer URLs per platform (must match the artifact names
+      // produced by .github/workflows/release.yml).
+      var URLS = {
+        'windows':          BASE + 'Projelli_' + VERSION + '_x64-setup.exe',
+        'windows-portable': BASE + 'Projelli_' + VERSION + '_x64-portable.exe',
+        'mac-arm':          BASE + 'Projelli_' + VERSION + '_aarch64.dmg',
+        'mac-intel':        BASE + 'Projelli_' + VERSION + '_x64.dmg',
+        'linux-deb':        BASE + 'Projelli_' + VERSION + '_amd64.deb',
+        'linux-appimage':   BASE + 'Projelli_' + VERSION + '_amd64.AppImage',
+      };
+
+      // Wire each platform link in the dropdown.
+      document.querySelectorAll('.platform-link').forEach(function(a) {
+        var os = a.getAttribute('data-os');
+        if (URLS[os]) a.href = URLS[os];
+      });
+
+      // Auto-detect visitor OS for the primary CTA.
       var ua = navigator.userAgent;
-      var v = '1.0.3';
-      var base = 'https://github.com/projelli/projelli/releases/download/v' + v + '/';
-      if (/Windows/.test(ua)) {
-        el.href = base + 'Projelli_' + v + '_x64-setup.exe';
-        el.textContent = 'Download for Windows';
-      } else if (/Mac/.test(ua)) {
-        el.href = /arm64|aarch64/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-          ? base + 'Projelli_' + v + '_aarch64.dmg'
-          : base + 'Projelli_' + v + '_x64.dmg';
-        el.textContent = 'Download for Mac';
-      } else if (/Linux/.test(ua)) {
-        el.href = base + 'Projelli_' + v + '_amd64.AppImage';
-        el.textContent = 'Download for Linux';
+      var primary = document.getElementById('primary-download');
+      if (primary) {
+        if (/Windows/.test(ua)) {
+          primary.href = URLS['windows'];
+          primary.textContent = 'Download for Windows';
+        } else if (/Mac/.test(ua)) {
+          // Apple Silicon detection is unreliable from the UA alone, so
+          // default to ARM (covers M1/M2/M3/M4 — the majority of new Macs).
+          // Intel users can pick from the "Other platforms" panel.
+          primary.href = URLS['mac-arm'];
+          primary.textContent = 'Download for Mac';
+        } else if (/Linux/.test(ua)) {
+          primary.href = URLS['linux-deb'];
+          primary.textContent = 'Download for Linux';
+        }
+        // Else: leaves default text "Download Projelli" + GitHub releases link.
+      }
+
+      // Toggle "Other platforms" panel.
+      var toggle = document.getElementById('other-platforms-toggle');
+      var panel = document.getElementById('other-platforms-panel');
+      if (toggle && panel) {
+        toggle.addEventListener('click', function() {
+          var open = panel.hasAttribute('hidden') ? false : true;
+          if (open) {
+            panel.setAttribute('hidden', '');
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.textContent = 'Other platforms ▾';
+          } else {
+            panel.removeAttribute('hidden');
+            toggle.setAttribute('aria-expanded', 'true');
+            toggle.textContent = 'Other platforms ▴';
+          }
+        });
       }
     })();
   </script>
