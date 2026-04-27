@@ -43,6 +43,12 @@ export interface StillShotOptions {
   raw?: boolean;
   /** Optional pre-launched browser to reuse (saves cold-start time across shots). */
   browser?: import('playwright').Browser;
+  /**
+   * Key/value pairs written to localStorage via an init script that runs
+   * BEFORE page.goto(). Use this to seed data that React hooks read on
+   * mount (e.g. apiKey_anthropic for useApiKeys).
+   */
+  localStorageSeed?: Record<string, string>;
 }
 
 export async function captureStill(opts: StillShotOptions): Promise<string> {
@@ -59,6 +65,16 @@ export async function captureStill(opts: StillShotOptions): Promise<string> {
     try {
       // Mocking must be installed BEFORE navigation so routes catch in-app fetches.
       if (opts.aiReplay) await mockAI(page, opts.aiReplay);
+
+      // Seed localStorage values before navigation so React hooks read them on mount.
+      if (opts.localStorageSeed) {
+        const entries = opts.localStorageSeed;
+        await context.addInitScript((kv) => {
+          for (const [k, v] of Object.entries(kv)) {
+            localStorage.setItem(k, v);
+          }
+        }, entries);
+      }
 
       await page.goto('http://localhost:5173/?testMode=true', { waitUntil: 'networkidle' });
       await seedState(page, linterlyFixture, opts.shotKey);
