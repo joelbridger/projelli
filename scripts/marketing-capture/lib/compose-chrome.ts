@@ -38,6 +38,9 @@ export async function composeChrome(
 
     // We need the natural image dimensions before we can set viewport size.
     // Decode width/height from the PNG header in the buffer.
+    if (screenshot.length < 24) {
+      throw new Error('Invalid PNG buffer: too small to contain dimensions');
+    }
     const imgWidth = screenshot.readUInt32BE(16);
     const imgHeight = screenshot.readUInt32BE(20);
 
@@ -46,26 +49,29 @@ export async function composeChrome(
       viewport: { width: imgWidth + padding * 2, height: imgHeight + padding * 2 + 28 },
       deviceScaleFactor: 2,
     });
-    await page.setContent(html);
-    await page.evaluate((url) => {
-      (document.getElementById('screenshot') as HTMLImageElement).src = url;
-    }, dataUrl);
-    await page.waitForFunction(() => {
-      const img = document.getElementById('screenshot') as HTMLImageElement;
-      return img.complete && img.naturalWidth > 0;
-    });
+    try {
+      await page.setContent(html);
+      await page.evaluate((url) => {
+        (document.getElementById('screenshot') as HTMLImageElement).src = url;
+      }, dataUrl);
+      await page.waitForFunction(() => {
+        const img = document.getElementById('screenshot') as HTMLImageElement;
+        return img.complete && img.naturalWidth > 0;
+      });
 
-    // Read the actual rendered window dimensions (handles any CSS adjustments).
-    const dims = await page.evaluate((pad) => {
-      const win = document.getElementById('window')!;
-      const r = win.getBoundingClientRect();
-      return { w: Math.ceil(r.width + pad * 2), h: Math.ceil(r.height + pad * 2) };
-    }, padding);
-    await page.setViewportSize({ width: dims.w, height: dims.h });
+      // Read the actual rendered window dimensions (handles any CSS adjustments).
+      const dims = await page.evaluate((pad) => {
+        const win = document.getElementById('window')!;
+        const r = win.getBoundingClientRect();
+        return { w: Math.ceil(r.width + pad * 2), h: Math.ceil(r.height + pad * 2) };
+      }, padding);
+      await page.setViewportSize({ width: dims.w, height: dims.h });
 
-    const buf = await page.screenshot({ type: 'png', fullPage: false });
-    await page.close();
-    return buf;
+      const buf = await page.screenshot({ type: 'png', fullPage: false });
+      return buf;
+    } finally {
+      await page.close();
+    }
   } finally {
     if (ownsBrowser) await browser.close();
   }
