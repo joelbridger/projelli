@@ -284,6 +284,59 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     defaultValue: 'Ctrl+Shift+N',
   },
 
+  // ── Voice Output (TTS) — v2.0 Stream B ───────────────────────────────
+  {
+    key: 'ttsEnabled',
+    category: 'voice',
+    label: 'Text-to-speech output',
+    description:
+      'Enable the "Read aloud" button on AI responses. Runs a bundled speech engine on your machine — no API key, no cloud.',
+    type: 'toggle',
+    defaultValue: false,
+  },
+  {
+    key: 'ttsVoice',
+    category: 'voice',
+    label: 'Voice',
+    description:
+      'Choose the default voice for text-to-speech. English (Amy) ships with the app; other languages download on first use.',
+    type: 'select',
+    defaultValue: 'en_US-amy-medium',
+    options: [
+      { value: 'en_US-amy-medium', label: 'English (Amy, medium)' },
+      { value: 'es_ES-mls-medium', label: 'Spanish (MLS, medium)' },
+      { value: 'de_DE-thorsten-medium', label: 'German (Thorsten, medium)' },
+    ],
+  },
+  {
+    key: 'ttsSpeed',
+    category: 'voice',
+    label: 'Playback speed',
+    description: 'Adjust how fast the AI response is spoken (1.0 = normal).',
+    type: 'number',
+    defaultValue: 1.0,
+    min: 0.5,
+    max: 2.0,
+    step: 0.1,
+  },
+  {
+    key: 'ttsAutoRead',
+    category: 'voice',
+    label: 'Auto-read AI responses',
+    description:
+      'Automatically begin reading each AI response aloud as soon as it finishes streaming. Off by default.',
+    type: 'toggle',
+    defaultValue: false,
+  },
+  {
+    key: 'ttsShortcut',
+    category: 'voice',
+    label: 'Read-aloud shortcut',
+    description: 'Keyboard shortcut to read the focused AI message aloud.',
+    type: 'shortcut-display',
+    defaultValue: 'Ctrl+Shift+R',
+  },
+
   // ── Files & Workspace ─────────────────────────────────────────────────
   {
     key: 'defaultNewFileType',
