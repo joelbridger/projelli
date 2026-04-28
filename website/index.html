@@ -808,63 +808,147 @@
       margin: 0 auto;
     }
 
-    /* Product preview strip (3 real product screenshots) */
+    /* Tour video cards (3 most-watched demos linking into /tour) */
     .product-strip {
-      padding: 64px 0 48px;
+      padding: 80px 0 64px;
       border-top: 1px solid var(--border-gray);
+      background: linear-gradient(180deg, #FAFBFC 0%, #FFFFFF 100%);
     }
     .product-strip-grid {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 24px;
+      gap: 28px;
     }
     @media (min-width: 768px) {
       .product-strip-grid {
         grid-template-columns: repeat(3, 1fr);
-        gap: 24px;
+        gap: 28px;
       }
     }
     .product-strip-card {
       display: block;
       text-decoration: none;
       color: inherit;
-      border-radius: 12px;
+      border-radius: 14px;
       overflow: hidden;
-      background: var(--bg-surface);
+      background: #FFFFFF;
       border: 1px solid var(--border-gray);
-      transition: border-color 0.2s ease, transform 0.2s ease;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+      transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
     }
     .product-strip-card:hover {
-      border-color: var(--accent-blue);
-      transform: translateY(-2px);
+      border-color: #FF7C6E;
+      transform: translateY(-4px);
+      box-shadow: 0 16px 32px rgba(15, 23, 42, 0.10), 0 0 0 1px #FF7C6E;
     }
-    .product-strip-card img {
+    /* Poster wrapper: holds the screenshot + the play-button overlay */
+    .product-strip-poster {
+      position: relative;
+      aspect-ratio: 16 / 10;
+      overflow: hidden;
+      background: #0F172A;
+    }
+    .product-strip-poster img {
       width: 100%;
-      height: auto;
+      height: 100%;
+      object-fit: cover;
+      object-position: top center;
       display: block;
+      transition: transform 0.4s ease, opacity 0.25s ease;
+    }
+    .product-strip-card:hover .product-strip-poster img {
+      transform: scale(1.04);
+      opacity: 0.92;
+    }
+    /* Subtle vignette so the play button reads on bright posters */
+    .product-strip-poster::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0) 40%, rgba(15, 23, 42, 0.45) 100%);
+      pointer-events: none;
+      transition: background 0.25s ease;
+    }
+    .product-strip-card:hover .product-strip-poster::before {
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.10) 0%, rgba(15, 23, 42, 0.55) 100%);
+    }
+    /* Big coral play button — the "yes this is a video" signal */
+    .product-strip-play {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: #FF7C6E;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 6px rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+    }
+    .product-strip-card:hover .product-strip-play {
+      transform: translate(-50%, -50%) scale(1.12);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 0 0 8px rgba(255, 255, 255, 0.3);
+    }
+    .product-strip-play svg {
+      width: 28px;
+      height: 28px;
+      fill: white;
+      margin-left: 4px; /* optical-center the triangle */
+    }
+    /* "VIDEO 1 / 9" pill bottom-left of the poster */
+    .product-strip-badge {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      background: rgba(15, 23, 42, 0.85);
+      color: white;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 999px;
+      backdrop-filter: blur(4px);
     }
     .product-strip-caption {
-      padding: 16px 18px;
-      font-size: 0.9375rem;
-      color: var(--text-body);
+      padding: 18px 20px 22px;
     }
     .product-strip-caption strong {
       display: block;
       color: var(--text-heading);
-      margin-bottom: 2px;
+      font-size: 1.0625rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .product-strip-caption span {
+      display: block;
+      color: var(--text-body);
+      font-size: 0.9375rem;
+      line-height: 1.5;
     }
     .product-strip-tour-link {
       text-align: center;
-      margin-top: 32px;
-      font-size: 0.9375rem;
+      margin-top: 40px;
+      font-size: 1rem;
     }
     .product-strip-tour-link a {
-      color: var(--accent-blue);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #FF7C6E;
       text-decoration: none;
       font-weight: 600;
+      padding: 10px 20px;
+      border-radius: 999px;
+      border: 1.5px solid #FF7C6E;
+      transition: background 0.2s ease, color 0.2s ease;
     }
     .product-strip-tour-link a:hover {
-      text-decoration: underline;
+      background: #FF7C6E;
+      color: white;
     }
 
     /* Features Grid */
@@ -1432,8 +1516,8 @@
   <link rel="stylesheet" href="/styles/projelli-nav.css">
   <script src="/scripts/projelli-nav.v2.js" defer></script>
   <!-- Hero animation (vanilla JS, no build step) -->
-  <link rel="stylesheet" href="/styles/hero-animation.css?v=2026042704">
-  <script src="/scripts/hero-animation.js?v=2026042704" defer></script>
+  <link rel="stylesheet" href="/styles/hero-animation.css?v=2026042806">
+  <script src="/scripts/hero-animation.js?v=2026042806" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -1790,32 +1874,54 @@
     <!-- Product preview strip: 3 real screenshots from the asset-capture pipeline -->
     <section class="product-strip" id="take-the-tour">
       <div class="container">
-        <div class="section-header" style="margin-bottom: 32px; text-align: center;">
+        <div class="section-header" style="margin-bottom: 40px; text-align: center;">
           <span class="eyebrow">TAKE THE TOUR</span>
-          <h2 style="margin-top: 8px;">A 60-second look at what Projelli does</h2>
+          <h2 style="margin-top: 8px;">Watch Projelli in action</h2>
+          <p style="margin-top: 8px; color: var(--text-body); font-size: 1rem;">Three short videos. No audio needed. Click any to play.</p>
         </div>
         <div class="product-strip-grid">
-          <a href="/tour" class="product-strip-card">
-            <img src="/press-kit/assets/screenshot-02-ai-chat-zoom.png" alt="AI chat showing user prompt, streaming assistant response with Markdown formatting, and a brand-voice draft saved to Brand Voice.md" loading="lazy">
+          <a href="/tour" class="product-strip-card" aria-label="Watch: Chat creates files">
+            <div class="product-strip-poster">
+              <img src="/press-kit/assets/screenshot-02-ai-chat-zoom.png" alt="" loading="lazy">
+              <span class="product-strip-badge">Video · 1 of 9</span>
+              <span class="product-strip-play" aria-hidden="true">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z"/></svg>
+              </span>
+            </div>
             <div class="product-strip-caption">
-              <strong>Chat creates files.</strong> Every conversation saves as Markdown.
+              <strong>Chat creates files</strong>
+              <span>Watch a prompt become a real Markdown file in your workspace.</span>
             </div>
           </a>
-          <a href="/tour" class="product-strip-card">
-            <img src="/press-kit/assets/screenshot-04-templates-zoom.png" alt="Workflows panel showing template cards: New Business Kickoff, Competitor Analysis, Customer Persona Builder" loading="lazy">
+          <a href="/tour" class="product-strip-card" aria-label="Watch: 15 founder templates">
+            <div class="product-strip-poster">
+              <img src="/press-kit/assets/screenshot-04-templates-zoom.png" alt="" loading="lazy">
+              <span class="product-strip-badge">Video · 2 of 9</span>
+              <span class="product-strip-play" aria-hidden="true">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z"/></svg>
+              </span>
+            </div>
             <div class="product-strip-caption">
-              <strong>15 founder templates.</strong> Pitch decks, customer interviews, financials.
+              <strong>15 founder templates</strong>
+              <span>Pitch decks, customer interviews, and financials in one click.</span>
             </div>
           </a>
-          <a href="/tour" class="product-strip-card">
-            <img src="/press-kit/assets/screenshot-03-wikilinks-zoom.png" alt="Markdown editor showing Vision.md with [[Customers]], [[Pricing]], and [[Brand Voice]] wiki-links and a backlinks panel on the right" loading="lazy">
+          <a href="/tour" class="product-strip-card" aria-label="Watch: Wiki-links and backlinks">
+            <div class="product-strip-poster">
+              <img src="/press-kit/assets/screenshot-03-wikilinks-zoom.png" alt="" loading="lazy">
+              <span class="product-strip-badge">Video · 3 of 9</span>
+              <span class="product-strip-play" aria-hidden="true">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M8 5v14l11-7z"/></svg>
+              </span>
+            </div>
             <div class="product-strip-caption">
-              <strong>Wiki-links and backlinks.</strong> Your archive, connected.
+              <strong>Wiki-links &amp; backlinks</strong>
+              <span>Connect notes with [[brackets]] and follow them across your archive.</span>
             </div>
           </a>
         </div>
         <p class="product-strip-tour-link">
-          <a href="/tour">See all 8 demo videos &rarr;</a>
+          <a href="/tour">▶  Watch all 9 demo videos</a>
         </p>
       </div>
     </section>
