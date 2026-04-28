@@ -17,6 +17,11 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { VOICE_CATALOG, type VoiceEntry } from '@/modules/tts/voiceCatalog';
 import type { TTSAudioPlayer } from '@/modules/tts/TTSAudioPlayer';
+import { AuditService } from '@/modules/audit/AuditService';
+
+// Module-level AuditService instance for TTS events.
+// Uses 'tts' as the workspace ID so entries are persisted under a dedicated key.
+const _auditService = new AuditService('tts');
 
 /**
  * Text length threshold (chars) above which TTSService.speakWithPlayer()
@@ -77,6 +82,14 @@ export const TTSService = {
       );
     }
     const bytes = await invoke<number[]>('tts_speak', { text, voiceId, speed });
+
+    // Audit: emit tts_played after successful synthesis only.
+    void _auditService.append({
+      type: 'tts_played',
+      timestamp: new Date().toISOString(),
+      payload: { textLength: text.length, voiceId },
+    });
+
     return new Uint8Array(bytes);
   },
 
