@@ -1063,11 +1063,19 @@
 
     .feature-visual {
       flex: 1;
-      background: white;
-      border-radius: 16px;
-      padding: 32px;
-      border: 1px solid var(--border-gray);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+      /* No outer card — let the screenshot itself carry the visual weight.
+         Previously the outer container plus the inner image both had
+         border-radius + shadow, which read as two stacked rounded
+         rectangles. */
+    }
+    .feature-visual img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 14px;
+      box-shadow:
+        0 24px 48px rgba(15, 23, 42, 0.16),
+        0 4px 12px rgba(15, 23, 42, 0.08);
     }
 
     /* Workflow Templates */
@@ -1516,8 +1524,8 @@
   <link rel="stylesheet" href="/styles/projelli-nav.css">
   <script src="/scripts/projelli-nav.v2.js" defer></script>
   <!-- Hero animation (vanilla JS, no build step) -->
-  <link rel="stylesheet" href="/styles/hero-animation.css?v=2026042806">
-  <script src="/scripts/hero-animation.js?v=2026042806" defer></script>
+  <link rel="stylesheet" href="/styles/hero-animation.css?v=2026042807">
+  <script src="/scripts/hero-animation.js?v=2026042807" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -1933,7 +1941,7 @@
       <div class="container">
         <div class="feature-row animate-on-scroll">
           <div class="feature-visual">
-            <img src="/press-kit/assets/screenshot-02-ai-chat.png" alt="Projelli AI chat mid-stream with a new Markdown file appearing in the file tree" loading="lazy" style="width:100%; height:auto; border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,0.1); display:block;">
+            <img src="/press-kit/assets/screenshot-02-ai-chat-zoom.png" alt="Projelli AI chat mid-stream with the user prompt, the assistant's brand-voice draft, and the resulting Brand Voice.md file" loading="lazy">
           </div>
 
           <div class="feature-text">
@@ -1951,7 +1959,7 @@
 
         <div class="feature-row reverse animate-on-scroll">
           <div class="feature-visual">
-            <img src="/press-kit/assets/screenshot-03-wikilinks.png" alt="Editor with wiki-link autocomplete and the backlinks panel showing every doc that references this one" loading="lazy" style="width:100%; height:auto; border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,0.1); display:block;">
+            <img src="/press-kit/assets/screenshot-03-wikilinks-zoom.png" alt="Vision.md with [[Customers]], [[Pricing]], and [[Brand Voice]] wiki-links and a Backlinks panel on the right" loading="lazy">
           </div>
 
           <div class="feature-text">
@@ -1969,7 +1977,7 @@
 
         <div class="feature-row animate-on-scroll">
           <div class="feature-visual">
-            <img src="/press-kit/assets/feature-local-first.png" alt="A Projelli file appears as a real Markdown file in the Mac Finder, proving the data lives on the user's machine" loading="lazy" style="width:100%; height:auto; border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,0.1); display:block;">
+            <img src="/press-kit/assets/feature-local-first.png" alt="A Projelli file appears as a real Markdown file in the Mac Finder, proving the data lives on the user's machine" loading="lazy">
           </div>
 
           <div class="feature-text">
