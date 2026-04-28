@@ -33,6 +33,7 @@ import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/components/WhatsNew
 import { UpdateManager, manualUpdateCheck } from '@/components/updater/UpdateManager';
 import { openExternal } from '@/utils/openExternal';
 import { SettingsModal } from '@/components/settings/SettingsModal';
+import { TrialBanner } from '@/components/trial';
 import { FeatureTour } from '@/components/onboarding/FeatureTour';
 import { useFeatureTour } from '@/hooks/useFeatureTour';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -2547,6 +2548,11 @@ This file contains rules and guidelines for AI assistants in this workspace.
           completes); otherwise it returns null and adds zero layout. */}
       <RagProgressBanner />
 
+      {/* Trial countdown banner — only renders during the final week of
+          the free trial (or once expired) and when no license is active.
+          Otherwise null and zero layout. */}
+      <TrialBanner onActivate={() => setShowSettingsModal(true)} />
+
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar with file tree, workflows, research, and settings */}
@@ -2708,7 +2714,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
       </div>
 
       {/* Status bar */}
-      <StatusBar />
+      <StatusBar onOpenSettings={() => setShowSettingsModal(true)} />
 
       {/* Interview Dialog */}
       <Dialog open={showInterviewDialog} onOpenChange={setShowInterviewDialog}>

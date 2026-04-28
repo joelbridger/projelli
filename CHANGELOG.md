@@ -7,7 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No changes since v1.7.0.
+No changes since v1.7.1.
+
+## [1.7.1] - 2026-04-28
+
+Trial visibility: surface the countdown outside Settings.
+
+### Added
+- **Persistent status-bar trial chip.** Always visible in the bottom
+  status bar while the free trial is active and no license is
+  activated. Color escalates as days run out: muted (>7 days),
+  amber (4–7 days), red (1–3 days or expired). Click opens Settings.
+  Code: `src/components/trial/TrialStatusChip.tsx`, wired into
+  `StatusBar` via the new `onOpenSettings` prop.
+- **Top trial banner in the final week.** Renders above the main
+  content area when ≤7 days remain (or the trial has expired).
+  Tone escalates amber → red. Dismissible per-session (re-shows
+  after an hour, or on the next launch); not dismissible once
+  expired. Includes an "Activate license" / "Get a license" CTA
+  that opens Settings. Code: `src/components/trial/TrialBanner.tsx`.
+
+### Changed
+- StatusBar component now accepts an optional `onOpenSettings` prop
+  used to mount the trial chip. Existing callers without the prop
+  still render correctly (chip omitted).
 
 ## [1.7.0] - 2026-04-27
 

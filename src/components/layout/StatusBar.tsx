@@ -14,6 +14,7 @@ import {
 // M1 (v1.5) Memory: RAG indexer status badge.
 import { RagStatusBadge } from '@/components/memory/RagStatusBadge';
 import { BugReportDialog } from '@/components/common/BugReportDialog';
+import { TrialStatusChip } from '@/components/trial';
 
 /**
  * Extract project name from full path
@@ -113,7 +114,12 @@ function collapseBreadcrumbs(
   };
 }
 
-export function StatusBar() {
+interface StatusBarProps {
+  /** Open the Settings modal (for the License section the trial chip targets). */
+  onOpenSettings?: () => void;
+}
+
+export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
   const { rootPath, expandedPaths, setExpandedPaths, selectPath } =
     useWorkspaceStore();
   const { openTabs, activeTabPath } = useEditorStore();
@@ -263,6 +269,8 @@ export function StatusBar() {
       {/* Right-side cluster. gap-4 gives every segment consistent breathing
           room so nothing feels mashed together (v1.6 rc.6). */}
       <div className="flex items-center gap-4">
+        {onOpenSettings && <TrialStatusChip onClick={onOpenSettings} />}
+
         {activeTab && (
           <>
             <div
