@@ -28,10 +28,10 @@ export class TTSAudioPlayer {
   private buffer: AudioBuffer | null = null;
   private source: AudioBufferSourceNode | null = null;
   private _status: PlayerStatus = 'idle';
-  private readonly _onEnded?: () => void;
+  private readonly _onEnded: (() => void) | undefined;
 
   constructor(opts?: TTSAudioPlayerOptions) {
-    this._onEnded = opts?.onEnded;
+    this._onEnded = opts?.onEnded ?? undefined;
   }
 
   // ---------------------------------------------------------------------------
