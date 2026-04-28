@@ -11,6 +11,26 @@ export interface APIKey {
 }
 
 /**
+ * A file attached to a chat message (image or PDF).
+ * The file is stored in the workspace under `media/<YYYY-MM>/`.
+ * `id` is the SHA-256 hex hash of the file bytes (enables dedup).
+ */
+export interface ChatAttachment {
+  id: string;
+  type: 'image' | 'pdf';
+  mimeType: string;
+  fileName: string;
+  pathInWorkspace: string;
+  byteSize: number;
+  metadata: {
+    pages?: number;
+    width?: number;
+    height?: number;
+    extractionMode?: 'native' | 'text-extract';
+  };
+}
+
+/**
  * Message in an AI chat conversation
  */
 export interface ChatMessage {
@@ -36,6 +56,11 @@ export interface ChatMessage {
    * wasn't workspace-aware.
    */
   workspaceHint?: string;
+  /**
+   * Files attached to this message (images or PDFs).
+   * Stored in the workspace under `media/<YYYY-MM>/` with SHA-256 dedup.
+   */
+  attachments?: ChatAttachment[];
 }
 
 /**
