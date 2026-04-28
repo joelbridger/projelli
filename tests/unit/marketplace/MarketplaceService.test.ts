@@ -103,3 +103,43 @@ describe('MarketplaceService.getById', () => {
     expect(await svc.getById('nonexistent')).toBeNull();
   });
 });
+
+describe('MarketplaceService stubs (foundations gates)', () => {
+  let fs: ReturnType<typeof makeFs>;
+
+  beforeEach(() => {
+    fs = makeFs();
+  });
+
+  it('install throws "not implemented in foundations"', async () => {
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'c.json',
+      cachePath: '.cache.json', installRoot: '.r', fs,
+    });
+    await expect(svc.install('x')).rejects.toThrow(/foundations/);
+  });
+
+  it('uninstall throws "not implemented in foundations"', async () => {
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'c.json',
+      cachePath: '.cache.json', installRoot: '.r', fs,
+    });
+    await expect(svc.uninstall('x')).rejects.toThrow(/foundations/);
+  });
+
+  it('listInstalled returns empty array', async () => {
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'c.json',
+      cachePath: '.cache.json', installRoot: '.r', fs,
+    });
+    expect(await svc.listInstalled()).toEqual([]);
+  });
+
+  it('checkForUpdates returns empty array', async () => {
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'c.json',
+      cachePath: '.cache.json', installRoot: '.r', fs,
+    });
+    expect(await svc.checkForUpdates()).toEqual([]);
+  });
+});
