@@ -9,9 +9,12 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
   ProviderContentBlock,
+  ClaudeImageBlock,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { isVisionModel } from './vision-capability';
+import { bytesToBase64 } from './providerUtils';
 
 // Claude model pricing (per 1K tokens)
 const CLAUDE_PRICING: Record<string, { input: number; output: number }> = {
@@ -603,12 +606,43 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
-    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  /**
+   * Stream A1 — Format an image attachment for the Claude Messages API.
+   * Output shape: { type: 'image', source: { type: 'base64', media_type, data } }
+   * PDF handling deferred to Plan A2.
+   */
+  formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock {
+    if (att.type === 'pdf') {
+      throw new Error(
+        'PDF attachment support is not implemented in Plan A1. See Plan A2.'
+      );
+    }
+    const data = bytesToBase64(bytes);
+    const block: ClaudeImageBlock = {
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: att.mimeType,
+        data,
+      },
+    };
+    return block;
   }
 
-  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
-    return 'Attachment support not implemented in foundations (Stream A scope)';
+  /**
+   * Stream A1 — Check vision capability for the given model.
+   */
+  supportsAttachment(att: ChatAttachment, model: string): true | string {
+    if (att.type === 'pdf') {
+      return 'PDF support is coming soon (Plan A2). Use text-based context for now.';
+    }
+    if (att.type === 'image') {
+      if (isVisionModel('claude', model)) return true;
+      return (
+        `${model} does not support images. Switch to Claude Sonnet, Opus, or Haiku (3.x series).`
+      );
+    }
+    return `Unsupported attachment type: ${att.type}.`;
   }
 }
 
