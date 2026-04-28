@@ -2,13 +2,52 @@
 // Abstract interface for AI model adapters
 import type { ChatAttachment } from '@/types/ai';
 
+/** Claude image block shape (returned by ClaudeProvider.formatAttachmentForRequest). */
+export interface ClaudeImageBlock {
+  type: 'image';
+  source: {
+    type: 'base64';
+    media_type: string;
+    data: string;
+  };
+}
+
+/** OpenAI image_url block shape. */
+export interface OpenAIImageBlock {
+  type: 'image_url';
+  image_url: {
+    url: string;
+  };
+}
+
+/** Gemini inlineData part shape. */
+export interface GeminiInlineDataBlock {
+  inlineData: {
+    mimeType: string;
+    data: string;
+  };
+}
+
 /**
- * Opaque type for provider-specific content block shapes.
- * Each provider's actual content-block shape lives in its own module.
- * Stream A will narrow this type per provider.
+ * Ollama images payload. Ollama passes images at the message level, not inside
+ * a content block. The prefix `_ollama_images` is a convention used by
+ * OllamaProvider.formatAttachmentForRequest to carry base64 strings back to
+ * the message-construction code, which splices them into the request envelope.
  */
-// Each provider's actual content-block shape lives in its own module. Stream A will narrow this type per provider.
-export type ProviderContentBlock = unknown;
+export interface OllamaImagesPayload {
+  _ollama_images: string[];
+}
+
+/**
+ * Stream A1 — opaque content block returned by formatAttachmentForRequest.
+ * Each provider defines its own shape; the union covers all known cases
+ * so the call-site can pass it to the provider API without casting.
+ */
+export type ProviderContentBlock =
+  | ClaudeImageBlock
+  | OpenAIImageBlock
+  | GeminiInlineDataBlock
+  | OllamaImagesPayload;
 
 /**
  * Options for sending a message to the model
@@ -173,8 +212,10 @@ export interface Provider {
 
   /**
    * Return true if the attachment is supported by the given model,
-   * false if not, or a string reason string explaining why not.
-   * Stream A will provide real implementations per provider.
+   * or a non-empty string error message if not.
+   * Providers return `true | string`; the interface uses a wider type
+   * so stubs and implementations can both satisfy the contract until
+   * each provider is updated in Stream A1.
    */
   supportsAttachment(att: ChatAttachment, model: string): boolean | string;
 }
