@@ -19,7 +19,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "i18n:check": "node ./node_modules/.bin/i18next --config i18next-parser.config.js --fail-on-warnings",
-    "i18n:extract": "node ./node_modules/.bin/i18next --config i18next-parser.config.js"
+    "i18n:extract": "node ./node_modules/.bin/i18next --config i18next-parser.config.js",
+    "fetch-piper-sidecar": "bash scripts/fetch-piper-sidecar.sh"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",
