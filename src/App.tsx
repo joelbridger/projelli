@@ -34,6 +34,9 @@ import { UpdateManager, manualUpdateCheck } from '@/components/updater/UpdateMan
 import { openExternal } from '@/utils/openExternal';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { TrialBanner } from '@/components/trial';
+import { WelcomeOnboardingDialog } from '@/components/onboarding';
+import { useOnboardingCompleted } from '@/hooks/useOnboarding';
+import { sendEvent } from '@/utils/telemetry';
 import { FeatureTour } from '@/components/onboarding/FeatureTour';
 import { useFeatureTour } from '@/hooks/useFeatureTour';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -125,6 +128,34 @@ function App() {
   }, []);
   const [tourOpen, setTourOpen] = useState(false);
   const featureTour = useFeatureTour();
+
+  // First-launch onboarding: ask once whether the user wants email
+  // updates and/or anonymous telemetry. Both default-OFF; "Skip" is
+  // first-class. Once dismissed (any way) it never re-prompts.
+  const onboarding = useOnboardingCompleted();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Anonymous telemetry: emit one app_launch event per session, gated
+  // by user consent. Other lifecycle events (trial_start, trial_end,
+  // license_activated, license_deactivated) live in their respective
+  // hooks so they fire from the source of the state change.
+  useEffect(() => {
+    void sendEvent('app_launch');
+    // Mount the onboarding dialog after a tiny delay so the workspace
+    // gets to render first — the consent question shouldn't be the
+    // user's literal first visual impression of the app.
+    const forceOnboarding =
+      typeof window !== 'undefined' &&
+      window.location.search.includes('forceOnboarding=true');
+    const shouldShow =
+      (!onboarding.completed && !IS_TEST_MODE) || forceOnboarding;
+    if (shouldShow) {
+      const id = setTimeout(() => setShowOnboarding(true), 1200);
+      return () => clearTimeout(id);
+    }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // v1.6: auto-show feature tour on first launch (post-first-run wizard) once
   // the sidebar testids exist in the DOM. Persistent flag stops re-triggering.
@@ -2777,6 +2808,14 @@ This file contains rules and guidelines for AI assistants in this workspace.
             setTimeout(() => setTourOpen(true), 300);
           }
         }}
+      />
+
+      {/* v1.7.2: First-launch onboarding — opt-in for email updates +
+          anonymous telemetry. Both default-OFF; "Skip" closes without
+          enabling either. Once dismissed any way, never re-prompts. */}
+      <WelcomeOnboardingDialog
+        open={showOnboarding}
+        onOpenChange={setShowOnboarding}
       />
 
       {/* v1.6: 5-step Feature Tour (auto-shows on first launch) */}

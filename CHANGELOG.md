@@ -7,7 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No changes since v1.7.1.
+No changes since v1.7.2.
+
+## [1.7.2] - 2026-04-28
+
+Lead capture + funnel telemetry, opt-in only.
+
+### Added
+- **First-launch onboarding dialog** asks once whether the user wants
+  email updates and/or anonymous telemetry. Both default OFF; "Skip"
+  is first-class. Once dismissed any way, never re-prompts. Code:
+  `src/components/onboarding/WelcomeOnboardingDialog.tsx`,
+  `src/hooks/useOnboarding.ts`. Mounts ~1.2s after launch so the
+  workspace renders first.
+- **Anonymous lifecycle telemetry** sends `app_launch`, `trial_start`,
+  `trial_end`, `license_activated`, `license_deactivated` events to
+  `projelli.com/api/forms/projelli/app-event`. Payload contains a
+  random install ID, the app version, the platform, and the event
+  name — no content, no files, no AI prompts, no email. Gated on
+  explicit opt-in. Code: `src/utils/telemetry.ts`,
+  `src/utils/installId.ts`, `src/hooks/useTelemetryConsent.ts`.
+- **Privacy settings panel** under Settings → Privacy. Shows the
+  exact list of fields sent, the install ID, the endpoint, and a
+  one-click toggle to enable/disable telemetry at any time. Code:
+  `src/components/settings/PrivacySettings.tsx`.
+- **In-app email signup endpoint** at
+  `projelli.com/api/forms/projelli/app-onboarding`. Captures emails
+  from users who explicitly opt in via the welcome dialog. Triggers
+  the same Brevo welcome email as the public site signup, with
+  `source: 'app-onboarding'` recorded for downstream segmentation.
+
+### Changed
+- **form-handler service** gains a `silent: true` flag on form
+  definitions to suppress the per-submission owner-notification
+  email. Used by the new telemetry endpoint so Jameson's inbox
+  doesn't light up once per app launch. Code:
+  `~/services/form-handler/server.ts`.
+
+### Privacy stance
+- Telemetry default is OFF. Without explicit consent, no events
+  are ever sent. Local-first promise stays intact.
+- Email opt-in is a checkbox the user has to actively check.
+- The Privacy panel discloses everything that's sent (with the
+  install ID visible) so the user can verify the claim.
 
 ## [1.7.1] - 2026-04-28
 

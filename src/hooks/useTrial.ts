@@ -25,6 +25,7 @@
 
 import { useEffect, useState } from 'react';
 import { useLicense } from './useLicense';
+import { sendEventOnce } from '@/utils/telemetry';
 
 const FIRST_LAUNCH_KEY = 'projelli_first_launch_at';
 const TRIAL_DAYS = 30;
@@ -51,6 +52,11 @@ function readOrInitFirstLaunch(): Date {
   }
   const now = new Date();
   localStorage.setItem(FIRST_LAUNCH_KEY, now.toISOString());
+  // Anonymous funnel marker: this install just started its trial. Gated
+  // by sendEventOnce so a localStorage wipe + reset can't double-count;
+  // gated again by the consent check inside sendEvent so opted-out
+  // users send nothing at all.
+  void sendEventOnce('trial_start', { license_tier: 'trial', days_since_install: 0 });
   return now;
 }
 
@@ -78,7 +84,18 @@ export function useTrial(): TrialState {
   const [state, setState] = useState<TrialState>(() => computeState(readOrInitFirstLaunch()));
 
   useEffect(() => {
-    const tick = () => setState(computeState(readOrInitFirstLaunch()));
+    const tick = () => {
+      const next = computeState(readOrInitFirstLaunch());
+      setState(next);
+      // Fire the trial_end event the first time we cross the boundary.
+      // sendEventOnce dedupes across launches.
+      if (next.isExpired) {
+        void sendEventOnce('trial_end', { license_tier: 'expired', days_since_install: next.daysElapsed });
+      }
+    };
+    // Immediately check at mount so a long-idle app that comes back to
+    // life after the boundary still fires the event on the next launch.
+    tick();
     const id = setInterval(tick, 60 * 60 * 1000); // 1h
     return () => clearInterval(id);
   }, []);

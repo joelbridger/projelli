@@ -23,6 +23,7 @@ export type SettingCategory =
   | 'integrations'
   | 'updates'
   | 'onboarding'
+  | 'privacy'
   | 'about';
 
 export interface SettingOption {
@@ -64,6 +65,7 @@ export const SETTING_CATEGORIES: { id: SettingCategory; label: string }[] = [
   { id: 'integrations', label: 'Integrations' },
   { id: 'updates', label: 'Updates' },
   { id: 'onboarding', label: 'Onboarding' },
+  { id: 'privacy', label: 'Privacy' },
   { id: 'about', label: 'About' },
 ];
 

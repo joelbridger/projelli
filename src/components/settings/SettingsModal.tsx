@@ -31,6 +31,7 @@ import { useSettingsStore } from '@/stores/settingsStore';
 import { CostMetrics } from '@/components/analysis/CostMetrics';
 import { TemplateModelSettings } from '@/components/settings/TemplateModelSettings';
 import { LicenseSettings } from '@/components/settings/LicenseSettings';
+import { PrivacySettings } from '@/components/settings/PrivacySettings';
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
 import { McpSettingsSection } from '@/components/settings/McpSettingsSection';
 import { OllamaSettingsSection } from '@/components/settings/OllamaSettingsSection';
@@ -497,12 +498,17 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
         (k) => lowerQ.includes(k)
       );
       if (licenseMatch) cats.add('license');
+      const privacyMatch = ['privacy', 'telemetry', 'tracking', 'data', 'anonymous', 'opt'].some(
+        (k) => lowerQ.includes(k)
+      );
+      if (privacyMatch) cats.add('privacy');
     } else {
       cats.add('shortcuts');
       cats.add('costs');
       cats.add('templates');
       cats.add('integrations');
       cats.add('license');
+      cats.add('privacy');
     }
     return cats;
   }, [filteredSchema, searchQuery]);
@@ -661,6 +667,8 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
               <TemplateModelSettings templates={templates ?? []} />
             ) : activeCategory === 'license' ? (
               <LicenseSettings />
+            ) : activeCategory === 'privacy' ? (
+              <PrivacySettings />
             ) : activeCategory === 'integrations' ? (
               <>
                 <McpSettingsSection />

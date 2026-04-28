@@ -30,6 +30,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { sendEvent } from '@/utils/telemetry';
 
 export type LicenseTier = 'free' | 'pro' | 'lifetime';
 
@@ -131,6 +132,9 @@ export function useLicense() {
         expiresAt: new Date(data.expires_at),
         error: null,
       });
+      // Anonymous funnel: someone successfully activated. Sent only if
+      // the user opted into telemetry.
+      void sendEvent('license_activated', { license_tier: data.tier as string });
       return { success: true };
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -145,6 +149,7 @@ export function useLicense() {
   const deactivate = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
     setState({ tier: 'free', isLoading: false, isActivated: false, expiresAt: null, error: null });
+    void sendEvent('license_deactivated');
   }, []);
 
   /**

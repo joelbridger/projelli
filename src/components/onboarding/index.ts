@@ -5,3 +5,4 @@ export {
   markApiKeyCardDismissed,
 } from './ApiKeySetupCard';
 export { ApiKeyWizard, type ApiKeyWizardProps, type WizardProvider } from './ApiKeyWizard';
+export { WelcomeOnboardingDialog } from './WelcomeOnboardingDialog';
