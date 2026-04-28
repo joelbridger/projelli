@@ -1,7 +1,7 @@
 // Audit Service
 // Append-only log of all AI actions and significant user operations
 
-import type { AuditEntry, AuditActionType, AuditQueryOptions } from '@/types/audit';
+import type { AuditEntry, AuditActionType, AuditEvent, AuditQueryOptions } from '@/types/audit';
 
 /**
  * AuditService provides append-only logging of actions
@@ -13,6 +13,30 @@ export class AuditService {
   constructor(workspaceId: string = 'default') {
     this.storageKey = `audit_log_${workspaceId}`;
     this.load();
+  }
+
+  /**
+   * Append a structured v2.0 AuditEvent.
+   *
+   * This is the preferred API for new v2.0 features. Each event is persisted
+   * to localStorage alongside the legacy flat entries. The event is stored
+   * using the legacy AuditEntry shape (action = event.type, metadata = payload)
+   * so queries still work across old and new events.
+   */
+  append(event: AuditEvent): void {
+    const entry: AuditEntry = {
+      id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+      timestamp: event.timestamp,
+      action: event.type as AuditActionType,
+      description: event.type,
+      model: undefined,
+      inputs: {},
+      outputs: {},
+      userDecision: undefined,
+      metadata: event.payload as Record<string, unknown>,
+    };
+    this.entries.push(entry);
+    this.persist();
   }
 
   /**
