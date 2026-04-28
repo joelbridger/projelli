@@ -9,9 +9,12 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
   ProviderContentBlock,
+  OpenAIImageBlock,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { isVisionModel } from './vision-capability';
+import { bytesToBase64 } from './providerUtils';
 
 // OpenAI model pricing (per 1K tokens)
 const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
@@ -601,12 +604,39 @@ Respond ONLY with the JSON object.`;
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
-    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  /**
+   * Stream A1 — Format an image attachment for the OpenAI Chat Completions API.
+   * Output shape: { type: 'image_url', image_url: { url: 'data:<mime>;base64,...' } }
+   * PDF handling deferred to Plan A2.
+   */
+  formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock {
+    if (att.type === 'pdf') {
+      throw new Error(
+        'PDF attachment support is not implemented in Plan A1. See Plan A2.'
+      );
+    }
+    const data = bytesToBase64(bytes);
+    const block: OpenAIImageBlock = {
+      type: 'image_url',
+      image_url: {
+        url: `data:${att.mimeType};base64,${data}`,
+      },
+    };
+    return block;
   }
 
-  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
-    return 'Attachment support not implemented in foundations (Stream A scope)';
+  /**
+   * Stream A1 — Check vision capability for the given model.
+   */
+  supportsAttachment(att: ChatAttachment, model: string): true | string {
+    if (att.type === 'pdf') {
+      return 'PDF support is coming soon (Plan A2).';
+    }
+    if (att.type === 'image') {
+      if (isVisionModel('openai', model)) return true;
+      return `${model} does not support images. Switch to GPT-4o or an o1 model.`;
+    }
+    return `Unsupported attachment type: ${att.type}.`;
   }
 }
 
