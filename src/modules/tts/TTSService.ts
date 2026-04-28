@@ -16,6 +16,19 @@
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { VOICE_CATALOG, type VoiceEntry } from '@/modules/tts/voiceCatalog';
+import type { TTSAudioPlayer } from '@/modules/tts/TTSAudioPlayer';
+
+/**
+ * Text length threshold (chars) above which TTSService.speakWithPlayer()
+ * uses the streaming path (beginStream/appendChunk/finishStream) instead
+ * of buffer-then-play (loadBuffer/play).
+ *
+ * v2.0 note: the Tauri IPC streaming is not wired at the Rust layer yet —
+ * both paths call a single tts_speak invoke. The streaming Player API is
+ * used on the long path so call sites are stable for a future per-chunk
+ * Tauri event-stream upgrade.
+ */
+const STREAM_THRESHOLD = 500;
 
 // ---------------------------------------------------------------------------
 // Availability cache
@@ -99,6 +112,48 @@ export const TTSService = {
    */
   listVoices(): VoiceEntry[] {
     return VOICE_CATALOG;
+  },
+
+  /**
+   * Synthesize `text` and play it through `player`, dispatching via the
+   * appropriate path based on text length:
+   *
+   *   text.length <= 500  → buffer-then-play (loadBuffer + play)
+   *   text.length >  500  → streaming API    (beginStream + appendChunk + finishStream)
+   *
+   * v2.0: both paths invoke `tts_speak` once. The streaming Player API is
+   * used on the long path so call sites remain stable when per-chunk IPC
+   * streaming is wired in a future release.
+   *
+   * @param text     Text to synthesize.
+   * @param voiceId  Piper voice ID.
+   * @param speed    Playback speed multiplier (0.5–2.0).
+   * @param player   TTSAudioPlayer instance to drive.
+   * @throws         User-readable error if not in Tauri mode or synthesis fails.
+   */
+  async speakWithPlayer(
+    text: string,
+    voiceId: string,
+    speed: number,
+    player: TTSAudioPlayer,
+  ): Promise<void> {
+    if (!isTauri()) {
+      throw new Error('Text-to-speech is only available in the desktop app.');
+    }
+
+    const bytes = await invoke<number[]>('tts_speak', { text, voiceId, speed });
+    const wav = new Uint8Array(bytes);
+
+    if (text.length > STREAM_THRESHOLD) {
+      // Streaming path: wrap single response in streaming API for stable call sites.
+      player.beginStream();
+      player.appendChunk(wav);
+      await player.finishStream();
+    } else {
+      // Buffer-then-play path.
+      await player.loadBuffer(wav);
+      player.play();
+    }
   },
 
   // ---------------------------------------------------------------------------
