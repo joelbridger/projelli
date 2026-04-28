@@ -73,3 +73,33 @@ describe('MarketplaceService.refresh', () => {
     expect(list).toHaveLength(1);
   });
 });
+
+describe('MarketplaceService.getById', () => {
+  let fs: ReturnType<typeof makeFs>;
+  let fetchSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fs = makeFs();
+    fetchSpy = vi.fn(async () => ({ ok: true, json: async () => SAMPLE } as Response));
+    vi.stubGlobal('fetch', fetchSpy);
+  });
+
+  it('returns entry by id', async () => {
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'catalog.json',
+      cachePath: '.cache.json', installRoot: '.r', fs,
+    });
+    await svc.refresh();
+    const e = await svc.getById('a');
+    expect(e?.name).toBe('A');
+  });
+
+  it('returns null for unknown id', async () => {
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'catalog.json',
+      cachePath: '.cache.json', installRoot: '.r', fs,
+    });
+    await svc.refresh();
+    expect(await svc.getById('nonexistent')).toBeNull();
+  });
+});
