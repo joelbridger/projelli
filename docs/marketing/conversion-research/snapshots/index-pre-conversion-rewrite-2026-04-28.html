@@ -1524,8 +1524,8 @@
   <link rel="stylesheet" href="/styles/projelli-nav.css">
   <script src="/scripts/projelli-nav.v2.js" defer></script>
   <!-- Hero animation (vanilla JS, no build step) -->
-  <link rel="stylesheet" href="/styles/hero-animation.css?v=2026042808">
-  <script src="/scripts/hero-animation.js?v=2026042808" defer></script>
+  <link rel="stylesheet" href="/styles/hero-animation.css?v=2026042807">
+  <script src="/scripts/hero-animation.js?v=2026042807" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -1542,21 +1542,20 @@
       <div class="container hero-inner">
         <div class="hero-content">
           <h1>
-            An AI workspace<br>
-            <span class="gradient-text">that learns you.</span><br>
-            Saves every chat as a file you own.
+            Your AI conversations<br>
+            <span class="gradient-text">as files you actually own.</span>
           </h1>
 
           <p class="hero-subtitle">
-            For indie founders. Bring your Claude, GPT, or Gemini key. Projelli remembers your projects, your voice, and every past conversation — saved as Markdown files in a folder on your machine. We never see your data. <strong>$49 once. Not $49/month.</strong>
+            A local-first AI workspace for indie founders. Bring your own Claude, OpenAI, or Gemini key. Every chat becomes a real Markdown file on your machine. Free 30-day trial, then $49 once.
           </p>
 
           <div class="hero-ctas">
             <!-- Hero CTA does NOT trigger a download directly. It scrolls to
                  the #pricing section where users see free + paid options
                  with per-platform installers. -->
-            <a href="#pricing" class="btn btn-primary btn-lg">Download free for 30 days</a>
-            <a href="#take-the-tour" class="btn btn-outline btn-lg">See it work · 60s</a>
+            <a href="#pricing" class="btn btn-primary btn-lg">Download Projelli</a>
+            <a href="#take-the-tour" class="btn btn-outline btn-lg">Watch the tour</a>
           </div>
 
           <!-- Email list signup -->
@@ -1947,13 +1946,13 @@
 
           <div class="feature-text">
             <span class="eyebrow">AI WORKSPACE</span>
-            <h2>Every chat becomes a file you can open in Finder.</h2>
-            <p>You spend half your day re-explaining your project to ChatGPT. With Projelli, every conversation lands as a real Markdown file in your workspace folder — plans, research, customer interviews, draft pitches. Edit them in-place, link them to other notes, open them in VS Code, back them up to iCloud. They're files. You own them.</p>
+            <h2>Chat that leaves something behind</h2>
+            <p>Most AI chats evaporate the moment you close the tab. In Projelli, every conversation drops real Markdown files into your workspace folder: plans, research notes, customer interviews, draft pitches. Edit inline, keep old versions, link them to anything else.</p>
             <ul class="feature-list">
-              <li>Every conversation saves as Markdown in a folder you pick</li>
-              <li>Follow-up prompts rewrite the document in place — no copy-paste shuffle</li>
+              <li>Conversations save to your folder, not buried in chat history</li>
               <li>Every AI action is logged and reversible</li>
-              <li>Export to PDF, Word, or PowerPoint when you need to</li>
+              <li>Follow-up prompts rewrite the document in place</li>
+              <li>Export to Markdown, PDF, Word, or PowerPoint</li>
             </ul>
           </div>
         </div>
@@ -1964,13 +1963,13 @@
           </div>
 
           <div class="feature-text">
-            <span class="eyebrow">PERSISTENT MEMORY</span>
-            <h2>Your notes link to each other. Your AI remembers what you told it last week.</h2>
-            <p>Projelli reads your workspace. Ask it about your customers and it pulls from <code>Customers.md</code>. Ask it to draft in your voice and it uses <code>Brand Voice.md</code>. Wiki-links connect your docs; backlinks show what references what. Stop pasting context into every prompt — your second brain finally has both halves.</p>
+            <span class="eyebrow">CONNECTED KNOWLEDGE</span>
+            <h2>A workspace that keeps your thinking connected</h2>
+            <p>Any document in Projelli can link to any other. Wiki-style links, automatic backlinks, and full-text search across the whole workspace. Split panes let you keep one file open while you write in another.</p>
             <ul class="feature-list">
-              <li>AI sees your workspace files and uses them as context (RAG)</li>
-              <li>[[Wiki-links]] between any two documents, with automatic backlinks</li>
-              <li>Split-pane editing so you can write while you read</li>
+              <li>[[Wiki-links]] between any two documents</li>
+              <li>Automatic backlinks so nothing gets orphaned</li>
+              <li>Split-pane editing</li>
               <li>Full-text search across your entire workspace</li>
             </ul>
           </div>
@@ -1983,13 +1982,13 @@
 
           <div class="feature-text">
             <span class="eyebrow">LOCAL-FIRST</span>
-            <h2>Your files, in a folder you control. We can't see them — even if we wanted to.</h2>
-            <p>Open <code>~/Documents/Projelli/</code> in Finder. There they are. Plain Markdown files. Open them in VS Code. Drop them in iCloud. Delete them. They're yours. Your API key talks to OpenAI directly — your prompts never touch our servers, because there are no servers.</p>
+            <h2>Your data lives on your computer</h2>
+            <p>Projelli stores everything locally using plain Markdown files on disk. No account, nothing syncing to someone else's server. Open the workspace folder in Finder and your conversations are right there as files you can read in any text editor.</p>
             <ul class="feature-list">
-              <li>Files live in a folder you pick — open them in any editor</li>
-              <li>Works fully offline (except the AI calls themselves)</li>
-              <li>No account, no sign-up, no telemetry by default</li>
-              <li>Your API key, your direct call to OpenAI / Anthropic / Google</li>
+              <li>Plain Markdown files in a folder you pick</li>
+              <li>Works fully offline (except for AI calls)</li>
+              <li>No account required, no telemetry</li>
+              <li>Native desktop app built on Tauri (Rust)</li>
             </ul>
           </div>
         </div>
@@ -2049,12 +2048,12 @@
       <div class="container">
         <div class="section-header">
           <span class="eyebrow">PRICING</span>
-          <h2>$49 once. Not $49/month. $49 ever.</h2>
-          <p>Try every Projelli feature free for 30 days, no card required. Bring your own keys for Claude, OpenAI, Gemini, or Ollama — Projelli never touches your inference budget. After 30 days, activate a license once. Keep it forever.</p>
+          <h2>30 days free. Then $49 once.</h2>
+          <p>Try every Projelli feature for 30 days, no card required. Bring your own API keys for Claude, OpenAI, Gemini, or Ollama — Projelli takes nothing out of your inference budget. After 30 days, activate a license to keep going.</p>
         </div>
 
         <div class="founders-banner">
-          <strong>🔥 Founder's Launch:</strong> the first 100 buyers get Lifetime for <strong>$29</strong> instead of $99. <span id="spots-remaining-text" data-anim="spots-remaining">Loading…</span>
+          <strong>🔥 Founder's Launch:</strong> the first 100 buyers get the Lifetime tier for <strong>$29</strong> instead of $99. Once 100 sell, this tier disappears for good.
         </div>
 
         <div class="pricing-cards pricing-cards-three">
@@ -2570,39 +2569,6 @@
           }
         });
       }
-    })();
-  </script>
-
-  <!-- Founder's Launch live counter. Reads /spots-remaining.json (manually
-       editable file; future: wire to a LemonSqueezy webhook). Renders
-       "47 of 100 spots left" or "All 100 spots claimed" inline in the
-       founders banner. Documented as a top conversion lever — visible
-       scarcity counters lift conversion up to 332% per 99signals. -->
-  <script>
-    (function () {
-      var el = document.getElementById('spots-remaining-text');
-      if (!el) return;
-      fetch('/spots-remaining.json', { cache: 'no-store' })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (data) {
-          if (!data || typeof data.remaining !== 'number') {
-            // Fail silent — banner just doesn't show a count.
-            el.textContent = 'Limited to the first 100 buyers.';
-            return;
-          }
-          var n = data.remaining;
-          var total = data.total || 100;
-          if (n <= 0) {
-            el.textContent = 'All ' + total + ' Founder’s Launch spots are claimed — see Pro tier below.';
-          } else if (n === 1) {
-            el.textContent = '1 of ' + total + ' spots left.';
-          } else {
-            el.textContent = n + ' of ' + total + ' spots left.';
-          }
-        })
-        .catch(function () {
-          el.textContent = 'Limited to the first 100 buyers.';
-        });
     })();
   </script>
 

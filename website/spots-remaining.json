@@ -1,0 +1,7 @@
+{
+  "remaining": 100,
+  "total": 100,
+  "tier": "founders-launch",
+  "updated_at": "2026-04-28",
+  "_note": "Update `remaining` as Founder's Launch sales come in. The website's pricing section reads this file and renders 'X of 100 spots left' inline. When `remaining` hits 0, the line switches to 'All 100 spots claimed — see Pro tier'. Wire to LemonSqueezy webhook later."
+}
