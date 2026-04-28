@@ -9,9 +9,12 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
   ProviderContentBlock,
+  GeminiInlineDataBlock,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { isVisionModel } from './vision-capability';
+import { bytesToBase64 } from './providerUtils';
 
 // Gemini model pricing (per 1K tokens) - as of 2024
 const GEMINI_PRICING: Record<string, { input: number; output: number }> = {
@@ -514,12 +517,38 @@ export class GeminiProvider implements Provider {
     return inputCost + outputCost;
   }
 
-  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
-    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  /**
+   * Stream A1 — Format an image attachment for the Gemini API.
+   * Output shape: { inlineData: { mimeType, data } }
+   * PDF handling deferred to Plan A2.
+   */
+  formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock {
+    if (att.type === 'pdf') {
+      throw new Error(
+        'PDF attachment support is not implemented in Plan A1. See Plan A2.'
+      );
+    }
+    const block: GeminiInlineDataBlock = {
+      inlineData: {
+        mimeType: att.mimeType,
+        data: bytesToBase64(bytes),
+      },
+    };
+    return block;
   }
 
-  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
-    return 'Attachment support not implemented in foundations (Stream A scope)';
+  /**
+   * Stream A1 — Check vision capability for the given model.
+   */
+  supportsAttachment(att: ChatAttachment, model: string): true | string {
+    if (att.type === 'pdf') {
+      return 'PDF support is coming soon (Plan A2).';
+    }
+    if (att.type === 'image') {
+      if (isVisionModel('gemini', model)) return true;
+      return `${model} does not support images. Switch to Gemini 1.5 or 2.0.`;
+    }
+    return `Unsupported attachment type: ${att.type}.`;
   }
 }
 
