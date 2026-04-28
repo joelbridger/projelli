@@ -3,6 +3,10 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 import globals from 'globals';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const projelliI18n = require('./eslint-plugin-projelli-i18n/index.js');
 
 export default tseslint.config(
   { ignores: ['dist', 'dist-node', 'src-tauri', 'node_modules'] },
@@ -20,6 +24,7 @@ export default tseslint.config(
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
+      'projelli-i18n': projelliI18n,
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
@@ -36,6 +41,7 @@ export default tseslint.config(
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/no-empty-object-type': 'off',
+      'projelli-i18n/no-hardcoded-string': 'warn',
     },
   },
   // Config files - allow Node globals
