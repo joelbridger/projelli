@@ -16,7 +16,7 @@
  *   source.onended fires → idle, onEnded callback fires
  */
 
-export type PlayerStatus = 'idle' | 'playing' | 'paused';
+export type PlayerStatus = 'idle' | 'playing' | 'paused' | 'streaming';
 
 export interface TTSAudioPlayerOptions {
   /** Called when audio finishes playing naturally (not via stop()). */
@@ -29,6 +29,16 @@ export class TTSAudioPlayer {
   private source: AudioBufferSourceNode | null = null;
   private _status: PlayerStatus = 'idle';
   private readonly _onEnded: (() => void) | undefined;
+
+  // ---------------------------------------------------------------------------
+  // Streaming state
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Accumulated chunks from beginStream / appendChunk calls.
+   * null when not in a streaming session.
+   */
+  private _streamChunks: Uint8Array[] | null = null;
 
   constructor(opts?: TTSAudioPlayerOptions) {
     this._onEnded = opts?.onEnded ?? undefined;
@@ -113,11 +123,80 @@ export class TTSAudioPlayer {
 
   /**
    * Stop playback and reset to idle.
+   * Also clears any in-progress streaming session.
    * No-op if already idle.
    */
   stop(): void {
     this._teardownSource();
+    this._streamChunks = null;
     this._status = 'idle';
+  }
+
+  // ---------------------------------------------------------------------------
+  // Streaming API (v2.0 — buffer-then-play implementation)
+  //
+  // Call sites use beginStream / appendChunk / finishStream so the interface
+  // is stable for a future per-chunk ring-buffer upgrade. For v2.0 the full
+  // WAV payload is accumulated in memory and decoded once finishStream() is
+  // called — identical end-user latency to the single-call speak() path but
+  // with a stable streaming contract for callers.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Open a streaming session. Clears any previously accumulated chunks.
+   * Status transitions to 'streaming'.
+   */
+  beginStream(): void {
+    this._teardownSource();
+    this._streamChunks = [];
+    this._status = 'streaming';
+  }
+
+  /**
+   * Append a WAV-byte chunk to the in-progress stream.
+   * @throws If called before beginStream().
+   */
+  appendChunk(bytes: Uint8Array): void {
+    if (this._streamChunks === null) {
+      throw new Error(
+        'Stream not started. Call beginStream() before appendChunk().',
+      );
+    }
+    this._streamChunks.push(bytes);
+  }
+
+  /**
+   * Finish the streaming session: concatenate all chunks, decode, and play.
+   *
+   * If no chunks were appended, transitions back to idle without playing.
+   * @throws If called before beginStream().
+   */
+  async finishStream(): Promise<void> {
+    if (this._streamChunks === null) {
+      throw new Error(
+        'Stream not started. Call beginStream() before finishStream().',
+      );
+    }
+
+    const chunks = this._streamChunks;
+    this._streamChunks = null;
+
+    if (chunks.length === 0) {
+      this._status = 'idle';
+      return;
+    }
+
+    // Concatenate all chunks into a single Uint8Array.
+    const totalLength = chunks.reduce((acc, c) => acc + c.byteLength, 0);
+    const merged = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      merged.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+
+    await this.loadBuffer(merged);
+    this.play();
   }
 
   /**
