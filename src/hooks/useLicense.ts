@@ -78,8 +78,26 @@ function decodeJwtPayload(token: string): { tier?: LicenseTier; exp?: number; su
   }
 }
 
+/**
+ * QA bypass: when the URL contains `?fakeLicense=lifetime` or
+ * `?fakeLicense=pro`, treat the user as activated without ever hitting
+ * the validator service. Lets us visually verify the activated-state UI
+ * (green chip, etc.) without minting a real license. No-op in production
+ * URLs because the param is never set there.
+ */
+function readFakeLicense(): { tier: LicenseTier } | null {
+  if (typeof window === 'undefined') return null;
+  const m = window.location.search.match(/[?&]fakeLicense=(lifetime|pro)\b/);
+  if (!m) return null;
+  return { tier: m[1] as LicenseTier };
+}
+
 export function useLicense() {
   const [state, setState] = useState<LicenseState>(() => {
+    const fake = readFakeLicense();
+    if (fake) {
+      return { tier: fake.tier, isLoading: false, isActivated: true, expiresAt: null, error: null };
+    }
     const token = localStorage.getItem(STORAGE_KEY);
     if (!token) {
       return { tier: 'free', isLoading: false, isActivated: false, expiresAt: null, error: null };
@@ -194,6 +212,9 @@ export function useLicense() {
    */
   useEffect(() => {
     if (!state.isActivated) return;
+    // Skip server validation entirely when the QA bypass is active so the
+    // fake license isn't rejected and immediately cleared.
+    if (readFakeLicense()) return;
     refresh(); // initial check
     const interval = setInterval(() => {
       refresh();

@@ -11,7 +11,21 @@ No changes since v1.7.2.
 
 ## [1.7.2] - 2026-04-28
 
-Lead capture + funnel telemetry, opt-in only.
+Lead capture + funnel telemetry, opt-in only. Plus chip polish.
+
+### Added (chip polish)
+- **Status-bar chip is now amber across the whole trial** (5-30 days
+  remaining), not just the final week. Stands out enough that the
+  user always knows they're on a clock. Drops to red below 5 days
+  and on expiry.
+- **Green "License active" chip** appears in the same status-bar slot
+  once the user activates a paid license. Shows "Pro license · Active"
+  or "Lifetime license · Active" with a checkmark icon. Click opens
+  Settings → License to manage.
+- **`?fakeLicense=lifetime|pro` URL bypass** for QA. Forces the
+  activated state without needing a real license token. Skips server
+  validation so the fake state isn't immediately cleared. No-op on
+  production URLs (the param is never set).
 
 ### Added
 - **First-launch onboarding dialog** asks once whether the user wants
