@@ -23,7 +23,9 @@ import type {
   StreamOptions,
   StructuredOutputOptions,
   ProviderMetadata,
+  ProviderContentBlock,
 } from './Provider';
+import type { ChatAttachment } from '@/types/ai';
 
 /** Default Ollama base URL. Overridable via constructor or env. */
 export const OLLAMA_DEFAULT_BASE_URL = 'http://127.0.0.1:11434';
@@ -381,6 +383,14 @@ IMPORTANT: Respond ONLY with the JSON object.`;
         maxContextTokens: 8192,
       },
     };
+  }
+
+  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
+    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  }
+
+  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
+    return 'Attachment support not implemented in foundations (Stream A scope)';
   }
 }
 

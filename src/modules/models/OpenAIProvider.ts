@@ -8,7 +8,9 @@ import type {
   StreamOptions,
   StructuredOutputOptions,
   ProviderMetadata,
+  ProviderContentBlock,
 } from './Provider';
+import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 
 // OpenAI model pricing (per 1K tokens)
@@ -597,6 +599,14 @@ Respond ONLY with the JSON object.`;
    */
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
+    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  }
+
+  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
+    return 'Attachment support not implemented in foundations (Stream A scope)';
   }
 }
 

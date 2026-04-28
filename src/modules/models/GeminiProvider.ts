@@ -8,7 +8,9 @@ import type {
   StreamOptions,
   StructuredOutputOptions,
   ProviderMetadata,
+  ProviderContentBlock,
 } from './Provider';
+import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 
 // Gemini model pricing (per 1K tokens) - as of 2024
@@ -510,6 +512,14 @@ export class GeminiProvider implements Provider {
     const inputCost = (inputTokens / 1000) * pricing.input;
     const outputCost = (outputTokens / 1000) * pricing.output;
     return inputCost + outputCost;
+  }
+
+  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
+    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  }
+
+  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
+    return 'Attachment support not implemented in foundations (Stream A scope)';
   }
 }
 
