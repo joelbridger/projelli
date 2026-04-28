@@ -87,3 +87,65 @@ describe('AttachmentService.save', () => {
     expect(a.pathInWorkspace).toBe(b.pathInWorkspace);
   });
 });
+
+describe('AttachmentService.read', () => {
+  let fs: ReturnType<typeof makeMockFs>;
+  let svc: AttachmentService;
+
+  beforeEach(() => {
+    fs = makeMockFs();
+    svc = new AttachmentService(fs, () => '2026-04');
+  });
+
+  it('returns bytes previously saved', async () => {
+    const bytes = new TextEncoder().encode('content-here');
+    const att = await svc.save(bytes, 'a.png', 'image/png');
+    const readBack = await svc.read(att);
+    expect(Array.from(readBack)).toEqual(Array.from(bytes));
+  });
+
+  it('throws when file is missing', async () => {
+    const bytes = new TextEncoder().encode('x');
+    const att = await svc.save(bytes, 'a.png', 'image/png');
+    fs.writes.delete(att.pathInWorkspace);
+    await expect(svc.read(att)).rejects.toThrow();
+  });
+});
+
+describe('AttachmentService.delete', () => {
+  let fs: ReturnType<typeof makeMockFs>;
+  let svc: AttachmentService;
+
+  beforeEach(() => {
+    fs = makeMockFs();
+    svc = new AttachmentService(fs, () => '2026-04');
+  });
+
+  it('removes file from workspace', async () => {
+    const att = await svc.save(new TextEncoder().encode('x'), 'a.png', 'image/png');
+    expect(fs.writes.has(att.pathInWorkspace)).toBe(true);
+    await svc.delete(att);
+    expect(fs.writes.has(att.pathInWorkspace)).toBe(false);
+  });
+});
+
+describe('AttachmentService.exists', () => {
+  let fs: ReturnType<typeof makeMockFs>;
+  let svc: AttachmentService;
+
+  beforeEach(() => {
+    fs = makeMockFs();
+    svc = new AttachmentService(fs, () => '2026-04');
+  });
+
+  it('returns true after save', async () => {
+    const att = await svc.save(new TextEncoder().encode('x'), 'a.png', 'image/png');
+    expect(await svc.exists(att)).toBe(true);
+  });
+
+  it('returns false after delete', async () => {
+    const att = await svc.save(new TextEncoder().encode('x'), 'a.png', 'image/png');
+    await svc.delete(att);
+    expect(await svc.exists(att)).toBe(false);
+  });
+});
