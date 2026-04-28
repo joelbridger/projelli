@@ -17,7 +17,9 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "i18n:check": "node ./node_modules/.bin/i18next --config i18next-parser.config.js --fail-on-warnings",
+    "i18n:extract": "node ./node_modules/.bin/i18next --config i18next-parser.config.js"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.0",
