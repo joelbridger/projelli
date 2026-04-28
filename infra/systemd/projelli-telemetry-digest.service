@@ -1,0 +1,15 @@
+[Unit]
+Description=Daily Projelli telemetry digest email
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=jameson
+WorkingDirectory=/home/jameson/projelli
+# systemd reads this as root before dropping privileges, so root-owned
+# /etc/form-handler.env (perms 0640) is fine. The script needs BREVO_API_KEY
+# to actually send the digest email.
+EnvironmentFile=-/etc/form-handler.env
+ExecStart=/home/jameson/.bun/bin/bun /home/jameson/projelli/scripts/analyze-telemetry.ts --email
+StandardOutput=journal
+StandardError=journal

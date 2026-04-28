@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Projelli telemetry digest timer
+Requires=projelli-telemetry-digest.service
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
