@@ -42,6 +42,14 @@ const STREAM_THRESHOLD = 500;
 let _cachedAvailable: boolean | null = null;
 
 // ---------------------------------------------------------------------------
+// Downloaded voices tracking
+// ---------------------------------------------------------------------------
+
+/** In-memory set of voice IDs confirmed downloaded this session.
+ * Seeded with the bundled English voice (always available). */
+const _downloadedVoices = new Set<string>(['en_US-amy-medium']);
+
+// ---------------------------------------------------------------------------
 // TTSService namespace
 // ---------------------------------------------------------------------------
 
@@ -116,7 +124,17 @@ export const TTSService = {
         'Voice download is only available in the desktop app.',
       );
     }
-    return invoke<string>('tts_download_voice', { voiceId });
+    const onnxPath = await invoke<string>('tts_download_voice', { voiceId });
+    _downloadedVoices.add(voiceId);
+    return onnxPath;
+  },
+
+  /**
+   * True when the voice is bundled or has been downloaded this session.
+   * Uses in-memory tracking for speed; does not perform a disk check.
+   */
+  isVoiceDownloaded(voiceId: string): boolean {
+    return _downloadedVoices.has(voiceId);
   },
 
   /**

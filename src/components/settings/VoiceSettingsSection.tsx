@@ -123,7 +123,7 @@ export function VoiceSettingsSection({
 
       <VoiceOutputSettingsSection
         ttsEnabled={ttsEnabled}
-        onProbe={onProbeTts}
+        {...(onProbeTts !== undefined ? { onProbe: onProbeTts } : {})}
       />
     </>
   );
