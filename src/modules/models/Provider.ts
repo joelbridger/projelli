@@ -1,5 +1,14 @@
 // Provider Interface
 // Abstract interface for AI model adapters
+import type { ChatAttachment } from '@/types/ai';
+
+/**
+ * Opaque type for provider-specific content block shapes.
+ * Each provider's actual content-block shape lives in its own module.
+ * Stream A will narrow this type per provider.
+ */
+// Each provider's actual content-block shape lives in its own module. Stream A will narrow this type per provider.
+export type ProviderContentBlock = unknown;
 
 /**
  * Options for sending a message to the model
@@ -154,6 +163,20 @@ export interface Provider {
     prompt: string,
     options: StructuredOutputOptions
   ): Promise<T>;
+
+  /**
+   * Format a ChatAttachment + its raw bytes into the provider-specific
+   * content-block shape expected by the provider's API.
+   * Stream A will provide real implementations per provider.
+   */
+  formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock;
+
+  /**
+   * Return true if the attachment is supported by the given model,
+   * false if not, or a string reason string explaining why not.
+   * Stream A will provide real implementations per provider.
+   */
+  supportsAttachment(att: ChatAttachment, model: string): boolean | string;
 }
 
 /**
