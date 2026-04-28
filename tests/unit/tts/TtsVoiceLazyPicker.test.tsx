@@ -229,4 +229,39 @@ describe('TtsVoiceLazyPicker', () => {
     const select = screen.getByTestId('tts-voice-picker') as HTMLSelectElement;
     expect(select.disabled).toBe(true);
   });
+
+  // Task 19 — retry behavior
+  it('clears error and retries download when voice is re-selected after failure', async () => {
+    // First attempt fails, second succeeds.
+    mockDownloadVoice
+      .mockRejectedValueOnce(new Error('Network error'))
+      .mockResolvedValueOnce('/data/voices/es_ES-mls-medium/es_ES-mls-medium.onnx');
+
+    render(
+      <TtsVoiceLazyPicker
+        currentVoiceId="en_US-amy-medium"
+        onVoiceChange={onVoiceChange}
+        disabled={false}
+      />,
+    );
+
+    // First selection — triggers failing download, reverts to English.
+    fireEvent.change(screen.getByTestId('tts-voice-picker'), {
+      target: { value: 'es_ES-mls-medium' },
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('tts-download-error')).toBeInTheDocument();
+    });
+
+    // Second selection — error cleared, retry initiated.
+    fireEvent.change(screen.getByTestId('tts-voice-picker'), {
+      target: { value: 'es_ES-mls-medium' },
+    });
+    await waitFor(() => {
+      // Error is gone after successful retry.
+      expect(screen.queryByTestId('tts-download-error')).toBeNull();
+    });
+    expect(mockDownloadVoice).toHaveBeenCalledTimes(2);
+    expect(onVoiceChange).toHaveBeenLastCalledWith('es_ES-mls-medium');
+  });
 });
