@@ -49,6 +49,30 @@ export interface AuditEntry {
 }
 
 /**
+ * Discriminated union of structured v2.0 audit events.
+ *
+ * Each variant carries a `type` discriminant, an ISO `timestamp`, and a
+ * strongly-typed `payload`. This is separate from the legacy flat `AuditEntry`
+ * interface so that new v2.0 features can log rich structured events while the
+ * existing append-only log remains backward compatible.
+ *
+ * Section 3.6 of the v2.0 mega-release design spec.
+ */
+export type AuditEvent =
+  | { type: 'attachment_added'; timestamp: string; payload: { path: string; hash: string; byteSize: number } }
+  | { type: 'attachment_sent_to_provider'; timestamp: string; payload: { path: string; hash: string; provider: string; model: string } }
+  | { type: 'attachment_removed'; timestamp: string; payload: { path: string; hash: string } }
+  | { type: 'pdf_extracted'; timestamp: string; payload: { path: string; pages: number; mode: 'native' | 'text-extract' } }
+  | { type: 'context_compressed'; timestamp: string; payload: { messagesBefore: number; tokensBefore: number; messagesAfter: number; tokensAfter: number } }
+  | { type: 'tts_played'; timestamp: string; payload: { textLength: number; voiceId: string } }
+  | { type: 'plugin_installed'; timestamp: string; payload: { id: string; version: string; permissions: string[] } }
+  | { type: 'plugin_uninstalled'; timestamp: string; payload: { id: string } }
+  | { type: 'plugin_executed'; timestamp: string; payload: { id: string; command: string; durationMs: number } }
+  | { type: 'plugin_permission_denied'; timestamp: string; payload: { id: string; permission: string } }
+  | { type: 'template_installed_from_marketplace'; timestamp: string; payload: { id: string; version: string; source: string } }
+  | { type: 'language_changed'; timestamp: string; payload: { from: string; to: string } };
+
+/**
  * Query options for filtering audit log
  */
 export interface AuditQueryOptions {
