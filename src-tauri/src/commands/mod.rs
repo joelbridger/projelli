@@ -19,3 +19,5 @@ pub mod rag;
 // `navigator.mediaDevices.getUserMedia` + `MediaRecorder`.
 pub mod voice;
 pub mod watcher;
+// Stream B TTS (v2.0) — synthesize speech via the bundled Piper sidecar.
+pub mod tts;

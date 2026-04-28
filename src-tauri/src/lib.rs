@@ -20,6 +20,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
+        .manage(crate::commands::tts::TtsState(tokio::sync::Mutex::new(
+            crate::sidecars::PiperSidecar::new(
+                // Resolved at runtime; placeholder path. Real resolution happens
+                // inside each command via the AppHandle.
+                std::path::PathBuf::from(""),
+                std::path::PathBuf::from(""),
+            ),
+        )))
         .invoke_handler(tauri::generate_handler![
             commands::fs::check_path,
             commands::fs::get_home_dir,
@@ -50,6 +58,11 @@ pub fn run() {
             // Parakeet/whisper.cpp sidecar.
             commands::voice::voice_sidecar_available,
             commands::voice::transcribe_audio,
+            // Stream B TTS (v2.0) — Piper sidecar speech synthesis.
+            commands::tts::tts_sidecar_available,
+            commands::tts::tts_speak,
+            commands::tts::tts_stop,
+            commands::tts::tts_download_voice,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
