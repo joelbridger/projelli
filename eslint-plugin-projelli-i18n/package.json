@@ -1,0 +1,9 @@
+{
+  "name": "eslint-plugin-projelli-i18n",
+  "version": "0.1.0",
+  "main": "index.js",
+  "private": true,
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  }
+}
