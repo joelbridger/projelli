@@ -10,7 +10,7 @@
  * Opened via: gear icon in the header, Ctrl+, shortcut, or command palette.
  */
 
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -76,6 +76,13 @@ interface SettingsModalProps {
    * category. When omitted, the table shows an empty state.
    */
   templates?: WorkflowTemplate[];
+  /**
+   * Which category to open the modal on. Re-applied every time the modal
+   * transitions from closed → open, so callers can deep-link to any
+   * section (trial banner → 'license', "Manage API keys" → 'ai-keys', etc.)
+   * without persisting state across opens.
+   */
+  initialCategory?: SettingCategory;
 }
 
 // ---------------------------------------------------------------------------
@@ -427,11 +434,22 @@ function AboutHeader() {
 // Main modal
 // ---------------------------------------------------------------------------
 
-export function SettingsModal({ open, onOpenChange, onAction, auditEntries, templates }: SettingsModalProps) {
-  const [activeCategory, setActiveCategory] = useState<SettingCategory>('general');
+export function SettingsModal({ open, onOpenChange, onAction, auditEntries, templates, initialCategory }: SettingsModalProps) {
+  const [activeCategory, setActiveCategory] = useState<SettingCategory>(initialCategory ?? 'general');
   const [searchQuery, setSearchQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Re-apply initialCategory each time the modal opens so callers can
+  // deep-link to a specific section. Using a ref to track the previous
+  // open state avoids fighting the user's clicks within the same session.
+  const prevOpen = useRef(open);
+  useEffect(() => {
+    if (open && !prevOpen.current && initialCategory) {
+      setActiveCategory(initialCategory);
+    }
+    prevOpen.current = open;
+  }, [open, initialCategory]);
 
   const { getSetting, setSetting, resetAll, exportSettings, importSettings } =
     useSettingsStore();

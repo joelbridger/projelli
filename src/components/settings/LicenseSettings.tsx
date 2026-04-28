@@ -140,29 +140,44 @@ export function LicenseSettings() {
               </>
             )}
           </div>
-          <div className="border-t pt-4">
-            <Label htmlFor="license-key">License key</Label>
-            <div className="flex gap-2 mt-2">
-              <Input
-                id="license-key"
-                type="text"
-                placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
-                value={licenseKeyInput}
-                onChange={(e) => setLicenseKeyInput(e.target.value)}
-                disabled={isLoading}
-                className="font-mono"
-              />
-              <Button onClick={handleActivate} disabled={isLoading || !licenseKeyInput.trim()}>
-                {isLoading ? 'Activating…' : 'Activate'}
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Don't have a key yet?{' '}
-              <a href="https://projelli.com/#pricing" target="_blank" rel="noopener noreferrer" className="text-primary underline">
-                Get one at projelli.com
+          <div className="border-t pt-5 space-y-4">
+            <Button
+              asChild
+              size="lg"
+              className="w-full text-base font-semibold h-12"
+            >
+              <a
+                href="https://projelli.com/#pricing"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="license-buy-button"
+              >
+                Get a license at projelli.com →
               </a>
-              .
-            </p>
+            </Button>
+            <div>
+              <Label htmlFor="license-key" className="text-sm">
+                Already have a license key?
+              </Label>
+              <div className="flex gap-2 mt-2">
+                <Input
+                  id="license-key"
+                  type="text"
+                  placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+                  value={licenseKeyInput}
+                  onChange={(e) => setLicenseKeyInput(e.target.value)}
+                  disabled={isLoading}
+                  className="font-mono"
+                />
+                <Button
+                  variant="outline"
+                  onClick={handleActivate}
+                  disabled={isLoading || !licenseKeyInput.trim()}
+                >
+                  {isLoading ? 'Activating…' : 'Activate'}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

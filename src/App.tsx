@@ -114,6 +114,15 @@ function App() {
   const [showQuickOpen, setShowQuickOpen] = useState(false);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  // Which Settings category to show on next open. Reset to undefined so a
+  // later open without a category falls back to the modal's own default.
+  const [settingsInitialCategory, setSettingsInitialCategory] =
+    useState<import('@/settings/schema').SettingCategory | undefined>(undefined);
+  // Helper: open Settings, optionally deep-linked to a category.
+  const openSettings = useCallback((category?: import('@/settings/schema').SettingCategory) => {
+    setSettingsInitialCategory(category);
+    setShowSettingsModal(true);
+  }, []);
   const [tourOpen, setTourOpen] = useState(false);
   const featureTour = useFeatureTour();
 
@@ -2551,7 +2560,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
       {/* Trial countdown banner — only renders during the final week of
           the free trial (or once expired) and when no license is active.
           Otherwise null and zero layout. */}
-      <TrialBanner onActivate={() => setShowSettingsModal(true)} />
+      <TrialBanner onActivate={() => openSettings('license')} />
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
@@ -2714,7 +2723,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
       </div>
 
       {/* Status bar */}
-      <StatusBar onOpenSettings={() => setShowSettingsModal(true)} />
+      <StatusBar onOpenSettings={() => openSettings('license')} />
 
       {/* Interview Dialog */}
       <Dialog open={showInterviewDialog} onOpenChange={setShowInterviewDialog}>
@@ -2748,6 +2757,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
         onOpenChange={setShowSettingsModal}
         auditEntries={auditEntries}
         templates={loadAllTemplates()}
+        {...(settingsInitialCategory ? { initialCategory: settingsInitialCategory } : {})}
         onAction={(actionId) => {
           if (actionId === 'open-ai-keys') {
             setSidebarActiveTab('ai-assistant');
