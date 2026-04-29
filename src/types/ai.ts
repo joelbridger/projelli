@@ -61,6 +61,30 @@ export interface ChatMessage {
    * Stored in the workspace under `media/<YYYY-MM>/` with SHA-256 dedup.
    */
   attachments?: ChatAttachment[];
+  /**
+   * Stream A4 — set to true on messages that are compressed summaries
+   * produced by the compression algorithm. These messages are rendered
+   * with the ✂️ CompressedSegmentMarker instead of normal message bubbles.
+   */
+  isCompressedSummary?: boolean;
+  /**
+   * Stream A4 — how many original messages were collapsed into this summary.
+   * Used for the "Compressed: N messages -> X tokens" label.
+   */
+  originalMessageCount?: number;
+  /**
+   * Stream A4 — temporary flag set by the Expand action. When true the
+   * original messages (marked compressedIntoId) are re-injected for the
+   * NEXT send only, then this flag is cleared.
+   */
+  expandedForNextSend?: boolean;
+  /**
+   * Stream A4 — set on original messages that have been compressed.
+   * Value is the `timestamp` of the CompressedSummary message they belong
+   * to. Messages with this field are NOT sent to the AI unless Expand was
+   * clicked.
+   */
+  compressedIntoId?: string;
 }
 
 /**
