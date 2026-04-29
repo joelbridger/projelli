@@ -6,6 +6,7 @@ import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, FileText, 
 import { ChatInputToolbar } from '@/components/chat/ChatInputToolbar';
 import { AttachmentService } from '@/modules/attachments/AttachmentService';
 import { SUPPORTED_IMAGE_MIMES, MAX_ATTACHMENT_BYTES, isVisionModel } from '@/modules/models/vision-capability';
+import { estimateImageTokens } from '@/modules/attachments/imageTokens';
 import type { ChatAttachment } from '@/types/ai';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -852,9 +853,11 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           throw new Error(`No valid ${providerNames[chatProvider] ?? chatProvider} API key found. Please add your API key in the settings.`);
         }
 
-        // Stream A1 — image token overhead added in Task 10 (imageTokens.ts).
-        // Placeholder: will be replaced with estimateImageTokens when the module exists.
-        const imageTokenOverhead = 0;
+        // Stream A1 — estimate image token overhead for cost meter.
+        const imageTokenOverhead = (messageAttachments ?? []).reduce(
+          (sum, att) => sum + estimateImageTokens(chatProvider, att),
+          0
+        );
 
         // Build a provider-agnostic tool executor up front. Any provider
         // that supports tool calling (Claude, OpenAI, Gemini) registers
