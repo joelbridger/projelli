@@ -10,6 +10,7 @@ import type {
   ProviderMetadata,
   ProviderContentBlock,
   ClaudeImageBlock,
+  AttachmentBytes,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
@@ -82,13 +83,19 @@ function getAnthropicBaseUrl(configBaseUrl?: string): string {
 }
 
 interface ClaudeContentBlock {
-  type: 'text' | 'tool_use' | 'tool_result';
+  type: 'text' | 'tool_use' | 'tool_result' | 'image';
   text?: string;
   id?: string;
   name?: string;
   input?: Record<string, unknown>;
   tool_use_id?: string;
   content?: string | Array<{ type: string; text?: string }>;
+  // image block fields (Stream A1)
+  source?: {
+    type: 'base64';
+    media_type: string;
+    data: string;
+  };
 }
 
 interface ClaudeMessage {
@@ -174,13 +181,38 @@ export class ClaudeProvider implements Provider {
   }
 
   /**
+   * Build the user message content for the Claude API.
+   * When attachmentBytes are provided, the user message becomes a content
+   * array: image blocks first, then the text block. Without attachments it
+   * stays a plain string (cheaper and cleaner for text-only turns).
+   */
+  private buildUserContent(
+    prompt: string,
+    attachmentBytes?: AttachmentBytes[]
+  ): string | ClaudeContentBlock[] {
+    if (!attachmentBytes || attachmentBytes.length === 0) {
+      return prompt;
+    }
+    const blocks: ClaudeContentBlock[] = attachmentBytes.map(({ att, bytes }) => {
+      // formatAttachmentForRequest returns ClaudeImageBlock which is compatible
+      // with ClaudeContentBlock (now includes 'image' type and source field).
+      const formatted = this.formatAttachmentForRequest(att, bytes);
+      return formatted as unknown as ClaudeContentBlock;
+    });
+    blocks.push({ type: 'text', text: prompt });
+    return blocks;
+  }
+
+  /**
    * Send a message to Claude and get a response
    */
   async sendMessage(
     prompt: string,
     options?: SendOptions
   ): Promise<ProviderResponse> {
-    const messages: ClaudeMessage[] = [{ role: 'user', content: prompt }];
+    const messages: ClaudeMessage[] = [
+      { role: 'user', content: this.buildUserContent(prompt, options?.attachmentBytes) },
+    ];
 
     const request: ClaudeRequest = {
       model: this.model,
@@ -313,7 +345,9 @@ export class ClaudeProvider implements Provider {
   ): Promise<ProviderResponse> {
     const { onChunk, signal, ...sendOpts } = options;
 
-    const messages: ClaudeMessage[] = [{ role: 'user', content: prompt }];
+    const messages: ClaudeMessage[] = [
+      { role: 'user', content: this.buildUserContent(prompt, sendOpts.attachmentBytes) },
+    ];
 
     const request: ClaudeRequest & { stream: boolean } = {
       model: this.model,

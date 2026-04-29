@@ -25,6 +25,7 @@ import type {
   ProviderMetadata,
   ProviderContentBlock,
   OllamaImagesPayload,
+  AttachmentBytes,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { isVisionModel } from './vision-capability';
@@ -62,6 +63,12 @@ interface OllamaTagsResponse {
 interface OllamaChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
+  /**
+   * Stream A1 — base64-encoded image strings for vision models.
+   * Ollama places images at the message level, not inside the content string.
+   * Only present on user messages when attachments are included.
+   */
+  images?: string[];
 }
 
 interface OllamaChatRequest {
@@ -182,7 +189,11 @@ export class OllamaProvider implements Provider {
     return true;
   }
 
-  private buildMessages(prompt: string, systemPrompt?: string): OllamaChatMessage[] {
+  private buildMessages(
+    prompt: string,
+    systemPrompt?: string,
+    attachmentBytes?: AttachmentBytes[],
+  ): OllamaChatMessage[] {
     const messages: OllamaChatMessage[] = [];
     let fullSystem = systemPrompt ?? '';
     if (this.aiRules) {
@@ -191,14 +202,30 @@ export class OllamaProvider implements Provider {
     if (fullSystem) {
       messages.push({ role: 'system', content: fullSystem });
     }
-    messages.push({ role: 'user', content: prompt });
+
+    // Stream A1 — Ollama images are passed at message level via `images: string[]`.
+    // Each attachment's OllamaImagesPayload carries `_ollama_images` — collect
+    // and splice them onto the user message.
+    const userMsg: OllamaChatMessage = { role: 'user', content: prompt };
+    if (attachmentBytes && attachmentBytes.length > 0) {
+      const imageStrings: string[] = [];
+      for (const { att, bytes } of attachmentBytes) {
+        const payload = this.formatAttachmentForRequest(att, bytes) as OllamaImagesPayload;
+        imageStrings.push(...payload._ollama_images);
+      }
+      if (imageStrings.length > 0) {
+        userMsg.images = imageStrings;
+      }
+    }
+
+    messages.push(userMsg);
     return messages;
   }
 
   private buildRequest(prompt: string, opts: SendOptions | undefined, stream: boolean): OllamaChatRequest {
     const request: OllamaChatRequest = {
       model: this.model,
-      messages: this.buildMessages(prompt, opts?.systemPrompt),
+      messages: this.buildMessages(prompt, opts?.systemPrompt, opts?.attachmentBytes),
       stream,
     };
     const options: OllamaChatRequest['options'] = {};

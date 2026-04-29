@@ -10,6 +10,7 @@ import type {
   ProviderMetadata,
   ProviderContentBlock,
   GeminiInlineDataBlock,
+  AttachmentBytes,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
@@ -62,6 +63,11 @@ function getGeminiBaseUrl(configBaseUrl?: string): string {
  */
 interface GeminiPart {
   text?: string;
+  /** Stream A1 — inline image data part for vision requests. */
+  inlineData?: {
+    mimeType: string;
+    data: string; // base64
+  };
   functionCall?: {
     name: string;
     args: Record<string, unknown>;
@@ -189,6 +195,23 @@ export class GeminiProvider implements Provider {
   }
 
   /**
+   * Build the parts array for the initial user content block.
+   * Without attachments: a single text part.
+   * With attachments: inlineData parts first, then the text part.
+   */
+  private buildUserParts(prompt: string, attachmentBytes?: AttachmentBytes[]): GeminiPart[] {
+    if (!attachmentBytes || attachmentBytes.length === 0) {
+      return [{ text: prompt }];
+    }
+    const parts: GeminiPart[] = attachmentBytes.map(({ att, bytes }) => {
+      const block = this.formatAttachmentForRequest(att, bytes) as GeminiInlineDataBlock;
+      return { inlineData: block.inlineData };
+    });
+    parts.push({ text: prompt });
+    return parts;
+  }
+
+  /**
    * Send a message to Gemini and get a response
    */
   async sendMessage(
@@ -198,7 +221,7 @@ export class GeminiProvider implements Provider {
     const contents: GeminiContent[] = [
       {
         role: 'user',
-        parts: [{ text: prompt }],
+        parts: this.buildUserParts(prompt, options?.attachmentBytes),
       },
     ];
 
@@ -337,7 +360,7 @@ export class GeminiProvider implements Provider {
   ): Promise<ProviderResponse> {
     const { onChunk, signal, ...sendOpts } = options;
 
-    const contents: GeminiContent[] = [{ role: 'user', parts: [{ text: prompt }] }];
+    const contents: GeminiContent[] = [{ role: 'user', parts: this.buildUserParts(prompt, sendOpts.attachmentBytes) }];
     const request: GeminiRequest = { contents };
 
     let systemInstruction = sendOpts.systemPrompt || '';

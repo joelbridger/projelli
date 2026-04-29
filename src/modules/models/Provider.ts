@@ -50,6 +50,18 @@ export type ProviderContentBlock =
   | OllamaImagesPayload;
 
 /**
+ * Stream A1 — pre-read attachment bytes passed alongside a send call.
+ * The AIChatViewer reads bytes from AttachmentService before calling
+ * sendMessage/sendMessageStreaming, then bundles them here so each
+ * provider can call its own formatAttachmentForRequest() internally
+ * and insert the provider-specific content blocks into its API envelope.
+ */
+export interface AttachmentBytes {
+  att: ChatAttachment;
+  bytes: Uint8Array;
+}
+
+/**
  * Options for sending a message to the model
  */
 export interface SendOptions {
@@ -59,6 +71,13 @@ export interface SendOptions {
   stopSequences?: string[];
   /** UX-39: AbortSignal so callers can cancel in-flight requests. */
   signal?: AbortSignal;
+  /**
+   * Stream A1 — image attachments to include in the provider request.
+   * Each entry contains the ChatAttachment metadata plus the raw bytes
+   * already read from the workspace. Providers call their own
+   * formatAttachmentForRequest() to produce provider-specific blocks.
+   */
+  attachmentBytes?: AttachmentBytes[];
 }
 
 /**

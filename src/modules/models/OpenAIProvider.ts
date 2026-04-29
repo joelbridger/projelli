@@ -10,6 +10,7 @@ import type {
   ProviderMetadata,
   ProviderContentBlock,
   OpenAIImageBlock,
+  AttachmentBytes,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
@@ -69,9 +70,16 @@ interface OpenAIToolCall {
   };
 }
 
+/** A single content part in an OpenAI vision-capable user message. */
+interface OpenAIContentPart {
+  type: 'text' | 'image_url';
+  text?: string;
+  image_url?: { url: string };
+}
+
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | null;
+  content: string | null | OpenAIContentPart[];
   tool_calls?: OpenAIToolCall[];
   tool_call_id?: string;
 }
@@ -193,6 +201,26 @@ export class OpenAIProvider implements Provider {
   }
 
   /**
+   * Build the user message content for the OpenAI API.
+   * Without attachments: plain string (text-only, smallest payload).
+   * With attachments: array of content parts — image_url parts first, then text.
+   */
+  private buildUserContent(
+    prompt: string,
+    attachmentBytes?: AttachmentBytes[]
+  ): string | OpenAIContentPart[] {
+    if (!attachmentBytes || attachmentBytes.length === 0) {
+      return prompt;
+    }
+    const parts: OpenAIContentPart[] = attachmentBytes.map(({ att, bytes }) => {
+      const block = this.formatAttachmentForRequest(att, bytes) as OpenAIImageBlock;
+      return { type: 'image_url', image_url: block.image_url };
+    });
+    parts.push({ type: 'text', text: prompt });
+    return parts;
+  }
+
+  /**
    * Send a message to OpenAI and get a response
    */
   async sendMessage(
@@ -211,7 +239,7 @@ export class OpenAIProvider implements Provider {
       messages.push({ role: 'system', content: systemPrompt });
     }
 
-    messages.push({ role: 'user', content: prompt });
+    messages.push({ role: 'user', content: this.buildUserContent(prompt, options?.attachmentBytes) });
 
     const request: OpenAIRequest = {
       model: this.model,
@@ -343,7 +371,7 @@ export class OpenAIProvider implements Provider {
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
     }
-    messages.push({ role: 'user', content: prompt });
+    messages.push({ role: 'user', content: this.buildUserContent(prompt, sendOpts.attachmentBytes) });
 
     const request: OpenAIRequest & { stream: boolean } = {
       model: this.model,

@@ -11,6 +11,7 @@ import type {
   StructuredOutputOptions,
   ProviderContentBlock,
   ClaudeImageBlock,
+  AttachmentBytes,
 } from './Provider';
 import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
@@ -39,6 +40,8 @@ export class MockProvider implements Provider {
   private callCount = 0;
   private lastPrompt: string | null = null;
   private lastFormattedAttachment: { att: ChatAttachment; bytesLength: number } | null = null;
+  /** Stream A1 — tracks attachmentBytes passed to the most recent send call. */
+  private lastSendAttachments: AttachmentBytes[] | null = null;
 
   constructor(
     private readonly model: string = 'mock-model',
@@ -93,7 +96,17 @@ export class MockProvider implements Provider {
   reset(): void {
     this.callCount = 0;
     this.lastPrompt = null;
+    this.lastSendAttachments = null;
     this.responses.clear();
+  }
+
+  /**
+   * Stream A1 — Return attachment bytes passed to the most recent send call.
+   * Returns null if the most recent call had no attachments or if no call has
+   * been made since the last reset().
+   */
+  getLastSendAttachments(): AttachmentBytes[] | null {
+    return this.lastSendAttachments;
   }
 
   /**
@@ -107,6 +120,7 @@ export class MockProvider implements Provider {
   async sendMessage(prompt: string, _options?: SendOptions): Promise<ProviderResponse> {
     this.callCount++;
     this.lastPrompt = prompt;
+    this.lastSendAttachments = _options?.attachmentBytes ?? null;
 
     // Find matching response
     let response = this.defaultResponse;
