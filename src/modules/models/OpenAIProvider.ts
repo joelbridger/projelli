@@ -10,12 +10,14 @@ import type {
   ProviderMetadata,
   ProviderContentBlock,
   OpenAIImageBlock,
+  TextExtractBlock,
   AttachmentBytes,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
+import { extractPdfText } from '@/lib/pdf-extract';
 
 // OpenAI model pricing (per 1K tokens)
 const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
@@ -203,19 +205,28 @@ export class OpenAIProvider implements Provider {
   /**
    * Build the user message content for the OpenAI API.
    * Without attachments: plain string (text-only, smallest payload).
-   * With attachments: array of content parts — image_url parts first, then text.
+   * With attachments: image_url parts + extracted PDF text injected as text parts,
+   * followed by the user's prompt text.
    */
-  private buildUserContent(
+  private async buildUserContent(
     prompt: string,
     attachmentBytes?: AttachmentBytes[]
-  ): string | OpenAIContentPart[] {
+  ): Promise<string | OpenAIContentPart[]> {
     if (!attachmentBytes || attachmentBytes.length === 0) {
       return prompt;
     }
-    const parts: OpenAIContentPart[] = attachmentBytes.map(({ att, bytes }) => {
-      const block = this.formatAttachmentForRequest(att, bytes) as OpenAIImageBlock;
-      return { type: 'image_url', image_url: block.image_url };
-    });
+    const parts: OpenAIContentPart[] = [];
+    for (const { att, bytes } of attachmentBytes) {
+      const block = await this.formatAttachmentForRequest(att, bytes);
+      if ('_text_extract' in block) {
+        // PDF text-extract: inject extracted text as a text part
+        const { text, fileName } = block._text_extract;
+        parts.push({ type: 'text', text: `[File: ${fileName}]\n${text}` });
+      } else {
+        const imgBlock = block as OpenAIImageBlock;
+        parts.push({ type: 'image_url', image_url: imgBlock.image_url });
+      }
+    }
     parts.push({ type: 'text', text: prompt });
     return parts;
   }
@@ -239,7 +250,7 @@ export class OpenAIProvider implements Provider {
       messages.push({ role: 'system', content: systemPrompt });
     }
 
-    messages.push({ role: 'user', content: this.buildUserContent(prompt, options?.attachmentBytes) });
+    messages.push({ role: 'user', content: await this.buildUserContent(prompt, options?.attachmentBytes) });
 
     const request: OpenAIRequest = {
       model: this.model,
@@ -371,7 +382,7 @@ export class OpenAIProvider implements Provider {
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
     }
-    messages.push({ role: 'user', content: this.buildUserContent(prompt, sendOpts.attachmentBytes) });
+    messages.push({ role: 'user', content: await this.buildUserContent(prompt, sendOpts.attachmentBytes) });
 
     const request: OpenAIRequest & { stream: boolean } = {
       model: this.model,
@@ -633,38 +644,56 @@ Respond ONLY with the JSON object.`;
   }
 
   /**
-   * Stream A1 — Format an image attachment for the OpenAI Chat Completions API.
-   * Output shape: { type: 'image_url', image_url: { url: 'data:<mime>;base64,...' } }
-   * PDF handling deferred to Plan A2.
+   * Stream A2 — Format an attachment for the OpenAI Chat Completions API.
+   * Images: synchronous OpenAIImageBlock.
+   * PDFs: async text extraction via PDF.js, returns TextExtractBlock.
    */
-  formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock {
-    if (att.type === 'pdf') {
-      throw new Error(
-        'PDF attachment support is not implemented in Plan A1. See Plan A2.'
-      );
+  async formatAttachmentForRequest(
+    att: ChatAttachment,
+    bytes: Uint8Array
+  ): Promise<ProviderContentBlock> {
+    if (att.type === 'image') {
+      const data = bytesToBase64(bytes);
+      return {
+        type: 'image_url',
+        image_url: { url: `data:${att.mimeType};base64,${data}` },
+      } satisfies OpenAIImageBlock;
     }
-    const data = bytesToBase64(bytes);
-    const block: OpenAIImageBlock = {
-      type: 'image_url',
-      image_url: {
-        url: `data:${att.mimeType};base64,${data}`,
-      },
-    };
-    return block;
+
+    if (att.type === 'pdf') {
+      const result = await extractPdfText(bytes);
+      const text = result.pages.join('\n\n');
+      return {
+        _text_extract: {
+          text,
+          pageCount: result.pageCount,
+          fileName: att.fileName,
+        },
+      } satisfies TextExtractBlock;
+    }
+
+    throw new Error(`Unsupported attachment type: ${att.type}`);
   }
 
   /**
-   * Stream A1 — Check vision capability for the given model.
+   * Stream A2 — Check attachment support. PDF always returns true (text-extract).
    */
   supportsAttachment(att: ChatAttachment, model: string): true | string {
-    if (att.type === 'pdf') {
-      return 'PDF support is coming soon (Plan A2).';
-    }
     if (att.type === 'image') {
       if (isVisionModel('openai', model)) return true;
       return `${model} does not support images. Switch to GPT-4o or an o1 model.`;
     }
+    if (att.type === 'pdf') {
+      return true;
+    }
     return `Unsupported attachment type: ${att.type}.`;
+  }
+
+  /**
+   * Stream A2 — OpenAI never supports native PDF blocks.
+   */
+  supportsNativePdf(_model: string): boolean {
+    return false;
   }
 }
 
