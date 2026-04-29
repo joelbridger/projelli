@@ -10,12 +10,14 @@ import type {
   ProviderMetadata,
   ProviderContentBlock,
   ClaudeImageBlock,
+  ClaudeDocumentBlock,
   AttachmentBytes,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
+import { supportsNativePdf as pdfNativeCheck } from './pdf-capability';
 
 // Claude model pricing (per 1K tokens)
 const CLAUDE_PRICING: Record<string, { input: number; output: number }> = {
@@ -641,42 +643,73 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
   }
 
   /**
-   * Stream A1 — Format an image attachment for the Claude Messages API.
-   * Output shape: { type: 'image', source: { type: 'base64', media_type, data } }
-   * PDF handling deferred to Plan A2.
+   * Stream A2 — Format an attachment for the Claude Messages API.
+   *
+   * For images: returns ClaudeImageBlock (synchronous, Plan A1).
+   * For PDFs on native-capable models (Sonnet 3.5+, Opus 3+): returns
+   *   ClaudeDocumentBlock with base64-encoded bytes.
+   * For PDFs on non-native models (Haiku): throws so the caller (AIChatViewer)
+   *   can route to the text-extract path instead.
    */
   formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock {
-    if (att.type === 'pdf') {
-      throw new Error(
-        'PDF attachment support is not implemented in Plan A1. See Plan A2.'
-      );
+    if (att.type === 'image') {
+      const data = bytesToBase64(bytes);
+      const block: ClaudeImageBlock = {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: att.mimeType,
+          data,
+        },
+      };
+      return block;
     }
-    const data = bytesToBase64(bytes);
-    const block: ClaudeImageBlock = {
-      type: 'image',
-      source: {
-        type: 'base64',
-        media_type: att.mimeType,
-        data,
-      },
-    };
-    return block;
+
+    if (att.type === 'pdf') {
+      const currentModel = this.model;
+      if (!pdfNativeCheck('claude', currentModel)) {
+        throw new Error(
+          `${currentModel} does not support native PDF. Use text-extract path for Haiku models.`
+        );
+      }
+      const data = bytesToBase64(bytes);
+      const block: ClaudeDocumentBlock = {
+        type: 'document',
+        source: {
+          type: 'base64',
+          media_type: 'application/pdf',
+          data,
+        },
+      };
+      return block;
+    }
+
+    throw new Error(`Unsupported attachment type: ${att.type}`);
   }
 
   /**
-   * Stream A1 — Check vision capability for the given model.
+   * Stream A2 — Check attachment capability for the given model.
+   * PDFs are supported by all Claude models: native or text-extract.
    */
   supportsAttachment(att: ChatAttachment, model: string): true | string {
-    if (att.type === 'pdf') {
-      return 'PDF support is coming soon (Plan A2). Use text-based context for now.';
-    }
     if (att.type === 'image') {
       if (isVisionModel('claude', model)) return true;
       return (
         `${model} does not support images. Switch to Claude Sonnet, Opus, or Haiku (3.x series).`
       );
     }
+    if (att.type === 'pdf') {
+      // All Claude models support PDF: native path for Sonnet/Opus, text-extract for Haiku.
+      return true;
+    }
     return `Unsupported attachment type: ${att.type}.`;
+  }
+
+  /**
+   * Stream A2 — Returns true when the given model supports native PDF document blocks.
+   */
+  supportsNativePdf(model: string): boolean {
+    return pdfNativeCheck('claude', model);
   }
 }
 
