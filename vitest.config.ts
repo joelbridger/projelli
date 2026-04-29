@@ -37,6 +37,10 @@ export default defineConfig({
       '@/utils': path.resolve(__dirname, './src/utils'),
       '@/lib': path.resolve(__dirname, './src/lib'),
       '@/tools': path.resolve(__dirname, './src/tools'),
+      // Stream A2: pdfjs-dist standard build requires a web worker and browser
+      // canvas APIs. In the Vitest jsdom environment (Node 20), use the legacy
+      // build instead, which runs in-thread without a web worker.
+      'pdfjs-dist': path.resolve(__dirname, 'node_modules/pdfjs-dist/legacy/build/pdf.mjs'),
     },
   },
 });
