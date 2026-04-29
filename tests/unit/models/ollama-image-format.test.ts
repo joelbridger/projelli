@@ -19,16 +19,16 @@ function makeProvider(model: string) {
 }
 
 describe('OllamaProvider.formatAttachmentForRequest (image)', () => {
-  it('returns OllamaImagesPayload sentinel', () => {
+  it('returns OllamaImagesPayload sentinel', async () => {
     const provider = makeProvider('llava:13b');
-    const block = provider.formatAttachmentForRequest(imageAtt, PNG_BYTES) as any;
+    const block = await provider.formatAttachmentForRequest(imageAtt, PNG_BYTES) as any;
     expect(Array.isArray(block._ollama_images)).toBe(true);
     expect(block._ollama_images).toHaveLength(1);
   });
 
-  it('_ollama_images[0] is base64 of bytes', () => {
+  it('_ollama_images[0] is base64 of bytes', async () => {
     const provider = makeProvider('llava:13b');
-    const block = provider.formatAttachmentForRequest(imageAtt, PNG_BYTES) as any;
+    const block = await provider.formatAttachmentForRequest(imageAtt, PNG_BYTES) as any;
     expect(atob(block._ollama_images[0]).charCodeAt(0)).toBe(0x89);
   });
 });
