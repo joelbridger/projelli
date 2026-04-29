@@ -4,6 +4,9 @@
   "version": "1.7.2",
   "type": "module",
   "scripts": {
+    "copy-pdf-worker": "cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs",
+    "prebuild": "npm run copy-pdf-worker",
+    "predev": "npm run copy-pdf-worker",
     "build": "tsc -b && vite build",
     "capture:all": "cd scripts/marketing-capture && npm install --silent && npm run run-all",
     "dev": "vite",
@@ -67,6 +70,7 @@
     "mermaid": "^11.14.0",
     "minisearch": "^7.2.0",
     "papaparse": "^5.5.3",
+    "pdfjs-dist": "^5.6.205",
     "pptxgenjs": "^4.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
