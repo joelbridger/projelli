@@ -42,6 +42,7 @@ use tokio::sync::Mutex;
 ///   - `score`: cosine similarity in `[0.0, 1.0]` — higher is better
 ///   - `paragraph_index`: zero-based index of the chunk within its file
 ///     (so the UI can deep-link and anchor to it)
+///
 /// A3 additions:
 ///   - `source_type`: `"text"` | `"pdf"` — absent on pre-A3 rows (null)
 ///   - `page_number`: 1-based page number for PDF chunks; absent on text/pre-A3 rows
