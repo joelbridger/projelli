@@ -11,6 +11,7 @@ import { extractPdfText, type PdfExtractionResult } from '@/lib/pdf-extract';
 import { PdfModeChip } from '@/components/chat/PdfModeChip';
 import { PdfPreviewBeforeSend } from '@/components/chat/PdfPreviewBeforeSend';
 import { estimateImageTokens } from '@/modules/attachments/imageTokens';
+import { estimatePdfTokens } from '@/modules/attachments/pdfTokens';
 import type { ChatAttachment } from '@/types/ai';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -866,6 +867,17 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           0
         );
 
+        // Stream A2 — estimate PDF token overhead for cost meter.
+        const pdfTokenOverhead = (messageAttachments ?? []).reduce((sum, att) => {
+          if (att.type !== 'pdf') return sum;
+          const mode = att.metadata.extractionMode ?? 'text-extract';
+          // Use cached extraction result if available (for text-extract length).
+          // After send the cache is cleared, so we pass the length from metadata
+          // if it was stamped, otherwise let estimatePdfTokens fall back to pages.
+          const extractedLen = undefined; // extraction cache cleared before this runs
+          return sum + estimatePdfTokens(chatProvider, att, mode, extractedLen);
+        }, 0);
+
         // Build a provider-agnostic tool executor up front. Any provider
         // that supports tool calling (Claude, OpenAI, Gemini) registers
         // the same closure below via its setTools method.
@@ -1179,7 +1191,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           if (streamingResponse) {
             recordCost(chatId, {
               cost: streamingResponse.cost,
-              inputTokens: streamingResponse.usage.inputTokens + imageTokenOverhead,
+              inputTokens: streamingResponse.usage.inputTokens + imageTokenOverhead + pdfTokenOverhead,
               outputTokens: streamingResponse.usage.outputTokens,
               provider: chatProvider,
             });
@@ -1236,7 +1248,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           // Q3 — record cost for the chip + Q4 audit entry.
           recordCost(chatId, {
             cost: response.cost,
-            inputTokens: response.usage.inputTokens + imageTokenOverhead,
+            inputTokens: response.usage.inputTokens + imageTokenOverhead + pdfTokenOverhead,
             outputTokens: response.usage.outputTokens,
             provider: chatProvider,
           });
