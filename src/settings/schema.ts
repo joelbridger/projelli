@@ -240,6 +240,15 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'toggle',
     defaultValue: false,
   },
+  {
+    key: 'includePdfsInWorkspaceIndex',
+    category: 'memory',
+    label: 'Include PDFs in workspace index',
+    description:
+      'When on, PDFs in your workspace are searchable via @workspace and considered for AI context. Indexing runs in the background after you toggle this on. Adds CPU work during indexing. Defaults to off.',
+    type: 'toggle',
+    defaultValue: false,
+  },
 
   // ── Voice ─────────────────────────────────────────────────────────────
   {
