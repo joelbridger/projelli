@@ -10,6 +10,7 @@ import type {
   OutputSchema,
   StructuredOutputOptions,
   ProviderContentBlock,
+  ClaudeImageBlock,
 } from './Provider';
 import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
@@ -37,6 +38,7 @@ export class MockProvider implements Provider {
   };
   private callCount = 0;
   private lastPrompt: string | null = null;
+  private lastFormattedAttachment: { att: ChatAttachment; bytesLength: number } | null = null;
 
   constructor(
     private readonly model: string = 'mock-model',
@@ -225,12 +227,29 @@ export class MockProvider implements Provider {
     }
   }
 
-  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
-    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  /** Stream A1 — Return the last recorded formatAttachmentForRequest call. */
+  getLastFormattedAttachment(): { att: ChatAttachment; bytesLength: number } | null {
+    return this.lastFormattedAttachment;
   }
 
-  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
-    return 'Attachment support not implemented in foundations (Stream A scope)';
+  /**
+   * Stream A1 — Records the call and returns a minimal Claude-shaped block
+   * so the call-site can JSON-serialize it.
+   */
+  formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock {
+    this.lastFormattedAttachment = { att, bytesLength: bytes.length };
+    // Return a minimal valid structure to satisfy type checks.
+    return {
+      type: 'image',
+      source: { type: 'base64', media_type: att.mimeType, data: 'MOCK_BASE64' },
+    } as ClaudeImageBlock;
+  }
+
+  /**
+   * Stream A1 — Mock always supports everything for test convenience.
+   */
+  supportsAttachment(_att: ChatAttachment, _model: string): true | string {
+    return true;
   }
 }
 
