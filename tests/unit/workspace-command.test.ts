@@ -14,6 +14,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildWorkspaceContextBlock,
   citationBasename,
   parseCitations,
   parseWorkspaceCommand,
@@ -165,6 +166,70 @@ describe('parseCitations', () => {
     expect(content.slice(cites[0]!.start, cites[0]!.end)).toBe(
       '[foo.md paragraph 7]',
     );
+  });
+});
+
+describe('buildWorkspaceContextBlock (A3 PDF extensions)', () => {
+  it('shows page number for PDF hits', () => {
+    const hits: RagHit[] = [
+      {
+        path: '/w/report.pdf',
+        chunkText: 'This quarter revenue grew.',
+        score: 0.9,
+        paragraphIndex: 0,
+        sourceType: 'pdf',
+        pageNumber: 3,
+      },
+    ];
+    const block = buildWorkspaceContextBlock(hits);
+    expect(block).toContain('report.pdf page 3');
+    expect(block).not.toContain('paragraph 0');
+  });
+
+  it('shows paragraph index for text hits without sourceType', () => {
+    const hits: RagHit[] = [
+      {
+        path: '/w/notes.md',
+        chunkText: 'Some notes.',
+        score: 0.8,
+        paragraphIndex: 2,
+      },
+    ];
+    const block = buildWorkspaceContextBlock(hits);
+    expect(block).toContain('notes.md paragraph 2');
+  });
+
+  it('shows paragraph index for text hits with sourceType=text', () => {
+    const hits: RagHit[] = [
+      {
+        path: '/w/readme.txt',
+        chunkText: 'Read this.',
+        score: 0.7,
+        paragraphIndex: 5,
+        sourceType: 'text',
+      },
+    ];
+    const block = buildWorkspaceContextBlock(hits);
+    expect(block).toContain('readme.txt paragraph 5');
+  });
+
+  it('falls back to paragraph for PDF hit without pageNumber', () => {
+    const hits: RagHit[] = [
+      {
+        path: '/w/old.pdf',
+        chunkText: 'Old pre-A3 chunk.',
+        score: 0.6,
+        paragraphIndex: 100,
+        sourceType: 'pdf',
+        // pageNumber absent (pre-A3 row)
+      },
+    ];
+    const block = buildWorkspaceContextBlock(hits);
+    expect(block).toContain('old.pdf paragraph 100');
+  });
+
+  it('returns empty string for empty hits', () => {
+    expect(buildWorkspaceContextBlock([])).toBe('');
   });
 });
 
