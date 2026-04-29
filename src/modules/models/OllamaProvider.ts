@@ -24,8 +24,11 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
   ProviderContentBlock,
+  OllamaImagesPayload,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
+import { isVisionModel } from './vision-capability';
+import { bytesToBase64 } from './providerUtils';
 
 /** Default Ollama base URL. Overridable via constructor or env. */
 export const OLLAMA_DEFAULT_BASE_URL = 'http://127.0.0.1:11434';
@@ -385,12 +388,44 @@ IMPORTANT: Respond ONLY with the JSON object.`;
     };
   }
 
-  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
-    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  /**
+   * Stream A1 — Format an image attachment for Ollama's chat API.
+   *
+   * Ollama images are passed at the message level (not inside a content block)
+   * as an `images: string[]` array of base64-encoded strings. We return an
+   * `OllamaImagesPayload` sentinel; the message-construction code in sendMessage
+   * checks for `_ollama_images` and appends the base64 strings to the outgoing
+   * message object.
+   *
+   * PDF handling deferred to Plan A2.
+   */
+  formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock {
+    if (att.type === 'pdf') {
+      throw new Error(
+        'PDF attachment support is not implemented in Plan A1. See Plan A2.'
+      );
+    }
+    const payload: OllamaImagesPayload = {
+      _ollama_images: [bytesToBase64(bytes)],
+    };
+    return payload;
   }
 
-  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
-    return 'Attachment support not implemented in foundations (Stream A scope)';
+  /**
+   * Stream A1 — Check vision capability for the given model.
+   */
+  supportsAttachment(att: ChatAttachment, model: string): true | string {
+    if (att.type === 'pdf') {
+      return 'PDF support is coming soon (Plan A2).';
+    }
+    if (att.type === 'image') {
+      if (isVisionModel('ollama', model)) return true;
+      return (
+        `${model} does not appear to support images. ` +
+        `Pull a vision-capable model like 'llava' and select it.`
+      );
+    }
+    return `Unsupported attachment type: ${att.type}.`;
   }
 }
 
