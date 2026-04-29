@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { AIChatFile, ChatMessage, WorkspaceSource } from '@/types/ai';
 import type { AuditEntry } from '@/types/audit';
-import type { Provider } from '@/modules/models/Provider';
+import type { Provider, AttachmentBytes } from '@/modules/models/Provider';
 import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
 import { GeminiProvider } from '@/modules/models/GeminiProvider';
@@ -1041,6 +1041,31 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           }
         }
 
+        // Stream A1 — Read raw bytes for each attachment so providers can
+        // build their provider-specific image content blocks. Attachments
+        // are stored on disk; we read them now so the async I/O is done
+        // before we hand off to the provider. Any attachment that fails to
+        // read is skipped gracefully (logged but not fatal).
+        let attachmentBytes: AttachmentBytes[] | undefined;
+        if (messageAttachments && messageAttachments.length > 0 && workspaceServiceRef?.current) {
+          const attService = new AttachmentService(workspaceServiceRef.current);
+          const loaded: AttachmentBytes[] = [];
+          for (const att of messageAttachments) {
+            try {
+              const bytes = await attService.read(att);
+              loaded.push({ att, bytes });
+            } catch (readErr) {
+              console.error(
+                `[AIChat] Failed to read attachment bytes for ${att.fileName}:`,
+                readErr,
+              );
+            }
+          }
+          if (loaded.length > 0) {
+            attachmentBytes = loaded;
+          }
+        }
+
         // Build conversation history into system prompt
         const conversationContext = messages.slice(0, -1).map(m =>
           `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
@@ -1127,6 +1152,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                 updateLastMessage(chatId, accumulated);
               },
               signal: abortController.signal,
+              ...(attachmentBytes ? { attachmentBytes } : {}),
             });
           } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') {
@@ -1184,6 +1210,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             systemPrompt,
             maxTokens: 4096,
             signal: abortController.signal,
+            ...(attachmentBytes ? { attachmentBytes } : {}),
           });
 
           const assistantMessage: ChatMessage = {
