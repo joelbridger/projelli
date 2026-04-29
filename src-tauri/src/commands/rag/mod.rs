@@ -158,7 +158,7 @@ async fn index_one_file(table: &lancedb::Table, file_path: &Path) -> anyhow::Res
     let vectors = embedder::embed_documents(&texts).await?;
     let rows: Vec<(chunker::Chunk, Vec<f32>)> =
         chunks.into_iter().zip(vectors).collect();
-    store::upsert_chunks_for_path(table, &path_str, rows).await?;
+    store::upsert_chunks_for_path(table, &path_str, rows, store::SourceType::Text).await?;
     Ok(())
 }
 
