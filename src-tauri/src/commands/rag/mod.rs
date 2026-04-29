@@ -25,6 +25,7 @@
 pub mod chunker;
 pub mod embedder;
 pub mod extractor;
+pub mod pdf_indexer;
 pub mod store;
 
 use serde::{Deserialize, Serialize};
