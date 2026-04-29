@@ -25,6 +25,7 @@ import {
   MAX_ATTACHMENT_BYTES,
   getSuggestedVisionModel,
 } from '@/modules/models/vision-capability';
+import { SUPPORTED_PDF_MIME } from '@/modules/models/pdf-capability';
 import type { ChatAttachment } from '@/types/ai';
 
 export interface ChatInputToolbarProps {
@@ -68,14 +69,15 @@ export function ChatInputToolbar({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const accept = SUPPORTED_IMAGE_MIMES.join(',');
+  const ACCEPTED_MIMES = [...SUPPORTED_IMAGE_MIMES, SUPPORTED_PDF_MIME];
+  const accept = ACCEPTED_MIMES.join(',');
 
   const validateAndCollect = useCallback(
     (files: FileList | null): File[] => {
       if (!files) return [];
       const valid: File[] = [];
       for (const file of Array.from(files)) {
-        if (!SUPPORTED_IMAGE_MIMES.includes(file.type)) {
+        if (!ACCEPTED_MIMES.includes(file.type)) {
           continue;
         }
         if (file.size > MAX_ATTACHMENT_BYTES) {
@@ -85,6 +87,7 @@ export function ChatInputToolbar({
       }
       return valid;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -102,18 +105,19 @@ export function ChatInputToolbar({
     (e: ClipboardEvent<HTMLDivElement>) => {
       const items = e.clipboardData?.items;
       if (!items) return;
-      const imageFiles: File[] = [];
+      const attachFiles: File[] = [];
       for (const item of Array.from(items)) {
-        if (item.kind === 'file' && SUPPORTED_IMAGE_MIMES.includes(item.type)) {
+        if (item.kind === 'file' && ACCEPTED_MIMES.includes(item.type)) {
           const file = item.getAsFile();
-          if (file) imageFiles.push(file);
+          if (file) attachFiles.push(file);
         }
       }
-      if (imageFiles.length > 0) {
+      if (attachFiles.length > 0) {
         e.preventDefault(); // Don't paste binary into textarea.
-        onFilesSelected(imageFiles);
+        onFilesSelected(attachFiles);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [onFilesSelected]
   );
 
@@ -155,7 +159,7 @@ export function ChatInputToolbar({
           data-testid="chat-drop-overlay"
           className="absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-primary/10 pointer-events-none"
         >
-          <span className="text-sm font-medium text-primary">Drop image here</span>
+          <span className="text-sm font-medium text-primary">Drop image or PDF here</span>
         </div>
       )}
 
@@ -195,8 +199,8 @@ export function ChatInputToolbar({
           size="icon"
           className="h-7 w-7 text-muted-foreground hover:text-foreground"
           onClick={() => fileInputRef.current?.click()}
-          aria-label="Attach image"
-          title="Attach image (png, jpg, gif, webp)"
+          aria-label="Attach file"
+          title="Attach image (png, jpg, gif, webp) or PDF"
         >
           <Paperclip className="h-4 w-4" />
         </Button>

@@ -6,6 +6,10 @@ import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, FileText, 
 import { ChatInputToolbar } from '@/components/chat/ChatInputToolbar';
 import { AttachmentService } from '@/modules/attachments/AttachmentService';
 import { SUPPORTED_IMAGE_MIMES, MAX_ATTACHMENT_BYTES, isVisionModel } from '@/modules/models/vision-capability';
+import { SUPPORTED_PDF_MIME, getPdfMode } from '@/modules/models/pdf-capability';
+import { extractPdfText, type PdfExtractionResult } from '@/lib/pdf-extract';
+import { PdfModeChip } from '@/components/chat/PdfModeChip';
+import { PdfPreviewBeforeSend } from '@/components/chat/PdfPreviewBeforeSend';
 import { estimateImageTokens } from '@/modules/attachments/imageTokens';
 import type { ChatAttachment } from '@/types/ai';
 import { Button } from '@/components/ui/button';
@@ -544,6 +548,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   // Stream A1 — Inline error messages (oversized file, etc.)
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  // Stream A2 — PDF extraction results keyed by attachment id, for preview panel.
+  const [pdfExtractions, setPdfExtractions] = useState<Record<string, PdfExtractionResult>>({});
 
   // Initialize session on mount if it doesn't exist
   useEffect(() => {
@@ -814,12 +820,13 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       });
     }
 
-    // Clear pending attachments and revoke preview URLs.
+    // Clear pending attachments, preview URLs, and PDF extraction cache.
     setPendingAttachments([]);
     for (const url of Object.values(previewUrls)) {
       URL.revokeObjectURL(url);
     }
     setPreviewUrls({});
+    setPdfExtractions({});
 
     const userMessage: ChatMessage = {
       role: 'user',
@@ -1317,7 +1324,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     })();
   }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, recordCost, clearDraftInput, askWorkspaceMode]);
 
-  // Stream A1 — File selection handler (paperclip, paste, drag-drop).
+  // Stream A2 — File selection handler (paperclip, paste, drag-drop).
+  // Accepts images (A1) and PDFs (A2). For PDFs: runs extractPdfText to
+  // detect encryption and populate the pre-send preview.
   const handleFilesSelected = useCallback(async (files: File[]) => {
     for (const file of files) {
       if (file.size > MAX_ATTACHMENT_BYTES) {
@@ -1325,13 +1334,69 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         setTimeout(() => setAttachmentError(null), 4000);
         continue;
       }
-      if (!SUPPORTED_IMAGE_MIMES.includes(file.type)) {
-        setAttachmentError(`${file.name} is not a supported image type.`);
+      const isPdf = file.type === SUPPORTED_PDF_MIME;
+      if (!isPdf && !SUPPORTED_IMAGE_MIMES.includes(file.type)) {
+        setAttachmentError(`${file.name} is not a supported image or PDF type.`);
         setTimeout(() => setAttachmentError(null), 4000);
         continue;
       }
       try {
         const bytes = new Uint8Array(await file.arrayBuffer());
+
+        // Stream A2 — For PDFs: extract text synchronously before saving so we
+        // can (a) block encrypted files at the point of attachment, (b) populate
+        // the pre-send preview, and (c) record the extraction mode in metadata.
+        if (isPdf) {
+          let extraction: PdfExtractionResult;
+          try {
+            extraction = await extractPdfText(bytes);
+          } catch {
+            setAttachmentError(`${file.name} could not be read as a PDF.`);
+            setTimeout(() => setAttachmentError(null), 4000);
+            continue;
+          }
+          if (extraction.encrypted) {
+            setAttachmentError(
+              `${file.name} is password-protected. Remove the password and re-attach.`
+            );
+            setTimeout(() => setAttachmentError(null), 6000);
+            continue;
+          }
+          // Determine extraction mode based on current provider + model.
+          const provider = chatData.provider ?? 'anthropic';
+          const model = chatData.model ?? '';
+          const mode = getPdfMode(provider, model);
+
+          const attService = new AttachmentService(workspaceServiceRef?.current);
+          const att = await attService.save(bytes, file.name, file.type);
+          // Stamp the extraction mode into the attachment metadata so it
+          // survives serialisation and can be rendered in chat history.
+          att.metadata.extractionMode = mode;
+          att.metadata.pages = extraction.pageCount;
+
+          setPdfExtractions((prev) => ({ ...prev, [att.id]: extraction }));
+          setPendingAttachments((prev) => [...prev, att]);
+          onAuditLog?.({
+            action: 'user_action',
+            description: `PDF attached: ${file.name} (${mode})`,
+            model: chatData.model ?? chatData.provider ?? 'unknown',
+            inputs: {
+              path: att.pathInWorkspace,
+              hash: att.id,
+              type: att.type,
+              byteSize: att.byteSize,
+              pdfMode: mode,
+              pageCount: extraction.pageCount,
+              scanned: extraction.scanned,
+            },
+            outputs: {},
+            userDecision: 'auto',
+            metadata: { auditEventType: 'attachment_added', pdfMode: mode },
+          });
+          continue;
+        }
+
+        // Images (A1 path — unchanged)
         const attService = new AttachmentService(workspaceServiceRef?.current);
         const att = await attService.save(bytes, file.name, file.type);
         const previewUrl = URL.createObjectURL(file);
@@ -1373,6 +1438,11 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     });
     setPreviewUrls((prev) => {
       if (prev[id]) URL.revokeObjectURL(prev[id]);
+      const { [id]: _removed, ...rest } = prev;
+      return rest;
+    });
+    // Stream A2 — Clean up PDF extraction cache entry.
+    setPdfExtractions((prev) => {
       const { [id]: _removed, ...rest } = prev;
       return rest;
     });
@@ -1673,6 +1743,19 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                     )}
               </div>
             </div>
+            {/* Stream A2 — PDF mode chips, shown below user messages that
+                carried one or more PDF attachments. */}
+            {msg.role === 'user' &&
+              msg.attachments &&
+              msg.attachments
+                .filter((a) => a.type === 'pdf')
+                .map((a) => (
+                  <PdfModeChip
+                    key={a.id}
+                    mode={a.metadata.extractionMode ?? 'text-extract'}
+                    className="mt-1"
+                  />
+                ))}
             {/* M2 — grey hint below the bubble when retrieval couldn't
                 run (memory off, retrieval failed, etc.). */}
             {msg.workspaceHint && (
@@ -1802,12 +1885,32 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         <div className="flex justify-end mb-2">
           <ChatCostChip chatId={chatId} />
         </div>
-        {/* Stream A1 — attachment error strip */}
+        {/* Stream A2 — attachment error strip (covers both image and PDF errors) */}
         {attachmentError && (
           <div className="mb-2 px-3 py-2 rounded border border-red-400/50 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-200 text-xs">
             {attachmentError}
           </div>
         )}
+        {/* Stream A2 — PDF pre-send preview panel, one per pending PDF attachment */}
+        {pendingAttachments
+          .filter((a) => a.type === 'pdf')
+          .map((a) => {
+            const extraction = pdfExtractions[a.id];
+            if (!extraction) return null;
+            const mode = a.metadata.extractionMode ?? 'text-extract';
+            return (
+              <PdfPreviewBeforeSend
+                key={a.id}
+                fileName={a.fileName}
+                extractedText={extraction.pages.join('\n\n')}
+                pageCount={extraction.pageCount}
+                scanned={extraction.scanned}
+                encrypted={extraction.encrypted}
+                mode={mode}
+                className="mb-2"
+              />
+            );
+          })}
         {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
         <ChatInputToolbar
           provider={chatData.provider ?? 'anthropic'}

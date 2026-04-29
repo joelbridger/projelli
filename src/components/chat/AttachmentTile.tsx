@@ -3,7 +3,7 @@
  * Shows a thumbnail (for images) or a file-type icon, file name, and a
  * remove button.
  */
-import { X, Image as ImageIcon } from 'lucide-react';
+import { X, Image as ImageIcon, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { ChatAttachment } from '@/types/ai';
@@ -37,6 +37,8 @@ export function AttachmentTile({
           alt={attachment.fileName}
           className="h-8 w-8 rounded object-cover shrink-0"
         />
+      ) : attachment.type === 'pdf' ? (
+        <FileText className="h-5 w-5 text-muted-foreground shrink-0" aria-hidden />
       ) : (
         <ImageIcon className="h-5 w-5 text-muted-foreground shrink-0" aria-hidden />
       )}
