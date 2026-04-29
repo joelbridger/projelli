@@ -49,11 +49,12 @@ describe('ClaudeProvider.formatAttachmentForRequest (image)', () => {
     expect(decoded.charCodeAt(1)).toBe(0x50);
   });
 
-  it('throws for pdf attachment (pdf not implemented in A1)', () => {
+  it('returns ClaudeDocumentBlock for pdf on a native-capable model (A2)', () => {
     const provider = makeProvider('claude-3-5-sonnet-20241022');
-    expect(() =>
-      provider.formatAttachmentForRequest(pdfAtt, new Uint8Array())
-    ).toThrow(/pdf.*not.*implemented|plan a2/i);
+    const block = provider.formatAttachmentForRequest(pdfAtt, new Uint8Array([0x25, 0x50])) as any;
+    expect(block.type).toBe('document');
+    expect(block.source?.type).toBe('base64');
+    expect(block.source?.media_type).toBe('application/pdf');
   });
 });
 
@@ -70,9 +71,9 @@ describe('ClaudeProvider.supportsAttachment', () => {
     expect(result).not.toBe('');
   });
 
-  it('returns error string for pdf on any model (A2 not yet implemented)', () => {
+  it('returns true for pdf on native-capable model (A2)', () => {
     const provider = makeProvider('claude-3-5-sonnet-20241022');
     const result = provider.supportsAttachment(pdfAtt, 'claude-3-5-sonnet-20241022');
-    expect(typeof result).toBe('string');
+    expect(result).toBe(true);
   });
 });

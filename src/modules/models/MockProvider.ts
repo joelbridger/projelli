@@ -11,10 +11,12 @@ import type {
   StructuredOutputOptions,
   ProviderContentBlock,
   ClaudeImageBlock,
+  TextExtractBlock,
   AttachmentBytes,
 } from './Provider';
 import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
+import { extractPdfText } from '@/lib/pdf-extract';
 
 /**
  * Configuration for mock responses
@@ -42,6 +44,8 @@ export class MockProvider implements Provider {
   private lastFormattedAttachment: { att: ChatAttachment; bytesLength: number } | null = null;
   /** Stream A1 — tracks attachmentBytes passed to the most recent send call. */
   private lastSendAttachments: AttachmentBytes[] | null = null;
+  /** Stream A2 — records all formatAttachmentForRequest calls for test assertions. */
+  public attachmentCallLog: Array<{ att: ChatAttachment; bytes: Uint8Array; block: ProviderContentBlock }> = [];
 
   constructor(
     private readonly model: string = 'mock-model',
@@ -247,23 +251,48 @@ export class MockProvider implements Provider {
   }
 
   /**
-   * Stream A1 — Records the call and returns a minimal Claude-shaped block
-   * so the call-site can JSON-serialize it.
+   * Stream A2 — Records the call.
+   * - PDF: calls extractPdfText and returns a TextExtractBlock.
+   * - Images (and everything else): returns a minimal Claude-shaped block.
    */
-  formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock {
+  async formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): Promise<ProviderContentBlock> {
     this.lastFormattedAttachment = { att, bytesLength: bytes.length };
-    // Return a minimal valid structure to satisfy type checks.
-    return {
-      type: 'image',
-      source: { type: 'base64', media_type: att.mimeType, data: 'MOCK_BASE64' },
-    } as ClaudeImageBlock;
+
+    let block: ProviderContentBlock;
+
+    if (att.type === 'pdf') {
+      const result = await extractPdfText(bytes);
+      const text = result.pages.join('\n\n');
+      block = {
+        _text_extract: {
+          text,
+          pageCount: result.pageCount,
+          fileName: att.fileName ?? 'document.pdf',
+        },
+      } as TextExtractBlock;
+    } else {
+      block = {
+        type: 'image',
+        source: { type: 'base64', media_type: att.mimeType, data: 'MOCK_BASE64' },
+      } as ClaudeImageBlock;
+    }
+
+    this.attachmentCallLog.push({ att, bytes, block });
+    return block;
   }
 
   /**
-   * Stream A1 — Mock always supports everything for test convenience.
+   * Stream A2 — Mock always supports everything for test convenience.
    */
   supportsAttachment(_att: ChatAttachment, _model: string): true | string {
     return true;
+  }
+
+  /**
+   * Stream A2 — Mock always uses text-extract for deterministic testing.
+   */
+  supportsNativePdf(_model: string): boolean {
+    return false;
   }
 }
 

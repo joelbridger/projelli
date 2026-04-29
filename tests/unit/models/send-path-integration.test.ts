@@ -102,7 +102,7 @@ describe('Full attachment send-path integration', () => {
     expect(chunks.length).toBeGreaterThan(0);
   });
 
-  it('formatAttachmentForRequest on read bytes produces valid Claude block', () => {
+  it('formatAttachmentForRequest on read bytes produces valid Claude block', async () => {
     // Simulate the AIChatViewer calling provider.formatAttachmentForRequest
     // with bytes that came from AttachmentService.read().
     const provider = new MockProvider();
@@ -117,7 +117,7 @@ describe('Full attachment send-path integration', () => {
       metadata: {},
     };
 
-    const block = provider.formatAttachmentForRequest(att, PNG_BYTES) as any;
+    const block = await provider.formatAttachmentForRequest(att, PNG_BYTES) as any;
     expect(block.type).toBe('image');
     expect(block.source?.type).toBe('base64');
     expect(block.source?.data).toBe('MOCK_BASE64');
