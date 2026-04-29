@@ -39,6 +39,37 @@ export interface OllamaImagesPayload {
 }
 
 /**
+ * Stream A2 - Claude native PDF block shape.
+ * Sent to the Anthropic Messages API as a content block with type 'document'.
+ */
+export interface ClaudeDocumentBlock {
+  type: 'document';
+  source: {
+    type: 'base64';
+    media_type: 'application/pdf';
+    data: string; // base64-encoded PDF bytes
+  };
+}
+
+/**
+ * Stream A2 - Text extraction result block.
+ * Used by OpenAI, Gemini, Ollama, and Mock providers when processing PDFs.
+ * The provider embeds this text into the user message content rather than
+ * as a binary attachment.
+ *
+ * The `_text_extract` prefix is a convention parallel to `_ollama_images`
+ * from Plan A1: it signals to the message-construction code that this block
+ * contributes injected text rather than a binary content block.
+ */
+export interface TextExtractBlock {
+  _text_extract: {
+    text: string;      // Full extracted text from all pages joined by double newline.
+    pageCount: number;
+    fileName: string;
+  };
+}
+
+/**
  * Stream A1 — opaque content block returned by formatAttachmentForRequest.
  * Each provider defines its own shape; the union covers all known cases
  * so the call-site can pass it to the provider API without casting.
@@ -47,7 +78,9 @@ export type ProviderContentBlock =
   | ClaudeImageBlock
   | OpenAIImageBlock
   | GeminiInlineDataBlock
-  | OllamaImagesPayload;
+  | OllamaImagesPayload
+  | ClaudeDocumentBlock   // Stream A2: Claude native PDF
+  | TextExtractBlock;     // Stream A2: all other providers, text-extract path
 
 /**
  * Stream A1 — pre-read attachment bytes passed alongside a send call.
@@ -225,9 +258,15 @@ export interface Provider {
   /**
    * Format a ChatAttachment + its raw bytes into the provider-specific
    * content-block shape expected by the provider's API.
-   * Stream A will provide real implementations per provider.
+   *
+   * Stream A2: PDF text-extract providers return Promise<ProviderContentBlock>
+   * because extractPdfText is async. Claude's native PDF path and all image
+   * paths remain synchronous but are allowed to return a promise too.
    */
-  formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock;
+  formatAttachmentForRequest(
+    att: ChatAttachment,
+    bytes: Uint8Array
+  ): ProviderContentBlock | Promise<ProviderContentBlock>;
 
   /**
    * Return true if the attachment is supported by the given model,
@@ -237,6 +276,16 @@ export interface Provider {
    * each provider is updated in Stream A1.
    */
   supportsAttachment(att: ChatAttachment, model: string): boolean | string;
+
+  /**
+   * Stream A2 - Returns true when this provider instance supports the
+   * Anthropic native PDF document block for the given model.
+   *
+   * For non-Claude providers this always returns false; they use text-extract.
+   * Declared as optional so existing provider implementations that have not
+   * yet been updated do not fail the type check.
+   */
+  supportsNativePdf?(model: string): boolean;
 }
 
 /**

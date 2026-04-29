@@ -109,7 +109,7 @@ export async function extractPdfText(bytes: Uint8Array): Promise<PdfExtractionRe
     const page = await pdf.getPage(i);
     const content = await page.getTextContent();
     const pageText = content.items
-      .map((item: { str?: string }) => item.str ?? '')
+      .map((item) => ('str' in item ? item.str : ''))
       .join(' ')
       .replace(/\s+/g, ' ')
       .trim();
