@@ -28,6 +28,8 @@ import { useAIChatStore, getDraftInput, useAskWorkspaceMode } from '@/stores/aiC
 import { useFileContextStore } from '@/stores/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
 import { ChatCostChip } from '@/components/ai/ChatCostChip';
+import { ContextMeterBar } from '@/components/chat/ContextMeterBar';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { useTrialGate } from '@/hooks/useTrial';
 import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
 import {
@@ -565,6 +567,15 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   // Stream A2 — PDF extraction results keyed by attachment id, for preview panel.
   const [pdfExtractions, setPdfExtractions] = useState<Record<string, PdfExtractionResult>>({});
+
+  // Stream A4 — Compression modal state. Consumed by CompressionConfirmModal in Task 6.
+  const [compressionModalOpen, setCompressionModalOpen] = useState(false);
+  // Pre-stub: will be replaced with CompressionConfirmModal render in Task 6.
+  void compressionModalOpen;
+
+  // Stream A4 — read chatContextTokenLimit setting.
+  const { getSetting } = useSettingsStore();
+  const chatContextTokenLimit = (getSetting('chatContextTokenLimit') as number | undefined) ?? 200_000;
 
   // Initialize session on mount if it doesn't exist
   useEffect(() => {
@@ -1931,6 +1942,50 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         <div className="flex justify-end mb-2">
           <ChatCostChip chatId={chatId} />
         </div>
+        {/* Stream A4 — context meter bar: utilization, cost preview, 80% warning, Compress */}
+        {(() => {
+          // Simple 4-chars-per-token heuristic for meter display.
+          const historyChars = messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0);
+          const usedTokens = Math.round((historyChars + inputValue.length) / 4);
+          const metadata = chatData.provider ? undefined : undefined; // cost lookup deferred
+          void metadata;
+          const costPerInputToken = (() => {
+            try {
+              if (!chatData.provider || !chatData.model) return null;
+              if (chatData.provider === 'anthropic') {
+                const p = new ClaudeProvider({ apiKey: '', model: chatData.model });
+                return p.getMetadata().costPerInputToken ?? null;
+              }
+              if (chatData.provider === 'openai') {
+                const p = new OpenAIProvider({ apiKey: '', model: chatData.model });
+                return p.getMetadata().costPerInputToken ?? null;
+              }
+              if (chatData.provider === 'google') {
+                const p = new GeminiProvider({ apiKey: '', model: chatData.model });
+                return p.getMetadata().costPerInputToken ?? null;
+              }
+            } catch {
+              // ignore metadata errors for cost preview
+            }
+            return null;
+          })();
+          const projectedCost = costPerInputToken != null
+            ? costPerInputToken * usedTokens
+            : null;
+          const modelLabel = chatData.model
+            ? chatData.model.split('-').slice(0, 2).join('-')
+            : 'AI';
+          return (
+            <ContextMeterBar
+              usedTokens={usedTokens}
+              limitTokens={chatContextTokenLimit}
+              projectedCost={projectedCost}
+              modelLabel={modelLabel}
+              onCompressClick={() => setCompressionModalOpen(true)}
+              className="mb-2"
+            />
+          );
+        })()}
         {/* Stream A2 — attachment error strip (covers both image and PDF errors) */}
         {attachmentError && (
           <div className="mb-2 px-3 py-2 rounded border border-red-400/50 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-200 text-xs">
