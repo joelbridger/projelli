@@ -42,6 +42,9 @@ use tokio::sync::Mutex;
 ///   - `score`: cosine similarity in `[0.0, 1.0]` — higher is better
 ///   - `paragraph_index`: zero-based index of the chunk within its file
 ///     (so the UI can deep-link and anchor to it)
+/// A3 additions:
+///   - `source_type`: `"text"` | `"pdf"` — absent on pre-A3 rows (null)
+///   - `page_number`: 1-based page number for PDF chunks; absent on text/pre-A3 rows
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Hit {
@@ -49,6 +52,11 @@ pub struct Hit {
     pub chunk_text: String,
     pub score: f32,
     pub paragraph_index: u32,
+    // A3: Optional so pre-A3 rows serialize cleanly (null in JS).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_number: Option<u32>,
 }
 
 /// Payload emitted on `rag-indexing-progress` Tauri events. The frontend
@@ -297,6 +305,8 @@ pub async fn rag_retrieve(
             chunk_text: h.text,
             score: embedder::cosine_distance_to_score(h.distance),
             paragraph_index: h.paragraph_index,
+            source_type: h.source_type,
+            page_number: h.page_number,
         })
         .collect();
     // LanceDB returns by ascending distance, which corresponds to
@@ -345,6 +355,35 @@ pub async fn rag_delete_path(
     Ok(())
 }
 
+/// Index pre-extracted PDF page text into the RAG store.
+///
+/// Called by the JS side after running `extractPdfText` in the renderer.
+/// `pages` is one string per page. Empty strings are skipped. `page_count`
+/// is the PDF's total page count (metadata only, not used for chunking).
+///
+/// Returns the number of chunks stored (0 if all pages were empty or skipped).
+/// Idempotent — re-indexing drops stale rows first.
+#[tauri::command]
+pub async fn rag_index_pdf_chunks(
+    state: State<'_, RagState>,
+    path: String,
+    pages: Vec<String>,
+    page_count: u32,
+) -> Result<u32, String> {
+    let workspace = require_workspace(&state).await?;
+    let conn = store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let table = store::open_or_create_table(&conn)
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+
+    let count = pdf_indexer::index_pdf_chunks(&table, &path, &pages, page_count)
+        .await
+        .map_err(|e| format!("index_pdf_chunks: {e}"))?;
+    Ok(count as u32)
+}
+
 /// Convenience: register the RAG state with a Tauri builder. Called from
 /// `lib.rs::run`'s setup hook.
 pub fn manage_state<R: tauri::Runtime>(app: &tauri::App<R>) {
@@ -362,6 +401,8 @@ mod tests {
             chunk_text: "para".into(),
             score: 0.87,
             paragraph_index: 3,
+            source_type: None,
+            page_number: None,
         };
         let s = serde_json::to_string(&hit).expect("serialize");
         // Frontend types will read `paragraphIndex`, not `paragraph_index`.
@@ -378,10 +419,42 @@ mod tests {
             chunk_text: "b".into(),
             score: 0.5,
             paragraph_index: 1,
+            source_type: None,
+            page_number: None,
         };
         let s = serde_json::to_string(&hit).unwrap();
         let back: Hit = serde_json::from_str(&s).unwrap();
         assert_eq!(hit, back);
+    }
+
+    #[test]
+    fn hit_with_source_type_includes_fields_in_json() {
+        let hit = Hit {
+            path: "/w/doc.pdf".into(),
+            chunk_text: "page text".into(),
+            score: 0.9,
+            paragraph_index: 0,
+            source_type: Some("pdf".into()),
+            page_number: Some(1),
+        };
+        let s = serde_json::to_string(&hit).expect("serialize");
+        assert!(s.contains("\"sourceType\":\"pdf\""), "got {}", s);
+        assert!(s.contains("\"pageNumber\":1"), "got {}", s);
+    }
+
+    #[test]
+    fn hit_without_source_type_omits_fields() {
+        let hit = Hit {
+            path: "/w/doc.md".into(),
+            chunk_text: "para".into(),
+            score: 0.87,
+            paragraph_index: 3,
+            source_type: None,
+            page_number: None,
+        };
+        let s = serde_json::to_string(&hit).expect("serialize");
+        assert!(!s.contains("sourceType"), "got {}", s);
+        assert!(!s.contains("pageNumber"), "got {}", s);
     }
 
     #[test]
