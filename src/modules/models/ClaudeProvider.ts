@@ -18,6 +18,7 @@ import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { supportsNativePdf as pdfNativeCheck } from './pdf-capability';
+import { getMaxContextTokens } from './context-limits';
 
 // Claude model pricing (per 1K tokens)
 const CLAUDE_PRICING: Record<string, { input: number; output: number }> = {
@@ -525,7 +526,7 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
         streaming: true,
         functionCalling: true,
         vision: true,
-        maxContextTokens: 200000,
+        maxContextTokens: getMaxContextTokens('anthropic', this.model),
       },
     };
   }

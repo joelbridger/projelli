@@ -32,6 +32,7 @@ import type { ChatAttachment } from '@/types/ai';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
+import { getMaxContextTokens } from './context-limits';
 
 /** Default Ollama base URL. Overridable via constructor or env. */
 export const OLLAMA_DEFAULT_BASE_URL = 'http://127.0.0.1:11434';
@@ -421,7 +422,7 @@ IMPORTANT: Respond ONLY with the JSON object.`;
         vision: false,
         // Context length depends on the model. Most Ollama defaults cap
         // around 8k; individual models (llama3.1, qwen2.5) go much higher.
-        maxContextTokens: 8192,
+        maxContextTokens: getMaxContextTokens('ollama', this.model),
       },
     };
   }

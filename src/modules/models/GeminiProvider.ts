@@ -18,6 +18,7 @@ import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
+import { getMaxContextTokens } from './context-limits';
 
 // Gemini model pricing (per 1K tokens) - as of 2024
 const GEMINI_PRICING: Record<string, { input: number; output: number }> = {
@@ -492,6 +493,12 @@ export class GeminiProvider implements Provider {
       costPerInputToken: pricing.input,
       costPerOutputToken: pricing.output,
       latencyEstimate: LATENCY_ESTIMATES[this.model] ?? 5000,
+      capabilities: {
+        streaming: true,
+        functionCalling: false,
+        vision: isVisionModel('gemini', this.model),
+        maxContextTokens: getMaxContextTokens('gemini', this.model),
+      },
     };
   }
 

@@ -18,6 +18,7 @@ import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
+import { getMaxContextTokens } from './context-limits';
 
 // OpenAI model pricing (per 1K tokens)
 const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
@@ -532,16 +533,6 @@ Respond ONLY with the JSON object.`;
     };
     const latency = LATENCY_ESTIMATES[this.model] ?? 10000;
 
-    // Determine max context based on model
-    let maxContextTokens = 8192;
-    if (this.model.includes('32k')) {
-      maxContextTokens = 32768;
-    } else if (this.model.includes('turbo') || this.model.includes('4o')) {
-      maxContextTokens = 128000;
-    } else if (this.model === 'gpt-4') {
-      maxContextTokens = 8192;
-    }
-
     return {
       name: 'OpenAI GPT',
       model: this.model,
@@ -552,7 +543,7 @@ Respond ONLY with the JSON object.`;
         streaming: true,
         functionCalling: true,
         vision: this.model.includes('4o') || this.model.includes('turbo'),
-        maxContextTokens,
+        maxContextTokens: getMaxContextTokens('openai', this.model),
       },
     };
   }
