@@ -68,12 +68,18 @@ export interface ChatMessage {
  * `RagHit` from `@/utils/tauri-commands` but redeclared here to keep
  * `@/types/ai` free of Tauri imports (these messages are serialized to
  * `.aichat` files and may be round-tripped in browser mode).
+ *
+ * A3: adds optional sourceType and pageNumber for PDF chunks.
  */
 export interface WorkspaceSource {
   path: string;
   chunkText: string;
   score: number;
   paragraphIndex: number;
+  /** A3: 'text' | 'pdf'. Absent on pre-A3 rows. */
+  sourceType?: 'text' | 'pdf';
+  /** A3: 1-based page number for PDF chunks. Absent on pre-A3 rows. */
+  pageNumber?: number;
 }
 
 /**

@@ -207,7 +207,12 @@ function renderMessageWithWorkspaceChip(content: string): React.ReactNode {
 function renderMessageWithCitations(
   content: string,
   sources: WorkspaceSource[] | undefined,
-  onCitationClick: (path: string, paragraphIndex: number) => void,
+  onCitationClick: (
+    path: string,
+    paragraphIndex: number,
+    sourceType?: string,
+    pageNumber?: number,
+  ) => void,
   onMissingCitation: (basename: string) => void,
 ): React.ReactNode {
   const citations = parseCitations(content);
@@ -243,7 +248,16 @@ function renderMessageWithCitations(
         className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded border border-primary/30 bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 align-baseline"
         onClick={() => {
           if (resolved) {
-            onCitationClick(resolved, cite.paragraphIndex);
+            // A3: look up sourceType + pageNumber from the matched source.
+            const matchedSource = (sources ?? []).find(
+              (s) => s.path === resolved,
+            );
+            onCitationClick(
+              resolved,
+              cite.paragraphIndex,
+              matchedSource?.sourceType,
+              matchedSource?.pageNumber,
+            );
           } else {
             onMissingCitation(cite.basename);
           }
@@ -281,7 +295,7 @@ function ChatSourcesAccordion({
   onMissing,
 }: {
   sources: WorkspaceSource[];
-  onOpen: (path: string, paragraphIndex: number) => void;
+  onOpen: (path: string, paragraphIndex: number, sourceType?: string, pageNumber?: number) => void;
   onMissing: (path: string) => void;
 }): React.ReactElement | null {
   const [open, setOpen] = useState(false);
@@ -318,7 +332,7 @@ function ChatSourcesAccordion({
                   className="text-xs text-muted-foreground hover:text-foreground underline truncate max-w-full text-left"
                   title={s.path}
                   onClick={() => {
-                    if (s.path) onOpen(s.path, s.paragraphIndex);
+                    if (s.path) onOpen(s.path, s.paragraphIndex, s.sourceType, s.pageNumber);
                     else onMissing(base);
                   }}
                 >
@@ -794,6 +808,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             chunkText: h.chunkText,
             score: h.score,
             paragraphIndex: h.paragraphIndex,
+            // A3: include sourceType + pageNumber so citation clicks can open
+            // PDF viewer at the correct page.
+            ...(h.sourceType !== undefined ? { sourceType: h.sourceType } : {}),
+            ...(h.pageNumber !== undefined ? { pageNumber: h.pageNumber } : {}),
           }));
         } catch (err) {
           console.error('Workspace retrieval failed:', err);
@@ -1114,6 +1132,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             chunkText: s.chunkText,
             score: s.score,
             paragraphIndex: s.paragraphIndex,
+            ...(s.sourceType !== undefined ? { sourceType: s.sourceType } : {}),
+            ...(s.pageNumber !== undefined ? { pageNumber: s.pageNumber } : {}),
           })),
         );
         const workspacePrefix = workspaceBlock ? `${workspaceBlock}\n\n` : '';
@@ -1572,10 +1592,24 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // chips and the Sources accordion. Calls the caller-provided
   // `onOpenFileAtPath` (wired up in App.tsx / MainPanel). If the
   // callback is missing (e.g. in a unit-test mount), no-op.
+  //
+  // A3: for PDF hits, `pageNumber` is passed and used instead of
+  // `paragraphIndex` so the PDF viewer opens at the right page.
   const handleCitationClick = useCallback(
-    (path: string, paragraphIndex: number) => {
+    (
+      path: string,
+      paragraphIndex: number,
+      sourceType?: string,
+      pageNumber?: number,
+    ) => {
       setMissingSourceWarning(null);
-      if (onOpenFileAtPath) {
+      if (!onOpenFileAtPath) return;
+      if (sourceType === 'pdf' && pageNumber != null) {
+        // Open PDF viewer at the specific page using pageNumber as the
+        // navigation hint. The PDF viewer interprets the second argument
+        // as a page number when the file extension is .pdf.
+        void onOpenFileAtPath(path, pageNumber);
+      } else {
         void onOpenFileAtPath(path, paragraphIndex);
       }
     },
