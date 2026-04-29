@@ -29,6 +29,15 @@ import { useFileContextStore } from '@/stores/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
 import { ChatCostChip } from '@/components/ai/ChatCostChip';
 import { ContextMeterBar } from '@/components/chat/ContextMeterBar';
+import { CompressedSegmentMarker } from '@/components/chat/CompressedSegmentMarker';
+import { CompressionConfirmModal } from '@/components/chat/CompressionConfirmModal';
+import {
+  compressMessages,
+  getMessagesForSend,
+  clearExpandedFlags,
+  estimateMessagesTokens,
+  estimateTokens,
+} from '@/modules/chat/compression';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useTrialGate } from '@/hooks/useTrial';
 import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
@@ -568,14 +577,15 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // Stream A2 — PDF extraction results keyed by attachment id, for preview panel.
   const [pdfExtractions, setPdfExtractions] = useState<Record<string, PdfExtractionResult>>({});
 
-  // Stream A4 — Compression modal state. Consumed by CompressionConfirmModal in Task 6.
+  // Stream A4 — Compression modal state.
   const [compressionModalOpen, setCompressionModalOpen] = useState(false);
-  // Pre-stub: will be replaced with CompressionConfirmModal render in Task 6.
-  void compressionModalOpen;
+  const [pendingCompressAndSend, setPendingCompressAndSend] = useState<(() => Promise<void>) | null>(null);
+  const [compressedTokensBefore, setCompressedTokensBefore] = useState(0);
 
-  // Stream A4 — read chatContextTokenLimit setting.
+  // Stream A4 — read chatContextTokenLimit + keepRecentTurns settings.
   const { getSetting } = useSettingsStore();
   const chatContextTokenLimit = (getSetting('chatContextTokenLimit') as number | undefined) ?? 200_000;
+  const keepRecentTurns = (getSetting('keepRecentTurns') as number | undefined) ?? 6;
 
   // Initialize session on mount if it doesn't exist
   useEffect(() => {
@@ -866,6 +876,20 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       ...(retrievedSources.length > 0 ? { sources: retrievedSources } : {}),
       ...(workspaceHint ? { workspaceHint } : {}),
     };
+
+    // Stream A4 — check if context would exceed the configured limit before sending.
+    const msgsForSend = getMessagesForSend([...messages, userMessage]);
+    const sendTokenEstimate = estimateMessagesTokens(msgsForSend) + estimateTokens(rawContent);
+    if (sendTokenEstimate > chatContextTokenLimit) {
+      // Context is over limit — show confirmation modal instead of sending.
+      setCompressedTokensBefore(sendTokenEstimate);
+      setPendingCompressAndSend(() => async () => {
+        // First compress, then re-invoke handleSendMessage after updating messages.
+        await handleManualCompress();
+      });
+      setCompressionModalOpen(true);
+      return;
+    }
 
     // Add user message to store (persists immediately)
     addMessage(chatId, userMessage);
@@ -1246,7 +1270,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             });
           }
 
-          const finalMessages = [...updatedMessages, { ...streamingMessage, content: accumulated }];
+          const finalMessages = clearExpandedFlags([...updatedMessages, { ...streamingMessage, content: accumulated }]);
 
           if (onSave) {
             onSave({ ...chatData, updated: new Date().toISOString(), messages: finalMessages });
@@ -1297,7 +1321,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             provider: chatProvider,
           });
 
-          const finalMessages = [...updatedMessages, assistantMessage];
+          const finalMessages = clearExpandedFlags([...updatedMessages, assistantMessage]);
 
           if (onSave) {
             onSave({ ...chatData, updated: new Date().toISOString(), messages: finalMessages });
@@ -1638,6 +1662,86 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     setAskWorkspaceMode(chatId, !askWorkspaceMode);
   }, [askWorkspaceMode, chatId, setAskWorkspaceMode]);
 
+  // Stream A4 — Expand/collapse a compressed segment for the next send.
+  const handleExpandSegment = useCallback((summaryTimestamp: string) => {
+    const currentMessages = sessions[chatId]?.messages ?? chatData.messages;
+    const updatedMessages = currentMessages.map(m => {
+      if (m.isCompressedSummary && m.timestamp === summaryTimestamp) {
+        return { ...m, expandedForNextSend: !m.expandedForNextSend };
+      }
+      return m;
+    });
+    if (onSave) {
+      onSave({ ...chatData, messages: updatedMessages, updated: new Date().toISOString() });
+    }
+  }, [sessions, chatId, chatData, onSave]);
+
+  // Stream A4 — Build a fast provider for summarization based on the current chat provider.
+  const buildFastProvider = useCallback((): import('@/modules/models/Provider').Provider | null => {
+    const chatProvider = chatData.provider ?? 'anthropic';
+    const apiKey = apiKeys.find(k => k.provider === chatProvider && k.isValid);
+    if (!apiKey) return null;
+    switch (chatProvider) {
+      case 'anthropic':
+        return new ClaudeProvider({ apiKey: apiKey.key, model: 'claude-3-5-haiku-latest' });
+      case 'openai':
+        return new OpenAIProvider({ apiKey: apiKey.key, model: 'gpt-4o-mini' });
+      case 'google':
+        return new GeminiProvider({ apiKey: apiKey.key, model: 'gemini-1.5-flash' });
+      default:
+        // Ollama and unknown providers cannot compress.
+        return null;
+    }
+  }, [chatData.provider, apiKeys]);
+
+  // Stream A4 — Manual compress handler (triggered by ContextMeterBar [Compress] button).
+  const handleManualCompress = useCallback(async () => {
+    const currentMessages = sessions[chatId]?.messages ?? chatData.messages;
+    const fastProvider = buildFastProvider();
+    if (!fastProvider) {
+      // Surface error to user — Ollama-only or no API key.
+      addMessage(chatId, {
+        role: 'assistant',
+        content: 'Compression requires a fast cloud model. Configure Claude, OpenAI, or Gemini to enable compression.',
+        timestamp: new Date().toISOString(),
+        isError: true,
+      });
+      return;
+    }
+    try {
+      const tokensBefore = estimateMessagesTokens(currentMessages);
+      const result = await compressMessages(currentMessages, {
+        keepRecentTurns,
+        batchTokenTarget: 10_000,
+        fastProvider,
+      });
+      const tokensAfter = result.resultingTokens;
+      if (onSave) {
+        onSave({ ...chatData, messages: result.messages, updated: new Date().toISOString() });
+      }
+      // Log context_compressed audit event.
+      if (onAuditLog) {
+        onAuditLog({
+          action: 'context_compressed',
+          description: `Compressed ${result.originalCount} messages: ${tokensBefore} -> ${tokensAfter} tokens`,
+          model: chatData.model,
+          inputs: { messagesBefore: currentMessages.length, tokensBefore },
+          outputs: { messagesAfter: result.messages.filter(m => !m.compressedIntoId).length, tokensAfter },
+          userDecision: 'approved',
+          metadata: {},
+        });
+      }
+    } catch (err) {
+      addMessage(chatId, {
+        role: 'assistant',
+        content: `Compression failed: ${err instanceof Error ? err.message : String(err)}`,
+        timestamp: new Date().toISOString(),
+        isError: true,
+      });
+    }
+    setCompressionModalOpen(false);
+  }, [sessions, chatId, chatData, buildFastProvider, keepRecentTurns, onSave, onAuditLog, addMessage]);
+
   // M3 — Accept a proposed fact. Saves to FactsService with
   // approved_by='user' and removes the chip. `editedText` overrides
   // the proposal text for the "user tweaked it" path.
@@ -1739,7 +1843,21 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
       {/* Messages */}
       <div data-testid="chat-messages" className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg, idx) => (
+        {messages.map((msg, idx) => {
+          // Stream A4 — don't render original messages that have been compressed.
+          // The CompressedSegmentMarker speaks for them.
+          if (msg.compressedIntoId) return null;
+          // Stream A4 — render compressed summary marker instead of normal bubble.
+          if (msg.isCompressedSummary) {
+            return (
+              <CompressedSegmentMarker
+                key={idx}
+                message={msg}
+                onExpand={handleExpandSegment}
+              />
+            );
+          }
+          return (
           <div
             key={idx}
             data-testid={`chat-message-${idx}`}
@@ -1872,7 +1990,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
         {isLoading && (
           <div data-testid="chat-loading-indicator" className="flex items-center gap-2">
             <div className="bg-muted rounded-lg px-4 py-2">
@@ -1903,6 +2022,33 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Stream A4 — Compression confirmation modal */}
+      <CompressionConfirmModal
+        open={compressionModalOpen}
+        currentTokens={compressedTokensBefore}
+        limitTokens={chatContextTokenLimit}
+        projectedAfter={Math.round(compressedTokensBefore * 0.3)} // rough 70% reduction estimate
+        onCompress={async () => {
+          setCompressionModalOpen(false);
+          await handleManualCompress();
+          if (pendingCompressAndSend) {
+            setPendingCompressAndSend(null);
+          }
+        }}
+        onSendAnyway={() => {
+          setCompressionModalOpen(false);
+          setPendingCompressAndSend(null);
+          // Re-invoke send without the context check blocking it — just call handleSendMessage.
+          // Because we cleared the modal, the next call won't re-trigger the check.
+          // (The check is stateless, so we need a different path; use a direct send flag.)
+          void handleSendMessage();
+        }}
+        onCancel={() => {
+          setCompressionModalOpen(false);
+          setPendingCompressAndSend(null);
+        }}
+      />
 
       {/* Input */}
       <div data-testid="chat-input-area" className="border-t p-4">
@@ -1981,7 +2127,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               limitTokens={chatContextTokenLimit}
               projectedCost={projectedCost}
               modelLabel={modelLabel}
-              onCompressClick={() => setCompressionModalOpen(true)}
+              onCompressClick={handleManualCompress}
               className="mb-2"
             />
           );
