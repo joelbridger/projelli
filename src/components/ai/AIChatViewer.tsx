@@ -3,6 +3,10 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, FileText, ChevronDown, ChevronRight, Check, X, Pencil, Brain } from 'lucide-react';
+import { ChatInputToolbar } from '@/components/chat/ChatInputToolbar';
+import { AttachmentService } from '@/modules/attachments/AttachmentService';
+import { SUPPORTED_IMAGE_MIMES, MAX_ATTACHMENT_BYTES, isVisionModel } from '@/modules/models/vision-capability';
+import type { ChatAttachment } from '@/types/ai';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
@@ -534,6 +538,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const recognitionRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Stream A1 — Pending attachments state.
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
+  // Stream A1 — Inline error messages (oversized file, etc.)
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+
   // Initialize session on mount if it doesn't exist
   useEffect(() => {
     if (!session) {
@@ -702,6 +712,27 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     extractionStateRef.current = makeInitialState();
   }, [chatId]);
 
+  // Stream A1 — Revoke preview URLs when component unmounts.
+  useEffect(() => {
+    return () => {
+      for (const url of Object.values(previewUrls)) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stream A1 — Vision warning: computed when there is at least one image
+  // attachment pending and the current model is not vision-capable.
+  const visionWarning = useMemo<string | null>(() => {
+    const hasImageAtt = pendingAttachments.some((a) => a.type === 'image');
+    if (!hasImageAtt) return null;
+    const chatProvider = chatData.provider ?? 'anthropic';
+    const chatModel = chatData.model ?? '';
+    if (!chatModel) return null;
+    if (isVisionModel(chatProvider, chatModel)) return null;
+    return `${chatModel} does not support images. Switch to a vision-capable model.`;
+  }, [pendingAttachments, chatData.provider, chatData.model]);
+
   // Save draft input to store (debounced) - persists across navigation
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -716,7 +747,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   }, [inputValue, chatId, setDraftInput, clearDraftInput]);
 
   const handleSendMessage = useCallback(async () => {
-    if (!inputValue.trim() || isLoading) return;
+    if ((!inputValue.trim() && pendingAttachments.length === 0) || isLoading) return;
 
     const rawContent = inputValue.trim();
     const parsed = parseWorkspaceCommand(rawContent);
@@ -764,10 +795,36 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       }
     }
 
+    // Stream A1 — capture and clear pending attachments before async work.
+    const messageAttachments = pendingAttachments.length > 0
+      ? [...pendingAttachments]
+      : undefined;
+
+    // Emit attachment_sent_to_provider audit events.
+    for (const att of pendingAttachments) {
+      onAuditLog?.({
+        action: 'user_action',
+        description: `Attachment sent to provider: ${att.fileName}`,
+        model: chatData.model ?? chatData.provider ?? 'unknown',
+        inputs: { hash: att.id, path: att.pathInWorkspace, provider: chatData.provider ?? 'anthropic' },
+        outputs: {},
+        userDecision: 'auto',
+        metadata: { auditEventType: 'attachment_sent_to_provider' },
+      });
+    }
+
+    // Clear pending attachments and revoke preview URLs.
+    setPendingAttachments([]);
+    for (const url of Object.values(previewUrls)) {
+      URL.revokeObjectURL(url);
+    }
+    setPreviewUrls({});
+
     const userMessage: ChatMessage = {
       role: 'user',
       content: rawContent,
       timestamp: new Date().toISOString(),
+      ...(messageAttachments ? { attachments: messageAttachments } : {}),
       ...(retrievedSources.length > 0 ? { sources: retrievedSources } : {}),
       ...(workspaceHint ? { workspaceHint } : {}),
     };
@@ -794,6 +851,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           const providerNames: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' };
           throw new Error(`No valid ${providerNames[chatProvider] ?? chatProvider} API key found. Please add your API key in the settings.`);
         }
+
+        // Stream A1 — image token overhead added in Task 10 (imageTokens.ts).
+        // Placeholder: will be replaced with estimateImageTokens when the module exists.
+        const imageTokenOverhead = 0;
 
         // Build a provider-agnostic tool executor up front. Any provider
         // that supports tool calling (Claude, OpenAI, Gemini) registers
@@ -1082,7 +1143,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           if (streamingResponse) {
             recordCost(chatId, {
               cost: streamingResponse.cost,
-              inputTokens: streamingResponse.usage.inputTokens,
+              inputTokens: streamingResponse.usage.inputTokens + imageTokenOverhead,
               outputTokens: streamingResponse.usage.outputTokens,
               provider: chatProvider,
             });
@@ -1138,7 +1199,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           // Q3 — record cost for the chip + Q4 audit entry.
           recordCost(chatId, {
             cost: response.cost,
-            inputTokens: response.usage.inputTokens,
+            inputTokens: response.usage.inputTokens + imageTokenOverhead,
             outputTokens: response.usage.outputTokens,
             provider: chatProvider,
           });
@@ -1224,7 +1285,75 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         setLoading(chatId, false);
       }
     })();
-  }, [inputValue, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, recordCost, clearDraftInput, askWorkspaceMode]);
+  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, recordCost, clearDraftInput, askWorkspaceMode]);
+
+  // Stream A1 — File selection handler (paperclip, paste, drag-drop).
+  const handleFilesSelected = useCallback(async (files: File[]) => {
+    for (const file of files) {
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setAttachmentError(`${file.name} exceeds the 20 MB limit.`);
+        setTimeout(() => setAttachmentError(null), 4000);
+        continue;
+      }
+      if (!SUPPORTED_IMAGE_MIMES.includes(file.type)) {
+        setAttachmentError(`${file.name} is not a supported image type.`);
+        setTimeout(() => setAttachmentError(null), 4000);
+        continue;
+      }
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const attService = new AttachmentService(workspaceServiceRef?.current);
+        const att = await attService.save(bytes, file.name, file.type);
+        const previewUrl = URL.createObjectURL(file);
+        setPendingAttachments((prev) => [...prev, att]);
+        setPreviewUrls((prev) => ({ ...prev, [att.id]: previewUrl }));
+        onAuditLog?.({
+          action: 'user_action',
+          description: `Attachment added: ${file.name}`,
+          model: chatData.model ?? chatData.provider ?? 'unknown',
+          inputs: { path: att.pathInWorkspace, hash: att.id, type: att.type, byteSize: att.byteSize },
+          outputs: {},
+          userDecision: 'auto',
+          metadata: { auditEventType: 'attachment_added' },
+        });
+      } catch (err) {
+        console.error('Failed to save attachment:', err);
+        setAttachmentError(`${file.name} could not be saved.`);
+        setTimeout(() => setAttachmentError(null), 4000);
+      }
+    }
+  }, [workspaceServiceRef, onAuditLog, chatData.model, chatData.provider]);
+
+  // Stream A1 — Remove a pending attachment.
+  const handleRemoveAttachment = useCallback((id: string) => {
+    setPendingAttachments((prev) => {
+      const removed = prev.find((a) => a.id === id);
+      if (removed) {
+        onAuditLog?.({
+          action: 'user_action',
+          description: `Attachment removed: ${removed.fileName}`,
+          model: chatData.model ?? chatData.provider ?? 'unknown',
+          inputs: { hash: removed.id, type: removed.type },
+          outputs: {},
+          userDecision: 'auto',
+          metadata: { auditEventType: 'attachment_removed' },
+        });
+      }
+      return prev.filter((a) => a.id !== id);
+    });
+    setPreviewUrls((prev) => {
+      if (prev[id]) URL.revokeObjectURL(prev[id]);
+      const { [id]: _removed, ...rest } = prev;
+      return rest;
+    });
+  }, [onAuditLog, chatData.model, chatData.provider]);
+
+  // Stream A1 — Switch model (e.g. from vision warning banner).
+  const handleSwitchModel = useCallback((model: string) => {
+    if (onSave) {
+      onSave({ ...chatData, model, updated: new Date().toISOString() });
+    }
+  }, [onSave, chatData]);
 
   const handleStop = useCallback(() => {
     if (abortControllerRef.current) {
@@ -1643,6 +1772,25 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         <div className="flex justify-end mb-2">
           <ChatCostChip chatId={chatId} />
         </div>
+        {/* Stream A1 — attachment error strip */}
+        {attachmentError && (
+          <div className="mb-2 px-3 py-2 rounded border border-red-400/50 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-200 text-xs">
+            {attachmentError}
+          </div>
+        )}
+        {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
+        <ChatInputToolbar
+          provider={chatData.provider ?? 'anthropic'}
+          model={chatData.model ?? ''}
+          pendingAttachments={pendingAttachments}
+          previewUrls={previewUrls}
+          onFilesSelected={handleFilesSelected}
+          onRemoveAttachment={handleRemoveAttachment}
+          onSwitchModel={handleSwitchModel}
+          visionWarning={visionWarning}
+          sendDisabled={visionWarning !== null || isLoading || trialGate.isLocked}
+          className="mb-2"
+        />
         <div className="flex gap-2">
           <Textarea
             data-testid="chat-input"
@@ -1673,7 +1821,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           <Button
             data-testid="chat-send-button"
             onClick={handleSendMessage}
-            disabled={!inputValue.trim() || isLoading || trialGate.isLocked}
+            disabled={(!inputValue.trim() && pendingAttachments.length === 0) || isLoading || trialGate.isLocked || visionWarning !== null}
             size="icon"
             className="h-[60px] w-[60px] shrink-0"
           >
