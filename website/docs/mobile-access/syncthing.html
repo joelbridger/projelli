@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Syncthing setup, Projelli</title>
+  <meta name="description" content="Step-by-step: sync your Projelli workspace to your phone using Syncthing. Open source, peer-to-peer, no third-party cloud.">
+  <link rel="canonical" href="https://projelli.com/docs/mobile-access/syncthing">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 2.25rem; color: #111F35; margin-bottom: 8px; font-weight: 800; }
+    h2 { font-size: 1.5rem; color: #111F35; margin-top: 48px; margin-bottom: 16px; font-weight: 700; }
+    h3 { font-size: 1.125rem; color: #111F35; margin-top: 24px; margin-bottom: 8px; font-weight: 600; }
+    p, ul, ol { margin-bottom: 16px; font-size: 1rem; }
+    ul, ol { padding-left: 24px; }
+    li { margin-bottom: 8px; }
+    strong { color: #111F35; font-weight: 600; }
+    a { color: #3B82F6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta { color: #94A3B8; font-size: 0.875rem; margin-bottom: 32px; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; }
+    .step { background: #F8FAFC; border-left: 3px solid #3B82F6; padding: 20px 24px; margin: 24px 0; border-radius: 4px; }
+    .step h3 { margin-top: 0; color: #3B82F6; }
+    .warning { background: #FEF3C7; border-left: 3px solid #F59E0B; padding: 16px 20px; margin: 24px 0; border-radius: 4px; font-size: 0.9375rem; }
+    .warning strong { color: #111F35; }
+    .callout { background: #F0F9FF; border-left: 3px solid #3B82F6; padding: 16px 20px; margin: 24px 0; border-radius: 4px; font-size: 0.9375rem; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    figure { margin: 24px 0; }
+    figure .placeholder { display: flex; align-items: center; justify-content: center; min-height: 240px; background: #F1F5F9; border: 2px dashed #CBD5E1; border-radius: 8px; color: #94A3B8; font-size: 0.875rem; padding: 24px; text-align: center; }
+    figcaption { color: #94A3B8; font-size: 0.8125rem; margin-top: 8px; text-align: center; font-style: italic; }
+    .next-link { display: inline-block; margin-top: 24px; padding: 12px 24px; background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white !important; border-radius: 8px; font-weight: 600; }
+    .next-link:hover { text-decoration: none; opacity: 0.9; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.v2.js" defer></script>
+
+<body>
+  <div class="container">
+    <a href="/docs/mobile-access/" class="back">← Back to Mobile access</a>
+    <h1>Syncthing setup</h1>
+    <p class="meta">Open source. Peer-to-peer. Your data never touches a third-party cloud.</p>
+
+    <p><a href="https://syncthing.net/" target="_blank" rel="noopener">Syncthing</a> is free, open source, and syncs files directly between your devices over your local network (or the internet, encrypted, when you're away from home). No company stores a copy. The tradeoff is more setup than iCloud or Dropbox, and Syncthing on iOS is currently a third-party paid app.</p>
+
+    <div class="callout">
+      <strong>Pick this if</strong> you care about keeping your notes on your own devices, you're comfortable installing software from open-source projects, and you have at least one Android device or are willing to pay for an iOS Syncthing client.
+    </div>
+
+    <h2>Step 1: Install Syncthing on your computer</h2>
+
+    <div class="step">
+      <ol>
+        <li>Download Syncthing from <a href="https://syncthing.net/downloads/" target="_blank" rel="noopener">syncthing.net/downloads</a> for your platform.</li>
+        <li>Run it. Syncthing opens a web admin page in your browser at <code>http://127.0.0.1:8384</code>.</li>
+        <li>The admin page shows your device's unique ID (a long string starting with letters). You'll need this to pair with your phone.</li>
+      </ol>
+    </div>
+
+    <h2>Step 2: Create a Projelli folder and share it</h2>
+
+    <div class="step">
+      <ol>
+        <li>Decide where your Projelli workspace will live on your computer. A clean choice is <code>~/Projelli-Sync/</code>.</li>
+        <li>In the Syncthing admin page, click <strong>Add Folder</strong>.</li>
+        <li>Folder Label: <code>Projelli</code>. Folder ID: leave the auto-generated value. Folder Path: the path you picked above.</li>
+        <li>Save. Syncthing now watches that folder for changes.</li>
+      </ol>
+    </div>
+
+    <h2>Step 3: Point Projelli at the synced folder</h2>
+
+    <div class="step">
+      <ol>
+        <li>In Projelli, open <strong>File → Open Workspace</strong>.</li>
+        <li>Pick the folder you set up in Syncthing (for example, <code>~/Projelli-Sync/</code>).</li>
+        <li>Click <strong>Open</strong>.</li>
+      </ol>
+    </div>
+
+    <figure>
+      <div class="placeholder">[Screenshot: Syncthing admin page with the Projelli folder configured]</div>
+      <figcaption>TODO: real screenshot of the Syncthing admin page showing a configured Projelli folder.</figcaption>
+    </figure>
+
+    <h2>Step 4: Install Syncthing on your phone</h2>
+
+    <div class="step">
+      <h3>Android (recommended)</h3>
+      <ol>
+        <li>Install <a href="https://play.google.com/store/apps/details?id=com.github.catfriend1.syncthingandroid" target="_blank" rel="noopener">Syncthing-Fork</a> from the Play Store. (The original Syncthing-Android was deprecated; Syncthing-Fork is the maintained successor.)</li>
+        <li>Open the app. Tap the menu, choose <strong>Devices</strong>, then <strong>+</strong> to add a device.</li>
+        <li>Use the device ID from your computer's Syncthing admin page. Your phone will appear on the computer side asking to be approved; approve it.</li>
+        <li>Then on the phone, tap <strong>Folders</strong>, accept the incoming Projelli folder share, and pick a destination on your phone (for example, <code>/storage/emulated/0/Projelli/</code>).</li>
+      </ol>
+    </div>
+
+    <div class="step">
+      <h3>iOS</h3>
+      <p>iOS does not have an official Syncthing client. The community-recommended option is <a href="https://apps.apple.com/us/app/m%C3%B6bius-sync/id1539203216" target="_blank" rel="noopener">Möbius Sync</a> from the App Store. It's a paid app (one-time purchase), and it follows the same pairing flow: add your computer's device ID, accept the Projelli folder share, and pick where to store it on the phone.</p>
+      <p>If you don't want to pay for an iOS Syncthing client, the <a href="/docs/mobile-access/icloud">iCloud Drive workaround</a> is the better fit on iPhone.</p>
+    </div>
+
+    <figure>
+      <div class="placeholder">[Screenshot: Syncthing-Fork on Android with the Projelli folder paired]</div>
+      <figcaption>TODO: real screenshot of Syncthing-Fork on Android showing the paired Projelli folder.</figcaption>
+    </figure>
+
+    <h2>Step 5: Read your files on your phone</h2>
+
+    <p>Once the folder finishes syncing, browse to your Projelli folder using your phone's file manager. On Android, the built-in Files app or Google Files works fine. Tap any <code>.md</code> file to read it (Android renders Markdown as plain text by default; install a free Markdown reader like <a href="https://play.google.com/store/apps/details?id=net.gsantner.markor" target="_blank" rel="noopener">Markor</a> for nicer rendering).</p>
+
+    <h2>Limitations to know</h2>
+
+    <div class="warning">
+      <strong>Treat your phone as read-only for now.</strong> Syncthing handles conflicts by creating a file with <code>.sync-conflict</code> in the name. The cleanest workflow is to edit on one device at a time.
+    </div>
+
+    <ul>
+      <li><strong>Both devices must be running.</strong> Syncthing is peer-to-peer, so files only sync when both your computer and your phone have Syncthing actively running. Sleep your laptop and the sync pauses until it wakes up.</li>
+      <li><strong>iOS Syncthing costs money.</strong> Möbius Sync is a one-time purchase. There is no free official iOS client.</li>
+      <li><strong>First sync can be slow over cellular.</strong> If you're not on the same Wi-Fi network as your computer when you first pair, the initial sync goes over Syncthing's relay servers and can be noticeably slower than local sync.</li>
+    </ul>
+
+    <h2>What's next</h2>
+
+    <p>For a less-technical option that works on both iOS and Android with no extra software cost, see the <a href="/docs/mobile-access/dropbox">Dropbox guide</a>. For Apple-only users, the <a href="/docs/mobile-access/icloud">iCloud Drive guide</a> is the simplest path.</p>
+
+    <a href="/docs/mobile-access/" class="next-link">Back to Mobile access overview →</a>
+  </div>
+</body>
+</html>

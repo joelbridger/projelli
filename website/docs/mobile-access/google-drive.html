@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Drive setup, Projelli</title>
+  <meta name="description" content="Step-by-step: read your Projelli workspace on Android or iPhone using Google Drive. Requires the Google Drive desktop app.">
+  <link rel="canonical" href="https://projelli.com/docs/mobile-access/google-drive">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 2.25rem; color: #111F35; margin-bottom: 8px; font-weight: 800; }
+    h2 { font-size: 1.5rem; color: #111F35; margin-top: 48px; margin-bottom: 16px; font-weight: 700; }
+    h3 { font-size: 1.125rem; color: #111F35; margin-top: 24px; margin-bottom: 8px; font-weight: 600; }
+    p, ul, ol { margin-bottom: 16px; font-size: 1rem; }
+    ul, ol { padding-left: 24px; }
+    li { margin-bottom: 8px; }
+    strong { color: #111F35; font-weight: 600; }
+    a { color: #3B82F6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta { color: #94A3B8; font-size: 0.875rem; margin-bottom: 32px; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; }
+    .step { background: #F8FAFC; border-left: 3px solid #3B82F6; padding: 20px 24px; margin: 24px 0; border-radius: 4px; }
+    .step h3 { margin-top: 0; color: #3B82F6; }
+    .warning { background: #FEF3C7; border-left: 3px solid #F59E0B; padding: 16px 20px; margin: 24px 0; border-radius: 4px; font-size: 0.9375rem; }
+    .warning strong { color: #111F35; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    figure { margin: 24px 0; }
+    figure .placeholder { display: flex; align-items: center; justify-content: center; min-height: 240px; background: #F1F5F9; border: 2px dashed #CBD5E1; border-radius: 8px; color: #94A3B8; font-size: 0.875rem; padding: 24px; text-align: center; }
+    figcaption { color: #94A3B8; font-size: 0.8125rem; margin-top: 8px; text-align: center; font-style: italic; }
+    .next-link { display: inline-block; margin-top: 24px; padding: 12px 24px; background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white !important; border-radius: 8px; font-weight: 600; }
+    .next-link:hover { text-decoration: none; opacity: 0.9; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.v2.js" defer></script>
+
+<body>
+  <div class="container">
+    <a href="/docs/mobile-access/" class="back">← Back to Mobile access</a>
+    <h1>Google Drive setup</h1>
+    <p class="meta">Best on Android. Works on iOS too. Requires the Google Drive desktop app.</p>
+
+    <p>If you have an Android phone or already pay for Google One, Google Drive is a natural fit. The catch is that Projelli needs to write to a regular folder on your computer, so you must install the <strong>Google Drive for desktop</strong> app and let it mirror Drive to a local folder.</p>
+
+    <h2>Step 1: Install Google Drive for desktop</h2>
+
+    <div class="step">
+      <ol>
+        <li>Download <strong>Google Drive for desktop</strong> from <a href="https://www.google.com/drive/download/" target="_blank" rel="noopener">google.com/drive/download</a>.</li>
+        <li>Install and sign in with your Google account.</li>
+        <li>When asked, choose <strong>Mirror files</strong> (not "Stream files"). Mirror keeps a real local copy of every file, which is what Projelli needs. Stream stores files only in the cloud and downloads on demand, which Projelli can't reliably read from.</li>
+        <li>Pick a local folder for the mirror. The default is <code>~/Library/CloudStorage/GoogleDrive-you@example.com/My Drive/</code> on Mac or <code>G:\My Drive\</code> on Windows.</li>
+      </ol>
+    </div>
+
+    <div class="warning">
+      <strong>The "Mirror files" option is critical.</strong> If you accidentally chose "Stream files," Projelli will see an empty folder or a folder of cloud-only placeholder files it can't open. Re-run the Drive setup wizard and switch to Mirror mode.
+    </div>
+
+    <h2>Step 2: Point Projelli at your Drive folder</h2>
+
+    <div class="step">
+      <ol>
+        <li>In Projelli, open <strong>File → Open Workspace</strong>.</li>
+        <li>Navigate into your mirrored Google Drive folder.</li>
+        <li>Create a folder called <strong>Projelli</strong> inside Drive.</li>
+        <li>Select that folder as your workspace and click <strong>Open</strong>.</li>
+      </ol>
+    </div>
+
+    <figure>
+      <div class="placeholder">[Screenshot: Projelli with workspace pointing at the mirrored Google Drive folder]</div>
+      <figcaption>TODO: real screenshot of Projelli's workspace selector pointing at the Google Drive folder.</figcaption>
+    </figure>
+
+    <h2>Step 3: Wait for sync</h2>
+
+    <p>Open the Drive folder in Finder or File Explorer. The Drive desktop app shows a small status icon next to each file: a green checkmark means uploaded, a spinning arrow means in progress. Markdown files are tiny so this finishes in seconds.</p>
+
+    <h2>Step 4: Open your workspace on your phone</h2>
+
+    <div class="step">
+      <h3>Android</h3>
+      <ol>
+        <li>The Google Drive app comes preinstalled on most Android phones. If it isn't, get it from the <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.docs" target="_blank" rel="noopener">Play Store</a>.</li>
+        <li>Open the app, sign in with the same Google account you use on your computer.</li>
+        <li>Tap <strong>Files</strong> at the bottom, then navigate to your <strong>Projelli</strong> folder.</li>
+        <li>Tap any <code>.md</code> file. Drive on Android renders Markdown as plain text. For nicer rendering, install <a href="https://play.google.com/store/apps/details?id=net.gsantner.markor" target="_blank" rel="noopener">Markor</a> and open the file with that.</li>
+      </ol>
+    </div>
+
+    <div class="step">
+      <h3>iPhone</h3>
+      <ol>
+        <li>Install <a href="https://apps.apple.com/us/app/google-drive/id507874739" target="_blank" rel="noopener">Google Drive for iOS</a> from the App Store.</li>
+        <li>Sign in and navigate to your <strong>Projelli</strong> folder.</li>
+        <li>Tap any <code>.md</code> file to read it. The iOS app renders Markdown as plain text.</li>
+      </ol>
+    </div>
+
+    <figure>
+      <div class="placeholder">[Screenshot: Google Drive Android app showing the synced Projelli workspace]</div>
+      <figcaption>TODO: real screenshot of the Google Drive Android app browsing the Projelli folder.</figcaption>
+    </figure>
+
+    <h2>Limitations to know</h2>
+
+    <div class="warning">
+      <strong>Treat your phone as read-only for now.</strong> Google Drive handles desktop-to-mobile changes well, but mobile-to-desktop edits can take longer to propagate and occasionally need a manual refresh on the desktop side.
+    </div>
+
+    <ul>
+      <li><strong>Free tier is 15 GB</strong> shared across Drive, Gmail, and Photos. A Projelli workspace fits comfortably; just check that your overall Google storage isn't already full.</li>
+      <li><strong>Mirror mode uses local disk space.</strong> Every file in your Drive lives on your hard drive. If your Drive is large and your laptop SSD is small, this matters; you can use Stream mode for the rest of Drive and switch only the Projelli folder to "Available offline" instead.</li>
+      <li><strong>Drive's Android app shows a "Open in" sheet for unrecognized formats.</strong> Tapping a <code>.md</code> file may prompt you to pick an app to open it with. Pick a Markdown reader once and Android remembers your choice.</li>
+    </ul>
+
+    <h2>What's next</h2>
+
+    <p>If you want a setup that works on both iOS and Android with the cleanest mobile reading experience, see the <a href="/docs/mobile-access/dropbox">Dropbox guide</a>. For Apple-only users, the <a href="/docs/mobile-access/icloud">iCloud Drive guide</a> is the simplest path.</p>
+
+    <a href="/docs/mobile-access/" class="next-link">Back to Mobile access overview →</a>
+  </div>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dropbox setup, Projelli</title>
+  <meta name="description" content="Step-by-step: read your Projelli workspace on iPhone or Android using Dropbox. Works cross-platform.">
+  <link rel="canonical" href="https://projelli.com/docs/mobile-access/dropbox">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 2.25rem; color: #111F35; margin-bottom: 8px; font-weight: 800; }
+    h2 { font-size: 1.5rem; color: #111F35; margin-top: 48px; margin-bottom: 16px; font-weight: 700; }
+    h3 { font-size: 1.125rem; color: #111F35; margin-top: 24px; margin-bottom: 8px; font-weight: 600; }
+    p, ul, ol { margin-bottom: 16px; font-size: 1rem; }
+    ul, ol { padding-left: 24px; }
+    li { margin-bottom: 8px; }
+    strong { color: #111F35; font-weight: 600; }
+    a { color: #3B82F6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta { color: #94A3B8; font-size: 0.875rem; margin-bottom: 32px; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; }
+    .step { background: #F8FAFC; border-left: 3px solid #3B82F6; padding: 20px 24px; margin: 24px 0; border-radius: 4px; }
+    .step h3 { margin-top: 0; color: #3B82F6; }
+    .warning { background: #FEF3C7; border-left: 3px solid #F59E0B; padding: 16px 20px; margin: 24px 0; border-radius: 4px; font-size: 0.9375rem; }
+    .warning strong { color: #111F35; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    figure { margin: 24px 0; }
+    figure .placeholder { display: flex; align-items: center; justify-content: center; min-height: 240px; background: #F1F5F9; border: 2px dashed #CBD5E1; border-radius: 8px; color: #94A3B8; font-size: 0.875rem; padding: 24px; text-align: center; }
+    figcaption { color: #94A3B8; font-size: 0.8125rem; margin-top: 8px; text-align: center; font-style: italic; }
+    .next-link { display: inline-block; margin-top: 24px; padding: 12px 24px; background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white !important; border-radius: 8px; font-weight: 600; }
+    .next-link:hover { text-decoration: none; opacity: 0.9; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.v2.js" defer></script>
+
+<body>
+  <div class="container">
+    <a href="/docs/mobile-access/" class="back">← Back to Mobile access</a>
+    <h1>Dropbox setup</h1>
+    <p class="meta">Cross-platform. Works on iOS, Android, and the web.</p>
+
+    <p>Dropbox is the most reliable cross-platform path. If you already pay for Dropbox or have it installed, this is the shortest setup of any non-Apple option. The same workflow also covers OneDrive (and any other sync service that gives you a regular folder on disk).</p>
+
+    <h2>Step 1: Install Dropbox on your computer</h2>
+
+    <div class="step">
+      <ol>
+        <li>If you don't already have Dropbox installed, grab the desktop app from <a href="https://www.dropbox.com/install" target="_blank" rel="noopener">dropbox.com/install</a>.</li>
+        <li>Sign in. The installer creates a <strong>Dropbox</strong> folder on your computer (usually <code>~/Dropbox</code> on Mac and Linux, or <code>C:\Users\YourName\Dropbox</code> on Windows).</li>
+        <li>Open the Dropbox folder once to confirm it's syncing. You should see the green checkmark icon next to fully-synced files.</li>
+      </ol>
+    </div>
+
+    <h2>Step 2: Point Projelli at Dropbox</h2>
+
+    <div class="step">
+      <ol>
+        <li>In Projelli, open <strong>File → Open Workspace</strong>.</li>
+        <li>Navigate to your Dropbox folder.</li>
+        <li>Create a new folder called <strong>Projelli</strong> inside Dropbox (or pick an existing one).</li>
+        <li>Select the folder and click <strong>Open</strong>.</li>
+      </ol>
+      <p>Every Markdown file Projelli writes from now on lives in Dropbox and syncs automatically.</p>
+    </div>
+
+    <figure>
+      <div class="placeholder">[Screenshot: Projelli with workspace pointing at Dropbox folder]</div>
+      <figcaption>TODO: real screenshot of Projelli's workspace selector pointing at the Dropbox folder.</figcaption>
+    </figure>
+
+    <h2>Step 3: Wait for sync</h2>
+
+    <p>Open the Dropbox folder in Finder or File Explorer and watch for the green checkmark next to your Projelli folder. Markdown files are tiny, so this usually finishes in seconds.</p>
+
+    <h2>Step 4: Open your workspace on your phone</h2>
+
+    <div class="step">
+      <h3>iPhone</h3>
+      <ol>
+        <li>Install <a href="https://apps.apple.com/us/app/dropbox/id327630330" target="_blank" rel="noopener">Dropbox for iOS</a> from the App Store.</li>
+        <li>Sign in with the same account you use on your computer.</li>
+        <li>Tap <strong>Files</strong> at the bottom, then navigate to your <strong>Projelli</strong> folder.</li>
+        <li>Tap any <code>.md</code> file to read it. Dropbox renders Markdown nicely on iOS.</li>
+      </ol>
+    </div>
+
+    <div class="step">
+      <h3>Android</h3>
+      <ol>
+        <li>Install <a href="https://play.google.com/store/apps/details?id=com.dropbox.android" target="_blank" rel="noopener">Dropbox for Android</a> from the Play Store.</li>
+        <li>Sign in and navigate to your <strong>Projelli</strong> folder.</li>
+        <li>Tap any <code>.md</code> file to read it.</li>
+      </ol>
+    </div>
+
+    <figure>
+      <div class="placeholder">[Screenshot: Dropbox iOS app showing the synced Projelli workspace]</div>
+      <figcaption>TODO: real screenshot of the Dropbox iOS app browsing the Projelli folder.</figcaption>
+    </figure>
+
+    <h2>Limitations to know</h2>
+
+    <div class="warning">
+      <strong>Treat your phone as read-only for now.</strong> Dropbox handles conflicts more gracefully than iCloud (it creates a clearly labeled "conflicted copy" instead of silently making a duplicate), but the cleanest workflow is still to edit on one device at a time.
+    </div>
+
+    <ul>
+      <li><strong>Dropbox free tier is 2 GB.</strong> A Projelli workspace fits easily, but watch out if you also store photos or large files in the same Dropbox account.</li>
+      <li><strong>Smart Sync (selective sync) can hide files from Projelli.</strong> If you've enabled Smart Sync to keep files cloud-only, Projelli won't see them locally. Right-click the Projelli folder in Finder and choose <strong>Make Available Offline</strong> to force a local copy.</li>
+      <li><strong>Sync icons matter.</strong> If you write a file in Projelli and immediately open the phone, the green checkmark on the desktop side confirms the file has finished uploading. Wait for it before checking the phone.</li>
+    </ul>
+
+    <h2>OneDrive note</h2>
+
+    <p>OneDrive works exactly the same way. Install OneDrive on your computer, point Projelli at a folder inside the OneDrive sync folder, and use the OneDrive iOS or Android app to browse on your phone. The steps above translate one for one.</p>
+
+    <h2>What's next</h2>
+
+    <p>If you want a sync option that doesn't depend on a third-party cloud, see the <a href="/docs/mobile-access/syncthing">Syncthing guide</a>. If you have an iPhone and a Mac, the <a href="/docs/mobile-access/icloud">iCloud Drive guide</a> is even simpler.</p>
+
+    <a href="/docs/mobile-access/" class="next-link">Back to Mobile access overview →</a>
+  </div>
+</body>
+</html>
