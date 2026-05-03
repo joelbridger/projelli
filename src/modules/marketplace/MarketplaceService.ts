@@ -1,5 +1,6 @@
 import type { FSBackend } from '@/modules/workspace/types';
 import type { CatalogEntry, InstalledEntry, UpdateInfo, TemplateProvenance } from '@/types/marketplace';
+import type { TemplateManifest } from '@/types/templateManifest';
 import { AuditService } from '@/modules/audit/AuditService';
 import {
   downloadTarball,
@@ -282,6 +283,28 @@ export class MarketplaceService {
 
   async listInstalled(): Promise<InstalledEntry[]> {
     return this.readInstalledIndex();
+  }
+
+  /**
+   * Read + validate the on-disk manifest.json for an installed template.
+   * Returns null if the entry isn't installed or the manifest fails to read
+   * or validate; callers (TemplateDetailView's file list, integration code)
+   * treat null as "no file metadata available" rather than an error so older
+   * installs without a clean manifest don't break the UI.
+   */
+  async readInstalledManifest(id: string): Promise<TemplateManifest | null> {
+    const index = await this.readInstalledIndex();
+    const entry = index.find((e) => e.id === id);
+    if (!entry) return null;
+    try {
+      const raw = await this.opts.fs.read(`${entry.installedPath}/manifest.json`);
+      const parsed = JSON.parse(raw);
+      const result = validateTemplateManifest(parsed);
+      if (!result.ok) return null;
+      return result.manifest;
+    } catch {
+      return null;
+    }
   }
 
   async checkForUpdates(): Promise<UpdateInfo[]> {

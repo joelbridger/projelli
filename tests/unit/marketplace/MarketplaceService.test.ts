@@ -204,3 +204,87 @@ describe('MarketplaceService default behavior (Group III pre-conditions)', () =>
     expect(await svc.checkForUpdates()).toEqual([]);
   });
 });
+
+describe('MarketplaceService.readInstalledManifest', () => {
+  it('returns null when the template is not installed', async () => {
+    const fs = makeFs();
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'c.json',
+      cachePath: '.cache.json', installRoot: '/r', fs,
+    });
+    expect(await svc.readInstalledManifest('missing')).toBeNull();
+  });
+
+  it('returns the parsed manifest when it exists and validates', async () => {
+    const fs = makeFs();
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'c.json',
+      cachePath: '.cache.json', installRoot: '/r', fs,
+    });
+    // Seed installed.json + manifest.json on disk.
+    await fs.write(
+      '/r/.installed.json',
+      JSON.stringify({
+        entries: [
+          {
+            id: 'x', name: 'X', description: 'd', version: '1.0.0',
+            author: { name: 'a' }, category: 'misc', tags: [],
+            installUrl: 'http://e/x.tar.gz', manifestUrl: 'http://e/m.json',
+            minProjelliVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
+            installedAt: '2026-04-28T00:00:00Z',
+            installedPath: '/r/x',
+            provenance: 'community',
+            manifestVersion: '1.0',
+          },
+        ],
+      }),
+    );
+    await fs.write(
+      '/r/x/manifest.json',
+      JSON.stringify({
+        apiVersion: '1.0',
+        id: 'x',
+        name: 'X',
+        description: 'd',
+        version: '1.0.0',
+        author: { name: 'a' },
+        category: 'misc',
+        tags: [],
+        files: [{ path: 'workflow.json', type: 'workflow-definition' }],
+        minProjelliVersion: '2.0.0',
+      }),
+    );
+
+    const m = await svc.readInstalledManifest('x');
+    expect(m).not.toBeNull();
+    expect(m?.id).toBe('x');
+    expect(m?.files.length).toBe(1);
+  });
+
+  it('returns null when the manifest file is missing or invalid', async () => {
+    const fs = makeFs();
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'c.json',
+      cachePath: '.cache.json', installRoot: '/r', fs,
+    });
+    await fs.write(
+      '/r/.installed.json',
+      JSON.stringify({
+        entries: [
+          {
+            id: 'x', name: 'X', description: 'd', version: '1.0.0',
+            author: { name: 'a' }, category: 'misc', tags: [],
+            installUrl: 'http://e/x.tar.gz', manifestUrl: 'http://e/m.json',
+            minProjelliVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
+            installedAt: '2026-04-28T00:00:00Z',
+            installedPath: '/r/x',
+            provenance: 'community',
+            manifestVersion: '1.0',
+          },
+        ],
+      }),
+    );
+    // No manifest.json on disk -> read returns empty, JSON.parse fails, returns null.
+    expect(await svc.readInstalledManifest('x')).toBeNull();
+  });
+});

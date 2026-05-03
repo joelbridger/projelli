@@ -96,25 +96,20 @@ export function TemplateDetailView({
   const [busy, setBusy] = useState<'install' | 'uninstall' | null>(null);
   const [manifest, setManifest] = useState<TemplateManifest | null>(null);
 
-  // If the template is installed, attempt to read its manifest so we can show
-  // the file list. We tolerate a missing/invalid manifest because installed
-  // templates from older flows might predate the validator.
+  // If the template is installed, attempt to read its manifest via the
+  // service so we can show the file list. We tolerate a missing/invalid
+  // manifest because installed templates from older flows might predate the
+  // validator — `readInstalledManifest` returns null in that case.
   useEffect(() => {
     let cancelled = false;
     if (!installed) {
       setManifest(null);
       return;
     }
-    const path = `${installed.installedPath}/manifest.json`;
     void (async () => {
       try {
-        // service.opts is private; reach for fs via a known-good path on
-        // installed entries instead. We don't have a fs handle here, so we
-        // skip — file list comes from the catalog entry's published manifest
-        // when a publisher provides it. In Group VII we'll plumb through
-        // service.readManifest(id) if the file list becomes critical.
-        if (!cancelled) setManifest(null);
-        void path;
+        const m = await service.readInstalledManifest(installed.id);
+        if (!cancelled) setManifest(m);
       } catch {
         if (!cancelled) setManifest(null);
       }
@@ -122,7 +117,7 @@ export function TemplateDetailView({
     return () => {
       cancelled = true;
     };
-  }, [installed]);
+  }, [installed, service]);
 
   const handleInstall = useCallback(async () => {
     setBusy('install');
