@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useTemplatesMarketplace } from '@/hooks/useTemplatesMarketplace';
 import { MarketplaceOfflineBanner } from './MarketplaceOfflineBanner';
+import { TemplatesTab } from './TemplatesTab';
 
 type MarketplaceSubtab = 'templates' | 'plugins';
 
@@ -79,7 +80,7 @@ export function MarketplaceTab() {
         />
 
         <TabsContent value="templates" data-testid="marketplace-subtab-content-templates">
-          <TemplatesPlaceholder />
+          <TemplatesTab />
         </TabsContent>
 
         <TabsContent value="plugins" data-testid="marketplace-subtab-content-plugins">
@@ -94,15 +95,3 @@ export function MarketplaceTab() {
   );
 }
 
-function TemplatesPlaceholder() {
-  // Replaced by the catalog grid + search bar in Group VI (TemplatesTab).
-  return (
-    <div
-      data-testid="marketplace-templates-placeholder"
-      className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground"
-    >
-      Catalog coming in the next release. Once a workspace is loaded you'll
-      see browseable community templates here.
-    </div>
-  );
-}

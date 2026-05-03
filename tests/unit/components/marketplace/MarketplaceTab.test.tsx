@@ -50,7 +50,7 @@ describe('MarketplaceTab', () => {
     render(<MarketplaceTab />);
     const templatesTrigger = screen.getByTestId('marketplace-subtab-templates');
     expect(templatesTrigger.getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByTestId('marketplace-templates-placeholder')).toBeInTheDocument();
+    expect(screen.getByTestId('templates-tab-empty')).toBeInTheDocument();
   });
 
   it('Plugins subtab is disabled and aria-disabled', () => {
@@ -67,7 +67,7 @@ describe('MarketplaceTab', () => {
     fireEvent.click(pluginsTrigger);
     // Disabled buttons emit no click event but verify state regardless.
     expect(templatesTrigger.getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByTestId('marketplace-templates-placeholder')).toBeInTheDocument();
+    expect(screen.getByTestId('templates-tab-empty')).toBeInTheDocument();
   });
 
   it('renders the offline banner when cacheStatus is stale', () => {
