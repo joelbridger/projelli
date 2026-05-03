@@ -592,6 +592,13 @@ function App() {
         };
       }
 
+      // Stream C1 — expose the templates marketplace store for E2E specs so
+      // they can seed a synthetic service (no Tauri backend in test mode) and
+      // drive Browse/Install/Uninstall flows end-to-end via the real React UI.
+      (window as unknown as {
+        __templatesMarketplaceStore?: typeof useTemplatesMarketplaceStore;
+      }).__templatesMarketplaceStore = useTemplatesMarketplaceStore;
+
       console.log('Test mode enabled: Mock workspace initialized with 2 demo tabs + mock FS');
     }
   }, [IS_TEST_MODE, rootPath, setRootPath, openFile]);
