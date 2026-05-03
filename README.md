@@ -34,6 +34,10 @@ The pitch in one sentence: it's Obsidian for the AI era, built for founders, sol
 
 **Linux:** AppImage / `.deb` / `.rpm` builds are produced but Linux is not officially supported in v1.6. Coming as v1.7 after the launch settles.
 
+## Mobile access
+
+Projelli is a desktop app, but your workspace is just a folder of plain Markdown files. Point that folder at iCloud Drive, Dropbox, Syncthing, or Google Drive on your computer and your notes show up on your iPhone or Android in the matching files app, with no new account and no extra cost. The full setup steps (one guide per provider, plus a "which one should I pick" decision matrix) live at [projelli.com/docs/mobile-access/](https://projelli.com/docs/mobile-access/). A dedicated Projelli mobile reader is in beta and will land in the v2.0 cycle.
+
 ## Development
 
 ```bash
