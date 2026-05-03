@@ -166,7 +166,7 @@ describe('TemplatesTab', () => {
     expect(setCacheStatus).toHaveBeenCalledWith('fresh');
   });
 
-  it('switching to Installed subview shows the Group VII stub', async () => {
+  it('switching to Installed subview shows the empty-state when no templates are installed', async () => {
     const service = makeStubService();
     seedStore(service);
     render(<TemplatesTab />);
@@ -175,9 +175,32 @@ describe('TemplatesTab', () => {
     );
 
     fireEvent.click(screen.getByTestId('templates-tab-subview-installed'));
-    expect(screen.getByTestId('templates-tab-installed-stub')).toBeInTheDocument();
+    expect(
+      screen.getByTestId('installed-templates-empty'),
+    ).toBeInTheDocument();
     // Browse grid is hidden.
     expect(screen.queryByTestId('templates-tab-grid')).not.toBeInTheDocument();
+  });
+
+  it('switching to Installed subview lists installed entries when present', async () => {
+    const installed: InstalledEntry = {
+      ...ENTRY_A,
+      installedAt: '2026-04-28T00:00:00.000Z',
+      installedPath: '/ws/.projelli/templates/investor-update-v1',
+      provenance: 'community',
+      manifestVersion: '1.0',
+    };
+    const service = makeStubService({ installed: [installed] });
+    seedStore(service);
+    render(<TemplatesTab />);
+    await waitFor(() =>
+      expect(screen.getByTestId('templates-tab-grid')).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId('templates-tab-subview-installed'));
+    expect(
+      screen.getByTestId(`installed-template-${ENTRY_A.id}`),
+    ).toBeInTheDocument();
   });
 
   it('clicking a card opens the detail view and Back returns to the grid', async () => {

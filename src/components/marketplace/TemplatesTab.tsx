@@ -14,8 +14,9 @@
  * state is local rather than store-resident so the rest of the app does not
  * have to know which template is selected.
  *
- * The Installed subview is intentionally a stub here — Group VII implements
- * it via `InstalledTemplatesList`.
+ * The Installed subview is delegated to `InstalledTemplatesList`, which calls
+ * `service.uninstall(id)` and bubbles the removal back up through the
+ * `onUninstalled` callback.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -34,6 +35,7 @@ import type { CatalogEntry, InstalledEntry } from '@/types/marketplace';
 import { compareSemver } from '@/modules/marketplace';
 import { TemplateCatalogCard } from './TemplateCatalogCard';
 import { TemplateDetailView } from './TemplateDetailView';
+import { InstalledTemplatesList } from './InstalledTemplatesList';
 
 const ALL_CATEGORIES = '__all__';
 
@@ -228,13 +230,11 @@ export function TemplatesTab() {
         )}
 
         {view === 'installed' && (
-          // Group VII replaces this with InstalledTemplatesList.
-          <div
-            data-testid="templates-tab-installed-stub"
-            className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
-          >
-            Installed templates list lands in the next release.
-          </div>
+          <InstalledTemplatesList
+            service={service}
+            installed={installed}
+            onUninstalled={handleUninstalled}
+          />
         )}
       </Tabs>
     </div>
