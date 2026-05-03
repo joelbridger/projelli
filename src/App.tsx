@@ -102,6 +102,7 @@ import { useAIChatFiles } from '@/hooks/useAIChatFiles';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { useOpenFileAIContext } from '@/hooks/useOpenFileAIContext';
 import { useFileContextStore } from '@/stores/fileContextStore';
+import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
 import { buildOpenFilesPromptBlock } from '@/components/ai/AIChatViewer';
 import { useModelList } from '@/hooks/useModelList';
 import { useContentIndex } from '@/hooks/useContentIndex';
@@ -824,21 +825,26 @@ function App() {
     // templates don't leak across projects. Skipped when no backend (e.g.
     // test mode shims that bypass createFSBackend).
     const backend = service.getBackend();
+    const tplStore = useTemplatesMarketplaceStore.getState();
     if (backend && newRootPath) {
       try {
         const tplService = createTemplatesMarketplaceService(backend, newRootPath);
+        const reader = new TemplateMetadataReader({ fs: backend });
         templatesMarketplaceServiceRef.current = tplService;
-        templatesMetadataReaderRef.current = new TemplateMetadataReader({
-          fs: backend,
-        });
+        templatesMetadataReaderRef.current = reader;
+        // Seed the store so MarketplaceTab + offline banner can read the
+        // service via useTemplatesMarketplace() instead of prop drilling.
+        tplStore.setMarketplace(tplService, reader);
       } catch (err) {
         console.warn('[App] Failed to construct TemplatesMarketplaceService:', err);
         templatesMarketplaceServiceRef.current = null;
         templatesMetadataReaderRef.current = null;
+        tplStore.clearMarketplace();
       }
     } else {
       templatesMarketplaceServiceRef.current = null;
       templatesMetadataReaderRef.current = null;
+      tplStore.clearMarketplace();
     }
 
     let isNewWorkspace = false;

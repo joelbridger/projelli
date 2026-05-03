@@ -38,7 +38,7 @@ import { TemplateModelSettings } from '@/components/settings/TemplateModelSettin
 import { LicenseSettings } from '@/components/settings/LicenseSettings';
 import { PrivacySettings } from '@/components/settings/PrivacySettings';
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
-import { MarketplaceSettings } from '@/components/settings/MarketplaceSettings';
+import { MarketplaceTab } from '@/components/marketplace/MarketplaceTab';
 import { MobileSettings } from '@/components/settings/MobileSettings';
 import { PluginsSettings } from '@/components/settings/PluginsSettings';
 import { AdvancedSettings } from '@/components/settings/AdvancedSettings';
@@ -722,7 +722,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
                 <OllamaSettingsSection />
               </>
             ) : activeCategory === 'marketplace' ? (
-              <MarketplaceSettings />
+              <MarketplaceTab />
             ) : activeCategory === 'plugins' ? (
               <PluginsSettings />
             ) : activeCategory === 'mobile' ? (
