@@ -111,6 +111,13 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { usePromptDialog } from '@/hooks/usePromptDialog';
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { useUndoToast, UndoToastRenderer } from '@/components/common/UndoToast';
+import { PluginManager } from '@/modules/plugins/PluginManager';
+import { setActivePluginManager } from '@/modules/plugins/pluginManagerHolder';
+import { buildPluginEditorHandle } from '@/modules/plugins/buildPluginEditorHandle';
+import PluginWorker from '@/modules/plugins/plugin-worker.ts?worker';
+import { usePluginRegistryStore } from '@/stores/pluginRegistryStore';
+import { usePluginManagerStore } from '@/stores/pluginManagerStore';
+import type { MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
 
 function App() {
   // Test mode: bypass workspace selector for E2E tests
@@ -183,6 +190,26 @@ function App() {
   const [showWhatsNewModalDirect, setShowWhatsNewModalDirect] = useState(false);
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
+
+  // Stream C3 — PluginManager singleton scoped to the active workspace.
+  // Constructed inside `handleWorkspaceSelected` once the workspace + backend
+  // are known; disposed when the user switches workspaces or the app unmounts.
+  // The active-editor ref is bumped via `onActiveEditorChange` from MainPanel
+  // so the manager's `setActiveEditor` always points at the focused view.
+  const pluginManagerRef = useRef<PluginManager | null>(null);
+  const activeEditorRefRef = useRef<React.MutableRefObject<MarkdownEditorRef | null> | null>(null);
+
+  // Dispose the active plugin manager on app unmount (workspace switches are
+  // handled inside `handleWorkspaceSelected`).
+  useEffect(() => {
+    return () => {
+      const manager = pluginManagerRef.current;
+      if (manager) {
+        void manager.dispose();
+        setActivePluginManager(null);
+      }
+    };
+  }, []);
   // Stream C1 — Templates Marketplace service. Constructed once when a
   // workspace is selected (each workspace gets its own install root under
   // `<workspaceRoot>/.projelli/templates`). The metadata reader reads
@@ -204,7 +231,7 @@ function App() {
   const [activeWorkflowFilePath, setActiveWorkflowFilePath] = useState<string | null>(null);
 
   // Sidebar state
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash'>('files');
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins'>('files');
 
   // UX-04 onboarding: one-shot "open Keys sub-tab" instruction passed to
   // AIAssistantPane. Set when the onboarding card's CTA fires, cleared by
@@ -874,6 +901,71 @@ function App() {
     const newRootPath = service.getRootPath();
     if (newRootPath) {
       setRootPath(newRootPath);
+    }
+
+    // Stream C3 — tear down any previous workspace's PluginManager and
+    // construct a fresh one for the newly-selected workspace. Each workspace
+    // has its own install root under `.projelli/plugins`, so a per-workspace
+    // manager is the cleanest isolation. We use a brand-new manager rather
+    // than mutating the old one to avoid leaking host state across workspaces.
+    if (pluginManagerRef.current) {
+      try {
+        await pluginManagerRef.current.dispose();
+      } catch (err) {
+        console.warn('[App] PluginManager dispose failed:', err);
+      }
+      pluginManagerRef.current = null;
+      setActivePluginManager(null);
+    }
+    const pluginBackend = service.getBackend();
+    const appVersion =
+      (import.meta.env['VITE_APP_VERSION'] as string | undefined) ?? '0.0.0';
+    if (pluginBackend && newRootPath) {
+      try {
+        const manager = new PluginManager({
+          fs: pluginBackend,
+          workspaceService: service,
+          installRoot: `${newRootPath}/.projelli/plugins`,
+          appVersion,
+          workerFactory: () => new PluginWorker() as unknown as Worker,
+          notifyDelegate: (pluginId, level, message) => {
+            // For now, surface plugin notifications via the console. C4 will
+            // route these to the toast surface alongside the consent dialog.
+            const tag = `[plugin:${pluginId}]`;
+            if (level === 'error') console.error(tag, message);
+            else if (level === 'warn') console.warn(tag, message);
+            else console.info(tag, message);
+          },
+        });
+        // Wire the active editor accessor with whatever ref MainPanel last
+        // emitted (may be null until MainPanel mounts and fires its first
+        // onActiveEditorChange).
+        manager.setActiveEditor(() => {
+          const currentRef = activeEditorRefRef.current;
+          if (!currentRef) return null;
+          const view = currentRef.current?.getView() ?? null;
+          return buildPluginEditorHandle(view);
+        });
+        pluginManagerRef.current = manager;
+        setActivePluginManager(manager);
+        // Auto-enable everything that's already installed in this workspace.
+        // Failures are logged + audited; we don't block workspace selection on
+        // a single broken plugin.
+        for (const installed of manager.listInstalled()) {
+          try {
+            await manager.enable(installed.manifest.id);
+          } catch (err) {
+            console.warn(
+              `[plugins] Failed to auto-enable ${installed.manifest.id}:`,
+              err,
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('[App] Failed to construct PluginManager:', err);
+        pluginManagerRef.current = null;
+        setActivePluginManager(null);
+      }
     }
 
     // Stream C1 — Construct the templates marketplace service for this
@@ -2328,6 +2420,11 @@ This file contains rules and guidelines for AI assistants in this workspace.
   }, [openTabs, markSaved, writeTabContent]);
 
 
+  // Plugin-contributed commands. Subscribing as a slice keeps the palette in
+  // sync as plugins enable / disable / register new commands at runtime.
+  const pluginCommandsMap = usePluginRegistryStore((state) => state.commands);
+  const installedPluginInstances = usePluginManagerStore((state) => state.installedPlugins);
+
   // Build command palette commands
   const commands = useMemo<PaletteCommand[]>(() => {
     const baseCommands = getDefaultCommands({});
@@ -2426,8 +2523,38 @@ This file contains rules and guidelines for AI assistants in this workspace.
         },
       },
     ];
-    return [...appCommands, ...baseCommands];
-  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, handleOpenBrowserTab]);
+
+    // Plugin commands. Each one shows the contributing plugin's name as the
+    // description so the palette lists "Translate Selection" with "Translator"
+    // underneath. Click invokes the plugin command via the active manager.
+    const pluginPaletteCommands: PaletteCommand[] = [];
+    for (const [commandId, registered] of pluginCommandsMap) {
+      const owningPlugin = installedPluginInstances.find(
+        (p) => p.manifest.id === registered.pluginId,
+      );
+      const pluginName = owningPlugin?.manifest.name ?? registered.pluginId;
+      pluginPaletteCommands.push({
+        id: `plugin:${registered.pluginId}:${commandId}`,
+        label: registered.title ?? commandId,
+        description: pluginName,
+        category: registered.category ?? 'Plugins',
+        action: () => {
+          const manager = pluginManagerRef.current;
+          if (!manager) return;
+          void manager
+            .invokeCommand(registered.pluginId, commandId)
+            .catch((err: unknown) => {
+              console.warn(
+                `[plugins] Command palette invoke ${commandId} from ${registered.pluginId} failed:`,
+                err,
+              );
+            });
+        },
+      });
+    }
+
+    return [...appCommands, ...pluginPaletteCommands, ...baseCommands];
+  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, handleOpenBrowserTab, pluginCommandsMap, installedPluginInstances]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -2858,6 +2985,20 @@ This file contains rules and guidelines for AI assistants in this workspace.
           onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
           onWorkflowExportDocx={handleWorkflowExportDocx}
           onWorkflowExportPptx={handleWorkflowExportPptx}
+          onActiveEditorChange={(ref) => {
+            activeEditorRefRef.current = ref;
+            const manager = pluginManagerRef.current;
+            if (!manager) return;
+            // The accessor closure dereferences the ref on every plugin call,
+            // so the manager keeps seeing the latest editor view even if the
+            // user switches tabs without an explicit onActiveEditorChange.
+            manager.setActiveEditor(() => {
+              const currentRef = activeEditorRefRef.current;
+              if (!currentRef) return null;
+              const view = currentRef.current?.getView() ?? null;
+              return buildPluginEditorHandle(view);
+            });
+          }}
         />
       </div>
 
