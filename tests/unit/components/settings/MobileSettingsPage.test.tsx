@@ -1,0 +1,80 @@
+/**
+ * MobileSettingsPage (Stream D1).
+ *
+ * The page renders four provider tabs (iCloud / Dropbox / Syncthing / Google
+ * Drive) using shadcn Tabs. Each tab shows a steps list, tips, a "Full guide"
+ * link to the matching website docs page, and (where stable) a deep link
+ * button to open the provider's iOS app.
+ *
+ * What this guards:
+ *   - All four tab triggers render with stable testids.
+ *   - Default tab (iCloud) shows its content and the documented Files deep link.
+ *   - Switching tabs swaps the visible panel.
+ *   - The "Full guide" link points at /docs/mobile-access/<provider> on projelli.com.
+ *   - The Dropbox tab exposes the documented dbapi-2 deep link.
+ *   - Syncthing has no deep link (intentional — no stable iOS scheme).
+ */
+
+import { describe, it, expect, afterEach } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { MobileSettingsPage } from '@/components/settings/MobileSettingsPage';
+
+afterEach(() => {
+  cleanup();
+});
+
+describe('MobileSettingsPage', () => {
+  it('renders the page heading and all four provider tab triggers', () => {
+    render(<MobileSettingsPage />);
+    expect(screen.getByRole('heading', { name: /mobile/i })).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-tab-icloud')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-tab-dropbox')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-tab-syncthing')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-tab-gdrive')).toBeInTheDocument();
+  });
+
+  it('opens on the iCloud tab by default and exposes the Files deep link', () => {
+    render(<MobileSettingsPage />);
+    expect(screen.getByTestId('mobile-panel-icloud')).toBeInTheDocument();
+    const deepLink = screen.getByTestId('mobile-deeplink-icloud');
+    expect(deepLink).toHaveAttribute('href', 'shareddocuments://');
+    const fullGuide = screen.getByTestId('mobile-docs-icloud');
+    expect(fullGuide).toHaveAttribute(
+      'href',
+      'https://projelli.com/docs/mobile-access/icloud',
+    );
+  });
+
+  it('switches to the Dropbox tab and shows its dbapi-2 deep link', () => {
+    render(<MobileSettingsPage />);
+    fireEvent.click(screen.getByTestId('mobile-tab-dropbox'));
+    expect(screen.getByTestId('mobile-panel-dropbox')).toBeInTheDocument();
+    const deepLink = screen.getByTestId('mobile-deeplink-dropbox');
+    expect(deepLink).toHaveAttribute('href', 'dbapi-2://1/connect');
+    expect(screen.getByTestId('mobile-docs-dropbox')).toHaveAttribute(
+      'href',
+      'https://projelli.com/docs/mobile-access/dropbox',
+    );
+  });
+
+  it('switches to Google Drive and shows its full-guide link', () => {
+    render(<MobileSettingsPage />);
+    fireEvent.click(screen.getByTestId('mobile-tab-gdrive'));
+    expect(screen.getByTestId('mobile-panel-gdrive')).toBeInTheDocument();
+    expect(screen.getByTestId('mobile-docs-gdrive')).toHaveAttribute(
+      'href',
+      'https://projelli.com/docs/mobile-access/google-drive',
+    );
+  });
+
+  it('does not render a deep link for Syncthing (no stable iOS scheme)', () => {
+    render(<MobileSettingsPage />);
+    fireEvent.click(screen.getByTestId('mobile-tab-syncthing'));
+    expect(screen.getByTestId('mobile-panel-syncthing')).toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-deeplink-syncthing')).not.toBeInTheDocument();
+    expect(screen.getByTestId('mobile-docs-syncthing')).toHaveAttribute(
+      'href',
+      'https://projelli.com/docs/mobile-access/syncthing',
+    );
+  });
+});

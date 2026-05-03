@@ -8,6 +8,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Mobile access docs (Stream D1, v2.0).** Five new public docs pages plus
+  an in-app `Settings → Mobile` page document the cloud-sync workaround so
+  users can read their workspace on iPhone or Android today, before the
+  dedicated mobile reader (D2) ships.
+  - **Hub page** at `/docs/mobile-access/` with a four-card provider grid
+    and a "which one should I pick" decision matrix.
+  - **Per-provider setup guides** at `/docs/mobile-access/icloud`,
+    `/docs/mobile-access/dropbox`, `/docs/mobile-access/syncthing`, and
+    `/docs/mobile-access/google-drive`. Each is a step-by-step guide with
+    placeholder screenshot slots and a "things to know" callout for sync
+    caveats.
+  - **In-app `Settings → Mobile` page** (`MobileSettingsPage.tsx`) mirrors
+    the web content using shadcn Tabs, with documented iOS deep links
+    (`shareddocuments://` for iCloud Files, `dbapi-2://1/connect` for
+    Dropbox) and a "Full guide" link out to the matching website page for
+    each tab.
+  - **README + FAQ updates.** README gains a "Mobile access" section. FAQ
+    gains a new "Can I use Projelli on my phone?" item, and the existing
+    "Will there be a mobile app?" item now points users at the cloud sync
+    workaround and the in-beta dedicated reader.
+  - **Homepage docs nav** gains a "Mobile access" link in the footer.
+  - **Lint coverage.** All five new HTML pages are added to the
+    `website-content-lint` allowlist (no em dashes, no banned marketing
+    words, canonical link present).
+  - Files added:
+    `website/docs/mobile-access/{index,icloud,dropbox,syncthing,google-drive}.html`,
+    `website/docs/mobile-access/screenshots/README.md`,
+    `src/components/settings/MobileSettingsPage.tsx`,
+    `tests/unit/components/settings/MobileSettingsPage.test.tsx`.
+  - Files modified: `README.md`, `website/index.html`,
+    `website/docs/faq.html`, `src/components/settings/MobileSettings.tsx`
+    (now re-exports `MobileSettingsPage`),
+    `tests/unit/website-content-lint.test.ts`.
+
 - **Templates Marketplace (Stream C1, v2.0).** New "Marketplace" surface
   under Settings lets users browse, install, update, and uninstall workflow
   templates published in `projelli/community-templates`.

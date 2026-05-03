@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iCloud Drive setup, Projelli</title>
+  <meta name="description" content="Step-by-step: read your Projelli workspace on iPhone using iCloud Drive. Five minutes, zero new accounts.">
+  <link rel="canonical" href="https://projelli.com/docs/mobile-access/icloud">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 2.25rem; color: #111F35; margin-bottom: 8px; font-weight: 800; }
+    h2 { font-size: 1.5rem; color: #111F35; margin-top: 48px; margin-bottom: 16px; font-weight: 700; }
+    h3 { font-size: 1.125rem; color: #111F35; margin-top: 24px; margin-bottom: 8px; font-weight: 600; }
+    p, ul, ol { margin-bottom: 16px; font-size: 1rem; }
+    ul, ol { padding-left: 24px; }
+    li { margin-bottom: 8px; }
+    strong { color: #111F35; font-weight: 600; }
+    a { color: #3B82F6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta { color: #94A3B8; font-size: 0.875rem; margin-bottom: 32px; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; }
+    .step { background: #F8FAFC; border-left: 3px solid #3B82F6; padding: 20px 24px; margin: 24px 0; border-radius: 4px; }
+    .step h3 { margin-top: 0; color: #3B82F6; }
+    .warning { background: #FEF3C7; border-left: 3px solid #F59E0B; padding: 16px 20px; margin: 24px 0; border-radius: 4px; font-size: 0.9375rem; }
+    .warning strong { color: #111F35; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    figure { margin: 24px 0; }
+    figure .placeholder { display: flex; align-items: center; justify-content: center; min-height: 240px; background: #F1F5F9; border: 2px dashed #CBD5E1; border-radius: 8px; color: #94A3B8; font-size: 0.875rem; padding: 24px; text-align: center; }
+    figcaption { color: #94A3B8; font-size: 0.8125rem; margin-top: 8px; text-align: center; font-style: italic; }
+    .next-link { display: inline-block; margin-top: 24px; padding: 12px 24px; background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white !important; border-radius: 8px; font-weight: 600; }
+    .next-link:hover { text-decoration: none; opacity: 0.9; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.v2.js" defer></script>
+
+<body>
+  <div class="container">
+    <a href="/docs/mobile-access/" class="back">← Back to Mobile access</a>
+    <h1>iCloud Drive setup</h1>
+    <p class="meta">For Apple users. About 5 minutes start to finish.</p>
+
+    <p>If you have an iPhone (or iPad) and a Mac signed into the same Apple ID, you already have everything you need. iCloud Drive is built into both. You just need to point Projelli at the right folder.</p>
+
+    <h2>Step 1: Make sure iCloud Drive is on</h2>
+
+    <div class="step">
+      <h3>On your Mac</h3>
+      <ol>
+        <li>Open <strong>System Settings</strong>, click your Apple ID at the top, then click <strong>iCloud</strong>.</li>
+        <li>Make sure <strong>iCloud Drive</strong> is turned on. If it isn't, flip the toggle and wait a moment for it to sync.</li>
+      </ol>
+    </div>
+
+    <div class="step">
+      <h3>On your iPhone</h3>
+      <ol>
+        <li>Open the <strong>Files</strong> app. If you've never used it, it's the blue folder icon that ships with iOS.</li>
+        <li>Tap <strong>Browse</strong> at the bottom. You should see <strong>iCloud Drive</strong> in the list of locations. If it's missing, go to <strong>Settings → [your name] → iCloud → iCloud Drive</strong> and turn it on.</li>
+      </ol>
+    </div>
+
+    <h2>Step 2: Point Projelli at iCloud Drive</h2>
+
+    <div class="step">
+      <h3>In Projelli on your Mac</h3>
+      <ol>
+        <li>Open Projelli. From the menu, choose <strong>File → Open Workspace</strong> (or click the workspace name in the sidebar to switch).</li>
+        <li>In the folder picker, navigate to your iCloud Drive folder. The full path is:<br>
+          <code>~/Library/Mobile Documents/com~apple~CloudDocs/</code>
+        </li>
+        <li>Create a new folder called <strong>Projelli</strong> inside iCloud Drive (or pick an existing folder if you already have one).</li>
+        <li>Select that folder as your workspace and click <strong>Open</strong>.</li>
+      </ol>
+      <p>From this moment on, every file Projelli writes lives inside iCloud Drive and syncs automatically.</p>
+    </div>
+
+    <figure>
+      <div class="placeholder">[Screenshot: Mac Projelli with workspace pointing at iCloud Drive folder]</div>
+      <figcaption>TODO: real screenshot of Projelli's workspace selector pointing at iCloud Drive.</figcaption>
+    </figure>
+
+    <h2>Step 3: Wait for sync</h2>
+
+    <p>The first sync can take anywhere from a few seconds to a few minutes depending on how much is in your workspace. You can watch progress in the Finder: open your iCloud Drive folder and look for the cloud icon next to each file. A solid icon means it's uploading; no icon means it's done.</p>
+
+    <p>If your workspace is brand new and only has a handful of Markdown files, sync should finish in well under a minute.</p>
+
+    <h2>Step 4: Open your workspace on iPhone</h2>
+
+    <div class="step">
+      <ol>
+        <li>On your iPhone, open the <strong>Files</strong> app.</li>
+        <li>Tap <strong>Browse</strong>, then <strong>iCloud Drive</strong>, then your <strong>Projelli</strong> folder.</li>
+        <li>You'll see your workspace exactly as it is on your Mac. Tap any <code>.md</code> file to read it.</li>
+      </ol>
+    </div>
+
+    <figure>
+      <div class="placeholder">[Screenshot: iPhone Files app showing the synced Projelli workspace]</div>
+      <figcaption>TODO: real screenshot of iPhone Files browsing the Projelli folder in iCloud Drive.</figcaption>
+    </figure>
+
+    <p>iOS Files renders Markdown as plain text. If you want pretty rendering on the phone, install a free Markdown reader from the App Store (Taio, 1Writer, and iA Writer all work well) and point it at the same iCloud Drive folder.</p>
+
+    <h2>Limitations to know</h2>
+
+    <div class="warning">
+      <strong>Treat your phone as read-only for now.</strong> If you edit a file on both your Mac and your phone within a few seconds of each other, iCloud Drive can produce a conflict copy named something like <code>VISION 2.md</code>. To avoid this, pick one device at a time as the editor.
+    </div>
+
+    <ul>
+      <li><strong>iCloud free tier is 5 GB.</strong> A typical Projelli workspace is far under that. If you hit the limit, you can either delete other iCloud content or pay for iCloud+ (starts at 99 cents per month for 50 GB).</li>
+      <li><strong>Sync delay is normally a few seconds, sometimes longer.</strong> If you edit on the desktop and immediately open the phone, you might see the previous version for a moment. Pull down on the Files screen to force-refresh.</li>
+      <li><strong>Wiki-link navigation doesn't work in Files.</strong> The phone shows file contents as plain text. Wiki-links and backlinks are a Projelli feature; they round-trip to the Mac when you tap a file there.</li>
+    </ul>
+
+    <h2>What's next</h2>
+
+    <p>The iCloud Drive workaround is the simplest mobile path on Apple devices. If you also want to sync to non-Apple devices, see the <a href="/docs/mobile-access/dropbox">Dropbox guide</a> or the <a href="/docs/mobile-access/syncthing">Syncthing guide</a>.</p>
+
+    <a href="/docs/mobile-access/" class="next-link">Back to Mobile access overview →</a>
+  </div>
+</body>
+</html>

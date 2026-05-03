@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobile Access, Projelli</title>
+  <meta name="description" content="Read your Projelli workspace on your phone today using iCloud Drive, Dropbox, Syncthing, or Google Drive. The dedicated mobile reader is in beta.">
+  <link rel="canonical" href="https://projelli.com/docs/mobile-access/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
+    .container { max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 2.25rem; color: #111F35; margin-bottom: 8px; font-weight: 800; }
+    h2 { font-size: 1.5rem; color: #111F35; margin-top: 48px; margin-bottom: 16px; font-weight: 700; }
+    h3 { font-size: 1.125rem; color: #111F35; margin-top: 24px; margin-bottom: 8px; font-weight: 600; }
+    p, ul, ol { margin-bottom: 16px; font-size: 1rem; }
+    ul, ol { padding-left: 24px; }
+    li { margin-bottom: 8px; }
+    strong { color: #111F35; font-weight: 600; }
+    a { color: #3B82F6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta { color: #94A3B8; font-size: 0.875rem; margin-bottom: 32px; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; }
+    .callout { background: #F0F9FF; border-left: 3px solid #3B82F6; padding: 20px 24px; margin: 24px 0; border-radius: 4px; font-size: 0.9375rem; }
+    .callout strong { color: #111F35; }
+    .provider-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 24px 0; }
+    .provider-card { display: block; background: #F8FAFC; padding: 24px; border-radius: 8px; border: 1px solid #E2E8F0; text-decoration: none; transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .provider-card:hover { text-decoration: none; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06); }
+    .provider-card h3 { color: #111F35; margin-top: 0; }
+    .provider-card p { color: #475569; font-size: 0.9375rem; margin-bottom: 0; }
+    .provider-card .tag { display: inline-block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; margin-bottom: 8px; }
+    .tag-easy { background: #DCFCE7; color: #166534; }
+    .tag-medium { background: #FEF3C7; color: #854D0E; }
+    .tag-advanced { background: #FEE2E2; color: #991B1B; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.9375rem; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #E2E8F0; vertical-align: top; }
+    th { color: #111F35; font-weight: 600; background: #F8FAFC; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.v2.js" defer></script>
+
+<body>
+  <div class="container">
+    <a href="/" class="back">← Back to Projelli</a>
+    <h1>Mobile access</h1>
+    <p class="meta">Read your Projelli workspace on your phone today.</p>
+
+    <p>Projelli is a desktop app, but your workspace is just a folder of plain Markdown files. Point that folder at any cross-device file sync service (iCloud Drive, Dropbox, Syncthing, Google Drive) and your notes show up on your iPhone or Android in whichever Files app you already use. No new account, no extra cost, no waiting on us to ship the dedicated reader.</p>
+
+    <div class="callout">
+      <strong>This is the v2.0 mobile story.</strong> A dedicated Projelli mobile reader is in beta and will land later in the v2.0 cycle. Until then, the cloud sync workaround below is the recommended path. It works today, on every iPhone and Android, with no new app install required.
+    </div>
+
+    <h2>Pick a sync service</h2>
+
+    <div class="provider-grid">
+      <a class="provider-card" href="/docs/mobile-access/icloud">
+        <span class="tag tag-easy">Easiest on Apple</span>
+        <h3>iCloud Drive</h3>
+        <p>If you have an iPhone and a Mac, this is the shortest path. Two clicks on the Mac side, zero setup on the phone.</p>
+      </a>
+      <a class="provider-card" href="/docs/mobile-access/dropbox">
+        <span class="tag tag-easy">Cross-platform</span>
+        <h3>Dropbox</h3>
+        <p>Best if you already pay Dropbox. Works on iOS and Android. Reliable conflict handling.</p>
+      </a>
+      <a class="provider-card" href="/docs/mobile-access/syncthing">
+        <span class="tag tag-advanced">For tinkerers</span>
+        <h3>Syncthing</h3>
+        <p>LAN sync without third-party cloud. Free and open source. More setup, but your data never leaves your devices.</p>
+      </a>
+      <a class="provider-card" href="/docs/mobile-access/google-drive">
+        <span class="tag tag-medium">Cross-platform</span>
+        <h3>Google Drive</h3>
+        <p>Works on Android and iOS. Requires the Google Drive desktop app on your computer for two-way sync.</p>
+      </a>
+    </div>
+
+    <h2>Which one should I pick?</h2>
+
+    <p>Quick decision matrix based on what you already use.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>If you...</th>
+          <th>Pick</th>
+          <th>Why</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Have an iPhone and a Mac, and don't already pay for cloud storage</td>
+          <td><a href="/docs/mobile-access/icloud">iCloud Drive</a></td>
+          <td>Built in, free up to 5 GB, zero new accounts.</td>
+        </tr>
+        <tr>
+          <td>Already pay for Dropbox or use it daily</td>
+          <td><a href="/docs/mobile-access/dropbox">Dropbox</a></td>
+          <td>Most reliable conflict handling of the bunch. Works on iOS and Android.</td>
+        </tr>
+        <tr>
+          <td>Want your data to stay on your own devices, no third-party servers</td>
+          <td><a href="/docs/mobile-access/syncthing">Syncthing</a></td>
+          <td>Peer-to-peer sync over your home network. Open source. More setup.</td>
+        </tr>
+        <tr>
+          <td>Have an Android phone</td>
+          <td><a href="/docs/mobile-access/google-drive">Google Drive</a></td>
+          <td>Tightest Android integration. Works on iOS too.</td>
+        </tr>
+        <tr>
+          <td>Already pay for OneDrive or Microsoft 365</td>
+          <td><a href="/docs/mobile-access/dropbox">Use Dropbox steps as a template</a></td>
+          <td>OneDrive works the same way: point Projelli at your synced OneDrive folder. The Dropbox guide steps map cleanly.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>The shape of the workaround</h2>
+
+    <p>Every guide on this page follows the same three-step shape:</p>
+    <ol>
+      <li><strong>On your computer:</strong> install the sync service's desktop app if you don't already have it. Make sure your sync folder is visible in Finder or File Explorer.</li>
+      <li><strong>In Projelli:</strong> set your workspace folder to a path inside the sync folder. From this moment on, every Markdown file Projelli writes also writes to the cloud.</li>
+      <li><strong>On your phone:</strong> open the sync service's iOS or Android app (Files on iPhone for iCloud; the official Dropbox or Drive app otherwise) and navigate to your workspace folder. Tap any <code>.md</code> file to read it.</li>
+    </ol>
+
+    <h2>Important caveats</h2>
+
+    <p>The workaround is real and it works, but it's not a real-time sync engine. Two things to know:</p>
+    <ul>
+      <li><strong>Treat mobile as read-mostly for now.</strong> If you edit the same file on both your phone and your desktop in quick succession, the sync service can produce a conflict copy. The fix is to pick one device as the editor and use the other to read.</li>
+      <li><strong>Wait for sync to finish before switching devices.</strong> iCloud and Dropbox typically take a few seconds to propagate small Markdown files. If you edit on the desktop and immediately open your phone, you might see the old version for a moment.</li>
+    </ul>
+
+    <p>The dedicated Projelli mobile reader (in beta) solves both of these properly with first-class read access and a content cache. This guide is the workaround that gets you 80% of the value today.</p>
+
+    <h2>Got stuck?</h2>
+
+    <p>Email <a href="mailto:support@projelli.com">support@projelli.com</a> with your sync service of choice and what you tried. Most setup issues are one config tweak away from working.</p>
+  </div>
+</body>
+</html>

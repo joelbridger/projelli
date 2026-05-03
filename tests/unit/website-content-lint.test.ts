@@ -33,6 +33,12 @@ const TARGETS = [
   'legal/privacy.html',
   'legal/terms.html',
   'legal/eula.html',
+  // Stream D1 (v2.0) — mobile access docs.
+  'docs/mobile-access/index.html',
+  'docs/mobile-access/icloud.html',
+  'docs/mobile-access/dropbox.html',
+  'docs/mobile-access/syncthing.html',
+  'docs/mobile-access/google-drive.html',
 ];
 
 const BANNED_WORDS = [
