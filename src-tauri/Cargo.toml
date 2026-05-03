@@ -84,8 +84,11 @@ async-stream = "0.3"
 # store all use `?` against heterogeneous error types).
 anyhow = "1"
 # Stream B TTS — voice archive download and extraction.
+# Stream C1 (Templates Marketplace) — also reuses flate2 + tar for tarball
+# extraction and adds `hex` for the SHA-256 file checksum command.
 flate2 = "1"
 tar = "0.4"
+hex = "0.4"
 
 # Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
 # the cfg() filter keeps the iOS/Android crate graph slim.

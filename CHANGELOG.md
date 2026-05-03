@@ -7,7 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No changes since v1.7.2.
+### Added
+- **Templates Marketplace (Stream C1, v2.0).** New "Marketplace" surface
+  under Settings lets users browse, install, update, and uninstall workflow
+  templates published in `projelli/community-templates`.
+  - **Browse / Install / Uninstall flows** at Settings → Marketplace →
+    Templates. Catalog tiles show name, description, version, and author;
+    detail view shows the full file list, screenshots, and a state-aware
+    [Install] / [Update] / [Uninstall] action.
+  - **Community provenance badges** in `WorkflowPanel`, with templates
+    grouped by source under collapsible Built-in / Community / Custom
+    sections.
+  - **24-hour cached catalog** with an inline offline banner and [Retry]
+    action when the catalog fetch fails. Cache lives at
+    `<workspace>/.projelli/cache/templates.json`.
+  - **Update notifications** via `MarketplaceService.checkForUpdates()`,
+    triggered 2 seconds after the workspace loads. A count pill renders on
+    the Settings → Marketplace nav row whenever at least one installed
+    template has a newer catalog version, and a per-template [Update] CTA
+    appears in the detail view.
+  - **Audit events** for the full lifecycle:
+    `template_installed_from_marketplace`, `template_uninstalled`,
+    `template_updated` (with `fromVersion`/`toVersion`), and
+    `template_install_failed` (with the error string).
+  - **Tauri commands** `sha256_file` and `extract_tarball` (path-traversal
+    hardened), wired to the install pipeline so tarballs are checksum-
+    verified before extraction.
 
 ## [1.7.2] - 2026-04-28
 

@@ -32,6 +32,8 @@ import {
   Copy,
   Trash2,
   Link as LinkIcon,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
 import {
@@ -44,6 +46,11 @@ import {
 } from '@/modules/workflow/userTemplates';
 import { ChainBuilderModal } from './ChainBuilderModal';
 import { useTrialGate } from '@/hooks/useTrial';
+import { useTemplatesMarketplace } from '@/hooks/useTemplatesMarketplace';
+import {
+  TEMPLATE_PROVENANCE_LABELS,
+  type TemplateProvenance,
+} from '@/modules/marketplace';
 
 interface WorkflowPanelProps {
   onStartWorkflow: (template: WorkflowTemplate) => void;
@@ -73,11 +80,55 @@ export function WorkflowPanel({
   // Q19 — combined built-ins + user templates. `version` triggers re-read
   // after a save or delete so the picker reflects the change.
   const [templatesVersion, setTemplatesVersion] = useState(0);
-  const availableWorkflows = useMemo(
+  const localWorkflows = useMemo(
     () => loadAllTemplates(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [templatesVersion]
   );
+
+  // Stream C1 — Surface marketplace-installed community templates alongside
+  // built-ins + user templates. The marketplace store is workspace-scoped;
+  // when no workspace is active, the service is null and we render only the
+  // local list. We re-read whenever the installed list changes (best-effort
+  // signal: refresh on `templatesVersion` ticks + on first paint of the
+  // panel after a workspace mounts).
+  const { service, reader, updateCount } = useTemplatesMarketplace();
+  const [communityWorkflows, setCommunityWorkflows] = useState<WorkflowTemplate[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    if (!service || !reader) {
+      setCommunityWorkflows([]);
+      return;
+    }
+    void (async () => {
+      try {
+        const list = await reader.list(service);
+        if (!cancelled) setCommunityWorkflows(list);
+      } catch {
+        if (!cancelled) setCommunityWorkflows([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // updateCount is included so a successful checkForUpdates / install /
+    // uninstall — which all flow through the marketplace store — triggers a
+    // re-read of the community list. Group VIII is responsible for keeping
+    // updateCount in sync; for now it ticks on install + uninstall via the
+    // store nav badge plumbing.
+  }, [reader, service, templatesVersion, updateCount]);
+
+  const availableWorkflows = useMemo(() => {
+    // De-dupe by id: a community template with the same id as a user
+    // template (rare, but possible after a remix workflow) lets the user
+    // copy win, matching `loadAllTemplates`'s precedence rules.
+    const seen = new Set(localWorkflows.map((t) => t.id));
+    return [
+      ...localWorkflows,
+      ...communityWorkflows.filter((t) => !seen.has(t.id)),
+    ];
+  }, [localWorkflows, communityWorkflows]);
+
   const refreshTemplates = useCallback(
     () => setTemplatesVersion((v) => v + 1),
     []
@@ -171,103 +222,14 @@ export function WorkflowPanel({
 
       {/* Scrollable list region — takes all remaining sidebar height */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-4">
-        <div className="space-y-2">
-          {availableWorkflows.map((workflow) => (
-            <Card
-              key={workflow.id}
-              data-testid={`workflow-card-${workflow.id}`}
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
-            >
-              <CardHeader className="p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    {/*
-                      UX-12: `line-clamp-2` lets long titles ("New Business
-                      Kickoff", "Competitor Analysis Deep Dive") wrap across
-                      TWO lines before truncating with an ellipsis. The
-                      previous `truncate` forced one-line display, which in a
-                      narrow sidebar (256px) chopped off the tail end of most
-                      workflow names. `break-words` prevents a long
-                      unbreakable word from blowing out the card width (the
-                      "one word per line" vertical-stacking bug).
-                    */}
-                    <CardTitle
-                      className="text-sm leading-snug line-clamp-2 break-words"
-                      title={workflow.name}
-                    >
-                      {workflow.name}
-                    </CardTitle>
-                    <CardDescription
-                      className="text-xs mt-1 line-clamp-2"
-                      title={workflow.description}
-                    >
-                      {workflow.description}
-                    </CardDescription>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {workflow.isUser && (
-                      <span
-                        data-testid={`workflow-user-badge-${workflow.id}`}
-                        className="text-[10px] font-medium uppercase tracking-wide bg-primary/10 text-primary px-1.5 py-0.5 rounded"
-                      >
-                        Custom
-                      </span>
-                    )}
-                    <Button
-                      data-testid={`template-picker-duplicate-${workflow.id}`}
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 w-7 p-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDuplicate(workflow);
-                      }}
-                      aria-label={`Duplicate workflow: ${workflow.name}`}
-                      title="Duplicate this template"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                    {workflow.isUser && (
-                      <Button
-                        data-testid={`template-picker-delete-${workflow.id}`}
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(workflow);
-                        }}
-                        aria-label={`Delete workflow: ${workflow.name}`}
-                        title="Delete this user template"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7 w-7 p-0"
-                      onClick={() => handleStartClick(workflow)}
-                      disabled={currentExecution !== null || trialGate.isLocked}
-                      aria-label={`Start workflow: ${workflow.name}`}
-                      title={
-                        trialGate.isLocked
-                          ? `Trial ended — activate a license to run workflows`
-                          : `Start workflow: ${workflow.name}`
-                      }
-                    >
-                      {currentExecution?.template.id === workflow.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
-        </div>
+        <GroupedWorkflowList
+          workflows={availableWorkflows}
+          currentExecution={currentExecution}
+          trialLocked={trialGate.isLocked}
+          onStart={handleStartClick}
+          onDuplicate={handleDuplicate}
+          onDelete={handleDelete}
+        />
 
         {currentExecution && (
           <div>
@@ -433,6 +395,10 @@ function WorkflowsFullViewModal({
                       <CardTitle className="text-sm leading-snug flex-1">
                         {workflow.name}
                       </CardTitle>
+                      <ProvenanceCardBadge
+                        provenance={resolveProvenance(workflow)}
+                        templateId={`modal-${workflow.id}`}
+                      />
                       {workflow.isUser && (
                         <span
                           data-testid={`workflow-modal-user-badge-${workflow.id}`}
@@ -594,6 +560,229 @@ function TemplateForkModal({ original, onClose, onSaved }: TemplateForkModalProp
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Stream C1 — Grouped workflow list with collapsible provenance sections.
+//
+// Order: Built-in -> Community -> Custom. Each section renders only when it
+// has at least one entry. Sections are collapsible with their open/closed
+// state held locally (no persistence in v2.0; revisit if users ask).
+//
+// Each card preserves the existing `workflow-card-<id>` testid used by the
+// e2e suite + adds a `workflow-card-provenance-<id>` badge when the template
+// did not come from the built-in catalog. Built-ins are unbadged so the
+// 12-card sidebar doesn't suddenly carry redundant chrome for every entry.
+// ---------------------------------------------------------------------------
+
+interface GroupedWorkflowListProps {
+  workflows: WorkflowTemplate[];
+  currentExecution: WorkflowExecution | null;
+  trialLocked: boolean;
+  onStart: (template: WorkflowTemplate) => void;
+  onDuplicate: (template: WorkflowTemplate) => void;
+  onDelete: (template: WorkflowTemplate) => void;
+}
+
+const PROVENANCE_ORDER: TemplateProvenance[] = ['built-in', 'community', 'custom'];
+
+function resolveProvenance(t: WorkflowTemplate): TemplateProvenance {
+  if (t.provenance) return t.provenance;
+  if (t.isUser) return 'custom';
+  return 'built-in';
+}
+
+function GroupedWorkflowList({
+  workflows,
+  currentExecution,
+  trialLocked,
+  onStart,
+  onDuplicate,
+  onDelete,
+}: GroupedWorkflowListProps) {
+  const [collapsed, setCollapsed] = useState<Record<TemplateProvenance, boolean>>({
+    'built-in': false,
+    community: false,
+    custom: false,
+  });
+
+  const grouped = useMemo(() => {
+    const buckets: Record<TemplateProvenance, WorkflowTemplate[]> = {
+      'built-in': [],
+      community: [],
+      custom: [],
+    };
+    for (const t of workflows) {
+      buckets[resolveProvenance(t)].push(t);
+    }
+    return buckets;
+  }, [workflows]);
+
+  return (
+    <div data-testid="workflows-grouped-list" className="space-y-4">
+      {PROVENANCE_ORDER.map((p) => {
+        const list = grouped[p];
+        if (list.length === 0) return null;
+        const isCollapsed = collapsed[p];
+        return (
+          <section
+            key={p}
+            data-testid={`workflows-group-${p}`}
+            data-provenance={p}
+            className="space-y-2"
+          >
+            <button
+              type="button"
+              data-testid={`workflows-group-toggle-${p}`}
+              onClick={() =>
+                setCollapsed((prev) => ({ ...prev, [p]: !prev[p] }))
+              }
+              className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground w-full text-left"
+              aria-expanded={!isCollapsed}
+            >
+              {isCollapsed ? (
+                <ChevronRight className="h-3 w-3" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="h-3 w-3" aria-hidden="true" />
+              )}
+              <span>{TEMPLATE_PROVENANCE_LABELS[p]}</span>
+              <span className="text-muted-foreground/70 tabular-nums">
+                ({list.length.toString()})
+              </span>
+            </button>
+
+            {!isCollapsed && (
+              <div className="space-y-2">
+                {list.map((workflow) => {
+                  const provenance = resolveProvenance(workflow);
+                  return (
+                    <Card
+                      key={workflow.id}
+                      data-testid={`workflow-card-${workflow.id}`}
+                      data-provenance={provenance}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    >
+                      <CardHeader className="p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <CardTitle
+                              className="text-sm leading-snug line-clamp-2 break-words"
+                              title={workflow.name}
+                            >
+                              {workflow.name}
+                            </CardTitle>
+                            <CardDescription
+                              className="text-xs mt-1 line-clamp-2"
+                              title={workflow.description}
+                            >
+                              {workflow.description}
+                            </CardDescription>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <ProvenanceCardBadge
+                              provenance={provenance}
+                              templateId={workflow.id}
+                            />
+                            {workflow.isUser && (
+                              <span
+                                data-testid={`workflow-user-badge-${workflow.id}`}
+                                className="text-[10px] font-medium uppercase tracking-wide bg-primary/10 text-primary px-1.5 py-0.5 rounded"
+                              >
+                                Custom
+                              </span>
+                            )}
+                            <Button
+                              data-testid={`template-picker-duplicate-${workflow.id}`}
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDuplicate(workflow);
+                              }}
+                              aria-label={`Duplicate workflow: ${workflow.name}`}
+                              title="Duplicate this template"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                            {workflow.isUser && (
+                              <Button
+                                data-testid={`template-picker-delete-${workflow.id}`}
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onDelete(workflow);
+                                }}
+                                aria-label={`Delete workflow: ${workflow.name}`}
+                                title="Delete this user template"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 w-7 p-0"
+                              onClick={() => onStart(workflow)}
+                              disabled={
+                                currentExecution !== null || trialLocked
+                              }
+                              aria-label={`Start workflow: ${workflow.name}`}
+                              title={
+                                trialLocked
+                                  ? `Trial ended, activate a license to run workflows`
+                                  : `Start workflow: ${workflow.name}`
+                              }
+                            >
+                              {currentExecution?.template.id === workflow.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Play className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Provenance badge for the per-card display. Built-ins render no badge
+ * (the section header already labels the group + the built-in case is the
+ * default). Community + custom render a compact pill.
+ */
+function ProvenanceCardBadge({
+  provenance,
+  templateId,
+}: {
+  provenance: TemplateProvenance;
+  templateId: string;
+}) {
+  if (provenance === 'built-in') return null;
+  const tone =
+    provenance === 'community'
+      ? 'bg-primary/10 text-primary'
+      : 'bg-muted text-foreground';
+  return (
+    <span
+      data-testid={`workflow-card-provenance-${templateId}`}
+      data-provenance={provenance}
+      className={`text-[10px] font-medium uppercase tracking-wide px-1.5 py-0.5 rounded ${tone}`}
+    >
+      {TEMPLATE_PROVENANCE_LABELS[provenance]}
+    </span>
   );
 }
 

@@ -157,6 +157,20 @@ export interface WorkflowTemplate {
    * undefined; user templates are persisted with this flag set to `true`.
    */
   isUser?: boolean;
+  /**
+   * Stream C1 — Where this template came from. Built-ins leave this
+   * undefined (treated as `'built-in'` by UI). Templates installed via the
+   * Templates Marketplace stamp `'community'`. User-authored templates can
+   * stamp `'custom'` if desired.
+   */
+  provenance?: 'built-in' | 'community' | 'custom';
+  /**
+   * Stream C1 — Original id from the marketplace catalog (without the
+   * `community:` namespace prefix that the engine applies). Allows the UI
+   * + uninstall flow to look the entry up in `MarketplaceService.listInstalled()`.
+   * Only set on community-installed templates.
+   */
+  sourceId?: string;
 }
 
 /**

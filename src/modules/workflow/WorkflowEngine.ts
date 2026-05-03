@@ -38,18 +38,67 @@ export type ProgressHandler = (
 ) => void;
 
 /**
+ * Stream C1 — Callback returning the community-installed workflow templates
+ * read from the marketplace install directory. Defaults to a resolver that
+ * returns `[]`, so engines constructed without marketplace wiring continue to
+ * surface only their built-ins. Throwing or returning a rejected promise
+ * does not crash the engine; `availableTemplates()` falls back to built-ins
+ * with a console warning.
+ */
+export type CommunityTemplatesProvider = () => Promise<WorkflowTemplate[]>;
+
+export interface WorkflowEngineOptions {
+  /**
+   * Stream C1 — Built-in templates the engine should surface alongside any
+   * community-installed templates. Caller-supplied so the engine doesn't
+   * have to import from `@/modules/workflow` (which would create a circular
+   * import via this file's barrel re-export).
+   */
+  builtInTemplates?: WorkflowTemplate[];
+  /** Stream C1 — Source of marketplace-installed templates. */
+  getCommunityTemplates?: CommunityTemplatesProvider;
+}
+
+/**
  * WorkflowEngine executes workflow templates
  */
 export class WorkflowEngine {
   private execution: WorkflowExecution | null = null;
   private toolCalls: ToolCall[] = [];
+  private readonly builtInTemplates: WorkflowTemplate[];
+  private readonly getCommunityTemplates: CommunityTemplatesProvider;
 
   constructor(
     private readonly provider: Provider,
     private readonly fileOps: FileOperations,
     private readonly onInterview: InterviewHandler,
-    private readonly onProgress?: ProgressHandler
-  ) {}
+    private readonly onProgress?: ProgressHandler,
+    options: WorkflowEngineOptions = {}
+  ) {
+    this.builtInTemplates = options.builtInTemplates ?? [];
+    this.getCommunityTemplates =
+      options.getCommunityTemplates ?? (() => Promise.resolve([]));
+  }
+
+  /**
+   * Stream C1 — All templates the engine knows about: built-ins (caller-
+   * supplied at construction) followed by community-installed templates from
+   * the marketplace. Failures fetching community templates are logged + the
+   * built-in list is returned alone so the picker never goes empty.
+   */
+  async availableTemplates(): Promise<WorkflowTemplate[]> {
+    let community: WorkflowTemplate[] = [];
+    try {
+      community = await this.getCommunityTemplates();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[WorkflowEngine] getCommunityTemplates failed, returning built-ins only:',
+        err,
+      );
+    }
+    return [...this.builtInTemplates, ...community];
+  }
 
   /**
    * Start executing a workflow template
@@ -296,7 +345,14 @@ export function createWorkflowEngine(
   provider: Provider,
   fileOps: FileOperations,
   onInterview: InterviewHandler,
-  onProgress?: ProgressHandler
+  onProgress?: ProgressHandler,
+  options?: WorkflowEngineOptions
 ): WorkflowEngine {
-  return new WorkflowEngine(provider, fileOps, onInterview, onProgress);
+  return new WorkflowEngine(
+    provider,
+    fileOps,
+    onInterview,
+    onProgress,
+    options
+  );
 }

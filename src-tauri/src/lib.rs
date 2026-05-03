@@ -65,6 +65,9 @@ pub fn run() {
             commands::tts::tts_speak,
             commands::tts::tts_stop,
             commands::tts::tts_download_voice,
+            // Stream C1 (v2.0): Templates Marketplace install pipeline.
+            commands::checksum::sha256_file,
+            commands::tarball::extract_tarball,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

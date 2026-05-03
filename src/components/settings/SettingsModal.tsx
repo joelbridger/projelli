@@ -38,7 +38,8 @@ import { TemplateModelSettings } from '@/components/settings/TemplateModelSettin
 import { LicenseSettings } from '@/components/settings/LicenseSettings';
 import { PrivacySettings } from '@/components/settings/PrivacySettings';
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
-import { MarketplaceSettings } from '@/components/settings/MarketplaceSettings';
+import { MarketplaceTab } from '@/components/marketplace/MarketplaceTab';
+import { useTemplateUpdateCount } from '@/hooks/useTemplatesMarketplace';
 import { MobileSettings } from '@/components/settings/MobileSettings';
 import { PluginsSettings } from '@/components/settings/PluginsSettings';
 import { AdvancedSettings } from '@/components/settings/AdvancedSettings';
@@ -480,6 +481,10 @@ function AboutHeader() {
 
 export function SettingsModal({ open, onOpenChange, onAction, auditEntries, templates, initialCategory }: SettingsModalProps) {
   const [activeCategory, setActiveCategory] = useState<SettingCategory>(initialCategory ?? 'general');
+  // Group VIII (Stream C1): drives the small count pill on the Marketplace
+  // nav row when the launch-time checkForUpdates() finds installed templates
+  // with newer catalog versions. Hidden when 0.
+  const templateUpdateCount = useTemplateUpdateCount();
   const [searchQuery, setSearchQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -686,19 +691,30 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
               const visible = visibleCategories.has(cat.id);
               if (!visible) return null;
               const isActive = activeCategory === cat.id;
+              const showUpdateBadge = cat.id === 'marketplace' && templateUpdateCount > 0;
               return (
                 <button
                   key={cat.id}
                   data-testid={`settings-category-${cat.id}`}
                   className={cn(
-                    'w-full text-left px-4 py-2 text-sm transition-colors',
+                    'w-full flex items-center gap-2 text-left px-4 py-2 text-sm transition-colors',
                     isActive
                       ? 'bg-background font-medium text-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
                   onClick={() => setActiveCategory(cat.id)}
                 >
-                  {cat.label}
+                  <span className="flex-1 truncate">{cat.label}</span>
+                  {showUpdateBadge && (
+                    <span
+                      data-testid="settings-marketplace-update-badge"
+                      data-count={templateUpdateCount}
+                      aria-label={`${templateUpdateCount.toString()} template updates available`}
+                      className="shrink-0 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary"
+                    >
+                      {templateUpdateCount}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -722,7 +738,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
                 <OllamaSettingsSection />
               </>
             ) : activeCategory === 'marketplace' ? (
-              <MarketplaceSettings />
+              <MarketplaceTab />
             ) : activeCategory === 'plugins' ? (
               <PluginsSettings />
             ) : activeCategory === 'mobile' ? (

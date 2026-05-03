@@ -58,6 +58,11 @@ import type { AuditEntry } from '@/types/audit';
 import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import {
+  createTemplatesMarketplaceService,
+  TemplateMetadataReader,
+  type MarketplaceService,
+} from '@/modules/marketplace';
+import {
   resolveTemplateModel,
   TEMPLATE_MODEL_OVERRIDES_KEY,
   type TemplateModelOverride,
@@ -97,6 +102,7 @@ import { useAIChatFiles } from '@/hooks/useAIChatFiles';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { useOpenFileAIContext } from '@/hooks/useOpenFileAIContext';
 import { useFileContextStore } from '@/stores/fileContextStore';
+import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
 import { buildOpenFilesPromptBlock } from '@/components/ai/AIChatViewer';
 import { useModelList } from '@/hooks/useModelList';
 import { useContentIndex } from '@/hooks/useContentIndex';
@@ -177,6 +183,13 @@ function App() {
   const [showWhatsNewModalDirect, setShowWhatsNewModalDirect] = useState(false);
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
+  // Stream C1 — Templates Marketplace service. Constructed once when a
+  // workspace is selected (each workspace gets its own install root under
+  // `<workspaceRoot>/.projelli/templates`). The metadata reader reads
+  // installed entries off disk and adapts them into WorkflowTemplate for the
+  // engine. Both refs are nullable until a workspace is loaded.
+  const templatesMarketplaceServiceRef = useRef<MarketplaceService | null>(null);
+  const templatesMetadataReaderRef = useRef<TemplateMetadataReader | null>(null);
 
   // Workflow state
   const [currentExecution, setCurrentExecution] = useState<WorkflowExecution | null>(null);
@@ -579,6 +592,13 @@ function App() {
         };
       }
 
+      // Stream C1 — expose the templates marketplace store for E2E specs so
+      // they can seed a synthetic service (no Tauri backend in test mode) and
+      // drive Browse/Install/Uninstall flows end-to-end via the real React UI.
+      (window as unknown as {
+        __templatesMarketplaceStore?: typeof useTemplatesMarketplaceStore;
+      }).__templatesMarketplaceStore = useTemplatesMarketplaceStore;
+
       console.log('Test mode enabled: Mock workspace initialized with 2 demo tabs + mock FS');
     }
   }, [IS_TEST_MODE, rootPath, setRootPath, openFile]);
@@ -600,6 +620,55 @@ function App() {
   useEffect(() => {
     loadRecentWorkspaces();
   }, [loadRecentWorkspaces]);
+
+  // Stream C1 Group VIII — Deferred check-for-updates on workspace load.
+  //
+  // We subscribe to the templates marketplace store rather than reading a ref
+  // so the check re-runs each time the user switches workspaces (each
+  // workspace gets its own MarketplaceService instance with its own install
+  // root). The 2-second delay keeps cold start snappy by skipping the network
+  // round trip until the editor is interactive. Errors are swallowed: a
+  // failed network call leaves the badge at 0 and the user can still install
+  // / refresh by hand.
+  useEffect(() => {
+    const status = { cancelled: false };
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleCheck = (svc: MarketplaceService) => {
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (status.cancelled) return;
+        void (async () => {
+          try {
+            const updates = await svc.checkForUpdates();
+            if (status.cancelled) return;
+            useTemplatesMarketplaceStore.getState().setUpdateCount(updates.length);
+          } catch (err) {
+            console.warn('[App] checkForUpdates failed; badge remains hidden:', err);
+          }
+        })();
+      }, 2000);
+    };
+    const unsubscribe = useTemplatesMarketplaceStore.subscribe((state, prev) => {
+      if (state.service === prev.service) return;
+      if (!state.service) {
+        if (timer !== null) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        useTemplatesMarketplaceStore.getState().setUpdateCount(0);
+        return;
+      }
+      scheduleCheck(state.service);
+    });
+    // Run once for the current state too (subscribe only fires on change).
+    const current = useTemplatesMarketplaceStore.getState().service;
+    if (current) scheduleCheck(current);
+    return () => {
+      status.cancelled = true;
+      if (timer !== null) clearTimeout(timer);
+      unsubscribe();
+    };
+  }, []);
 
   // Derive whiteboard files from file tree
   const whiteboardFiles = useMemo(() => {
@@ -805,6 +874,33 @@ function App() {
     const newRootPath = service.getRootPath();
     if (newRootPath) {
       setRootPath(newRootPath);
+    }
+
+    // Stream C1 — Construct the templates marketplace service for this
+    // workspace. Each workspace gets its own install root so installed
+    // templates don't leak across projects. Skipped when no backend (e.g.
+    // test mode shims that bypass createFSBackend).
+    const backend = service.getBackend();
+    const tplStore = useTemplatesMarketplaceStore.getState();
+    if (backend && newRootPath) {
+      try {
+        const tplService = createTemplatesMarketplaceService(backend, newRootPath);
+        const reader = new TemplateMetadataReader({ fs: backend });
+        templatesMarketplaceServiceRef.current = tplService;
+        templatesMetadataReaderRef.current = reader;
+        // Seed the store so MarketplaceTab + offline banner can read the
+        // service via useTemplatesMarketplace() instead of prop drilling.
+        tplStore.setMarketplace(tplService, reader);
+      } catch (err) {
+        console.warn('[App] Failed to construct TemplatesMarketplaceService:', err);
+        templatesMarketplaceServiceRef.current = null;
+        templatesMetadataReaderRef.current = null;
+        tplStore.clearMarketplace();
+      }
+    } else {
+      templatesMarketplaceServiceRef.current = null;
+      templatesMetadataReaderRef.current = null;
+      tplStore.clearMarketplace();
     }
 
     let isNewWorkspace = false;
@@ -1964,6 +2060,18 @@ function App() {
               artifacts,
             })
           );
+        },
+        {
+          // Stream C1 — Surface marketplace-installed templates alongside
+          // built-ins on `engine.availableTemplates()`. Reader + service refs
+          // are nullable until a workspace is loaded; the resolver returns []
+          // in that case rather than throwing.
+          getCommunityTemplates: async () => {
+            const reader = templatesMetadataReaderRef.current;
+            const svc = templatesMarketplaceServiceRef.current;
+            if (!reader || !svc) return [];
+            return reader.list(svc);
+          },
         }
       );
 
