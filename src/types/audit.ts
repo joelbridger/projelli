@@ -70,7 +70,10 @@ export type AuditEvent =
   | { type: 'plugin_uninstalled'; timestamp: string; payload: { id: string } }
   | { type: 'plugin_executed'; timestamp: string; payload: { id: string; command: string; durationMs: number } }
   | { type: 'plugin_permission_denied'; timestamp: string; payload: { id: string; permission: string } }
-  | { type: 'template_installed_from_marketplace'; timestamp: string; payload: { id: string; version: string; source: string } }
+  | { type: 'template_installed_from_marketplace'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
+  | { type: 'template_uninstalled'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
+  | { type: 'template_updated'; timestamp: string; payload: { templateId: string; version: string; fromVersion?: string; toVersion?: string; error?: string } }
+  | { type: 'template_install_failed'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
   | { type: 'language_changed'; timestamp: string; payload: { from: string; to: string } };
 
 /**
