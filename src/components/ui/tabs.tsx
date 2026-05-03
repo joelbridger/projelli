@@ -26,12 +26,11 @@ export function Tabs({ value, onValueChange, children, className }: TabsProps) {
   );
 }
 
-interface TabsListProps {
+interface TabsListProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
-  className?: string;
 }
 
-export function TabsList({ children, className }: TabsListProps) {
+export function TabsList({ children, className, ...rest }: TabsListProps) {
   return (
     <div
       className={cn(
@@ -39,20 +38,26 @@ export function TabsList({ children, className }: TabsListProps) {
         className
       )}
       role="tablist"
+      {...rest}
     >
       {children}
     </div>
   );
 }
 
-interface TabsTriggerProps {
+interface TabsTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   value: string;
   children: React.ReactNode;
-  className?: string;
-  disabled?: boolean;
 }
 
-export function TabsTrigger({ value, children, className, disabled }: TabsTriggerProps) {
+export function TabsTrigger({
+  value,
+  children,
+  className,
+  disabled,
+  onClick,
+  ...rest
+}: TabsTriggerProps) {
   const context = React.useContext(TabsContext);
   if (!context) throw new Error('TabsTrigger must be used within Tabs');
 
@@ -71,20 +76,23 @@ export function TabsTrigger({ value, children, className, disabled }: TabsTrigge
           : 'hover:bg-background/50 hover:text-foreground',
         className
       )}
-      onClick={() => context.onValueChange(value)}
+      onClick={(e) => {
+        onClick?.(e);
+        if (!e.defaultPrevented) context.onValueChange(value);
+      }}
+      {...rest}
     >
       {children}
     </button>
   );
 }
 
-interface TabsContentProps {
+interface TabsContentProps extends React.HTMLAttributes<HTMLDivElement> {
   value: string;
   children: React.ReactNode;
-  className?: string;
 }
 
-export function TabsContent({ value, children, className }: TabsContentProps) {
+export function TabsContent({ value, children, className, ...rest }: TabsContentProps) {
   const context = React.useContext(TabsContext);
   if (!context) throw new Error('TabsContent must be used within Tabs');
 
@@ -97,6 +105,7 @@ export function TabsContent({ value, children, className }: TabsContentProps) {
         'mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         className
       )}
+      {...rest}
     >
       {children}
     </div>
