@@ -3,6 +3,7 @@ export type {
   MarketplaceServiceOptions,
   InstallPhase,
   InstallOptions,
+  CacheStatus,
 } from './MarketplaceService';
 export {
   createTemplatesMarketplaceService,

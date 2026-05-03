@@ -104,6 +104,67 @@ describe('MarketplaceService.getById', () => {
   });
 });
 
+describe('MarketplaceService.cacheStatus', () => {
+  let fs: ReturnType<typeof makeFs>;
+  let fetchSpy: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fs = makeFs();
+    fetchSpy = vi.fn(async () => ({ ok: true, json: async () => SAMPLE } as Response));
+    vi.stubGlobal('fetch', fetchSpy);
+  });
+
+  it('reports offline before any refresh', () => {
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'c.json',
+      cachePath: '.cache.json', installRoot: '.r', fs,
+    });
+    expect(svc.cacheStatus()).toBe('offline');
+  });
+
+  it('reports fresh immediately after a successful refresh', async () => {
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'c.json',
+      cachePath: '.cache.json', installRoot: '.r', fs,
+    });
+    await svc.refresh();
+    expect(svc.cacheStatus()).toBe('fresh');
+  });
+
+  it('reports stale when the last successful fetch is older than cacheTtlMs', async () => {
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'c.json',
+      cachePath: '.cache.json', installRoot: '.r', fs,
+      cacheTtlMs: 1, // make any past fetch instantly stale
+    });
+    await svc.refresh();
+    // Wait long enough for cacheTtlMs (1ms) to elapse.
+    await new Promise((r) => setTimeout(r, 5));
+    expect(svc.cacheStatus()).toBe('stale');
+  });
+
+  it('reports offline after a silent refresh failure with no prior cache', async () => {
+    fetchSpy.mockRejectedValue(new Error('boom'));
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'c.json',
+      cachePath: '.cache.json', installRoot: '.r', fs,
+    });
+    await svc.refresh({ silent: true });
+    expect(svc.cacheStatus()).toBe('offline');
+  });
+
+  it('reports offline after a fetch failure even when a prior cache exists', async () => {
+    const svc = new MarketplaceService({
+      repoUrl: 'http://e', catalogPath: 'c.json',
+      cachePath: '.cache.json', installRoot: '.r', fs,
+    });
+    await svc.refresh();
+    fetchSpy.mockRejectedValueOnce(new Error('boom'));
+    await svc.refresh({ silent: true });
+    expect(svc.cacheStatus()).toBe('offline');
+  });
+});
+
 describe('MarketplaceService default behavior (Group III pre-conditions)', () => {
   let fs: ReturnType<typeof makeFs>;
 

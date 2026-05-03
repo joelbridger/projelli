@@ -30,6 +30,14 @@ export interface InstallOptions {
   signal?: AbortSignal;
 }
 
+/**
+ * Catalog cache freshness signal surfaced to the UI:
+ *   - 'fresh'    last successful fetch within `cacheTtlMs`
+ *   - 'stale'    last successful fetch older than `cacheTtlMs` but cache present
+ *   - 'offline'  last fetch attempt failed (or never ran), cache may or may not exist
+ */
+export type CacheStatus = 'fresh' | 'stale' | 'offline';
+
 interface CacheFile {
   fetchedAt: string;
   entries: CatalogEntry[];
@@ -39,11 +47,20 @@ interface InstalledIndex {
   entries: InstalledEntry[];
 }
 
+/** Default TTL after which a successful fetch is considered 'stale'. */
+const DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
 export class MarketplaceService {
   private cache: CatalogEntry[] | null = null;
   private installedCache: InstalledEntry[] | null = null;
   private readonly auditService: AuditService;
   private readonly defaultProvenance: TemplateProvenance;
+  private readonly cacheTtlMs: number;
+  /** ISO timestamp of the last successful refresh (in-memory mirror of CacheFile.fetchedAt). */
+  private lastFetchedAt: string | null = null;
+  /** Did the most recent fetch attempt error? Used to distinguish 'stale' vs 'offline'. */
+  private lastFetchFailed = false;
+
   /**
    * In-flight installs keyed by template id. A second `install(sameId)` call
    * returns the same promise rather than starting a duplicate pipeline; this
@@ -55,6 +72,7 @@ export class MarketplaceService {
   constructor(private opts: MarketplaceServiceOptions) {
     this.auditService = opts.auditService ?? new AuditService('marketplace');
     this.defaultProvenance = opts.provenance ?? 'community';
+    this.cacheTtlMs = opts.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
   }
 
   async refresh(opts?: { silent?: boolean }): Promise<void> {
@@ -64,9 +82,13 @@ export class MarketplaceService {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const entries = (await res.json()) as CatalogEntry[];
       this.cache = entries;
-      const cacheFile: CacheFile = { fetchedAt: new Date().toISOString(), entries };
+      const fetchedAt = new Date().toISOString();
+      this.lastFetchedAt = fetchedAt;
+      this.lastFetchFailed = false;
+      const cacheFile: CacheFile = { fetchedAt, entries };
       await this.opts.fs.write(this.opts.cachePath, JSON.stringify(cacheFile));
     } catch (err) {
+      this.lastFetchFailed = true;
       if (!opts?.silent) throw err;
       await this.loadCachedIfPresent();
     }
@@ -77,9 +99,31 @@ export class MarketplaceService {
       const raw = await this.opts.fs.read(this.opts.cachePath);
       const parsed = JSON.parse(raw) as CacheFile;
       this.cache = parsed.entries;
+      // Surface the on-disk fetchedAt so cacheStatus() reports 'stale' rather
+      // than 'offline' for cold starts that load a previously good cache.
+      if (typeof parsed.fetchedAt === 'string') {
+        this.lastFetchedAt = parsed.fetchedAt;
+      }
     } catch {
       // no cache yet
     }
+  }
+
+  /** Most recent successful fetch timestamp (ISO 8601), or null if none. */
+  lastFetchedAtIso(): string | null {
+    return this.lastFetchedAt;
+  }
+
+  /**
+   * Reports whether the in-memory catalog is fresh, stale, or unavailable.
+   * The UI uses this to decide whether to show the offline banner.
+   */
+  cacheStatus(): CacheStatus {
+    if (this.lastFetchFailed) return 'offline';
+    if (!this.lastFetchedAt) return 'offline';
+    const ageMs = Date.now() - new Date(this.lastFetchedAt).getTime();
+    if (Number.isNaN(ageMs)) return 'offline';
+    return ageMs <= this.cacheTtlMs ? 'fresh' : 'stale';
   }
 
   async list(): Promise<CatalogEntry[]> {
