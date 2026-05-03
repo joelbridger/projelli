@@ -41,3 +41,8 @@ export type {
   TemplateFileType,
   TemplateManifestAuthor,
 } from '@/types/templateManifest';
+export {
+  TemplateMetadataReader,
+  COMMUNITY_TEMPLATE_ID_PREFIX,
+} from './TemplateMetadataReader';
+export type { TemplateMetadataReaderOptions } from './TemplateMetadataReader';
