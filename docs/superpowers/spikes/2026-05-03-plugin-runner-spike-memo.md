@@ -12,22 +12,22 @@
 - [ ] Criterion 3 fails (sandbox actually leaks), re-evaluate whether to ship plugin system in v2.0 (spec row 3).
 - [ ] 4 to 8 criteria fail, adjust scope (spec row 4).
 
-**Conditional caveat.** The chosen outcome is *conditional* on a live-browser smoke test of the harness (route `/_dev/plugin-spike` under `npm run tauri:dev` or `npm run dev`) producing the same pass-signals for criteria 1 and 8 against a real `Worker`. Criteria 2, 3, 4, 5, 6, 7 are validated through the production `SpikeAPIBridge`, `SpikePluginRuntime`, and `SpikeMessageProtocol` modules (only the Worker shell is mocked), so they hold under either substrate. Criteria 1 and 8 specifically depend on real-Worker behaviour (true isolation, real `postMessage` round-trip latency); the automated test environment cannot answer those.
+**Live-browser smoke test confirmed 2026-05-03.** The harness was driven via Playwright against a real Vite + Chromium browser at `/_dev/plugin-spike`. All 8 criteria passed against real `Worker` behaviour, including the two previously-pending: criterion 1 (real worker isolation) and criterion 8 (real `postMessage` round-trip latency). The outcome is no longer conditional.
 
-**Justification.** Criteria 2-7 pass cleanly through the real bridge / runtime / protocol code paths under the paired-bridge mock. Criterion 1 passes via a fixture that hard-codes the isolation report (jsdom defines `document` and `window`); the architectural assumption (a Web Worker has no `document` or `window`) is well-established platform behaviour, not an open research question. Criterion 8 passes the threshold by three orders of magnitude under the mock, and even an order-of-magnitude penalty for real `postMessage` clone + IPC would still leave median latency well under the 50 ms target. The risk surface for "live browser invalidates the spike" is therefore narrow and concrete: CSP blocking blob-URL imports inside the Tauri webview, or surprisingly slow `postMessage` clone on macOS Apple-Silicon webview. Both are testable in minutes once Jameson runs the harness.
+**Justification.** Criteria 2-7 were already validated through the real bridge / runtime / protocol code paths under the paired-bridge mock. The live-browser run added the missing pieces: criterion 1 confirmed `typeof document` and `typeof window` are both `undefined` inside a real Web Worker (the architectural assumption held); criterion 8 measured 100 round-trips in real Chromium and reported median 0.10 ms, p95 0.20 ms, max 1.40 ms, more than 35x under the 50 ms target's most aggressive interpretation and 500x under its plain reading. No Tauri-CSP issues with blob-URL imports surfaced (Vite served the worker via its `?worker` import; the production path will need re-validation under Tauri's webview, but the Vite path is identical to the dev experience).
 
 ## Per-criterion results
 
 | # | Criterion | Result | Notes |
 |---|---|---|---|
-| 1 | Worker isolation | automated pass via mock; pending live-browser verification | jsdom defines `document` and `window`, so the fixture reports both as `'undefined'` to exercise the pass path. Real isolation must be confirmed by clicking [Run] on criterion 1 in `/_dev/plugin-spike`. |
+| 1 | Worker isolation | pass (live-browser confirmed 2026-05-03) | Live harness reported "document/window are undefined inside the worker; self is defined." Real Web Worker has no DOM globals, as expected. |
 | 2 | Round-trip command | pass | Both string-payload (`{ echo: 'pong' }`) and default-payload returns matched. Real bridge + runtime + protocol code paths exercised. |
-| 3 | Permission denial | pass | `workspace.readFile('/etc/passwd')` rejected with structured error `code: 'permission-denied'`. Bridge enforced manifest at API call time. |
-| 4 | Sidebar panel render | pass | `panel-render` emitted by worker, captured by `bridge.onPanelRender`. Spec shape: `{ id: 'spike-panel', title: 'Spike Panel', html: '<p>hello from the plugin sandbox</p>' }`. Live screenshot deferred to harness smoke test. |
-| 5 | Hot-load + reload + unload | pass | Three-phase cycle (load, reload with same source, unload). `terminate()` reported `isTerminated() === true`; subsequent `invokeCommand` rejected synchronously. No leaked listeners. |
-| 6 | Permission enforcement across plugins | pass | Permitted plugin's `editor.getSelection()` returned the mock selection; denied plugin's same call rejected with `code: 'permission-denied'`. Two independent bridges, distinct manifests. |
-| 7 | Crash isolation | pass | Heartbeat ticked approximately 62 times during the 1 s throw window in Group V. Both sync (`throw new Error`) and async (`Promise.reject`) crashes were caught with `code: 'plugin-threw'`. Main thread continued responsive. |
-| 8 | API round-trip latency | automated pass via mock; pending live-browser verification | 100 calls, 5 warmup discards, 95 measured. Median 0.011 ms, p95 0.019 ms, max 0.026 ms over the in-memory paired bridge. **Caveat:** these are microtask-deferral numbers, not real Worker `postMessage` round-trips. The 50 ms spec target is keyed against real-Worker latency; live-browser harness produces the spec-relevant numbers. |
+| 3 | Permission denial | pass | `workspace.readFile('/etc/passwd')` rejected with structured error `code: 'permission-denied'`. Bridge enforced manifest at API call time. Live harness re-confirmed under real Worker. |
+| 4 | Sidebar panel render | pass | `panel-render` emitted by worker, captured by `bridge.onPanelRender`. Live harness reported `id=spike-panel, title="Spike Panel"`. The sandboxed-iframe renderer is wired into the harness component. |
+| 5 | Hot-load + reload + unload | pass | Three-phase cycle (load, reload with same source, unload). Live harness: "load + reload + unload completed; bridges terminated cleanly between cycles." |
+| 6 | Permission enforcement across plugins | pass | Live harness: permitted plugin returned `"selected text"`; denied plugin got `permission-denied`. Two independent bridges, distinct manifests. |
+| 7 | Crash isolation | pass | Live harness measured **63 heartbeat ticks** through sync + async plugin throws. Both sync (`throw new Error`) and async (`Promise.reject`) crashes caught with `code: 'plugin-threw'`. Main thread responsive throughout. |
+| 8 | API round-trip latency | pass (live-browser confirmed 2026-05-03) | Live harness, real Chromium Worker, 100 calls, 5 warmup discards, 95 measured: **median 0.10 ms, p95 0.20 ms, max 1.40 ms.** 500x under the 50 ms spec target. |
 
 ## Surprises
 
@@ -52,22 +52,11 @@ The spike validates the following design decisions for the production runner. C3
 
 None. All spike-level decisions resolved during execution. C3 plan-writing is gated on the outcome row above; that gate is the only board-level item.
 
-## Next plans to write (only after Jameson approves the outcome)
+## Next plans to write (now unblocked, awaiting Jameson go-ahead)
 
-(Blocked on Jameson approval of outcome row 1.)
+Live-browser smoke test confirmed all 8 criteria. Outcome row 1 is final. The following plans are now ready to write on Jameson's signal:
 
-If approved (outcome row 1, proceed): write
 - C3 plan, sandboxed runner production implementation
 - C4 plan, marketplace UI
 - C5 plan, plugin developer experience
 - C6 plan, seed catalog
-
-If criteria 1 or 8 fail under live-browser smoke test:
-- Criterion 1 fail (`document` / `window` actually defined inside worker) is a v2.0-killing surprise; escalate. Web Workers have not failed this test on any modern browser since 2014.
-- Criterion 8 fail (median > 50 ms in real Worker) drops to scope-cut path: pivot C3 to allow synchronous in-bridge command execution for hot paths and reserve worker round-trip for genuine plugin-authored work.
-
-If outcome row 2 (iframe pivot): rewrite C3 against iframe-sandbox + `postMessage`. Adjust spec §6.5.
-
-If outcome row 3 (re-evaluate): escalate. Plugin system may be cut from v2.0.
-
-If outcome row 4 (scope cut): rewrite C3 with explicit cuts. Adjust spec §6.4 + §6.5.
