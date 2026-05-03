@@ -697,7 +697,9 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
             ) : (
               <div>
                 {activeCategory === 'about' && <AboutHeader />}
-                {activeCategory === 'voice' && <VoiceSettingsSection />}
+                {activeCategory === 'voice' && (
+                  <VoiceSettingsSection ttsEnabled={Boolean(getSetting('ttsEnabled'))} />
+                )}
                 {categorySettings.map((def) => (
                   <SettingRow
                     key={def.key}

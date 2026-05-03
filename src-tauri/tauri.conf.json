@@ -72,7 +72,10 @@
       "resources/**/*",
       "binaries/**/*"
     ],
-    "externalBin": [],
+    "externalBin": [
+      "binaries/parakeet",
+      "binaries/piper"
+    ],
     "createUpdaterArtifacts": true
   },
   "plugins": {

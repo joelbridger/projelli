@@ -22,6 +22,8 @@ use std::path::PathBuf;
 
 pub mod parakeet;
 pub use parakeet::ParakeetSidecar;
+pub mod piper;
+pub use piper::PiperSidecar;
 
 pub trait Sidecar: Send + Sync {
     fn name(&self) -> &str;

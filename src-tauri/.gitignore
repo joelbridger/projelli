@@ -2,3 +2,7 @@
 # will have compiled files and executables
 /target/
 /gen/schemas
+# Platform-specific sidecar binaries (populated by scripts/fetch-piper-sidecar.sh and equivalent).
+# Stub files used for dev/CI builds are also excluded to avoid committing empty executables.
+/binaries/
+/voices/

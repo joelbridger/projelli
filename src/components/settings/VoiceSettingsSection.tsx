@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, AlertCircle, Mic, MicOff } from 'lucide-react';
 import { isVoiceSidecarAvailable } from '@/modules/voice/voiceStatus';
+import { VoiceOutputSettingsSection } from '@/components/tts/VoiceOutputSettingsSection';
 
 type SidecarStatus = 'checking' | 'ready' | 'missing';
 type MicStatus = 'unknown' | 'granted' | 'denied' | 'prompt';
@@ -19,6 +20,14 @@ export interface VoiceSettingsSectionProps {
   onProbeSidecar?: () => Promise<boolean>;
   /** Test hook — replaces the mic-permission query. */
   onProbeMic?: () => Promise<MicStatus>;
+  /**
+   * Current value of the ttsEnabled setting. When true, the
+   * VoiceOutputSettingsSection (TTS availability banner) is shown.
+   * Defaults to false so the banner stays hidden until TTS is enabled.
+   */
+  ttsEnabled?: boolean;
+  /** Test hook — replaces TTSService.isAvailable() probe in VoiceOutputSettingsSection. */
+  onProbeTts?: () => Promise<boolean>;
 }
 
 async function defaultProbeMic(): Promise<MicStatus> {
@@ -43,6 +52,8 @@ async function defaultProbeMic(): Promise<MicStatus> {
 export function VoiceSettingsSection({
   onProbeSidecar,
   onProbeMic,
+  ttsEnabled = false,
+  onProbeTts,
 }: VoiceSettingsSectionProps = {}): React.ReactElement {
   const [sidecar, setSidecar] = useState<SidecarStatus>('checking');
   const [mic, setMic] = useState<MicStatus>('unknown');
@@ -84,30 +95,37 @@ export function VoiceSettingsSection({
     : Mic;
 
   return (
-    <div className="mb-6">
-      <h3 className="text-base font-semibold mb-1">Voice input</h3>
-      <p className="text-xs text-muted-foreground mb-3">
-        Hands-free capture via a bundled offline speech-recognition model. Audio never leaves
-        your machine. Press-to-talk inserts into the focused text field; voice-to-note saves a
-        new Markdown file into <code className="px-1 mx-0.5 rounded bg-muted font-mono text-[11px]">Inbox/</code>.
-      </p>
-      <div
-        data-testid="voice-status"
-        data-status={testidStatus}
-        className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2"
-      >
-        <Icon
-          className={`h-4 w-4 shrink-0 ${
-            testidStatus === 'ready'
-              ? 'text-emerald-500'
-              : testidStatus === 'checking'
-                ? 'text-muted-foreground'
-                : 'text-amber-500'
-          }`}
-        />
-        <span className="text-sm">{label}</span>
+    <>
+      <div className="mb-6">
+        <h3 className="text-base font-semibold mb-1">Voice input</h3>
+        <p className="text-xs text-muted-foreground mb-3">
+          Hands-free capture via a bundled offline speech-recognition model. Audio never leaves
+          your machine. Press-to-talk inserts into the focused text field; voice-to-note saves a
+          new Markdown file into <code className="px-1 mx-0.5 rounded bg-muted font-mono text-[11px]">Inbox/</code>.
+        </p>
+        <div
+          data-testid="voice-status"
+          data-status={testidStatus}
+          className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2"
+        >
+          <Icon
+            className={`h-4 w-4 shrink-0 ${
+              testidStatus === 'ready'
+                ? 'text-emerald-500'
+                : testidStatus === 'checking'
+                  ? 'text-muted-foreground'
+                  : 'text-amber-500'
+            }`}
+          />
+          <span className="text-sm">{label}</span>
+        </div>
       </div>
-    </div>
+
+      <VoiceOutputSettingsSection
+        ttsEnabled={ttsEnabled}
+        {...(onProbeTts !== undefined ? { onProbe: onProbeTts } : {})}
+      />
+    </>
   );
 }
 

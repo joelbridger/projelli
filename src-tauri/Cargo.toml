@@ -83,6 +83,9 @@ async-stream = "0.3"
 # Ergonomic error contexts for the M1 RAG indexer (chunker / embedder /
 # store all use `?` against heterogeneous error types).
 anyhow = "1"
+# Stream B TTS — voice archive download and extraction.
+flate2 = "1"
+tar = "0.4"
 
 # Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
 # the cfg() filter keeps the iOS/Android crate graph slim.
