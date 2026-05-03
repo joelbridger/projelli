@@ -20,6 +20,7 @@ import {
   ragCancelIndexing,
   ragDeletePath,
   ragIndexFile,
+  ragIndexPdfChunks,
   ragIndexWorkspace,
   ragRetrieve,
   ragSetWorkspace,
@@ -57,6 +58,36 @@ export function isMemoryEnabled(): boolean {
   }
 }
 
+// A3 — PDF indexing toggle reader (mirrors the memory-enabled pattern).
+
+/** Reader type for the PDF indexing toggle. Pluggable for tests. */
+export type PdfIndexingEnabledReader = () => boolean;
+
+/** Default is OFF — PDF indexing is opt-in. */
+const DEFAULT_PDF_ENABLED_READER: PdfIndexingEnabledReader = () => false;
+
+let isPdfEnabledReader: PdfIndexingEnabledReader = DEFAULT_PDF_ENABLED_READER;
+
+/** Install a reader for `includePdfsInWorkspaceIndex`. Called from
+ *  `useMemoryWiring` alongside `setMemoryEnabledReader`. */
+export function setPdfIndexingEnabledReader(reader: PdfIndexingEnabledReader): void {
+  isPdfEnabledReader = reader;
+}
+
+/** Reset to the always-off default. Test helper. */
+export function resetPdfIndexingEnabledReader(): void {
+  isPdfEnabledReader = DEFAULT_PDF_ENABLED_READER;
+}
+
+/** Current value of the PDF indexing toggle. */
+export function isPdfIndexingEnabled(): boolean {
+  try {
+    return isPdfEnabledReader();
+  } catch {
+    return false;
+  }
+}
+
 export const MemoryService = {
   /** Point the indexer at a workspace. Always runs even if disabled — the
    *  workspace handle is metadata, not user data. */
@@ -87,6 +118,60 @@ export const MemoryService = {
     if (!isMemoryEnabled()) return [];
     if (!query.trim() || topK <= 0) return [];
     return ragRetrieve(query, topK);
+  },
+
+  /** Index a single PDF file into the RAG store. Reads bytes via the
+   *  provided workspace service, extracts text with PDF.js (via dynamic
+   *  import of src/lib/pdf-extract.ts from A2), then calls the Rust-side
+   *  rag_index_pdf_chunks command. No-op if memory or PDF indexing is disabled. */
+  async indexPdfFile(
+    path: string,
+    workspaceService: { readBinary: (path: string) => Promise<ArrayBuffer> },
+  ): Promise<{ indexed: boolean; pageCount: number; reason?: string }> {
+    if (!isMemoryEnabled()) {
+      return { indexed: false, pageCount: 0, reason: 'memory-disabled' };
+    }
+    if (!isPdfIndexingEnabled()) {
+      return { indexed: false, pageCount: 0, reason: 'pdf-indexing-disabled' };
+    }
+
+    let bytes: ArrayBuffer;
+    try {
+      bytes = await workspaceService.readBinary(path);
+    } catch {
+      return { indexed: false, pageCount: 0, reason: 'read-error' };
+    }
+
+    // extractPdfText is from src/lib/pdf-extract.ts (shipped in A2).
+    const { extractPdfText } = await import('@/lib/pdf-extract');
+    const result = await extractPdfText(new Uint8Array(bytes));
+
+    if (result.encrypted) {
+      return { indexed: false, pageCount: result.pageCount, reason: 'encrypted' };
+    }
+    if (result.scanned) {
+      return { indexed: false, pageCount: result.pageCount, reason: 'scanned' };
+    }
+
+    const chunksStored = await ragIndexPdfChunks(path, result.pages, result.pageCount);
+    return {
+      indexed: chunksStored > 0,
+      pageCount: result.pageCount,
+    };
+  },
+
+  /** Remove all stored chunks for the given PDF file paths. Called when
+   *  the user turns OFF the `includePdfsInWorkspaceIndex` toggle. Best-effort
+   *  — errors are silently swallowed since this is housekeeping. */
+  async deleteAllPdfChunks(filePaths: string[]): Promise<void> {
+    if (!isMemoryEnabled()) return;
+    for (const path of filePaths) {
+      try {
+        await ragDeletePath(path);
+      } catch {
+        // Best-effort: swallow and keep going.
+      }
+    }
   },
 };
 

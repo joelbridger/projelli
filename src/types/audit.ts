@@ -13,6 +13,7 @@ export type AuditActionType =
   | 'workflow_complete'
   | 'workflow_fail'
   | 'model_call'
+  | 'context_compressed'
   | 'user_action';
 
 /**

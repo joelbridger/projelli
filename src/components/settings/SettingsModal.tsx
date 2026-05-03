@@ -28,6 +28,11 @@ import {
   type SettingDefinition,
 } from '@/settings/schema';
 import { useSettingsStore } from '@/stores/settingsStore';
+import {
+  isLimitExceedingCapability,
+  getMaxContextTokens,
+  formatContextSize,
+} from '@/modules/models/context-limits';
 import { CostMetrics } from '@/components/analysis/CostMetrics';
 import { TemplateModelSettings } from '@/components/settings/TemplateModelSettings';
 import { LicenseSettings } from '@/components/settings/LicenseSettings';
@@ -208,6 +213,40 @@ function NumberStepper({
         <ChevronUp className="h-3 w-3" />
       </Button>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Stream A4 — inline capability warning for chatContextTokenLimit
+// ---------------------------------------------------------------------------
+
+function AIContextCapabilityWarning({
+  getSetting,
+}: {
+  getSetting: (key: string) => unknown;
+}) {
+  const chatLimitValue = (getSetting('chatContextTokenLimit') as number | undefined) ?? 200000;
+  // We use a generic provider/model fallback — users who care about exact
+  // capability will be on the AI Assistant Models tab where the model is known.
+  // The settings panel shows a conservative warning based on what the user
+  // configured as their default provider/model (if any).
+  const activeProvider = (getSetting('defaultProvider') as string | undefined) ?? '';
+  const activeModel = (getSetting('defaultModel') as string | undefined) ?? '';
+
+  if (!activeProvider || !activeModel) return null;
+
+  const exceeds = isLimitExceedingCapability(activeProvider, activeModel, chatLimitValue);
+  if (!exceeds) return null;
+
+  const modelMax = getMaxContextTokens(activeProvider, activeModel);
+  return (
+    <p
+      className="text-xs text-amber-600 mt-1 px-1 pb-2"
+      data-testid="context-limit-warning"
+    >
+      Selected model maxes at {formatContextSize(modelMax)} tokens. Lower the limit or switch to
+      a larger-context model.
+    </p>
   );
 }
 
@@ -709,6 +748,9 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
                     onAction={handleAction}
                   />
                 ))}
+                {activeCategory === 'ai' && (
+                  <AIContextCapabilityWarning getSetting={getSetting} />
+                )}
                 {activeCategory === 'memory' && <MemoryFactsSettings />}
               </div>
             )}

@@ -61,6 +61,30 @@ export interface ChatMessage {
    * Stored in the workspace under `media/<YYYY-MM>/` with SHA-256 dedup.
    */
   attachments?: ChatAttachment[];
+  /**
+   * Stream A4 — set to true on messages that are compressed summaries
+   * produced by the compression algorithm. These messages are rendered
+   * with the ✂️ CompressedSegmentMarker instead of normal message bubbles.
+   */
+  isCompressedSummary?: boolean;
+  /**
+   * Stream A4 — how many original messages were collapsed into this summary.
+   * Used for the "Compressed: N messages -> X tokens" label.
+   */
+  originalMessageCount?: number;
+  /**
+   * Stream A4 — temporary flag set by the Expand action. When true the
+   * original messages (marked compressedIntoId) are re-injected for the
+   * NEXT send only, then this flag is cleared.
+   */
+  expandedForNextSend?: boolean;
+  /**
+   * Stream A4 — set on original messages that have been compressed.
+   * Value is the `timestamp` of the CompressedSummary message they belong
+   * to. Messages with this field are NOT sent to the AI unless Expand was
+   * clicked.
+   */
+  compressedIntoId?: string;
 }
 
 /**
@@ -68,12 +92,18 @@ export interface ChatMessage {
  * `RagHit` from `@/utils/tauri-commands` but redeclared here to keep
  * `@/types/ai` free of Tauri imports (these messages are serialized to
  * `.aichat` files and may be round-tripped in browser mode).
+ *
+ * A3: adds optional sourceType and pageNumber for PDF chunks.
  */
 export interface WorkspaceSource {
   path: string;
   chunkText: string;
   score: number;
   paragraphIndex: number;
+  /** A3: 'text' | 'pdf'. Absent on pre-A3 rows. */
+  sourceType?: 'text' | 'pdf';
+  /** A3: 1-based page number for PDF chunks. Absent on pre-A3 rows. */
+  pageNumber?: number;
 }
 
 /**

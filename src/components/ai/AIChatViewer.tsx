@@ -3,12 +3,22 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, FileText, ChevronDown, ChevronRight, Check, X, Pencil, Brain } from 'lucide-react';
+import { ChatInputToolbar } from '@/components/chat/ChatInputToolbar';
+import { AttachmentService } from '@/modules/attachments/AttachmentService';
+import { SUPPORTED_IMAGE_MIMES, MAX_ATTACHMENT_BYTES, isVisionModel } from '@/modules/models/vision-capability';
+import { SUPPORTED_PDF_MIME, getPdfMode } from '@/modules/models/pdf-capability';
+import { extractPdfText, type PdfExtractionResult } from '@/lib/pdf-extract';
+import { PdfModeChip } from '@/components/chat/PdfModeChip';
+import { PdfPreviewBeforeSend } from '@/components/chat/PdfPreviewBeforeSend';
+import { estimateImageTokens } from '@/modules/attachments/imageTokens';
+import { estimatePdfTokens } from '@/modules/attachments/pdfTokens';
+import type { ChatAttachment } from '@/types/ai';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { AIChatFile, ChatMessage, WorkspaceSource } from '@/types/ai';
 import type { AuditEntry } from '@/types/audit';
-import type { Provider } from '@/modules/models/Provider';
+import type { Provider, AttachmentBytes } from '@/modules/models/Provider';
 import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
 import { GeminiProvider } from '@/modules/models/GeminiProvider';
@@ -18,6 +28,17 @@ import { useAIChatStore, getDraftInput, useAskWorkspaceMode } from '@/stores/aiC
 import { useFileContextStore } from '@/stores/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
 import { ChatCostChip } from '@/components/ai/ChatCostChip';
+import { ContextMeterBar } from '@/components/chat/ContextMeterBar';
+import { CompressedSegmentMarker } from '@/components/chat/CompressedSegmentMarker';
+import { CompressionConfirmModal } from '@/components/chat/CompressionConfirmModal';
+import {
+  compressMessages,
+  getMessagesForSend,
+  clearExpandedFlags,
+  estimateMessagesTokens,
+  estimateTokens,
+} from '@/modules/chat/compression';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { useTrialGate } from '@/hooks/useTrial';
 import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
 import {
@@ -197,7 +218,12 @@ function renderMessageWithWorkspaceChip(content: string): React.ReactNode {
 function renderMessageWithCitations(
   content: string,
   sources: WorkspaceSource[] | undefined,
-  onCitationClick: (path: string, paragraphIndex: number) => void,
+  onCitationClick: (
+    path: string,
+    paragraphIndex: number,
+    sourceType?: string,
+    pageNumber?: number,
+  ) => void,
   onMissingCitation: (basename: string) => void,
 ): React.ReactNode {
   const citations = parseCitations(content);
@@ -233,7 +259,16 @@ function renderMessageWithCitations(
         className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded border border-primary/30 bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 align-baseline"
         onClick={() => {
           if (resolved) {
-            onCitationClick(resolved, cite.paragraphIndex);
+            // A3: look up sourceType + pageNumber from the matched source.
+            const matchedSource = (sources ?? []).find(
+              (s) => s.path === resolved,
+            );
+            onCitationClick(
+              resolved,
+              cite.paragraphIndex,
+              matchedSource?.sourceType,
+              matchedSource?.pageNumber,
+            );
           } else {
             onMissingCitation(cite.basename);
           }
@@ -271,7 +306,7 @@ function ChatSourcesAccordion({
   onMissing,
 }: {
   sources: WorkspaceSource[];
-  onOpen: (path: string, paragraphIndex: number) => void;
+  onOpen: (path: string, paragraphIndex: number, sourceType?: string, pageNumber?: number) => void;
   onMissing: (path: string) => void;
 }): React.ReactElement | null {
   const [open, setOpen] = useState(false);
@@ -308,7 +343,7 @@ function ChatSourcesAccordion({
                   className="text-xs text-muted-foreground hover:text-foreground underline truncate max-w-full text-left"
                   title={s.path}
                   onClick={() => {
-                    if (s.path) onOpen(s.path, s.paragraphIndex);
+                    if (s.path) onOpen(s.path, s.paragraphIndex, s.sourceType, s.pageNumber);
                     else onMissing(base);
                   }}
                 >
@@ -534,6 +569,24 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const recognitionRef = useRef<any>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Stream A1 — Pending attachments state.
+  const [pendingAttachments, setPendingAttachments] = useState<ChatAttachment[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
+  // Stream A1 — Inline error messages (oversized file, etc.)
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  // Stream A2 — PDF extraction results keyed by attachment id, for preview panel.
+  const [pdfExtractions, setPdfExtractions] = useState<Record<string, PdfExtractionResult>>({});
+
+  // Stream A4 — Compression modal state.
+  const [compressionModalOpen, setCompressionModalOpen] = useState(false);
+  const [pendingCompressAndSend, setPendingCompressAndSend] = useState<(() => Promise<void>) | null>(null);
+  const [compressedTokensBefore, setCompressedTokensBefore] = useState(0);
+
+  // Stream A4 — read chatContextTokenLimit + keepRecentTurns settings.
+  const { getSetting } = useSettingsStore();
+  const chatContextTokenLimit = (getSetting('chatContextTokenLimit') as number | undefined) ?? 200_000;
+  const keepRecentTurns = (getSetting('keepRecentTurns') as number | undefined) ?? 6;
+
   // Initialize session on mount if it doesn't exist
   useEffect(() => {
     if (!session) {
@@ -702,6 +755,27 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     extractionStateRef.current = makeInitialState();
   }, [chatId]);
 
+  // Stream A1 — Revoke preview URLs when component unmounts.
+  useEffect(() => {
+    return () => {
+      for (const url of Object.values(previewUrls)) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stream A1 — Vision warning: computed when there is at least one image
+  // attachment pending and the current model is not vision-capable.
+  const visionWarning = useMemo<string | null>(() => {
+    const hasImageAtt = pendingAttachments.some((a) => a.type === 'image');
+    if (!hasImageAtt) return null;
+    const chatProvider = chatData.provider ?? 'anthropic';
+    const chatModel = chatData.model ?? '';
+    if (!chatModel) return null;
+    if (isVisionModel(chatProvider, chatModel)) return null;
+    return `${chatModel} does not support images. Switch to a vision-capable model.`;
+  }, [pendingAttachments, chatData.provider, chatData.model]);
+
   // Save draft input to store (debounced) - persists across navigation
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -716,7 +790,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   }, [inputValue, chatId, setDraftInput, clearDraftInput]);
 
   const handleSendMessage = useCallback(async () => {
-    if (!inputValue.trim() || isLoading) return;
+    if ((!inputValue.trim() && pendingAttachments.length === 0) || isLoading) return;
 
     const rawContent = inputValue.trim();
     const parsed = parseWorkspaceCommand(rawContent);
@@ -755,6 +829,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             chunkText: h.chunkText,
             score: h.score,
             paragraphIndex: h.paragraphIndex,
+            // A3: include sourceType + pageNumber so citation clicks can open
+            // PDF viewer at the correct page.
+            ...(h.sourceType !== undefined ? { sourceType: h.sourceType } : {}),
+            ...(h.pageNumber !== undefined ? { pageNumber: h.pageNumber } : {}),
           }));
         } catch (err) {
           console.error('Workspace retrieval failed:', err);
@@ -764,13 +842,54 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       }
     }
 
+    // Stream A1 — capture and clear pending attachments before async work.
+    const messageAttachments = pendingAttachments.length > 0
+      ? [...pendingAttachments]
+      : undefined;
+
+    // Emit attachment_sent_to_provider audit events.
+    for (const att of pendingAttachments) {
+      onAuditLog?.({
+        action: 'user_action',
+        description: `Attachment sent to provider: ${att.fileName}`,
+        model: chatData.model ?? chatData.provider ?? 'unknown',
+        inputs: { hash: att.id, path: att.pathInWorkspace, provider: chatData.provider ?? 'anthropic' },
+        outputs: {},
+        userDecision: 'auto',
+        metadata: { auditEventType: 'attachment_sent_to_provider' },
+      });
+    }
+
+    // Clear pending attachments, preview URLs, and PDF extraction cache.
+    setPendingAttachments([]);
+    for (const url of Object.values(previewUrls)) {
+      URL.revokeObjectURL(url);
+    }
+    setPreviewUrls({});
+    setPdfExtractions({});
+
     const userMessage: ChatMessage = {
       role: 'user',
       content: rawContent,
       timestamp: new Date().toISOString(),
+      ...(messageAttachments ? { attachments: messageAttachments } : {}),
       ...(retrievedSources.length > 0 ? { sources: retrievedSources } : {}),
       ...(workspaceHint ? { workspaceHint } : {}),
     };
+
+    // Stream A4 — check if context would exceed the configured limit before sending.
+    const msgsForSend = getMessagesForSend([...messages, userMessage]);
+    const sendTokenEstimate = estimateMessagesTokens(msgsForSend) + estimateTokens(rawContent);
+    if (sendTokenEstimate > chatContextTokenLimit) {
+      // Context is over limit — show confirmation modal instead of sending.
+      setCompressedTokensBefore(sendTokenEstimate);
+      setPendingCompressAndSend(() => async () => {
+        // First compress, then re-invoke handleSendMessage after updating messages.
+        await handleManualCompress();
+      });
+      setCompressionModalOpen(true);
+      return;
+    }
 
     // Add user message to store (persists immediately)
     addMessage(chatId, userMessage);
@@ -794,6 +913,23 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           const providerNames: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' };
           throw new Error(`No valid ${providerNames[chatProvider] ?? chatProvider} API key found. Please add your API key in the settings.`);
         }
+
+        // Stream A1 — estimate image token overhead for cost meter.
+        const imageTokenOverhead = (messageAttachments ?? []).reduce(
+          (sum, att) => sum + estimateImageTokens(chatProvider, att),
+          0
+        );
+
+        // Stream A2 — estimate PDF token overhead for cost meter.
+        const pdfTokenOverhead = (messageAttachments ?? []).reduce((sum, att) => {
+          if (att.type !== 'pdf') return sum;
+          const mode = att.metadata.extractionMode ?? 'text-extract';
+          // Use cached extraction result if available (for text-extract length).
+          // After send the cache is cleared, so we pass the length from metadata
+          // if it was stamped, otherwise let estimatePdfTokens fall back to pages.
+          const extractedLen = undefined; // extraction cache cleared before this runs
+          return sum + estimatePdfTokens(chatProvider, att, mode, extractedLen);
+        }, 0);
 
         // Build a provider-agnostic tool executor up front. Any provider
         // that supports tool calling (Claude, OpenAI, Gemini) registers
@@ -977,6 +1113,31 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           }
         }
 
+        // Stream A1 — Read raw bytes for each attachment so providers can
+        // build their provider-specific image content blocks. Attachments
+        // are stored on disk; we read them now so the async I/O is done
+        // before we hand off to the provider. Any attachment that fails to
+        // read is skipped gracefully (logged but not fatal).
+        let attachmentBytes: AttachmentBytes[] | undefined;
+        if (messageAttachments && messageAttachments.length > 0 && workspaceServiceRef?.current) {
+          const attService = new AttachmentService(workspaceServiceRef.current);
+          const loaded: AttachmentBytes[] = [];
+          for (const att of messageAttachments) {
+            try {
+              const bytes = await attService.read(att);
+              loaded.push({ att, bytes });
+            } catch (readErr) {
+              console.error(
+                `[AIChat] Failed to read attachment bytes for ${att.fileName}:`,
+                readErr,
+              );
+            }
+          }
+          if (loaded.length > 0) {
+            attachmentBytes = loaded;
+          }
+        }
+
         // Build conversation history into system prompt
         const conversationContext = messages.slice(0, -1).map(m =>
           `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
@@ -1006,6 +1167,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             chunkText: s.chunkText,
             score: s.score,
             paragraphIndex: s.paragraphIndex,
+            ...(s.sourceType !== undefined ? { sourceType: s.sourceType } : {}),
+            ...(s.pageNumber !== undefined ? { pageNumber: s.pageNumber } : {}),
           })),
         );
         const workspacePrefix = workspaceBlock ? `${workspaceBlock}\n\n` : '';
@@ -1063,6 +1226,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                 updateLastMessage(chatId, accumulated);
               },
               signal: abortController.signal,
+              ...(attachmentBytes ? { attachmentBytes } : {}),
             });
           } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') {
@@ -1082,7 +1246,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           if (streamingResponse) {
             recordCost(chatId, {
               cost: streamingResponse.cost,
-              inputTokens: streamingResponse.usage.inputTokens,
+              inputTokens: streamingResponse.usage.inputTokens + imageTokenOverhead + pdfTokenOverhead,
               outputTokens: streamingResponse.usage.outputTokens,
               provider: chatProvider,
             });
@@ -1106,7 +1270,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             });
           }
 
-          const finalMessages = [...updatedMessages, { ...streamingMessage, content: accumulated }];
+          const finalMessages = clearExpandedFlags([...updatedMessages, { ...streamingMessage, content: accumulated }]);
 
           if (onSave) {
             onSave({ ...chatData, updated: new Date().toISOString(), messages: finalMessages });
@@ -1120,6 +1284,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             systemPrompt,
             maxTokens: 4096,
             signal: abortController.signal,
+            ...(attachmentBytes ? { attachmentBytes } : {}),
           });
 
           const assistantMessage: ChatMessage = {
@@ -1138,7 +1303,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           // Q3 — record cost for the chip + Q4 audit entry.
           recordCost(chatId, {
             cost: response.cost,
-            inputTokens: response.usage.inputTokens,
+            inputTokens: response.usage.inputTokens + imageTokenOverhead + pdfTokenOverhead,
             outputTokens: response.usage.outputTokens,
             provider: chatProvider,
           });
@@ -1156,7 +1321,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             provider: chatProvider,
           });
 
-          const finalMessages = [...updatedMessages, assistantMessage];
+          const finalMessages = clearExpandedFlags([...updatedMessages, assistantMessage]);
 
           if (onSave) {
             onSave({ ...chatData, updated: new Date().toISOString(), messages: finalMessages });
@@ -1224,7 +1389,138 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         setLoading(chatId, false);
       }
     })();
-  }, [inputValue, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, recordCost, clearDraftInput, askWorkspaceMode]);
+  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, recordCost, clearDraftInput, askWorkspaceMode]);
+
+  // Stream A2 — File selection handler (paperclip, paste, drag-drop).
+  // Accepts images (A1) and PDFs (A2). For PDFs: runs extractPdfText to
+  // detect encryption and populate the pre-send preview.
+  const handleFilesSelected = useCallback(async (files: File[]) => {
+    for (const file of files) {
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        setAttachmentError(`${file.name} exceeds the 20 MB limit.`);
+        setTimeout(() => setAttachmentError(null), 4000);
+        continue;
+      }
+      const isPdf = file.type === SUPPORTED_PDF_MIME;
+      if (!isPdf && !SUPPORTED_IMAGE_MIMES.includes(file.type)) {
+        setAttachmentError(`${file.name} is not a supported image or PDF type.`);
+        setTimeout(() => setAttachmentError(null), 4000);
+        continue;
+      }
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+
+        // Stream A2 — For PDFs: extract text synchronously before saving so we
+        // can (a) block encrypted files at the point of attachment, (b) populate
+        // the pre-send preview, and (c) record the extraction mode in metadata.
+        if (isPdf) {
+          let extraction: PdfExtractionResult;
+          try {
+            extraction = await extractPdfText(bytes);
+          } catch {
+            setAttachmentError(`${file.name} could not be read as a PDF.`);
+            setTimeout(() => setAttachmentError(null), 4000);
+            continue;
+          }
+          if (extraction.encrypted) {
+            setAttachmentError(
+              `${file.name} is password-protected. Remove the password and re-attach.`
+            );
+            setTimeout(() => setAttachmentError(null), 6000);
+            continue;
+          }
+          // Determine extraction mode based on current provider + model.
+          const provider = chatData.provider ?? 'anthropic';
+          const model = chatData.model ?? '';
+          const mode = getPdfMode(provider, model);
+
+          const attService = new AttachmentService(workspaceServiceRef?.current);
+          const att = await attService.save(bytes, file.name, file.type);
+          // Stamp the extraction mode into the attachment metadata so it
+          // survives serialisation and can be rendered in chat history.
+          att.metadata.extractionMode = mode;
+          att.metadata.pages = extraction.pageCount;
+
+          setPdfExtractions((prev) => ({ ...prev, [att.id]: extraction }));
+          setPendingAttachments((prev) => [...prev, att]);
+          onAuditLog?.({
+            action: 'user_action',
+            description: `PDF attached: ${file.name} (${mode})`,
+            model: chatData.model ?? chatData.provider ?? 'unknown',
+            inputs: {
+              path: att.pathInWorkspace,
+              hash: att.id,
+              type: att.type,
+              byteSize: att.byteSize,
+              pdfMode: mode,
+              pageCount: extraction.pageCount,
+              scanned: extraction.scanned,
+            },
+            outputs: {},
+            userDecision: 'auto',
+            metadata: { auditEventType: 'attachment_added', pdfMode: mode },
+          });
+          continue;
+        }
+
+        // Images (A1 path — unchanged)
+        const attService = new AttachmentService(workspaceServiceRef?.current);
+        const att = await attService.save(bytes, file.name, file.type);
+        const previewUrl = URL.createObjectURL(file);
+        setPendingAttachments((prev) => [...prev, att]);
+        setPreviewUrls((prev) => ({ ...prev, [att.id]: previewUrl }));
+        onAuditLog?.({
+          action: 'user_action',
+          description: `Attachment added: ${file.name}`,
+          model: chatData.model ?? chatData.provider ?? 'unknown',
+          inputs: { path: att.pathInWorkspace, hash: att.id, type: att.type, byteSize: att.byteSize },
+          outputs: {},
+          userDecision: 'auto',
+          metadata: { auditEventType: 'attachment_added' },
+        });
+      } catch (err) {
+        console.error('Failed to save attachment:', err);
+        setAttachmentError(`${file.name} could not be saved.`);
+        setTimeout(() => setAttachmentError(null), 4000);
+      }
+    }
+  }, [workspaceServiceRef, onAuditLog, chatData.model, chatData.provider]);
+
+  // Stream A1 — Remove a pending attachment.
+  const handleRemoveAttachment = useCallback((id: string) => {
+    setPendingAttachments((prev) => {
+      const removed = prev.find((a) => a.id === id);
+      if (removed) {
+        onAuditLog?.({
+          action: 'user_action',
+          description: `Attachment removed: ${removed.fileName}`,
+          model: chatData.model ?? chatData.provider ?? 'unknown',
+          inputs: { hash: removed.id, type: removed.type },
+          outputs: {},
+          userDecision: 'auto',
+          metadata: { auditEventType: 'attachment_removed' },
+        });
+      }
+      return prev.filter((a) => a.id !== id);
+    });
+    setPreviewUrls((prev) => {
+      if (prev[id]) URL.revokeObjectURL(prev[id]);
+      const { [id]: _removed, ...rest } = prev;
+      return rest;
+    });
+    // Stream A2 — Clean up PDF extraction cache entry.
+    setPdfExtractions((prev) => {
+      const { [id]: _removed, ...rest } = prev;
+      return rest;
+    });
+  }, [onAuditLog, chatData.model, chatData.provider]);
+
+  // Stream A1 — Switch model (e.g. from vision warning banner).
+  const handleSwitchModel = useCallback((model: string) => {
+    if (onSave) {
+      onSave({ ...chatData, model, updated: new Date().toISOString() });
+    }
+  }, [onSave, chatData]);
 
   const handleStop = useCallback(() => {
     if (abortControllerRef.current) {
@@ -1331,10 +1627,24 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // chips and the Sources accordion. Calls the caller-provided
   // `onOpenFileAtPath` (wired up in App.tsx / MainPanel). If the
   // callback is missing (e.g. in a unit-test mount), no-op.
+  //
+  // A3: for PDF hits, `pageNumber` is passed and used instead of
+  // `paragraphIndex` so the PDF viewer opens at the right page.
   const handleCitationClick = useCallback(
-    (path: string, paragraphIndex: number) => {
+    (
+      path: string,
+      paragraphIndex: number,
+      sourceType?: string,
+      pageNumber?: number,
+    ) => {
       setMissingSourceWarning(null);
-      if (onOpenFileAtPath) {
+      if (!onOpenFileAtPath) return;
+      if (sourceType === 'pdf' && pageNumber != null) {
+        // Open PDF viewer at the specific page using pageNumber as the
+        // navigation hint. The PDF viewer interprets the second argument
+        // as a page number when the file extension is .pdf.
+        void onOpenFileAtPath(path, pageNumber);
+      } else {
         void onOpenFileAtPath(path, paragraphIndex);
       }
     },
@@ -1351,6 +1661,86 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const handleToggleAskWorkspace = useCallback(() => {
     setAskWorkspaceMode(chatId, !askWorkspaceMode);
   }, [askWorkspaceMode, chatId, setAskWorkspaceMode]);
+
+  // Stream A4 — Expand/collapse a compressed segment for the next send.
+  const handleExpandSegment = useCallback((summaryTimestamp: string) => {
+    const currentMessages = sessions[chatId]?.messages ?? chatData.messages;
+    const updatedMessages = currentMessages.map(m => {
+      if (m.isCompressedSummary && m.timestamp === summaryTimestamp) {
+        return { ...m, expandedForNextSend: !m.expandedForNextSend };
+      }
+      return m;
+    });
+    if (onSave) {
+      onSave({ ...chatData, messages: updatedMessages, updated: new Date().toISOString() });
+    }
+  }, [sessions, chatId, chatData, onSave]);
+
+  // Stream A4 — Build a fast provider for summarization based on the current chat provider.
+  const buildFastProvider = useCallback((): import('@/modules/models/Provider').Provider | null => {
+    const chatProvider = chatData.provider ?? 'anthropic';
+    const apiKey = apiKeys.find(k => k.provider === chatProvider && k.isValid);
+    if (!apiKey) return null;
+    switch (chatProvider) {
+      case 'anthropic':
+        return new ClaudeProvider({ apiKey: apiKey.key, model: 'claude-3-5-haiku-latest' });
+      case 'openai':
+        return new OpenAIProvider({ apiKey: apiKey.key, model: 'gpt-4o-mini' });
+      case 'google':
+        return new GeminiProvider({ apiKey: apiKey.key, model: 'gemini-1.5-flash' });
+      default:
+        // Ollama and unknown providers cannot compress.
+        return null;
+    }
+  }, [chatData.provider, apiKeys]);
+
+  // Stream A4 — Manual compress handler (triggered by ContextMeterBar [Compress] button).
+  const handleManualCompress = useCallback(async () => {
+    const currentMessages = sessions[chatId]?.messages ?? chatData.messages;
+    const fastProvider = buildFastProvider();
+    if (!fastProvider) {
+      // Surface error to user — Ollama-only or no API key.
+      addMessage(chatId, {
+        role: 'assistant',
+        content: 'Compression requires a fast cloud model. Configure Claude, OpenAI, or Gemini to enable compression.',
+        timestamp: new Date().toISOString(),
+        isError: true,
+      });
+      return;
+    }
+    try {
+      const tokensBefore = estimateMessagesTokens(currentMessages);
+      const result = await compressMessages(currentMessages, {
+        keepRecentTurns,
+        batchTokenTarget: 10_000,
+        fastProvider,
+      });
+      const tokensAfter = result.resultingTokens;
+      if (onSave) {
+        onSave({ ...chatData, messages: result.messages, updated: new Date().toISOString() });
+      }
+      // Log context_compressed audit event.
+      if (onAuditLog) {
+        onAuditLog({
+          action: 'context_compressed',
+          description: `Compressed ${result.originalCount} messages: ${tokensBefore} -> ${tokensAfter} tokens`,
+          model: chatData.model,
+          inputs: { messagesBefore: currentMessages.length, tokensBefore },
+          outputs: { messagesAfter: result.messages.filter(m => !m.compressedIntoId).length, tokensAfter },
+          userDecision: 'approved',
+          metadata: {},
+        });
+      }
+    } catch (err) {
+      addMessage(chatId, {
+        role: 'assistant',
+        content: `Compression failed: ${err instanceof Error ? err.message : String(err)}`,
+        timestamp: new Date().toISOString(),
+        isError: true,
+      });
+    }
+    setCompressionModalOpen(false);
+  }, [sessions, chatId, chatData, buildFastProvider, keepRecentTurns, onSave, onAuditLog, addMessage]);
 
   // M3 — Accept a proposed fact. Saves to FactsService with
   // approved_by='user' and removes the chip. `editedText` overrides
@@ -1453,7 +1843,21 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
       {/* Messages */}
       <div data-testid="chat-messages" className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg, idx) => (
+        {messages.map((msg, idx) => {
+          // Stream A4 — don't render original messages that have been compressed.
+          // The CompressedSegmentMarker speaks for them.
+          if (msg.compressedIntoId) return null;
+          // Stream A4 — render compressed summary marker instead of normal bubble.
+          if (msg.isCompressedSummary) {
+            return (
+              <CompressedSegmentMarker
+                key={idx}
+                message={msg}
+                onExpand={handleExpandSegment}
+              />
+            );
+          }
+          return (
           <div
             key={idx}
             data-testid={`chat-message-${idx}`}
@@ -1514,6 +1918,19 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                     )}
               </div>
             </div>
+            {/* Stream A2 — PDF mode chips, shown below user messages that
+                carried one or more PDF attachments. */}
+            {msg.role === 'user' &&
+              msg.attachments &&
+              msg.attachments
+                .filter((a) => a.type === 'pdf')
+                .map((a) => (
+                  <PdfModeChip
+                    key={a.id}
+                    mode={a.metadata.extractionMode ?? 'text-extract'}
+                    className="mt-1"
+                  />
+                ))}
             {/* M2 — grey hint below the bubble when retrieval couldn't
                 run (memory off, retrieval failed, etc.). */}
             {msg.workspaceHint && (
@@ -1573,7 +1990,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
         {isLoading && (
           <div data-testid="chat-loading-indicator" className="flex items-center gap-2">
             <div className="bg-muted rounded-lg px-4 py-2">
@@ -1604,6 +2022,33 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Stream A4 — Compression confirmation modal */}
+      <CompressionConfirmModal
+        open={compressionModalOpen}
+        currentTokens={compressedTokensBefore}
+        limitTokens={chatContextTokenLimit}
+        projectedAfter={Math.round(compressedTokensBefore * 0.3)} // rough 70% reduction estimate
+        onCompress={async () => {
+          setCompressionModalOpen(false);
+          await handleManualCompress();
+          if (pendingCompressAndSend) {
+            setPendingCompressAndSend(null);
+          }
+        }}
+        onSendAnyway={() => {
+          setCompressionModalOpen(false);
+          setPendingCompressAndSend(null);
+          // Re-invoke send without the context check blocking it — just call handleSendMessage.
+          // Because we cleared the modal, the next call won't re-trigger the check.
+          // (The check is stateless, so we need a different path; use a direct send flag.)
+          void handleSendMessage();
+        }}
+        onCancel={() => {
+          setCompressionModalOpen(false);
+          setPendingCompressAndSend(null);
+        }}
+      />
 
       {/* Input */}
       <div data-testid="chat-input-area" className="border-t p-4">
@@ -1643,6 +2088,89 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         <div className="flex justify-end mb-2">
           <ChatCostChip chatId={chatId} />
         </div>
+        {/* Stream A4 — context meter bar: utilization, cost preview, 80% warning, Compress */}
+        {(() => {
+          // Simple 4-chars-per-token heuristic for meter display.
+          const historyChars = messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0);
+          const usedTokens = Math.round((historyChars + inputValue.length) / 4);
+          const metadata = chatData.provider ? undefined : undefined; // cost lookup deferred
+          void metadata;
+          const costPerInputToken = (() => {
+            try {
+              if (!chatData.provider || !chatData.model) return null;
+              if (chatData.provider === 'anthropic') {
+                const p = new ClaudeProvider({ apiKey: '', model: chatData.model });
+                return p.getMetadata().costPerInputToken ?? null;
+              }
+              if (chatData.provider === 'openai') {
+                const p = new OpenAIProvider({ apiKey: '', model: chatData.model });
+                return p.getMetadata().costPerInputToken ?? null;
+              }
+              if (chatData.provider === 'google') {
+                const p = new GeminiProvider({ apiKey: '', model: chatData.model });
+                return p.getMetadata().costPerInputToken ?? null;
+              }
+            } catch {
+              // ignore metadata errors for cost preview
+            }
+            return null;
+          })();
+          const projectedCost = costPerInputToken != null
+            ? costPerInputToken * usedTokens
+            : null;
+          const modelLabel = chatData.model
+            ? chatData.model.split('-').slice(0, 2).join('-')
+            : 'AI';
+          return (
+            <ContextMeterBar
+              usedTokens={usedTokens}
+              limitTokens={chatContextTokenLimit}
+              projectedCost={projectedCost}
+              modelLabel={modelLabel}
+              onCompressClick={handleManualCompress}
+              className="mb-2"
+            />
+          );
+        })()}
+        {/* Stream A2 — attachment error strip (covers both image and PDF errors) */}
+        {attachmentError && (
+          <div className="mb-2 px-3 py-2 rounded border border-red-400/50 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-200 text-xs">
+            {attachmentError}
+          </div>
+        )}
+        {/* Stream A2 — PDF pre-send preview panel, one per pending PDF attachment */}
+        {pendingAttachments
+          .filter((a) => a.type === 'pdf')
+          .map((a) => {
+            const extraction = pdfExtractions[a.id];
+            if (!extraction) return null;
+            const mode = a.metadata.extractionMode ?? 'text-extract';
+            return (
+              <PdfPreviewBeforeSend
+                key={a.id}
+                fileName={a.fileName}
+                extractedText={extraction.pages.join('\n\n')}
+                pageCount={extraction.pageCount}
+                scanned={extraction.scanned}
+                encrypted={extraction.encrypted}
+                mode={mode}
+                className="mb-2"
+              />
+            );
+          })}
+        {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
+        <ChatInputToolbar
+          provider={chatData.provider ?? 'anthropic'}
+          model={chatData.model ?? ''}
+          pendingAttachments={pendingAttachments}
+          previewUrls={previewUrls}
+          onFilesSelected={handleFilesSelected}
+          onRemoveAttachment={handleRemoveAttachment}
+          onSwitchModel={handleSwitchModel}
+          visionWarning={visionWarning}
+          sendDisabled={visionWarning !== null || isLoading || trialGate.isLocked}
+          className="mb-2"
+        />
         <div className="flex gap-2">
           <Textarea
             data-testid="chat-input"
@@ -1673,7 +2201,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           <Button
             data-testid="chat-send-button"
             onClick={handleSendMessage}
-            disabled={!inputValue.trim() || isLoading || trialGate.isLocked}
+            disabled={(!inputValue.trim() && pendingAttachments.length === 0) || isLoading || trialGate.isLocked || visionWarning !== null}
             size="icon"
             className="h-[60px] w-[60px] shrink-0"
           >

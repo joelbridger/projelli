@@ -81,12 +81,17 @@ export interface KeychainError {
 }
 
 /** A single retrieval hit returned by `rag_retrieve`. Shape is frozen in
- *  Phase 2 so the frontend can wire UI before M1 lands the implementation. */
+ *  Phase 2 so the frontend can wire UI before M1 lands the implementation.
+ *  A3 adds optional sourceType and pageNumber for PDF chunks. */
 export interface RagHit {
   path: string;
   chunkText: string;
   score: number;
   paragraphIndex: number;
+  /** A3: discriminates text vs PDF chunks. Absent on pre-A3 rows. */
+  sourceType?: 'text' | 'pdf';
+  /** A3: 1-based page number for PDF chunks. Absent on pre-A3 rows. */
+  pageNumber?: number;
 }
 
 /** RAG indexer status emitted on the `rag-indexing-progress` Tauri event.
@@ -209,6 +214,24 @@ export async function ragCancelIndexing(): Promise<void> {
 export async function ragDeletePath(path: string): Promise<void> {
   if (!isTauri()) return;
   return invoke<void>('rag_delete_path', { path });
+}
+
+/**
+ * Index pre-extracted PDF page text into the RAG store. Called after
+ * `extractPdfText` produces page strings in the renderer process.
+ *
+ * Returns the number of chunks stored (0 if all pages were empty or skipped).
+ * Throws in browser mode (RAG requires Tauri).
+ */
+export async function ragIndexPdfChunks(
+  path: string,
+  pages: string[],
+  pageCount: number,
+): Promise<number> {
+  if (!isTauri()) {
+    throw new Error('RAG PDF indexing is only available in the desktop app.');
+  }
+  return invoke<number>('rag_index_pdf_chunks', { path, pages, pageCount });
 }
 
 /** Query the local RAG store. Returns up to `topK` hits sorted by score

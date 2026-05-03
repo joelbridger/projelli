@@ -10,9 +10,13 @@ import type {
   OutputSchema,
   StructuredOutputOptions,
   ProviderContentBlock,
+  ClaudeImageBlock,
+  TextExtractBlock,
+  AttachmentBytes,
 } from './Provider';
 import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
+import { extractPdfText } from '@/lib/pdf-extract';
 
 /**
  * Configuration for mock responses
@@ -37,6 +41,11 @@ export class MockProvider implements Provider {
   };
   private callCount = 0;
   private lastPrompt: string | null = null;
+  private lastFormattedAttachment: { att: ChatAttachment; bytesLength: number } | null = null;
+  /** Stream A1 — tracks attachmentBytes passed to the most recent send call. */
+  private lastSendAttachments: AttachmentBytes[] | null = null;
+  /** Stream A2 — records all formatAttachmentForRequest calls for test assertions. */
+  public attachmentCallLog: Array<{ att: ChatAttachment; bytes: Uint8Array; block: ProviderContentBlock }> = [];
 
   constructor(
     private readonly model: string = 'mock-model',
@@ -91,7 +100,17 @@ export class MockProvider implements Provider {
   reset(): void {
     this.callCount = 0;
     this.lastPrompt = null;
+    this.lastSendAttachments = null;
     this.responses.clear();
+  }
+
+  /**
+   * Stream A1 — Return attachment bytes passed to the most recent send call.
+   * Returns null if the most recent call had no attachments or if no call has
+   * been made since the last reset().
+   */
+  getLastSendAttachments(): AttachmentBytes[] | null {
+    return this.lastSendAttachments;
   }
 
   /**
@@ -105,6 +124,7 @@ export class MockProvider implements Provider {
   async sendMessage(prompt: string, _options?: SendOptions): Promise<ProviderResponse> {
     this.callCount++;
     this.lastPrompt = prompt;
+    this.lastSendAttachments = _options?.attachmentBytes ?? null;
 
     // Find matching response
     let response = this.defaultResponse;
@@ -225,12 +245,54 @@ export class MockProvider implements Provider {
     }
   }
 
-  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
-    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  /** Stream A1 — Return the last recorded formatAttachmentForRequest call. */
+  getLastFormattedAttachment(): { att: ChatAttachment; bytesLength: number } | null {
+    return this.lastFormattedAttachment;
   }
 
-  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
-    return 'Attachment support not implemented in foundations (Stream A scope)';
+  /**
+   * Stream A2 — Records the call.
+   * - PDF: calls extractPdfText and returns a TextExtractBlock.
+   * - Images (and everything else): returns a minimal Claude-shaped block.
+   */
+  async formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): Promise<ProviderContentBlock> {
+    this.lastFormattedAttachment = { att, bytesLength: bytes.length };
+
+    let block: ProviderContentBlock;
+
+    if (att.type === 'pdf') {
+      const result = await extractPdfText(bytes);
+      const text = result.pages.join('\n\n');
+      block = {
+        _text_extract: {
+          text,
+          pageCount: result.pageCount,
+          fileName: att.fileName ?? 'document.pdf',
+        },
+      } as TextExtractBlock;
+    } else {
+      block = {
+        type: 'image',
+        source: { type: 'base64', media_type: att.mimeType, data: 'MOCK_BASE64' },
+      } as ClaudeImageBlock;
+    }
+
+    this.attachmentCallLog.push({ att, bytes, block });
+    return block;
+  }
+
+  /**
+   * Stream A2 — Mock always supports everything for test convenience.
+   */
+  supportsAttachment(_att: ChatAttachment, _model: string): true | string {
+    return true;
+  }
+
+  /**
+   * Stream A2 — Mock always uses text-extract for deterministic testing.
+   */
+  supportsNativePdf(_model: string): boolean {
+    return false;
   }
 }
 

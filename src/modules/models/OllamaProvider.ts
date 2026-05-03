@@ -24,8 +24,15 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
   ProviderContentBlock,
+  OllamaImagesPayload,
+  TextExtractBlock,
+  AttachmentBytes,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
+import { isVisionModel } from './vision-capability';
+import { bytesToBase64 } from './providerUtils';
+import { extractPdfText } from '@/lib/pdf-extract';
+import { getMaxContextTokens } from './context-limits';
 
 /** Default Ollama base URL. Overridable via constructor or env. */
 export const OLLAMA_DEFAULT_BASE_URL = 'http://127.0.0.1:11434';
@@ -59,6 +66,12 @@ interface OllamaTagsResponse {
 interface OllamaChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
+  /**
+   * Stream A1 — base64-encoded image strings for vision models.
+   * Ollama places images at the message level, not inside the content string.
+   * Only present on user messages when attachments are included.
+   */
+  images?: string[];
 }
 
 interface OllamaChatRequest {
@@ -179,7 +192,11 @@ export class OllamaProvider implements Provider {
     return true;
   }
 
-  private buildMessages(prompt: string, systemPrompt?: string): OllamaChatMessage[] {
+  private async buildMessages(
+    prompt: string,
+    systemPrompt?: string,
+    attachmentBytes?: AttachmentBytes[],
+  ): Promise<OllamaChatMessage[]> {
     const messages: OllamaChatMessage[] = [];
     let fullSystem = systemPrompt ?? '';
     if (this.aiRules) {
@@ -188,14 +205,39 @@ export class OllamaProvider implements Provider {
     if (fullSystem) {
       messages.push({ role: 'system', content: fullSystem });
     }
-    messages.push({ role: 'user', content: prompt });
+
+    // Stream A2 — Ollama images are passed at message level via `images: string[]`.
+    // PDF text-extract blocks inject extracted text directly into the user content.
+    const userMsg: OllamaChatMessage = { role: 'user', content: prompt };
+    if (attachmentBytes && attachmentBytes.length > 0) {
+      const imageStrings: string[] = [];
+      const textParts: string[] = [];
+      for (const { att, bytes } of attachmentBytes) {
+        const block = await this.formatAttachmentForRequest(att, bytes);
+        if ('_text_extract' in block) {
+          const { text, fileName } = block._text_extract;
+          textParts.push(`[File: ${fileName}]\n${text}`);
+        } else {
+          const payload = block as OllamaImagesPayload;
+          imageStrings.push(...payload._ollama_images);
+        }
+      }
+      if (textParts.length > 0) {
+        userMsg.content = textParts.join('\n\n') + '\n\n' + prompt;
+      }
+      if (imageStrings.length > 0) {
+        userMsg.images = imageStrings;
+      }
+    }
+
+    messages.push(userMsg);
     return messages;
   }
 
-  private buildRequest(prompt: string, opts: SendOptions | undefined, stream: boolean): OllamaChatRequest {
+  private async buildRequest(prompt: string, opts: SendOptions | undefined, stream: boolean): Promise<OllamaChatRequest> {
     const request: OllamaChatRequest = {
       model: this.model,
-      messages: this.buildMessages(prompt, opts?.systemPrompt),
+      messages: await this.buildMessages(prompt, opts?.systemPrompt, opts?.attachmentBytes),
       stream,
     };
     const options: OllamaChatRequest['options'] = {};
@@ -208,7 +250,7 @@ export class OllamaProvider implements Provider {
 
   /** Non-streaming chat. Returns the full response once generation completes. */
   async sendMessage(prompt: string, options?: SendOptions): Promise<ProviderResponse> {
-    const request = this.buildRequest(prompt, options, false);
+    const request = await this.buildRequest(prompt, options, false);
     const started = Date.now();
     const resp = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
@@ -240,7 +282,7 @@ export class OllamaProvider implements Provider {
   /** Streaming chat via NDJSON. `onChunk` is called per token as it arrives. */
   async sendMessageStreaming(prompt: string, options: StreamOptions): Promise<ProviderResponse> {
     const { onChunk, signal, ...sendOpts } = options;
-    const request = this.buildRequest(prompt, sendOpts, true);
+    const request = await this.buildRequest(prompt, sendOpts, true);
     const started = Date.now();
     const resp = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
@@ -327,7 +369,7 @@ ${JSON.stringify(options.schema, null, 2)}
 IMPORTANT: Respond ONLY with the JSON object.`;
     const request: OllamaChatRequest = {
       model: this.model,
-      messages: this.buildMessages(
+      messages: await this.buildMessages(
         structuredPrompt,
         options.systemPrompt ?? 'You are a helpful assistant that responds only with valid JSON.',
       ),
@@ -380,17 +422,69 @@ IMPORTANT: Respond ONLY with the JSON object.`;
         vision: false,
         // Context length depends on the model. Most Ollama defaults cap
         // around 8k; individual models (llama3.1, qwen2.5) go much higher.
-        maxContextTokens: 8192,
+        maxContextTokens: getMaxContextTokens('ollama', this.model),
       },
     };
   }
 
-  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
-    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  /**
+   * Stream A1 — Format an image attachment for Ollama's chat API.
+   *
+   * Ollama images are passed at the message level (not inside a content block)
+   * as an `images: string[]` array of base64-encoded strings. We return an
+   * `OllamaImagesPayload` sentinel; the message-construction code in sendMessage
+   * checks for `_ollama_images` and appends the base64 strings to the outgoing
+   * message object.
+   *
+   * Stream A2: PDF uses text-extract path (TextExtractBlock).
+   */
+  async formatAttachmentForRequest(
+    att: ChatAttachment,
+    bytes: Uint8Array
+  ): Promise<ProviderContentBlock> {
+    if (att.type === 'image') {
+      const payload: OllamaImagesPayload = {
+        _ollama_images: [bytesToBase64(bytes)],
+      };
+      return payload;
+    }
+
+    if (att.type === 'pdf') {
+      const result = await extractPdfText(bytes);
+      return {
+        _text_extract: {
+          text: result.pages.join('\n\n'),
+          pageCount: result.pageCount,
+          fileName: att.fileName,
+        },
+      } satisfies TextExtractBlock;
+    }
+
+    throw new Error(`Unsupported attachment type: ${att.type}`);
   }
 
-  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
-    return 'Attachment support not implemented in foundations (Stream A scope)';
+  /**
+   * Stream A2 — Check attachment support.
+   */
+  supportsAttachment(att: ChatAttachment, model: string): true | string {
+    if (att.type === 'image') {
+      if (isVisionModel('ollama', model)) return true;
+      return (
+        `${model} does not appear to support images. ` +
+        `Pull a vision-capable model like 'llava' and select it.`
+      );
+    }
+    if (att.type === 'pdf') {
+      return true;
+    }
+    return `Unsupported attachment type: ${att.type}.`;
+  }
+
+  /**
+   * Stream A2 — Ollama never supports native PDF blocks.
+   */
+  supportsNativePdf(_model: string): boolean {
+    return false;
   }
 }
 

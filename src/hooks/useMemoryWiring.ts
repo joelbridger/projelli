@@ -20,8 +20,10 @@
 import { useEffect } from 'react';
 import { useSettingsStore } from '@/stores/settingsStore';
 import {
+  isPdfIndexingEnabled,
   MemoryService,
   setMemoryEnabledReader,
+  setPdfIndexingEnabledReader,
 } from '@/modules/memory/MemoryService';
 import { createFactsService, type FactsStorage } from '@/modules/memory/FactsService';
 import {
@@ -33,17 +35,12 @@ import {
   watchWorkspace,
   type WorkspaceChangeEvent,
 } from '@/utils/tauri-commands';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+import type { FileNode } from '@/types/workspace';
 
-/** Build a FactsStorage adapter from a WorkspaceService-shaped object.
- *  Accepts `any` so this stays decoupled from the concrete service
- *  type — App.tsx passes its workspaceServiceRef.current through. */
+/** Build a FactsStorage adapter from a WorkspaceService-shaped object. */
 export function buildFactsStorage(
-  workspaceService: {
-    readFile: (path: string) => Promise<string>;
-    writeFile: (path: string, content: string) => Promise<void>;
-    exists: (path: string) => Promise<boolean>;
-    delete?: (path: string) => Promise<void>;
-  },
+  workspaceService: MemoryWiringWorkspaceService,
   rootPath: string,
 ): FactsStorage {
   const resolve = (relative: string) =>
@@ -61,19 +58,65 @@ export function buildFactsStorage(
   };
 }
 
+/** Shape of the workspace service passed to useMemoryWiring.
+ *  Requires readFileBinary for A3 PDF indexing in addition to the
+ *  existing text-read / write / exists / delete methods. */
+export type MemoryWiringWorkspaceService = {
+  readFile: (path: string) => Promise<string>;
+  writeFile: (path: string, content: string) => Promise<void>;
+  exists: (path: string) => Promise<boolean>;
+  delete?: (path: string) => Promise<void>;
+  /** A3: binary read for PDF extraction. */
+  readFileBinary?: (path: string) => Promise<ArrayBuffer>;
+};
+
+/** Collect all .pdf paths from a FileNode tree recursively. */
+function collectPdfPaths(nodes: FileNode[]): string[] {
+  const out: string[] = [];
+  for (const node of nodes) {
+    if (node.type === 'file' && node.name.toLowerCase().endsWith('.pdf')) {
+      out.push(node.path);
+    } else if (node.type === 'folder' && node.children) {
+      out.push(...collectPdfPaths(node.children));
+    }
+  }
+  return out;
+}
+
+/** Walk all .pdf files in the workspace and index them via MemoryService. */
+async function indexWorkspacePdfs(
+  workspaceService: MemoryWiringWorkspaceService,
+): Promise<void> {
+  if (!workspaceService.readFileBinary) return;
+  const { fileTree } = useWorkspaceStore.getState();
+  const pdfPaths = collectPdfPaths(fileTree);
+  const binaryWs = {
+    readBinary: (path: string) =>
+      workspaceService.readFileBinary!(path),
+  };
+  for (const path of pdfPaths) {
+    try {
+      await MemoryService.indexPdfFile(path, binaryWs);
+    } catch {
+      // Best-effort: skip individual failures, continue with the rest.
+    }
+  }
+}
+
 export function useMemoryWiring(
   rootPath: string | null,
-  workspaceService?: {
-    readFile: (path: string) => Promise<string>;
-    writeFile: (path: string, content: string) => Promise<void>;
-    exists: (path: string) => Promise<boolean>;
-    delete?: (path: string) => Promise<void>;
-  } | null,
+  workspaceService?: MemoryWiringWorkspaceService | null,
 ): void {
-  // Wire the toggle reader once. Safe to call repeatedly — last writer wins.
+  // Wire the toggle readers once. Safe to call repeatedly — last writer wins.
   useEffect(() => {
     setMemoryEnabledReader(() =>
       Boolean(useSettingsStore.getState().getSetting<boolean>('memoryEnabled')),
+    );
+    // A3 — PDF indexing toggle (default OFF).
+    setPdfIndexingEnabledReader(() =>
+      Boolean(
+        useSettingsStore.getState().getSetting<boolean>('includePdfsInWorkspaceIndex'),
+      ),
     );
     // M3 — facts toggles. Injection defaults ON, auto-accept defaults OFF.
     setFactsInjectionReader(() =>
@@ -123,11 +166,19 @@ export function useMemoryWiring(
           (event) => {
             const payload = event.payload;
             if (!payload?.path) return;
-            // Best-effort: don't await, don't surface errors. The watcher
-            // fires more often than is useful (every keystroke if the
-            // user's editor saves on each), so failures are absorbed.
+            // Best-effort: don't await, don't surface errors.
+            const isPdf = payload.path.toLowerCase().endsWith('.pdf');
             if (payload.kind === 'delete') {
               void MemoryService.deletePath(payload.path);
+            } else if (isPdf && workspaceService) {
+              // Only re-index PDF on change if the toggle is on.
+              if (isPdfIndexingEnabled() && workspaceService.readFileBinary) {
+                const binaryWs = {
+                  readBinary: (p: string) =>
+                    workspaceService.readFileBinary!(p),
+                };
+                void MemoryService.indexPdfFile(payload.path, binaryWs).catch(() => {});
+              }
             } else {
               void MemoryService.indexFile(payload.path);
             }
@@ -144,6 +195,11 @@ export function useMemoryWiring(
         void MemoryService.indexWorkspace().catch(() => {
           /* errors are surfaced via the progress event with status: error */
         });
+
+        // A3: if PDF indexing is enabled, also index PDF files in the workspace.
+        if (isPdfIndexingEnabled() && workspaceService) {
+          void indexWorkspacePdfs(workspaceService).catch(() => {});
+        }
       } catch {
         // Tauri or watcher init failed — leave memory disabled gracefully.
       }
@@ -154,6 +210,31 @@ export function useMemoryWiring(
       if (unlisten) unlisten();
     };
   }, [rootPath]);
+
+  // A3: React to toggle changes for includePdfsInWorkspaceIndex.
+  // When turned ON, trigger PDF indexing. When turned OFF, remove PDF chunks.
+  useEffect(() => {
+    if (!rootPath || !workspaceService) return;
+
+    let prevEnabled = Boolean(
+      useSettingsStore.getState().getSetting<boolean>('includePdfsInWorkspaceIndex'),
+    );
+
+    const unsubscribe = useSettingsStore.subscribe((state) => {
+      const enabled = Boolean(state.getSetting<boolean>('includePdfsInWorkspaceIndex'));
+      if (enabled === prevEnabled) return;
+      prevEnabled = enabled;
+      if (enabled) {
+        void indexWorkspacePdfs(workspaceService).catch(() => {});
+      } else {
+        // Remove PDF chunks. Collect .pdf paths from the current file tree.
+        const { fileTree } = useWorkspaceStore.getState();
+        const pdfPaths = collectPdfPaths(fileTree);
+        void MemoryService.deleteAllPdfChunks(pdfPaths).catch(() => {});
+      }
+    });
+    return unsubscribe;
+  }, [rootPath, workspaceService]);
 }
 
 export default useMemoryWiring;

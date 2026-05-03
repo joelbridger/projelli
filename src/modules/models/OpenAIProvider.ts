@@ -9,9 +9,16 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
   ProviderContentBlock,
+  OpenAIImageBlock,
+  TextExtractBlock,
+  AttachmentBytes,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { isVisionModel } from './vision-capability';
+import { bytesToBase64 } from './providerUtils';
+import { extractPdfText } from '@/lib/pdf-extract';
+import { getMaxContextTokens } from './context-limits';
 
 // OpenAI model pricing (per 1K tokens)
 const OPENAI_PRICING: Record<string, { input: number; output: number }> = {
@@ -66,9 +73,16 @@ interface OpenAIToolCall {
   };
 }
 
+/** A single content part in an OpenAI vision-capable user message. */
+interface OpenAIContentPart {
+  type: 'text' | 'image_url';
+  text?: string;
+  image_url?: { url: string };
+}
+
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string | null;
+  content: string | null | OpenAIContentPart[];
   tool_calls?: OpenAIToolCall[];
   tool_call_id?: string;
 }
@@ -190,6 +204,35 @@ export class OpenAIProvider implements Provider {
   }
 
   /**
+   * Build the user message content for the OpenAI API.
+   * Without attachments: plain string (text-only, smallest payload).
+   * With attachments: image_url parts + extracted PDF text injected as text parts,
+   * followed by the user's prompt text.
+   */
+  private async buildUserContent(
+    prompt: string,
+    attachmentBytes?: AttachmentBytes[]
+  ): Promise<string | OpenAIContentPart[]> {
+    if (!attachmentBytes || attachmentBytes.length === 0) {
+      return prompt;
+    }
+    const parts: OpenAIContentPart[] = [];
+    for (const { att, bytes } of attachmentBytes) {
+      const block = await this.formatAttachmentForRequest(att, bytes);
+      if ('_text_extract' in block) {
+        // PDF text-extract: inject extracted text as a text part
+        const { text, fileName } = block._text_extract;
+        parts.push({ type: 'text', text: `[File: ${fileName}]\n${text}` });
+      } else {
+        const imgBlock = block as OpenAIImageBlock;
+        parts.push({ type: 'image_url', image_url: imgBlock.image_url });
+      }
+    }
+    parts.push({ type: 'text', text: prompt });
+    return parts;
+  }
+
+  /**
    * Send a message to OpenAI and get a response
    */
   async sendMessage(
@@ -208,7 +251,7 @@ export class OpenAIProvider implements Provider {
       messages.push({ role: 'system', content: systemPrompt });
     }
 
-    messages.push({ role: 'user', content: prompt });
+    messages.push({ role: 'user', content: await this.buildUserContent(prompt, options?.attachmentBytes) });
 
     const request: OpenAIRequest = {
       model: this.model,
@@ -340,7 +383,7 @@ export class OpenAIProvider implements Provider {
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
     }
-    messages.push({ role: 'user', content: prompt });
+    messages.push({ role: 'user', content: await this.buildUserContent(prompt, sendOpts.attachmentBytes) });
 
     const request: OpenAIRequest & { stream: boolean } = {
       model: this.model,
@@ -490,16 +533,6 @@ Respond ONLY with the JSON object.`;
     };
     const latency = LATENCY_ESTIMATES[this.model] ?? 10000;
 
-    // Determine max context based on model
-    let maxContextTokens = 8192;
-    if (this.model.includes('32k')) {
-      maxContextTokens = 32768;
-    } else if (this.model.includes('turbo') || this.model.includes('4o')) {
-      maxContextTokens = 128000;
-    } else if (this.model === 'gpt-4') {
-      maxContextTokens = 8192;
-    }
-
     return {
       name: 'OpenAI GPT',
       model: this.model,
@@ -510,7 +543,7 @@ Respond ONLY with the JSON object.`;
         streaming: true,
         functionCalling: true,
         vision: this.model.includes('4o') || this.model.includes('turbo'),
-        maxContextTokens,
+        maxContextTokens: getMaxContextTokens('openai', this.model),
       },
     };
   }
@@ -601,12 +634,57 @@ Respond ONLY with the JSON object.`;
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
-    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  /**
+   * Stream A2 — Format an attachment for the OpenAI Chat Completions API.
+   * Images: synchronous OpenAIImageBlock.
+   * PDFs: async text extraction via PDF.js, returns TextExtractBlock.
+   */
+  async formatAttachmentForRequest(
+    att: ChatAttachment,
+    bytes: Uint8Array
+  ): Promise<ProviderContentBlock> {
+    if (att.type === 'image') {
+      const data = bytesToBase64(bytes);
+      return {
+        type: 'image_url',
+        image_url: { url: `data:${att.mimeType};base64,${data}` },
+      } satisfies OpenAIImageBlock;
+    }
+
+    if (att.type === 'pdf') {
+      const result = await extractPdfText(bytes);
+      const text = result.pages.join('\n\n');
+      return {
+        _text_extract: {
+          text,
+          pageCount: result.pageCount,
+          fileName: att.fileName,
+        },
+      } satisfies TextExtractBlock;
+    }
+
+    throw new Error(`Unsupported attachment type: ${att.type}`);
   }
 
-  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
-    return 'Attachment support not implemented in foundations (Stream A scope)';
+  /**
+   * Stream A2 — Check attachment support. PDF always returns true (text-extract).
+   */
+  supportsAttachment(att: ChatAttachment, model: string): true | string {
+    if (att.type === 'image') {
+      if (isVisionModel('openai', model)) return true;
+      return `${model} does not support images. Switch to GPT-4o or an o1 model.`;
+    }
+    if (att.type === 'pdf') {
+      return true;
+    }
+    return `Unsupported attachment type: ${att.type}.`;
+  }
+
+  /**
+   * Stream A2 — OpenAI never supports native PDF blocks.
+   */
+  supportsNativePdf(_model: string): boolean {
+    return false;
   }
 }
 

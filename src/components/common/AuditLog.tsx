@@ -28,6 +28,7 @@ import {
   User,
   Filter,
   X,
+  Scissors,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/types/audit';
 import { EmptyState } from './EmptyState';
@@ -63,6 +64,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   workflow_complete: CheckCircle,
   workflow_fail: XCircle,
   model_call: Cpu,
+  context_compressed: Scissors,
   user_action: User,
 };
 
@@ -76,6 +78,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   workflow_complete: 'Workflow Completed',
   workflow_fail: 'Workflow Failed',
   model_call: 'Model Call',
+  context_compressed: 'Context Compressed',
   user_action: 'User Action',
 };
 
@@ -89,6 +92,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   workflow_complete: 'text-green-600 dark:text-green-400',
   workflow_fail: 'text-red-600 dark:text-red-400',
   model_call: 'text-amber-600 dark:text-amber-400',
+  context_compressed: 'text-orange-600 dark:text-orange-400',
   user_action: 'text-gray-600 dark:text-gray-400',
 };
 

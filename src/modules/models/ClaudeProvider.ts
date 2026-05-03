@@ -9,9 +9,16 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
   ProviderContentBlock,
+  ClaudeImageBlock,
+  ClaudeDocumentBlock,
+  AttachmentBytes,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { isVisionModel } from './vision-capability';
+import { bytesToBase64 } from './providerUtils';
+import { supportsNativePdf as pdfNativeCheck } from './pdf-capability';
+import { getMaxContextTokens } from './context-limits';
 
 // Claude model pricing (per 1K tokens)
 const CLAUDE_PRICING: Record<string, { input: number; output: number }> = {
@@ -79,13 +86,19 @@ function getAnthropicBaseUrl(configBaseUrl?: string): string {
 }
 
 interface ClaudeContentBlock {
-  type: 'text' | 'tool_use' | 'tool_result';
+  type: 'text' | 'tool_use' | 'tool_result' | 'image';
   text?: string;
   id?: string;
   name?: string;
   input?: Record<string, unknown>;
   tool_use_id?: string;
   content?: string | Array<{ type: string; text?: string }>;
+  // image block fields (Stream A1)
+  source?: {
+    type: 'base64';
+    media_type: string;
+    data: string;
+  };
 }
 
 interface ClaudeMessage {
@@ -171,13 +184,38 @@ export class ClaudeProvider implements Provider {
   }
 
   /**
+   * Build the user message content for the Claude API.
+   * When attachmentBytes are provided, the user message becomes a content
+   * array: image blocks first, then the text block. Without attachments it
+   * stays a plain string (cheaper and cleaner for text-only turns).
+   */
+  private buildUserContent(
+    prompt: string,
+    attachmentBytes?: AttachmentBytes[]
+  ): string | ClaudeContentBlock[] {
+    if (!attachmentBytes || attachmentBytes.length === 0) {
+      return prompt;
+    }
+    const blocks: ClaudeContentBlock[] = attachmentBytes.map(({ att, bytes }) => {
+      // formatAttachmentForRequest returns ClaudeImageBlock which is compatible
+      // with ClaudeContentBlock (now includes 'image' type and source field).
+      const formatted = this.formatAttachmentForRequest(att, bytes);
+      return formatted as unknown as ClaudeContentBlock;
+    });
+    blocks.push({ type: 'text', text: prompt });
+    return blocks;
+  }
+
+  /**
    * Send a message to Claude and get a response
    */
   async sendMessage(
     prompt: string,
     options?: SendOptions
   ): Promise<ProviderResponse> {
-    const messages: ClaudeMessage[] = [{ role: 'user', content: prompt }];
+    const messages: ClaudeMessage[] = [
+      { role: 'user', content: this.buildUserContent(prompt, options?.attachmentBytes) },
+    ];
 
     const request: ClaudeRequest = {
       model: this.model,
@@ -310,7 +348,9 @@ export class ClaudeProvider implements Provider {
   ): Promise<ProviderResponse> {
     const { onChunk, signal, ...sendOpts } = options;
 
-    const messages: ClaudeMessage[] = [{ role: 'user', content: prompt }];
+    const messages: ClaudeMessage[] = [
+      { role: 'user', content: this.buildUserContent(prompt, sendOpts.attachmentBytes) },
+    ];
 
     const request: ClaudeRequest & { stream: boolean } = {
       model: this.model,
@@ -486,7 +526,7 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
         streaming: true,
         functionCalling: true,
         vision: true,
-        maxContextTokens: 200000,
+        maxContextTokens: getMaxContextTokens('anthropic', this.model),
       },
     };
   }
@@ -603,12 +643,74 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
-    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  /**
+   * Stream A2 — Format an attachment for the Claude Messages API.
+   *
+   * For images: returns ClaudeImageBlock (synchronous, Plan A1).
+   * For PDFs on native-capable models (Sonnet 3.5+, Opus 3+): returns
+   *   ClaudeDocumentBlock with base64-encoded bytes.
+   * For PDFs on non-native models (Haiku): throws so the caller (AIChatViewer)
+   *   can route to the text-extract path instead.
+   */
+  formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock {
+    if (att.type === 'image') {
+      const data = bytesToBase64(bytes);
+      const block: ClaudeImageBlock = {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: att.mimeType,
+          data,
+        },
+      };
+      return block;
+    }
+
+    if (att.type === 'pdf') {
+      const currentModel = this.model;
+      if (!pdfNativeCheck('claude', currentModel)) {
+        throw new Error(
+          `${currentModel} does not support native PDF. Use text-extract path for Haiku models.`
+        );
+      }
+      const data = bytesToBase64(bytes);
+      const block: ClaudeDocumentBlock = {
+        type: 'document',
+        source: {
+          type: 'base64',
+          media_type: 'application/pdf',
+          data,
+        },
+      };
+      return block;
+    }
+
+    throw new Error(`Unsupported attachment type: ${att.type}`);
   }
 
-  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
-    return 'Attachment support not implemented in foundations (Stream A scope)';
+  /**
+   * Stream A2 — Check attachment capability for the given model.
+   * PDFs are supported by all Claude models: native or text-extract.
+   */
+  supportsAttachment(att: ChatAttachment, model: string): true | string {
+    if (att.type === 'image') {
+      if (isVisionModel('claude', model)) return true;
+      return (
+        `${model} does not support images. Switch to Claude Sonnet, Opus, or Haiku (3.x series).`
+      );
+    }
+    if (att.type === 'pdf') {
+      // All Claude models support PDF: native path for Sonnet/Opus, text-extract for Haiku.
+      return true;
+    }
+    return `Unsupported attachment type: ${att.type}.`;
+  }
+
+  /**
+   * Stream A2 — Returns true when the given model supports native PDF document blocks.
+   */
+  supportsNativePdf(model: string): boolean {
+    return pdfNativeCheck('claude', model);
   }
 }
 

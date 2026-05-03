@@ -17,6 +17,10 @@ interface PDFViewerProps {
   src: string; // Data URL or blob URL
   fileName?: string;
   className?: string;
+  /** A3: 1-based page number to scroll to on initial render. Default: 1.
+   *  Implemented by appending `#page=N` to the blob URL so the browser's
+   *  built-in PDF viewer jumps to the page (works in Tauri/Chromium). */
+  initialPage?: number;
 }
 
 /**
@@ -46,7 +50,7 @@ function dataUrlToBlobUrl(dataUrl: string): string {
   }
 }
 
-export function PDFViewer({ src, fileName = 'document.pdf', className }: PDFViewerProps) {
+export function PDFViewer({ src, fileName = 'document.pdf', className, initialPage }: PDFViewerProps) {
   const [zoom, setZoom] = useState(100);
   const [loadError, setLoadError] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -160,7 +164,13 @@ export function PDFViewer({ src, fileName = 'document.pdf', className }: PDFView
           </div>
         ) : (
           <iframe
-            src={blobUrl}
+            src={
+              blobUrl &&
+              initialPage != null &&
+              initialPage > 1
+                ? `${blobUrl}#page=${initialPage}`
+                : (blobUrl ?? undefined)
+            }
             title={fileName}
             className="border-0 w-full h-full"
             style={{

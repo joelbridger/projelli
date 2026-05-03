@@ -9,9 +9,16 @@ import type {
   StructuredOutputOptions,
   ProviderMetadata,
   ProviderContentBlock,
+  GeminiInlineDataBlock,
+  TextExtractBlock,
+  AttachmentBytes,
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { isVisionModel } from './vision-capability';
+import { bytesToBase64 } from './providerUtils';
+import { extractPdfText } from '@/lib/pdf-extract';
+import { getMaxContextTokens } from './context-limits';
 
 // Gemini model pricing (per 1K tokens) - as of 2024
 const GEMINI_PRICING: Record<string, { input: number; output: number }> = {
@@ -59,6 +66,11 @@ function getGeminiBaseUrl(configBaseUrl?: string): string {
  */
 interface GeminiPart {
   text?: string;
+  /** Stream A1 — inline image data part for vision requests. */
+  inlineData?: {
+    mimeType: string;
+    data: string; // base64
+  };
   functionCall?: {
     name: string;
     args: Record<string, unknown>;
@@ -186,6 +198,32 @@ export class GeminiProvider implements Provider {
   }
 
   /**
+   * Build the parts array for the initial user content block.
+   * Without attachments: a single text part.
+   * With attachments: inlineData parts (images) or text parts (PDF text-extract),
+   * followed by the user prompt.
+   */
+  private async buildUserParts(prompt: string, attachmentBytes?: AttachmentBytes[]): Promise<GeminiPart[]> {
+    if (!attachmentBytes || attachmentBytes.length === 0) {
+      return [{ text: prompt }];
+    }
+    const parts: GeminiPart[] = [];
+    for (const { att, bytes } of attachmentBytes) {
+      const block = await this.formatAttachmentForRequest(att, bytes);
+      if ('_text_extract' in block) {
+        // PDF text-extract: inject extracted text as a text part
+        const { text, fileName } = block._text_extract;
+        parts.push({ text: `[File: ${fileName}]\n${text}` });
+      } else {
+        const inlineBlock = block as GeminiInlineDataBlock;
+        parts.push({ inlineData: inlineBlock.inlineData });
+      }
+    }
+    parts.push({ text: prompt });
+    return parts;
+  }
+
+  /**
    * Send a message to Gemini and get a response
    */
   async sendMessage(
@@ -195,7 +233,7 @@ export class GeminiProvider implements Provider {
     const contents: GeminiContent[] = [
       {
         role: 'user',
-        parts: [{ text: prompt }],
+        parts: await this.buildUserParts(prompt, options?.attachmentBytes),
       },
     ];
 
@@ -334,7 +372,7 @@ export class GeminiProvider implements Provider {
   ): Promise<ProviderResponse> {
     const { onChunk, signal, ...sendOpts } = options;
 
-    const contents: GeminiContent[] = [{ role: 'user', parts: [{ text: prompt }] }];
+    const contents: GeminiContent[] = [{ role: 'user', parts: await this.buildUserParts(prompt, sendOpts.attachmentBytes) }];
     const request: GeminiRequest = { contents };
 
     let systemInstruction = sendOpts.systemPrompt || '';
@@ -455,6 +493,12 @@ export class GeminiProvider implements Provider {
       costPerInputToken: pricing.input,
       costPerOutputToken: pricing.output,
       latencyEstimate: LATENCY_ESTIMATES[this.model] ?? 5000,
+      capabilities: {
+        streaming: true,
+        functionCalling: false,
+        vision: isVisionModel('gemini', this.model),
+        maxContextTokens: getMaxContextTokens('gemini', this.model),
+      },
     };
   }
 
@@ -514,12 +558,57 @@ export class GeminiProvider implements Provider {
     return inputCost + outputCost;
   }
 
-  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
-    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  /**
+   * Stream A2 — Format an attachment for the Gemini API.
+   * Images: GeminiInlineDataBlock.
+   * PDFs: text extraction via PDF.js, returns TextExtractBlock.
+   */
+  async formatAttachmentForRequest(
+    att: ChatAttachment,
+    bytes: Uint8Array
+  ): Promise<ProviderContentBlock> {
+    if (att.type === 'image') {
+      return {
+        inlineData: {
+          mimeType: att.mimeType,
+          data: bytesToBase64(bytes),
+        },
+      } satisfies GeminiInlineDataBlock;
+    }
+
+    if (att.type === 'pdf') {
+      const result = await extractPdfText(bytes);
+      return {
+        _text_extract: {
+          text: result.pages.join('\n\n'),
+          pageCount: result.pageCount,
+          fileName: att.fileName,
+        },
+      } satisfies TextExtractBlock;
+    }
+
+    throw new Error(`Unsupported attachment type: ${att.type}`);
   }
 
-  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
-    return 'Attachment support not implemented in foundations (Stream A scope)';
+  /**
+   * Stream A2 — Check attachment support.
+   */
+  supportsAttachment(att: ChatAttachment, model: string): true | string {
+    if (att.type === 'image') {
+      if (isVisionModel('gemini', model)) return true;
+      return `${model} does not support images. Switch to Gemini 1.5 or 2.0.`;
+    }
+    if (att.type === 'pdf') {
+      return true;
+    }
+    return `Unsupported attachment type: ${att.type}.`;
+  }
+
+  /**
+   * Stream A2 — Gemini never supports native PDF blocks.
+   */
+  supportsNativePdf(_model: string): boolean {
+    return false;
   }
 }
 

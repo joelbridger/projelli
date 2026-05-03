@@ -194,6 +194,30 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     step: 5000,
   },
   {
+    key: 'chatContextTokenLimit',
+    category: 'ai',
+    label: 'Chat Context Token Limit',
+    description:
+      'Maximum tokens sent to the AI per chat turn (includes history, files, and your message). Default is 200K. Raise only if your provider and model support a larger window.',
+    type: 'number',
+    defaultValue: 200000,
+    min: 10000,
+    max: 1000000,
+    step: 10000,
+  },
+  {
+    key: 'keepRecentTurns',
+    category: 'ai',
+    label: 'Keep Recent Turns (Compression)',
+    description:
+      'When compressing context, how many of the most recent conversation turns to keep verbatim.',
+    type: 'number',
+    defaultValue: 6,
+    min: 2,
+    max: 20,
+    step: 1,
+  },
+  {
     key: 'manageApiKeys',
     category: 'ai',
     label: 'API Keys',
@@ -237,6 +261,15 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     label: 'Auto-accept proposed facts',
     description:
       'When enabled, facts that the AI extracts from your conversations are saved without asking. Default is off, so every proposed fact needs your approval.',
+    type: 'toggle',
+    defaultValue: false,
+  },
+  {
+    key: 'includePdfsInWorkspaceIndex',
+    category: 'memory',
+    label: 'Include PDFs in workspace index',
+    description:
+      'When on, PDFs in your workspace are searchable via @workspace and considered for AI context. Indexing runs in the background after you toggle this on. Adds CPU work during indexing. Defaults to off.',
     type: 'toggle',
     defaultValue: false,
   },

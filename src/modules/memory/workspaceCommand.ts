@@ -110,7 +110,12 @@ export function buildWorkspaceContextBlock(hits: RagHit[]): string {
   const sourceLines = hits
     .map((hit, idx) => {
       const n = idx + 1;
-      return `[${n}] ${hit.path} paragraph ${hit.paragraphIndex}\n${hit.chunkText}`;
+      // A3: for PDF hits, show "page N" instead of "paragraph N".
+      const location =
+        hit.sourceType === 'pdf' && hit.pageNumber != null
+          ? `page ${hit.pageNumber}`
+          : `paragraph ${hit.paragraphIndex}`;
+      return `[${n}] ${hit.path} ${location}\n${hit.chunkText}`;
     })
     .join('\n\n');
   return (
@@ -121,7 +126,7 @@ export function buildWorkspaceContextBlock(hits: RagHit[]): string {
     'Answer the user\'s question using only the workspace context above ' +
     'when possible. Cite sources inline using the format ' +
     '`[filename paragraph N]` where `filename` is the basename from the ' +
-    'citation header and `N` is the paragraph number. If the answer ' +
+    'citation header and `N` is the paragraph number or page number. If the answer ' +
     'cannot be found in the workspace context, say so plainly.'
   );
 }
