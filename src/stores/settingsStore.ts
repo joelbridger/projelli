@@ -18,6 +18,9 @@ import { SETTINGS_SCHEMA, getSchemaDefaults } from '@/settings/schema';
 // Types
 // ---------------------------------------------------------------------------
 
+/** User-overridable locale. null = use OS-detected locale at bootstrap. */
+type Language = 'en' | 'es' | 'de' | null;
+
 interface SettingsState {
   values: Record<string, unknown>;
   /** True once the one-shot legacy migration has run. */
@@ -26,6 +29,9 @@ interface SettingsState {
   // v1.6: feature tour flags
   featuresTourCompleted: boolean;
   featuresTourSkippedThisSession: boolean;
+
+  // v2.0: explicit language override (null = follow OS locale)
+  language: Language;
 
   getSetting: <T = unknown>(key: string) => T;
   setSetting: (key: string, value: unknown) => void;
@@ -37,6 +43,9 @@ interface SettingsState {
   markFeatureTourCompleted: () => void;
   skipFeatureTourThisSession: () => void;
   resetFeatureTour: () => void;
+
+  // v2.0: language action
+  setLanguage: (lang: Language) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,11 +65,14 @@ export const useSettingsStore = create<SettingsState>()(
       _migrated: false,
       featuresTourCompleted: false,
       featuresTourSkippedThisSession: false,
+      language: null,
 
       markFeatureTourCompleted: () => set({ featuresTourCompleted: true }),
       skipFeatureTourThisSession: () => set({ featuresTourSkippedThisSession: true }),
       resetFeatureTour: () =>
         set({ featuresTourCompleted: false, featuresTourSkippedThisSession: false }),
+
+      setLanguage: (lang) => set({ language: lang }),
 
       getSetting: <T = unknown>(key: string): T => {
         const stored = get().values[key];
@@ -116,6 +128,7 @@ export const useSettingsStore = create<SettingsState>()(
         values: state.values,
         _migrated: state._migrated,
         featuresTourCompleted: state.featuresTourCompleted,
+        language: state.language,
         // featuresTourSkippedThisSession is intentionally session-only
       }),
     }

@@ -9,8 +9,10 @@ import type {
   StreamOptions,
   OutputSchema,
   StructuredOutputOptions,
+  ProviderContentBlock,
 } from './Provider';
 import { ProviderError } from './Provider';
+import type { ChatAttachment } from '@/types/ai';
 
 /**
  * Configuration for mock responses
@@ -221,6 +223,14 @@ export class MockProvider implements Provider {
       default:
         return null;
     }
+  }
+
+  formatAttachmentForRequest(_att: ChatAttachment, _bytes: Uint8Array): ProviderContentBlock {
+    throw new Error('formatAttachmentForRequest not implemented in foundations (Stream A scope)');
+  }
+
+  supportsAttachment(_att: ChatAttachment, _model: string): boolean | string {
+    return 'Attachment support not implemented in foundations (Stream A scope)';
   }
 }
 

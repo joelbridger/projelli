@@ -33,6 +33,10 @@ import { TemplateModelSettings } from '@/components/settings/TemplateModelSettin
 import { LicenseSettings } from '@/components/settings/LicenseSettings';
 import { PrivacySettings } from '@/components/settings/PrivacySettings';
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
+import { MarketplaceSettings } from '@/components/settings/MarketplaceSettings';
+import { MobileSettings } from '@/components/settings/MobileSettings';
+import { PluginsSettings } from '@/components/settings/PluginsSettings';
+import { AdvancedSettings } from '@/components/settings/AdvancedSettings';
 import { McpSettingsSection } from '@/components/settings/McpSettingsSection';
 import { OllamaSettingsSection } from '@/components/settings/OllamaSettingsSection';
 import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';
@@ -507,6 +511,10 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
       cats.add('costs');
       cats.add('templates');
       cats.add('integrations');
+      cats.add('marketplace');
+      cats.add('plugins');
+      cats.add('mobile');
+      cats.add('advanced');
       cats.add('license');
       cats.add('privacy');
     }
@@ -674,6 +682,14 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
                 <McpSettingsSection />
                 <OllamaSettingsSection />
               </>
+            ) : activeCategory === 'marketplace' ? (
+              <MarketplaceSettings />
+            ) : activeCategory === 'plugins' ? (
+              <PluginsSettings />
+            ) : activeCategory === 'mobile' ? (
+              <MobileSettings />
+            ) : activeCategory === 'advanced' ? (
+              <AdvancedSettings />
             ) : categorySettings.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
                 No settings match your search in this category.

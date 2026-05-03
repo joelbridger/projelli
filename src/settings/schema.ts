@@ -21,6 +21,10 @@ export type SettingCategory =
   | 'costs'
   | 'templates'
   | 'integrations'
+  | 'marketplace'
+  | 'plugins'
+  | 'mobile'
+  | 'advanced'
   | 'updates'
   | 'onboarding'
   | 'privacy'
@@ -63,6 +67,10 @@ export const SETTING_CATEGORIES: { id: SettingCategory; label: string }[] = [
   { id: 'costs', label: 'Cost & Usage' },
   { id: 'templates', label: 'Templates' },
   { id: 'integrations', label: 'Integrations' },
+  { id: 'marketplace', label: 'Marketplace' },
+  { id: 'plugins', label: 'Plugins' },
+  { id: 'mobile', label: 'Mobile' },
+  { id: 'advanced', label: 'Advanced' },
   { id: 'updates', label: 'Updates' },
   { id: 'onboarding', label: 'Onboarding' },
   { id: 'privacy', label: 'Privacy' },

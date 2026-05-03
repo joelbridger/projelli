@@ -7,6 +7,11 @@
 // sub-modules; the `#[tauri::command]` wrapper fns stay host-only in
 // practice even though the module path is now public.
 pub mod commands;
+// Shared Sidecar trait + concrete impls (ParakeetSidecar, and later
+// PiperSidecar for Stream B TTS). The trait defines a lifecycle contract
+// (start/stop/is_running) that long-lived daemon sidecars and fire-and-forget
+// per-request sidecars both satisfy via appropriate no-ops.
+pub mod sidecars;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
