@@ -21,3 +21,7 @@ pub mod voice;
 pub mod watcher;
 // Stream B TTS (v2.0) — synthesize speech via the bundled Piper sidecar.
 pub mod tts;
+// Stream C1 (v2.0): Templates Marketplace install pipeline. SHA-256 file
+// hashing and gzipped-tarball extraction with path-traversal hardening.
+pub mod checksum;
+pub mod tarball;
