@@ -131,6 +131,16 @@ export class WorkspaceService {
   }
 
   /**
+   * Stream C1 — Expose the underlying FSBackend so the marketplace install
+   * pipeline can write tarballs / extract templates outside the workspace
+   * security envelope (templates land under `<workspaceRoot>/.projelli/`).
+   * Returns null when the workspace isn't initialized.
+   */
+  getBackend(): FSBackend | null {
+    return this.backend;
+  }
+
+  /**
    * Close the current workspace
    */
   close(): void {

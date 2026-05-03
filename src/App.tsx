@@ -58,6 +58,11 @@ import type { AuditEntry } from '@/types/audit';
 import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import {
+  createTemplatesMarketplaceService,
+  TemplateMetadataReader,
+  type MarketplaceService,
+} from '@/modules/marketplace';
+import {
   resolveTemplateModel,
   TEMPLATE_MODEL_OVERRIDES_KEY,
   type TemplateModelOverride,
@@ -177,6 +182,13 @@ function App() {
   const [showWhatsNewModalDirect, setShowWhatsNewModalDirect] = useState(false);
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
+  // Stream C1 — Templates Marketplace service. Constructed once when a
+  // workspace is selected (each workspace gets its own install root under
+  // `<workspaceRoot>/.projelli/templates`). The metadata reader reads
+  // installed entries off disk and adapts them into WorkflowTemplate for the
+  // engine. Both refs are nullable until a workspace is loaded.
+  const templatesMarketplaceServiceRef = useRef<MarketplaceService | null>(null);
+  const templatesMetadataReaderRef = useRef<TemplateMetadataReader | null>(null);
 
   // Workflow state
   const [currentExecution, setCurrentExecution] = useState<WorkflowExecution | null>(null);
@@ -805,6 +817,28 @@ function App() {
     const newRootPath = service.getRootPath();
     if (newRootPath) {
       setRootPath(newRootPath);
+    }
+
+    // Stream C1 — Construct the templates marketplace service for this
+    // workspace. Each workspace gets its own install root so installed
+    // templates don't leak across projects. Skipped when no backend (e.g.
+    // test mode shims that bypass createFSBackend).
+    const backend = service.getBackend();
+    if (backend && newRootPath) {
+      try {
+        const tplService = createTemplatesMarketplaceService(backend, newRootPath);
+        templatesMarketplaceServiceRef.current = tplService;
+        templatesMetadataReaderRef.current = new TemplateMetadataReader({
+          fs: backend,
+        });
+      } catch (err) {
+        console.warn('[App] Failed to construct TemplatesMarketplaceService:', err);
+        templatesMarketplaceServiceRef.current = null;
+        templatesMetadataReaderRef.current = null;
+      }
+    } else {
+      templatesMarketplaceServiceRef.current = null;
+      templatesMetadataReaderRef.current = null;
     }
 
     let isNewWorkspace = false;
@@ -1964,6 +1998,18 @@ function App() {
               artifacts,
             })
           );
+        },
+        {
+          // Stream C1 — Surface marketplace-installed templates alongside
+          // built-ins on `engine.availableTemplates()`. Reader + service refs
+          // are nullable until a workspace is loaded; the resolver returns []
+          // in that case rather than throwing.
+          getCommunityTemplates: async () => {
+            const reader = templatesMetadataReaderRef.current;
+            const svc = templatesMarketplaceServiceRef.current;
+            if (!reader || !svc) return [];
+            return reader.list(svc);
+          },
         }
       );
 
