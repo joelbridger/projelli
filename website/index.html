@@ -363,7 +363,7 @@
     @media (max-width: 980px) {
       .hero-inner {
         /* minmax(0, 1fr) lets the column shrink below its grid items' intrinsic
-           min-width — without this, the hero-anim's no-wrap toolbar forces the
+           min-width, without this, the hero-anim's no-wrap toolbar forces the
            column wider than the viewport on phones, blowing the page out
            horizontally. */
         grid-template-columns: minmax(0, 1fr);
@@ -387,7 +387,7 @@
         width: 100%;
       }
     }
-    /* Drop the H1's hard line breaks at narrow widths — let the text reflow
+    /* Drop the H1's hard line breaks at narrow widths, let the text reflow
        naturally so we don't need to size the column to the longest forced line. */
     @media (max-width: 600px) {
       .hero h1 br { display: none; }
@@ -900,7 +900,7 @@
     .product-strip-card:hover .product-strip-poster::before {
       background: linear-gradient(180deg, rgba(15, 23, 42, 0.10) 0%, rgba(15, 23, 42, 0.55) 100%);
     }
-    /* Big coral play button — the "yes this is a video" signal */
+    /* Big coral play button, the "yes this is a video" signal */
     .product-strip-play {
       position: absolute;
       top: 50%;
@@ -1091,7 +1091,7 @@
 
     .feature-visual {
       flex: 1;
-      /* No outer card — let the screenshot itself carry the visual weight.
+      /* No outer card, let the screenshot itself carry the visual weight.
          Previously the outer container plus the inner image both had
          border-radius + shadow, which read as two stacked rounded
          rectangles. */
@@ -1559,7 +1559,7 @@
   <a class="skip-link" href="#main">Skip to content</a>
 
   <!-- Navigation -->
-  <!-- Navigation injected by /scripts/projelli-nav.v2.js — single source of truth across all pages. -->
+  <!-- Navigation injected by /scripts/projelli-nav.v2.js, single source of truth across all pages. -->
 
   <main id="main">
     <!-- Hero Section -->
@@ -1576,7 +1576,7 @@
           </h1>
 
           <p class="hero-subtitle">
-            For indie founders. Bring your Claude, GPT, or Gemini key. Projelli remembers your projects, your voice, and every past conversation — saved as Markdown files in a folder on your machine. We never see your data. <strong>$49 once. Not $49/month.</strong>
+            For indie founders. Bring your Claude, GPT, or Gemini key. Projelli remembers your projects, your voice, and every past conversation, saved as Markdown files in a folder on your machine. We never see your data. <strong>$49 once. Not $49/month.</strong>
           </p>
 
           <div class="hero-ctas">
@@ -1617,7 +1617,7 @@
                 <span class="hero-anim__light hero-anim__light--min"></span>
                 <span class="hero-anim__light hero-anim__light--max"></span>
               </div>
-              <div class="hero-anim__title">Linterly — Projelli</div>
+              <div class="hero-anim__title">Linterly, Projelli</div>
             </div>
 
             <!-- Top toolbar (workspace dropdown + display/settings/⌘K) -->
@@ -1976,10 +1976,10 @@
           <div class="feature-text">
             <span class="eyebrow">AI WORKSPACE</span>
             <h2>Every chat becomes a file you can open in Finder.</h2>
-            <p>You spend half your day re-explaining your project to ChatGPT. With Projelli, every conversation lands as a real Markdown file in your workspace folder — plans, research, customer interviews, draft pitches. Edit them in-place, link them to other notes, open them in VS Code, back them up to iCloud. They're files. You own them.</p>
+            <p>You spend half your day re-explaining your project to ChatGPT. With Projelli, every conversation lands as a real Markdown file in your workspace folder, plans, research, customer interviews, draft pitches. Edit them in-place, link them to other notes, open them in VS Code, back them up to iCloud. They're files. You own them.</p>
             <ul class="feature-list">
               <li>Every conversation saves as Markdown in a folder you pick</li>
-              <li>Follow-up prompts rewrite the document in place — no copy-paste shuffle</li>
+              <li>Follow-up prompts rewrite the document in place, no copy-paste shuffle</li>
               <li>Every AI action is logged and reversible</li>
               <li>Export to PDF, Word, or PowerPoint when you need to</li>
             </ul>
@@ -1994,7 +1994,7 @@
           <div class="feature-text">
             <span class="eyebrow">PERSISTENT MEMORY</span>
             <h2>Your notes link to each other. Your AI remembers what you told it last week.</h2>
-            <p>Projelli reads your workspace. Ask it about your customers and it pulls from <code>Customers.md</code>. Ask it to draft in your voice and it uses <code>Brand Voice.md</code>. Wiki-links connect your docs; backlinks show what references what. Stop pasting context into every prompt — your second brain finally has both halves.</p>
+            <p>Projelli reads your workspace. Ask it about your customers and it pulls from <code>Customers.md</code>. Ask it to draft in your voice and it uses <code>Brand Voice.md</code>. Wiki-links connect your docs; backlinks show what references what. Stop pasting context into every prompt, your second brain finally has both halves.</p>
             <ul class="feature-list">
               <li>AI sees your workspace files and uses them as context (RAG)</li>
               <li>[[Wiki-links]] between any two documents, with automatic backlinks</li>
@@ -2011,10 +2011,10 @@
 
           <div class="feature-text">
             <span class="eyebrow">LOCAL-FIRST</span>
-            <h2>Your files, in a folder you control. We can't see them — even if we wanted to.</h2>
-            <p>Open <code>~/Documents/Projelli/</code> in Finder. There they are. Plain Markdown files. Open them in VS Code. Drop them in iCloud. Delete them. They're yours. Your API key talks to OpenAI directly — your prompts never touch our servers, because there are no servers.</p>
+            <h2>Your files, in a folder you control. We can't see them, even if we wanted to.</h2>
+            <p>Open <code>~/Documents/Projelli/</code> in Finder. There they are. Plain Markdown files. Open them in VS Code. Drop them in iCloud. Delete them. They're yours. Your API key talks to OpenAI directly, your prompts never touch our servers, because there are no servers.</p>
             <ul class="feature-list">
-              <li>Files live in a folder you pick — open them in any editor</li>
+              <li>Files live in a folder you pick, open them in any editor</li>
               <li>Works fully offline (except the AI calls themselves)</li>
               <li>No account, no sign-up, no telemetry by default</li>
               <li>Your API key, your direct call to OpenAI / Anthropic / Google</li>
@@ -2078,7 +2078,7 @@
         <div class="section-header">
           <span class="eyebrow">PRICING</span>
           <h2>$49 once. Not $49/month. $49 ever.</h2>
-          <p>Try every Projelli feature free for 30 days, no card required. Bring your own keys for Claude, OpenAI, Gemini, or Ollama — Projelli never touches your inference budget. After 30 days, activate a license once. Keep it forever.</p>
+          <p>Try every Projelli feature free for 30 days, no card required. Bring your own keys for Claude, OpenAI, Gemini, or Ollama, Projelli never touches your inference budget. After 30 days, activate a license once. Keep it forever.</p>
         </div>
 
         <div class="founders-banner">
@@ -2090,7 +2090,7 @@
           <div class="pricing-card animate-on-scroll">
             <div class="pricing-name">Free trial</div>
             <div class="pricing-price">$0<span> / 30 days</span></div>
-            <div class="pricing-description">Every feature unlocked for 30 days. No card, no signup.</div>
+            <div class="pricing-description">Every feature included for 30 days. No card, no signup.</div>
             <ul class="pricing-features">
               <li>The full Projelli experience</li>
               <li>All 15 founder workflow templates</li>
@@ -2161,7 +2161,7 @@
           14-day refund, no questions asked. Sold via <a href="https://www.lemonsqueezy.com/" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">LemonSqueezy</a> as merchant of record (handles tax for you).
         </p>
         <p style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 6px;">
-          One license unlocks all platforms — download Windows, Mac, or Linux from your purchase email.
+          One license covers all platforms, download Windows, Mac, or Linux from your purchase email.
         </p>
       </div>
     </section>
@@ -2261,7 +2261,7 @@
   <script>
     // Nav scroll-shadow + mobile menu are owned by the shared
     // /scripts/projelli-nav.v2.js. The old `#nav` / `#mobile-menu-btn`
-    // references that lived here have been removed — keeping them
+    // references that lived here have been removed, keeping them
     // around after the inline header was deleted threw a TypeError at
     // module load, which halted this whole script and left every
     // .animate-on-scroll element invisible.
@@ -2520,7 +2520,7 @@
        FALLBACK_VERSION is what we point at if the GitHub API fetch
        below fails or returns nothing. Bump it after each release.
        The async fetch below replaces the URLs with whatever the
-       /releases/latest endpoint reports — so a future release that
+       /releases/latest endpoint reports, so a future release that
        hasn't yet been bumped here still gets served correctly. -->
   <script>
     (function() {
@@ -2550,7 +2550,7 @@
         // Order matters. Android UAs contain "Linux" (would mis-match the
         // Linux branch); iPhone UAs contain "Mac OS X" (would mis-match the
         // Mac branch but the device can't install a desktop app anyway).
-        // Detect mobile first and default to Mac — by far the biggest user
+        // Detect mobile first and default to Mac, by far the biggest user
         // group, and mobile visitors are most likely to airdrop / email
         // themselves the link to install on their Mac later. Windows / Linux
         // desktop detection runs after.
@@ -2612,7 +2612,7 @@
   <!-- Founder's Launch live counter. Reads /spots-remaining.json (manually
        editable file; future: wire to a LemonSqueezy webhook). Renders
        "47 of 100 spots left" or "All 100 spots claimed" inline in the
-       founders banner. Documented as a top conversion lever — visible
+       founders banner. Documented as a top conversion lever, visible
        scarcity counters lift conversion up to 332% per 99signals. -->
   <script>
     (function () {
@@ -2622,14 +2622,14 @@
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (data) {
           if (!data || typeof data.remaining !== 'number') {
-            // Fail silent — banner just doesn't show a count.
+            // Fail silent, banner just doesn't show a count.
             el.textContent = 'Limited to the first 100 buyers.';
             return;
           }
           var n = data.remaining;
           var total = data.total || 100;
           if (n <= 0) {
-            el.textContent = 'All ' + total + ' Founder’s Launch spots are claimed — see Pro tier below.';
+            el.textContent = 'All ' + total + ' Founder’s Launch spots are claimed, see Pro tier below.';
           } else if (n === 1) {
             el.textContent = '1 of ' + total + ' spots left.';
           } else {
