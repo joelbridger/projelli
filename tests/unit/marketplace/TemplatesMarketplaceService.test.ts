@@ -507,3 +507,287 @@ describe('createTemplatesMarketplaceService factory', () => {
     expect(installed.provenance).toBe('community');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Group VIII: checkForUpdates + isUpdate audit shape
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a service with the catalog presented as freshly fetched (so
+ * checkForUpdates does not try to re-fetch over the network) and install a
+ * known template at the supplied installed version.
+ *
+ * Returns an `installEntry` helper that lets each test seed `installed.json`
+ * with its own catalog/installed version pair without re-running the install
+ * pipeline.
+ */
+function buildServiceWithFreshCache(
+  fs: FakeFs,
+  catalog: CatalogEntry[],
+  audit?: AuditService,
+): MarketplaceService {
+  const svc = new MarketplaceService({
+    repoUrl: 'https://example.test',
+    catalogPath: 'catalog.json',
+    cachePath: '/ws/.projelli/cache/templates.json',
+    installRoot: '/ws/.projelli/templates',
+    fs: fs.fs,
+    provenance: 'community',
+    ...(audit ? { auditService: audit } : {}),
+  });
+  // Pre-seed the in-memory catalog AND mark the last fetch as fresh so
+  // checkForUpdates() short-circuits the silent refresh.
+  const internal = svc as unknown as {
+    cache: CatalogEntry[];
+    lastFetchedAt: string | null;
+    lastFetchFailed: boolean;
+  };
+  internal.cache = catalog;
+  internal.lastFetchedAt = new Date().toISOString();
+  internal.lastFetchFailed = false;
+  return svc;
+}
+
+function seedInstalled(fs: FakeFs, entries: InstalledEntry[]): void {
+  fs.files.set(
+    '/ws/.projelli/templates/.installed.json',
+    JSON.stringify({ entries }, null, 2),
+  );
+}
+
+function makeInstalledEntry(id: string, version: string, overrides: Partial<CatalogEntry> = {}): InstalledEntry {
+  const entry: CatalogEntry = {
+    id,
+    name: id,
+    description: `${id} description`,
+    version,
+    author: { name: 'Test' },
+    category: 'misc',
+    tags: [],
+    installUrl: `https://example.test/${id}.tar.gz`,
+    manifestUrl: `https://example.test/${id}.json`,
+    minProjelliVersion: '2.0.0',
+    publishedAt: '2026-04-28T00:00:00.000Z',
+    updatedAt: '2026-04-28T00:00:00.000Z',
+    ...overrides,
+  };
+  return {
+    ...entry,
+    installedAt: '2026-04-28T00:00:00.000Z',
+    installedPath: `/ws/.projelli/templates/${id}`,
+    provenance: 'community',
+    manifestVersion: '1.0',
+  };
+}
+
+describe('MarketplaceService.checkForUpdates', () => {
+  it('returns [] when no updates are available (catalog matches installed)', async () => {
+    const fs = makeFs();
+    const svc = buildServiceWithFreshCache(fs, [
+      { ...SAMPLE_ENTRY, id: 'a', version: '1.0.0' },
+      { ...SAMPLE_ENTRY, id: 'b', version: '2.5.0' },
+    ]);
+    seedInstalled(fs, [
+      makeInstalledEntry('a', '1.0.0'),
+      makeInstalledEntry('b', '2.5.0'),
+    ]);
+
+    const updates = await svc.checkForUpdates();
+    expect(updates).toEqual([]);
+  });
+
+  it('returns one entry when a single installed template has a newer catalog version', async () => {
+    const fs = makeFs();
+    const svc = buildServiceWithFreshCache(fs, [
+      { ...SAMPLE_ENTRY, id: 'a', version: '1.2.0' },
+    ]);
+    seedInstalled(fs, [makeInstalledEntry('a', '1.0.0')]);
+
+    const updates = await svc.checkForUpdates();
+    expect(updates).toEqual([
+      { id: 'a', installedVersion: '1.0.0', latestVersion: '1.2.0' },
+    ]);
+  });
+
+  it('returns multiple entries when multiple installed templates have newer versions', async () => {
+    const fs = makeFs();
+    const svc = buildServiceWithFreshCache(fs, [
+      { ...SAMPLE_ENTRY, id: 'a', version: '1.2.0' },
+      { ...SAMPLE_ENTRY, id: 'b', version: '3.0.0' },
+      { ...SAMPLE_ENTRY, id: 'c', version: '0.9.0' },
+    ]);
+    seedInstalled(fs, [
+      makeInstalledEntry('a', '1.0.0'),
+      makeInstalledEntry('b', '2.0.0'),
+      // c is not installed; a + b should be reported
+    ]);
+
+    const updates = await svc.checkForUpdates();
+    expect(updates).toHaveLength(2);
+    expect(updates.find((u) => u.id === 'a')).toEqual({
+      id: 'a',
+      installedVersion: '1.0.0',
+      latestVersion: '1.2.0',
+    });
+    expect(updates.find((u) => u.id === 'b')).toEqual({
+      id: 'b',
+      installedVersion: '2.0.0',
+      latestVersion: '3.0.0',
+    });
+  });
+
+  it('ignores downgrades (catalog version older than installed)', async () => {
+    const fs = makeFs();
+    const svc = buildServiceWithFreshCache(fs, [
+      { ...SAMPLE_ENTRY, id: 'a', version: '1.0.0' },
+    ]);
+    seedInstalled(fs, [makeInstalledEntry('a', '2.5.0')]);
+
+    const updates = await svc.checkForUpdates();
+    expect(updates).toEqual([]);
+  });
+
+  it('ignores installed ids that no longer exist in the catalog', async () => {
+    const fs = makeFs();
+    const svc = buildServiceWithFreshCache(fs, [
+      { ...SAMPLE_ENTRY, id: 'b', version: '2.0.0' },
+    ]);
+    seedInstalled(fs, [
+      makeInstalledEntry('orphaned', '1.0.0'),
+      makeInstalledEntry('b', '1.0.0'),
+    ]);
+
+    const updates = await svc.checkForUpdates();
+    expect(updates).toEqual([
+      { id: 'b', installedVersion: '1.0.0', latestVersion: '2.0.0' },
+    ]);
+  });
+
+  it('refreshes silently when the cache is stale', async () => {
+    const fs = makeFs();
+    const svc = new MarketplaceService({
+      repoUrl: 'https://example.test',
+      catalogPath: 'catalog.json',
+      cachePath: '/ws/.projelli/cache/templates.json',
+      installRoot: '/ws/.projelli/templates',
+      fs: fs.fs,
+      provenance: 'community',
+    });
+    // Mark cache as stale: lastFetchedAt is far in the past.
+    const internal = svc as unknown as {
+      cache: CatalogEntry[];
+      lastFetchedAt: string | null;
+    };
+    internal.cache = [{ ...SAMPLE_ENTRY, id: 'a', version: '1.0.0' }];
+    internal.lastFetchedAt = new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString();
+    seedInstalled(fs, [makeInstalledEntry('a', '1.0.0')]);
+
+    const fetchSpy = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => [{ ...SAMPLE_ENTRY, id: 'a', version: '2.0.0' }],
+    } as unknown as Response));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const updates = await svc.checkForUpdates();
+    // Refresh was triggered (and produced a newer version) so the update is
+    // reported.
+    expect(fetchSpy).toHaveBeenCalled();
+    expect(updates).toEqual([
+      { id: 'a', installedVersion: '1.0.0', latestVersion: '2.0.0' },
+    ]);
+  });
+
+  it('does not throw when refresh fails offline (returns based on cached catalog)', async () => {
+    const fs = makeFs();
+    const svc = new MarketplaceService({
+      repoUrl: 'https://example.test',
+      catalogPath: 'catalog.json',
+      cachePath: '/ws/.projelli/cache/templates.json',
+      installRoot: '/ws/.projelli/templates',
+      fs: fs.fs,
+      provenance: 'community',
+    });
+    // No prior fetch + cached catalog already in memory.
+    const internal = svc as unknown as { cache: CatalogEntry[] };
+    internal.cache = [{ ...SAMPLE_ENTRY, id: 'a', version: '1.5.0' }];
+    seedInstalled(fs, [makeInstalledEntry('a', '1.0.0')]);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('offline');
+      }),
+    );
+
+    const updates = await svc.checkForUpdates();
+    expect(updates).toEqual([
+      { id: 'a', installedVersion: '1.0.0', latestVersion: '1.5.0' },
+    ]);
+  });
+
+  it('returns [] when nothing is installed', async () => {
+    const fs = makeFs();
+    const svc = buildServiceWithFreshCache(fs, [SAMPLE_ENTRY]);
+    const updates = await svc.checkForUpdates();
+    expect(updates).toEqual([]);
+  });
+});
+
+describe('MarketplaceService.install — update audit shape', () => {
+  it('emits template_updated (not template_installed_from_marketplace) when isUpdate=true', async () => {
+    const fs = makeFs();
+    const audit = new AuditService(`test-${Math.random()}`);
+    const svc = buildService(fs, audit);
+    wireHappyPath(fs);
+
+    await svc.install('investor-update-v1', {
+      isUpdate: true,
+      fromVersion: '0.9.0',
+    });
+
+    const events = audit.getAll();
+    const updated = events.filter((e) => e.action === 'template_updated');
+    const installed = events.filter(
+      (e) => e.action === 'template_installed_from_marketplace',
+    );
+    expect(updated).toHaveLength(1);
+    expect(installed).toHaveLength(0);
+    expect(updated[0]?.metadata).toMatchObject({
+      templateId: 'investor-update-v1',
+      fromVersion: '0.9.0',
+      toVersion: '1.0.0',
+      version: '1.0.0',
+    });
+  });
+
+  it('falls back to fromVersion="unknown" when caller forgets to pass it', async () => {
+    const fs = makeFs();
+    const audit = new AuditService(`test-${Math.random()}`);
+    const svc = buildService(fs, audit);
+    wireHappyPath(fs);
+
+    await svc.install('investor-update-v1', { isUpdate: true });
+    const updated = audit
+      .getAll()
+      .filter((e) => e.action === 'template_updated');
+    expect(updated).toHaveLength(1);
+    expect(updated[0]?.metadata).toMatchObject({
+      fromVersion: 'unknown',
+      toVersion: '1.0.0',
+    });
+  });
+
+  it('still emits the install audit event when isUpdate is omitted', async () => {
+    const fs = makeFs();
+    const audit = new AuditService(`test-${Math.random()}`);
+    const svc = buildService(fs, audit);
+    wireHappyPath(fs);
+    await svc.install('investor-update-v1');
+    const installed = audit
+      .getAll()
+      .filter((e) => e.action === 'template_installed_from_marketplace');
+    const updated = audit.getAll().filter((e) => e.action === 'template_updated');
+    expect(installed).toHaveLength(1);
+    expect(updated).toHaveLength(0);
+  });
+});

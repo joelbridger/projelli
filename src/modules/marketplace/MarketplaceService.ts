@@ -9,7 +9,7 @@ import {
   cleanupOnError,
   type DownloadProgress,
 } from './install';
-import { validateTemplateManifest } from './manifestValidator';
+import { validateTemplateManifest, compareSemver } from './manifestValidator';
 
 export interface MarketplaceServiceOptions {
   repoUrl: string;
@@ -29,6 +29,16 @@ export type InstallPhase = 'download' | 'checksum' | 'extract' | 'validate' | 'a
 export interface InstallOptions {
   onProgress?: (phase: InstallPhase, pct: number) => void;
   signal?: AbortSignal;
+  /**
+   * When true, the install pipeline emits a `template_updated` audit entry
+   * (carrying `fromVersion` + `toVersion`) instead of
+   * `template_installed_from_marketplace`. Wired by TemplateDetailView's
+   * [Update] action; checkForUpdates feeds the previously-installed version
+   * via `fromVersion`.
+   */
+  isUpdate?: boolean;
+  /** Previously installed version. Required when `isUpdate` is true. */
+  fromVersion?: string;
 }
 
 /**
@@ -236,13 +246,28 @@ export class MarketplaceService {
       next.push(installed);
       await this.writeInstalledIndex(next);
 
-      // 6. Audit
+      // 6. Audit. Group VIII: if the caller flagged this install as an
+      // update, emit `template_updated` with from/to versions instead of the
+      // generic install event so the audit log distinguishes the two paths.
       onProgress?.('audit', 0);
-      this.auditService.append({
-        type: 'template_installed_from_marketplace',
-        timestamp: new Date().toISOString(),
-        payload: { templateId: id, version: entry.version },
-      });
+      if (opts.isUpdate) {
+        this.auditService.append({
+          type: 'template_updated',
+          timestamp: new Date().toISOString(),
+          payload: {
+            templateId: id,
+            version: entry.version,
+            fromVersion: opts.fromVersion ?? 'unknown',
+            toVersion: entry.version,
+          },
+        });
+      } else {
+        this.auditService.append({
+          type: 'template_installed_from_marketplace',
+          timestamp: new Date().toISOString(),
+          payload: { templateId: id, version: entry.version },
+        });
+      }
       onProgress?.('audit', 100);
 
       // 7. Cleanup tarball (best effort)
@@ -307,8 +332,41 @@ export class MarketplaceService {
     }
   }
 
+  /**
+   * Compare each installed entry's version against the latest catalog entry
+   * with the same id. Returns the subset where the catalog version is strictly
+   * newer (semver). Refreshes the catalog silently if it is currently stale
+   * or unavailable so the result reflects the latest published versions —
+   * but never throws on network error; in offline mode the comparison runs
+   * against whatever catalog (if any) is already in memory.
+   *
+   * Skipped entries:
+   *   - installed ids with no matching catalog entry (template was unpublished
+   *     or renamed); they remain installed and are simply not surfaced as
+   *     updateable
+   *   - downgrades (catalog version older than installed); we never
+   *     auto-downgrade
+   */
   async checkForUpdates(): Promise<UpdateInfo[]> {
-    return [];
+    if (this.cacheStatus() !== 'fresh') {
+      await this.refresh({ silent: true });
+    }
+    const installed = await this.listInstalled();
+    const catalog = await this.list();
+    const byId = new Map(catalog.map((e) => [e.id, e]));
+    const updates: UpdateInfo[] = [];
+    for (const entry of installed) {
+      const latest = byId.get(entry.id);
+      if (!latest) continue;
+      if (compareSemver(latest.version, entry.version) > 0) {
+        updates.push({
+          id: entry.id,
+          installedVersion: entry.version,
+          latestVersion: latest.version,
+        });
+      }
+    }
+    return updates;
   }
 
   // ---- installed.json helpers ----------------------------------------------
