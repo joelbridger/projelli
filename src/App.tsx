@@ -105,8 +105,17 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { usePromptDialog } from '@/hooks/usePromptDialog';
 import { PromptDialog } from '@/components/common/PromptDialog';
 import { useUndoToast, UndoToastRenderer } from '@/components/common/UndoToast';
+import { PluginSpikePage, isSpikeEnabled, isSpikeRoute } from '@/components/pluginSpike/PluginSpikePage';
 
 function App() {
+  // Stream C2 plugin runner spike: hidden dev-only harness at /_dev/plugin-spike.
+  // Gated by `import.meta.env.DEV` OR `localStorage.getItem('projelli:spike') === '1'`,
+  // and only mounts when the URL matches. Returning before any hook is fine here:
+  // the route never flips inside a session (changing it requires a page reload).
+  if (isSpikeRoute() && isSpikeEnabled()) {
+    return <PluginSpikePage />;
+  }
+
   // Test mode: bypass workspace selector for E2E tests
   const IS_TEST_MODE = typeof window !== 'undefined' &&
                        window.location.search.includes('testMode=true');
