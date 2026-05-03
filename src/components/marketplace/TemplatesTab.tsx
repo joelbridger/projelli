@@ -42,7 +42,7 @@ const ALL_CATEGORIES = '__all__';
 type TemplatesSubview = 'browse' | 'installed';
 
 export function TemplatesTab() {
-  const { service, cacheStatus, setCacheStatus } = useTemplatesMarketplace();
+  const { service, cacheStatus, setCacheStatus, setUpdateCount } = useTemplatesMarketplace();
   void cacheStatus;
 
   const [view, setView] = useState<TemplatesSubview>('browse');
@@ -144,6 +144,23 @@ export function TemplatesTab() {
     }
   }, [service, setCacheStatus]);
 
+  // Group VIII: after a successful install / update / uninstall, re-run
+  // checkForUpdates so the Settings nav badge stays in sync. We don't gate
+  // this on cacheStatus because the catalog is already in memory (the user
+  // just touched the Marketplace UI), and checkForUpdates short-circuits
+  // when fresh.
+  const refreshUpdateCount = useCallback(() => {
+    if (!service) return;
+    void (async () => {
+      try {
+        const updates = await service.checkForUpdates();
+        setUpdateCount(updates.length);
+      } catch {
+        // non-fatal; leave the badge alone
+      }
+    })();
+  }, [service, setUpdateCount]);
+
   const handleInstalled = useCallback(
     (e: InstalledEntry) => {
       setInstalled((prev) => {
@@ -151,13 +168,15 @@ export function TemplatesTab() {
         next.push(e);
         return next;
       });
+      refreshUpdateCount();
     },
-    [],
+    [refreshUpdateCount],
   );
 
   const handleUninstalled = useCallback((id: string) => {
     setInstalled((prev) => prev.filter((p) => p.id !== id));
-  }, []);
+    refreshUpdateCount();
+  }, [refreshUpdateCount]);
 
   if (!service) {
     return (

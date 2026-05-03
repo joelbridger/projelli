@@ -33,3 +33,12 @@ export function useTemplatesMarketplace(): UseTemplatesMarketplaceResult {
 
   return { service, reader, cacheStatus, updateCount, setCacheStatus, setUpdateCount };
 }
+
+/**
+ * Thin selector for components (e.g. SettingsModal nav) that only need the
+ * update count and would otherwise re-render whenever any other field on the
+ * marketplace store changed. Returns 0 when no marketplace service is active.
+ */
+export function useTemplateUpdateCount(): number {
+  return useTemplatesMarketplaceStore((s) => s.updateCount);
+}

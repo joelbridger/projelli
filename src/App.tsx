@@ -614,6 +614,55 @@ function App() {
     loadRecentWorkspaces();
   }, [loadRecentWorkspaces]);
 
+  // Stream C1 Group VIII — Deferred check-for-updates on workspace load.
+  //
+  // We subscribe to the templates marketplace store rather than reading a ref
+  // so the check re-runs each time the user switches workspaces (each
+  // workspace gets its own MarketplaceService instance with its own install
+  // root). The 2-second delay keeps cold start snappy by skipping the network
+  // round trip until the editor is interactive. Errors are swallowed: a
+  // failed network call leaves the badge at 0 and the user can still install
+  // / refresh by hand.
+  useEffect(() => {
+    const status = { cancelled: false };
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleCheck = (svc: MarketplaceService) => {
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (status.cancelled) return;
+        void (async () => {
+          try {
+            const updates = await svc.checkForUpdates();
+            if (status.cancelled) return;
+            useTemplatesMarketplaceStore.getState().setUpdateCount(updates.length);
+          } catch (err) {
+            console.warn('[App] checkForUpdates failed; badge remains hidden:', err);
+          }
+        })();
+      }, 2000);
+    };
+    const unsubscribe = useTemplatesMarketplaceStore.subscribe((state, prev) => {
+      if (state.service === prev.service) return;
+      if (!state.service) {
+        if (timer !== null) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        useTemplatesMarketplaceStore.getState().setUpdateCount(0);
+        return;
+      }
+      scheduleCheck(state.service);
+    });
+    // Run once for the current state too (subscribe only fires on change).
+    const current = useTemplatesMarketplaceStore.getState().service;
+    if (current) scheduleCheck(current);
+    return () => {
+      status.cancelled = true;
+      if (timer !== null) clearTimeout(timer);
+      unsubscribe();
+    };
+  }, []);
+
   // Derive whiteboard files from file tree
   const whiteboardFiles = useMemo(() => {
     const findWhiteboards = (nodes: typeof fileTree): Array<{ path: string; name: string }> => {

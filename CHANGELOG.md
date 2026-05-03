@@ -7,7 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No changes since v1.7.2.
+### Added
+- **Templates Marketplace — update notifications (Stream C1, Group VIII).**
+  - `MarketplaceService.checkForUpdates()` compares installed templates
+    against the latest catalog (silently refreshing if stale) and returns
+    every entry where the catalog version is strictly newer (semver). Skips
+    downgrades and orphaned ids; never throws on offline failures.
+  - App-launch hook fires `checkForUpdates()` 2 seconds after the workspace
+    loads and feeds the result into the templates marketplace store. Errors
+    are logged and the badge stays hidden.
+  - Settings → Marketplace nav row shows a small count pill when at least one
+    installed template has an update available.
+  - `TemplateDetailView`'s [Update] action now flags the install as an update
+    so `MarketplaceService.install` audits `template_updated` (with
+    `fromVersion` + `toVersion`) rather than the generic install event.
+  - `TemplatesTab` re-runs `checkForUpdates` after each successful install or
+    uninstall so the nav badge stays in sync without a refresh.
 
 ## [1.7.2] - 2026-04-28
 
