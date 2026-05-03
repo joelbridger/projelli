@@ -13,6 +13,9 @@
 import { useMemo, useState } from 'react';
 
 import { cn } from '@/lib/utils';
+import { SpikeAPIBridge, type SpikeWorkerLike } from '@/modules/pluginSpike/SpikeAPIBridge';
+import { buildScenarios } from '@/modules/pluginSpike/scenarios';
+import SpikeWorker from '@/modules/pluginSpike/spike-worker.ts?worker';
 
 import { SpikeHarness } from './SpikeHarness';
 import { SpikeResultsPanel } from './SpikeResultsPanel';
@@ -72,7 +75,17 @@ export function PluginSpikePage({
   className,
 }: PluginSpikePageProps) {
   const [state, setState] = useState<HarnessState>(() => makeInitialState());
-  const wiredScenarios = useMemo<ScenarioMap>(() => scenarios ?? {}, [scenarios]);
+  const wiredScenarios = useMemo<ScenarioMap>(() => {
+    if (scenarios) return scenarios;
+    return buildScenarios({
+      makeBridge: (manifest, hooks) =>
+        new SpikeAPIBridge({
+          manifest,
+          workerFactory: () => new SpikeWorker() as unknown as SpikeWorkerLike,
+          onRegisterCommand: hooks.onRegisterCommand,
+        }),
+    });
+  }, [scenarios]);
 
   return (
     <div
