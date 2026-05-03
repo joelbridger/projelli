@@ -365,6 +365,86 @@ describe('TemplateDetailView — uninstall', () => {
   });
 });
 
+describe('TemplateDetailView — update flow (Group VIII)', () => {
+  it('passes isUpdate + fromVersion to service.install when [Update] is clicked', async () => {
+    const installSpy = vi.fn(async () => makeInstalled('1.1.0'));
+    const service = makeService({ installImpl: installSpy });
+    render(
+      <TemplateDetailView
+        entry={{ ...ENTRY, version: '1.1.0' }}
+        service={service}
+        installed={makeInstalled('1.0.0')}
+        updateAvailable
+        onBack={() => {}}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('template-detail-update'));
+    });
+
+    expect(installSpy).toHaveBeenCalledWith(
+      ENTRY.id,
+      expect.objectContaining({
+        isUpdate: true,
+        fromVersion: '1.0.0',
+        onProgress: expect.any(Function),
+      }),
+    );
+  });
+
+  it('does NOT pass isUpdate when installing fresh (no installed entry)', async () => {
+    const installSpy = vi.fn(async () => makeInstalled('1.0.0'));
+    const service = makeService({ installImpl: installSpy });
+    render(
+      <TemplateDetailView
+        entry={ENTRY}
+        service={service}
+        onBack={() => {}}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('template-detail-install'));
+    });
+
+    const opts = installSpy.mock.calls[0]?.[1];
+    expect(opts?.isUpdate).toBeUndefined();
+    expect(opts?.fromVersion).toBeUndefined();
+  });
+
+  it('shows the "Updated to vX.Y.Z" success copy on update', async () => {
+    const service = makeService({
+      installImpl: async () => makeInstalled('1.2.0'),
+    });
+    render(
+      <TemplateDetailView
+        entry={{ ...ENTRY, version: '1.2.0' }}
+        service={service}
+        installed={makeInstalled('1.0.0')}
+        updateAvailable
+        onBack={() => {}}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('template-detail-update'));
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('template-detail-outcome-success'),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByTestId('template-detail-outcome-success'),
+    ).toHaveTextContent(/Updated/);
+    expect(
+      screen.getByTestId('template-detail-outcome-success'),
+    ).toHaveTextContent(/v1\.2\.0/);
+  });
+});
+
 describe('TemplateDetailView — carousel navigation', () => {
   it('clicking next advances the dot indicator', () => {
     const service = makeService();

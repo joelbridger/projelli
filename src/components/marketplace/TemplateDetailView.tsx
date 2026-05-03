@@ -124,11 +124,19 @@ export function TemplateDetailView({
     setOutcome(null);
     setProgress({ phase: 'download', pct: 0 });
     try {
-      const result = await service.install(entry.id, {
+      // Group VIII: when re-running an install on top of an existing version,
+      // flag the call so MarketplaceService emits `template_updated` (carrying
+      // fromVersion + toVersion) instead of the generic install audit event.
+      const installOpts: Parameters<MarketplaceService['install']>[1] = {
         onProgress: (phase, pct) => {
           setProgress({ phase, pct });
         },
-      });
+      };
+      if (updateAvailable && installed) {
+        installOpts.isUpdate = true;
+        installOpts.fromVersion = installed.version;
+      }
+      const result = await service.install(entry.id, installOpts);
       setProgress({ phase: 'audit', pct: 100 });
       setOutcome({
         kind: 'success',
@@ -145,7 +153,7 @@ export function TemplateDetailView({
     } finally {
       setBusy(null);
     }
-  }, [entry.id, entry.name, entry.version, onInstalled, service, updateAvailable]);
+  }, [entry.id, entry.name, entry.version, installed, onInstalled, service, updateAvailable]);
 
   const handleUninstall = useCallback(async () => {
     setBusy('uninstall');
