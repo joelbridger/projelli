@@ -42,6 +42,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (now re-exports `MobileSettingsPage`),
     `tests/unit/website-content-lint.test.ts`.
 
+- **Sandboxed Plugin Runner (Stream C3, v2.0).** Production runtime that
+  loads third-party plugins inside per-plugin Web Workers, enforces a
+  manifest-declared permission model on every API call, and surfaces plugin
+  contributions to the host UI without giving plugins access to the DOM,
+  filesystem, or other plugins' state.
+  - **Plugin lifecycle.** `PluginManager` handles install / enable / disable
+    / update / uninstall / restart. Each plugin's worker spawns on enable,
+    terminates on disable, and respawns on restart. Storage at
+    `<workspace>/.projelli/plugins/<id>/data/` is preserved across update
+    and uninstall per spec §6.4.
+  - **Plugin API.** Full surface from spec §6.4: `commands.register/invoke`,
+    `toolbar.addButton/removeButton`, `sidebar.addPanel/removePanel`,
+    `settings.addPage`, `editor.getSelection/getContent/replaceSelection/
+    insertAtCursor`, `workspace.listFiles/readFile/writeFile`, `ai.invoke`,
+    `storage.get/set/remove`, `network.fetch`, `notify.info/warn/error`.
+    Each call posts a JSON message across `postMessage` and is dispatched
+    to the matching host adapter on the main thread.
+  - **Permission model.** Six declarable permissions (`workspace:read`,
+    `workspace:write`, `editor:selection`, `editor:write`, `ai:invoke`,
+    `network`). The bridge gates every gated `api-call` against the
+    manifest's declared list and audits every denial via
+    `plugin_permission_denied`. Unconditional capabilities (commands,
+    toolbar, sidebar, settings, notify, storage) require no permission.
+  - **Manifest validation.** Zod v4 schema for plugin manifests. Invalid
+    manifests are rejected on install with a structured error.
+  - **UI registry stores.** `pluginRegistryStore` mirrors plugin
+    contributions (commands, toolbar buttons, sidebar panels, settings
+    pages) so the Projelli UI can render plugin content without holding
+    references to individual workers. `pluginManagerStore` tracks
+    lifecycle status + last-known errors per plugin.
+  - **UI surfaces.** Toolbar buttons render in the editor toolbar, sidebar
+    panels render in the Plugins sidebar tab inside a sandboxed `<iframe>`
+    (sandbox attribute disables scripts, forms, popups, top navigation),
+    settings pages render under Settings → Plugins, and plugin commands
+    appear in the command palette.
+  - **Crash recovery.** Worker errors flip status to `crashed` and emit
+    `plugin_crashed`. The Settings → Plugins surface exposes a Restart
+    button. A crashed plugin never affects the host app or other plugins.
+  - **Audit events.** `plugin_installed`, `plugin_enabled`, `plugin_disabled`,
+    `plugin_uninstalled`, `plugin_executed`, `plugin_crashed`,
+    `plugin_permission_denied`, `plugin_install_failed`. Every API call
+    that touches user data, AI, or the network is auditable.
+  - **No marketplace UI yet.** This stream ships the runtime only; the
+    plugin marketplace browse + install UI lands in C4, the developer
+    scaffolding (CLI + types package) lands in C5, and the seed plugin
+    catalog lands in C6.
 - **Templates Marketplace (Stream C1, v2.0).** New "Marketplace" surface
   under Settings lets users browse, install, update, and uninstall workflow
   templates published in `projelli/community-templates`.

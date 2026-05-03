@@ -23,7 +23,10 @@ import {
   Search,
   Bot,
   LayoutGrid,
+  Puzzle,
 } from 'lucide-react';
+import { PluginSidebarPanels } from '@/components/plugins/PluginSidebarPanels';
+import { usePluginRegistryStore } from '@/stores/pluginRegistryStore';
 
 interface SidebarProps {
   fileTreeContent?: React.ReactNode;
@@ -42,7 +45,7 @@ interface SidebarProps {
   className?: string;
 }
 
-type SidebarTab = 'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash';
+type SidebarTab = 'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins';
 
 export function Sidebar({
   fileTreeContent,
@@ -61,6 +64,12 @@ export function Sidebar({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [internalActiveTab, setInternalActiveTab] = useState<SidebarTab>('files');
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // Show the Plugins tab only when at least one plugin has contributed a
+  // panel. Keeps the sidebar uncluttered for users without plugins.
+  const hasPluginPanels = usePluginRegistryStore(
+    (state) => state.sidebar.length > 0,
+  );
 
   // Use controlled tab if provided, otherwise use internal state
   const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
@@ -90,6 +99,9 @@ export function Sidebar({
     { id: 'whiteboard', Icon: PenTool, label: 'Whiteboard' },
     { id: 'audit', Icon: History, label: 'AI Audit' },
     { id: 'trash', Icon: Trash2, label: 'Trash' },
+    ...(hasPluginPanels
+      ? [{ id: 'plugins' as const, Icon: Puzzle, label: 'Plugins' }]
+      : []),
   ];
 
   const focusTabByIndex = (index: number) => {
@@ -280,6 +292,7 @@ export function Sidebar({
           {activeTab === 'whiteboard' && whiteboardContent}
           {activeTab === 'audit' && auditContent}
           {activeTab === 'trash' && trashContent}
+          {activeTab === 'plugins' && <PluginSidebarPanels />}
         </div>
       )}
     </div>

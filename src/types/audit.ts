@@ -67,9 +67,13 @@ export type AuditEvent =
   | { type: 'context_compressed'; timestamp: string; payload: { messagesBefore: number; tokensBefore: number; messagesAfter: number; tokensAfter: number } }
   | { type: 'tts_played'; timestamp: string; payload: { textLength: number; voiceId: string } }
   | { type: 'plugin_installed'; timestamp: string; payload: { id: string; version: string; permissions: string[] } }
+  | { type: 'plugin_enabled'; timestamp: string; payload: { id: string; version: string } }
+  | { type: 'plugin_disabled'; timestamp: string; payload: { id: string; version: string; reason?: string } }
   | { type: 'plugin_uninstalled'; timestamp: string; payload: { id: string } }
   | { type: 'plugin_executed'; timestamp: string; payload: { id: string; command: string; durationMs: number } }
-  | { type: 'plugin_permission_denied'; timestamp: string; payload: { id: string; permission: string } }
+  | { type: 'plugin_crashed'; timestamp: string; payload: { id: string; version: string; error: string; stack?: string } }
+  | { type: 'plugin_permission_denied'; timestamp: string; payload: { id: string; permission: string; apiCall?: string } }
+  | { type: 'plugin_install_failed'; timestamp: string; payload: { id?: string; source: string; error: string } }
   | { type: 'template_installed_from_marketplace'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
   | { type: 'template_uninstalled'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
   | { type: 'template_updated'; timestamp: string; payload: { templateId: string; version: string; fromVersion?: string; toVersion?: string; error?: string } }

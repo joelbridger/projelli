@@ -14,6 +14,7 @@ import { MarkdownEditor, type MarkdownEditorRef } from '@/components/editor/Mark
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { FormattingToolbar } from '@/components/editor/FormattingToolbar';
+import { PluginToolbarButtons } from '@/components/plugins/PluginToolbarButtons';
 import { SplitPane, SplitPaneControls } from '@/components/editor/SplitPane';
 import { OutlinePanel } from '@/components/editor/OutlinePanel';
 import { BacklinksPanel } from '@/components/editor/BacklinksPanel';
@@ -224,6 +225,15 @@ interface MainPanelProps {
   onWorkflowExportDocx?: (content: string, suggestedName: string) => void;
   /** Called to export workflow output as .pptx. */
   onWorkflowExportPptx?: (content: string, suggestedName: string) => void;
+  /**
+   * Stream C3 — emits whenever the focused CodeMirror EditorView ref changes
+   * (file open / close, tab switch, primary editor remount). The receiver
+   * (App.tsx) routes this into the PluginManager's `setActiveEditor` so
+   * plugins always see the editor the user is currently looking at.
+   */
+  onActiveEditorChange?: (
+    ref: React.MutableRefObject<MarkdownEditorRef | null> | null,
+  ) => void;
 }
 
 export function MainPanel({
@@ -246,6 +256,7 @@ export function MainPanel({
   onWorkflowSaveAsFile,
   onWorkflowExportDocx,
   onWorkflowExportPptx,
+  onActiveEditorChange,
 }: MainPanelProps = {}) {
   const {
     openTabs,
@@ -269,6 +280,21 @@ export function MainPanel({
   // Editor refs for formatting toolbar
   const primaryEditorRef = useRef<MarkdownEditorRef>(null);
   const secondaryEditorRef = useRef<MarkdownEditorRef>(null);
+
+  // Stream C3 — notify App.tsx whenever the active editor surface changes
+  // so the PluginManager can re-point its editor accessor. Fires on tab
+  // switches and when the editor mounts / unmounts (active path null = no
+  // editor available). The ref itself is stable; what's changing is the
+  // EditorView attached underneath, which `buildPluginEditorHandle` reads
+  // lazily on every plugin call.
+  useEffect(() => {
+    if (!onActiveEditorChange) return;
+    if (activeTabPath) {
+      onActiveEditorChange(primaryEditorRef);
+    } else {
+      onActiveEditorChange(null);
+    }
+  }, [activeTabPath, onActiveEditorChange]);
 
   // Preview mode state - default to false due to WYSIWYG usability issues
   // (cursor placement broken, Enter creates hashtags instead of line breaks)
@@ -1135,6 +1161,15 @@ export function MainPanel({
               </Button>
             </>
           )}
+
+          {/*
+            PLUGIN TOOLBAR — buttons contributed by installed plugins. Renders
+            nothing when there are no plugin contributions, so the layout for
+            users without plugins is unchanged. Lives between the built-in
+            expanded controls and the compact overflow so it always sits
+            after the core editor actions.
+          */}
+          <PluginToolbarButtons />
 
           {/*
             COMPACT LAYOUT — single "…" button opens a DropdownMenu with

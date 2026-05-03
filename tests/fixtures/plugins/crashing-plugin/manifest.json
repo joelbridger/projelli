@@ -1,0 +1,16 @@
+{
+  "id": "crashing-plugin",
+  "name": "Crashing Plugin",
+  "version": "1.0.0",
+  "apiVersion": "2.0.0",
+  "author": {
+    "name": "Projelli Examples"
+  },
+  "description": "Throws on activate. Used by the integration test to exercise crash recovery.",
+  "main": "index.js",
+  "permissions": [],
+  "minProjelliVersion": "2.0.0",
+  "category": "test",
+  "tags": ["test", "crash"],
+  "license": "MIT"
+}
