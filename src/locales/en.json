@@ -1,37 +1,8 @@
 {
   "common": {
     "actions": {
-      "save": "Save",
-      "cancel": "Cancel",
-      "delete": "Delete",
-      "close": "Close",
-      "confirm": "Confirm",
-      "ok": "OK",
-      "edit": "Edit",
-      "remove": "Remove",
       "create": "Create",
-      "update": "Update",
-      "open": "Open",
-      "back": "Back",
-      "next": "Next",
-      "done": "Done",
-      "retry": "Retry",
-      "search": "Search",
-      "submit": "Submit",
-      "continue": "Continue",
-      "add": "Add",
-      "rename": "Rename",
-      "copy": "Copy",
-      "paste": "Paste",
-      "cut": "Cut"
-    },
-    "status": {
-      "loading": "Loading...",
-      "saving": "Saving...",
-      "saved": "Saved",
-      "error": "Error",
-      "success": "Success",
-      "empty": "No items"
+      "add": "Add"
     },
     "audit-log": {
       "entry-details-title": "Audit Entry Details"
@@ -298,6 +269,15 @@
     "advanced": {
       "title": "Advanced",
       "description": "Power-user settings, including per-feature kill switches. Streams populate as features land."
+    },
+    "language": {
+      "label": "Language",
+      "description": "Choose the language used throughout the app.",
+      "options": {
+        "en": "English",
+        "es": "Español",
+        "de": "Deutsch"
+      }
     }
   },
   "workspace": {
