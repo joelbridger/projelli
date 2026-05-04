@@ -11,6 +11,59 @@ import {
 } from './install';
 import { validateTemplateManifest, compareSemver } from './manifestValidator';
 
+/**
+ * Minimum manifest shape the install pipeline cares about post-validation.
+ * Concrete validators (templates, plugins) return richer types; this is the
+ * narrowest contract the service needs in order to stamp `manifestVersion`
+ * onto the InstalledEntry.
+ */
+export interface ValidatedMarketplaceManifest {
+  apiVersion: string;
+}
+
+export type ManifestValidatorResult<M extends ValidatedMarketplaceManifest> =
+  | { ok: true; manifest: M }
+  | { ok: false; errors: string[] };
+
+export type ManifestValidator<M extends ValidatedMarketplaceManifest = ValidatedMarketplaceManifest> = (
+  raw: unknown,
+) => ManifestValidatorResult<M>;
+
+/**
+ * Lifecycle hooks for emitting audit events. PluginsMarketplaceService
+ * supplies plugin_* events; the default emits template_* events to preserve
+ * the C1/C2 contract.
+ */
+export interface MarketplaceAuditEmitter {
+  installSucceeded: (audit: AuditService, payload: InstallAuditPayload) => void;
+  installFailed: (audit: AuditService, payload: InstallFailedAuditPayload) => void;
+  uninstalled: (audit: AuditService, payload: UninstallAuditPayload) => void;
+  updated: (audit: AuditService, payload: UpdateAuditPayload) => void;
+}
+
+export interface InstallAuditPayload {
+  id: string;
+  version: string;
+  manifest: ValidatedMarketplaceManifest;
+}
+
+export interface InstallFailedAuditPayload {
+  id: string | null;
+  version: string;
+  error: string;
+}
+
+export interface UninstallAuditPayload {
+  id: string;
+  version: string;
+}
+
+export interface UpdateAuditPayload {
+  id: string;
+  fromVersion: string;
+  toVersion: string;
+}
+
 export interface MarketplaceServiceOptions {
   repoUrl: string;
   catalogPath: string;
@@ -22,6 +75,18 @@ export interface MarketplaceServiceOptions {
   provenance?: TemplateProvenance;
   /** AuditService instance; one is constructed per-service if not supplied. */
   auditService?: AuditService;
+  /**
+   * Manifest validator. Defaults to `validateTemplateManifest` to preserve
+   * the C1 templates pipeline. PluginsMarketplaceService supplies
+   * `validatePluginManifest` for plugin manifests.
+   */
+  validator?: ManifestValidator;
+  /**
+   * Audit emitter. Defaults to emitting template_* events so existing
+   * templates wiring is unchanged. Plugin marketplaces supply an emitter that
+   * fires plugin_installed / plugin_uninstalled / plugin_install_failed.
+   */
+  auditEmitter?: MarketplaceAuditEmitter;
 }
 
 export type InstallPhase = 'download' | 'checksum' | 'extract' | 'validate' | 'audit';
@@ -61,12 +126,55 @@ interface InstalledIndex {
 /** Default TTL after which a successful fetch is considered 'stale'. */
 const DEFAULT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Default audit emitter — emits the template_* event family so existing
+ * C1/C2 wiring is unchanged when no emitter override is supplied.
+ */
+const DEFAULT_TEMPLATE_AUDIT_EMITTER: MarketplaceAuditEmitter = {
+  installSucceeded: (audit, { id, version }) => {
+    audit.append({
+      type: 'template_installed_from_marketplace',
+      timestamp: new Date().toISOString(),
+      payload: { templateId: id, version },
+    });
+  },
+  installFailed: (audit, { id, version, error }) => {
+    audit.append({
+      type: 'template_install_failed',
+      timestamp: new Date().toISOString(),
+      payload: { templateId: id ?? 'unknown', version, error },
+    });
+  },
+  uninstalled: (audit, { id, version }) => {
+    audit.append({
+      type: 'template_uninstalled',
+      timestamp: new Date().toISOString(),
+      payload: { templateId: id, version },
+    });
+  },
+  updated: (audit, { id, fromVersion, toVersion }) => {
+    audit.append({
+      type: 'template_updated',
+      timestamp: new Date().toISOString(),
+      payload: { templateId: id, version: toVersion, fromVersion, toVersion },
+    });
+  },
+};
+
+const DEFAULT_VALIDATOR: ManifestValidator = (raw) => {
+  const result = validateTemplateManifest(raw);
+  if (!result.ok) return { ok: false, errors: result.errors };
+  return { ok: true, manifest: result.manifest as unknown as ValidatedMarketplaceManifest };
+};
+
 export class MarketplaceService {
   private cache: CatalogEntry[] | null = null;
   private installedCache: InstalledEntry[] | null = null;
   private readonly auditService: AuditService;
   private readonly defaultProvenance: TemplateProvenance;
   private readonly cacheTtlMs: number;
+  private readonly validator: ManifestValidator;
+  private readonly auditEmitter: MarketplaceAuditEmitter;
   /** ISO timestamp of the last successful refresh (in-memory mirror of CacheFile.fetchedAt). */
   private lastFetchedAt: string | null = null;
   /** Did the most recent fetch attempt error? Used to distinguish 'stale' vs 'offline'. */
@@ -84,6 +192,8 @@ export class MarketplaceService {
     this.auditService = opts.auditService ?? new AuditService('marketplace');
     this.defaultProvenance = opts.provenance ?? 'community';
     this.cacheTtlMs = opts.cacheTtlMs ?? DEFAULT_CACHE_TTL_MS;
+    this.validator = opts.validator ?? DEFAULT_VALIDATOR;
+    this.auditEmitter = opts.auditEmitter ?? DEFAULT_TEMPLATE_AUDIT_EMITTER;
   }
 
   async refresh(opts?: { silent?: boolean }): Promise<void> {
@@ -226,7 +336,7 @@ export class MarketplaceService {
       const manifestPath = `${installDir}/manifest.json`;
       const rawManifest = await this.opts.fs.read(manifestPath);
       const parsed = JSON.parse(rawManifest);
-      const result = validateTemplateManifest(parsed);
+      const result = this.validator(parsed);
       if (!result.ok) {
         throw new Error(`Manifest invalid: ${result.errors.join('; ')}`);
       }
@@ -247,25 +357,20 @@ export class MarketplaceService {
       await this.writeInstalledIndex(next);
 
       // 6. Audit. Group VIII: if the caller flagged this install as an
-      // update, emit `template_updated` with from/to versions instead of the
+      // update, emit the update event with from/to versions instead of the
       // generic install event so the audit log distinguishes the two paths.
       onProgress?.('audit', 0);
       if (opts.isUpdate) {
-        this.auditService.append({
-          type: 'template_updated',
-          timestamp: new Date().toISOString(),
-          payload: {
-            templateId: id,
-            version: entry.version,
-            fromVersion: opts.fromVersion ?? 'unknown',
-            toVersion: entry.version,
-          },
+        this.auditEmitter.updated(this.auditService, {
+          id,
+          fromVersion: opts.fromVersion ?? 'unknown',
+          toVersion: entry.version,
         });
       } else {
-        this.auditService.append({
-          type: 'template_installed_from_marketplace',
-          timestamp: new Date().toISOString(),
-          payload: { templateId: id, version: entry.version },
+        this.auditEmitter.installSucceeded(this.auditService, {
+          id,
+          version: entry.version,
+          manifest,
         });
       }
       onProgress?.('audit', 100);
@@ -277,14 +382,10 @@ export class MarketplaceService {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await cleanupOnError(this.opts.fs, [tmpPath, installDir]);
-      this.auditService.append({
-        type: 'template_install_failed',
-        timestamp: new Date().toISOString(),
-        payload: {
-          templateId: id,
-          version: entry?.version ?? 'unknown',
-          error: message,
-        },
+      this.auditEmitter.installFailed(this.auditService, {
+        id,
+        version: entry?.version ?? 'unknown',
+        error: message,
       });
       throw err;
     }
@@ -299,11 +400,7 @@ export class MarketplaceService {
     await cleanupOnError(this.opts.fs, [target.installedPath]);
     const next = index.filter((e) => e.id !== id);
     await this.writeInstalledIndex(next);
-    this.auditService.append({
-      type: 'template_uninstalled',
-      timestamp: new Date().toISOString(),
-      payload: { templateId: id, version: target.version },
-    });
+    this.auditEmitter.uninstalled(this.auditService, { id, version: target.version });
   }
 
   async listInstalled(): Promise<InstalledEntry[]> {
