@@ -8,6 +8,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Plugin developer experience, Groups III + IV (Stream C5, v2.0).** Four
+  real working example plugins under `plugin-examples/`. Each is a
+  standalone TypeScript project scaffolded from the C5 template with full
+  `manifest.json`, `src/index.ts`, `package.json`, `tsconfig.json`,
+  `vite.config.ts`, `README.md`, `LICENSE`, `.gitignore`. All four build
+  to non-empty single-file IIFE bundles via `npm run build`.
+  - **`plugin-examples/word-counter/`** (2.78 kB bundle). Live word and
+    character counts in a sidebar panel that re-renders every 500 ms.
+    Adds a toolbar button + `word-counter.count` command. Demonstrates
+    `api.editor.getContent`, `api.sidebar.addPanel`, `api.toolbar`,
+    `api.commands`, `api.notify`. Permissions: `editor:selection` (the
+    v2.0 proxy for content read).
+  - **`plugin-examples/translator/`** (2.58 kB bundle). Translates the
+    selected text into a configurable target language using the user's
+    AI provider, then replaces the selection in place. Adds a toolbar
+    button, the `translator.translate` command, and a settings page
+    with 13 supported languages. Demonstrates `api.editor.getSelection`,
+    `api.editor.replaceSelection`, `api.ai.invoke`, `api.settings`.
+    Permissions: `editor:selection`, `editor:write`, `ai:invoke`.
+  - **`plugin-examples/pomodoro/`** (5.75 kB bundle). 25-minute focus /
+    5-minute break timer with a sidebar readout, three toolbar
+    buttons (start, pause, reset), phase-transition notifications, and
+    state persisted to `api.storage`. Demonstrates `api.commands`,
+    `api.toolbar`, `api.sidebar`, `api.storage`, `api.notify`.
+    Permissions: none (storage and notify are unconditional).
+  - **`plugin-examples/mermaid-preview/`** (3.80 kB bundle). Sidebar
+    panel that polls the active editor every second, extracts every
+    fenced ```mermaid block, and renders each as SVG inside the iframe
+    via mermaid 11.x loaded from a CDN. Worker-side bundle stays small
+    because mermaid runs in the iframe, not the worker (Web Workers
+    have no DOM). Demonstrates `api.editor.getContent`,
+    `api.sidebar.addPanel`. Permissions: `editor:selection`.
 - **Plugin developer experience, Groups I + II (Stream C5, v2.0).** Public
   authoring surface for the plugin ecosystem: a typed types package and a
   one-command project scaffolder.
