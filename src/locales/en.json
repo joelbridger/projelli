@@ -691,5 +691,11 @@
   "shortcuts-overlay": {
     "description": "Press <k>?</k> anywhere to reopen this list.",
     "no-match": "No shortcuts match \"{{query}}\""
+  },
+  "app": {
+    "interview": {
+      "title": "Workflow Questions",
+      "description": "Please answer the following questions to continue the workflow."
+    }
   }
 }

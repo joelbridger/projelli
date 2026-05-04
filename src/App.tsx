@@ -9,6 +9,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
 import { FileTree } from '@/components/workspace/FileTree';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -122,6 +123,7 @@ import { usePluginManagerStore } from '@/stores/pluginManagerStore';
 import type { MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
 
 function App() {
+  const { t } = useTranslation();
   // Test mode: bypass workspace selector for E2E tests
   const IS_TEST_MODE = typeof window !== 'undefined' &&
                        window.location.search.includes('testMode=true');
@@ -3089,9 +3091,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
       <Dialog open={showInterviewDialog} onOpenChange={setShowInterviewDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Workflow Questions</DialogTitle>
+            <DialogTitle>{t('app.interview.title')}</DialogTitle>
             <DialogDescription>
-              Please answer the following questions to continue the workflow.
+              {t('app.interview.description')}
             </DialogDescription>
           </DialogHeader>
           {interviewQuestions && (
