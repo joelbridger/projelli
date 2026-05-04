@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Seed catalog source-of-truth Action workflow + script (Stream C6, v2.0,
+  Group I).** New `infra/community-repos/build-catalog.mjs` is a Node 22 ESM
+  script that walks `entries/<id>/`, validates each `manifest.json` against
+  vendored Zod schemas (templates schema mirrors
+  `src/modules/marketplace/manifestValidator.ts`; plugins schema mirrors
+  `src/modules/plugins/PluginManifestSchema.ts`), builds reproducible
+  per-entry tarballs (sorted, fixed mtime, owner/group 0), computes SHA-256,
+  and writes `catalog.json` at the repo root with stable id-sorted ordering.
+  Selectable via `PROJELLI_CATALOG_KIND=templates|plugins`. Tarballs are
+  byte-identical across reruns when content is unchanged. Companion
+  `infra/community-repos/build-catalog.yml` is the GitHub Action that runs
+  the script on every push to `main`, autodetects kind from the repo name,
+  and commits regenerated `catalog.json` + tarballs back with `[skip ci]`
+  to avoid loops. Both files are pushed verbatim by the C6 sync tooling
+  to `projelli/community-templates` and `projelli/community-plugins`.
+- **Marketplace submission docs (Stream C6, v2.0, Group II).** Source-of-truth
+  READMEs for the live community repos at
+  `infra/community-repos/templates-readme.md` and
+  `infra/community-repos/plugins-readme.md`. Plugin README adds a
+  permissions-deep-dive section. Public-facing docs page at
+  `website/docs/marketplace-submissions.html` cross-links both repos and
+  walks through the fork + add entry + PR + review flow. Updated
+  `website/docs/plugins/publishing.html` with a prominent GitHub fork CTA
+  and a cross-link to `/docs/marketplace-submissions`; replaced the old
+  `npm run verify` instructions (which referenced a non-existent script)
+  with the real `PROJELLI_CATALOG_KIND=plugins node scripts/build-catalog.mjs`
+  flow. Added `docs/marketplace-submissions.html` to the website lint
+  TARGETS so it stays voice-clean and canonical-tagged.
 - **Stream C5 plugin developer experience, complete (v2.0).** Third-party
   developers can now `npx create-projelli-plugin <name>` to scaffold a
   ready-to-build TypeScript plugin project, code against the typed
