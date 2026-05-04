@@ -8,6 +8,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Plugin developer experience, Groups I + II (Stream C5, v2.0).** Public
+  authoring surface for the plugin ecosystem: a typed types package and a
+  one-command project scaffolder.
+  - **`@projelli/plugin-api`** types package at `packages/plugin-api/`.
+    Re-exports the canonical plugin types from `src/types/plugin.ts`
+    (`PluginAPI`, `PluginManifest`, `PluginPermission`, `ToolbarButtonSpec`,
+    `SidebarPanelSpec`, `SettingsPageSpec`, `CommandSpec`, lifecycle types).
+    Build script copies app-source types into the package and emits a
+    flat self-contained `dist/index.d.ts` so authors get one drop-in
+    type entry, no path gymnastics. Types-only (no runtime), MIT,
+    semver against the v2.0 plugin API contract.
+  - **`create-projelli-plugin`** CLI scaffolder at
+    `packages/create-projelli-plugin/`. Zero-dependency Node CLI:
+    `npx create-projelli-plugin <name>` copies the bundled template,
+    substitutes `__PLUGIN_ID__` / `__PLUGIN_NAME__` placeholders, runs
+    `npm install`, and prints next-step instructions. Flags: `--no-install`
+    (skip install), `--force` (overwrite non-empty target), `--help`.
+    Validates the project name against the npm-friendly pattern
+    `^[a-z0-9][a-z0-9-]*$`.
+  - **Plugin template** at `packages/create-projelli-plugin/template/`.
+    Working hello-world plugin: registers a `<id>.greet` command that
+    calls `api.notify.info('Hello from your plugin!')`. Bundled with
+    strict TypeScript, Vite single-file IIFE config (no externals,
+    output `dist/index.js`), MIT license, README with sideload paths
+    for Win, macOS, Linux.
+  - **Workspace setup**: root `package.json` now declares
+    `"workspaces": ["packages/*", "plugin-examples/*"]` for in-tree
+    linking.
+  - **Smoke tests** (`tests/unit/packages/`): plugin-api test verifies
+    the built `dist/index.d.ts` exists, exports the canonical type
+    names, preserves the 6 declarable permissions, and typechecks
+    against a representative plugin author file. CLI test verifies
+    scaffolding file shape, placeholder substitution, name validation,
+    overwrite safety, and end-to-end build of the scaffolded plugin to
+    a non-empty Vite IIFE bundle.
+  - **No npm publish** in this stream. Packages are built locally and
+    verified; publish to the npm registry is a manual board action by
+    Jameson post-launch.
 - **Plugin marketplace UI (Stream C4, v2.0).** Browse community plugins from
   the `projelli/community-plugins` GitHub repo, see required permissions
   before install, approve via a permission consent dialog, and watch the
