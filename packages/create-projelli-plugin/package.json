@@ -1,0 +1,36 @@
+{
+  "name": "create-projelli-plugin",
+  "version": "1.0.0",
+  "description": "Scaffolder for new Projelli plugins. Run with `npx create-projelli-plugin <name>`.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "create-projelli-plugin": "./bin/create.js"
+  },
+  "files": [
+    "bin",
+    "template",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "projelli",
+    "plugin",
+    "scaffold",
+    "create",
+    "cli"
+  ],
+  "author": "Projelli",
+  "homepage": "https://projelli.com/docs/plugins",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/projelli/projelli.git",
+    "directory": "packages/create-projelli-plugin"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
