@@ -6,6 +6,7 @@ coverage
 dist
 dist-node
 dist-ssr
+dist-web-demo
 .DS_Store
 # Editor directories and files
 .env
