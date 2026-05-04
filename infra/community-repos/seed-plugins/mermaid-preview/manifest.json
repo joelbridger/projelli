@@ -1,0 +1,20 @@
+{
+  "id": "mermaid-preview",
+  "name": "Mermaid Preview",
+  "version": "1.0.0",
+  "apiVersion": "1.0.0",
+  "author": {
+    "name": "Projelli Examples",
+    "githubUser": "projelli",
+    "url": "https://projelli.com"
+  },
+  "description": "Renders fenced mermaid code blocks from the active document into a live diagram preview in the sidebar.",
+  "main": "index.js",
+  "permissions": ["editor:selection"],
+  "minProjelliVersion": "2.0.0",
+  "category": "writing",
+  "tags": ["editor", "diagrams", "mermaid", "preview"],
+  "screenshots": ["screenshots/preview.png"],
+  "homepage": "https://projelli.com/docs/plugins/examples.html",
+  "license": "MIT"
+}

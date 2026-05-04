@@ -1,0 +1,20 @@
+{
+  "id": "word-counter",
+  "name": "Word Counter",
+  "version": "1.0.0",
+  "apiVersion": "1.0.0",
+  "author": {
+    "name": "Projelli Examples",
+    "githubUser": "projelli",
+    "url": "https://projelli.com"
+  },
+  "description": "Live word and character count for the active document. Updates a sidebar panel automatically.",
+  "main": "index.js",
+  "permissions": ["editor:selection"],
+  "minProjelliVersion": "2.0.0",
+  "category": "writing",
+  "tags": ["editor", "writing", "stats"],
+  "screenshots": ["screenshots/preview.png"],
+  "homepage": "https://projelli.com/docs/plugins/examples.html",
+  "license": "MIT"
+}
