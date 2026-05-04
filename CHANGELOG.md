@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Stream C5 plugin developer experience, complete (v2.0).** Third-party
+  developers can now `npx create-projelli-plugin <name>` to scaffold a
+  ready-to-build TypeScript plugin project, code against the typed
+  `@projelli/plugin-api` package, study four working example plugins, and
+  follow seven docs pages at projelli.com/docs/plugins/. Sums up Groups
+  I-V below; ships the public surface for the plugin ecosystem before C6
+  wires the seed catalog.
+- **Plugin docs site, Group V (Stream C5, v2.0).** Seven static pages at
+  `website/docs/plugins/`, all linked from a hub page and indexed in the
+  homepage footer. Pages: hub (`index.html`), getting started, manifest
+  reference, permissions reference, API reference (commands / toolbar /
+  sidebar / settings / editor / storage / AI / notify), permissions deep
+  dive, publishing guide (manifest checklist + GitHub catalog
+  submission), examples walkthrough (annotated tour of all four
+  example plugins). Voice-rules clean (no banned tells). Lint test
+  (`tests/unit/website-content-lint.test.ts`) covers all seven pages
+  and the homepage footer link.
 - **Plugin developer experience, Groups III + IV (Stream C5, v2.0).** Four
   real working example plugins under `plugin-examples/`. Each is a
   standalone TypeScript project scaffolded from the C5 template with full
