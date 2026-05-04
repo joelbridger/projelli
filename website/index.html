@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Projelli, the AI workspace that remembers your stuff</title>
-  <meta name="description" content="Projelli is a local-first AI workspace for indie founders. Local files, your API keys, every chat becomes a durable note. Available in every AI tool you use.">
+  <meta name="description" content="Projelli is a local-first AI workspace. Built for indie founders, useful for anyone who works with AI on real projects. Local files, your API keys, every chat becomes a Markdown file you own.">
   <link rel="canonical" href="https://projelli.com/">
   <meta name="robots" content="index, follow">
   <meta name="author" content="Jameson Daines">
@@ -1576,7 +1576,7 @@
           </h1>
 
           <p class="hero-subtitle">
-            For indie founders. Bring your Claude, GPT, or Gemini key. Projelli remembers your projects, your voice, and every past conversation, saved as Markdown files in a folder on your machine. We never see your data. <strong>$49 once. Not $49/month.</strong>
+            Built for indie founders, useful for anyone who works with AI on real projects. Bring your Claude, GPT, Gemini, or local Ollama key. Paste an image. Drop in a PDF and ask about it. Have any reply read aloud. Projelli remembers every past conversation as Markdown files in a folder on your machine, indexes the PDFs you keep there, and runs in English, Spanish, or German. We never see your data. <strong>$49 once. Not $49/month.</strong>
           </p>
 
           <div class="hero-ctas">
@@ -1584,8 +1584,12 @@
                  the #pricing section where users see free + paid options
                  with per-platform installers. -->
             <a href="#pricing" class="btn btn-primary btn-lg">Download free for 30 days</a>
+            <a href="/try" class="btn btn-outline btn-lg">Try it in your browser</a>
             <a href="#take-the-tour" class="btn btn-outline btn-lg">See it work · 60s</a>
           </div>
+          <p style="margin-top: 12px; font-size: 0.875rem; color: var(--text-muted);">
+            No download, no signup. <a href="/try" style="color: var(--accent-blue);">projelli.com/try</a> loads a sample workspace and a working chat.
+          </p>
 
           <!-- Email list signup -->
           <form id="email-signup-form" class="email-signup">
@@ -1617,7 +1621,7 @@
                 <span class="hero-anim__light hero-anim__light--min"></span>
                 <span class="hero-anim__light hero-anim__light--max"></span>
               </div>
-              <div class="hero-anim__title">Linterly, Projelli</div>
+              <div class="hero-anim__title">Linterly: Projelli</div>
             </div>
 
             <!-- Top toolbar (workspace dropdown + display/settings/⌘K) -->
@@ -1976,7 +1980,7 @@
           <div class="feature-text">
             <span class="eyebrow">AI WORKSPACE</span>
             <h2>Every chat becomes a file you can open in Finder.</h2>
-            <p>You spend half your day re-explaining your project to ChatGPT. With Projelli, every conversation lands as a real Markdown file in your workspace folder, plans, research, customer interviews, draft pitches. Edit them in-place, link them to other notes, open them in VS Code, back them up to iCloud. They're files. You own them.</p>
+            <p>You spend half your day re-explaining your project to ChatGPT. With Projelli, every conversation lands as a real Markdown file in your workspace folder. Plans, research, customer interviews, draft pitches. Edit them in-place, link them to other notes, open them in VS Code, back them up to iCloud. They're files. You own them.</p>
             <ul class="feature-list">
               <li>Every conversation saves as Markdown in a folder you pick</li>
               <li>Follow-up prompts rewrite the document in place, no copy-paste shuffle</li>
@@ -1994,7 +1998,7 @@
           <div class="feature-text">
             <span class="eyebrow">PERSISTENT MEMORY</span>
             <h2>Your notes link to each other. Your AI remembers what you told it last week.</h2>
-            <p>Projelli reads your workspace. Ask it about your customers and it pulls from <code>Customers.md</code>. Ask it to draft in your voice and it uses <code>Brand Voice.md</code>. Wiki-links connect your docs; backlinks show what references what. Stop pasting context into every prompt, your second brain finally has both halves.</p>
+            <p>Projelli reads your workspace. Ask it about your customers and it pulls from <code>Customers.md</code>. Ask it to draft in your voice and it uses <code>Brand Voice.md</code>. Wiki-links connect your docs; backlinks show what references what. Stop pasting context into every prompt. Your second brain finally has both halves.</p>
             <ul class="feature-list">
               <li>AI sees your workspace files and uses them as context (RAG)</li>
               <li>[[Wiki-links]] between any two documents, with automatic backlinks</li>
@@ -2012,7 +2016,7 @@
           <div class="feature-text">
             <span class="eyebrow">LOCAL-FIRST</span>
             <h2>Your files, in a folder you control. We can't see them, even if we wanted to.</h2>
-            <p>Open <code>~/Documents/Projelli/</code> in Finder. There they are. Plain Markdown files. Open them in VS Code. Drop them in iCloud. Delete them. They're yours. Your API key talks to OpenAI directly, your prompts never touch our servers, because there are no servers.</p>
+            <p>Open <code>~/Documents/Projelli/</code> in Finder. There they are. Plain Markdown files. Open them in VS Code. Drop them in iCloud. Delete them. They're yours. Your API key talks to OpenAI directly. Your prompts never touch our servers, because there are no servers.</p>
             <ul class="feature-list">
               <li>Files live in a folder you pick, open them in any editor</li>
               <li>Works fully offline (except the AI calls themselves)</li>
@@ -2020,6 +2024,74 @@
               <li>Your API key, your direct call to OpenAI / Anthropic / Google</li>
             </ul>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- What's new (v2.0 capabilities surfaced as a compact grid) -->
+    <section class="workflows" id="whats-new" style="background: var(--bg-surface); border-top: 1px solid var(--border-gray);">
+      <div class="container">
+        <div class="section-header">
+          <span class="eyebrow">WHAT'S NEW</span>
+          <h2>Six new things Projelli can actually do</h2>
+          <p>Most of what you used to need a different tab for, now lives next to your files.</p>
+        </div>
+
+        <div class="features-grid" style="margin-bottom: 32px;">
+
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon purple">
+              <span style="font-size: 22px;">🖼️</span>
+            </div>
+            <h3>Paste an image. The AI looks at it.</h3>
+            <p>Drag a screenshot, paste from the clipboard, or click the paperclip. Images route to Claude, OpenAI, Gemini, or a vision-capable Ollama model with the right format for each. Token-cost preview before you send, so the surprise stays out of your bill.</p>
+          </div>
+
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon pink">
+              <span style="font-size: 22px;">📄</span>
+            </div>
+            <h3>Drop in a PDF and ask about it.</h3>
+            <p>Claude and Claude Opus get the native PDF, full layout and figures included. Other providers get the text via <a href="https://mozilla.github.io/pdf.js/" style="color: var(--accent-blue);">PDF.js</a> with a "text extracted" chip so you know which mode you're in. Flip on workspace indexing and every PDF you keep becomes searchable AI context, embeddings via <a href="https://github.com/Anush008/fastembed-rs" style="color: var(--accent-blue);">fastembed-rs</a>, all on your machine.</p>
+          </div>
+
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon teal">
+              <span style="font-size: 22px;">🔊</span>
+            </div>
+            <h3>Have it read aloud.</h3>
+            <p>Click "Read aloud" on any AI message. A bundled <a href="https://github.com/rhasspy/piper" style="color: var(--accent-blue);">Piper</a> sidecar synthesizes speech locally, no audio leaves the machine. Useful when I'm pacing the kitchen and don't want to read 800 words off a screen.</p>
+          </div>
+
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon amber">
+              <span style="font-size: 22px;">🧩</span>
+            </div>
+            <h3>Plugins, sandboxed and signed off by you.</h3>
+            <p>A real plugin runtime, sandboxed in a Web Worker, with a manifest-declared permission model. Four plugins ship in the day-one marketplace: Word Counter, <a href="/templates/" style="color: var(--accent-blue);">Translator</a>, Pomodoro, and Mermaid Preview. If you'd rather write your own, the <a href="/docs/plugins/" style="color: var(--accent-blue);">developer docs</a>, the <code>create-projelli-plugin</code> scaffolder, and the typed <a href="https://www.npmjs.com/package/@projelli/plugin-api" style="color: var(--accent-blue);">@projelli/plugin-api</a> package are already live.</p>
+          </div>
+
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon green">
+              <span style="font-size: 22px;">📚</span>
+            </div>
+            <h3>Templates from the community.</h3>
+            <p>The 15 founder templates baked into the app stay where they are. On top, Settings -> Marketplace -> Templates browses, installs, and updates community ones. Catalog at <a href="https://github.com/projelli/community-templates" style="color: var(--accent-blue);">github.com/projelli/community-templates</a>, six day-one entries, GitHub Action rebuilds the catalog on PR merge.</p>
+          </div>
+
+          <div class="feature-card animate-on-scroll">
+            <div class="feature-icon blue">
+              <span style="font-size: 22px;">🌐</span>
+            </div>
+            <h3>English, Espanol, Deutsch.</h3>
+            <p>The whole UI is translated, 421 strings across every dialog and setting. Pick the language in Settings -> General, or let Projelli auto-detect from your OS locale on first launch. Manually-edited strings get a lock so re-translation passes don't overwrite them.</p>
+          </div>
+
+        </div>
+
+        <div style="text-align: center; margin-top: 8px;">
+          <a href="/try" class="btn btn-primary btn-lg" style="margin-right: 12px;">Try it in your browser</a>
+          <a href="/changelog/" class="btn btn-outline btn-lg">Read the changelog</a>
         </div>
       </div>
     </section>
@@ -2078,7 +2150,7 @@
         <div class="section-header">
           <span class="eyebrow">PRICING</span>
           <h2>$49 once. Not $49/month. $49 ever.</h2>
-          <p>Try every Projelli feature free for 30 days, no card required. Bring your own keys for Claude, OpenAI, Gemini, or Ollama, Projelli never touches your inference budget. After 30 days, activate a license once. Keep it forever.</p>
+          <p>Try every Projelli feature free for 30 days, no card required. Bring your own keys for Claude, OpenAI, Gemini, or Ollama. Projelli never touches your inference budget. After 30 days, activate a license once. Keep it forever.</p>
         </div>
 
         <div class="founders-banner">
@@ -2094,7 +2166,7 @@
             <ul class="pricing-features">
               <li>The full Projelli experience</li>
               <li>All 15 founder workflow templates</li>
-              <li>Bring your own AI keys (Claude, OpenAI, Gemini)</li>
+              <li>Bring your own AI keys (Claude, OpenAI, Gemini, or local Ollama)</li>
               <li>Unlimited workspaces and files</li>
               <li>After 30 days: existing files stay readable; AI &amp; workflows pause until you activate</li>
             </ul>
@@ -2102,6 +2174,8 @@
                  GitHub releases page if detection fails. -->
             <a id="primary-download" href="https://github.com/projelli/projelli/releases/latest"
                class="btn btn-outline btn-lg" style="width: 100%;">Download Free</a>
+            <a href="/try" class="btn btn-primary btn-lg" style="width: 100%; margin-top: 10px;">Or try in your browser</a>
+            <p style="font-size: 0.8125rem; color: var(--text-muted); margin: 8px 0 0; text-align: center;">No install. Sample workspace, working chat, BYOK if you want unlimited.</p>
             <button type="button" id="other-platforms-toggle"
                     class="btn-link"
                     aria-expanded="false" aria-controls="other-platforms-panel"
@@ -2161,7 +2235,7 @@
           14-day refund, no questions asked. Sold via <a href="https://www.lemonsqueezy.com/" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">LemonSqueezy</a> as merchant of record (handles tax for you).
         </p>
         <p style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 6px;">
-          One license covers all platforms, download Windows, Mac, or Linux from your purchase email.
+          One license covers all platforms. Download Windows, Mac, or Linux from your purchase email.
         </p>
       </div>
     </section>
@@ -2202,7 +2276,7 @@
             <path d="M1075.88 522.463V205.311H1151.39L1159.57 263.833C1167.12 249.989 1176.56 238.243 1187.89 228.594C1199.63 218.945 1212.85 211.394 1227.53 205.94C1242.63 200.487 1259.2 197.76 1277.24 197.76V287.745H1248.3C1235.71 287.745 1223.96 289.214 1213.06 292.15C1202.57 295.087 1193.34 299.911 1185.37 306.623C1177.4 312.916 1171.31 321.726 1167.12 333.053C1162.92 344.38 1160.83 358.643 1160.83 375.843V522.463H1075.88Z" fill="white"/>
             <path d="M663.532 660.902V205.311H739.044L748.483 249.36C755.195 240.131 763.166 231.74 772.395 224.189C781.625 216.218 792.532 209.926 805.117 205.311C818.122 200.277 833.225 197.76 850.425 197.76C880.21 197.76 906.43 205.101 929.083 219.784C951.737 234.467 969.566 254.394 982.571 279.565C995.996 304.316 1002.71 332.633 1002.71 364.516C1002.71 396.399 995.996 424.926 982.571 450.097C969.147 474.848 951.108 494.356 928.454 508.619C905.801 522.882 880 530.014 851.054 530.014C827.561 530.014 807.215 525.819 790.015 517.429C773.234 508.619 759.39 496.663 748.483 481.56V660.902H663.532ZM830.917 455.76C847.698 455.76 862.381 451.985 874.966 444.433C887.971 436.882 898.04 426.185 905.171 412.341C912.303 398.497 915.869 382.555 915.869 364.516C915.869 346.477 912.303 330.536 905.171 316.692C898.04 302.428 887.971 291.521 874.966 283.97C862.381 275.999 847.698 272.014 830.917 272.014C814.556 272.014 799.873 275.999 786.869 283.97C774.283 291.521 764.215 302.219 756.664 316.062C749.532 329.906 745.966 345.848 745.966 363.887C745.966 381.926 749.532 398.077 756.664 412.341C764.215 426.185 774.283 436.882 786.869 444.433C799.873 451.985 814.556 455.76 830.917 455.76Z" fill="white"/>
           </svg>
-          <p>A desktop AI workspace for indie founders. Local-first, BYOK, your files stay on your computer. Built by <a href="https://jamesondaines.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Jameson Daines</a>.</p>
+          <p>A local-first AI workspace where every chat becomes a Markdown file you own. Built for indie founders. BYOK, sold once. Made by <a href="https://jamesondaines.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">Jameson Daines</a>.</p>
         </div>
 
         <div class="footer-column">
@@ -2225,6 +2299,8 @@
             <li><a href="/docs/mobile-access/">Mobile access</a></li>
             <li><a href="/docs/plugins/">Plugin Developer Docs</a></li>
             <li><a href="/docs/faq">FAQ</a></li>
+            <li><a href="/changelog/">Changelog</a></li>
+            <li><a href="/roadmap/">Roadmap</a></li>
             <li><a href="/blog/">Blog</a></li>
             <li><a href="/press-kit/">Press Kit</a></li>
             <li><a href="mailto:support@projelli.com">support@projelli.com</a></li>
@@ -2380,7 +2456,7 @@
       ];
 
       const visionContent = `<h2>Vision</h2>
-        <p>A local-first project planner for indie founders who want AI as a co-pilot, not a replacement.</p>
+        <p>A local-first project planner where AI is a co-pilot, not a replacement. Files live on your machine, in plain Markdown.</p>
         <p>Every conversation produces real files. Nothing lives in someone else's cloud.</p>`;
 
       const launchPlanContent = `<h2>Launch Plan, 8 Weeks</h2>
@@ -2631,7 +2707,7 @@
           var n = data.remaining;
           var total = data.total || 100;
           if (n <= 0) {
-            el.textContent = 'All ' + total + ' Founder’s Launch spots are claimed, see Pro tier below.';
+            el.textContent = 'All ' + total + ' Founder’s Launch spots are claimed. See Pro tier below.';
           } else if (n === 1) {
             el.textContent = '1 of ' + total + ' spots left.';
           } else {
