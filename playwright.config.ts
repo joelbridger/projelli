@@ -30,10 +30,41 @@ export default defineConfig({
     navigationTimeout: 60_000, // Dev server cold start on WSL can be slow
   },
 
+  // Locale matrix (Stream E task 7.1):
+  // The default `chromium` project keeps the existing snapshot baselines
+  // pointing at English. The `en`, `es`, `de` projects bootstrap the app
+  // with a `?lang=...` query param (handled in src/main.tsx) so every
+  // existing E2E spec can run unchanged across locales. Run a single
+  // locale via `npx playwright test --project=es`, or the whole matrix
+  // with `npx playwright test --project=en --project=es --project=de`.
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'en',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:5173/?lang=en',
+        locale: 'en-US',
+      },
+    },
+    {
+      name: 'es',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:5173/?lang=es',
+        locale: 'es-ES',
+      },
+    },
+    {
+      name: 'de',
+      use: {
+        ...devices['Desktop Chrome'],
+        baseURL: 'http://localhost:5173/?lang=de',
+        locale: 'de-DE',
+      },
     },
   ],
 

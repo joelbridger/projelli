@@ -74,6 +74,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `sudo systemctl restart projelli-demo-proxy`. Until then, demo chat
     requests will 401 from Anthropic; the rest of the demo (UI, BYOK
     input, sample workspace) works fine.
+- **Stream E complete (v2.0): Spanish + German UI localization.**
+  Projelli now ships in three languages. The app auto-detects the OS
+  language on first launch (English, Spanish, or German) and the user can
+  switch between them at any time via Settings -> General -> Language. The
+  switch is instant with no reload. The choice persists across restarts.
+  Under the hood: 421 user-facing keys extracted from JSX into
+  `src/locales/en.json` (source of truth), translated to `es.json` and
+  `de.json` via a hash-incremental LLM script (`npm run translate-i18n`,
+  reproducible, ~$0.65 for the full catalog), with a custom ESLint rule
+  (`projelli-i18n/no-hardcoded-string`) blocking new hardcoded strings in
+  CI. Stream E Groups I-VII; spec section 8 in full.
+- **Stream E Group V (v2.0): translation lock helper + review process doc.**
+  New `scripts/lock-translation.mjs` flips `__locked: true` on a chosen
+  locale key so the LLM script will not overwrite a human edit on the next
+  run. Validates the key exists, is a leaf string, and is a real namespace.
+  Idempotent. New `docs/operations/i18n-review-process.md` walks through
+  the two review modes (light eyeball pass by Jameson, community PRs from
+  native speakers), how to merge community translation PRs safely, and how
+  to add new locales in the future.
+- **Stream E Group VII (v2.0): i18n QA sweep.**
+  Playwright config grows three locale projects (`en`, `es`, `de`)
+  alongside the existing `chromium` baseline. The locale projects boot
+  the app with a `?lang=...` query param picked up by `src/main.tsx` so
+  every existing E2E spec runs unchanged across locales. New smoke spec
+  at `tests/e2e/i18n-locale-matrix.spec.ts` proves the matrix wires
+  through. New unit tests at `tests/unit/i18n/locale-coverage.test.ts`
+  guard the v2.0 acceptance criteria: every supported locale registers
+  resources, every supported locale has at least 95% of en's key count,
+  and looking up every English key in `es` and `de` fires zero
+  missing-key warnings (asserted via i18next's `missingKeyHandler` on a
+  cloned instance). Manual eyeball checklist stub at
+  `docs/quality/v2.0-i18n-qa-report.md` for Jameson to walk during launch
+  cert.
 - **Stream E Group I (v2.0): i18n tooling foundation.**
   Custom `eslint-plugin-projelli-i18n` workspace package now lives at
   `packages/eslint-plugin-projelli-i18n/` with a `no-hardcoded-string` rule

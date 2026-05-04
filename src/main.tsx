@@ -14,14 +14,23 @@ if (!rootElement) {
 }
 
 /**
- * Bootstrap the locale: prefer the user's explicit language override, then
- * fall back to OS detection. Fire-and-forget — the app starts in English
- * (i18n default) and updates to the detected locale once the async detection
- * resolves. Errors are swallowed; the default 'en' remains active.
+ * Bootstrap the locale: prefer an explicit `?lang=` query param (used by the
+ * Playwright locale matrix), then the user's stored override, then OS
+ * detection. Fire-and-forget. The app starts in English (i18n default) and
+ * updates once detection resolves. Errors are swallowed; default 'en' stays
+ * active.
  */
 async function bootstrapLocale(): Promise<void> {
+  let queryLang: 'en' | 'es' | 'de' | null = null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get('lang');
+    if (raw === 'en' || raw === 'es' || raw === 'de') queryLang = raw;
+  } catch {
+    // window may be unavailable in some embedded contexts; fall through.
+  }
   const userLang = useSettingsStore.getState().language;
-  const lang = userLang ?? (await detectLocale());
+  const lang = queryLang ?? userLang ?? (await detectLocale());
   await i18n.changeLanguage(lang);
 }
 
