@@ -94,11 +94,19 @@ export function LanguagePicker({ auditService }: LanguagePickerProps) {
           }}
           className="h-8 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
         >
-          {LOCALE_OPTIONS.map((lang) => (
-            <option key={lang} value={lang}>
-              {t(`settings.language.options.${lang}`)}
-            </option>
-          ))}
+          {LOCALE_OPTIONS.map((lang) => {
+            const label =
+              lang === 'en'
+                ? t('settings.language.options.en')
+                : lang === 'es'
+                  ? t('settings.language.options.es')
+                  : t('settings.language.options.de');
+            return (
+              <option key={lang} value={lang}>
+                {label}
+              </option>
+            );
+          })}
         </select>
       </div>
     </div>
