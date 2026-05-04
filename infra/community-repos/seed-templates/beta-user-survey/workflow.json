@@ -1,0 +1,34 @@
+{
+  "id": "beta-user-survey",
+  "name": "Beta User Survey",
+  "description": "Generate a 6-question survey to send to beta users.",
+  "version": "1.0.0",
+  "category": "research",
+  "steps": [
+    {
+      "id": "interview",
+      "type": "interview",
+      "name": "Survey Setup",
+      "config": {
+        "questions": [
+          { "id": "productName", "question": "Product name", "type": "text", "required": true },
+          { "id": "targetAudience", "question": "Who is the target audience? (Used in the NPS question)", "type": "text", "required": true, "placeholder": "other indie founders" },
+          { "id": "deliveryChannel", "question": "How will you send this? (Tally, Typeform, Google Forms, email, etc.)", "type": "text", "required": false, "placeholder": "Tally" },
+          { "id": "primaryGoal", "question": "What's the primary thing you want to learn from this round?", "type": "textarea", "required": true }
+        ]
+      }
+    },
+    {
+      "id": "generate",
+      "type": "generate",
+      "name": "Generate Survey",
+      "config": {
+        "outputFile": "BETA_SURVEY.md",
+        "promptTemplate": "Write a 6-question beta-user survey for {{productName}}. Keep it under 3 minutes to complete. Include the Sean Ellis PMF question, an open-ended activation question, an NPS question targeting {{targetAudience}}, an NPS-explanation follow-up, a 'one thing to fix' question, and an optional follow-up email field. Phrase questions in plain second-person language. Goal of this round: {{primaryGoal}}. Delivery channel: {{deliveryChannel}}. Add a one-sentence intro and a one-sentence thank-you.",
+        "systemPrompt": "Survey design rule: short and ruthless. Every question earns its place."
+      }
+    }
+  ],
+  "requiredInputs": [],
+  "outputs": ["BETA_SURVEY.md"]
+}

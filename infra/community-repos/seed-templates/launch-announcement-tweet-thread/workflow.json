@@ -1,0 +1,37 @@
+{
+  "id": "launch-announcement-tweet-thread",
+  "name": "Launch Announcement Tweet Thread",
+  "description": "Generate an 8-tweet launch thread plus posting notes.",
+  "version": "1.0.0",
+  "category": "planning",
+  "steps": [
+    {
+      "id": "interview",
+      "type": "interview",
+      "name": "Launch Setup",
+      "config": {
+        "questions": [
+          { "id": "productName", "question": "Product name", "type": "text", "required": true },
+          { "id": "oneLiner", "question": "One-line product pitch", "type": "text", "required": true, "placeholder": "Local-first AI workspace for indie founders" },
+          { "id": "targetAudience", "question": "Who's it for?", "type": "text", "required": true },
+          { "id": "problem", "question": "What problem does it solve? (One sentence.)", "type": "text", "required": true },
+          { "id": "topFeatures", "question": "Top 3 features or moments", "type": "textarea", "required": true },
+          { "id": "socialProof", "question": "Any quotes, numbers, or names you can drop? (Optional)", "type": "textarea", "required": false },
+          { "id": "landingUrl", "question": "Landing page URL", "type": "text", "required": true }
+        ]
+      }
+    },
+    {
+      "id": "generate",
+      "type": "generate",
+      "name": "Generate Thread",
+      "config": {
+        "outputFile": "LAUNCH_THREAD.md",
+        "promptTemplate": "Write an 8-tweet launch thread for {{productName}} ({{oneLiner}}). Audience: {{targetAudience}}. Problem: {{problem}}. Features: {{topFeatures}}. Social proof: {{socialProof}}. CTA URL: {{landingUrl}}. Structure: (1) Hook in under 240 chars that names the product and the unfair advantage, (2) Problem in one painful sentence, (3) Demo moment that names a single before/after action, (4-6) one feature per tweet phrased as a benefit, (7) Social proof with names if available else a credible number, (8) CTA with link. Every tweet must stand alone if quoted. No emoji storms. No 'Excited to announce'. No 'a thread'. End with posting notes (best window, reply cadence, ask 5 friends pattern).",
+        "systemPrompt": "Write punchy. Specific verbs. No exclamation marks unless one truly earns it."
+      }
+    }
+  ],
+  "requiredInputs": [],
+  "outputs": ["LAUNCH_THREAD.md"]
+}

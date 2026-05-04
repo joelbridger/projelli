@@ -1,0 +1,20 @@
+{
+  "id": "press-release",
+  "name": "Press Release",
+  "version": "1.0.0",
+  "apiVersion": "1.0",
+  "author": {
+    "name": "Projelli Team",
+    "githubUser": "projelli"
+  },
+  "description": "Standard press-release format with headline, dateline, lede, supporting paragraphs, two quotes, and a boilerplate. Inverted-pyramid structure.",
+  "category": "marketing",
+  "tags": ["press", "pr", "launch", "announcement"],
+  "screenshots": ["screenshots/preview.png"],
+  "files": [
+    { "path": "template.md", "type": "markdown" },
+    { "path": "workflow.json", "type": "workflow-definition" },
+    { "path": "questions.json", "type": "interview-questions" }
+  ],
+  "minProjelliVersion": "2.0.0"
+}

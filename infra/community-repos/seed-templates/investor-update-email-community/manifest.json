@@ -1,0 +1,20 @@
+{
+  "id": "investor-update-email-community",
+  "name": "Investor Update Email (Community)",
+  "version": "1.0.0",
+  "apiVersion": "1.0",
+  "author": {
+    "name": "Projelli Team",
+    "githubUser": "projelli"
+  },
+  "description": "Monthly investor update in the TLDR + metrics + asks format. Lighter than the built-in version. Designed for small angel rounds and pre-seed.",
+  "category": "planning",
+  "tags": ["investor", "fundraising", "email", "monthly-update"],
+  "screenshots": ["screenshots/preview.png"],
+  "files": [
+    { "path": "template.md", "type": "markdown" },
+    { "path": "workflow.json", "type": "workflow-definition" },
+    { "path": "questions.json", "type": "interview-questions" }
+  ],
+  "minProjelliVersion": "2.0.0"
+}

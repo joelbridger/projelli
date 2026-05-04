@@ -1,0 +1,14 @@
+{
+  "questions": [
+    { "id": "companyName", "question": "Company name", "type": "text", "required": true },
+    { "id": "companyDescription", "question": "One-line company description (what you do, who for)", "type": "text", "required": true },
+    { "id": "announcement", "question": "What are you announcing?", "type": "textarea", "required": true },
+    { "id": "whyNow", "question": "Why now? Why does this matter today?", "type": "textarea", "required": true },
+    { "id": "supportingFacts", "question": "Two or three supporting facts, numbers, or partner names", "type": "textarea", "required": true },
+    { "id": "quote1Speaker", "question": "First quote speaker (name and title)", "type": "text", "required": true },
+    { "id": "quote2Speaker", "question": "Second quote speaker, ideally a customer or partner", "type": "text", "required": false },
+    { "id": "callToAction", "question": "What should readers do? (Sign up, download, contact, etc.)", "type": "text", "required": true },
+    { "id": "boilerplate", "question": "Two-sentence company boilerplate", "type": "textarea", "required": true },
+    { "id": "mediaContact", "question": "Media contact (name, email, phone)", "type": "textarea", "required": true }
+  ]
+}

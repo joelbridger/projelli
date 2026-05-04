@@ -1,0 +1,8 @@
+{
+  "questions": [
+    { "id": "productName", "question": "Product name", "type": "text", "required": true },
+    { "id": "targetAudience", "question": "Who is the target audience? (Used in the NPS question)", "type": "text", "required": true, "placeholder": "other indie founders" },
+    { "id": "deliveryChannel", "question": "How will you send this? (Tally, Typeform, Google Forms, email, etc.)", "type": "text", "required": false, "placeholder": "Tally" },
+    { "id": "primaryGoal", "question": "What's the primary thing you want to learn from this round?", "type": "textarea", "required": true }
+  ]
+}

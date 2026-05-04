@@ -1,0 +1,20 @@
+{
+  "id": "cold-email-sequence",
+  "name": "Cold Email Sequence",
+  "version": "1.0.0",
+  "apiVersion": "1.0",
+  "author": {
+    "name": "Projelli Team",
+    "githubUser": "projelli"
+  },
+  "description": "Five-email outbound sequence for B2B outreach. Hook, value, social proof, soft ask, breakup. Plain text. No fluff.",
+  "category": "marketing",
+  "tags": ["sales", "outbound", "email", "cold-email"],
+  "screenshots": ["screenshots/preview.png"],
+  "files": [
+    { "path": "template.md", "type": "markdown" },
+    { "path": "workflow.json", "type": "workflow-definition" },
+    { "path": "questions.json", "type": "interview-questions" }
+  ],
+  "minProjelliVersion": "2.0.0"
+}

@@ -1,0 +1,11 @@
+{
+  "questions": [
+    { "id": "campaignName", "question": "Campaign name", "type": "text", "required": true },
+    { "id": "senderName", "question": "Sender name", "type": "text", "required": true },
+    { "id": "senderRole", "question": "Sender role and company", "type": "text", "required": true },
+    { "id": "audience", "question": "Who are you emailing? Be specific (role, company size, industry).", "type": "textarea", "required": true },
+    { "id": "problemArea", "question": "What problem do they have that you solve?", "type": "text", "required": true },
+    { "id": "offer", "question": "What's your offer or angle? (Free audit, demo, content, etc.)", "type": "textarea", "required": true },
+    { "id": "outcome", "question": "What outcome did past customers get?", "type": "text", "required": true, "placeholder": "20% reduction in onboarding time" }
+  ]
+}

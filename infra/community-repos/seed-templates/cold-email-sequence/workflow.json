@@ -1,0 +1,39 @@
+{
+  "id": "cold-email-sequence",
+  "name": "Cold Email Sequence",
+  "description": "Generate a 5-email outbound sequence personalized to your audience and offer.",
+  "version": "1.0.0",
+  "category": "planning",
+  "steps": [
+    {
+      "id": "interview",
+      "type": "interview",
+      "name": "Campaign Setup",
+      "description": "Tell me about the campaign.",
+      "config": {
+        "questions": [
+          { "id": "campaignName", "question": "Campaign name", "type": "text", "required": true },
+          { "id": "senderName", "question": "Sender name", "type": "text", "required": true },
+          { "id": "senderRole", "question": "Sender role and company", "type": "text", "required": true },
+          { "id": "audience", "question": "Who are you emailing? Be specific (role, company size, industry).", "type": "textarea", "required": true },
+          { "id": "problemArea", "question": "What problem do they have that you solve?", "type": "text", "required": true },
+          { "id": "offer", "question": "What's your offer or angle? (Free audit, demo, content, etc.)", "type": "textarea", "required": true },
+          { "id": "outcome", "question": "What outcome did past customers get?", "type": "text", "required": true, "placeholder": "20% reduction in onboarding time" }
+        ]
+      }
+    },
+    {
+      "id": "generate",
+      "type": "generate",
+      "name": "Generate 5-Email Sequence",
+      "description": "Write the sequence in plain text.",
+      "config": {
+        "outputFile": "COLD_EMAIL_SEQUENCE.md",
+        "promptTemplate": "Write a 5-email cold outbound sequence for the following campaign. Plain text only. No marketing-speak. Each email under 80 words. Sender: {{senderName}}, {{senderRole}}. Audience: {{audience}}. Problem: {{problemArea}}. Offer: {{offer}}. Past outcome: {{outcome}}. Use the structure: Email 1 Hook (specific personal observation), Email 2 Value (one tactic or insight), Email 3 Social Proof (two named outcomes), Email 4 Soft Ask (right-person check), Email 5 Breakup (close the loop politely). Include subject lines for each. No exclamation marks. No 'just checking in'. No 'circling back'.",
+        "systemPrompt": "Write like a real person. Short sentences. No corporate filler."
+      }
+    }
+  ],
+  "requiredInputs": [],
+  "outputs": ["COLD_EMAIL_SEQUENCE.md"]
+}
