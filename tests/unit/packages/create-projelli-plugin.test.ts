@@ -3,7 +3,7 @@
 // Verifies that:
 //   1. Running `node bin/create.js <name> --no-install` in a temp dir produces
 //      every expected file with placeholders substituted.
-//   2. The scaffolded plugin's vite build produces a non-empty IIFE bundle
+//   2. The scaffolded plugin's vite build produces a non-empty ES module bundle
 //      after wiring the local @projelli/plugin-api into node_modules.
 //
 // `--no-install` is used because the @projelli/plugin-api package is not
@@ -125,7 +125,7 @@ describe('create-projelli-plugin CLI', () => {
     }
   }, 15_000);
 
-  it('the scaffolded plugin builds with vite to a non-empty IIFE bundle', () => {
+  it('the scaffolded plugin builds with vite to a non-empty ES module bundle', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'cpp-build-'));
     try {
       // 1. Scaffold.
@@ -166,13 +166,13 @@ describe('create-projelli-plugin CLI', () => {
         throw new Error(`vite build failed:\n${build.stdout}\n${build.stderr}`);
       }
 
-      // 5. Verify dist/index.js exists and looks like an IIFE bundle.
+      // 5. Verify dist/index.js exists and is an ES module bundle.
       const distPath = join(target, 'dist', 'index.js');
       expect(existsSync(distPath)).toBe(true);
       const distContents = readFileSync(distPath, 'utf8');
       expect(distContents.length).toBeGreaterThan(0);
-      // Vite wraps IIFE bundles in `var <name> = (function() { ... })()`.
-      expect(distContents).toMatch(/var\s+ProjelliPlugin\s*=/);
+      // Plugin bundles must be ES modules (export default or named exports).
+      expect(distContents).toMatch(/export\s*\{|export\s+default/);
       // The user's command id should be preserved in the output.
       expect(distContents).toContain('build-test.greet');
     } finally {
