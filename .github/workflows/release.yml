@@ -126,6 +126,39 @@ jobs:
       # `src-tauri/binaries/parakeet[.exe]`. Until a reliable per-platform
       # release artifact is pinned, the step is a no-op and voice features
       # are marked "binary required; see docs" in V1_5_RELEASE.md.
+      #
+      # v2.0 Stream B: Piper TTS sidecar. Listed in tauri.conf.json
+      # externalBin, so Tauri's build.rs validates presence on every cargo
+      # invocation (including the MCP stub build below). Must stage BEFORE
+      # any cargo build runs. Inputs are matrix-defined, not user input.
+      - name: Fetch Piper TTS sidecar (Mac/Linux)
+        shell: bash
+        working-directory: src-tauri
+        env:
+          MATRIX_ARGS: ${{ matrix.args }}
+        run: |
+          set -euo pipefail
+          PIPER_VERSION="2023.11.14-2"
+          mkdir -p binaries
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            TARGET="${MATRIX_ARGS##*--target }"
+            case "$TARGET" in
+              aarch64-apple-darwin) ARCHIVE="piper_macos_aarch64.tar.gz" ;;
+              x86_64-apple-darwin)  ARCHIVE="piper_macos_x86_64.tar.gz" ;;
+              *) echo "Unknown Mac target: $TARGET" >&2; exit 1 ;;
+            esac
+          else
+            TARGET="x86_64-unknown-linux-gnu"
+            ARCHIVE="piper_linux_x86_64.tar.gz"
+          fi
+          TMP="$(mktemp -d)"
+          curl -fsSL "https://github.com/rhasspy/piper/releases/download/$PIPER_VERSION/$ARCHIVE" -o "$TMP/piper.tar.gz"
+          tar -xzf "$TMP/piper.tar.gz" -C "$TMP"
+          cp "$TMP/piper/piper" "binaries/piper-$TARGET"
+          chmod +x "binaries/piper-$TARGET"
+          rm -rf "$TMP"
+          ls -la binaries/
+
       - name: Build Projelli MCP stub binary (Mac/Linux)
         shell: bash
         working-directory: src-tauri
@@ -335,6 +368,30 @@ jobs:
 
       - name: Install frontend dependencies
         run: npm ci
+
+      # v2.0 Stream B: Piper TTS sidecar. Listed in tauri.conf.json
+      # externalBin, so Tauri's build.rs validates presence on every cargo
+      # invocation (including the MCP stub build below). Must stage BEFORE
+      # any cargo build runs.
+      - name: Fetch Piper TTS sidecar (Windows)
+        shell: pwsh
+        working-directory: src-tauri
+        run: |
+          $ErrorActionPreference = "Stop"
+          $piperVersion = "2023.11.14-2"
+          $archive = "piper_windows_amd64.zip"
+          $url = "https://github.com/rhasspy/piper/releases/download/$piperVersion/$archive"
+          New-Item -ItemType Directory -Force -Path "binaries" | Out-Null
+          $tmp = Join-Path $env:TEMP "piper-win-$([System.Guid]::NewGuid())"
+          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+          $zipPath = Join-Path $tmp "piper.zip"
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath $tmp -Force
+          $piperExe = Get-ChildItem -Path $tmp -Recurse -Include 'piper.exe' | Select-Object -First 1
+          if (-not $piperExe) { throw "piper.exe not found in archive" }
+          Copy-Item $piperExe.FullName "binaries/piper-x86_64-pc-windows-msvc.exe"
+          Remove-Item -Recurse -Force $tmp
+          Get-ChildItem binaries
 
       # Phase 2 (v1.5) - stage the stub MCP sidecar binary. See the Mac/Linux
       # job above for rationale. Windows uses the MSVC host triple.
