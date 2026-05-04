@@ -14,6 +14,7 @@
  *   onCancel        - user dismissed
  */
 
+import { useTranslation, Trans } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -43,27 +44,35 @@ export function CompressionConfirmModal({
   onSendAnyway,
   onCancel,
 }: CompressionConfirmModalProps) {
+  const { t } = useTranslation();
   return (
     <Dialog open={open} onOpenChange={isOpen => { if (!isOpen) onCancel(); }}>
       <DialogContent data-testid="compression-confirm-modal">
         <DialogHeader>
-          <DialogTitle>Context is full</DialogTitle>
+          <DialogTitle>{t('chat.compression.title')}</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          This send would use{' '}
-          <strong data-testid="modal-current-tokens">{formatContextSize(currentTokens)}</strong>{' '}
-          tokens, over your {formatContextSize(limitTokens)} limit. Compress older messages to free
-          space ({formatContextSize(projectedAfter)} tokens after compression) or send anyway.
+          <Trans
+            i18nKey="chat.compression.body"
+            components={{
+              s: <strong data-testid="modal-current-tokens" />,
+            }}
+            values={{
+              current: formatContextSize(currentTokens),
+              limit: formatContextSize(limitTokens),
+              projected: formatContextSize(projectedAfter),
+            }}
+          />
         </p>
         <DialogFooter className="flex gap-2">
           <Button variant="ghost" onClick={onCancel}>
-            Cancel
+            {t('chat.compression.cancel')}
           </Button>
           <Button variant="outline" onClick={onSendAnyway} data-testid="modal-send-anyway-btn">
-            Send Anyway
+            {t('chat.compression.send-anyway')}
           </Button>
           <Button onClick={onCompress} data-testid="modal-compress-btn">
-            Compress + Send
+            {t('chat.compression.compress-send')}
           </Button>
         </DialogFooter>
       </DialogContent>

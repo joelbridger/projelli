@@ -2,6 +2,7 @@
 // Displays full chat history and allows continuing conversations
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, FileText, ChevronDown, ChevronRight, Check, X, Pencil, Brain } from 'lucide-react';
 import { ChatInputToolbar } from '@/components/chat/ChatInputToolbar';
 import { AttachmentService } from '@/modules/attachments/AttachmentService';
@@ -381,6 +382,7 @@ function ProposedFactsPanel({
   onAccept,
   onReject,
 }: ProposedFactsPanelProps): React.ReactElement {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(true);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
@@ -417,8 +419,7 @@ function ProposedFactsPanel({
           <ChevronRight className="h-3 w-3" />
         )}
         <Brain className="h-3.5 w-3.5" />
-        {proposals.length} proposed memory fact
-        {proposals.length === 1 ? '' : 's'}
+        {t('ai.chat.proposed-facts', { count: proposals.length })}
       </button>
       {expanded && (
         <ul className="mt-2 space-y-2">
@@ -531,6 +532,7 @@ function chatToMarkdown(chat: AIChatFile): string {
 }
 
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onOpenFileAtPath, className }: AIChatViewerProps) {
+  const { t } = useTranslation();
   // 30-day trial gate. Locks chat send + voice when expired and not paid.
   const trialGate = useTrialGate();
   // Use global store for chat state (persists across navigation)
@@ -1835,12 +1837,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             aria-pressed={askWorkspaceMode}
             title={
               askWorkspaceMode
-                ? 'Ask my workspace is ON — every message searches your files first'
-                : 'Ask my workspace is OFF — click to have every message search your files'
+                ? t('ai.chat.ask-workspace-on-title')
+                : t('ai.chat.ask-workspace-off-title')
             }
           >
             <Sparkles className="h-4 w-4" />
-            Ask my workspace
+            {t('ai.chat.ask-workspace')}
           </Button>
           <Button
             data-testid="chat-export-button"
@@ -1977,7 +1979,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                     }
                   }}
                 >
-                  ↻ Retry last message
+                  {t('ai.chat.retry-last-message')}
                 </button>
                 {msg.errorDiagnostic && (
                   <button
@@ -1998,7 +2000,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                       }
                     }}
                   >
-                    📋 Copy diagnostic info
+                    {t('ai.chat.copy-diagnostic')}
                   </button>
                 )}
               </div>
@@ -2073,10 +2075,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             data-testid="chat-trial-expired-banner"
             className="mb-3 px-3 py-2 rounded border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200 text-xs"
           >
-            <strong>Your {trialGate.trialDays}-day trial has ended.</strong>{' '}
-            Activate a license in Settings → License to keep chatting with AI.
-            Your existing files stay accessible — only AI calls and workflows
-            are paused.
+            <strong>{t('ai.chat.trial-ended', { days: trialGate.trialDays })}</strong>{' '}
+            {t('ai.chat.trial-ended-help')}
           </div>
         )}
         {/* M2 — inline toast for missing source files. Rendered as a

@@ -11,6 +11,7 @@
 // own HTML wire format.
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import CharacterCount from '@tiptap/extension-character-count';
@@ -59,6 +60,7 @@ export function RtfEditor({
   onContentChange,
   onFirstEdit,
 }: RtfEditorProps) {
+  const { t } = useTranslation();
   const [initialHtml, setInitialHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
@@ -199,7 +201,7 @@ export function RtfEditor({
         <AlertTriangle className="h-10 w-10 text-destructive opacity-70" />
         <div>
           <p className="text-sm font-medium text-foreground">
-            Couldn't open {fileName}
+            {t('media.rtf-editor.could-not-open', { fileName })}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">{error}</p>
         </div>
@@ -262,9 +264,7 @@ export function RtfEditor({
         >
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <p className="flex-1">
-            RTF is a simpler format than Word. Complex formatting (tables,
-            images, custom fonts) may be simplified on save. A backup of the
-            original file is created before your first edit.
+            {t('media.rtf-editor.formatting-warning')}
           </p>
           <Button
             data-testid="rtf-editor-banner-dismiss"

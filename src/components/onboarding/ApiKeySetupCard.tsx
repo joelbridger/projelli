@@ -15,6 +15,7 @@
 // Introduced: Wave 2 / UX-04.
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Key, X, ArrowRight, Sparkles } from 'lucide-react';
@@ -61,6 +62,7 @@ interface ApiKeySetupCardProps {
 }
 
 export function ApiKeySetupCard({ onAddKey, onDismiss, className, onSaveKey }: ApiKeySetupCardProps) {
+  const { t } = useTranslation();
   const [wizardOpen, setWizardOpen] = useState(false);
 
   const handleCta = () => {
@@ -98,7 +100,7 @@ export function ApiKeySetupCard({ onAddKey, onDismiss, className, onSaveKey }: A
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold leading-tight">
-                Next step: add your AI key
+                {t('onboarding.api-key-card.title')}
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
                 1 min setup
@@ -106,9 +108,7 @@ export function ApiKeySetupCard({ onAddKey, onDismiss, className, onSaveKey }: A
             </div>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Projelli uses your own API key from Anthropic, OpenAI, or Google.
-            You only pay the provider for what you use. Projelli doesn&apos;t
-            charge a subscription.
+            {t('onboarding.api-key-card.description')}
           </p>
           <Button
             data-testid="api-key-setup-card-cta"
@@ -118,17 +118,17 @@ export function ApiKeySetupCard({ onAddKey, onDismiss, className, onSaveKey }: A
             {onSaveKey ? (
               <>
                 <Sparkles className="h-4 w-4" />
-                Walk me through it
+                {t('onboarding.api-key-card.walk-me-through')}
               </>
             ) : (
               <>
-                Add API key
+                {t('onboarding.api-key-card.add-key')}
                 <ArrowRight className="h-4 w-4" />
               </>
             )}
           </Button>
           <p className="text-xs text-muted-foreground text-center">
-            Keys are stored locally on your computer. Never sent to us.
+            {t('onboarding.api-key-card.keys-local')}
           </p>
         </CardContent>
       </Card>

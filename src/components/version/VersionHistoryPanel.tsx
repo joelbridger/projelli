@@ -2,6 +2,7 @@
 // Displays file version history with restore and compare capabilities
 
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { History, RotateCcw, Trash2, Download, X, Clock, FileText, GitCompare } from 'lucide-react';
 import { getVersionService, type FileVersion } from '@/modules/versioning/VersionService';
@@ -27,6 +28,7 @@ export function VersionHistoryPanel({
   onClose,
   className,
 }: VersionHistoryPanelProps) {
+  const { t } = useTranslation();
   const [versions, setVersions] = useState<FileVersion[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<FileVersion | null>(null);
   const [previewContent, setPreviewContent] = useState<string>('');
@@ -132,9 +134,9 @@ export function VersionHistoryPanel({
         {versions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
             <History className="h-12 w-12 mb-4 opacity-50" />
-            <p className="text-center">No version history yet</p>
+            <p className="text-center">{t('version.history.empty-title')}</p>
             <p className="text-sm text-center mt-2">
-              Versions are saved automatically when you edit and save the file
+              {t('version.history.empty-description')}
             </p>
           </div>
         ) : (

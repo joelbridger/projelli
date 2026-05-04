@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { TTSService } from '@/modules/tts/TTSService';
 
@@ -35,6 +36,7 @@ export function VoiceOutputSettingsSection({
   ttsEnabled,
   onProbe,
 }: VoiceOutputSettingsSectionProps): React.ReactElement | null {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<TtsStatus>('checking');
 
   useEffect(() => {
@@ -82,8 +84,7 @@ export function VoiceOutputSettingsSection({
     <div className="mb-6">
       <h3 className="text-base font-semibold mb-1">Voice output</h3>
       <p className="text-xs text-muted-foreground mb-3">
-        AI responses can be read aloud using a bundled text-to-speech engine. No API
-        key required; audio never leaves your machine.
+        {t('tts.output.description')}
       </p>
       <div
         data-testid="tts-output-status"

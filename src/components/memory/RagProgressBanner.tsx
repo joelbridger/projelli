@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useRagStatus } from '@/hooks/useRagStatus';
 import { MemoryService } from '@/modules/memory/MemoryService';
 
@@ -21,6 +22,7 @@ export interface RagProgressBannerProps {
 }
 
 export function RagProgressBanner({ status }: RagProgressBannerProps) {
+  const { t } = useTranslation();
   const live = useRagStatus();
   const snap = status ?? live;
   const [doneVisible, setDoneVisible] = useState(false);
@@ -89,7 +91,7 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
         aria-live="polite"
         className="flex items-center gap-3 px-4 py-2 border-b bg-muted/30 text-xs text-muted-foreground"
       >
-        <span>Memory ready — indexed {snap.total} {snap.total === 1 ? 'file' : 'files'}.</span>
+        <span>{t('memory.rag-banner.ready', { count: snap.total })}</span>
         <button
           type="button"
           data-testid="rag-progress-banner-dismiss"

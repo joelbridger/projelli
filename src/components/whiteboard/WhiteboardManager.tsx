@@ -2,6 +2,7 @@
 // Displays list of whiteboard files and allows creating new ones
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/common/EmptyState';
@@ -27,6 +28,7 @@ export function WhiteboardManager({
   onDeleteWhiteboard,
   className,
 }: WhiteboardManagerProps) {
+  const { t } = useTranslation();
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   return (
@@ -94,7 +96,7 @@ export function WhiteboardManager({
 
       {/* Info section */}
       <div className="px-3 py-2 border-t text-xs text-muted-foreground">
-        <p>Whiteboards open as full tabs in the editor.</p>
+        <p>{t('whiteboard.manager.info')}</p>
       </div>
     </div>
   );

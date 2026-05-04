@@ -8,6 +8,7 @@
  *                     expandedForNextSend on the summary message
  */
 
+import { useTranslation } from 'react-i18next';
 import type { ChatMessage } from '@/types/ai';
 import { estimateTokens } from '@/modules/chat/compression';
 import { formatContextSize } from '@/modules/models/context-limits';
@@ -18,6 +19,7 @@ export interface CompressedSegmentMarkerProps {
 }
 
 export function CompressedSegmentMarker({ message, onExpand }: CompressedSegmentMarkerProps) {
+  const { t } = useTranslation();
   const originalCount = message.originalMessageCount ?? 0;
   const summaryTokens = estimateTokens(message.content ?? '');
   const isExpanded = message.expandedForNextSend === true;
@@ -37,7 +39,7 @@ export function CompressedSegmentMarker({ message, onExpand }: CompressedSegment
           data-testid="compressed-segment-expanded-badge"
           className="rounded-full bg-blue-100 text-blue-700 px-1.5 py-0.5 font-medium"
         >
-          Expanded for next send
+          {t('chat.compressed.expanded-for-next-send')}
         </span>
       )}
       <button

@@ -3,6 +3,7 @@
 // Rebuilt from ground up to ensure all content fits within container
 
 import { useState, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -95,6 +96,7 @@ export function AIAssistantPane({
   onRequestedTabApplied,
   className,
 }: AIAssistantPaneProps) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<'chats' | 'keys' | 'settings'>(
     requestedTab ?? 'chats'
   );
@@ -350,7 +352,7 @@ export function AIAssistantPane({
           <div className="flex flex-col h-full">
             {/* New chat buttons */}
             <div className="border-b p-3 shrink-0 bg-card sticky top-0 z-10">
-              <div className="text-xs text-muted-foreground mb-2">Start new chat:</div>
+              <div className="text-xs text-muted-foreground mb-2">{t('ai.assistant.start-new-chat')}</div>
               <div className="flex flex-col gap-2">
                 {(['anthropic', 'openai', 'google'] as const).map(provider => (
                   <Button
@@ -459,7 +461,7 @@ export function AIAssistantPane({
                 onClick={() => setShowHelpDialog(true)}
               >
                 <HelpCircle className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">How to get API keys</span>
+                <span className="truncate">{t('ai.assistant.how-to-get-keys')}</span>
               </Button>
             </div>
             {(['anthropic', 'openai', 'google'] as const).map(provider => {
@@ -626,7 +628,7 @@ export function AIAssistantPane({
 
             <div className="pt-4 border-t">
               <p className="text-xs text-muted-foreground break-words">
-                API keys are stored securely in your local workspace and never sent to our servers.
+                {t('ai.assistant.keys-stored-locally')}
               </p>
             </div>
           </div>
@@ -685,7 +687,7 @@ export function AIAssistantPane({
 
             <div className="pt-4 border-t">
               <p className="text-xs text-muted-foreground break-words">
-                Model settings are saved per workspace and apply to all new chats.
+                {t('ai.assistant.model-saved-per-workspace')}
               </p>
             </div>
           </div>

@@ -6,6 +6,7 @@
 // Formula cells show a small `ƒ` indicator and edit the formula string itself.
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   ExternalLink,
@@ -556,6 +557,7 @@ function SheetGrid({
   onDeleteCell,
   onMoveSelection,
 }: SheetGridProps) {
+  const { t } = useTranslation();
   const colCount = sheet.columnCount;
   const rowCount = sheet.rows.length;
 
@@ -746,7 +748,7 @@ function SheetGrid({
     return (
       <div className="flex flex-1 flex-col items-center justify-center text-muted-foreground">
         <FileSpreadsheet className="mb-2 h-10 w-10 opacity-40" />
-        <p className="text-sm">This sheet is empty.</p>
+        <p className="text-sm">{t('media.spreadsheet.empty-sheet')}</p>
       </div>
     );
   }
@@ -1488,6 +1490,7 @@ interface SpreadsheetErrorProps {
 }
 
 function SpreadsheetError({ fileName, message, className }: SpreadsheetErrorProps) {
+  const { t } = useTranslation();
   return (
     <div
       data-testid="spreadsheet-error"
@@ -1495,7 +1498,7 @@ function SpreadsheetError({ fileName, message, className }: SpreadsheetErrorProp
     >
       <AlertTriangle className="h-10 w-10 text-destructive opacity-70" />
       <div>
-        <p className="text-sm font-medium text-foreground">Couldn't open {fileName}</p>
+        <p className="text-sm font-medium text-foreground">{t('media.spreadsheet.could-not-open', { fileName })}</p>
         <p className="mt-1 text-xs text-muted-foreground">{message}</p>
       </div>
       {/* TODO: When we wire up the Tauri command for opening the original file
@@ -1509,7 +1512,7 @@ function SpreadsheetError({ fileName, message, className }: SpreadsheetErrorProp
         }}
       >
         <ExternalLink className="mr-2 h-4 w-4" />
-        Open in native app
+        {t('media.spreadsheet.open-native')}
       </Button>
     </div>
   );

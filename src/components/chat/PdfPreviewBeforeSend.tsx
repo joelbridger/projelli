@@ -10,6 +10,7 @@
  *   hatch when the selected model supports it.
  * - Encrypted: shows error, hides text preview.
  */
+import { useTranslation } from 'react-i18next';
 import { Lock, ScanLine, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PdfMode } from '@/modules/models/pdf-capability';
@@ -38,6 +39,7 @@ export function PdfPreviewBeforeSend({
   onUseNative,
   className,
 }: PdfPreviewBeforeSendProps) {
+  const { t } = useTranslation();
   const preview =
     extractedText.length > MAX_PREVIEW_CHARS
       ? extractedText.slice(0, MAX_PREVIEW_CHARS) + '…'
@@ -72,7 +74,7 @@ export function PdfPreviewBeforeSend({
         >
           <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <span>
-            This PDF is password-protected. Remove the password and re-attach.
+            {t('chat.pdf-preview.encrypted')}
           </span>
         </div>
       )}
@@ -101,7 +103,7 @@ export function PdfPreviewBeforeSend({
           <ScanLine className="h-3.5 w-3.5 shrink-0 mt-0.5" aria-hidden />
           <div className="flex-1 space-y-1">
             <span>
-              This PDF appears to be a scanned image with no text layer. Extracted text may be empty.
+              {t('chat.pdf-preview.scanned')}
             </span>
             {mode === 'native' && (
               <button
@@ -110,7 +112,7 @@ export function PdfPreviewBeforeSend({
                 onClick={onUseNative}
                 className="block text-amber-700 dark:text-amber-300 underline hover:no-underline"
               >
-                Send as native PDF instead (lets the AI read the image)
+                {t('chat.pdf-preview.send-as-native')}
               </button>
             )}
           </div>

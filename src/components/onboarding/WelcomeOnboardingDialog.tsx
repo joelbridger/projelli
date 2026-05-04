@@ -17,6 +17,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Sparkles } from 'lucide-react';
 import {
   Dialog,
@@ -41,6 +42,7 @@ interface WelcomeOnboardingDialogProps {
 }
 
 export function WelcomeOnboardingDialog({ open, onOpenChange }: WelcomeOnboardingDialogProps) {
+  const { t } = useTranslation();
   const { markCompleted } = useOnboardingCompleted();
   const [email, setEmail] = useState('');
   const [emailOptIn, setEmailOptIn] = useState(false);
@@ -92,10 +94,10 @@ export function WelcomeOnboardingDialog({ open, onOpenChange }: WelcomeOnboardin
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <Sparkles className="h-5 w-5 text-primary" />
-            Welcome to Projelli
+            {t('onboarding.welcome.title')}
           </DialogTitle>
           <DialogDescription>
-            A couple of optional things — both off by default. Skip if you'd rather not.
+            {t('onboarding.welcome.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -112,11 +114,10 @@ export function WelcomeOnboardingDialog({ open, onOpenChange }: WelcomeOnboardin
               />
               <div className="space-y-1 flex-1">
                 <p className="text-sm font-medium">
-                  Email me launch updates, tips, and discount codes
+                  {t('onboarding.welcome.email-optin-label')}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Real updates only — no drip campaigns, no weekly newsletters.
-                  Unsubscribe any time. Goes straight to Jameson.
+                  {t('onboarding.welcome.email-optin-help')}
                 </p>
               </div>
             </label>
@@ -150,13 +151,10 @@ export function WelcomeOnboardingDialog({ open, onOpenChange }: WelcomeOnboardin
               />
               <div className="space-y-1 flex-1">
                 <p className="text-sm font-medium">
-                  Help improve Projelli with anonymous usage stats
+                  {t('onboarding.welcome.telemetry-label')}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Sends a random install ID, the app version, your platform,
-                  and lifecycle events (trial started, license activated, etc.).
-                  No content, no files, no AI prompts, no email.
-                  You can turn this off in Settings → Privacy.
+                  {t('onboarding.welcome.telemetry-help')}
                 </p>
               </div>
             </label>

@@ -2,6 +2,7 @@
 // Displays PDF files using an iframe with blob URL for better compatibility
 
 import { useState, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { openExternal } from '@/utils/openExternal';
 import { Button } from '@/components/ui/button';
@@ -51,6 +52,7 @@ function dataUrlToBlobUrl(dataUrl: string): string {
 }
 
 export function PDFViewer({ src, fileName = 'document.pdf', className, initialPage }: PDFViewerProps) {
+  const { t } = useTranslation();
   const [zoom, setZoom] = useState(100);
   const [loadError, setLoadError] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -147,7 +149,7 @@ export function PDFViewer({ src, fileName = 'document.pdf', className, initialPa
             {loadError && (
               <>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Your browser may not support inline PDF viewing.
+                  {t('media.pdf-viewer.no-inline-support')}
                 </p>
                 <div className="flex gap-2 justify-center">
                   <Button variant="outline" onClick={handleDownload}>
@@ -156,7 +158,7 @@ export function PDFViewer({ src, fileName = 'document.pdf', className, initialPa
                   </Button>
                   <Button variant="outline" onClick={handleOpenExternal}>
                     <ExternalLink className="h-4 w-4 mr-2" />
-                    Open in New Tab
+                    {t('media.pdf-viewer.open-new-tab')}
                   </Button>
                 </div>
               </>

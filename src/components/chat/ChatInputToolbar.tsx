@@ -15,6 +15,7 @@
  */
 
 import { useRef, useState, useCallback, type DragEvent, type ClipboardEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -66,6 +67,7 @@ export function ChatInputToolbar({
   visionWarning,
   className,
 }: ChatInputToolbarProps) {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -159,7 +161,7 @@ export function ChatInputToolbar({
           data-testid="chat-drop-overlay"
           className="absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-primary bg-primary/10 pointer-events-none"
         >
-          <span className="text-sm font-medium text-primary">Drop image or PDF here</span>
+          <span className="text-sm font-medium text-primary">{t('chat.input.drop-here')}</span>
         </div>
       )}
 

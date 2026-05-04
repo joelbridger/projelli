@@ -10,6 +10,7 @@
 // images and base64 URLs, and breaks selection / Cmd-F across the document.)
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, FileType, ExternalLink } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -106,6 +107,7 @@ function DocxSkeleton({ fileName }: { fileName: string }) {
 }
 
 function DocxError({ fileName, message }: { fileName: string; message: string }) {
+  const { t } = useTranslation();
   return (
     <div
       data-testid="docx-error"
@@ -113,7 +115,7 @@ function DocxError({ fileName, message }: { fileName: string; message: string })
     >
       <AlertTriangle className="h-10 w-10 text-destructive opacity-70" />
       <div>
-        <p className="text-sm font-medium text-foreground">Couldn't open {fileName}</p>
+        <p className="text-sm font-medium text-foreground">{t('media.docx-viewer.could-not-open', { fileName })}</p>
         <p className="mt-1 text-xs text-muted-foreground">{message}</p>
       </div>
       {/* TODO: hook this up to a Tauri command that opens the file in the
@@ -126,7 +128,7 @@ function DocxError({ fileName, message }: { fileName: string; message: string })
         }}
       >
         <ExternalLink className="mr-2 h-4 w-4" />
-        Open in native app
+        {t('media.docx-viewer.open-native')}
       </Button>
     </div>
   );

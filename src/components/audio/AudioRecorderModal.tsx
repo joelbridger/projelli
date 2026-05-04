@@ -2,6 +2,7 @@
 // Records audio using Web Audio API and saves to workspace
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Mic, Square, Play, Pause, Save, X } from 'lucide-react';
@@ -18,6 +19,7 @@ export function AudioRecorderModal({
   onClose,
   onSave,
 }: AudioRecorderModalProps) {
+  const { t } = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -242,7 +244,7 @@ export function AudioRecorderModal({
                   className="px-3 py-2 border rounded-md"
                   placeholder="recording"
                 />
-                <span className="text-xs text-muted-foreground">.webm extension will be added</span>
+                <span className="text-xs text-muted-foreground">{t('audio.recorder.extension-note')}</span>
               </div>
 
               {/* Save & Discard Buttons */}
