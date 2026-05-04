@@ -34,7 +34,14 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis", "deb", "rpm", "appimage", "dmg", "app"],
+    "targets": [
+      "nsis",
+      "deb",
+      "rpm",
+      "appimage",
+      "dmg",
+      "app"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -73,7 +80,6 @@
       "binaries/**/*"
     ],
     "externalBin": [
-      "binaries/parakeet",
       "binaries/piper"
     ],
     "createUpdaterArtifacts": true

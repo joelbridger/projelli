@@ -144,7 +144,7 @@ jobs:
             TARGET="${MATRIX_ARGS##*--target }"
             case "$TARGET" in
               aarch64-apple-darwin) ARCHIVE="piper_macos_aarch64.tar.gz" ;;
-              x86_64-apple-darwin)  ARCHIVE="piper_macos_x86_64.tar.gz" ;;
+              x86_64-apple-darwin)  ARCHIVE="piper_macos_x64.tar.gz" ;;
               *) echo "Unknown Mac target: $TARGET" >&2; exit 1 ;;
             esac
           else
