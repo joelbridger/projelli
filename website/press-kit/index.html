@@ -211,9 +211,9 @@
     <a href="/" class="back">← Back to Projelli</a>
 
     <h1>Press Kit</h1>
-    <p class="meta">Last updated 2026-04-09 · For journalists, bloggers, podcasters, and anyone writing about Projelli.</p>
+    <p class="meta">Last updated 2026-05-04 (v2.0 release) · For journalists, bloggers, podcasters, and anyone writing about Projelli.</p>
 
-    <p>Projelli is a desktop AI workspace for indie founders. Every chat with Claude, OpenAI, or Gemini drops a real Markdown file into a folder on the user's hard drive, not a proprietary database, not someone else's cloud. Built by <a href="https://jamesondaines.com">Jameson Daines</a>, a Senior Product Designer with eight years in health-tech, on weekends and evenings.</p>
+    <p>Projelli is a desktop AI workspace built for indie founders, useful for anyone who works with AI on real projects. Every chat with Claude, OpenAI, Gemini, or local Ollama models drops a real Markdown file into a folder on the user's hard drive, not a proprietary database, not someone else's cloud. As of v2.0 the AI also reads images and PDFs you drop into chat, indexes your PDF library so it can pull from contracts and term sheets the same way it pulls from notes, and reads replies out loud through a local Piper sidecar. A sandboxed plugin marketplace and a community templates marketplace let other people contribute to what the app can do. Try it in a browser at <a href="https://projelli.com/try">projelli.com/try</a>, in English, Spanish, or German. Built by <a href="https://jamesondaines.com">Jameson Daines</a>, a Senior Product Designer with eight years in health-tech, on weekends and evenings.</p>
 
     <p>This page contains everything you need to write about Projelli without emailing me first: logos, screenshots, founder bio, fact sheet, brand colors, and pre-written descriptions in three lengths. Take what you need.</p>
 
@@ -222,19 +222,20 @@
 
     <h3>One-line (140 characters)</h3>
     <div class="quote">
-      <p>Projelli is a local-first desktop AI workspace where every chat with Claude, GPT, or Gemini becomes a real file on your hard drive.</p>
+      <p>Projelli is a local-first desktop AI workspace where every chat (with Claude, GPT, Gemini, or local Ollama) becomes a real file on your hard drive.</p>
     </div>
 
-    <h3>One paragraph (~70 words)</h3>
+    <h3>One paragraph (~110 words)</h3>
     <div class="quote">
-      <p>Projelli is a local-first AI workspace for indie founders. It's a desktop app where every conversation with Claude, OpenAI, or Gemini produces a real Markdown file in a folder on your hard drive, not a proprietary database, not someone else's cloud. Fifteen founder workflow templates are baked in (Pricing Strategy, Pitch Deck, GTM Plan, MVP Scope, and others). Bring your own API key. Pay once. Built on Tauri.</p>
+      <p>Projelli is a local-first desktop AI workspace built for indie founders, useful for anyone who works with AI on real projects. Every chat with Claude, OpenAI, Gemini, or local Ollama models becomes a real Markdown file in a folder on your hard drive, not a proprietary database, not someone else's cloud. As of v2.0 the AI also reads images and PDFs you drop into chat, indexes your PDF library for retrieval the same way it indexes your notes, and reads replies out loud through a local Piper sidecar. A sandboxed plugin marketplace ships with four working day-one plugins; a community templates marketplace ships with six. Try it in a browser at projelli.com/try, in English, Spanish, or German. Bring your own API key. Pay once. Built on Tauri.</p>
     </div>
 
-    <h3>Long-form (~250 words)</h3>
+    <h3>Long-form (~340 words)</h3>
     <div class="quote">
-      <p>Projelli is a desktop AI workspace built for the way indie founders actually work. The pitch is simple: every conversation you have with Claude, OpenAI, or Gemini produces a real Markdown file in a real folder on your hard drive, in plain text that works in any other tool the day Projelli stops existing. There's no cloud database, no account required, and no Projelli server in the path between your machine and the AI provider, you bring your own API key, and your data never leaves your computer.</p>
-      <p>The app ships with fifteen interview-driven workflow templates designed around the documents indie founders actually write: New Business Kickoff, Customer Persona, Pricing Strategy, Go-to-Market Plan, Pitch Deck, MVP Scope, Investor Update, Board Meeting Prep, First Hire Playbook, and the rest. Each template asks the right questions and produces the documents you'd have written yourself if you had two more hours in the day.</p>
-      <p>Projelli is built by <a href="https://jamesondaines.com">Jameson Daines</a>, a Senior Product Designer at a health-tech company who spent eighteen months building it on weekends and evenings. The technology stack is Tauri 2 (Rust + WebView), React 18 + TypeScript, Zustand for state management, and CodeMirror 6 for the editor. The source is visible at github.com/projelli/projelli. Pricing is one-time: $49 Pro, $99 Lifetime, with the first 100 launch buyers paying $29 for the Lifetime tier. Sold via LemonSqueezy.</p>
+      <p>Projelli is a desktop AI workspace built for the way indie founders actually work. The pitch is simple: every conversation you have with Claude, OpenAI, Gemini, or a local Ollama model produces a real Markdown file in a real folder on your hard drive, in plain text that works in any other tool the day Projelli stops existing. There's no cloud database, no account required, and no Projelli server in the path between your machine and the AI provider, you bring your own API key, and your data never leaves your computer.</p>
+      <p>The v2.0 release (May 2026) lets the AI read what's actually in front of you. Drop an image or a PDF into chat and the AI sees it; Claude and Opus get PDFs natively, other providers get text-extracted versions via PDF.js. Flip "Include PDFs in workspace index" on in Settings and your PDF library becomes searchable AI context, with embeddings via fastembed-rs and MultilingualE5Small, all on-device. Long conversations get a [Compress] button that routes a summarization call through the fast model for your provider. Click the speaker icon on any AI message and a local Piper sidecar reads it out loud, no cloud, no API call.</p>
+      <p>v2.0 also ships a sandboxed plugin marketplace (Web Worker runtime, six declared permissions, plain-language consent dialog before install, four day-one plugins: Word Counter, Translator, Pomodoro, Mermaid Preview), a community templates marketplace pointing at a real GitHub repo, a browser demo at projelli.com/try with no signup required, and full UI translation into Spanish and German on top of English. v1.5 already shipped local RAG over your Markdown notes, an MCP server that exposes your workspace to Claude Desktop and Cursor, side-by-side AI editing with per-hunk accept and reject, voice input, and Ollama as a fourth provider; all of that is intact in v2.0.</p>
+      <p>Projelli is built by <a href="https://jamesondaines.com">Jameson Daines</a>, a Senior Product Designer at a health-tech company who spent eighteen months building it on weekends and evenings. The technology stack is Tauri 2 (Rust + WebView), React 18 + TypeScript, Zustand for state management, CodeMirror 6 for the editor, LanceDB for the local vector store, Piper for TTS. The source is visible at github.com/projelli/projelli. Mac (signed + notarized), Windows (Azure-signed), Linux (.deb / .rpm / .AppImage). Pricing is one-time: $49 Pro, $99 Lifetime, with the first 100 launch buyers paying $29 for the Lifetime tier. Sold via LemonSqueezy.</p>
     </div>
 
     <!-- ============================================================ -->
@@ -267,10 +268,19 @@
         <dd>Windows, macOS, Linux (cross-platform from v1.0.2)</dd>
 
         <dt>Built on</dt>
-        <dd>Tauri 2, Rust, React 18, TypeScript, Zustand, CodeMirror 6, SQLite</dd>
+        <dd>Tauri 2, Rust, React 18, TypeScript, Zustand, CodeMirror 6, SQLite, LanceDB, Piper TTS</dd>
 
         <dt>AI providers</dt>
-        <dd>Anthropic Claude, OpenAI GPT, Google Gemini (BYOK)</dd>
+        <dd>Anthropic Claude, OpenAI GPT, Google Gemini, plus local Ollama models (BYOK for the cloud three)</dd>
+
+        <dt>Languages (UI)</dt>
+        <dd>English, Spanish, German (auto-detected from OS locale on first launch, switchable any time at Settings, then General, then Language)</dd>
+
+        <dt>Try in browser</dt>
+        <dd><a href="https://projelli.com/try">projelli.com/try</a> (no signup, 5 free messages on a shared key, or paste your own key for unlimited use)</dd>
+
+        <dt>What it does</dt>
+        <dd>Chat with AI (text, images, PDFs), edit Markdown / DOCX / XLSX / PPTX / RTF, run AI workflows from 15 founder templates, search across your workspace including PDFs, install community plugins and templates, read AI replies aloud, work in English / Spanish / German.</dd>
 
         <dt>Pricing</dt>
         <dd>Free tier (real, not trial) · $49 Pro one-time · $99 Lifetime one-time · $29 Founder's Launch lifetime (first 100 buyers)</dd>
@@ -291,6 +301,31 @@
         <dd><a href="mailto:support@projelli.com">support@projelli.com</a></dd>
       </dl>
     </div>
+
+    <!-- ============================================================ -->
+    <h2>Recent releases</h2>
+
+    <h3>v2.0 (May 2026)</h3>
+    <p>The biggest release since launch. Eleven PRs, around 1900 unit and integration tests passing on master.</p>
+    <ul>
+      <li><strong>Multimodal chat</strong>: drop images or PDFs into chat. Native PDF for Claude / Opus, text-extracted for other providers (with a clear mode chip on the message). Token-cost preview before you send.</li>
+      <li><strong>PDF RAG</strong>: a "Include PDFs in workspace index" toggle in Settings, then Memory. Embeddings via <a href="https://github.com/Anush008/fastembed-rs">fastembed-rs</a> + MultilingualE5Small, stored on-device in LanceDB.</li>
+      <li><strong>Read aloud</strong>: click the speaker on any AI message; a local <a href="https://github.com/rhasspy/piper">Piper</a> sidecar synthesizes neural TTS without a cloud round-trip.</li>
+      <li><strong>Plugin marketplace</strong>: sandboxed Web Worker runtime, manifest-declared permission model (6 permissions), plain-language consent dialog. Four day-one plugins (Word Counter, Translator, Pomodoro, Mermaid Preview). Catalog at <a href="https://github.com/projelli/community-plugins">github.com/projelli/community-plugins</a>.</li>
+      <li><strong>Plugin developer experience</strong>: <code>npx create-projelli-plugin</code> scaffolder, typed <code>@projelli/plugin-api</code> package, seven docs pages at <a href="https://projelli.com/docs/plugins/">projelli.com/docs/plugins/</a>.</li>
+      <li><strong>Templates marketplace</strong>: six day-one community templates (beta-user survey, cold email sequence, customer discovery interview, community investor update, launch tweet thread, press release). Catalog at <a href="https://github.com/projelli/community-templates">github.com/projelli/community-templates</a>.</li>
+      <li><strong>Browser demo</strong>: <a href="https://projelli.com/try">projelli.com/try</a>, 5 free messages, BYOK for unlimited use, exit modal converts to download CTAs.</li>
+      <li><strong>Spanish + German UI</strong>: 421 keys, OS locale auto-detect, live language switch.</li>
+      <li><strong>Long-context [Compress]</strong>: routed through the fast model on your provider when conversations cross the threshold; auto-trigger modal before truncation.</li>
+      <li><strong>Mobile docs</strong> at <a href="https://projelli.com/docs/mobile-access/">projelli.com/docs/mobile-access</a> for iCloud / Dropbox / Syncthing / Google Drive workflows. The dedicated mobile reader app is in development, blocked on Apple Developer signup.</li>
+    </ul>
+    <p>Full announcement: <a href="https://projelli.com/blog/projelli-v2-announce">Projelli reads images, PDFs, and runs plugins now</a>.</p>
+
+    <h3>v1.5 (April 2026)</h3>
+    <p>Local RAG over your Markdown notes (<code>@workspace</code>). MCP server bundled as a <code>.mcpb</code> Desktop Extension that plugs into Claude Desktop, Cursor, and Zed. Side-by-side AI editing with streaming diffs and per-hunk accept / reject. Voice input via a bundled whisper-family sidecar. Ollama as a fourth provider. Full announce post: <a href="https://projelli.com/blog/projelli-1-5-announce">Projelli 1.5: The AI workspace that remembers your stuff</a>.</p>
+
+    <h3>v1.0 (March 2026, commercial launch)</h3>
+    <p>Initial commercial release: Markdown editor with wiki-links and backlinks, BYOK chat with Claude / GPT / Gemini, 15 founder workflow templates, version history, Tauri desktop app for Mac (signed + notarized) and Windows (Azure-signed), one-time pricing via LemonSqueezy.</p>
 
     <!-- ============================================================ -->
     <h2>About the founder</h2>
@@ -555,7 +590,7 @@
     </div>
 
     <p style="margin-top: 64px; padding-top: 32px; border-top: 1px solid var(--border-gray); color: var(--text-muted); font-size: 0.875rem;">
-      Projelli is built and operated by Jameson Daines. This press kit is updated continuously, last updated 2026-04-09. For corrections or updates, email <a href="mailto:support@projelli.com">support@projelli.com</a>.
+      Projelli is built and operated by Jameson Daines. This press kit is updated continuously, last updated 2026-05-04 for the v2.0 release. For corrections or updates, email <a href="mailto:support@projelli.com">support@projelli.com</a>.
     </p>
   </div>
 </body>
