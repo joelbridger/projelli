@@ -22,6 +22,12 @@ import type { Provider, AttachmentBytes } from '@/modules/models/Provider';
 import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
 import { GeminiProvider } from '@/modules/models/GeminiProvider';
+// Stream D-web Group III · Task 3.5 — demo-mode AI override.
+// `IS_DEMO` is statically false in the desktop build, so Rollup tree-shakes
+// the dynamic import below and the demo provider never lands in the desktop
+// bundle. Both modules are tiny but keeping them out of desktop is correct.
+import { IS_DEMO } from '@/web-demo/demoModeFlag';
+import { createDemoProvider } from '@/web-demo/demoAIProvider';
 import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/modules/models/fetchUtils';
 import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
 import { useAIChatStore, getDraftInput, useAskWorkspaceMode } from '@/stores/aiChatStore';
@@ -1064,52 +1070,60 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         let provider: Provider;
         const rulesOpt = aiRules ? { aiRules } : {};
 
-        switch (chatProvider) {
-          case 'openai': {
-            const openai = new OpenAIProvider({
-              apiKey: apiKey.key,
-              ...(chatModel ? { model: chatModel } : {}),
-              ...rulesOpt,
-            });
-            if (hasWorkspaceForTools) {
-              openai.setTools(FILE_ACCESS_TOOLS, toolExecutor);
-              console.log('[AIChat DIAGNOSTIC] Tools registered on OpenAI provider:', FILE_ACCESS_TOOLS.length, 'tools');
-            } else {
-              console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on OpenAI — workspace service or rootPath missing');
+        if (IS_DEMO) {
+          // Demo build: route every chat through the demo provider, which
+          // either uses a BYOK key (direct to Anthropic) or the shared
+          // proxy at /api/demo-chat. Tools are not wired here because the
+          // demo's seeded workspace is read-mostly and the proxy is text-only.
+          provider = createDemoProvider({ ...(chatModel ? { model: chatModel } : {}) });
+        } else {
+          switch (chatProvider) {
+            case 'openai': {
+              const openai = new OpenAIProvider({
+                apiKey: apiKey.key,
+                ...(chatModel ? { model: chatModel } : {}),
+                ...rulesOpt,
+              });
+              if (hasWorkspaceForTools) {
+                openai.setTools(FILE_ACCESS_TOOLS, toolExecutor);
+                console.log('[AIChat DIAGNOSTIC] Tools registered on OpenAI provider:', FILE_ACCESS_TOOLS.length, 'tools');
+              } else {
+                console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on OpenAI — workspace service or rootPath missing');
+              }
+              provider = openai;
+              break;
             }
-            provider = openai;
-            break;
-          }
-          case 'google': {
-            const gemini = new GeminiProvider({
-              apiKey: apiKey.key,
-              ...(chatModel ? { model: chatModel } : {}),
-              ...rulesOpt,
-            });
-            if (hasWorkspaceForTools) {
-              gemini.setTools(FILE_ACCESS_TOOLS, toolExecutor);
-              console.log('[AIChat DIAGNOSTIC] Tools registered on Gemini provider:', FILE_ACCESS_TOOLS.length, 'tools');
-            } else {
-              console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on Gemini — workspace service or rootPath missing');
+            case 'google': {
+              const gemini = new GeminiProvider({
+                apiKey: apiKey.key,
+                ...(chatModel ? { model: chatModel } : {}),
+                ...rulesOpt,
+              });
+              if (hasWorkspaceForTools) {
+                gemini.setTools(FILE_ACCESS_TOOLS, toolExecutor);
+                console.log('[AIChat DIAGNOSTIC] Tools registered on Gemini provider:', FILE_ACCESS_TOOLS.length, 'tools');
+              } else {
+                console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on Gemini — workspace service or rootPath missing');
+              }
+              provider = gemini;
+              break;
             }
-            provider = gemini;
-            break;
-          }
-          case 'anthropic':
-          default: {
-            const claude = new ClaudeProvider({
-              apiKey: apiKey.key,
-              ...(chatModel ? { model: chatModel } : {}),
-              ...rulesOpt,
-            });
-            if (hasWorkspaceForTools) {
-              claude.setTools(FILE_ACCESS_TOOLS, toolExecutor);
-              console.log('[AIChat DIAGNOSTIC] Tools registered on Claude provider:', FILE_ACCESS_TOOLS.length, 'tools');
-            } else {
-              console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on Claude — workspace service or rootPath missing');
+            case 'anthropic':
+            default: {
+              const claude = new ClaudeProvider({
+                apiKey: apiKey.key,
+                ...(chatModel ? { model: chatModel } : {}),
+                ...rulesOpt,
+              });
+              if (hasWorkspaceForTools) {
+                claude.setTools(FILE_ACCESS_TOOLS, toolExecutor);
+                console.log('[AIChat DIAGNOSTIC] Tools registered on Claude provider:', FILE_ACCESS_TOOLS.length, 'tools');
+              } else {
+                console.warn('[AIChat DIAGNOSTIC] Tools NOT registered on Claude — workspace service or rootPath missing');
+              }
+              provider = claude;
+              break;
             }
-            provider = claude;
-            break;
           }
         }
 
