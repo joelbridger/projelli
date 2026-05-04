@@ -19,6 +19,7 @@ import {
   TextCursorInput,
   type LucideIcon,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import type { PluginPermission } from '@/types/plugin';
 
@@ -90,6 +91,7 @@ export function PluginPermissionsList({
   permissions,
   className,
 }: PluginPermissionsListProps) {
+  const { t } = useTranslation();
   if (permissions.length === 0) {
     return (
       <div
@@ -99,7 +101,7 @@ export function PluginPermissionsList({
           className,
         )}
       >
-        This plugin requests no special permissions.
+        {t('marketplace.plugin-permissions.empty')}
       </div>
     );
   }

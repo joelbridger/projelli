@@ -266,5 +266,39 @@
       "title": "Advanced",
       "description": "Power-user settings, including per-feature kill switches. Streams populate as features land."
     }
+  },
+  "marketplace": {
+    "tab": {
+      "title": "Marketplace",
+      "description": "Browse community templates and plugins. Installs are stored in your workspace and can be removed at any time."
+    },
+    "installed-plugins": {
+      "empty": "No plugins installed yet. Browse the marketplace to add one."
+    },
+    "installed-templates": {
+      "empty": "No templates installed yet. Browse the marketplace to add one."
+    },
+    "plugins-tab": {
+      "open-workspace": "Open a workspace to browse community plugins."
+    },
+    "templates-tab": {
+      "open-workspace": "Open a workspace to browse community templates."
+    },
+    "plugin-consent": {
+      "approve-description": "By approving, you trust this plugin with the permissions listed below. You can revoke them at any time by uninstalling the plugin."
+    },
+    "plugin-permissions": {
+      "empty": "This plugin requests no special permissions."
+    },
+    "plugin-error": {
+      "show-recent-log_one": "Show recent log (1 entry)",
+      "show-recent-log_other": "Show recent log ({{count}} entries)"
+    },
+    "detail": {
+      "back-to-catalog": "Back to catalog",
+      "files-in-plugin": "Files in this plugin",
+      "files-in-template": "Files in this template",
+      "view-audit-log": "View in Audit Log"
+    }
   }
 }

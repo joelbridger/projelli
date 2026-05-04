@@ -27,6 +27,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -128,6 +129,7 @@ export function PluginDetailView({
   onUninstalled,
   onManifestLoaded,
 }: PluginDetailViewProps) {
+  const { t } = useTranslation();
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [outcome, setOutcome] = useState<OutcomeState | null>(null);
   const [busy, setBusy] = useState<BusyKind>(null);
@@ -464,7 +466,7 @@ export function PluginDetailView({
           className="gap-1.5 -ml-2"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to catalog
+          {t('marketplace.detail.back-to-catalog')}
         </Button>
       </div>
 
@@ -530,7 +532,7 @@ export function PluginDetailView({
               <CardContent className="p-4">
                 <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
                   <FileCode2 className="h-4 w-4" aria-hidden="true" />
-                  Files in this plugin
+                  {t('marketplace.detail.files-in-plugin')}
                 </h3>
                 <ul
                   data-testid="plugin-detail-files"
@@ -851,6 +853,7 @@ function OutcomePanel({
   onRetry,
   onDismiss,
 }: OutcomePanelProps) {
+  const { t } = useTranslation();
   const isSuccess = outcome.kind === 'success';
   const isFailure = outcome.kind === 'failure';
   const Icon = isSuccess ? CheckCircle2 : XCircle;
@@ -907,7 +910,7 @@ function OutcomePanel({
                 className="h-7 text-xs"
                 onClick={onViewAuditLog}
               >
-                View in Audit Log
+                {t('marketplace.detail.view-audit-log')}
               </Button>
             )}
             {onRetry && (
