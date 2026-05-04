@@ -11,6 +11,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -227,6 +228,7 @@ function AIContextCapabilityWarning({
 }: {
   getSetting: (key: string) => unknown;
 }) {
+  const { t } = useTranslation();
   const chatLimitValue = (getSetting('chatContextTokenLimit') as number | undefined) ?? 200000;
   // We use a generic provider/model fallback — users who care about exact
   // capability will be on the AI Assistant Models tab where the model is known.
@@ -246,8 +248,7 @@ function AIContextCapabilityWarning({
       className="text-xs text-amber-600 mt-1 px-1 pb-2"
       data-testid="context-limit-warning"
     >
-      Selected model maxes at {formatContextSize(modelMax)} tokens. Lower the limit or switch to
-      a larger-context model.
+      {t('settings.modal.context-warning', { max: formatContextSize(modelMax) })}
     </p>
   );
 }
@@ -375,6 +376,7 @@ function SettingRow({
 // ---------------------------------------------------------------------------
 
 function ShortcutsCategory({ searchQuery }: { searchQuery: string }) {
+  const { t } = useTranslation();
   const grouped = useMemo(() => groupShortcutsByCategory(), []);
   const mac = isMac();
   const lowerQ = searchQuery.toLowerCase();
@@ -398,7 +400,7 @@ function ShortcutsCategory({ searchQuery }: { searchQuery: string }) {
   if (filtered.size === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4 text-center">
-        No shortcuts match your search.
+        {t('settings.modal.shortcuts.no-matches')}
       </p>
     );
   }
@@ -407,13 +409,14 @@ function ShortcutsCategory({ searchQuery }: { searchQuery: string }) {
     <div className="space-y-5">
       {/* Prominent Ctrl+P tip */}
       <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
-        <span className="font-medium">Quick Tip:</span> Press{' '}
+        <span className="font-medium">{t('settings.modal.shortcuts.quick-tip-label')}</span>{' '}
+        {t('settings.modal.shortcuts.quick-tip-press')}{' '}
         <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">
           {mac ? '⌘' : 'Ctrl'}+P
         </kbd>{' '}
-        to quickly open any file by name. Press{' '}
+        {t('settings.modal.shortcuts.quick-tip-open-file')}{' '}
         <kbd className="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">?</kbd>{' '}
-        to show the keyboard shortcuts overlay anywhere in the app.
+        {t('settings.modal.shortcuts.quick-tip-overlay')}
       </div>
 
       {Array.from(filtered.entries()).map(([category, shortcuts]) => (
@@ -453,6 +456,7 @@ function ShortcutsCategory({ searchQuery }: { searchQuery: string }) {
 // ---------------------------------------------------------------------------
 
 function AboutHeader() {
+  const { t } = useTranslation();
   // VITE_APP_VERSION is injected by vite.config.ts (define plugin) so this
   // value matches whatever package.json was bundled. Falls back to '?' so
   // a missing define still renders something readable.
@@ -470,7 +474,7 @@ function AboutHeader() {
         </span>
       </div>
       <p className="text-xs text-muted-foreground mt-1">
-        Local-first workspace for solo founders.
+        {t('settings.modal.about-tagline')}
       </p>
     </div>
   );
@@ -481,6 +485,7 @@ function AboutHeader() {
 // ---------------------------------------------------------------------------
 
 export function SettingsModal({ open, onOpenChange, onAction, auditEntries, templates, initialCategory }: SettingsModalProps) {
+  const { t } = useTranslation();
   const [activeCategory, setActiveCategory] = useState<SettingCategory>(initialCategory ?? 'general');
   // Group VIII (Stream C1) + Group VI (Stream C4): the Marketplace nav badge
   // sums templates + plugins update counts into a single pill. v2.0 ships with
@@ -647,20 +652,20 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
         data-testid="settings-modal"
         className="max-w-3xl w-[90vw] h-[80vh] max-h-[700px] p-0 flex flex-col overflow-hidden [&>button]:hidden"
       >
-        <DialogTitle className="sr-only">Settings</DialogTitle>
+        <DialogTitle className="sr-only">{t('settings.modal.title')}</DialogTitle>
         <DialogDescription className="sr-only">
-          Configure Projelli preferences
+          {t('settings.modal.description')}
         </DialogDescription>
 
         {/* Header / Search */}
         <div className="shrink-0 border-b px-4 py-3 flex items-center gap-3">
-          <h2 className="text-base font-semibold shrink-0">Settings</h2>
+          <h2 className="text-base font-semibold shrink-0">{t('settings.modal.title')}</h2>
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
             <Input
               ref={searchRef}
               data-testid="settings-search"
-              placeholder="Search settings..."
+              placeholder={t('settings.modal.search-placeholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 pr-8 h-8 text-sm"
@@ -670,7 +675,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
                 type="button"
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 onClick={() => setSearchQuery('')}
-                aria-label="Clear search"
+                aria-label={t('settings.modal.clear-search-aria')}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -681,7 +686,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
             size="sm"
             className="h-8 w-8 p-0"
             onClick={() => onOpenChange(false)}
-            aria-label="Close settings"
+            aria-label={t('settings.modal.close-aria')}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -713,7 +718,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
                     <span
                       data-testid="settings-marketplace-update-badge"
                       data-count={marketplaceUpdateCount}
-                      aria-label={`${marketplaceUpdateCount.toString()} marketplace updates available`}
+                      aria-label={t('settings.modal.marketplace-badge-aria', { count: marketplaceUpdateCount })}
                       className="shrink-0 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary"
                     >
                       {marketplaceUpdateCount}
@@ -751,7 +756,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
               <AdvancedSettings />
             ) : categorySettings.length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
-                No settings match your search in this category.
+                {t('settings.modal.no-matches')}
               </p>
             ) : (
               <div>
@@ -787,7 +792,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
             onClick={handleExport}
           >
             <Download className="h-3 w-3" />
-            Export
+            {t('settings.modal.export')}
           </Button>
           <Button
             data-testid="settings-import"
@@ -797,7 +802,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
             onClick={handleImport}
           >
             <Upload className="h-3 w-3" />
-            Import
+            {t('settings.modal.import')}
           </Button>
           <Button
             data-testid="settings-reset"
@@ -807,7 +812,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
             onClick={handleReset}
           >
             <RotateCcw className="h-3 w-3" />
-            Reset to Defaults
+            {t('settings.modal.reset')}
           </Button>
           {/* Hidden file input for import */}
           <input

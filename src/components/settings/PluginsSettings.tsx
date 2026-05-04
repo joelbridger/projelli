@@ -11,6 +11,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { PluginSettingsPage } from '@/components/plugins/PluginSettingsPage';
 import { cn } from '@/lib/utils';
@@ -18,6 +19,7 @@ import { usePluginManagerStore } from '@/stores/pluginManagerStore';
 import { usePluginRegistryStore } from '@/stores/pluginRegistryStore';
 
 export function PluginsSettings() {
+  const { t } = useTranslation();
   const installed = usePluginManagerStore((state) => state.installedPlugins);
   const statusByPluginId = usePluginManagerStore((state) => state.statusByPluginId);
   const settingsPages = usePluginRegistryStore((state) => state.settingsPages);
@@ -28,18 +30,17 @@ export function PluginsSettings() {
   return (
     <div className="space-y-6" data-testid="plugins-settings">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Plugins</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{t('settings.plugins.title')}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage installed plugins and the settings each plugin contributes.
+          {t('settings.plugins.description')}
         </p>
       </div>
 
       <section data-testid="plugins-installed-list">
-        <h3 className="text-sm font-semibold mb-2">Installed</h3>
+        <h3 className="text-sm font-semibold mb-2">{t('settings.plugins.installed-heading')}</h3>
         {installed.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No plugins installed yet. Install one from a plugin tarball to see
-            it here.
+            {t('settings.plugins.empty')}
           </p>
         ) : (
           <ul className="space-y-1">
@@ -79,7 +80,7 @@ export function PluginsSettings() {
 
       {settingsPages.length > 0 && (
         <section data-testid="plugins-settings-pages">
-          <h3 className="text-sm font-semibold mb-2">Plugin settings</h3>
+          <h3 className="text-sm font-semibold mb-2">{t('settings.plugins.plugin-settings-heading')}</h3>
           <nav
             data-testid="plugins-settings-nav"
             className="flex flex-col border rounded-md overflow-hidden mb-3"

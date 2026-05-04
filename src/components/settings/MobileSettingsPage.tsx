@@ -12,6 +12,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { ExternalLink } from 'lucide-react';
@@ -109,24 +110,21 @@ const PROVIDERS: ProviderTab[] = [
 ];
 
 export function MobileSettingsPage() {
+  const { t } = useTranslation();
   const [active, setActive] = useState<ProviderId>('icloud');
 
   return (
     <div className="space-y-6" data-testid="mobile-settings-page">
       <header>
-        <h2 className="text-2xl font-semibold tracking-tight">Mobile</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{t('settings.mobile-page.title')}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Read your Projelli workspace on your phone today. Point Projelli at a synced
-          folder on your computer (iCloud, Dropbox, Syncthing, or Google Drive) and the
-          same files show up on your phone in the matching app. The dedicated Projelli
-          mobile reader is in beta and lands in the v2.0 cycle.
+          {t('settings.mobile-page.description')}
         </p>
       </header>
 
       <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
-        <strong className="text-foreground">Heads up:</strong>{' '}
-        Treat your phone as read-only while using the cloud sync workaround. Editing the
-        same file on two devices in quick succession can produce a conflict copy.
+        <strong className="text-foreground">{t('settings.mobile-page.heads-up-label')}</strong>{' '}
+        {t('settings.mobile-page.heads-up-text')}
       </div>
 
       <Tabs
@@ -157,7 +155,7 @@ export function MobileSettingsPage() {
             <p className="text-sm text-muted-foreground">{p.tagline}</p>
 
             <section>
-              <h3 className="text-sm font-semibold mb-2">Setup steps</h3>
+              <h3 className="text-sm font-semibold mb-2">{t('settings.mobile-page.setup-steps')}</h3>
               <ol className="list-decimal list-inside space-y-2 text-sm text-foreground/90">
                 {p.steps.map((step, i) => (
                   <li key={i}>{step}</li>
@@ -166,7 +164,7 @@ export function MobileSettingsPage() {
             </section>
 
             <section>
-              <h3 className="text-sm font-semibold mb-2">Things to know</h3>
+              <h3 className="text-sm font-semibold mb-2">{t('settings.mobile-page.things-to-know')}</h3>
               <ul className="list-disc list-inside space-y-1.5 text-sm text-muted-foreground">
                 {p.tips.map((tip, i) => (
                   <li key={i}>{tip}</li>

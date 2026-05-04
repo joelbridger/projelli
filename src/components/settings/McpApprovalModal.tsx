@@ -23,6 +23,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -95,6 +96,7 @@ export function McpApprovalModal({
   onApproveAllSession,
   sessionApproveAll,
 }: McpApprovalModalProps): React.ReactElement | null {
+  const { t } = useTranslation();
   // Auto-approve drains the queue when the session flag is on.
   useEffect(() => {
     if (!sessionApproveAll || approvals.length === 0) return;
@@ -147,10 +149,10 @@ export function McpApprovalModal({
         <div className="px-5 pt-5 pb-3 border-b">
           <DialogTitle className="flex items-center gap-2 text-base">
             <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
-            <span>Claude Desktop wants to write to your workspace</span>
+            <span>{t('settings.mcp-approval.title')}</span>
           </DialogTitle>
           <DialogDescription className="mt-1 text-xs">
-            Review the change below. Nothing happens until you approve.
+            {t('settings.mcp-approval.description')}
           </DialogDescription>
         </div>
 
@@ -168,8 +170,10 @@ export function McpApprovalModal({
               {topmost.path}
             </code>
             <span className="text-xs text-muted-foreground">
-              {topmost.contentBytes.toLocaleString()} bytes
-              {topmost.fileExists ? ', overwrite' : ', new file'}
+              {t('settings.mcp-approval.bytes', { bytes: topmost.contentBytes.toLocaleString() })}
+              {topmost.fileExists
+                ? t('settings.mcp-approval.overwrite-suffix')
+                : t('settings.mcp-approval.new-file-suffix')}
             </span>
           </div>
 
@@ -191,8 +195,7 @@ export function McpApprovalModal({
               data-testid="mcp-approval-queue-more"
               className="text-xs text-muted-foreground"
             >
-              {moreCount} more write{moreCount === 1 ? '' : 's'} queued after
-              this one.
+              {t('settings.mcp-approval.more-queued', { count: moreCount })}
             </p>
           )}
         </div>
@@ -209,7 +212,7 @@ export function McpApprovalModal({
             className="gap-1.5 text-xs"
           >
             <X className="h-3.5 w-3.5" />
-            Deny
+            {t('settings.mcp-approval.deny')}
           </Button>
           {onApproveAllSession && (
             <Button
@@ -220,7 +223,7 @@ export function McpApprovalModal({
               disabled={busy}
               className="gap-1.5 text-xs"
             >
-              Approve all this session
+              {t('settings.mcp-approval.approve-all-session')}
             </Button>
           )}
           <Button
@@ -234,7 +237,7 @@ export function McpApprovalModal({
             className="gap-1.5 text-xs"
           >
             <Check className="h-3.5 w-3.5" />
-            Approve this write
+            {t('settings.mcp-approval.approve-write')}
           </Button>
         </div>
       </DialogContent>

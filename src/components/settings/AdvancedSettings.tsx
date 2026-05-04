@@ -5,13 +5,16 @@
  * as features land. For now it's a shell so the nav item resolves.
  */
 
+import { useTranslation } from 'react-i18next';
+
 export function AdvancedSettings() {
+  const { t } = useTranslation();
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Advanced</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{t('settings.advanced.title')}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Power-user settings, including per-feature kill switches. Streams populate as features land.
+          {t('settings.advanced.description')}
         </p>
       </div>
     </div>

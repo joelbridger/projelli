@@ -11,21 +11,21 @@
  * pitch is "you control this, and we tell you exactly what's collected."
  */
 
+import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { useTelemetryConsent } from '@/hooks/useTelemetryConsent';
 import { getInstallId } from '@/utils/installId';
 
 export function PrivacySettings() {
+  const { t } = useTranslation();
   const { consent, setConsent } = useTelemetryConsent();
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Privacy</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{t('settings.privacy.title')}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Projelli is local-first. Your files, your AI prompts, and your
-          API keys never leave your machine. The two opt-ins below are
-          the only data Projelli ever collects, and both default to off.
+          {t('settings.privacy.description')}
         </p>
       </div>
 
@@ -33,11 +33,9 @@ export function PrivacySettings() {
       <div className="rounded-lg border border-border bg-card p-6 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <h3 className="text-base font-semibold">Anonymous usage stats</h3>
+            <h3 className="text-base font-semibold">{t('settings.privacy.telemetry.title')}</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Help improve Projelli by sending lifecycle events: app launches,
-              trial start, trial end, license activated, license deactivated.
-              No content, no files, no AI prompts, no email.
+              {t('settings.privacy.telemetry.description')}
             </p>
           </div>
           <Button
@@ -48,52 +46,66 @@ export function PrivacySettings() {
             }
             data-testid="privacy-telemetry-toggle"
           >
-            {consent === 'enabled' ? 'Enabled' : 'Disabled'}
+            {consent === 'enabled'
+              ? t('settings.privacy.telemetry.enabled')
+              : t('settings.privacy.telemetry.disabled')}
           </Button>
         </div>
         <div className="border-t pt-4 space-y-2 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">What is sent, exactly:</p>
+          <p className="font-medium text-foreground">{t('settings.privacy.telemetry.what-is-sent')}</p>
           <ul className="space-y-1 ml-4 list-disc">
             <li>
-              <code>install_id</code>: a random UUID generated on this machine
-              (visible below). Not tied to your email or license.
+              <Trans
+                i18nKey="settings.privacy.telemetry.field-install-id"
+                components={{ c: <code /> }}
+              />
             </li>
             <li>
-              <code>app_version</code>, <code>platform</code>: which build of
-              Projelli, and macOS / Windows / Linux.
+              <Trans
+                i18nKey="settings.privacy.telemetry.field-app-version"
+                components={{ c: <code /> }}
+              />
             </li>
             <li>
-              <code>event</code>: one of <code>app_launch</code>,
-              <code> trial_start</code>, <code> trial_end</code>,
-              <code> license_activated</code>, <code> license_deactivated</code>.
+              <Trans
+                i18nKey="settings.privacy.telemetry.field-event"
+                components={{ c: <code /> }}
+              />
             </li>
             <li>
-              <code>license_tier</code> (when relevant): trial, pro, lifetime.
+              <Trans
+                i18nKey="settings.privacy.telemetry.field-license-tier"
+                components={{ c: <code /> }}
+              />
             </li>
           </ul>
           <p>
-            Endpoint: <code>projelli.com/api/forms/projelli/app-event</code>.
-            JSONL stored on Jameson's server. Used only for funnel metrics
-            and roadmap decisions.
+            <Trans
+              i18nKey="settings.privacy.telemetry.endpoint-note"
+              components={{ c: <code /> }}
+            />
           </p>
           <p>
-            Your install ID:{' '}
-            <code className="px-1 py-0.5 rounded bg-muted">{getInstallId()}</code>
+            <Trans
+              i18nKey="settings.privacy.telemetry.install-id-display"
+              values={{ id: getInstallId() }}
+              components={{ c: <code className="px-1 py-0.5 rounded bg-muted" /> }}
+            />
           </p>
         </div>
       </div>
 
       {/* Email updates note */}
       <div className="rounded-lg border border-border bg-card p-6 space-y-3">
-        <h3 className="text-base font-semibold">Email updates</h3>
+        <h3 className="text-base font-semibold">{t('settings.privacy.email.title')}</h3>
         <p className="text-sm text-muted-foreground">
-          If you opted into email updates at first launch (or via the website),
-          you'll get launch announcements and discount codes. No drip campaigns,
-          no weekly newsletters.
+          {t('settings.privacy.email.intro')}
         </p>
         <p className="text-sm text-muted-foreground">
-          To remove yourself from the list, reply <code>UNSUB</code> to any email
-          from Jameson — they all forward straight to him.
+          <Trans
+            i18nKey="settings.privacy.email.unsub"
+            components={{ c: <code /> }}
+          />
         </p>
       </div>
     </div>

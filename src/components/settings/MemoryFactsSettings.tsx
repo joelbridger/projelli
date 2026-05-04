@@ -21,6 +21,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +46,7 @@ export function MemoryFactsSettings({
   onDelete,
   onAdd,
 }: MemoryFactsSettingsProps): React.ReactElement {
+  const { t } = useTranslation();
   const [facts, setFacts] = useState<Fact[]>(initialFacts ?? []);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [newFactText, setNewFactText] = useState('');
@@ -113,13 +115,14 @@ export function MemoryFactsSettings({
       className="mt-6 pt-4 border-t border-border/50"
     >
       <div className="mb-3">
-        <h3 className="text-sm font-semibold">Memory Facts</h3>
+        <h3 className="text-sm font-semibold">{t('settings.memory-facts.title')}</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Durable facts about you that the AI always knows. Stored locally at
-          <code className="mx-1 px-1 py-0.5 rounded bg-muted font-mono text-[11px]">
-            .projelli/memory.json
-          </code>
-          in your workspace.
+          <Trans
+            i18nKey="settings.memory-facts.description"
+            components={{
+              c: <code className="mx-1 px-1 py-0.5 rounded bg-muted font-mono text-[11px]" />,
+            }}
+          />
         </p>
       </div>
 
@@ -128,7 +131,7 @@ export function MemoryFactsSettings({
           data-testid="settings-facts-load-error"
           className="mb-2 text-xs text-destructive"
         >
-          Couldn&apos;t load facts: {loadError}
+          {t('settings.memory-facts.load-error', { error: loadError })}
         </div>
       )}
 
@@ -141,8 +144,7 @@ export function MemoryFactsSettings({
             data-testid="settings-facts-empty"
             className="px-3 py-4 text-xs text-muted-foreground text-center"
           >
-            No facts saved yet. Proposed facts from chat conversations will
-            show up here after you accept them.
+            {t('settings.memory-facts.empty')}
           </div>
         ) : (
           <ul className="divide-y divide-border/50">
@@ -163,7 +165,7 @@ export function MemoryFactsSettings({
                   onClick={() => {
                     void handleDelete(fact.id);
                   }}
-                  aria-label="Delete fact"
+                  aria-label={t('settings.memory-facts.delete-aria')}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -184,7 +186,7 @@ export function MemoryFactsSettings({
               void handleAdd();
             }
           }}
-          placeholder="Add a fact about yourself..."
+          placeholder={t('settings.memory-facts.add-placeholder')}
           className="h-8 text-sm"
         />
         <Button
@@ -198,7 +200,7 @@ export function MemoryFactsSettings({
           disabled={newFactText.trim().length === 0 || saving}
         >
           <Plus className="h-3 w-3" />
-          Add
+          {t('common.actions.add')}
         </Button>
       </div>
     </div>

@@ -2,6 +2,7 @@
 // Manages API keys for AI providers
 
 import { useState, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,12 +69,13 @@ export function ApiKeySettings({
   onKeysChanged,
   className,
 }: ApiKeySettingsProps) {
+  const { t } = useTranslation();
   return (
     <div className={cn('space-y-6', className)}>
       <div>
-        <h3 className="text-lg font-medium">API Keys</h3>
+        <h3 className="text-lg font-medium">{t('settings.api-keys.title')}</h3>
         <p className="text-sm text-muted-foreground">
-          Configure API keys for AI model providers. Keys are stored securely and never logged.
+          {t('settings.api-keys.description')}
         </p>
       </div>
 
@@ -108,6 +110,7 @@ function ProviderKeyCard({
   keychainService,
   onKeyChanged,
 }: ProviderKeyCardProps) {
+  const { t } = useTranslation();
   const [hasKey, setHasKey] = useState(false);
   const [maskedKey, setMaskedKey] = useState<string | null>(null);
   const [isEnvKey, setIsEnvKey] = useState(false);
@@ -208,7 +211,7 @@ function ProviderKeyCard({
             rel="noopener noreferrer"
             className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
           >
-            Get API Key
+            {t('settings.api-keys.get-key-link')}
             <ExternalLink className="h-3 w-3" />
           </a>
         </div>
@@ -302,7 +305,7 @@ function ProviderKeyCard({
             onClick={() => setIsEditing(true)}
           >
             <Key className="h-4 w-4 mr-1" />
-            Add API Key
+            {t('settings.api-keys.add-key')}
           </Button>
         )}
       </CardContent>

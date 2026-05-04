@@ -86,5 +86,185 @@
         "download-button": "Download File"
       }
     }
+  },
+  "settings": {
+    "modal": {
+      "title": "Settings",
+      "description": "Configure Projelli preferences",
+      "search-placeholder": "Search settings...",
+      "clear-search-aria": "Clear search",
+      "close-aria": "Close settings",
+      "marketplace-badge-aria": "{{count}} marketplace updates available",
+      "no-matches": "No settings match your search in this category.",
+      "context-warning": "Selected model maxes at {{max}} tokens. Lower the limit or switch to a larger-context model.",
+      "about-tagline": "Local-first workspace for solo founders.",
+      "export": "Export",
+      "import": "Import",
+      "reset": "Reset to Defaults",
+      "shortcuts": {
+        "no-matches": "No shortcuts match your search.",
+        "quick-tip-label": "Quick Tip:",
+        "quick-tip-press": "Press",
+        "quick-tip-open-file": "to quickly open any file by name. Press",
+        "quick-tip-overlay": "to show the keyboard shortcuts overlay anywhere in the app."
+      }
+    },
+    "license": {
+      "title": "License",
+      "description": "Activate Projelli with a license key purchased at <pricingLink>projelli.com</pricingLink>.",
+      "deactivate-confirm": "Deactivate this license? You will lose access to paid features until you re-activate.",
+      "badge": {
+        "activated": "ACTIVATED",
+        "trial-ended": "TRIAL ENDED",
+        "trial": "TRIAL"
+      },
+      "tier": {
+        "lifetime": "Lifetime",
+        "pro": "Pro",
+        "free": "Free"
+      },
+      "valid-until": "Valid until: {{date}}",
+      "lifetime-tagline": "Lifetime license, updates forever.",
+      "refresh": "Refresh",
+      "deactivate": "Deactivate",
+      "activate": "Activate",
+      "activating": "Activating...",
+      "activate-success": "License activated successfully.",
+      "activate-to-continue": "Activate to continue",
+      "trial-expired-detail": "Your {{days}}-day free trial ended on <endDateBold>{{endDate}}</endDateBold>. AI chat and workflows are paused. Your existing files are still here, fully readable. Activate a license to keep building.",
+      "trial-active-detail": "You're on the free trial. Every Projelli feature is unlocked for {{days}} days from first launch, bring your own AI keys, run workflows, edit files, the works. When the trial ends, AI chat and workflows pause until you activate a license; your files stay accessible.",
+      "days-left_one": "1 day left",
+      "days-left_other": "{{count}} days left",
+      "get-license-cta": "Get a license at projelli.com",
+      "already-have-key": "Already have a license key?",
+      "unlocks-heading": "What your license unlocks:",
+      "unlocks": {
+        "ai-chat": "AI chat with your own keys (Claude, OpenAI, Gemini)",
+        "workflows": "All 15 founder workflow templates",
+        "workspaces": "Unlimited workspaces, files, and version history",
+        "whiteboard-audio-research": "Whiteboard, audio recording, research citations",
+        "multi-model": "Multi-model comparison",
+        "commercial": "Commercial use license",
+        "updates-forever": "Updates forever",
+        "lifetime-extras": "Multi-model comparison & commercial use on Lifetime"
+      }
+    },
+    "privacy": {
+      "title": "Privacy",
+      "description": "Projelli is local-first. Your files, your AI prompts, and your API keys never leave your machine. The two opt-ins below are the only data Projelli ever collects, and both default to off.",
+      "telemetry": {
+        "title": "Anonymous usage stats",
+        "description": "Help improve Projelli by sending lifecycle events: app launches, trial start, trial end, license activated, license deactivated. No content, no files, no AI prompts, no email.",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "what-is-sent": "What is sent, exactly:",
+        "field-install-id": "<c>install_id</c>: a random UUID generated on this machine (visible below). Not tied to your email or license.",
+        "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of Projelli, and macOS / Windows / Linux.",
+        "field-event": "<c>event</c>: one of <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
+        "field-license-tier": "<c>license_tier</c> (when relevant): trial, pro, lifetime.",
+        "endpoint-note": "Endpoint: <c>projelli.com/api/forms/projelli/app-event</c>. JSONL stored on Jameson's server. Used only for funnel metrics and roadmap decisions.",
+        "install-id-display": "Your install ID: <c>{{id}}</c>"
+      },
+      "email": {
+        "title": "Email updates",
+        "intro": "If you opted into email updates at first launch (or via the website), you'll get launch announcements and discount codes. No drip campaigns, no weekly newsletters.",
+        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any email from Jameson, they all forward straight to him."
+      }
+    },
+    "mcp": {
+      "title": "MCP server",
+      "description": "Expose your Projelli workspace to any MCP-compatible AI client. Install once, then ask Claude Desktop, Cursor, or any other client about your notes, chats, and memory facts without copy-pasting.",
+      "copied-status": "Copied bundle path to clipboard: {{path}}",
+      "status": {
+        "loading": "Looking up bundle path...",
+        "ready": "Ready to install in Claude Desktop",
+        "unavailable": "Bundle not available. Run <cmd>node scripts/build-mcpb.mjs</cmd> first, or install via a released build."
+      },
+      "download-cta": "Download .mcpb for Claude Desktop",
+      "whats-mcp": "What's MCP?",
+      "install": {
+        "heading": "How to install:",
+        "step-download": "Click <b>Download .mcpb</b> above to copy the bundle path to your clipboard.",
+        "step-open-claude": "Open Claude Desktop.",
+        "step-config": "Open <b>Settings, Developer, Edit Config</b>, or drag the <c>.mcpb</c> file into the Claude Desktop window.",
+        "step-pick-folder": "When prompted for a workspace folder, pick the same folder you opened in Projelli.",
+        "after-install": "After install, ask Claude \"search my Projelli workspace for X\" or \"read notes/plan.md\" and watch it work."
+      }
+    },
+    "mcp-approval": {
+      "title": "Claude Desktop wants to write to your workspace",
+      "description": "Review the change below. Nothing happens until you approve.",
+      "bytes": "{{bytes}} bytes",
+      "overwrite-suffix": ", overwrite",
+      "new-file-suffix": ", new file",
+      "more-queued_one": "1 more write queued after this one.",
+      "more-queued_other": "{{count}} more writes queued after this one.",
+      "deny": "Deny",
+      "approve-all-session": "Approve all this session",
+      "approve-write": "Approve this write"
+    },
+    "ollama": {
+      "title": "Ollama (local models)",
+      "description": "Run AI models directly on your machine: free, offline, private. Projelli talks to a locally running Ollama daemon on <c>127.0.0.1:11434</c>.",
+      "status": {
+        "checking": "Checking Ollama...",
+        "ready_one": "Ollama ready, {{count}} model installed",
+        "ready_other": "Ollama ready, {{count}} models installed",
+        "more-suffix": ", +{{count}} more",
+        "not-running": "Ollama not running. Install it to run AI models locally, free."
+      },
+      "check-cta": "Check Ollama connection",
+      "install-link": "Install Ollama",
+      "no-models-hint": "Ollama is running but no models are installed. Pull one with <c>ollama pull llama3.2:3b</c> and click Check again.",
+      "why": {
+        "heading": "Why Ollama?",
+        "zero-cost": "Zero cost. Inference runs on your GPU / CPU.",
+        "zero-network": "Zero network. Works on a plane, offline, in a tunnel.",
+        "zero-data": "Zero data sharing. Your prompts never leave the machine."
+      },
+      "recommended-model": "Recommended first model: <c>llama3.2:3b</c> (about 2 GB, runs on almost any laptop)."
+    },
+    "memory-facts": {
+      "title": "Memory Facts",
+      "description": "Durable facts about you that the AI always knows. Stored locally at <c>.projelli/memory.json</c> in your workspace.",
+      "load-error": "Couldn't load facts: {{error}}",
+      "empty": "No facts saved yet. Proposed facts from chat conversations will show up here after you accept them.",
+      "delete-aria": "Delete fact",
+      "add-placeholder": "Add a fact about yourself..."
+    },
+    "template-models": {
+      "empty": "No workflow templates yet.",
+      "title": "Per-template model assignment",
+      "description": "Pin a provider and model for each template. Leave blank to use the template's built-in default (or your global default)."
+    },
+    "mobile-page": {
+      "title": "Mobile",
+      "description": "Read your Projelli workspace on your phone today. Point Projelli at a synced folder on your computer (iCloud, Dropbox, Syncthing, or Google Drive) and the same files show up on your phone in the matching app. The dedicated Projelli mobile reader is in beta and lands in the v2.0 cycle.",
+      "heads-up-label": "Heads up:",
+      "heads-up-text": "Treat your phone as read-only while using the cloud sync workaround. Editing the same file on two devices in quick succession can produce a conflict copy.",
+      "setup-steps": "Setup steps",
+      "things-to-know": "Things to know"
+    },
+    "api-keys": {
+      "title": "API Keys",
+      "description": "Configure API keys for AI model providers. Keys are stored securely and never logged.",
+      "get-key-link": "Get API Key",
+      "add-key": "Add API Key"
+    },
+    "plugins": {
+      "title": "Plugins",
+      "description": "Manage installed plugins and the settings each plugin contributes.",
+      "installed-heading": "Installed",
+      "empty": "No plugins installed yet. Install one from a plugin tarball to see it here.",
+      "plugin-settings-heading": "Plugin settings"
+    },
+    "voice": {
+      "title": "Voice input",
+      "description": "Hands-free capture via a bundled offline speech-recognition model. Audio never leaves your machine. Press-to-talk inserts into the focused text field; voice-to-note saves a new Markdown file into <c>Inbox/</c>."
+    },
+    "advanced": {
+      "title": "Advanced",
+      "description": "Power-user settings, including per-feature kill switches. Streams populate as features land."
+    }
   }
 }

@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, AlertCircle, RefreshCw, ExternalLink } from 'lucide-react';
 import { detectOllama } from '@/modules/models/OllamaProvider';
@@ -30,6 +31,7 @@ export interface OllamaSettingsSectionProps {
 type Status = 'checking' | 'ready' | 'unavailable';
 
 export function OllamaSettingsSection({ onDetect }: OllamaSettingsSectionProps = {}): React.ReactElement {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<Status>('checking');
   const [models, setModels] = useState<string[]>([]);
 
@@ -52,11 +54,12 @@ export function OllamaSettingsSection({ onDetect }: OllamaSettingsSectionProps =
   return (
     <div data-testid="ollama-settings-section" className="space-y-4 pt-6 mt-6 border-t border-border">
       <div>
-        <h3 className="text-base font-semibold">Ollama (local models)</h3>
+        <h3 className="text-base font-semibold">{t('settings.ollama.title')}</h3>
         <p className="text-xs text-muted-foreground mt-1">
-          Run AI models directly on your machine — free, offline, private.
-          Projelli talks to a locally running Ollama daemon on
-          <code className="px-1 mx-1 rounded bg-muted font-mono text-[11px]">127.0.0.1:11434</code>.
+          <Trans
+            i18nKey="settings.ollama.description"
+            components={{ c: <code className="px-1 mx-1 rounded bg-muted font-mono text-[11px]" /> }}
+          />
         </p>
       </div>
 
@@ -68,17 +71,17 @@ export function OllamaSettingsSection({ onDetect }: OllamaSettingsSectionProps =
         {status === 'checking' ? (
           <>
             <RefreshCw className="h-4 w-4 text-muted-foreground shrink-0 animate-spin" />
-            <span className="text-sm text-muted-foreground">Checking Ollama...</span>
+            <span className="text-sm text-muted-foreground">{t('settings.ollama.status.checking')}</span>
           </>
         ) : status === 'ready' ? (
           <>
             <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
             <span className="text-sm">
-              Ollama ready &middot; {models.length} model{models.length === 1 ? '' : 's'} installed
+              {t('settings.ollama.status.ready', { count: models.length })}
               {models.length > 0 && (
                 <span className="text-muted-foreground ml-1">
                   ({models.slice(0, 3).join(', ')}
-                  {models.length > 3 ? `, +${models.length - 3} more` : ''})
+                  {models.length > 3 ? t('settings.ollama.status.more-suffix', { count: models.length - 3 }) : ''})
                 </span>
               )}
             </span>
@@ -87,7 +90,7 @@ export function OllamaSettingsSection({ onDetect }: OllamaSettingsSectionProps =
           <>
             <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
             <span className="text-sm">
-              Ollama not running. Install it to run AI models locally, free.
+              {t('settings.ollama.status.not-running')}
             </span>
           </>
         )}
@@ -105,7 +108,7 @@ export function OllamaSettingsSection({ onDetect }: OllamaSettingsSectionProps =
           className="gap-1.5 text-xs"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${status === 'checking' ? 'animate-spin' : ''}`} />
-          Check Ollama connection
+          {t('settings.ollama.check-cta')}
         </Button>
         {status === 'unavailable' && (
           <a
@@ -114,30 +117,32 @@ export function OllamaSettingsSection({ onDetect }: OllamaSettingsSectionProps =
             rel="noreferrer"
             className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
           >
-            Install Ollama <ExternalLink className="h-3 w-3" />
+            {t('settings.ollama.install-link')} <ExternalLink className="h-3 w-3" />
           </a>
         )}
       </div>
 
       {status === 'ready' && models.length === 0 && (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
-          Ollama is running but no models are installed. Pull one with
-          <code className="px-1 mx-1 rounded bg-muted font-mono text-[11px]">ollama pull llama3.2:3b</code>
-          and click Check again.
+          <Trans
+            i18nKey="settings.ollama.no-models-hint"
+            components={{ c: <code className="px-1 mx-1 rounded bg-muted font-mono text-[11px]" /> }}
+          />
         </div>
       )}
 
       <div className="rounded-md border border-border/60 p-3 text-xs leading-relaxed text-muted-foreground space-y-2">
-        <p className="font-medium text-foreground">Why Ollama?</p>
+        <p className="font-medium text-foreground">{t('settings.ollama.why.heading')}</p>
         <ul className="list-disc list-inside space-y-1">
-          <li>Zero cost. Inference runs on your GPU / CPU.</li>
-          <li>Zero network. Works on a plane, offline, in a tunnel.</li>
-          <li>Zero data sharing. Your prompts never leave the machine.</li>
+          <li>{t('settings.ollama.why.zero-cost')}</li>
+          <li>{t('settings.ollama.why.zero-network')}</li>
+          <li>{t('settings.ollama.why.zero-data')}</li>
         </ul>
         <p className="pt-1">
-          Recommended first model:
-          <code className="px-1 mx-1 rounded bg-muted font-mono text-[11px]">llama3.2:3b</code>
-          (about 2 GB, runs on almost any laptop).
+          <Trans
+            i18nKey="settings.ollama.recommended-model"
+            components={{ c: <code className="px-1 mx-1 rounded bg-muted font-mono text-[11px]" /> }}
+          />
         </p>
       </div>
     </div>
