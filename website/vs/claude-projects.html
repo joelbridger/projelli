@@ -106,12 +106,20 @@
         <tr><td>Pricing</td><td>$20/mo Claude.ai Pro subscription</td><td>$49 once + your Anthropic API costs (~$5-15/mo)</td></tr>
         <tr><td>Custom instructions per project</td><td><span class="pill yes">Yes</span></td><td><span class="pill yes">Yes (per workspace + per chat)</span></td></tr>
         <tr><td>Project knowledge (file uploads)</td><td><span class="pill yes">Yes</span></td><td><span class="pill yes">Yes (any folder, any size)</span></td></tr>
+        <tr><td>Image attachments in chat</td><td><span class="pill yes">Yes, native</span></td><td><span class="pill yes">Paste, drag, paperclip per provider</span></td></tr>
+        <tr><td>PDF chat with native vision</td><td><span class="pill yes">Yes</span></td><td><span class="pill yes">Drop in, Claude reads it natively</span></td></tr>
+        <tr><td>PDFs as searchable workspace context</td><td><span class="pill no">Per-project only</span></td><td><span class="pill yes">Toggle in Memory settings, indexed in LanceDB</span></td></tr>
+        <tr><td>Long-context [Compress] when you overflow</td><td><span class="pill no">Hard fail</span></td><td><span class="pill yes">Auto-trigger or manual button</span></td></tr>
+        <tr><td>Read aloud (TTS), local</td><td><span class="pill no">No</span></td><td>Local <a href="https://github.com/rhasspy/piper" target="_blank" rel="noopener">Piper</a> sidecar</td></tr>
+        <tr><td>Plugin / extension model</td><td><span class="pill no">No</span></td><td><a href="/docs/plugins/">Sandboxed Web Worker plugins</a></td></tr>
         <tr><td>Searchable across conversations</td><td><span class="pill maybe">Within a single project</span></td><td><span class="pill yes">Full-text across the entire workspace</span></td></tr>
         <tr><td>Wiki-links between conversations</td><td><span class="pill no">No</span></td><td><span class="pill yes">Yes ([[wiki-link]] syntax)</span></td></tr>
-        <tr><td>Workflow templates</td><td><span class="pill no">No</span></td><td><span class="pill yes">15 founder-specific templates</span></td></tr>
+        <tr><td>Workflow templates</td><td><span class="pill no">No</span></td><td>15 built in + <a href="https://github.com/projelli/community-templates" target="_blank" rel="noopener">community marketplace</a></td></tr>
+        <tr><td>UI languages</td><td>Many (web)</td><td>English, Espanol, Deutsch</td></tr>
+        <tr><td>Try before you install</td><td><span class="pill yes">claude.ai web</span></td><td><a href="https://projelli.com/try/" target="_blank" rel="noopener">Free web demo at projelli.com/try</a></td></tr>
         <tr><td>Offline editing</td><td><span class="pill no">No</span></td><td><span class="pill yes">Yes (AI calls need network)</span></td></tr>
-        <tr><td>Multi-device sync</td><td><span class="pill yes">Built-in</span></td><td><span class="pill maybe">BYO via Dropbox/iCloud</span></td></tr>
-        <tr><td>Mobile</td><td><span class="pill yes">Native apps</span></td><td><span class="pill no">Desktop only</span></td></tr>
+        <tr><td>Multi-device sync</td><td><span class="pill yes">Built-in</span></td><td><span class="pill maybe"><a href="/docs/mobile-access/">BYO via Dropbox / iCloud / Syncthing</a></span></td></tr>
+        <tr><td>Mobile</td><td><span class="pill yes">Native apps</span></td><td><span class="pill maybe">Read via cloud sync; native app post-v2.0</span></td></tr>
         <tr><td>Real-time multi-user</td><td><span class="pill no">No</span></td><td><span class="pill no">No</span></td></tr>
         <tr><td>Data export</td><td>JSON dump</td><td>Already in standard files</td></tr>
         <tr><td>Vendor lock-in</td><td>High</td><td>Low</td></tr>

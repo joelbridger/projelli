@@ -132,11 +132,17 @@
         <tr><td>Real-time collaboration</td><td><span class="pill no">No</span></td><td><span class="pill yes">Yes, strong</span></td></tr>
         <tr><td>Pricing (1 user, 1 year)</td><td>$49 one-time</td><td>$240 ($10 base + $10 AI)</td></tr>
         <tr><td>Pricing (3 years)</td><td>$49 (same)</td><td>$720</td></tr>
-        <tr><td>Founder workflow templates</td><td>15 built in</td><td>Free community templates</td></tr>
-        <tr><td>Semantic search across your docs</td><td>LanceDB, local</td><td>Notion AI Search, cloud</td></tr>
+        <tr><td>Founder workflow templates</td><td>15 built in + community marketplace</td><td>Free community templates</td></tr>
+        <tr><td>Semantic search across your docs</td><td>LanceDB, local. PDFs included.</td><td>Notion AI Search, cloud</td></tr>
+        <tr><td>Image attachments in AI chat</td><td><span class="pill yes">Paste, drag, or paperclip</span></td><td><span class="pill yes">Yes, in Notion AI</span></td></tr>
+        <tr><td>PDF chat with native vision</td><td><span class="pill yes">Drop a PDF, Claude reads it natively</span></td><td><span class="pill maybe">PDFs as block uploads only</span></td></tr>
+        <tr><td>Plugin / extension model</td><td><span class="pill yes"><a href="/docs/plugins/">Sandboxed Web Worker plugins</a></span></td><td><span class="pill no">No public plugin model</span></td></tr>
+        <tr><td>Read aloud (TTS)</td><td><span class="pill yes">Local <a href="https://github.com/rhasspy/piper" target="_blank" rel="noopener">Piper</a>, no cloud</span></td><td><span class="pill no">No</span></td></tr>
+        <tr><td>UI languages</td><td>English, Espanol, Deutsch</td><td>15+ languages</td></tr>
+        <tr><td>Try before you install</td><td><span class="pill yes"><a href="https://projelli.com/try/" target="_blank" rel="noopener">Free web demo</a></span></td><td><span class="pill yes">notion.so signup</span></td></tr>
         <tr><td>Databases with views</td><td><span class="pill no">No</span></td><td><span class="pill yes">Yes, flagship feature</span></td></tr>
         <tr><td>Export your data cleanly</td><td>Already in plain Markdown</td><td>Export to Markdown / CSV, lossy</td></tr>
-        <tr><td>Works on mobile</td><td><span class="pill no">Desktop only</span></td><td><span class="pill yes">iOS + Android</span></td></tr>
+        <tr><td>Works on mobile</td><td><span class="pill maybe"><a href="/docs/mobile-access/">Read via iCloud / Dropbox / Syncthing</a></span></td><td><span class="pill yes">iOS + Android</span></td></tr>
       </tbody>
     </table>
 
@@ -147,6 +153,8 @@
     <p>Projelli's bet is the inverse. Your business plan, financial model, customer interview notes, and pitch deck iterations are uniquely high-value and uniquely irreplaceable. You did that thinking once, and you shouldn't have to redo it because a cloud vendor changed their pricing, got breached, or pivoted away from your use case. Projelli keeps all of that on your hard drive in plain Markdown. If Projelli shuts down tomorrow, you open your workspace folder in Obsidian, or VS Code, or TextEdit, and everything is still there. If Notion shuts down tomorrow, you have 30 days to export before your data is gone.</p>
 
     <p>The second distinction is AI. Notion AI is a $10/month add-on to a $10/month base plan, meaning a single user pays $240/year just for the AI. The AI uses Notion's own providers and you cannot bring your own API key. Projelli ships with Claude, OpenAI, Gemini, and <a href="https://ollama.com/" target="_blank" rel="noopener">Ollama</a> (local models) built in, and you pay your AI provider directly. The Projelli binary never sees your AI requests. For a founder running multiple projects, pay-your-provider-directly is typically 60 to 80 percent cheaper than Notion AI plus Notion base.</p>
+
+    <p>The v2.0 release closed most of the AI-feature gap that used to favor Notion. You can paste or drop images into the chat, drop in a PDF and have <a href="https://www.anthropic.com/news/claude-3-5-sonnet" target="_blank" rel="noopener">Claude</a> read it natively, run a [Compress] pass when a chat gets too long for the context window, and have any answer read aloud through a local <a href="https://github.com/rhasspy/piper" target="_blank" rel="noopener">Piper</a> sidecar. Notion AI has its own image features and good search; the part Notion doesn't have at all is a real plugin model. Projelli plugins are sandboxed Web Workers with a permission-consent dialog before install, and the four day-one plugins (word counter, translator, pomodoro, mermaid preview) are all open-source MIT in <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener">a public repo</a>.</p>
 
     <p>The third distinction is the shape of what you produce. Notion wants you to model your work as databases: a "Projects" database with a Status property, a "Customer Interviews" database with a Person relation, and so on. That's powerful for ongoing operations. It's the wrong shape for the one-time documents that define a business, the pitch deck, the pricing strategy, the go-to-market plan. Those are long-form Markdown files, not database rows. Projelli ships <a href="/templates/">15 founder templates</a> that produce exactly that kind of long-form document.</p>
 
@@ -167,7 +175,7 @@
       <li>You already have a Notion workspace with databases, views, and automations you rely on.</li>
       <li>You want cross-device sync out of the box without thinking about it.</li>
       <li>You need a rich database / structured-view surface, not just documents.</li>
-      <li>You want the mobile experience as a first-class citizen.</li>
+      <li>You want the mobile experience as a first-class citizen. Projelli ships <a href="/docs/mobile-access/">a mobile read workflow over iCloud / Dropbox / Syncthing</a>, but a dedicated reader app is post-v2.0.</li>
     </ul>
 
     <h2>The honest caveat</h2>

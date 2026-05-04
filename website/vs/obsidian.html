@@ -118,7 +118,7 @@
     <h1>Projelli vs Obsidian</h1>
 
     <div class="verdict">
-      <strong>One-line verdict.</strong> <a href="https://obsidian.md" target="_blank" rel="noopener">Obsidian</a> is the canonical local-first Markdown editor, and if you've built a working AI stack out of <a href="https://github.com/brianpetro/obsidian-smart-connections" target="_blank" rel="noopener">Smart Connections</a> and <a href="https://www.obsidiancopilot.com/en" target="_blank" rel="noopener">Copilot for Obsidian</a>, stay put. Projelli is for indie founders who want that same local-first, file-based experience without spending a weekend assembling it, with three AI providers built in and 15 templates that produce the actual documents a founder writes.
+      <strong>One-line verdict.</strong> <a href="https://obsidian.md" target="_blank" rel="noopener">Obsidian</a> is the canonical local-first Markdown editor, and if you've built a working AI stack out of <a href="https://github.com/brianpetro/obsidian-smart-connections" target="_blank" rel="noopener">Smart Connections</a> and <a href="https://www.obsidiancopilot.com/en" target="_blank" rel="noopener">Copilot for Obsidian</a>, honestly, stay put. Projelli is for indie founders who want that same local-first, file-based experience without spending a weekend assembling it, with four AI providers built in, image and PDF chat, a sandboxed <a href="/docs/plugins/">plugin marketplace</a> (still small but real), local <a href="https://github.com/rhasspy/piper" target="_blank" rel="noopener">Piper</a> read-aloud, and 15 templates that produce the actual documents a founder writes.
     </div>
 
     <h2>Side-by-side</h2>
@@ -178,9 +178,39 @@
           <td><span class="pill maybe">Community plugin</span></td>
         </tr>
         <tr>
+          <td>Read aloud (TTS), local</td>
+          <td><a href="https://github.com/rhasspy/piper" target="_blank" rel="noopener">Piper</a> sidecar bundled</td>
+          <td><span class="pill maybe">Community plugin</span></td>
+        </tr>
+        <tr>
+          <td>Image attachments in AI chat</td>
+          <td>Paste, drag, paperclip, vision-aware per provider</td>
+          <td><span class="pill maybe">Depends on plugin</span></td>
+        </tr>
+        <tr>
+          <td>PDF chat with native vision</td>
+          <td>Drop a PDF, Claude reads it natively. Others get text-extract via PDF.js.</td>
+          <td><span class="pill maybe">Depends on plugin</span></td>
+        </tr>
+        <tr>
+          <td>PDFs in workspace search</td>
+          <td>Toggle in Settings, indexed via LanceDB</td>
+          <td><span class="pill maybe">Depends on plugin</span></td>
+        </tr>
+        <tr>
           <td>MCP server exposing your workspace</td>
           <td><span class="pill yes">Yes</span></td>
           <td><span class="pill no">No first-party, community-only</span></td>
+        </tr>
+        <tr>
+          <td>UI languages</td>
+          <td>English, Espanol, Deutsch (auto-detected from OS locale)</td>
+          <td>English + community translations</td>
+        </tr>
+        <tr>
+          <td>Try before you install</td>
+          <td><a href="https://projelli.com/try/" target="_blank" rel="noopener">Free web demo at projelli.com/try</a></td>
+          <td><span class="pill no">Desktop install only</span></td>
         </tr>
         <tr>
           <td>Pricing</td>
@@ -194,8 +224,8 @@
         </tr>
         <tr>
           <td>Plugin ecosystem</td>
-          <td><span class="pill no">No</span></td>
-          <td>1,500+ community plugins</td>
+          <td>v2.0: <a href="/docs/plugins/">sandboxed plugin runtime</a> + <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener">marketplace</a> (4 day-one plugins)</td>
+          <td>1,500+ community plugins (much larger)</td>
         </tr>
       </tbody>
     </table>
@@ -204,7 +234,7 @@
 
     <p>Obsidian's core promise is that it ships an editor, and the community ships everything else. That's a genuinely good architecture for a personal knowledge base, and it's why Obsidian has grown for years without a single feature that the community couldn't build. But the cost of that architecture is consistency. <a href="https://github.com/brianpetro/obsidian-smart-connections" target="_blank" rel="noopener">Smart Connections</a> passed 786,000 community downloads by January 2026 and its stats are on <a href="https://www.moritzjung.dev/obsidian-stats/plugins/smart-connections/" target="_blank" rel="noopener">obsidian-stats</a>, which is impressive, but it's still a plugin maintained by one developer that can break with any Obsidian core update. The <a href="https://www.obsidiancopilot.com/en" target="_blank" rel="noopener">Copilot for Obsidian</a> plugin reaches 100,000+ users and ships weekly, which is also impressive, but it's a separate codebase with a separate release cycle.</p>
 
-    <p>Projelli takes the opposite bet. One polished app, three providers built in, the AI is the primary input method, and every chat conversation produces a real Markdown file in your folder. Where Obsidian's AI plugins treat AI as an enhancement to writing, Projelli treats the conversation as the first draft. You can still edit the file by hand afterward, the same way you would in Obsidian. The difference is in what starts the document.</p>
+    <p>Projelli takes the opposite bet. One polished app, four providers built in, the AI is the primary input method, and every chat conversation produces a real Markdown file in your folder. Where Obsidian's AI plugins treat AI as an enhancement to writing, Projelli treats the conversation as the first draft. You can still edit the file by hand afterward, the same way you would in Obsidian. The difference is in what starts the document. As of v2.0 you can also paste an image into the chat, drop in a PDF for Claude to read natively, hit [Compress] when a long chat overflows the context window, and click "Read aloud" to hear an answer through a local <a href="https://github.com/rhasspy/piper" target="_blank" rel="noopener">Piper</a> sidecar. Each of those is a separate Obsidian plugin if you want them.</p>
 
     <p>The second distinction is founder templates. Obsidian has a thriving community templates ecosystem, but the good ones (Linking Your Thinking, PARA, various zettelkasten kits) are for personal knowledge work. There is no "run an interview, produce a Pitch Deck outline, save it as PITCH_DECK.md" flow anywhere in the Obsidian ecosystem. Projelli ships 15 of those, one per specific founder document type. <a href="/templates/">See the gallery</a> for what each one actually produces.</p>
 
@@ -232,7 +262,7 @@
 
     <h2>The honest caveat</h2>
 
-    <p>Obsidian's community could ship a "Founder Workflows" plugin this weekend that closes most of the gap between them and Projelli. That's the nature of its architecture. Projelli's bet is that a polished, single-developer product with AI as the primary input beats an assemble-it-yourself plugin stack for the specific audience of indie founders trying to ship a business on weekends, even if a community plugin eventually approximates the feature set. If you're a power user who enjoys assembling your own stack, Obsidian remains the right call.</p>
+    <p>Obsidian's community could ship a "Founder Workflows" plugin this weekend that closes most of the gap between them and Projelli. That's the nature of its architecture. Obsidian's plugin ecosystem also dwarfs Projelli's. There are 1,500+ Obsidian community plugins and four Projelli ones (word counter, translator, pomodoro, mermaid preview), with the runtime barely a release old. Projelli's bet is that a polished, single-developer product with AI as the primary input beats an assemble-it-yourself plugin stack for the specific audience of indie founders trying to ship a business on weekends, even if a community plugin eventually approximates the feature set. If you're a power user who enjoys assembling your own stack, Obsidian remains the right call.</p>
 
     <div class="cta-row">
       <p><strong>Ready to try the assembled version?</strong></p>
