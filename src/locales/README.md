@@ -111,18 +111,26 @@ Example:
 ## Lock mechanism (Group V)
 
 Human reviewers can mark a translation as locked so the LLM script will not
-overwrite it on the next run. Two sibling keys per locked entry:
+overwrite it on the next run. Metadata is stored at the same nesting level
+as the translation, with double-underscore-prefixed sibling keys
+(`__sourceHash`, `__locked`). The double-underscore prefix is deliberate:
+kebab-case forbids underscores in real translation keys, so these markers
+can never collide with real content.
 
 ```json
 {
-  "settings.api-keys.title": "Llaves API",
-  "settings.api-keys.title._sourceHash": "9e1f...",
-  "settings.api-keys.title._locked": true
+  "settings": {
+    "api-keys": {
+      "title": "Llaves API",
+      "title__sourceHash": "9e1f...",
+      "title__locked": true
+    }
+  }
 }
 ```
 
-`scripts/translate-i18n.mjs` skips any key with `_locked: true`. It also
-skips keys whose `_sourceHash` matches the SHA-256 of the current English
+`scripts/translate-i18n.mjs` skips any key with `__locked: true`. It also
+skips keys whose `__sourceHash` matches the SHA-256 of the current English
 string (no source change, no re-translation).
 
 ## Regenerating translations
