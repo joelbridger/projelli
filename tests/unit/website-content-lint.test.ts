@@ -47,6 +47,8 @@ const TARGETS = [
   'docs/plugins/api-reference.html',
   'docs/plugins/publishing.html',
   'docs/plugins/examples.html',
+  // Stream C6 (v2.0) — marketplace submission docs.
+  'docs/marketplace-submissions.html',
 ];
 
 const BANNED_WORDS = [

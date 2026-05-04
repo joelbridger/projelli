@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marketplace Submissions, Projelli</title>
+  <meta name="description" content="How to submit a template or plugin to the Projelli in-app marketplace via pull request.">
+  <link rel="canonical" href="https://projelli.com/docs/marketplace-submissions">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 2.25rem; color: #111F35; margin-bottom: 8px; font-weight: 800; }
+    h2 { font-size: 1.5rem; color: #111F35; margin-top: 48px; margin-bottom: 16px; font-weight: 700; }
+    h3 { font-size: 1.125rem; color: #111F35; margin-top: 24px; margin-bottom: 8px; font-weight: 600; }
+    p, ul, ol { margin-bottom: 16px; font-size: 1rem; }
+    ul, ol { padding-left: 24px; }
+    li { margin-bottom: 8px; }
+    strong { color: #111F35; font-weight: 600; }
+    a { color: #3B82F6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta { color: #94A3B8; font-size: 0.875rem; margin-bottom: 32px; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; }
+    .step { background: #F8FAFC; border-left: 3px solid #3B82F6; padding: 20px 24px; margin: 24px 0; border-radius: 4px; }
+    .step h3 { margin-top: 0; color: #3B82F6; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    pre { background: #0F172A; color: #E2E8F0; padding: 16px 20px; border-radius: 8px; overflow-x: auto; margin: 16px 0; font-size: 0.875rem; line-height: 1.5; }
+    pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+    .callout { background: #FEF3C7; border-left: 3px solid #F59E0B; padding: 16px 20px; margin: 24px 0; border-radius: 4px; font-size: 0.9375rem; }
+    .callout strong { color: #92400E; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.9375rem; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #E2E8F0; }
+    th { color: #111F35; font-weight: 600; background: #F8FAFC; }
+    .next-link { display: inline-block; margin-top: 24px; padding: 12px 24px; background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white !important; border-radius: 8px; font-weight: 600; }
+    .next-link:hover { text-decoration: none; opacity: 0.9; }
+    .repo-cta { display: flex; gap: 16px; flex-wrap: wrap; margin: 24px 0; }
+    .repo-cta a { display: inline-block; padding: 12px 20px; background: #111F35; color: #fff !important; border-radius: 8px; font-weight: 600; }
+    .repo-cta a:hover { text-decoration: none; opacity: 0.9; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.v2.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back">&larr; Back to Projelli</a>
+    <h1>Marketplace Submissions</h1>
+    <p class="meta">How to publish a template or plugin to the in-app marketplace.</p>
+
+    <p>The Projelli marketplace is two public GitHub repos. Templates live at <a href="https://github.com/projelli/community-templates" target="_blank" rel="noopener"><code>projelli/community-templates</code></a>, plugins at <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener"><code>projelli/community-plugins</code></a>. Each entry is one folder under <code>entries/</code> with a manifest, the entry's files, and screenshots. To publish, you fork the relevant repo, add your folder, and open a pull request.</p>
+
+    <div class="callout">
+      <strong>Why publish-via-PR?</strong> The repo is the source of truth. There's no signup, no API key, no separate dashboard. Every catalog entry has a public commit history and a maintainer who reviewed it. If you can write a manifest and open a PR, you can ship to the marketplace.
+    </div>
+
+    <div class="repo-cta">
+      <a href="https://github.com/projelli/community-templates" target="_blank" rel="noopener">community-templates repo</a>
+      <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener">community-plugins repo</a>
+    </div>
+
+    <h2>Prerequisites</h2>
+
+    <ul>
+      <li>A working template or plugin tested locally inside Projelli.</li>
+      <li>A unique <code>id</code> in your manifest that doesn't collide with any existing entry.</li>
+      <li>An open-source license (MIT, Apache-2.0, BSD-3-Clause, or similar). Closed-source entries aren't accepted.</li>
+      <li>At least one screenshot.</li>
+      <li>A GitHub account.</li>
+    </ul>
+
+    <h2>Step 1: Pick the right repo</h2>
+
+    <p>Templates and plugins live in different repos because they have different schemas and different review criteria.</p>
+
+    <ul>
+      <li><strong>Template:</strong> a workflow definition plus a markdown body that produces one or more files when run. No code. Use <a href="https://github.com/projelli/community-templates" target="_blank" rel="noopener">community-templates</a>.</li>
+      <li><strong>Plugin:</strong> a JavaScript bundle that runs inside Projelli's sandboxed worker and contributes commands, toolbar buttons, sidebar panels, or settings. Use <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener">community-plugins</a>.</li>
+    </ul>
+
+    <h2>Step 2: Fork the repo and add your entry</h2>
+
+    <pre><code>gh repo fork projelli/community-templates  # or community-plugins
+cd community-templates
+git checkout -b add-my-entry</code></pre>
+
+    <p>Create a folder under <code>entries/</code> matching your manifest's <code>id</code>:</p>
+
+    <div class="step">
+      <h3>Templates layout</h3>
+      <pre><code>entries/my-template/
+  manifest.json
+  template.md
+  workflow.json
+  questions.json
+  screenshots/
+    main.png</code></pre>
+    </div>
+
+    <div class="step">
+      <h3>Plugins layout</h3>
+      <pre><code>entries/my-plugin/
+  manifest.json
+  index.js          (your built bundle)
+  screenshots/
+    main.png</code></pre>
+    </div>
+
+    <p>The folder name must exactly match <code>manifest.id</code>. The build script enforces this.</p>
+
+    <h2>Step 3: Author the manifest</h2>
+
+    <p>Templates use the <a href="https://github.com/projelli/projelli/blob/master/src/types/templateManifest.ts" target="_blank" rel="noopener">TemplateManifest schema</a>; plugins use the <a href="https://github.com/projelli/projelli/blob/master/src/types/plugin.ts" target="_blank" rel="noopener">PluginManifest schema</a>. Both repos' READMEs show a complete example.</p>
+
+    <p>Fields you'll always need: <code>id</code>, <code>name</code>, <code>version</code> (semver), <code>apiVersion</code>, <code>author</code>, <code>description</code>, <code>category</code>, <code>tags</code>, and <code>minProjelliVersion</code>.</p>
+
+    <p>Plugins additionally declare <code>main</code> (the JS entry path) and <code>permissions</code> (what host capabilities the plugin needs). See the <a href="/docs/plugins/permissions">permissions reference</a> for details on which permissions are surfaced to the user at install time and how to keep that list short.</p>
+
+    <h2>Step 4: Validate locally</h2>
+
+    <p>Both repos ship the same <code>scripts/build-catalog.mjs</code>. Run it from the repo root:</p>
+
+    <pre><code>npm install --no-save zod@^4.3.6
+
+# templates repo
+PROJELLI_CATALOG_KIND=templates node scripts/build-catalog.mjs
+
+# plugins repo
+PROJELLI_CATALOG_KIND=plugins node scripts/build-catalog.mjs</code></pre>
+
+    <p>If your manifest validates, the script writes <code>catalog.json</code> plus a tarball and checksum inside your entry folder. If it fails, you'll see a list of validation errors with the field path and reason. Fix and re-run.</p>
+
+    <p>You can leave the generated tarball and checksum out of your PR; the GitHub Action regenerates them after merge so the catalog stays consistent.</p>
+
+    <h2>Step 5: Open a pull request</h2>
+
+    <pre><code>git add entries/my-entry/
+git commit -m "Add my-entry v1.0.0"
+git push origin add-my-entry
+gh pr create --base main</code></pre>
+
+    <p>Use this title format: <code>Add &lt;name&gt; v&lt;version&gt;</code>.</p>
+
+    <p>In the PR description, include:</p>
+
+    <ul>
+      <li>One paragraph on what the entry does and who it's for.</li>
+      <li>For plugins: the list of permissions you declared, with one sentence per permission explaining why you need it.</li>
+      <li>For plugins that declare <code>network</code>: which hosts the plugin contacts and what data is sent.</li>
+      <li>A link to your source repo if it's public.</li>
+    </ul>
+
+    <h2>Step 6: Review</h2>
+
+    <p>A maintainer reviews every submission. Reviews focus on:</p>
+
+    <ul>
+      <li><strong>Schema valid.</strong> The Action runs <code>build-catalog.mjs</code> on every PR. If it fails, the PR can't merge.</li>
+      <li><strong>Honest description.</strong> The pitch matches what the entry actually does.</li>
+      <li><strong>Reasonable scope.</strong> Entries that do one focused thing land faster than ones that try to do everything.</li>
+      <li><strong>Plugin code is readable.</strong> The bundle isn't obfuscated to hide behavior. Source maps or a linked source repo help.</li>
+      <li><strong>No secrets.</strong> No hardcoded API keys, tokens, or credentials in the bundle.</li>
+      <li><strong>Permissions match behavior.</strong> What a plugin declares matches what its bundle actually does.</li>
+      <li><strong>Original.</strong> We don't accept near-duplicates of existing entries unless the differentiator is obvious.</li>
+    </ul>
+
+    <p>Most reviews finish within a few days. If we ask for changes, push another commit to the same branch and the PR updates automatically. Once merged, the Action regenerates <code>catalog.json</code> and your entry appears in the in-app marketplace on the next refresh.</p>
+
+    <h2>Updating an existing entry</h2>
+
+    <p>Bump <code>version</code> in your manifest, update the files, and open a PR. Don't change the entry's <code>id</code> or rename the folder; that breaks installs for users on the old version.</p>
+
+    <h2>Removing an entry</h2>
+
+    <p>Open a PR that deletes the entry folder. Existing installs in user copies of Projelli keep working; the entry just disappears from the marketplace.</p>
+
+    <h2>Reporting a problem</h2>
+
+    <p>If you find an entry that's broken, misleading, or doing something it shouldn't be doing, open an issue on the relevant repo with the entry id and details. We take takedowns seriously when a plugin violates the trust model.</p>
+
+    <a href="/docs/plugins/publishing" class="next-link">Plugin-specific publishing guide &rarr;</a>
+  </div>
+</body>
+</html>
