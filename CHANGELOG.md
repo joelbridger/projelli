@@ -8,6 +8,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Stream C complete (v2.0): live community catalogs with day-one content.**
+  Two public GitHub repos are now online, seeded, and feeding the in-app
+  Marketplace UI through the install pipeline shipped in C1 + C4:
+  - `projelli/community-templates` (6 entries: beta-user-survey,
+    cold-email-sequence, customer-discovery-interview,
+    investor-update-email-community, launch-announcement-tweet-thread,
+    press-release).
+  - `projelli/community-plugins` (4 entries: mermaid-preview, pomodoro,
+    translator, word-counter, all built from the C5 example plugins).
+  - Catalogs are publicly fetchable at
+    `https://raw.githubusercontent.com/projelli/community-templates/main/catalog.json`
+    and `.../community-plugins/main/catalog.json`. Tarballs are reproducible,
+    SHA-256-pinned, and validated against the in-app Zod manifest schemas.
+  - On opening Settings -> Marketplace -> Templates or Plugins, users see
+    the seeded entries and can install + use them end-to-end (toolbar
+    buttons, sidebar panels, command-palette commands all wire through).
+  - Submission process documented in two places (the live repo READMEs +
+    `projelli.com/docs/marketplace-submissions`).
+  - Capstone PR for Stream C: templates marketplace (C1) + plugin runner
+    (C3) + plugin marketplace UI (C4) + plugin developer experience (C5)
+    + this seed catalog (C6) all working together with live content.
+- **Live-network marketplace integration test (Stream C6, v2.0, Group VI).**
+  New `tests/integration/marketplace-fetch-from-live-repos.test.ts` hits the
+  real `raw.githubusercontent.com` URLs, verifies both catalogs parse as
+  `CatalogEntry[]`, downloads one real tarball from each, confirms the
+  actual SHA-256 matches the catalog-declared checksum (catches bot drift
+  or a tampered repo), and validates a real `manifest.json` from each
+  repo against the in-app Zod schema. Gated behind `LIVE_NETWORK_OK=1` so
+  CI stays offline; Jameson runs it manually after seeding new entries.
 - **Seed catalog source-of-truth Action workflow + script (Stream C6, v2.0,
   Group I).** New `infra/community-repos/build-catalog.mjs` is a Node 22 ESM
   script that walks `entries/<id>/`, validates each `manifest.json` against
