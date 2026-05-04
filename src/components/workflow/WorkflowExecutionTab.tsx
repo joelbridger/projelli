@@ -4,6 +4,7 @@
 // output, and final export actions.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InterviewForm } from './InterviewForm';
@@ -130,6 +131,7 @@ export function WorkflowExecutionTab({
   onStartChainFromHere,
   className,
 }: WorkflowExecutionTabProps) {
+  const { t } = useTranslation();
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   // Completed step answers for display
@@ -352,7 +354,7 @@ export function WorkflowExecutionTab({
               <p className="text-sm font-medium">
                 Generating{template.steps[currentStep]?.name ? `: ${template.steps[currentStep]!.name}` : '...'}
               </p>
-              <p className="text-xs">This may take a moment depending on the AI provider.</p>
+              <p className="text-xs">{t('workflow.execution.may-take-moment')}</p>
             </CardContent>
           </Card>
         )}
@@ -395,7 +397,7 @@ export function WorkflowExecutionTab({
                     }
                   >
                     <Download className="h-3.5 w-3.5 mr-1.5" />
-                    Save as file
+                    {t('workflow.execution.save-as-file')}
                   </Button>
                 )}
                 {onExportDocx && (
@@ -477,6 +479,7 @@ interface ChainSuggestionsProps {
 }
 
 function ChainSuggestions({ sourceTemplate, onPick }: ChainSuggestionsProps) {
+  const { t } = useTranslation();
   const allTemplates = useMemo(() => loadAllTemplates(), []);
   const sourceOutputIds = useMemo(
     () => (sourceTemplate.namedOutputs ?? []).map((o) => o.id),
@@ -503,13 +506,13 @@ function ChainSuggestions({ sourceTemplate, onPick }: ChainSuggestionsProps) {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <LinkIcon className="h-4 w-4 text-amber-500" />
-          Use this as input for another template
+          {t('workflow.execution.use-as-input')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
         {recommended.length > 0 && (
           <div>
-            <p className="text-xs text-muted-foreground mb-1.5">Recommended next steps</p>
+            <p className="text-xs text-muted-foreground mb-1.5">{t('workflow.execution.recommended-next')}</p>
             <div className="flex flex-wrap gap-1.5">
               {recommended.map((t) => (
                 <Button
@@ -530,7 +533,7 @@ function ChainSuggestions({ sourceTemplate, onPick }: ChainSuggestionsProps) {
         {others.length > 0 && (
           <details className="text-xs">
             <summary className="cursor-pointer text-muted-foreground">
-              Other templates (manual mapping required)
+              {t('workflow.execution.other-templates')}
             </summary>
             <div className="flex flex-wrap gap-1.5 mt-1.5 opacity-60">
               {others.slice(0, 12).map((t) => (

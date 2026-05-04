@@ -20,6 +20,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -42,6 +43,7 @@ const ALL_CATEGORIES = '__all__';
 type TemplatesSubview = 'browse' | 'installed';
 
 export function TemplatesTab() {
+  const { t } = useTranslation();
   const { service, cacheStatus, setCacheStatus, setUpdateCount } = useTemplatesMarketplace();
   void cacheStatus;
 
@@ -184,7 +186,7 @@ export function TemplatesTab() {
         data-testid="templates-tab-empty"
         className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
       >
-        Open a workspace to browse community templates.
+        {t('marketplace.templates-tab.open-workspace')}
       </div>
     );
   }

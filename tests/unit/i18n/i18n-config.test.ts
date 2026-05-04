@@ -1,8 +1,12 @@
+// Smoke test for the i18n bootstrap. Per Stream E plan task 1.10: confirms
+// init runs without crashing and that an unknown key falls through to the
+// key string itself (i18next default behavior). Locale files are intentionally
+// empty at this point in Stream E; group II populates en.json.
 import { describe, it, expect } from 'vitest';
 import i18n from '@/i18n';
 
 describe('i18n config', () => {
-  it('exposes initialized i18n instance with en/es/de resources', async () => {
+  it('exposes initialized i18n instance with en/es/de resources', () => {
     expect(i18n.languages).toBeDefined();
     expect(i18n.options.fallbackLng).toEqual(['en']);
     expect(i18n.hasResourceBundle('en', 'translation')).toBe(true);
@@ -10,13 +14,13 @@ describe('i18n config', () => {
     expect(i18n.hasResourceBundle('de', 'translation')).toBe(true);
   });
 
-  it('translates the seed key per locale', async () => {
-    expect(i18n.t('_meta.test', { lng: 'en' })).toBe('i18n is working');
-    expect(i18n.t('_meta.test', { lng: 'es' })).toBe('i18n está funcionando');
-    expect(i18n.t('_meta.test', { lng: 'de' })).toBe('i18n funktioniert');
+  it('returns the key when no translation is registered (key fallthrough)', () => {
+    expect(i18n.t('hello.world')).toBe('hello.world');
   });
 
-  it('falls back to English on unknown locale', () => {
-    expect(i18n.t('_meta.test', { lng: 'fr' })).toBe('i18n is working');
+  it('returns the key for any locale when no translation is registered', () => {
+    expect(i18n.t('hello.world', { lng: 'es' })).toBe('hello.world');
+    expect(i18n.t('hello.world', { lng: 'de' })).toBe('hello.world');
+    expect(i18n.t('hello.world', { lng: 'fr' })).toBe('hello.world');
   });
 });

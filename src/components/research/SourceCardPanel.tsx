@@ -2,6 +2,7 @@
 // Displays and manages sources for research
 
 import { useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +55,7 @@ export function SourceCardPanel({
   onOpenFile,
   className,
 }: SourceCardPanelProps) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
@@ -222,7 +224,7 @@ export function SourceCardPanel({
               className="mt-2"
               onClick={() => setShowForm(true)}
             >
-              Add your first source
+              {t('research.source-panel.add-first-source')}
             </Button>
           </div>
         ) : (

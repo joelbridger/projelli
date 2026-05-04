@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -114,6 +115,7 @@ export interface WhatsNewToastProps {
 }
 
 export function WhatsNewToast({ open, version, onOpenModal, onDismiss }: WhatsNewToastProps) {
+  const { t } = useTranslation();
   if (!open) return null;
   return (
     <div
@@ -123,14 +125,14 @@ export function WhatsNewToast({ open, version, onOpenModal, onDismiss }: WhatsNe
     >
       <Sparkles className="h-4 w-4 text-primary flex-shrink-0" aria-hidden="true" />
       <div className="flex-1 min-w-0">
-        <p className="font-medium truncate">Updated to v{version}</p>
+        <p className="font-medium truncate">{t('whats-new.toast.updated-to', { version })}</p>
         <button
           type="button"
           data-testid="whats-new-toast-link"
           className="text-xs text-primary hover:underline"
           onClick={onOpenModal}
         >
-          See what's new
+          {t('whats-new.toast.see-whats-new')}
         </button>
       </div>
       <Button
@@ -153,6 +155,7 @@ export interface WhatsNewModalProps {
 }
 
 export function WhatsNewModal({ open, onOpenChange }: WhatsNewModalProps) {
+  const { t } = useTranslation();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -160,9 +163,9 @@ export function WhatsNewModal({ open, onOpenChange }: WhatsNewModalProps) {
         className="sm:max-w-[560px] max-h-[80vh] overflow-y-auto"
       >
         <DialogHeader>
-          <DialogTitle>What's new in Projelli</DialogTitle>
+          <DialogTitle>{t('whats-new.modal.title')}</DialogTitle>
           <DialogDescription>
-            Highlights from the most recent releases.
+            {t('whats-new.modal.description')}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6 mt-2">

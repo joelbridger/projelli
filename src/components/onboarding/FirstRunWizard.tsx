@@ -20,6 +20,7 @@
  */
 
 import { useState, type ReactNode } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { writeSampleFiles, SAMPLE_FILES } from '@/onboarding/samples';
@@ -53,6 +54,7 @@ export interface FirstRunWizardProps {
 type Step = 'welcome' | 'workspace' | 'apikey' | 'demo' | 'done';
 
 export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizardProps) {
+  const { t } = useTranslation();
   const [step, setStep] = useState<Step>('welcome');
   const [apiKey, setApiKey] = useState('');
   // Q11 (Wave 1.5): default ON — new users benefit from seeing realistic
@@ -105,35 +107,33 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
             onClick={onSkip}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
-            Skip for now
+            {t('onboarding.first-run.skip-for-now')}
           </button>
         </div>
 
         <div className="px-8 py-8">
           {step === 'welcome' && (
             <Pane
-              title="Welcome to Projelli"
-              subtitle="The AI workspace where every chat becomes a real file."
+              title={t('onboarding.first-run.welcome.title')}
+              subtitle={t('onboarding.first-run.welcome.subtitle')}
               body={
                 <div className="space-y-4 text-sm text-muted-foreground">
                   <p>
-                    Projelli is a desktop app that combines a Markdown editor with an AI chat interface. Every conversation produces real,
-                    persistent files in a folder on your computer — not throwaway chat bubbles.
+                    {t('onboarding.first-run.welcome.body-1')}
                   </p>
                   <p>
-                    This setup takes about 2 minutes. We'll help you pick a workspace folder, set up an AI provider (optional), and run your
-                    first workflow.
+                    {t('onboarding.first-run.welcome.body-2')}
                   </p>
                   <ul className="space-y-2 mt-4 text-xs">
-                    <li>📁 Step 1 — Pick a workspace folder</li>
-                    <li>🔑 Step 2 — Add an AI provider key (optional)</li>
-                    <li>✨ Step 3 — Run your first workflow</li>
+                    <li>{t('onboarding.first-run.welcome.step-1')}</li>
+                    <li>{t('onboarding.first-run.welcome.step-2')}</li>
+                    <li>{t('onboarding.first-run.welcome.step-3')}</li>
                   </ul>
                 </div>
               }
               actions={
                 <Button onClick={() => setStep('workspace')} size="lg">
-                  Let's go →
+                  {t('onboarding.first-run.welcome.cta')}
                 </Button>
               }
             />
@@ -141,38 +141,39 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
 
           {step === 'workspace' && (
             <Pane
-              title="Pick a workspace folder"
-              subtitle="This is where all your work will live."
+              title={t('onboarding.first-run.workspace.title')}
+              subtitle={t('onboarding.first-run.workspace.subtitle')}
               body={
                 <div className="space-y-4 text-sm text-muted-foreground">
                   <p>
-                    Projelli stores everything as plain Markdown files in a folder on your hard drive. Pick a location that's easy to find
-                    and easy to back up.
+                    {t('onboarding.first-run.workspace.body-1')}
                   </p>
                   <p>
-                    <strong className="text-foreground">Pro tip:</strong> If you put this folder inside Dropbox, iCloud, or OneDrive, you'll
-                    get automatic sync across all your devices for free.
+                    <Trans
+                      i18nKey="onboarding.first-run.workspace.body-2"
+                      components={{ s: <strong className="text-foreground" /> }}
+                    />
                   </p>
                   <div className="rounded-lg border border-border bg-muted/30 p-4">
-                    <p className="text-xs font-medium text-foreground mb-2">Common choices:</p>
+                    <p className="text-xs font-medium text-foreground mb-2">{t('onboarding.first-run.workspace.common-choices')}</p>
                     <ul className="text-xs space-y-1 font-mono">
                       <li>~/Documents/Projelli</li>
                       <li>~/Dropbox/Projelli</li>
-                      <li>~/iCloud Drive/Projelli</li>
+                      <li>{t('onboarding.first-run.workspace.icloud-path')}</li>
                     </ul>
                   </div>
                   <p className="text-xs">
-                    The next screen will let you actually pick the folder. For now, just confirm you understand what we're about to ask.
+                    {t('onboarding.first-run.workspace.body-3')}
                   </p>
                 </div>
               }
               actions={
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setStep('welcome')}>
-                    ← Back
+                    {t('onboarding.first-run.back')}
                   </Button>
                   <Button onClick={() => setStep('apikey')} size="lg">
-                    Got it →
+                    {t('onboarding.first-run.workspace.cta')}
                   </Button>
                 </div>
               }
@@ -181,32 +182,43 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
 
           {step === 'apikey' && (
             <Pane
-              title="Add an AI provider key"
-              subtitle="Optional, but you'll need one to use the AI features."
+              title={t('onboarding.first-run.apikey.title')}
+              subtitle={t('onboarding.first-run.apikey.subtitle')}
               body={
                 <div className="space-y-4 text-sm text-muted-foreground">
                   <p>
-                    Projelli is a "bring your own key" tool — you sign up with an AI provider directly and paste their API key here. Your
-                    keys are stored in your operating system's secure keychain and never leave your computer.
+                    {t('onboarding.first-run.apikey.body-1')}
                   </p>
                   <p>
-                    The fastest way to get started is with <strong className="text-foreground">Anthropic Claude</strong>:
+                    <Trans
+                      i18nKey="onboarding.first-run.apikey.body-2"
+                      components={{ s: <strong className="text-foreground" /> }}
+                    />
                   </p>
                   <ol className="space-y-1 text-xs ml-4 list-decimal">
                     <li>
-                      Go to{' '}
-                      <a
-                        href="https://console.anthropic.com/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary underline"
-                      >
-                        console.anthropic.com
-                      </a>
+                      <Trans
+                        i18nKey="onboarding.first-run.apikey.step-go-to"
+                        components={{
+                          a: (
+                            <a
+                              href="https://console.anthropic.com/"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary underline"
+                            />
+                          ),
+                        }}
+                      />
                     </li>
-                    <li>Sign up (free, $5 in credits to start)</li>
-                    <li>Click API Keys → Create Key</li>
-                    <li>Copy the key (starts with <code className="text-foreground">sk-ant-</code>) and paste it below</li>
+                    <li>{t('onboarding.first-run.apikey.step-signup')}</li>
+                    <li>{t('onboarding.first-run.apikey.step-create-key')}</li>
+                    <li>
+                      <Trans
+                        i18nKey="onboarding.first-run.apikey.step-copy-key"
+                        components={{ c: <code className="text-foreground" /> }}
+                      />
+                    </li>
                   </ol>
                   <div className="pt-2">
                     <Input
@@ -217,7 +229,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
                       className="font-mono"
                     />
                     <p className="text-xs text-muted-foreground mt-2">
-                      You can skip this and add a key later in Settings → API Keys.
+                      {t('onboarding.first-run.apikey.skip-hint')}
                     </p>
                   </div>
                 </div>
@@ -225,13 +237,13 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
               actions={
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setStep('workspace')}>
-                    ← Back
+                    {t('onboarding.first-run.back')}
                   </Button>
                   <Button variant="outline" onClick={() => setStep('demo')}>
-                    Skip for now
+                    {t('onboarding.first-run.skip-for-now')}
                   </Button>
                   <Button onClick={() => setStep('demo')} size="lg" disabled={!apiKey.trim()}>
-                    Save key →
+                    {t('onboarding.first-run.apikey.save-cta')}
                   </Button>
                 </div>
               }
@@ -240,38 +252,47 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
 
           {step === 'demo' && (
             <Pane
-              title="Run your first workflow"
-              subtitle="See the magic moment in action."
+              title={t('onboarding.first-run.demo.title')}
+              subtitle={t('onboarding.first-run.demo.subtitle')}
               body={
                 <div className="space-y-4 text-sm text-muted-foreground">
                   <p>
-                    The fastest way to understand what Projelli does is to run a workflow. We recommend starting with{' '}
-                    <strong className="text-foreground">New Business Kickoff</strong> — it asks you a series of questions about a business
-                    idea (rough is fine!) and produces real, editable Markdown files in your workspace.
+                    <Trans
+                      i18nKey="onboarding.first-run.demo.body-1"
+                      components={{ s: <strong className="text-foreground" /> }}
+                    />
                   </p>
                   <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2 text-xs">
                     <div className="flex items-center gap-2">
                       <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold">
                         1
                       </span>
-                      Click <strong className="text-foreground">Workflows</strong> in the sidebar
+                      <Trans
+                        i18nKey="onboarding.first-run.demo.step-1"
+                        components={{ s: <strong className="text-foreground" /> }}
+                      />
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold">
                         2
                       </span>
-                      Pick <strong className="text-foreground">New Business Kickoff</strong>
+                      <Trans
+                        i18nKey="onboarding.first-run.demo.step-2"
+                        components={{ s: <strong className="text-foreground" /> }}
+                      />
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold">
                         3
                       </span>
-                      Answer the questions and click <strong className="text-foreground">Generate</strong>
+                      <Trans
+                        i18nKey="onboarding.first-run.demo.step-3"
+                        components={{ s: <strong className="text-foreground" /> }}
+                      />
                     </div>
                   </div>
                   <p className="text-xs">
-                    You'll get back a Vision document, a PRD, and a Lean Canvas — all as real Markdown files you can edit, link together,
-                    and back up however you want.
+                    {t('onboarding.first-run.demo.outcome')}
                   </p>
 
                   {/* Q11 (Wave 1.5): sample-files toggle. */}
@@ -285,18 +306,17 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
                     />
                     <div className="flex-1 text-xs">
                       <div className="font-medium text-foreground">
-                        Populate workspace with {SAMPLE_FILES.length} sample files
+                        {t('onboarding.first-run.demo.populate-toggle', { count: SAMPLE_FILES.length })}
                       </div>
                       <p className="mt-1 text-muted-foreground">
-                        Adds finished examples of a pricing strategy, pitch deck, and weekly review so you can see what
-                        a completed workflow looks like. You can delete them later.
+                        {t('onboarding.first-run.demo.populate-help')}
                       </p>
                     </div>
                   </label>
 
                   {finishError && (
                     <p className="text-xs text-destructive">
-                      Could not copy samples: {finishError}. Don't worry, you're still in.
+                      {t('onboarding.first-run.demo.copy-error', { error: finishError })}
                     </p>
                   )}
                 </div>
@@ -304,10 +324,10 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
               actions={
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setStep('apikey')} disabled={isFinishing}>
-                    ← Back
+                    {t('onboarding.first-run.back')}
                   </Button>
                   <Button onClick={markComplete} size="lg" disabled={isFinishing}>
-                    {isFinishing ? 'Setting up...' : 'Open my workspace →'}
+                    {isFinishing ? t('onboarding.first-run.demo.setting-up') : t('onboarding.first-run.demo.open-cta')}
                   </Button>
                 </div>
               }

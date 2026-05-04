@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, Loader2, Pause, RotateCcw } from 'lucide-react';
 import { AuditService } from '@/modules/audit/AuditService';
@@ -43,6 +44,7 @@ export function PluginErrorPanel({
   pluginId,
   auditService,
 }: PluginErrorPanelProps) {
+  const { t } = useTranslation();
   const error = usePluginManagerStore(selectError(pluginId));
   const [busy, setBusy] = useState<ActionKind>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -134,7 +136,7 @@ export function PluginErrorPanel({
           className="text-xs"
         >
           <summary className="cursor-pointer text-muted-foreground hover:text-foreground select-none">
-            Show recent log ({logEntries.length.toString()} {logEntries.length === 1 ? 'entry' : 'entries'})
+            {t('marketplace.plugin-error.show-recent-log', { count: logEntries.length })}
           </summary>
           <ul
             data-testid={`plugin-error-log-list-${pluginId}`}

@@ -1,5 +1,12 @@
 import '@testing-library/jest-dom/vitest';
 
+// Initialize i18next so components calling useTranslation() render real
+// English strings under test instead of returning the raw key. Tests assert
+// against visible copy ("Mobile", "Plugins", etc.) so this has to run before
+// any component is rendered. Stream E (i18n) added this — keeps the existing
+// test corpus working without modification.
+import '../src/i18n';
+
 // pdfjs-dist 5.x uses Promise.withResolvers() which was added in Node 22.
 // Node 20 (used in CI and dev) doesn't have it. Polyfill it here.
 if (typeof Promise.withResolvers === 'undefined') {

@@ -2,6 +2,7 @@
 // Shows documents that link to the current document
 
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { FileText, Link, ExternalLink } from 'lucide-react';
 import type { BacklinkEntry } from '@/modules/editor/BacklinkIndex';
@@ -17,6 +18,7 @@ export function BacklinksPanel({
   onNavigate,
   className,
 }: BacklinksPanelProps) {
+  const { t } = useTranslation();
   // Group backlinks by source document
   const groupedBacklinks = useMemo(() => {
     const grouped = new Map<string, BacklinkEntry[]>();
@@ -37,7 +39,7 @@ export function BacklinksPanel({
           <Link className="h-4 w-4" />
           <span className="font-medium">Backlinks</span>
         </div>
-        <p className="text-xs">No other documents link to this file.</p>
+        <p className="text-xs">{t('editor.backlinks.empty')}</p>
       </div>
     );
   }

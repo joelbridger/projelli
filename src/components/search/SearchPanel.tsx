@@ -2,6 +2,7 @@
 // Provides intelligent, deep search across all workspace content
 
 import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Search, FileText, FolderOpen, MessageSquare, PenTool, X, FolderTree, Filter } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -143,6 +144,7 @@ const FILE_TYPE_FILTERS: { value: FileTypeFilter; label: string; extensions: str
 ];
 
 export function SearchPanel({ onFileSelect, onRevealInFolder, onContentSearch, className }: SearchPanelProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   // UX-26: separate debounced query fuels the content index so we don't
   // re-run every keystroke on a 10k-file index. 150ms feels instant in the
@@ -307,7 +309,7 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, onContentSearch, c
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-[200px]">
-            <DropdownMenuLabel>Filter by file type</DropdownMenuLabel>
+            <DropdownMenuLabel>{t('search.filter-by-type')}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {FILE_TYPE_FILTERS.map((filter) => (
               <DropdownMenuCheckboxItem
@@ -327,7 +329,7 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, onContentSearch, c
         {query && results.length === 0 && (
           <div className="flex flex-col items-center justify-center h-32 text-muted-foreground text-sm">
             <Search className="h-8 w-8 mb-2 opacity-50" />
-            <p>No results found</p>
+            <p>{t('search.no-results')}</p>
           </div>
         )}
 
@@ -410,11 +412,11 @@ export function SearchPanel({ onFileSelect, onRevealInFolder, onContentSearch, c
           <div className="rounded-md border border-primary/30 bg-primary/5 p-2 mb-2 text-foreground/80">
             <span className="font-medium">Tip:</span> Press{' '}
             <kbd className="px-1.5 py-0.5 rounded bg-muted text-[11px] font-mono">Ctrl+P</kbd>{' '}
-            to quickly open any file by name
+            {t('search.tip-quick-open')}
           </div>
-          <div>• Searches filenames AND file content</div>
-          <div>• Markdown, text, docx, xlsx, pptx, RTF are all indexed</div>
-          <div>• Click a result to open the file with a match snippet</div>
+          <div>{t('search.tip-content')}</div>
+          <div>{t('search.tip-formats')}</div>
+          <div>{t('search.tip-snippet')}</div>
         </div>
       )}
     </div>

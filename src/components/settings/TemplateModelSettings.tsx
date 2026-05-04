@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
@@ -68,6 +69,7 @@ function firstModelFor(provider: TemplateProviderId): string {
 }
 
 export function TemplateModelSettings({ templates }: TemplateModelSettingsProps) {
+  const { t } = useTranslation();
   const { getSetting, setSetting } = useSettingsStore();
 
   const overrides = useMemo(
@@ -127,7 +129,7 @@ export function TemplateModelSettings({ templates }: TemplateModelSettingsProps)
   if (templates.length === 0) {
     return (
       <p className="text-sm text-muted-foreground py-4 text-center">
-        No workflow templates yet.
+        {t('settings.template-models.empty')}
       </p>
     );
   }
@@ -135,10 +137,9 @@ export function TemplateModelSettings({ templates }: TemplateModelSettingsProps)
   return (
     <div data-testid="template-model-settings" className="space-y-4">
       <div>
-        <h3 className="text-sm font-semibold">Per-template model assignment</h3>
+        <h3 className="text-sm font-semibold">{t('settings.template-models.title')}</h3>
         <p className="text-xs text-muted-foreground mt-1">
-          Pin a provider and model for each template. Leave blank to use the
-          template's built-in default (or your global default).
+          {t('settings.template-models.description')}
         </p>
       </div>
 

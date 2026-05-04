@@ -9,6 +9,7 @@
 // optional onSaveMarkdown callback. No direct workspace or tab coupling.
 
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -45,6 +46,7 @@ export function MultiInterviewSynthesisPanel({
   seedTranscripts = [],
   className,
 }: MultiInterviewSynthesisPanelProps) {
+  const { t } = useTranslation();
   const [transcripts, setTranscripts] = useState<TranscriptInput[]>(seedTranscripts);
   const [pasted, setPasted] = useState('');
   const [isRunning, setIsRunning] = useState(false);
@@ -111,12 +113,10 @@ export function MultiInterviewSynthesisPanel({
         <div>
           <h2 className="text-base font-semibold flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-amber-500" />
-            Multi-interview synthesis
+            {t('analysis.multi-interview.title')}
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Drop 3+ transcripts (or paste them below) to produce themes,
-            contradictions, jobs-to-be-done, and a priority-ranked feature
-            list.
+            {t('analysis.multi-interview.description')}
           </p>
         </div>
 
@@ -135,7 +135,7 @@ export function MultiInterviewSynthesisPanel({
           onDrop={onDrop}
         >
           <Upload className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-          Drop .md or .txt transcripts here
+          {t('analysis.multi-interview.drop-here')}
           <div className="mt-2">
             <Button
               size="sm"
@@ -161,7 +161,7 @@ export function MultiInterviewSynthesisPanel({
         {/* Paste zone */}
         <div className="space-y-1">
           <label className="text-xs font-medium" htmlFor="multi-paste">
-            Or paste transcripts (separated by `---`)
+            {t('analysis.multi-interview.paste-label')}
           </label>
           <Textarea
             id="multi-paste"
@@ -255,6 +255,7 @@ interface SynthesisResultProps {
 }
 
 function SynthesisResult({ result, markdown, onSaveMarkdown }: SynthesisResultProps) {
+  const { t } = useTranslation();
   const [openTheme, setOpenTheme] = useState<Set<number>>(new Set([0]));
   const toggle = (i: number) => {
     setOpenTheme((prev) => {
@@ -274,7 +275,7 @@ function SynthesisResult({ result, markdown, onSaveMarkdown }: SynthesisResultPr
             variant="outline"
             onClick={() => onSaveMarkdown(markdown, 'INTERVIEW_SYNTHESIS.md')}
           >
-            Save as INTERVIEW_SYNTHESIS.md
+            {t('analysis.multi-interview.save-as')}
           </Button>
         )}
       </div>
@@ -364,7 +365,7 @@ function SynthesisResult({ result, markdown, onSaveMarkdown }: SynthesisResultPr
       {result.jtbd_frameworks.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Jobs to be done</CardTitle>
+            <CardTitle className="text-sm">{t('analysis.multi-interview.jobs-title')}</CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <table className="text-xs w-full">

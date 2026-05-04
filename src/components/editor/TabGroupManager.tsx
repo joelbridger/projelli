@@ -2,6 +2,7 @@
 // Modal UI for creating and managing tab groups
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Edit2, Trash2, FolderOpen, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +31,7 @@ interface TabGroupManagerProps {
 }
 
 export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerProps) {
+  const { t } = useTranslation();
   const {
     openTabs,
     tabGroups,
@@ -271,19 +273,19 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Manage Tab Groups</DialogTitle>
+          <DialogTitle>{t('editor.tab-group-manager.title')}</DialogTitle>
           <DialogDescription>
-            Create and organize tab groups to better manage your open files.
+            {t('editor.tab-group-manager.description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Create New Group */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Create New Group</label>
+            <label className="text-sm font-medium">{t('editor.tab-group-manager.create-new')}</label>
             <div className="flex gap-2">
               <Input
-                placeholder="Group name..."
+                placeholder={t('editor.tab-group-manager.group-name-placeholder')}
                 value={newGroupName}
                 onChange={(e) => setNewGroupName(e.target.value)}
                 onKeyDown={(e) => {
@@ -294,18 +296,18 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
               />
               <Button onClick={handleCreateGroup} disabled={!newGroupName.trim()}>
                 <Plus className="h-4 w-4 mr-2" />
-                Create
+                {t('common.actions.create')}
               </Button>
             </div>
           </div>
 
           {/* Existing Groups */}
           <div className="space-y-3">
-            <label className="text-sm font-medium">Existing Groups ({tabGroups.length})</label>
+            <label className="text-sm font-medium">{t('editor.tab-group-manager.existing-groups', { count: tabGroups.length })}</label>
 
             {tabGroups.length === 0 ? (
               <div className="text-sm text-muted-foreground text-center py-8">
-                No groups yet. Create one above to get started.
+                {t('editor.tab-group-manager.no-groups')}
               </div>
             ) : (
               <div className="space-y-3">
@@ -448,7 +450,7 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
                           }}
                           onDrop={handleTabDrop}
                         >
-                          Drop tabs here to add them to this group
+                          {t('editor.tab-group-manager.drop-to-add')}
                         </div>
                       )}
                     </div>
@@ -469,7 +471,7 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
             onDrop={handleTabDrop}
           >
             <label className="text-sm font-medium">
-              Ungrouped Tabs ({ungroupedTabs.length})
+              {t('editor.tab-group-manager.ungrouped-label', { count: ungroupedTabs.length })}
             </label>
             <div
               className={cn(
@@ -479,7 +481,7 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
               )}
             >
               {ungroupedTabs.length === 0 && dragOverTarget?.kind !== 'ungrouped-zone' && (
-                <span>Drag tabs here to ungroup them</span>
+                <span>{t('editor.tab-group-manager.drag-to-ungroup')}</span>
               )}
               {ungroupedTabs.map((tab) => {
                 const isDragOver =
@@ -545,7 +547,7 @@ export function TabGroupManager({ open, onClose, onRenameTab }: TabGroupManagerP
                             }
                           }}
                         >
-                          <option value="">Add to group...</option>
+                          <option value="">{t('editor.tab-group-manager.add-to-group')}</option>
                           {tabGroups.map((group) => (
                             <option key={group.id} value={group.id}>
                               {group.name}

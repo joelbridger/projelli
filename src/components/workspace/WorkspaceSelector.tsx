@@ -3,6 +3,7 @@
 // This is the first thing users see — it must look like a $49 product.
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { WebFSBackend, createWebFSBackend } from '@/modules/workspace/WebFSBackend';
@@ -57,6 +58,7 @@ function RecentWorkspacesSection({
   onOpen: (path: string) => void;
   formatDate: (date: Date) => string;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const visible = expanded ? workspaces : workspaces.slice(0, RECENT_PREVIEW_COUNT);
   const hasMore = workspaces.length > RECENT_PREVIEW_COUNT;
@@ -125,7 +127,7 @@ function RecentWorkspacesSection({
 
       {expanded && !isTauri && (
         <p className="text-xs mt-2" style={{ color: '#94A3B8' }}>
-          Recent workspaces require re-selecting the folder due to browser security.
+          {t('workspace.selector.browser-reselect-note')}
         </p>
       )}
     </div>
@@ -133,6 +135,7 @@ function RecentWorkspacesSection({
 }
 
 export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: WorkspaceSelectorProps) {
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isTauri = isTauriEnvironment();
@@ -354,7 +357,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
           className="text-base text-center mb-8 max-w-md leading-relaxed"
           style={{ color: '#475569' }}
         >
-          Your AI workspace. Your files. Your machine.
+          {t('workspace.selector.tagline')}
         </p>
 
         {/* Error banner */}
@@ -410,7 +413,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
               Open Existing
             </div>
             <div className="text-xs" style={{ color: '#94A3B8' }}>
-              Select a workspace folder
+              {t('workspace.selector.open-existing-hint')}
             </div>
           </button>
 

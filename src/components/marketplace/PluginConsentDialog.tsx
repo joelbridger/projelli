@@ -34,6 +34,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { ShieldAlert } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { PluginManifest } from '@/types/plugin';
 import { PluginPermissionsList } from './PluginPermissionsList';
 
@@ -57,6 +58,7 @@ export function PluginConsentDialog({
   onCancel,
   onOpenChange,
 }: PluginConsentDialogProps) {
+  const { t } = useTranslation();
   // Track which button caused the close so the AlertDialog's onOpenChange
   // fired by Radix on Approve / Cancel button click does NOT double-fire
   // onApprove or onCancel. The handler resets after consuming.
@@ -109,9 +111,7 @@ export function PluginConsentDialog({
               <AlertDialogDescription asChild>
                 <div className="space-y-3">
                   <p>
-                    By approving, you trust this plugin with the permissions
-                    listed below. You can revoke them at any time by
-                    uninstalling the plugin.
+                    {t('marketplace.plugin-consent.approve-description')}
                   </p>
                 </div>
               </AlertDialogDescription>

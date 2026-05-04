@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Download, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import { mcpBundlePath } from '@/utils/tauri-commands';
@@ -35,6 +36,7 @@ export function McpSettingsSection({
   onResolveBundlePath,
   onDownload,
 }: McpSettingsSectionProps): React.ReactElement {
+  const { t } = useTranslation();
   const [bundlePath, setBundlePath] = useState<string | null | undefined>(
     undefined,
   );
@@ -68,7 +70,7 @@ export function McpSettingsSection({
           await navigator.clipboard.writeText(bundlePath);
         }
       }
-      setStatus(`Copied bundle path to clipboard: ${bundlePath}`);
+      setStatus(t('settings.mcp.copied-status', { path: bundlePath }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -83,11 +85,9 @@ export function McpSettingsSection({
       className="space-y-4"
     >
       <div>
-        <h3 className="text-base font-semibold">MCP server</h3>
+        <h3 className="text-base font-semibold">{t('settings.mcp.title')}</h3>
         <p className="text-xs text-muted-foreground mt-1">
-          Expose your Projelli workspace to any MCP-compatible AI client.
-          Install once, then ask Claude Desktop, Cursor, or any other client
-          about your notes, chats, and memory facts without copy-pasting.
+          {t('settings.mcp.description')}
         </p>
       </div>
 
@@ -102,25 +102,28 @@ export function McpSettingsSection({
           <>
             <AlertCircle className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="text-sm text-muted-foreground">
-              Looking up bundle path...
+              {t('settings.mcp.status.loading')}
             </span>
           </>
         ) : hasBundle ? (
           <>
             <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
             <span className="text-sm">
-              Ready to install in Claude Desktop
+              {t('settings.mcp.status.ready')}
             </span>
           </>
         ) : (
           <>
             <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
             <span className="text-sm">
-              Bundle not available. Run{' '}
-              <code className="px-1 py-0.5 rounded bg-muted font-mono text-[11px]">
-                node scripts/build-mcpb.mjs
-              </code>{' '}
-              first, or install via a released build.
+              <Trans
+                i18nKey="settings.mcp.status.unavailable"
+                components={{
+                  cmd: (
+                    <code className="px-1 py-0.5 rounded bg-muted font-mono text-[11px]" />
+                  ),
+                }}
+              />
             </span>
           </>
         )}
@@ -138,7 +141,7 @@ export function McpSettingsSection({
           className="gap-1.5 text-xs"
         >
           <Download className="h-3.5 w-3.5" />
-          Download .mcpb for Claude Desktop
+          {t('settings.mcp.download-cta')}
         </Button>
         <a
           href="https://modelcontextprotocol.io/quickstart/user"
@@ -146,7 +149,7 @@ export function McpSettingsSection({
           rel="noreferrer"
           className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
         >
-          What&apos;s MCP? <ExternalLink className="h-3 w-3" />
+          {t('settings.mcp.whats-mcp')} <ExternalLink className="h-3 w-3" />
         </a>
       </div>
 
@@ -168,25 +171,27 @@ export function McpSettingsSection({
       )}
 
       <div className="rounded-md border border-border/60 p-3 text-xs leading-relaxed text-muted-foreground space-y-2">
-        <p className="font-medium text-foreground">How to install:</p>
+        <p className="font-medium text-foreground">{t('settings.mcp.install.heading')}</p>
         <ol className="list-decimal list-inside space-y-1">
           <li>
-            Click <strong>Download .mcpb</strong> above to copy the bundle
-            path to your clipboard.
+            <Trans
+              i18nKey="settings.mcp.install.step-download"
+              components={{ b: <strong /> }}
+            />
           </li>
-          <li>Open Claude Desktop.</li>
+          <li>{t('settings.mcp.install.step-open-claude')}</li>
           <li>
-            Open <strong>Settings → Developer → Edit Config</strong>, or
-            drag the <code>.mcpb</code> file into the Claude Desktop window.
+            <Trans
+              i18nKey="settings.mcp.install.step-config"
+              components={{ b: <strong />, c: <code /> }}
+            />
           </li>
           <li>
-            When prompted for a workspace folder, pick the same folder you
-            opened in Projelli.
+            {t('settings.mcp.install.step-pick-folder')}
           </li>
         </ol>
         <p className="pt-1">
-          After install, ask Claude &quot;search my Projelli workspace for
-          X&quot; or &quot;read notes/plan.md&quot; and watch it work.
+          {t('settings.mcp.install.after-install')}
         </p>
       </div>
     </div>

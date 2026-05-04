@@ -11,6 +11,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -33,6 +34,7 @@ const ALL_CATEGORIES = '__all__';
 type PluginsSubview = 'browse' | 'installed';
 
 export function PluginsTab() {
+  const { t } = useTranslation();
   const { service, cacheStatus, setCacheStatus, setUpdateCount } =
     usePluginsMarketplace();
   void cacheStatus;
@@ -185,7 +187,7 @@ export function PluginsTab() {
         data-testid="plugins-tab-empty"
         className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
       >
-        Open a workspace to browse community plugins.
+        {t('marketplace.plugins-tab.open-workspace')}
       </div>
     );
   }

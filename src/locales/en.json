@@ -1,3 +1,681 @@
 {
-  "_meta.test": "i18n is working"
+  "common": {
+    "actions": {
+      "create": "Create",
+      "add": "Add"
+    },
+    "audit-log": {
+      "entry-details-title": "Audit Entry Details"
+    },
+    "bug-report": {
+      "title": "Report a bug",
+      "description": "Tell us what went wrong. Reports go straight to Jameson's inbox.",
+      "success": "Thanks, your report landed. If you left an email I'll reply when there's something to share.",
+      "email-label": "Your email",
+      "email-optional": "(optional, so we can reply)",
+      "metadata-help": "Include app version, OS, and browser info. Helpful for reproducing, untick if you'd rather not share.",
+      "send-failed": "Couldn't send the report.",
+      "network-error": "Network error.",
+      "retry-hint": "You can retry or open your email client with the message pre-filled.",
+      "open-email-client": "Open email client instead"
+    },
+    "command-palette": {
+      "search-description": "Type a command or search across the app",
+      "no-commands": "No commands found"
+    },
+    "drop-overlay": {
+      "default-message": "Drop files to add to your workspace",
+      "hint": "Drop on a folder to put them there, or drop anywhere else to add to the workspace root."
+    },
+    "trash": {
+      "delete-confirm": "This will permanently delete \"{{name}}\". This action cannot be undone.",
+      "retention-title": "Trash Retention Settings",
+      "retention-description": "Configure how long items stay in trash before automatic deletion",
+      "auto-delete-label": "Auto-delete after:",
+      "retention-never": "Never (keep forever)",
+      "retention-help": "Items older than this period will be automatically deleted from trash. Set to \"Never\" to keep items indefinitely.",
+      "empty-confirm_one": "This will permanently delete 1 item in the trash. This action cannot be undone.",
+      "empty-confirm_other": "This will permanently delete all {{count}} items in the trash. This action cannot be undone."
+    }
+  },
+  "layout": {
+    "sidebar": {
+      "workspace-label": "Workspace",
+      "expand-aria": "Expand sidebar",
+      "collapse-aria": "Collapse sidebar",
+      "sections-aria": "Sidebar sections",
+      "grid-view-title": "Grid view",
+      "tabs": {
+        "files": "Files",
+        "search": "Search",
+        "workflows": "Workflows",
+        "ai-assistant": "AI Assistant",
+        "research": "Research",
+        "whiteboard": "Whiteboard",
+        "audit": "AI Audit",
+        "trash": "Trash",
+        "plugins": "Plugins"
+      }
+    },
+    "status-bar": {
+      "no-workspace": "No workspace",
+      "folder-path-aria": "Folder path",
+      "show-collapsed-aria": "Show collapsed path segments",
+      "modified": "Modified",
+      "tabs-open_one": "{{count}} file open",
+      "tabs-open_other": "{{count}} files open",
+      "bug-report-title": "Report a bug, sends directly to Jameson",
+      "bug-report-cta": "Something broken? Let us know!"
+    },
+    "main-panel": {
+      "no-file-open-title": "No file open",
+      "no-file-open-hint": "Select a file from the sidebar to start editing",
+      "workflow-load-failed": "Failed to load workflow file.",
+      "chat-load-failed": "Failed to load chat file: {{message}}",
+      "unknown-error": "Unknown error",
+      "opening-file": "Opening {{fileName}}...",
+      "export": {
+        "save-as-docx": "Save as Word (.docx)",
+        "save-as-pptx": "Save as PowerPoint (.pptx)"
+      },
+      "doc-legacy": {
+        "browser-message": "This is the older <docCode>.doc</docCode> format. Open it in Word and save as <docxCode>.docx</docxCode> to preview it here.",
+        "checking-libreoffice": "Checking for LibreOffice...",
+        "install-libreoffice": "<docCode>.doc</docCode> (legacy Word format) files need LibreOffice or Microsoft Word to preview. Install LibreOffice for free at <libreLink>libreoffice.org</libreLink>, then reopen this file.",
+        "convert-prompt": "Preview this legacy <docCode>.doc</docCode> file? We'll convert it to <docxCode>.docx</docxCode> using LibreOffice and save a copy next to the original.",
+        "converting": "Converting to .docx...",
+        "conversion-failed": "Conversion failed: {{error}}",
+        "try-again": "Try again",
+        "convert-button": "Convert to .docx",
+        "download-button": "Download File"
+      }
+    }
+  },
+  "settings": {
+    "modal": {
+      "title": "Settings",
+      "description": "Configure Projelli preferences",
+      "search-placeholder": "Search settings...",
+      "clear-search-aria": "Clear search",
+      "close-aria": "Close settings",
+      "marketplace-badge-aria": "{{count}} marketplace updates available",
+      "no-matches": "No settings match your search in this category.",
+      "context-warning": "Selected model maxes at {{max}} tokens. Lower the limit or switch to a larger-context model.",
+      "about-tagline": "Local-first workspace for solo founders.",
+      "export": "Export",
+      "import": "Import",
+      "reset": "Reset to Defaults",
+      "shortcuts": {
+        "no-matches": "No shortcuts match your search.",
+        "quick-tip-label": "Quick Tip:",
+        "quick-tip-press": "Press",
+        "quick-tip-open-file": "to quickly open any file by name. Press",
+        "quick-tip-overlay": "to show the keyboard shortcuts overlay anywhere in the app."
+      }
+    },
+    "license": {
+      "title": "License",
+      "description": "Activate Projelli with a license key purchased at <pricingLink>projelli.com</pricingLink>.",
+      "deactivate-confirm": "Deactivate this license? You will lose access to paid features until you re-activate.",
+      "badge": {
+        "activated": "ACTIVATED",
+        "trial-ended": "TRIAL ENDED",
+        "trial": "TRIAL"
+      },
+      "tier": {
+        "lifetime": "Lifetime",
+        "pro": "Pro",
+        "free": "Free"
+      },
+      "valid-until": "Valid until: {{date}}",
+      "lifetime-tagline": "Lifetime license, updates forever.",
+      "refresh": "Refresh",
+      "deactivate": "Deactivate",
+      "activate": "Activate",
+      "activating": "Activating...",
+      "activate-success": "License activated successfully.",
+      "activate-to-continue": "Activate to continue",
+      "trial-expired-detail": "Your {{days}}-day free trial ended on <endDateBold>{{endDate}}</endDateBold>. AI chat and workflows are paused. Your existing files are still here, fully readable. Activate a license to keep building.",
+      "trial-active-detail": "You're on the free trial. Every Projelli feature is unlocked for {{days}} days from first launch, bring your own AI keys, run workflows, edit files, the works. When the trial ends, AI chat and workflows pause until you activate a license; your files stay accessible.",
+      "days-left_one": "1 day left",
+      "days-left_other": "{{count}} days left",
+      "get-license-cta": "Get a license at projelli.com",
+      "already-have-key": "Already have a license key?",
+      "unlocks-heading": "What your license unlocks:",
+      "unlocks": {
+        "ai-chat": "AI chat with your own keys (Claude, OpenAI, Gemini)",
+        "workflows": "All 15 founder workflow templates",
+        "workspaces": "Unlimited workspaces, files, and version history",
+        "whiteboard-audio-research": "Whiteboard, audio recording, research citations",
+        "multi-model": "Multi-model comparison",
+        "commercial": "Commercial use license",
+        "updates-forever": "Updates forever",
+        "lifetime-extras": "Multi-model comparison & commercial use on Lifetime"
+      }
+    },
+    "privacy": {
+      "title": "Privacy",
+      "description": "Projelli is local-first. Your files, your AI prompts, and your API keys never leave your machine. The two opt-ins below are the only data Projelli ever collects, and both default to off.",
+      "telemetry": {
+        "title": "Anonymous usage stats",
+        "description": "Help improve Projelli by sending lifecycle events: app launches, trial start, trial end, license activated, license deactivated. No content, no files, no AI prompts, no email.",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "what-is-sent": "What is sent, exactly:",
+        "field-install-id": "<c>install_id</c>: a random UUID generated on this machine (visible below). Not tied to your email or license.",
+        "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of Projelli, and macOS / Windows / Linux.",
+        "field-event": "<c>event</c>: one of <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
+        "field-license-tier": "<c>license_tier</c> (when relevant): trial, pro, lifetime.",
+        "endpoint-note": "Endpoint: <c>projelli.com/api/forms/projelli/app-event</c>. JSONL stored on Jameson's server. Used only for funnel metrics and roadmap decisions.",
+        "install-id-display": "Your install ID: <c>{{id}}</c>"
+      },
+      "email": {
+        "title": "Email updates",
+        "intro": "If you opted into email updates at first launch (or via the website), you'll get launch announcements and discount codes. No drip campaigns, no weekly newsletters.",
+        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any email from Jameson, they all forward straight to him."
+      }
+    },
+    "mcp": {
+      "title": "MCP server",
+      "description": "Expose your Projelli workspace to any MCP-compatible AI client. Install once, then ask Claude Desktop, Cursor, or any other client about your notes, chats, and memory facts without copy-pasting.",
+      "copied-status": "Copied bundle path to clipboard: {{path}}",
+      "status": {
+        "loading": "Looking up bundle path...",
+        "ready": "Ready to install in Claude Desktop",
+        "unavailable": "Bundle not available. Run <cmd>node scripts/build-mcpb.mjs</cmd> first, or install via a released build."
+      },
+      "download-cta": "Download .mcpb for Claude Desktop",
+      "whats-mcp": "What's MCP?",
+      "install": {
+        "heading": "How to install:",
+        "step-download": "Click <b>Download .mcpb</b> above to copy the bundle path to your clipboard.",
+        "step-open-claude": "Open Claude Desktop.",
+        "step-config": "Open <b>Settings, Developer, Edit Config</b>, or drag the <c>.mcpb</c> file into the Claude Desktop window.",
+        "step-pick-folder": "When prompted for a workspace folder, pick the same folder you opened in Projelli.",
+        "after-install": "After install, ask Claude \"search my Projelli workspace for X\" or \"read notes/plan.md\" and watch it work."
+      }
+    },
+    "mcp-approval": {
+      "title": "Claude Desktop wants to write to your workspace",
+      "description": "Review the change below. Nothing happens until you approve.",
+      "bytes": "{{bytes}} bytes",
+      "overwrite-suffix": ", overwrite",
+      "new-file-suffix": ", new file",
+      "more-queued_one": "1 more write queued after this one.",
+      "more-queued_other": "{{count}} more writes queued after this one.",
+      "deny": "Deny",
+      "approve-all-session": "Approve all this session",
+      "approve-write": "Approve this write"
+    },
+    "ollama": {
+      "title": "Ollama (local models)",
+      "description": "Run AI models directly on your machine: free, offline, private. Projelli talks to a locally running Ollama daemon on <c>127.0.0.1:11434</c>.",
+      "status": {
+        "checking": "Checking Ollama...",
+        "ready_one": "Ollama ready, {{count}} model installed",
+        "ready_other": "Ollama ready, {{count}} models installed",
+        "more-suffix": ", +{{count}} more",
+        "not-running": "Ollama not running. Install it to run AI models locally, free."
+      },
+      "check-cta": "Check Ollama connection",
+      "install-link": "Install Ollama",
+      "no-models-hint": "Ollama is running but no models are installed. Pull one with <c>ollama pull llama3.2:3b</c> and click Check again.",
+      "why": {
+        "heading": "Why Ollama?",
+        "zero-cost": "Zero cost. Inference runs on your GPU / CPU.",
+        "zero-network": "Zero network. Works on a plane, offline, in a tunnel.",
+        "zero-data": "Zero data sharing. Your prompts never leave the machine."
+      },
+      "recommended-model": "Recommended first model: <c>llama3.2:3b</c> (about 2 GB, runs on almost any laptop)."
+    },
+    "memory-facts": {
+      "title": "Memory Facts",
+      "description": "Durable facts about you that the AI always knows. Stored locally at <c>.projelli/memory.json</c> in your workspace.",
+      "load-error": "Couldn't load facts: {{error}}",
+      "empty": "No facts saved yet. Proposed facts from chat conversations will show up here after you accept them.",
+      "delete-aria": "Delete fact",
+      "add-placeholder": "Add a fact about yourself..."
+    },
+    "template-models": {
+      "empty": "No workflow templates yet.",
+      "title": "Per-template model assignment",
+      "description": "Pin a provider and model for each template. Leave blank to use the template's built-in default (or your global default)."
+    },
+    "mobile-page": {
+      "title": "Mobile",
+      "description": "Read your Projelli workspace on your phone today. Point Projelli at a synced folder on your computer (iCloud, Dropbox, Syncthing, or Google Drive) and the same files show up on your phone in the matching app. The dedicated Projelli mobile reader is in beta and lands in the v2.0 cycle.",
+      "heads-up-label": "Heads up:",
+      "heads-up-text": "Treat your phone as read-only while using the cloud sync workaround. Editing the same file on two devices in quick succession can produce a conflict copy.",
+      "setup-steps": "Setup steps",
+      "things-to-know": "Things to know"
+    },
+    "api-keys": {
+      "title": "API Keys",
+      "description": "Configure API keys for AI model providers. Keys are stored securely and never logged.",
+      "get-key-link": "Get API Key",
+      "add-key": "Add API Key"
+    },
+    "plugins": {
+      "title": "Plugins",
+      "description": "Manage installed plugins and the settings each plugin contributes.",
+      "installed-heading": "Installed",
+      "empty": "No plugins installed yet. Install one from a plugin tarball to see it here.",
+      "plugin-settings-heading": "Plugin settings"
+    },
+    "voice": {
+      "title": "Voice input",
+      "description": "Hands-free capture via a bundled offline speech-recognition model. Audio never leaves your machine. Press-to-talk inserts into the focused text field; voice-to-note saves a new Markdown file into <c>Inbox/</c>."
+    },
+    "advanced": {
+      "title": "Advanced",
+      "description": "Power-user settings, including per-feature kill switches. Streams populate as features land."
+    },
+    "language": {
+      "label": "Language",
+      "description": "Choose the language used throughout the app.",
+      "options": {
+        "en": "English",
+        "es": "Español",
+        "de": "Deutsch"
+      }
+    }
+  },
+  "workspace": {
+    "file-tree": {
+      "new": {
+        "plain-text": "Plain Text (.txt)",
+        "rich-text": "Rich Text (.rt)",
+        "word-document": "Word Document (.docx)",
+        "audio-file": "Audio File (.webm)"
+      },
+      "drop-to-root": "Drop here to move to root",
+      "open-on-desktop": "Open on Desktop"
+    },
+    "selector": {
+      "browser-reselect-note": "Recent workspaces require re-selecting the folder due to browser security.",
+      "tagline": "Your AI workspace. Your files. Your machine.",
+      "open-existing-hint": "Select a workspace folder"
+    },
+    "grid": {
+      "empty-folder-hint": "This folder contains no files or subfolders"
+    },
+    "project-manager": {
+      "reselect-hint": "Re-select folder to reopen",
+      "rename-description": "Enter a new name for your project. This will rename the workspace folder."
+    }
+  },
+  "editor": {
+    "backlinks": {
+      "empty": "No other documents link to this file."
+    },
+    "outline": {
+      "empty": "No headings found"
+    },
+    "tab-bar": {
+      "files-in-group": "Files in group",
+      "close-other-tabs": "Close other tabs"
+    },
+    "tab-group-manager": {
+      "title": "Manage Tab Groups",
+      "description": "Create and organize tab groups to better manage your open files.",
+      "create-new": "Create New Group",
+      "group-name-placeholder": "Group name...",
+      "existing-groups": "Existing Groups ({{count}})",
+      "no-groups": "No groups yet. Create one above to get started.",
+      "drop-to-add": "Drop tabs here to add them to this group",
+      "ungrouped-label": "Ungrouped Tabs ({{count}})",
+      "drag-to-ungroup": "Drag tabs here to ungroup them",
+      "add-to-group": "Add to group..."
+    }
+  },
+  "workflow": {
+    "browser": {
+      "error-title": "Unable to load page",
+      "iframe-blocked-hint": "Some websites (like Google, GitHub, etc.) block iframe embedding for security. Click the button below to open this URL in your default browser.",
+      "open-external": "Open in External Browser"
+    },
+    "chain-builder": {
+      "title": "Chain templates",
+      "description": "Run a sequence of templates. Each step can pull fields from an earlier step's output into its inputs.",
+      "no-steps": "No steps yet. Add one to start composing a chain.",
+      "map-outputs": "Map upstream outputs:"
+    },
+    "interview": {
+      "select-option": "Select an option"
+    },
+    "execution": {
+      "may-take-moment": "This may take a moment depending on the AI provider.",
+      "save-as-file": "Save as file",
+      "use-as-input": "Use this as input for another template",
+      "recommended-next": "Recommended next steps",
+      "other-templates": "Other templates (manual mapping required)"
+    },
+    "panel": {
+      "trial-ended-label": "Trial ended.",
+      "trial-ended-description": "Activate a license in Settings, License to run workflows.",
+      "step-of-click": "Step {{current}} of {{total}}, click to view",
+      "modal-title": "All workflows",
+      "modal-description": "Pre-built AI workflows for founders. Pick one to start a guided conversation.",
+      "no-matches": "No workflows match \"{{query}}\"."
+    },
+    "fork": {
+      "title": "Duplicate template",
+      "description": "Create your own copy of this template. You can edit the system prompt that steers the AI while the workflow runs.",
+      "persona-hint": "This is the persona the AI uses in the first generation step. Leave it blank to fall back to the model's default persona."
+    }
+  },
+  "marketplace": {
+    "tab": {
+      "title": "Marketplace",
+      "description": "Browse community templates and plugins. Installs are stored in your workspace and can be removed at any time."
+    },
+    "installed-plugins": {
+      "empty": "No plugins installed yet. Browse the marketplace to add one."
+    },
+    "installed-templates": {
+      "empty": "No templates installed yet. Browse the marketplace to add one."
+    },
+    "plugins-tab": {
+      "open-workspace": "Open a workspace to browse community plugins."
+    },
+    "templates-tab": {
+      "open-workspace": "Open a workspace to browse community templates."
+    },
+    "plugin-consent": {
+      "approve-description": "By approving, you trust this plugin with the permissions listed below. You can revoke them at any time by uninstalling the plugin."
+    },
+    "plugin-permissions": {
+      "empty": "This plugin requests no special permissions."
+    },
+    "plugin-error": {
+      "show-recent-log_one": "Show recent log (1 entry)",
+      "show-recent-log_other": "Show recent log ({{count}} entries)"
+    },
+    "detail": {
+      "back-to-catalog": "Back to catalog",
+      "files-in-plugin": "Files in this plugin",
+      "files-in-template": "Files in this template",
+      "view-audit-log": "View in Audit Log"
+    }
+  },
+  "research": {
+    "source-panel": {
+      "add-first-source": "Add your first source"
+    },
+    "source-form": {
+      "quote-label": "Quote or Snippet",
+      "optional-suffix": "(optional)",
+      "reliability-help": "Include keywords like \"verified\", \"official\", \"primary source\" for high reliability, or \"speculation\", \"unverified\" for low reliability.",
+      "tags-help": "Add tags to organize and filter your sources (e.g., \"competitor\", \"market-research\", \"pricing\")"
+    },
+    "source-editor": {
+      "parse-error-help": "This file may have been corrupted. You can try editing it as a text file or deleting and recreating it.",
+      "iframe-blocked": "Site blocks iframe embedding",
+      "quote-label": "Quote or Snippet",
+      "tags-help": "Add tags to organize and filter your sources",
+      "source-id-label": "Source ID (Read-only)",
+      "save-immediately": "to save immediately"
+    }
+  },
+  "analysis": {
+    "comparison": {
+      "no-outputs": "No outputs to compare"
+    },
+    "cost-metrics": {
+      "description": "Your AI spend for the current month, broken down by provider. Data from v1.5+ (earlier activity may be missing).",
+      "by-provider": "By provider (this month)",
+      "no-costs": "No recorded costs yet this month. Run a chat to see data here."
+    },
+    "multi-interview": {
+      "title": "Multi-interview synthesis",
+      "description": "Drop 3+ transcripts (or paste them below) to produce themes, contradictions, jobs-to-be-done, and a priority-ranked feature list.",
+      "drop-here": "Drop .md or .txt transcripts here",
+      "paste-label": "Or paste transcripts (separated by `---`)",
+      "save-as": "Save as INTERVIEW_SYNTHESIS.md",
+      "jobs-title": "Jobs to be done"
+    }
+  },
+  "ai": {
+    "assistant": {
+      "start-new-chat": "Start new chat:",
+      "how-to-get-keys": "How to get API keys",
+      "keys-stored-locally": "API keys are stored securely in your local workspace and never sent to our servers.",
+      "model-saved-per-workspace": "Model settings are saved per workspace and apply to all new chats."
+    },
+    "chat": {
+      "proposed-facts_one": "1 proposed memory fact",
+      "proposed-facts_other": "{{count}} proposed memory facts",
+      "ask-workspace": "Ask my workspace",
+      "ask-workspace-on-title": "Ask my workspace is ON, every message searches your files first",
+      "ask-workspace-off-title": "Ask my workspace is OFF, click to have every message search your files",
+      "retry-last-message": "Retry last message",
+      "copy-diagnostic": "Copy diagnostic info",
+      "trial-ended": "Your {{days}}-day trial has ended.",
+      "trial-ended-help": "Activate a license in Settings, License to keep chatting with AI. Your existing files stay accessible. Only AI calls and workflows are paused."
+    },
+    "cost-chip": {
+      "today-so-far": "Today so far: {{cost}}",
+      "no-requests": "No AI requests yet today."
+    }
+  },
+  "chat": {
+    "input": {
+      "drop-here": "Drop image or PDF here"
+    },
+    "compressed": {
+      "expanded-for-next-send": "Expanded for next send"
+    },
+    "compression": {
+      "title": "Context is full",
+      "body": "This send would use <s>{{current}}</s> tokens, over your {{limit}} limit. Compress older messages to free space ({{projected}} tokens after compression) or send anyway.",
+      "cancel": "Cancel",
+      "send-anyway": "Send Anyway",
+      "compress-send": "Compress + Send"
+    },
+    "context-meter": {
+      "next-msg": "~{{cost}} next msg at {{model}}"
+    },
+    "pdf-preview": {
+      "encrypted": "This PDF is password-protected. Remove the password and re-attach.",
+      "scanned": "This PDF appears to be a scanned image with no text layer. Extracted text may be empty.",
+      "send-as-native": "Send as native PDF instead (lets the AI read the image)"
+    },
+    "run-on-all": {
+      "title": "Multi-provider comparison ({{count}})"
+    }
+  },
+  "onboarding": {
+    "first-run": {
+      "skip-for-now": "Skip for now",
+      "back": "Back",
+      "welcome": {
+        "title": "Welcome to Projelli",
+        "subtitle": "The AI workspace where every chat becomes a real file.",
+        "body-1": "Projelli is a desktop app that combines a Markdown editor with an AI chat interface. Every conversation produces real, persistent files in a folder on your computer, not throwaway chat bubbles.",
+        "body-2": "This setup takes about 2 minutes. We'll help you pick a workspace folder, set up an AI provider (optional), and run your first workflow.",
+        "step-1": "Step 1. Pick a workspace folder",
+        "step-2": "Step 2. Add an AI provider key (optional)",
+        "step-3": "Step 3. Run your first workflow",
+        "cta": "Let's go"
+      },
+      "workspace": {
+        "title": "Pick a workspace folder",
+        "subtitle": "This is where all your work will live.",
+        "body-1": "Projelli stores everything as plain Markdown files in a folder on your hard drive. Pick a location that's easy to find and easy to back up.",
+        "body-2": "<s>Pro tip:</s> If you put this folder inside Dropbox, iCloud, or OneDrive, you'll get automatic sync across all your devices for free.",
+        "common-choices": "Common choices:",
+        "icloud-path": "~/iCloud Drive/Projelli",
+        "body-3": "The next screen will let you actually pick the folder. For now, just confirm you understand what we're about to ask.",
+        "cta": "Got it"
+      },
+      "apikey": {
+        "title": "Add an AI provider key",
+        "subtitle": "Optional, but you'll need one to use the AI features.",
+        "body-1": "Projelli is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their API key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
+        "body-2": "The fastest way to get started is with <s>Anthropic Claude</s>:",
+        "step-go-to": "Go to <a>console.anthropic.com</a>",
+        "step-signup": "Sign up (free, $5 in credits to start)",
+        "step-create-key": "Click API Keys, Create Key",
+        "step-copy-key": "Copy the key (starts with <c>sk-ant-</c>) and paste it below",
+        "skip-hint": "You can skip this and add a key later in Settings, API Keys.",
+        "save-cta": "Save key"
+      },
+      "demo": {
+        "title": "Run your first workflow",
+        "subtitle": "See the magic moment in action.",
+        "body-1": "The fastest way to understand what Projelli does is to run a workflow. We recommend starting with <s>New Business Kickoff</s>. It asks you a series of questions about a business idea (rough is fine!) and produces real, editable Markdown files in your workspace.",
+        "step-1": "Click <s>Workflows</s> in the sidebar",
+        "step-2": "Pick <s>New Business Kickoff</s>",
+        "step-3": "Answer the questions and click <s>Generate</s>",
+        "outcome": "You'll get back a Vision document, a PRD, and a Lean Canvas, all as real Markdown files you can edit, link together, and back up however you want.",
+        "populate-toggle": "Populate workspace with {{count}} sample files",
+        "populate-help": "Adds finished examples of a pricing strategy, pitch deck, and weekly review so you can see what a completed workflow looks like. You can delete them later.",
+        "copy-error": "Could not copy samples: {{error}}. Don't worry, you're still in.",
+        "setting-up": "Setting up...",
+        "open-cta": "Open my workspace"
+      }
+    },
+    "api-key-card": {
+      "title": "Next step: add your AI key",
+      "description": "Projelli uses your own API key from Anthropic, OpenAI, or Google. You only pay the provider for what you use. Projelli doesn't charge a subscription.",
+      "walk-me-through": "Walk me through it",
+      "add-key": "Add API key",
+      "keys-local": "Keys are stored locally on your computer. Never sent to us."
+    },
+    "api-key-wizard": {
+      "step-1": {
+        "body": "Click the button below to open <s>{{dashboard}}</s> in your browser. You'll need to sign in (or sign up) to get to the keys page."
+      },
+      "step-2-ollama": {
+        "body": "Download Ollama for your OS, then in a terminal run <c>ollama pull llama3.2</c> (or any model you want). Projelli auto-detects Ollama on the next step."
+      },
+      "ollama-running": "Ollama is running",
+      "ollama-models-ready_one": "1 model ready",
+      "ollama-models-ready_other": "{{count}} models ready",
+      "ollama-not-running": "Ollama is not running. Install it, then click Check.",
+      "check-ollama": "Check Ollama connection"
+    },
+    "tutorial": {
+      "open-api-keys": "Open API keys page",
+      "direct-urls": "Direct URLs (click to open in your browser):"
+    },
+    "welcome": {
+      "title": "Welcome to Projelli",
+      "description": "A couple of optional things, both off by default. Skip if you'd rather not.",
+      "email-optin-label": "Email me launch updates, tips, and discount codes",
+      "email-optin-help": "Real updates only, no drip campaigns, no weekly newsletters. Unsubscribe any time. Goes straight to Jameson.",
+      "telemetry-label": "Help improve Projelli with anonymous usage stats",
+      "telemetry-help": "Sends a random install ID, the app version, your platform, and lifecycle events (trial started, license activated, etc.). No content, no files, no AI prompts, no email. You can turn this off in Settings, Privacy."
+    }
+  },
+  "search": {
+    "filter-by-type": "Filter by file type",
+    "no-results": "No results found",
+    "tip-quick-open": "to quickly open any file by name",
+    "tip-content": "Searches filenames AND file content",
+    "tip-formats": "Markdown, text, docx, xlsx, pptx, RTF are all indexed",
+    "tip-snippet": "Click a result to open the file with a match snippet"
+  },
+  "plugins": {
+    "settings-page": {
+      "contributed-by": "Settings contributed by plugin {{pluginId}}.",
+      "no-settings": "This plugin did not declare any settings."
+    },
+    "sidebar": {
+      "no-panels": "No plugin panels installed.",
+      "no-html": "This plugin panel did not render any HTML."
+    }
+  },
+  "media": {
+    "presentation": {
+      "basic-preview": "Basic preview, install <a>LibreOffice</a> for full fidelity.",
+      "no-slides": "No slides found.",
+      "slide-label": "Slide {{number}}",
+      "no-text-content": "(no text content)",
+      "checking-libreoffice": "Checking for LibreOffice...",
+      "rendering-slides": "Rendering slides...",
+      "first-open-converts": "First open converts the deck; later opens are instant.",
+      "cannot-preview": "Could not preview this file. Download it to view in PowerPoint.",
+      "download-file": "Download File",
+      "could-not-render": "Couldn't render {{fileName}}",
+      "try-again": "Try again"
+    },
+    "docx-editor": {
+      "could-not-open": "Couldn't open {{fileName}}",
+      "formatting-warning": "Some advanced formatting (tables, images, page headers) may not be preserved when saving. A backup of the original file is created before your first edit."
+    },
+    "docx-viewer": {
+      "could-not-open": "Couldn't open {{fileName}}",
+      "open-native": "Open in native app"
+    },
+    "pdf-viewer": {
+      "no-inline-support": "Your browser may not support inline PDF viewing.",
+      "open-new-tab": "Open in New Tab"
+    },
+    "rtf-editor": {
+      "could-not-open": "Couldn't open {{fileName}}",
+      "formatting-warning": "RTF is a simpler format than Word. Complex formatting (tables, images, custom fonts) may be simplified on save. A backup of the original file is created before your first edit."
+    },
+    "spreadsheet": {
+      "empty-sheet": "This sheet is empty.",
+      "could-not-open": "Couldn't open {{fileName}}",
+      "open-native": "Open in native app"
+    }
+  },
+  "memory": {
+    "rag-banner": {
+      "ready_one": "Memory ready, indexed 1 file.",
+      "ready_other": "Memory ready, indexed {{count}} files."
+    }
+  },
+  "version": {
+    "history": {
+      "empty-title": "No version history yet",
+      "empty-description": "Versions are saved automatically when you edit and save the file"
+    }
+  },
+  "updater": {
+    "banner": {
+      "ready-to-restart": "<s>Update ready</s>, restart to apply",
+      "see-whats-changed": "See what's changed"
+    }
+  },
+  "whiteboard": {
+    "manager": {
+      "info": "Whiteboards open as full tabs in the editor."
+    }
+  },
+  "audio": {
+    "recorder": {
+      "extension-note": ".webm extension will be added"
+    }
+  },
+  "tts": {
+    "output": {
+      "description": "AI responses can be read aloud using a bundled text-to-speech engine. No API key required; audio never leaves your machine."
+    }
+  },
+  "whats-new": {
+    "toast": {
+      "updated-to": "Updated to v{{version}}",
+      "see-whats-new": "See what's new"
+    },
+    "modal": {
+      "title": "What's new in Projelli",
+      "description": "Highlights from the most recent releases."
+    }
+  },
+  "quick-open": {
+    "description": "Find a file by fuzzy matching its name"
+  },
+  "shortcuts-overlay": {
+    "description": "Press <k>?</k> anywhere to reopen this list.",
+    "no-match": "No shortcuts match \"{{query}}\""
+  },
+  "app": {
+    "interview": {
+      "title": "Workflow Questions",
+      "description": "Please answer the following questions to continue the workflow."
+    }
+  }
 }

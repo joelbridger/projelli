@@ -9,6 +9,7 @@
  *   onCompressClick - called when user clicks [Compress]
  */
 
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { formatContextSize } from '@/modules/models/context-limits';
 import { formatCostShort } from '@/components/ai/ChatCostChip';
@@ -30,6 +31,7 @@ export function ContextMeterBar({
   onCompressClick,
   className,
 }: ContextMeterBarProps) {
+  const { t } = useTranslation();
   const pct = limitTokens > 0 ? Math.min(usedTokens / limitTokens, 1) : 0;
   const isNearLimit = pct >= 0.8;
   const showCompress = pct >= 0.5;
@@ -56,7 +58,7 @@ export function ContextMeterBar({
         <>
           <span aria-hidden className="text-muted-foreground/40">{'·'}</span>
           <span data-testid="context-meter-cost">
-            ~{costLabel} next msg at {modelLabel}
+            {t('chat.context-meter.next-msg', { cost: costLabel, model: modelLabel })}
           </span>
         </>
       )}

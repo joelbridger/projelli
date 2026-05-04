@@ -15,6 +15,7 @@
  */
 
 import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -41,6 +42,7 @@ export function InstalledTemplatesList({
   installed,
   onUninstalled,
 }: InstalledTemplatesListProps) {
+  const { t } = useTranslation();
   const [pending, setPending] = useState<InstalledEntry | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<OutcomeState | null>(null);
@@ -81,7 +83,7 @@ export function InstalledTemplatesList({
         data-testid="installed-templates-empty"
         className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
       >
-        No templates installed yet. Browse the marketplace to add one.
+        {t('marketplace.installed-templates.empty')}
       </div>
     );
   }

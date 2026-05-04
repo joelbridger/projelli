@@ -14,6 +14,7 @@
 // Plan: docs/superpowers/plans/2026-05-03-stream-c3-plugin-runner.md (task 8.2)
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { cn } from '@/lib/utils';
 import { usePluginRegistryStore } from '@/stores/pluginRegistryStore';
@@ -42,6 +43,7 @@ function buildSrcDoc(html: string): string {
 }
 
 export function PluginSidebarPanels({ className }: PluginSidebarPanelsProps) {
+  const { t } = useTranslation();
   const panels = usePluginRegistryStore((state) => state.sidebar);
   const [activePanelId, setActivePanelId] = useState<string | null>(null);
 
@@ -77,7 +79,7 @@ export function PluginSidebarPanels({ className }: PluginSidebarPanelsProps) {
           className,
         )}
       >
-        No plugin panels installed.
+        {t('plugins.sidebar.no-panels')}
       </div>
     );
   }
@@ -141,7 +143,7 @@ export function PluginSidebarPanels({ className }: PluginSidebarPanelsProps) {
             />
           ) : (
             <div className="p-3 text-xs text-muted-foreground">
-              This plugin panel did not render any HTML.
+              {t('plugins.sidebar.no-html')}
             </div>
           )}
         </div>

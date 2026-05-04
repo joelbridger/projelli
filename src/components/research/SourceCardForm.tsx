@@ -2,6 +2,7 @@
 // Form for creating and editing sources
 
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +22,7 @@ export function SourceCardForm({
   onCancel,
   className,
 }: SourceCardFormProps) {
+  const { t } = useTranslation();
   const [url, setUrl] = useState(initialData?.url ?? '');
   const [title, setTitle] = useState(initialData?.title ?? '');
   const [quote, setQuote] = useState(initialData?.quote_or_snippet ?? '');
@@ -144,7 +146,7 @@ export function SourceCardForm({
 
       {/* Quote */}
       <div className="space-y-1">
-        <label className="text-sm font-medium">Quote or Snippet <span className="text-muted-foreground font-normal">(optional)</span></label>
+        <label className="text-sm font-medium">{t('research.source-form.quote-label')} <span className="text-muted-foreground font-normal">{t('research.source-form.optional-suffix')}</span></label>
         <textarea
           value={quote}
           onChange={(e) => setQuote(e.target.value)}
@@ -199,8 +201,7 @@ export function SourceCardForm({
           )}
         />
         <p className="text-xs text-muted-foreground">
-          Include keywords like "verified", "official", "primary source" for high reliability,
-          or "speculation", "unverified" for low reliability.
+          {t('research.source-form.reliability-help')}
         </p>
       </div>
 
@@ -247,7 +248,7 @@ export function SourceCardForm({
           </div>
         )}
         <p className="text-xs text-muted-foreground">
-          Add tags to organize and filter your sources (e.g., "competitor", "market-research", "pricing")
+          {t('research.source-form.tags-help')}
         </p>
       </div>
 

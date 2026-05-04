@@ -2,6 +2,7 @@
 // Displays workspace folder structure with expand/collapse and context menus
 
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FileNode } from '@/types/workspace';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import {
@@ -123,6 +124,7 @@ export function FileTree({
     selectRange,
     clearSelection,
   } = useWorkspaceStore();
+  const { t } = useTranslation();
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
 
   // Handle dropping on the root area (empty space)
@@ -293,11 +295,11 @@ export function FileTree({
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreateTextFileAtRoot}>
               <File className="h-3.5 w-3.5 mr-2" />
-              Plain Text (.txt)
+              {t('workspace.file-tree.new.plain-text')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreateRichTextFileAtRoot}>
               <FileText className="h-3.5 w-3.5 mr-2 text-indigo-500" />
-              Rich Text (.rt)
+              {t('workspace.file-tree.new.rich-text')}
             </DropdownMenuItem>
             {onCreateDocxAtRoot && (
               <DropdownMenuItem
@@ -305,7 +307,7 @@ export function FileTree({
                 onClick={onCreateDocxAtRoot}
               >
                 <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
-                Word Document (.docx)
+                {t('workspace.file-tree.new.word-document')}
               </DropdownMenuItem>
             )}
             {onCreatePptxAtRoot && (
@@ -346,7 +348,7 @@ export function FileTree({
             </DropdownMenuItem>
             <DropdownMenuItem onClick={onCreateAudioAtRoot}>
               <Mic className="h-3.5 w-3.5 mr-2" />
-              Audio File (.webm)
+              {t('workspace.file-tree.new.audio-file')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -463,7 +465,7 @@ export function FileTree({
           {/* Root drop indicator */}
           {dragOverPath === '__root__' && (
             <div className="mx-2 mb-1 px-2 py-1 border-2 border-dashed border-primary rounded bg-primary/10 text-xs text-primary">
-              Drop here to move to root
+              {t('workspace.file-tree.drop-to-root')}
             </div>
           )}
           {fileTree.map((node) => (
@@ -509,7 +511,7 @@ export function FileTree({
             onClick={handleOpenInExplorer}
           >
             <ExternalLink className="h-3.5 w-3.5 mr-2" />
-            Open on Desktop
+            {t('workspace.file-tree.open-on-desktop')}
           </Button>
         </div>
       )}

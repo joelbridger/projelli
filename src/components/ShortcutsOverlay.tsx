@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -61,6 +62,7 @@ function Keys({ keys }: { keys: string[] }) {
 }
 
 export function ShortcutsOverlay({ open, onOpenChange }: ShortcutsOverlayProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -107,7 +109,10 @@ export function ShortcutsOverlay({ open, onOpenChange }: ShortcutsOverlayProps) 
             Keyboard shortcuts
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Press <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]">?</kbd> anywhere to reopen this list.
+            <Trans
+              i18nKey="shortcuts-overlay.description"
+              components={{ k: <kbd className="px-1 py-0.5 rounded bg-muted text-[10px]" /> }}
+            />
           </DialogDescription>
         </DialogHeader>
 
@@ -136,7 +141,7 @@ export function ShortcutsOverlay({ open, onOpenChange }: ShortcutsOverlayProps) 
               data-testid="shortcuts-overlay-empty"
               className="text-sm text-muted-foreground py-6 text-center"
             >
-              No shortcuts match "{query}"
+              {t('shortcuts-overlay.no-match', { query })}
             </p>
           ) : (
             Array.from(grouped.entries()).map(([category, items]) => (

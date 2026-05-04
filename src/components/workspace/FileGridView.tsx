@@ -2,6 +2,7 @@
 // Displays workspace files and folders in a grid layout with breadcrumb navigation
 
 import { useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { FileNode } from '@/types/workspace';
 import {
@@ -24,6 +25,7 @@ export function FileGridView({
   onMove,
   className,
 }: FileGridViewProps) {
+  const { t } = useTranslation();
   const { fileTree, rootPath } = useWorkspaceStore();
   const [currentPath, setCurrentPath] = useState<string[]>([]);
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
@@ -217,7 +219,7 @@ export function FileGridView({
             <div className="text-center">
               <Folder className="h-16 w-16 mx-auto mb-4 opacity-50" />
               <p className="text-lg font-medium">Empty folder</p>
-              <p className="text-sm">This folder contains no files or subfolders</p>
+              <p className="text-sm">{t('workspace.grid.empty-folder-hint')}</p>
             </div>
           </div>
         ) : (

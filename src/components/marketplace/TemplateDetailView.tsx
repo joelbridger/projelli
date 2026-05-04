@@ -20,6 +20,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -91,6 +92,7 @@ export function TemplateDetailView({
   onInstalled,
   onUninstalled,
 }: TemplateDetailViewProps) {
+  const { t } = useTranslation();
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [outcome, setOutcome] = useState<OutcomeState | null>(null);
   const [busy, setBusy] = useState<'install' | 'uninstall' | null>(null);
@@ -203,7 +205,7 @@ export function TemplateDetailView({
           className="gap-1.5 -ml-2"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Back to catalog
+          {t('marketplace.detail.back-to-catalog')}
         </Button>
       </div>
 
@@ -247,7 +249,7 @@ export function TemplateDetailView({
           {fileList.length > 0 && (
             <Card>
               <CardContent className="p-4">
-                <h3 className="text-sm font-medium mb-2">Files in this template</h3>
+                <h3 className="text-sm font-medium mb-2">{t('marketplace.detail.files-in-template')}</h3>
                 <ul
                   data-testid="template-detail-files"
                   className="text-xs text-muted-foreground space-y-1 font-mono"
@@ -449,6 +451,7 @@ interface OutcomePanelProps {
 }
 
 function OutcomePanel({ outcome, onViewAuditLog, onRetry, onDismiss }: OutcomePanelProps) {
+  const { t } = useTranslation();
   const isSuccess = outcome.kind === 'success';
   const Icon = isSuccess ? CheckCircle2 : XCircle;
 
@@ -491,7 +494,7 @@ function OutcomePanel({ outcome, onViewAuditLog, onRetry, onDismiss }: OutcomePa
                 className="h-7 text-xs"
                 onClick={onViewAuditLog}
               >
-                View in Audit Log
+                {t('marketplace.detail.view-audit-log')}
               </Button>
             )}
             {onRetry && (

@@ -20,6 +20,7 @@
  */
 
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AuditEntry } from '@/types/audit';
 
 export interface CostMetricsProps {
@@ -207,6 +208,7 @@ export function computeMonthTotals(
 }
 
 export function CostMetrics({ entries, now, className }: CostMetricsProps) {
+  const { t } = useTranslation();
   const resolvedNow = now ?? new Date();
 
   const series = useMemo(
@@ -244,8 +246,7 @@ export function CostMetrics({ entries, now, className }: CostMetricsProps) {
       <div className="mb-3">
         <div className="text-base font-semibold">Cost &amp; Usage</div>
         <div className="text-xs text-muted-foreground mt-0.5">
-          Your AI spend for the current month, broken down by provider. Data
-          from v1.5+ (earlier activity may be missing).
+          {t('analysis.cost-metrics.description')}
         </div>
       </div>
 
@@ -358,11 +359,11 @@ export function CostMetrics({ entries, now, className }: CostMetricsProps) {
       {/* Per-provider breakdown (this month) */}
       <div data-testid="cost-metrics-breakdown">
         <div className="text-xs text-muted-foreground mb-1">
-          By provider (this month)
+          {t('analysis.cost-metrics.by-provider')}
         </div>
         {sortedProviderTotals.length === 0 ? (
           <div className="text-sm text-muted-foreground py-2">
-            No recorded costs yet this month. Run a chat to see data here.
+            {t('analysis.cost-metrics.no-costs')}
           </div>
         ) : (
           <ul className="space-y-1">

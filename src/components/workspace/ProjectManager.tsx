@@ -2,6 +2,7 @@
 // Allows switching between projects, renaming, and managing workspaces
 
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -49,6 +50,7 @@ export function ProjectManager({
   onRenameProject,
   recentProjects = [],
 }: ProjectManagerProps) {
+  const { t } = useTranslation();
   const isTauri = isTauriEnvironment();
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [newName, setNewName] = useState(currentProjectName);
@@ -126,7 +128,7 @@ export function ProjectManager({
               ))}
               {!isTauri && (
                 <p className="px-2 py-1 text-xs text-muted-foreground">
-                  Re-select folder to reopen
+                  {t('workspace.project-manager.reselect-hint')}
                 </p>
               )}
             </>
@@ -140,7 +142,7 @@ export function ProjectManager({
           <DialogHeader>
             <DialogTitle>Rename Project</DialogTitle>
             <DialogDescription>
-              Enter a new name for your project. This will rename the workspace folder.
+              {t('workspace.project-manager.rename-description')}
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">

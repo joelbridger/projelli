@@ -15,6 +15,7 @@
 // hatch so users are never stuck.
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 
 import { PDFViewer } from '@/components/media/PDFViewer';
 import { Button } from '@/components/ui/button';
@@ -70,6 +71,7 @@ export function PresentationViewer({
   filePath,
   className,
 }: PresentationViewerProps) {
+  const { t } = useTranslation();
   const [state, setState] = useState<LoadState>({ kind: 'detecting' });
   const inTauri = isTauriEnvironment();
 
@@ -177,22 +179,25 @@ export function PresentationViewer({
         >
           <Info className="h-4 w-4 shrink-0" />
           <span>
-            Basic preview — install{' '}
-            <a
-              href="https://libreoffice.org"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-foreground"
-            >
-              LibreOffice
-            </a>
-            {' '}for full fidelity.
+            <Trans
+              i18nKey="media.presentation.basic-preview"
+              components={{
+                a: (
+                  <a
+                    href="https://libreoffice.org"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-foreground"
+                  />
+                ),
+              }}
+            />
           </span>
         </div>
         {/* Slide outline */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
           {state.slides.length === 0 && (
-            <p className="text-muted-foreground text-sm">No slides found.</p>
+            <p className="text-muted-foreground text-sm">{t('media.presentation.no-slides')}</p>
           )}
           {state.slides.map((slide) => (
             <div
@@ -201,11 +206,11 @@ export function PresentationViewer({
               className="rounded-lg border bg-card p-4 shadow-sm"
             >
               <div className="text-xs font-semibold text-muted-foreground mb-2">
-                Slide {slide.number}
+                {t('media.presentation.slide-label', { number: slide.number })}
               </div>
               {slide.texts.length === 0 ? (
                 <p className="text-sm text-muted-foreground italic">
-                  (no text content)
+                  {t('media.presentation.no-text-content')}
                 </p>
               ) : (
                 <div className="space-y-1">
@@ -238,7 +243,7 @@ export function PresentationViewer({
             data-testid="presentation-loading"
             className="h-10 w-10 mb-3 animate-spin opacity-70"
           />
-          <p className="text-sm">Checking for LibreOffice...</p>
+          <p className="text-sm">{t('media.presentation.checking-libreoffice')}</p>
         </>
       )}
 
@@ -248,9 +253,9 @@ export function PresentationViewer({
             data-testid="presentation-loading"
             className="h-10 w-10 mb-3 animate-spin opacity-70"
           />
-          <p className="text-sm">Rendering slides...</p>
+          <p className="text-sm">{t('media.presentation.rendering-slides')}</p>
           <p className="mt-1 text-xs opacity-70">
-            First open converts the deck; later opens are instant.
+            {t('media.presentation.first-open-converts')}
           </p>
         </>
       )}
@@ -264,10 +269,10 @@ export function PresentationViewer({
           <Presentation className="h-16 w-16 mb-4 opacity-50" />
           <p className="text-lg font-medium">{fileName}</p>
           <p className="mt-2 text-sm max-w-md">
-            Could not preview this file. Download it to view in PowerPoint.
+            {t('media.presentation.cannot-preview')}
           </p>
           <Button variant="outline" className="mt-4" onClick={handleDownload}>
-            Download File
+            {t('media.presentation.download-file')}
           </Button>
         </>
       )}
@@ -275,7 +280,7 @@ export function PresentationViewer({
       {state.kind === 'error' && (
         <>
           <AlertTriangle className="h-10 w-10 mb-3 text-destructive opacity-70" />
-          <p className="text-lg font-medium">Couldn't render {fileName}</p>
+          <p className="text-lg font-medium">{t('media.presentation.could-not-render', { fileName })}</p>
           <p
             data-testid="presentation-error"
             className="mt-2 text-sm text-destructive max-w-md"
@@ -283,9 +288,9 @@ export function PresentationViewer({
             {state.message}
           </p>
           <div className="mt-4 flex gap-2">
-            <Button onClick={runConversion}>Try again</Button>
+            <Button onClick={runConversion}>{t('media.presentation.try-again')}</Button>
             <Button variant="outline" onClick={handleDownload}>
-              Download File
+              {t('media.presentation.download-file')}
             </Button>
           </div>
         </>

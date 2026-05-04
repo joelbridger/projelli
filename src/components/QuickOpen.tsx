@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import Fuse from 'fuse.js';
 import { Search, File as FileIcon, Clock } from 'lucide-react';
 import {
@@ -94,6 +95,7 @@ function pushRecent(path: string): string[] {
 }
 
 export function QuickOpen({ open, onOpenChange, fileTree, onFileOpen }: QuickOpenProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [recents, setRecents] = useState<string[]>([]);
@@ -213,7 +215,7 @@ export function QuickOpen({ open, onOpenChange, fileTree, onFileOpen }: QuickOpe
             hidden so the modal matches the command palette's compact look. */}
         <DialogTitle className="sr-only">Quick open</DialogTitle>
         <DialogDescription className="sr-only">
-          Find a file by fuzzy matching its name
+          {t('quick-open.description')}
         </DialogDescription>
 
         {/* Search input */}

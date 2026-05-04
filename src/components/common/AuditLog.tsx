@@ -2,6 +2,7 @@
 // Displays the audit log with filtering and search
 
 import { useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,6 +103,7 @@ export function AuditLog({
   onExportCSV,
   className,
 }: AuditLogProps) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<Set<AuditActionType>>(
     new Set()
@@ -378,7 +380,7 @@ export function AuditLog({
       >
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Audit Entry Details</DialogTitle>
+            <DialogTitle>{t('common.audit-log.entry-details-title')}</DialogTitle>
           </DialogHeader>
           {detailEntry && (
             <AuditEntryDetails

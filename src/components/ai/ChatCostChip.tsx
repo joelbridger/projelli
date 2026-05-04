@@ -16,6 +16,7 @@
  *     Jameson's no-em-dash rule, we use ASCII hyphens throughout.
  */
 
+import { useTranslation } from 'react-i18next';
 import {
   Tooltip,
   TooltipContent,
@@ -73,6 +74,7 @@ function buildBreakdownRows(summary: TodayCostSummary): Array<{
 }
 
 export function ChatCostChip({ chatId, className }: ChatCostChipProps) {
+  const { t } = useTranslation();
   const chatCost = useChatCost(chatId);
   const today = useTodayCost();
 
@@ -108,11 +110,11 @@ export function ChatCostChip({ chatId, className }: ChatCostChipProps) {
       >
         <div className="space-y-1.5 py-0.5">
           <div className="font-medium text-[11px]">
-            Today so far: {formatCostLong(today.cost)}
+            {t('ai.cost-chip.today-so-far', { cost: formatCostLong(today.cost) })}
           </div>
           {rows.length === 0 ? (
             <div className="text-[11px] text-muted-foreground">
-              No AI requests yet today.
+              {t('ai.cost-chip.no-requests')}
             </div>
           ) : (
             <ul className="space-y-0.5 text-[11px]">

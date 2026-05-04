@@ -12,6 +12,7 @@
 // Plan: docs/superpowers/plans/2026-05-03-stream-c3-plugin-runner.md (task 8.4)
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -54,6 +55,7 @@ function writeSettingValue(
 }
 
 export function PluginSettingsPage({ page }: PluginSettingsPageProps) {
+  const { t } = useTranslation();
   const entries = Object.entries(page.schema);
   const [values, setValues] = useState<Record<string, string | number | boolean>>(() => {
     const initial: Record<string, string | number | boolean> = {};
@@ -92,13 +94,13 @@ export function PluginSettingsPage({ page }: PluginSettingsPageProps) {
       <div className="border-b pb-3">
         <h3 className="text-base font-semibold">{page.title}</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Settings contributed by plugin {page.pluginId}.
+          {t('plugins.settings-page.contributed-by', { pluginId: page.pluginId })}
         </p>
       </div>
 
       {entries.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          This plugin did not declare any settings.
+          {t('plugins.settings-page.no-settings')}
         </p>
       ) : (
         entries.map(([key, fieldSpec]) => (

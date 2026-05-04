@@ -11,6 +11,7 @@
  *   2. Settings, Onboarding, "View API Key Tutorial" action
  */
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ExternalLink } from 'lucide-react';
 import { openExternal } from '@/utils/openExternal';
 import { Button } from '@/components/ui/button';
@@ -125,6 +126,7 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
 };
 
 export function ProviderTutorialList({ tutorial }: { tutorial: ProviderTutorial }): ReactNode {
+  const { t } = useTranslation();
   const handleOpen = (url: string) => {
     void openExternal(url);
   };
@@ -140,7 +142,7 @@ export function ProviderTutorialList({ tutorial }: { tutorial: ProviderTutorial 
           data-testid={`api-key-tutorial-open-console-${tutorial.providerId}`}
           className="gap-1.5"
         >
-          Open API keys page
+          {t('onboarding.tutorial.open-api-keys')}
           <ExternalLink className="h-3.5 w-3.5" />
         </Button>
         <Button
@@ -173,7 +175,7 @@ export function ProviderTutorialList({ tutorial }: { tutorial: ProviderTutorial 
       </ol>
       <div className="text-xs text-muted-foreground pt-2 border-t space-y-1">
         <div>
-          Direct URLs (click to open in your browser):
+          {t('onboarding.tutorial.direct-urls')}
         </div>
         <div className="flex flex-wrap gap-x-3 gap-y-1">
           <button

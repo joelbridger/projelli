@@ -10,6 +10,7 @@
  */
 
 import { useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { useLicense } from '@/hooks/useLicense';
 import { useTrial } from '@/hooks/useTrial';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export function LicenseSettings() {
+  const { t } = useTranslation();
   const { tier, isLoading, isActivated, expiresAt, error, activate, deactivate, refresh } = useLicense();
   const trial = useTrial();
   const [licenseKeyInput, setLicenseKeyInput] = useState('');
@@ -33,7 +35,7 @@ export function LicenseSettings() {
   };
 
   const handleDeactivate = () => {
-    if (window.confirm('Deactivate this license? You will lose access to paid features until you re-activate.')) {
+    if (window.confirm(t('settings.license.deactivate-confirm'))) {
       deactivate();
     }
   };
@@ -41,13 +43,21 @@ export function LicenseSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">License</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{t('settings.license.title')}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Activate Projelli with a license key purchased at{' '}
-          <a href="https://projelli.com/#pricing" target="_blank" rel="noopener noreferrer" className="text-primary underline">
-            projelli.com
-          </a>
-          .
+          <Trans
+            i18nKey="settings.license.description"
+            components={{
+              pricingLink: (
+                <a
+                  href="https://projelli.com/#pricing"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline"
+                />
+              ),
+            }}
+          />
         </p>
       </div>
 
@@ -58,43 +68,47 @@ export function LicenseSettings() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                  ACTIVATED
+                  {t('settings.license.badge.activated')}
                 </span>
                 <span className="text-lg font-medium capitalize">
-                  {tier === 'lifetime' ? 'Lifetime' : tier === 'pro' ? 'Pro' : 'Free'}
+                  {tier === 'lifetime'
+                    ? t('settings.license.tier.lifetime')
+                    : tier === 'pro'
+                      ? t('settings.license.tier.pro')
+                      : t('settings.license.tier.free')}
                 </span>
               </div>
               {expiresAt && tier !== 'lifetime' && (
                 <p className="text-sm text-muted-foreground mt-1">
-                  Valid until: {expiresAt.toLocaleDateString()}
+                  {t('settings.license.valid-until', { date: expiresAt.toLocaleDateString() })}
                 </p>
               )}
               {tier === 'lifetime' && (
                 <p className="text-sm text-muted-foreground mt-1">
-                  Lifetime license — updates forever.
+                  {t('settings.license.lifetime-tagline')}
                 </p>
               )}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={refresh} disabled={isLoading}>
-                Refresh
+                {t('settings.license.refresh')}
               </Button>
               <Button variant="outline" size="sm" onClick={handleDeactivate} disabled={isLoading}>
-                Deactivate
+                {t('settings.license.deactivate')}
               </Button>
             </div>
           </div>
           <div className="border-t pt-4 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground mb-2">What your license unlocks:</p>
+            <p className="font-medium text-foreground mb-2">{t('settings.license.unlocks-heading')}</p>
             <ul className="space-y-1 text-xs">
-              <li>✓ AI chat with your own keys (Claude, OpenAI, Gemini)</li>
-              <li>✓ All 15 founder workflow templates</li>
-              <li>✓ Unlimited workspaces, files, and version history</li>
-              <li>✓ Whiteboard, audio recording, research citations</li>
-              {tier === 'lifetime' && <li>✓ Multi-model comparison</li>}
-              {tier === 'lifetime' && <li>✓ Commercial use license</li>}
-              {tier === 'lifetime' && <li>✓ Updates forever</li>}
-              {tier !== 'lifetime' && <li className="opacity-60">+ Multi-model comparison &amp; commercial use on Lifetime</li>}
+              <li>{t('settings.license.unlocks.ai-chat')}</li>
+              <li>{t('settings.license.unlocks.workflows')}</li>
+              <li>{t('settings.license.unlocks.workspaces')}</li>
+              <li>{t('settings.license.unlocks.whiteboard-audio-research')}</li>
+              {tier === 'lifetime' && <li>{t('settings.license.unlocks.multi-model')}</li>}
+              {tier === 'lifetime' && <li>{t('settings.license.unlocks.commercial')}</li>}
+              {tier === 'lifetime' && <li>{t('settings.license.unlocks.updates-forever')}</li>}
+              {tier !== 'lifetime' && <li className="opacity-60">{t('settings.license.unlocks.lifetime-extras')}</li>}
             </ul>
           </div>
         </div>
@@ -108,34 +122,33 @@ export function LicenseSettings() {
               <>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
-                    TRIAL ENDED
+                    {t('settings.license.badge.trial-ended')}
                   </span>
-                  <span className="text-base font-medium">Activate to continue</span>
+                  <span className="text-base font-medium">{t('settings.license.activate-to-continue')}</span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Your {trial.trialDays}-day free trial ended on{' '}
-                  <strong>{new Date(trial.firstLaunchAt.getTime() + trial.trialDays * 86400000).toLocaleDateString()}</strong>.
-                  AI chat and workflows are paused. Your existing files are still here, fully readable. Activate
-                  a license to keep building.
+                  <Trans
+                    i18nKey="settings.license.trial-expired-detail"
+                    values={{
+                      days: trial.trialDays,
+                      endDate: new Date(trial.firstLaunchAt.getTime() + trial.trialDays * 86400000).toLocaleDateString(),
+                    }}
+                    components={{ endDateBold: <strong /> }}
+                  />
                 </p>
               </>
             ) : (
               <>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-900 dark:bg-blue-900/30 dark:text-blue-200">
-                    TRIAL
+                    {t('settings.license.badge.trial')}
                   </span>
                   <span className="text-base font-medium">
-                    {trial.daysRemaining === 1
-                      ? '1 day left'
-                      : `${trial.daysRemaining} days left`}
+                    {t('settings.license.days-left', { count: trial.daysRemaining })}
                   </span>
                 </div>
                 <p className="text-sm text-muted-foreground mt-1">
-                  You're on the free trial. Every Projelli feature is unlocked for {trial.trialDays} days from
-                  first launch — bring your own AI keys, run workflows, edit files, the works.
-                  When the trial ends, AI chat and workflows pause until you activate a license; your files
-                  stay accessible.
+                  {t('settings.license.trial-active-detail', { days: trial.trialDays })}
                 </p>
               </>
             )}
@@ -152,12 +165,12 @@ export function LicenseSettings() {
                 rel="noopener noreferrer"
                 data-testid="license-buy-button"
               >
-                Get a license at projelli.com →
+                {t('settings.license.get-license-cta')}
               </a>
             </Button>
             <div>
               <Label htmlFor="license-key" className="text-sm">
-                Already have a license key?
+                {t('settings.license.already-have-key')}
               </Label>
               <div className="flex gap-2 mt-2">
                 <Input
@@ -174,7 +187,7 @@ export function LicenseSettings() {
                   onClick={handleActivate}
                   disabled={isLoading || !licenseKeyInput.trim()}
                 >
-                  {isLoading ? 'Activating…' : 'Activate'}
+                  {isLoading ? t('settings.license.activating') : t('settings.license.activate')}
                 </Button>
               </div>
             </div>
@@ -192,7 +205,7 @@ export function LicenseSettings() {
       {/* Success toast */}
       {showSuccess && (
         <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-4">
-          <p className="text-sm text-green-700 dark:text-green-400">License activated successfully.</p>
+          <p className="text-sm text-green-700 dark:text-green-400">{t('settings.license.activate-success')}</p>
         </div>
       )}
     </div>

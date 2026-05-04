@@ -19,6 +19,7 @@
  */
 
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -67,6 +68,7 @@ const STATUS_PILL: Record<PluginStatus, string> = {
 };
 
 export function InstalledPluginsList() {
+  const { t } = useTranslation();
   const installed = usePluginManagerStore(selectAllInstalled);
   const statusByPluginId = usePluginManagerStore((s) => s.statusByPluginId);
   const { service: marketplaceService } = usePluginsMarketplace();
@@ -187,7 +189,7 @@ export function InstalledPluginsList() {
         data-testid="installed-plugins-empty"
         className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
       >
-        No plugins installed yet. Browse the marketplace to add one.
+        {t('marketplace.installed-plugins.empty')}
       </div>
     );
   }

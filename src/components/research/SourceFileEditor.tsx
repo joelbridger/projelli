@@ -2,6 +2,7 @@
 // Displays and edits .source files
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { openExternal } from '@/utils/openExternal';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ export function SourceFileEditor({
   onSave,
   className,
 }: SourceFileEditorProps) {
+  const { t } = useTranslation();
   const [sourceCard, setSourceCard] = useState<SourceCard | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -153,8 +155,7 @@ export function SourceFileEditor({
         <div className="text-center max-w-md">
           <p className="text-destructive mb-4">{parseError}</p>
           <p className="text-sm text-muted-foreground">
-            This file may have been corrupted. You can try editing it as a text file
-            or deleting and recreating it.
+            {t('research.source-editor.parse-error-help')}
           </p>
         </div>
       </div>
@@ -235,7 +236,7 @@ export function SourceFileEditor({
                   <div className="flex-1">
                     <p className="text-sm font-medium">Preview unavailable</p>
                     <p className="text-xs text-muted-foreground">
-                      Site blocks iframe embedding
+                      {t('research.source-editor.iframe-blocked')}
                     </p>
                   </div>
                   <Button
@@ -307,7 +308,7 @@ export function SourceFileEditor({
 
         {/* Quote or Snippet */}
         <div className="space-y-2">
-          <Label htmlFor="quote_or_snippet">Quote or Snippet</Label>
+          <Label htmlFor="quote_or_snippet">{t('research.source-editor.quote-label')}</Label>
           <Textarea
             id="quote_or_snippet"
             value={sourceCard.quote_or_snippet}
@@ -388,13 +389,13 @@ export function SourceFileEditor({
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            Add tags to organize and filter your sources
+            {t('research.source-editor.tags-help')}
           </p>
         </div>
 
         {/* Source ID (read-only) */}
         <div className="space-y-2">
-          <Label htmlFor="id">Source ID (Read-only)</Label>
+          <Label htmlFor="id">{t('research.source-editor.source-id-label')}</Label>
           <Input
             id="id"
             value={sourceCard.id}
@@ -414,7 +415,7 @@ export function SourceFileEditor({
           )}
         </span>
         <span className="opacity-60">
-          <kbd className="px-1.5 py-0.5 bg-background border rounded">Ctrl+S</kbd> to save immediately
+          <kbd className="px-1.5 py-0.5 bg-background border rounded">Ctrl+S</kbd> {t('research.source-editor.save-immediately')}
         </span>
       </div>
     </div>

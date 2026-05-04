@@ -25,6 +25,7 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -126,6 +127,7 @@ export function ApiKeyWizard({
   initialProvider = 'anthropic',
   tutorialOnly = false,
 }: ApiKeyWizardProps) {
+  const { t } = useTranslation();
   const [provider, setProvider] = useState<WizardProvider>(initialProvider);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [keyText, setKeyText] = useState('');
@@ -275,8 +277,11 @@ export function ApiKeyWizard({
           <StepShell testid="api-key-wizard-step-1" title="Step 1. Go to the provider" description="We'll open their API keys page in your default browser.">
             <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3 text-sm">
               <p className="text-muted-foreground">
-                Click the button below to open <strong className="text-foreground">{meta.dashboardLabel}</strong> in your browser.
-                You'll need to sign in (or sign up) to get to the keys page.
+                <Trans
+                  i18nKey="onboarding.api-key-wizard.step-1.body"
+                  components={{ s: <strong className="text-foreground" /> }}
+                  values={{ dashboard: meta.dashboardLabel }}
+                />
               </p>
               <Button onClick={handleOpenConsole} className="gap-2" size="sm">
                 Open {meta.dashboardLabel}
@@ -299,8 +304,10 @@ export function ApiKeyWizard({
           <StepShell testid="api-key-wizard-step-2" title="Step 2. Install Ollama and pull a model" description={meta.step2Title}>
             <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2 text-sm">
               <p className="text-muted-foreground">
-                Download Ollama for your OS, then in a terminal run <code className="text-foreground">ollama pull llama3.2</code> (or any model you want).
-                Projelli auto-detects Ollama on the next step.
+                <Trans
+                  i18nKey="onboarding.api-key-wizard.step-2-ollama.body"
+                  components={{ c: <code className="text-foreground" /> }}
+                />
               </p>
             </div>
           </StepShell>
@@ -359,9 +366,9 @@ export function ApiKeyWizard({
                   <>
                     <Check className="h-4 w-4 text-emerald-500" />
                     <span className="text-sm">
-                      Ollama is running{' '}
+                      {t('onboarding.api-key-wizard.ollama-running')}{' '}
                       <span className="text-muted-foreground">
-                        ({ollamaModels.length} model{ollamaModels.length === 1 ? '' : 's'} ready)
+                        ({t('onboarding.api-key-wizard.ollama-models-ready', { count: ollamaModels.length })})
                       </span>
                     </span>
                   </>
@@ -370,7 +377,7 @@ export function ApiKeyWizard({
                   <>
                     <AlertCircle className="h-4 w-4 text-amber-500" />
                     <span className="text-sm">
-                      Ollama is not running. Install it, then click Check.
+                      {t('onboarding.api-key-wizard.ollama-not-running')}
                     </span>
                   </>
                 )}
@@ -388,7 +395,7 @@ export function ApiKeyWizard({
                 className="gap-1.5"
               >
                 <Cpu className="h-3.5 w-3.5" />
-                Check Ollama connection
+                {t('onboarding.api-key-wizard.check-ollama')}
               </Button>
               <p className="text-xs text-muted-foreground italic">{meta.costLine}</p>
             </div>

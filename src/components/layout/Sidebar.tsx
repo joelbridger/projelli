@@ -3,6 +3,7 @@
 // Settings have been moved to the AI Assistant pane on the right
 
 import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -61,6 +62,7 @@ export function Sidebar({
   onOpenGridView,
   className,
 }: SidebarProps) {
+  const { t } = useTranslation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [internalActiveTab, setInternalActiveTab] = useState<SidebarTab>('files');
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -91,16 +93,16 @@ export function Sidebar({
     label: string;
     shortcutId?: string;
   }[] = [
-    { id: 'files', Icon: FolderTree, label: 'Files' },
-    { id: 'search', Icon: Search, label: 'Search' },
-    { id: 'workflows', Icon: Workflow, label: 'Workflows' },
-    { id: 'ai-assistant', Icon: Bot, label: 'AI Assistant', shortcutId: 'ai-assistant' },
-    { id: 'research', Icon: BookOpen, label: 'Research' },
-    { id: 'whiteboard', Icon: PenTool, label: 'Whiteboard' },
-    { id: 'audit', Icon: History, label: 'AI Audit' },
-    { id: 'trash', Icon: Trash2, label: 'Trash' },
+    { id: 'files', Icon: FolderTree, label: t('layout.sidebar.tabs.files') },
+    { id: 'search', Icon: Search, label: t('layout.sidebar.tabs.search') },
+    { id: 'workflows', Icon: Workflow, label: t('layout.sidebar.tabs.workflows') },
+    { id: 'ai-assistant', Icon: Bot, label: t('layout.sidebar.tabs.ai-assistant'), shortcutId: 'ai-assistant' },
+    { id: 'research', Icon: BookOpen, label: t('layout.sidebar.tabs.research') },
+    { id: 'whiteboard', Icon: PenTool, label: t('layout.sidebar.tabs.whiteboard') },
+    { id: 'audit', Icon: History, label: t('layout.sidebar.tabs.audit') },
+    { id: 'trash', Icon: Trash2, label: t('layout.sidebar.tabs.trash') },
     ...(hasPluginPanels
-      ? [{ id: 'plugins' as const, Icon: Puzzle, label: 'Plugins' }]
+      ? [{ id: 'plugins' as const, Icon: Puzzle, label: t('layout.sidebar.tabs.plugins') }]
       : []),
   ];
 
@@ -151,7 +153,7 @@ export function Sidebar({
       <div className="flex items-center justify-between border-b px-2 py-1">
         {!isCollapsed && (
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Workspace
+            {t('layout.sidebar.workspace-label')}
           </span>
         )}
         <Button
@@ -160,7 +162,7 @@ export function Sidebar({
           size="sm"
           className="h-6 w-6 p-0 ml-auto"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={isCollapsed ? t('layout.sidebar.expand-aria') : t('layout.sidebar.collapse-aria')}
         >
           {isCollapsed ? (
             <ChevronRight className="h-4 w-4" />
@@ -174,7 +176,7 @@ export function Sidebar({
       <div
         role="tablist"
         aria-orientation="vertical"
-        aria-label="Sidebar sections"
+        aria-label={t('layout.sidebar.sections-aria')}
         className={cn(
           'flex flex-col border-b',
           isCollapsed ? 'items-center py-1' : 'py-1'
@@ -266,14 +268,14 @@ export function Sidebar({
             <div className="flex flex-col h-full overflow-hidden">
               {/* Files section header with Grid View toggle */}
               <div className="flex items-center justify-between px-3 py-1.5 border-b">
-                <span className="text-xs font-semibold text-foreground">Files</span>
+                <span className="text-xs font-semibold text-foreground">{t('layout.sidebar.tabs.files')}</span>
                 {onOpenGridView && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-6 w-6 p-0"
                     onClick={onOpenGridView}
-                    title="Grid view"
+                    title={t('layout.sidebar.grid-view-title')}
                     data-testid="grid-view-button"
                   >
                     <LayoutGrid className="h-3.5 w-3.5" />

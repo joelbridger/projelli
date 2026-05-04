@@ -22,6 +22,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 
 /** Files the OS or browsers drop on us that nobody actually wants imported. */
@@ -185,10 +186,12 @@ export interface GlobalDropOverlayProps {
 
 export function GlobalDropOverlay({
   visible,
-  message = 'Drop files to add to your workspace',
+  message,
   className,
 }: GlobalDropOverlayProps) {
+  const { t } = useTranslation();
   if (!visible) return null;
+  const resolvedMessage = message ?? t('common.drop-overlay.default-message');
   return (
     <div
       data-testid="file-drop-overlay"
@@ -203,10 +206,9 @@ export function GlobalDropOverlay({
       aria-hidden="true"
     >
       <div className="border-2 border-dashed border-primary rounded-lg bg-background/80 px-8 py-6 text-center shadow-lg">
-        <p className="text-lg font-semibold text-foreground">{message}</p>
+        <p className="text-lg font-semibold text-foreground">{resolvedMessage}</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          Drop on a folder to put them there, or drop anywhere else to add to
-          the workspace root.
+          {t('common.drop-overlay.hint')}
         </p>
       </div>
     </div>

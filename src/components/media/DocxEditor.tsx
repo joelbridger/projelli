@@ -13,6 +13,7 @@
 //     re-renders it. The banner warns + reminds users a backup was written.
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import CharacterCount from '@tiptap/extension-character-count';
@@ -61,6 +62,7 @@ export function DocxEditor({
   onContentChange,
   onFirstEdit,
 }: DocxEditorProps) {
+  const { t } = useTranslation();
   const [initialHtml, setInitialHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
@@ -198,7 +200,7 @@ export function DocxEditor({
       >
         <AlertTriangle className="h-10 w-10 text-destructive opacity-70" />
         <div>
-          <p className="text-sm font-medium text-foreground">Couldn't open {fileName}</p>
+          <p className="text-sm font-medium text-foreground">{t('media.docx-editor.could-not-open', { fileName })}</p>
           <p className="mt-1 text-xs text-muted-foreground">{error}</p>
         </div>
       </div>
@@ -260,9 +262,7 @@ export function DocxEditor({
         >
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
           <p className="flex-1">
-            Some advanced formatting (tables, images, page headers) may not be
-            preserved when saving. A backup of the original file is created
-            before your first edit.
+            {t('media.docx-editor.formatting-warning')}
           </p>
           <Button
             data-testid="docx-editor-banner-dismiss"

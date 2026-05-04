@@ -13,6 +13,7 @@
 //     disallowed per the Phase 5 spec).
 
 import { useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Sparkles, Loader2, X, CheckCircle2 } from 'lucide-react';
@@ -182,12 +183,13 @@ function RunOnAllResults({
   onKeep,
   onDismiss,
 }: RunOnAllResultsProps) {
+  const { t } = useTranslation();
   return (
     <div data-testid="run-on-all-panel" className="mt-3 border rounded bg-background">
       <div className="flex items-center justify-between px-3 py-2 border-b">
         <div className="flex items-center gap-2 text-sm font-medium">
           <CheckCircle2 className="h-4 w-4 text-green-600" />
-          Multi-provider comparison ({results.length})
+          {t('chat.run-on-all.title', { count: results.length })}
         </div>
         <button
           data-testid="run-on-all-close"

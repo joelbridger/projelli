@@ -13,6 +13,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation, Trans } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { useUpdaterStore } from '@/stores/updaterStore';
 import { Download, RefreshCw, X } from 'lucide-react';
@@ -20,6 +21,7 @@ import { cn } from '@/lib/utils';
 import { UpdateReleaseNotesModal } from './UpdateReleaseNotesModal';
 
 export function UpdateBanner() {
+  const { t } = useTranslation();
   const status = useUpdaterStore((s) => s.status);
   const available = useUpdaterStore((s) => s.available);
   const dismissed = useUpdaterStore((s) => s.dismissedThisSession);
@@ -72,7 +74,10 @@ export function UpdateBanner() {
           )}
           {status === 'ready-to-restart' && (
             <span className="truncate">
-              <span className="font-medium">Update ready</span> — restart to apply
+              <Trans
+                i18nKey="updater.banner.ready-to-restart"
+                components={{ s: <span className="font-medium" /> }}
+              />
             </span>
           )}
         </div>
@@ -86,7 +91,7 @@ export function UpdateBanner() {
                 className="h-7 px-2 text-xs"
                 onClick={() => setShowReleaseNotes(true)}
               >
-                See what's changed
+                {t('updater.banner.see-whats-changed')}
               </Button>
               <Button
                 data-testid="update-banner-install"

@@ -7,6 +7,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTemplatesMarketplace } from '@/hooks/useTemplatesMarketplace';
 import { usePluginsMarketplace } from '@/hooks/usePluginsMarketplace';
@@ -17,6 +18,7 @@ import { PluginsTab } from './PluginsTab';
 type MarketplaceSubtab = 'templates' | 'plugins';
 
 export function MarketplaceTab() {
+  const { t } = useTranslation();
   const [subtab, setSubtab] = useState<MarketplaceSubtab>('templates');
   const templates = useTemplatesMarketplace();
   const plugins = usePluginsMarketplace();
@@ -32,10 +34,9 @@ export function MarketplaceTab() {
   return (
     <div className="space-y-4" data-testid="marketplace-tab">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Marketplace</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{t('marketplace.tab.title')}</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Browse community templates and plugins. Installs are stored in your
-          workspace and can be removed at any time.
+          {t('marketplace.tab.description')}
         </p>
       </div>
 
