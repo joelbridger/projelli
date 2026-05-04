@@ -2,6 +2,7 @@
 // Collects answers to workflow interview questions
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +22,7 @@ export function InterviewForm({
   onCancel,
   isSubmitting = false,
 }: InterviewFormProps) {
+  const { t } = useTranslation();
   const [answers, setAnswers] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const q of questions) {
@@ -115,7 +117,7 @@ export function InterviewForm({
                 )}
                 disabled={isSubmitting}
               >
-                <option value="">Select an option</option>
+                <option value="">{t('workflow.interview.select-option')}</option>
                 {question.options.map((option) => (
                   <option key={option} value={option}>
                     {option}

@@ -10,6 +10,7 @@
 //     The modal has a real <DialogTitle> for a11y (no repeat of UX-02).
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -72,6 +73,7 @@ export function WorkflowPanel({
   onFocusExecutionTab,
   onRunChain,
 }: WorkflowPanelProps) {
+  const { t } = useTranslation();
   // 30-day trial gate. Locks template + chain runs when expired and not paid.
   const trialGate = useTrialGate();
   const [showFullView, setShowFullView] = useState(false);
@@ -185,8 +187,8 @@ export function WorkflowPanel({
           data-testid="workflows-trial-expired-banner"
           className="mx-3 mt-3 mb-1 px-3 py-2 rounded border border-amber-400/50 bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-200 text-xs shrink-0"
         >
-          <strong>Trial ended.</strong>{' '}
-          Activate a license in Settings → License to run workflows.
+          <strong>{t('workflow.panel.trial-ended-label')}</strong>{' '}
+          {t('workflow.panel.trial-ended-description')}
         </div>
       )}
       {/* Header — sized for the narrow sidebar slot. Title truncates,
@@ -246,8 +248,10 @@ export function WorkflowPanel({
                       {currentExecution.template.name}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      Step {currentExecution.currentStepIndex + 1} of{' '}
-                      {currentExecution.template.steps.length} &mdash; click to view
+                      {t('workflow.panel.step-of-click', {
+                        current: currentExecution.currentStepIndex + 1,
+                        total: currentExecution.template.steps.length,
+                      })}
                     </span>
                   </div>
                 </div>
@@ -337,6 +341,7 @@ function WorkflowsFullViewModal({
   onDuplicate,
   onDelete,
 }: WorkflowsFullViewModalProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {
@@ -355,9 +360,9 @@ function WorkflowsFullViewModal({
         className="max-w-5xl w-[90vw] max-h-[90vh] overflow-hidden flex flex-col p-0"
       >
         <DialogHeader className="px-6 pt-6 pb-3 border-b shrink-0">
-          <DialogTitle>All workflows</DialogTitle>
+          <DialogTitle>{t('workflow.panel.modal-title')}</DialogTitle>
           <DialogDescription>
-            Pre-built AI workflows for founders. Pick one to start a guided conversation.
+            {t('workflow.panel.modal-description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -380,7 +385,7 @@ function WorkflowsFullViewModal({
               data-testid="workflows-modal-empty"
               className="text-sm text-muted-foreground text-center py-8"
             >
-              No workflows match "{query}".
+              {t('workflow.panel.no-matches', { query })}
             </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -473,6 +478,7 @@ interface TemplateForkModalProps {
 }
 
 function TemplateForkModal({ original, onClose, onSaved }: TemplateForkModalProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [systemPrompt, setSystemPromptValue] = useState('');
 
@@ -501,10 +507,9 @@ function TemplateForkModal({ original, onClose, onSaved }: TemplateForkModalProp
         className="max-w-2xl w-[90vw]"
       >
         <DialogHeader>
-          <DialogTitle>Duplicate template</DialogTitle>
+          <DialogTitle>{t('workflow.fork.title')}</DialogTitle>
           <DialogDescription>
-            Create your own copy of this template. You can edit the system
-            prompt that steers the AI while the workflow runs.
+            {t('workflow.fork.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -539,8 +544,7 @@ function TemplateForkModal({ original, onClose, onSaved }: TemplateForkModalProp
               placeholder="You are an experienced..."
             />
             <p className="text-[11px] text-muted-foreground mt-1">
-              This is the persona the AI uses in the first generation step.
-              Leave it blank to fall back to the model's default persona.
+              {t('workflow.fork.persona-hint')}
             </p>
           </div>
         </div>

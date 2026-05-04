@@ -2,6 +2,7 @@
 // Displays open file tabs with close buttons, dirty indicators, drag-to-reorder, and tab groups
 
 import { useCallback, useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { X, GripVertical, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getFileIcon } from '@/utils/fileIcons';
@@ -121,6 +122,7 @@ interface TabBarProps {
 }
 
 export function TabBar({ onRenameFile }: TabBarProps = {}) {
+  const { t } = useTranslation();
   const {
     openTabs,
     activeTabPath,
@@ -918,7 +920,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
             {tabs.length > 0 && (
               <>
                 <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                  Files in group
+                  {t('editor.tab-bar.files-in-group')}
                 </div>
                 {tabs.map((tab, idx) => {
                   const tabIndex = openTabs.indexOf(tab);
@@ -1312,7 +1314,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                 setTabContextMenu(null);
               }}
             >
-              Close other tabs
+              {t('editor.tab-bar.close-other-tabs')}
             </button>
           </div>
         </>,

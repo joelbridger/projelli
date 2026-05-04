@@ -12,6 +12,7 @@
 // graph editor.
 
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,7 @@ export function ChainBuilderModal({
   onSaved,
   onRun,
 }: ChainBuilderModalProps) {
+  const { t } = useTranslation();
   const [chain, setChain] = useState<WorkflowChain>(() =>
     initial ?? emptyChain('Untitled chain')
   );
@@ -108,10 +110,9 @@ export function ChainBuilderModal({
         className="max-w-3xl w-[90vw] max-h-[90vh] overflow-hidden flex flex-col"
       >
         <DialogHeader>
-          <DialogTitle>Chain templates</DialogTitle>
+          <DialogTitle>{t('workflow.chain-builder.title')}</DialogTitle>
           <DialogDescription>
-            Run a sequence of templates. Each step can pull fields from an
-            earlier step's output into its inputs.
+            {t('workflow.chain-builder.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -133,7 +134,7 @@ export function ChainBuilderModal({
           <div className="space-y-2">
             {chain.steps.length === 0 && (
               <p className="text-xs text-muted-foreground py-4 text-center border rounded">
-                No steps yet. Add one to start composing a chain.
+                {t('workflow.chain-builder.no-steps')}
               </p>
             )}
             {chain.steps.map((step, idx) => (
@@ -209,6 +210,7 @@ function ChainStepRow({
   onChange,
   onRemove,
 }: ChainStepRowProps) {
+  const { t } = useTranslation();
   const template = templatesById.get(step.templateId);
   const namedInputs = template?.namedInputs ?? [];
 
@@ -260,7 +262,7 @@ function ChainStepRow({
           data-testid={`chain-output-to-input-map-${idx}`}
           className="text-xs space-y-1 ml-16"
         >
-          <p className="text-muted-foreground">Map upstream outputs:</p>
+          <p className="text-muted-foreground">{t('workflow.chain-builder.map-outputs')}</p>
           {namedInputs.map((input) => {
             const current = step.inputMap?.find((m) => m.toInputId === input.id);
             const recommended = priorOutputs.filter((po) =>

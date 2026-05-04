@@ -2,6 +2,7 @@
 // Iframe-based Chrome browser with URL bar, navigation controls, tab management, and session persistence
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -38,6 +39,7 @@ const STORAGE_KEY_TABS = 'browser-tabs';
 const STORAGE_KEY_ACTIVE_TAB = 'browser-active-tab';
 
 export function BrowserPanel({ className, initialUrl }: BrowserPanelProps) {
+  const { t } = useTranslation();
   // Load from localStorage on mount, or use initialUrl if provided
   const [tabs, setTabs] = useState<BrowserTab[]>(() => {
     // If initialUrl is provided, create a single tab with that URL (tab mode)
@@ -479,13 +481,12 @@ export function BrowserPanel({ className, initialUrl }: BrowserPanelProps) {
             <div className="flex items-center gap-2 text-red-500">
               <AlertCircle className="h-5 w-5" />
               <div className="flex-1">
-                <p className="font-medium">Unable to load page</p>
+                <p className="font-medium">{t('workflow.browser.error-title')}</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {activeTab.error}
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Some websites (like Google, GitHub, etc.) block iframe embedding for security.
-                  Click the button below to open this URL in your default browser.
+                  {t('workflow.browser.iframe-blocked-hint')}
                 </p>
                 <Button
                   size="sm"
@@ -493,7 +494,7 @@ export function BrowserPanel({ className, initialUrl }: BrowserPanelProps) {
                   onClick={() => openExternal(activeTab.url)}
                 >
                   <ExternalLink className="h-4 w-4 mr-2" />
-                  Open in External Browser
+                  {t('workflow.browser.open-external')}
                 </Button>
               </div>
             </div>

@@ -2,6 +2,7 @@
 // Shows document headings for quick navigation
 
 import { useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { ChevronDown, Hash } from 'lucide-react';
 
@@ -95,6 +96,7 @@ export function OutlinePanel({
   activeLineNumber,
   className,
 }: OutlinePanelProps) {
+  const { t } = useTranslation();
   const headings = useMemo(() => parseHeadings(content), [content]);
   const tree = useMemo(() => buildHeadingTree(headings), [headings]);
 
@@ -122,7 +124,7 @@ export function OutlinePanel({
   if (headings.length === 0) {
     return (
       <div className={cn('p-4 text-sm text-muted-foreground', className)}>
-        No headings found
+        {t('editor.outline.empty')}
       </div>
     );
   }

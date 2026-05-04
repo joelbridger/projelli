@@ -267,6 +267,90 @@
       "description": "Power-user settings, including per-feature kill switches. Streams populate as features land."
     }
   },
+  "workspace": {
+    "file-tree": {
+      "new": {
+        "plain-text": "Plain Text (.txt)",
+        "rich-text": "Rich Text (.rt)",
+        "word-document": "Word Document (.docx)",
+        "audio-file": "Audio File (.webm)"
+      },
+      "drop-to-root": "Drop here to move to root",
+      "open-on-desktop": "Open on Desktop"
+    },
+    "selector": {
+      "browser-reselect-note": "Recent workspaces require re-selecting the folder due to browser security.",
+      "tagline": "Your AI workspace. Your files. Your machine.",
+      "open-existing-hint": "Select a workspace folder"
+    },
+    "grid": {
+      "empty-folder-hint": "This folder contains no files or subfolders"
+    },
+    "project-manager": {
+      "reselect-hint": "Re-select folder to reopen",
+      "rename-description": "Enter a new name for your project. This will rename the workspace folder."
+    }
+  },
+  "editor": {
+    "backlinks": {
+      "empty": "No other documents link to this file."
+    },
+    "outline": {
+      "empty": "No headings found"
+    },
+    "tab-bar": {
+      "files-in-group": "Files in group",
+      "close-other-tabs": "Close other tabs"
+    },
+    "tab-group-manager": {
+      "title": "Manage Tab Groups",
+      "description": "Create and organize tab groups to better manage your open files.",
+      "create-new": "Create New Group",
+      "group-name-placeholder": "Group name...",
+      "existing-groups": "Existing Groups ({{count}})",
+      "no-groups": "No groups yet. Create one above to get started.",
+      "drop-to-add": "Drop tabs here to add them to this group",
+      "ungrouped-label": "Ungrouped Tabs ({{count}})",
+      "drag-to-ungroup": "Drag tabs here to ungroup them",
+      "add-to-group": "Add to group..."
+    }
+  },
+  "workflow": {
+    "browser": {
+      "error-title": "Unable to load page",
+      "iframe-blocked-hint": "Some websites (like Google, GitHub, etc.) block iframe embedding for security. Click the button below to open this URL in your default browser.",
+      "open-external": "Open in External Browser"
+    },
+    "chain-builder": {
+      "title": "Chain templates",
+      "description": "Run a sequence of templates. Each step can pull fields from an earlier step's output into its inputs.",
+      "no-steps": "No steps yet. Add one to start composing a chain.",
+      "map-outputs": "Map upstream outputs:"
+    },
+    "interview": {
+      "select-option": "Select an option"
+    },
+    "execution": {
+      "may-take-moment": "This may take a moment depending on the AI provider.",
+      "save-as-file": "Save as file",
+      "use-as-input": "Use this as input for another template",
+      "recommended-next": "Recommended next steps",
+      "other-templates": "Other templates (manual mapping required)"
+    },
+    "panel": {
+      "trial-ended-label": "Trial ended.",
+      "trial-ended-description": "Activate a license in Settings, License to run workflows.",
+      "step-of-click": "Step {{current}} of {{total}}, click to view",
+      "modal-title": "All workflows",
+      "modal-description": "Pre-built AI workflows for founders. Pick one to start a guided conversation.",
+      "no-matches": "No workflows match \"{{query}}\"."
+    },
+    "fork": {
+      "title": "Duplicate template",
+      "description": "Create your own copy of this template. You can edit the system prompt that steers the AI while the workflow runs.",
+      "persona-hint": "This is the persona the AI uses in the first generation step. Leave it blank to fall back to the model's default persona."
+    }
+  },
   "marketplace": {
     "tab": {
       "title": "Marketplace",
