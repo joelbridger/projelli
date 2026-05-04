@@ -26,7 +26,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "i18n:check": "node ./node_modules/.bin/i18next --config i18next-parser.config.js --fail-on-warnings",
+    "i18n:check": "node ./node_modules/.bin/i18next --config i18next-parser.check.config.js --fail-on-warnings",
     "i18n:extract": "node ./node_modules/.bin/i18next --config i18next-parser.config.js",
     "extract-i18n": "node ./node_modules/.bin/i18next --config i18next-parser.config.js",
     "translate-i18n": "node scripts/translate-i18n.mjs",
