@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { MarketplaceTab } from '@/components/marketplace/MarketplaceTab';
 import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
+import { usePluginsMarketplaceStore } from '@/stores/pluginsMarketplaceStore';
 import type { MarketplaceService } from '@/modules/marketplace';
 
 // Minimal stub matching the surface MarketplaceTab + the offline banner read.
@@ -20,24 +21,28 @@ function makeStubService(overrides: Partial<MarketplaceService> = {}): Marketpla
   } as unknown as MarketplaceService;
 }
 
+function resetStores() {
+  useTemplatesMarketplaceStore.setState({
+    service: null,
+    reader: null,
+    cacheStatus: 'fresh',
+    updateCount: 0,
+  });
+  usePluginsMarketplaceStore.setState({
+    service: null,
+    cacheStatus: 'fresh',
+    updateCount: 0,
+  });
+}
+
 describe('MarketplaceTab', () => {
   beforeEach(() => {
-    useTemplatesMarketplaceStore.setState({
-      service: null,
-      reader: null,
-      cacheStatus: 'fresh',
-      updateCount: 0,
-    });
+    resetStores();
   });
 
   afterEach(() => {
     cleanup();
-    useTemplatesMarketplaceStore.setState({
-      service: null,
-      reader: null,
-      cacheStatus: 'fresh',
-      updateCount: 0,
-    });
+    resetStores();
   });
 
   it('renders Templates and Plugins subtab triggers', () => {
@@ -53,21 +58,20 @@ describe('MarketplaceTab', () => {
     expect(screen.getByTestId('templates-tab-empty')).toBeInTheDocument();
   });
 
-  it('Plugins subtab is disabled and aria-disabled', () => {
+  it('Plugins subtab is enabled (Stream C4)', () => {
     render(<MarketplaceTab />);
     const pluginsTrigger = screen.getByTestId('marketplace-subtab-plugins');
-    expect(pluginsTrigger).toBeDisabled();
-    expect(pluginsTrigger.getAttribute('aria-disabled')).toBe('true');
+    expect(pluginsTrigger).not.toBeDisabled();
+    expect(pluginsTrigger.getAttribute('aria-disabled')).not.toBe('true');
   });
 
-  it('does not switch to plugins subtab when its trigger is clicked', () => {
+  it('switches to the plugins subtab when its trigger is clicked', () => {
     render(<MarketplaceTab />);
-    const templatesTrigger = screen.getByTestId('marketplace-subtab-templates');
     const pluginsTrigger = screen.getByTestId('marketplace-subtab-plugins');
     fireEvent.click(pluginsTrigger);
-    // Disabled buttons emit no click event but verify state regardless.
-    expect(templatesTrigger.getAttribute('aria-selected')).toBe('true');
-    expect(screen.getByTestId('templates-tab-empty')).toBeInTheDocument();
+    expect(pluginsTrigger.getAttribute('aria-selected')).toBe('true');
+    // Without a workspace-bound plugins service, the empty-state is shown.
+    expect(screen.getByTestId('plugins-tab-empty')).toBeInTheDocument();
   });
 
   it('renders the offline banner when cacheStatus is stale', () => {
