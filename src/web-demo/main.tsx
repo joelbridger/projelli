@@ -25,6 +25,8 @@ import i18n from '../i18n';
 import { detectLocale } from '../lib/locale-detect';
 import { useSettingsStore } from '../stores/settingsStore';
 import { seedWebDemoWorkspace } from './WebDemoSeeder';
+import { DemoModeBanner } from './DemoModeBanner';
+import { DemoLimitGate } from './DemoLimitGate';
 
 const rootElement = document.getElementById('root');
 
@@ -42,43 +44,6 @@ bootstrapLocale().catch(() => {
   // Tolerate locale-detect failures; i18n already starts in 'en'.
 });
 
-/**
- * Group IV will replace this with the real DemoModeBanner. The placeholder
- * is intentionally minimal: a thin sticky strip at the top of the viewport
- * that always identifies the surface as a demo. Inline styles keep the
- * placeholder independent of the global stylesheet's class loading order.
- */
-function DemoModeBannerPlaceholder() {
-  return (
-    <div
-      data-testid="demo-mode-banner"
-      style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 9999,
-        width: '100%',
-        padding: '6px 12px',
-        background: '#fef3c7',
-        borderBottom: '1px solid #fcd34d',
-        color: '#78350f',
-        fontSize: 13,
-        fontFamily:
-          'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        textAlign: 'center',
-      }}
-    >
-      You are using the Projelli demo. Files are stored in your browser only.{' '}
-      <a
-        href="https://projelli.com/#download?utm_source=demo&utm_campaign=v2-launch"
-        style={{ color: '#92400e', textDecoration: 'underline' }}
-      >
-        Download the desktop app
-      </a>
-      .
-    </div>
-  );
-}
-
 async function bootstrap(): Promise<void> {
   // Seed the OPFS workspace before mounting React so the file tree renders
   // populated on first paint. The seeder is idempotent and fast (a handful
@@ -94,8 +59,9 @@ async function bootstrap(): Promise<void> {
   createRoot(rootElement as HTMLElement).render(
     <StrictMode>
       <TooltipProvider delayDuration={300} skipDelayDuration={100}>
-        <DemoModeBannerPlaceholder />
+        <DemoModeBanner />
         <App />
+        <DemoLimitGate />
       </TooltipProvider>
     </StrictMode>,
   );
