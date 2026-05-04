@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FAQ, Projelli</title>
-  <meta name="description" content="Frequently asked questions about Projelli, the local-first AI workspace for indie founders.">
+  <meta name="description" content="Frequently asked questions about Projelli, the local-first AI workspace built for indie founders and useful for anyone who works with AI on real projects.">
   <link rel="canonical" href="https://projelli.com/docs/faq">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -47,14 +47,14 @@
 
     <details>
       <summary>What is Projelli?</summary>
-      <p>Projelli is a desktop app that combines a Markdown editor with an AI chat interface. Every AI conversation produces real Markdown files in a real folder on your computer. It's built for indie founders who use AI to plan, write, and run their businesses, but want their work to live locally, not in someone else's cloud.</p>
+      <p>Projelli is a desktop app that combines a Markdown editor with an AI chat interface. Every AI conversation produces real Markdown files in a real folder on your computer. You can paste an image into chat and the AI will look at it. You can drop a PDF in and ask questions about it. You can have the AI read its replies aloud. You can install community plugins to extend the editor. It's built for indie founders who use AI to plan, write, and run their businesses, but the same shape works for anyone who'd rather keep their thinking on their own machine.</p>
     </details>
 
     <details>
       <summary>How is this different from Notion or Obsidian?</summary>
       <p><strong>vs Notion:</strong> Notion is cloud-only, your data lives on Notion's servers and you pay them for the privilege. Notion's AI features are bolted on top, not native to the document model. Projelli is local-first (your files live on your hard drive) and AI is the primary input method, not an add-on.</p>
-      <p><strong>vs Obsidian:</strong> Obsidian is also local-first, but its AI features come from community plugins that are inconsistent and often charge separately. Projelli has AI native, with three providers built in and a workflow template system designed specifically for founder use cases.</p>
-      <p><strong>vs ChatGPT:</strong> ChatGPT throws conversations away. Projelli persists every conversation as editable Markdown files you own.</p>
+      <p><strong>vs Obsidian:</strong> Obsidian is also local-first, but its AI features come from community plugins that are inconsistent and often charge separately. Projelli has AI native, with four providers built in (Claude, OpenAI, Gemini, Ollama), a workflow template system, multimodal input (images + PDFs), local RAG over your files, and its own sandboxed plugin runtime if you actually want to extend the editor.</p>
+      <p><strong>vs ChatGPT:</strong> ChatGPT throws conversations away. Projelli persists every conversation as editable Markdown files you own, and lets you bring whichever model you actually like.</p>
     </details>
 
     <details>
@@ -64,7 +64,7 @@
 
     <details>
       <summary>What's "BYOK"?</summary>
-      <p>Bring Your Own Key. You sign up directly with Anthropic, OpenAI, or Google for an API account, get an API key, and paste it into Projelli. AI requests then go from your computer directly to the provider, Projelli is never in the middle. See the <a href="/docs/api-keys">API Keys Guide</a> for details.</p>
+      <p>Bring Your Own Key. You sign up directly with Anthropic, OpenAI, Google, or run <a href="https://ollama.com">Ollama</a> locally for free, get an API key (or just point Projelli at <code>localhost</code>), and paste it into the app. AI requests then go from your computer directly to the provider, Projelli is never in the middle. See the <a href="/docs/api-keys">API Keys Guide</a> for details.</p>
     </details>
 
     <details>
@@ -140,6 +140,59 @@
     <details>
       <summary>Why isn't there a "ChatGPT login" option?</summary>
       <p>ChatGPT consumer subscriptions ($20/mo for Plus, $200/mo for Pro) are entirely separate from OpenAI's API. They're different products with different billing. To use OpenAI's models with Projelli, you need an API account at platform.openai.com, your ChatGPT Plus subscription does NOT transfer.</p>
+    </details>
+
+    <h2>What you can send the AI</h2>
+
+    <details>
+      <summary>Can I send Projelli an image?</summary>
+      <p>Yes. Paste a screenshot, drag a photo into chat, or click the paperclip and pick a file. Claude, OpenAI, and Gemini all see the image natively. Ollama sees it too if you've pulled a vision-capable local model. There's a small warning if you switch to a model that doesn't do vision, plus a token-cost preview before you send.</p>
+    </details>
+
+    <details>
+      <summary>Can it read PDFs?</summary>
+      <p>Yes, two ways. Drop a PDF into chat and the AI reads it for that conversation. Claude and Claude Opus get the native PDF (full layout, figures included), the other providers get the text via <a href="https://mozilla.github.io/pdf.js/">PDF.js</a> with a "text extracted" chip so you know the difference.</p>
+      <p>Or flip "Include PDFs in workspace index" in Settings -> Memory and every PDF in your workspace becomes searchable context for chat. The local RAG index uses <a href="https://github.com/Anush008/fastembed-rs">fastembed-rs</a> with the multilingual e5-small model, runs on your machine, and never leaves the device.</p>
+    </details>
+
+    <details>
+      <summary>What about really long chats? Do I lose context?</summary>
+      <p>Not anymore. When a chat gets long enough that you'd hit the model's context limit, Projelli pops a [Compress] modal and offers to summarize older turns through a fast model. You can also trigger compression manually, expand it back if you need the original turns, or clear the compressed summary entirely. Every compress event is logged to the audit log.</p>
+    </details>
+
+    <details>
+      <summary>Can the AI read its replies out loud?</summary>
+      <p>Yes. Click "Read aloud" on any AI message. Audio is synthesized by a bundled <a href="https://github.com/rhasspy/piper">Piper</a> sidecar that runs locally, so no audio data is sent to the cloud. Useful when I'm pacing around the kitchen and don't want to read 800 words off a screen.</p>
+    </details>
+
+    <h2>Plugins, templates, and the marketplace</h2>
+
+    <details>
+      <summary>Does it support plugins?</summary>
+      <p>Yes. There's a sandboxed Web Worker plugin runtime with a manifest-declared permission model (six permissions covering workspace read/write, editor selection, AI invocation, and network). Plugins can add toolbar buttons, sidebar panels, command-palette actions, and editor commands. Four plugins ship in the day-one marketplace: <strong>Word Counter</strong>, <strong>Translator</strong>, <strong>Pomodoro</strong>, and <strong>Mermaid Preview</strong>. If a plugin crashes, it's isolated, you click [Restart] and keep working.</p>
+      <p>If you want to write your own, see the developer docs at <a href="/docs/plugins/">/docs/plugins/</a>. There's a <code>npx create-projelli-plugin &lt;name&gt;</code> scaffolder, a typed <a href="https://www.npmjs.com/package/@projelli/plugin-api">@projelli/plugin-api</a> package, and seven docs pages covering manifest, permissions, API, publishing, examples.</p>
+    </details>
+
+    <details>
+      <summary>How do I install a community template?</summary>
+      <p>Open Settings -> Marketplace -> Templates. Browse what's there, click install, done. The catalog lives at <a href="https://github.com/projelli/community-templates">github.com/projelli/community-templates</a> and rebuilds automatically when someone merges a PR. Six day-one templates are already in there. The 15 founder templates baked into the app aren't going anywhere; this is the "you-and-the-community" layer on top.</p>
+    </details>
+
+    <details>
+      <summary>Can I publish my own template or plugin?</summary>
+      <p>Yes. Both marketplaces are open submission via GitHub PR. Submission docs at <a href="/docs/marketplace-submissions">/docs/marketplace-submissions</a>.</p>
+    </details>
+
+    <h2>Trying it without downloading</h2>
+
+    <details>
+      <summary>Is there a free trial in browser?</summary>
+      <p>Yes. <a href="/try">projelli.com/try</a> loads a pre-seeded sample workspace and a working AI chat. You get either 5 messages or 10 minutes on the shared key, then the exit modal nudges you toward downloading. If you'd rather use unlimited messages without downloading, paste your own Claude key (BYOK) into the input and it'll run on your key for as long as you want.</p>
+    </details>
+
+    <details>
+      <summary>What languages does Projelli support?</summary>
+      <p>English, Spanish, and German. The whole UI (421 strings, settings, marketplace, every dialog) is translated. Pick the language in Settings -> General -> Language, or let Projelli auto-detect from your OS locale on first launch. Any human edits to a translation are protected by a lock so re-translation passes won't overwrite them.</p>
     </details>
 
     <h2>Technical questions</h2>
