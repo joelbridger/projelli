@@ -215,6 +215,16 @@ grep -ril "investor update" ~/projelli-workspace/ | head</code></pre>
 
     <p>All are plain text or near-plain-text. The whiteboard format is JSON because canvas drawings are inherently structured, but it's still a single file you can read and version-control.</p>
 
+    <h2>What v2.0 added on top of the Markdown layer</h2>
+
+    <p>Projelli's v2.0 release leaned hard into the chat-as-files pattern instead of replacing it. Three pieces worth flagging:</p>
+
+    <ul>
+      <li><strong>PDF RAG indexes Markdown alongside PDFs.</strong> Flip on "Include PDFs in workspace index" in Settings -> Memory and the AI gets searchable context across both your <code>.md</code> notes and the PDFs sitting next to them. Embeddings live in your workspace folder (LanceDB + a 384-dim multilingual model). Nothing leaves the machine for indexing.</li>
+      <li><strong>Plugins read and write your Markdown via declarative permissions.</strong> A plugin asks for <code>workspace:read</code> or <code>workspace:write</code> in its manifest, you see the request in plain language, and approving it scopes the plugin to your workspace folder. Browse the catalog at <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener">github.com/projelli/community-plugins</a>. Permission reference at <a href="/docs/plugins/permissions">/docs/plugins/permissions</a>.</li>
+      <li><strong>Templates marketplace ships <code>.md</code> template files.</strong> Community templates from <a href="https://github.com/projelli/community-templates" target="_blank" rel="noopener">github.com/projelli/community-templates</a> install as Markdown into your workspace. Same format as the 15 built-in ones. You can edit, fork, or publish your own back. The full v2.0 announce is at <a href="/blog/projelli-v2-announce/">/blog/projelli-v2-announce/</a>.</li>
+    </ul>
+
     <h2>Common objections, answered</h2>
 
     <h3>"What about images and attachments?"</h3>

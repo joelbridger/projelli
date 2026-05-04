@@ -192,6 +192,18 @@
 
       <p>Pricing is per the providers' published rates as of early 2026. Numbers are approximate; your actual usage will vary based on conversation length, context window size, and model behavior.</p>
 
+      <h2>What v2.0 changes for the math</h2>
+
+      <p>Projelli v2.0 added a few things that nudge real-world API spend in different directions. Worth knowing before you set your cap.</p>
+
+      <ul>
+        <li><strong>Image attachments</strong> add vision tokens. Drop a screenshot or a whiteboard photo into chat, and Claude / OpenAI / Gemini bill it as image tokens, which are pricier per image than the equivalent text. The chat input shows a token-cost meter so you can actually see this before you send. Details in the <a href="/blog/projelli-v2-announce/">v2.0 announce post</a>.</li>
+        <li><strong>PDF chat and PDF RAG</strong> are billed as text. Native PDF on Claude / Opus is a per-page surcharge; the text-extraction path on other providers is just whatever tokens the extracted text takes. The "Include PDFs in workspace index" toggle is local: indexing doesn't call the API, only chat does.</li>
+        <li><strong>Read aloud</strong> doesn't cost a thing. The Piper TTS sidecar runs locally on your machine. No cloud API, no token meter.</li>
+        <li><strong>Plugins</strong> with the <code>ai:invoke</code> permission use your BYOK key, not Projelli's. So a plugin that calls the AI is just more of your monthly usage, billed exactly the same way as your own chats.</li>
+        <li><strong>Ollama as a fourth provider</strong>. If you wire up <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> for local inference, the API cost for those conversations is $0. Honestly this is the cleanest hedge against a runaway month. Quality lags Claude / GPT / Gemini for the strategic stuff, but for volume drafting it's a free fallback.</li>
+      </ul>
+
       <h2>Why BYOK usually wins</h2>
 
       <p>Subscription tools charge a flat $20/month regardless of usage. Most founders have lumpy AI usage: $0 some weeks, heavy others. BYOK matches the lumpiness. You pay for what you actually use.</p>

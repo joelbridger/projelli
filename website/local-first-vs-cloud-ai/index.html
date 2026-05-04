@@ -219,6 +219,18 @@
 
     <p>If your editor is Obsidian, your password manager is on your machine (1Password local vault), your code lives in git on your laptop, and your habits are already "data on my device", a local-first AI workspace fits the existing pattern. Adding a cloud workspace creates a friction point in an otherwise consistent setup.</p>
 
+    <h2>What v2.0 changes for the local-first side</h2>
+
+    <p>Three things landed in Projelli's v2.0 that are worth flagging, because they're the kind of features cloud workspaces typically use to argue you need a server.</p>
+
+    <ul>
+      <li><strong>Plugins run in your browser or desktop sandbox</strong>, not on a server. A Web Worker, a manifest-declared permission model, audit log entries for every action. Browse the marketplace at <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener">github.com/projelli/community-plugins</a>. Same local-first promise, just extensible.</li>
+      <li><strong>Read aloud (TTS) runs locally</strong>. A Piper sidecar reads any AI message back to you. No cloud TTS, no per-character billing. Honestly this is the small thing I didn't realize I'd use every day.</li>
+      <li><strong>PDF RAG indexes locally</strong>. Drop PDFs in the workspace, flip the toggle, and the AI can pull the relevant pages into chat context. The embeddings (LanceDB + a 384-dim multilingual model) live in your workspace folder. No third-party indexing service.</li>
+    </ul>
+
+    <p>The trial bridge for local-first is the one new managed-cloud surface: <a href="/try/">projelli.com/try</a>. Five messages, ten minutes, pre-seeded sample workspace, no key required. It exists so people can confirm they like the workflow before installing. Once you install the desktop app and paste your own key, you're back to the local-first story I described above. The full v2.0 announce is at <a href="/blog/projelli-v2-announce/">/blog/projelli-v2-announce/</a>.</p>
+
     <h2>Things people get wrong about both</h2>
 
     <h3>Myth: cloud AI is always more "powerful"</h3>

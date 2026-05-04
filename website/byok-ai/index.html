@@ -222,6 +222,8 @@
 
     <p>BYOK fixes both of those, with one real trade-off (you have to set up an API key once). This page walks through what BYOK actually means, what it costs in practice, why it changes the privacy math, and how to set up your first key in about five minutes.</p>
 
+    <p>One footnote up top. As of v2.0, you can try the chat side without a key at all at <a href="/try/">projelli.com/try</a>. It's a five-message web demo running on a Projelli-managed Bun proxy with a pre-seeded sample workspace. Honestly the right thing to do is poke at the demo for ten minutes to confirm you actually like the workflow, then come back and grab a key. The rest of the page assumes you're ready to set up your own.</p>
+
     <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-06-api-keys.png" alt="Projelli Settings → API Keys: paste your Anthropic, OpenAI, or Gemini key, stored in your OS keychain" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
 
     <h2>What BYOK actually is</h2>
@@ -351,6 +353,10 @@
     <p>Even if the AI provider has a strict no-training policy, the question of where your conversation lives still matters. With a bundled tool, the conversation is in their database. With a BYOK desktop app, the conversation is a file on your hard drive, in a folder you picked.</p>
 
     <p>For an indie founder whose AI conversations contain pitch decks, customer interviews, and pricing strategy work, this is the difference between "in someone else's database with a TOS that can change" and "on my machine, period". Most founders prefer the second posture once they think about it.</p>
+
+    <h3>4. Plugins use your key, not Projelli's</h3>
+
+    <p>The v2.0 plugin system lets community-built extensions run inside Projelli. Plugins that need AI declare an <code>ai:invoke</code> permission in their manifest, and you see that in plain language before installing. When the plugin actually calls the AI, it uses your BYOK key directly. Projelli is not in the path. So a Translator plugin or a meeting-summary plugin is just billed as more of your own monthly Anthropic / OpenAI / Gemini usage, the same way a chat would be. Full permission reference at <a href="/docs/plugins/permissions">/docs/plugins/permissions</a>.</p>
 
     <h2>How to actually set up an API key</h2>
 
