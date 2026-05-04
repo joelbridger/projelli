@@ -24,6 +24,7 @@ const TARGETS = [
   'vs/chatgpt.html',
   'blog/index.html',
   'blog/projelli-1-5-announce.html',
+  'blog/projelli-v2-announce.html',
   // Added 2026-04-17 night sweep — these were originally outside Phase 6
   // scope but had ~61 em dashes between them. Locking them in.
   'press-kit/index.html',
