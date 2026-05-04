@@ -39,6 +39,14 @@ const TARGETS = [
   'docs/mobile-access/dropbox.html',
   'docs/mobile-access/syncthing.html',
   'docs/mobile-access/google-drive.html',
+  // Stream C5 (v2.0) — plugin developer experience docs.
+  'docs/plugins/index.html',
+  'docs/plugins/getting-started.html',
+  'docs/plugins/manifest-reference.html',
+  'docs/plugins/permissions.html',
+  'docs/plugins/api-reference.html',
+  'docs/plugins/publishing.html',
+  'docs/plugins/examples.html',
 ];
 
 const BANNED_WORDS = [
