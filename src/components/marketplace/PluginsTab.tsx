@@ -45,6 +45,11 @@ export function PluginsTab() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Permission counts learned by detail-view manifest fetches. Lifted to the
+  // tab so catalog cards can show the badge without each card refetching.
+  const [permissionCountById, setPermissionCountById] = useState<
+    Record<string, number>
+  >({});
 
   // Initial load: silent refresh + list. Mirrors TemplatesTab semantics.
   useEffect(() => {
@@ -165,6 +170,15 @@ export function PluginsTab() {
     [refreshUpdateCount],
   );
 
+  const handleManifestLoaded = useCallback(
+    (id: string, count: number) => {
+      setPermissionCountById((prev) =>
+        prev[id] === count ? prev : { ...prev, [id]: count },
+      );
+    },
+    [],
+  );
+
   if (!service) {
     return (
       <div
@@ -191,6 +205,7 @@ export function PluginsTab() {
         onBack={() => setSelectedId(null)}
         onInstalled={handleInstalled}
         onUninstalled={handleUninstalled}
+        onManifestLoaded={handleManifestLoaded}
       />
     );
   }
@@ -223,6 +238,7 @@ export function PluginsTab() {
           <BrowseView
             entries={filtered}
             installedById={installedById}
+            permissionCountById={permissionCountById}
             categories={categories}
             search={search}
             category={category}
@@ -251,6 +267,7 @@ export function PluginsTab() {
 interface BrowseViewProps {
   entries: CatalogEntry[];
   installedById: Map<string, InstalledEntry>;
+  permissionCountById: Record<string, number>;
   categories: string[];
   search: string;
   category: string;
@@ -266,6 +283,7 @@ interface BrowseViewProps {
 function BrowseView({
   entries,
   installedById,
+  permissionCountById,
   categories,
   search,
   category,
@@ -374,6 +392,7 @@ function BrowseView({
               installedEntry &&
                 compareSemver(e.version, installedEntry.version) > 0,
             );
+            const count = permissionCountById[e.id];
             return (
               <PluginCatalogCard
                 key={e.id}
@@ -381,6 +400,9 @@ function BrowseView({
                 installed={Boolean(installedEntry)}
                 updateAvailable={updateAvailable}
                 onSelect={onSelect}
+                {...(typeof count === 'number'
+                  ? { permissionCount: count }
+                  : {})}
               />
             );
           })}
