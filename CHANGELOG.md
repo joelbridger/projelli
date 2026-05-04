@@ -8,6 +8,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Plugin marketplace UI (Stream C4, v2.0).** Browse community plugins from
+  the `projelli/community-plugins` GitHub repo, see required permissions
+  before install, approve via a permission consent dialog, and watch the
+  plugin auto-enable.
+  - **Settings to Marketplace to Plugins** subtab is now live (previously
+    "coming soon"). Browse / Installed sub-toggle. Search + category filter
+    + manual refresh. Offline cache banner shared with the templates tab.
+  - **Plugin detail view** with screenshot carousel, plain-language
+    permissions list (low / medium risk labels for editor / workspace / AI
+    / network), state-aware action button (Install / Disable / Enable /
+    Update / Restart / Uninstall), live status pulled from the plugin
+    manager store, install progress phases, and outcome panel with View in
+    Audit Log + Retry shortcuts.
+  - **Consent dialog** (`PluginConsentDialog`) blocks every install until
+    the user explicitly approves the manifest's permissions. Cancel cleans
+    up the staged tarball without touching the audit log.
+  - **Installed plugins list** with inline status badge (running /
+    disabled / crashed / updating), Disable / Enable / Restart /
+    Uninstall actions per row, and an inline `PluginErrorPanel` (last 50
+    lines of the per-plugin audit log + Restart + Disable) for crashed
+    plugins.
+  - **Sum nav badge** in the Settings sidebar now combines templates +
+    plugins update counts so users see one unified "updates available"
+    indicator.
+  - **App wiring** constructs `PluginsMarketplaceService` per workspace
+    (mirrors the templates wiring) and runs a 2-second deferred
+    `checkForUpdates()` after launch to populate the badge.
+  - **Audit coverage**: `plugin_installed` (with the user-approved
+    permission set), `plugin_uninstalled`, `plugin_install_failed` (with
+    `source: "marketplace"`), `plugin_crashed`, `plugin_enabled`,
+    `plugin_disabled` are all asserted by an integration spot-check test.
+  - **Integration test** (`tests/integration/plugins/install-from-marketplace-end-to-end.test.ts`)
+    exercises catalog refresh to consent approve to marketplace install to
+    manager install to manager enable, asserting the worker spawns and the
+    audit events fire in the correct order.
+  - **Audit spot-check** (`tests/integration/audit-plugins.test.ts`) covers
+    install + uninstall + failed install (checksum mismatch) + crash
+    recovery via the real `PluginManager` against the C3 word-counter and
+    crashing-plugin fixtures.
+  - **E2E test** (`tests/e2e/plugins-marketplace.spec.ts`) drives the real
+    React UI through Browse to Install (via the consent dialog) to
+    Installed list to Uninstall.
+  - **Test seam** in `App.tsx`: `window.__pluginsMarketplaceStore` mirrors
+    the existing `__templatesMarketplaceStore` seam so E2E specs can seed a
+    synthetic catalog without spinning up Tauri.
+  - Files added: `src/modules/marketplace/PluginsMarketplaceService.ts`,
+    `src/stores/pluginsMarketplaceStore.ts`,
+    `src/hooks/usePluginsMarketplace.ts`,
+    `src/components/marketplace/{PluginsTab,PluginCatalogCard,PluginDetailView,PluginConsentDialog,PluginPermissionsList,InstalledPluginsList,PluginErrorPanel}.tsx`,
+    plus matching unit tests under `tests/unit/components/marketplace/` and
+    `tests/unit/marketplace/`, the integration tests above, and the E2E spec.
+  - Files modified: `src/App.tsx` (workspace-wired plugins marketplace
+    service + deferred update check + test seam), `src/modules/marketplace/index.ts`
+    (exports), `src/components/marketplace/MarketplaceTab.tsx` (Plugins
+    subtab enabled), `src/components/settings/SettingsModal.tsx` (sum-badge
+    behavior).
 - **Mobile access docs (Stream D1, v2.0).** Five new public docs pages plus
   an in-app `Settings → Mobile` page document the cloud-sync workaround so
   users can read their workspace on iPhone or Android today, before the

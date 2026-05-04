@@ -631,6 +631,14 @@ function App() {
         __templatesMarketplaceStore?: typeof useTemplatesMarketplaceStore;
       }).__templatesMarketplaceStore = useTemplatesMarketplaceStore;
 
+      // Stream C4 — same seam for the plugins marketplace store. The plugins
+      // E2E spec mounts a synthetic catalog and drives Install / Uninstall
+      // through the real React UI without going through the Tauri tarball
+      // pipeline (which has no backend in test mode).
+      (window as unknown as {
+        __pluginsMarketplaceStore?: typeof usePluginsMarketplaceStore;
+      }).__pluginsMarketplaceStore = usePluginsMarketplaceStore;
+
       console.log('Test mode enabled: Mock workspace initialized with 2 demo tabs + mock FS');
     }
   }, [IS_TEST_MODE, rootPath, setRootPath, openFile]);
