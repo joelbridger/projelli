@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Plugins, Getting Started, Projelli</title>
+  <meta name="description" content="Build your first Projelli plugin. Scaffold a project, edit, build, sideload, and see it run.">
+  <link rel="canonical" href="https://projelli.com/docs/plugins/getting-started">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 2.25rem; color: #111F35; margin-bottom: 8px; font-weight: 800; }
+    h2 { font-size: 1.5rem; color: #111F35; margin-top: 48px; margin-bottom: 16px; font-weight: 700; }
+    h3 { font-size: 1.125rem; color: #111F35; margin-top: 24px; margin-bottom: 8px; font-weight: 600; }
+    p, ul, ol { margin-bottom: 16px; font-size: 1rem; }
+    ul, ol { padding-left: 24px; }
+    li { margin-bottom: 8px; }
+    strong { color: #111F35; font-weight: 600; }
+    a { color: #3B82F6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .meta { color: #94A3B8; font-size: 0.875rem; margin-bottom: 32px; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; }
+    .step { background: #F8FAFC; border-left: 3px solid #3B82F6; padding: 20px 24px; margin: 24px 0; border-radius: 4px; }
+    .step h3 { margin-top: 0; color: #3B82F6; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    pre { background: #0F172A; color: #E2E8F0; padding: 16px 20px; border-radius: 8px; overflow-x: auto; margin: 16px 0; font-size: 0.875rem; line-height: 1.5; }
+    pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+    .next-link { display: inline-block; margin-top: 24px; padding: 12px 24px; background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white !important; border-radius: 8px; font-weight: 600; }
+    .next-link:hover { text-decoration: none; opacity: 0.9; }
+    .callout { background: #FEF3C7; border-left: 3px solid #F59E0B; padding: 16px 20px; margin: 24px 0; border-radius: 4px; font-size: 0.9375rem; }
+    .callout strong { color: #92400E; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.9375rem; }
+    th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid #E2E8F0; }
+    th { color: #111F35; font-weight: 600; background: #F8FAFC; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/projelli-nav.css">
+  <script src="/scripts/projelli-nav.v2.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <a href="/docs/plugins/" class="back">&larr; Plugin docs</a>
+    <h1>Getting Started</h1>
+    <p class="meta">From zero to a working plugin in 5 minutes.</p>
+
+    <p>This guide walks through building a hello-world plugin: install Node, scaffold a project, edit one file, build it, drop it into your local Projelli plugins folder, and see it appear in the app.</p>
+
+    <h2>Step 1: Install Node</h2>
+
+    <p>You need Node.js 20 or later. Check what you have:</p>
+
+    <pre><code>node --version</code></pre>
+
+    <p>If you see <code>v20.x.x</code> or higher, you're good. If not, download the LTS installer from <a href="https://nodejs.org/" target="_blank" rel="noopener">nodejs.org</a> and run it. The installer adds <code>node</code> and <code>npm</code> to your PATH.</p>
+
+    <h2>Step 2: Scaffold a project</h2>
+
+    <p>Pick a folder where you keep code projects, then run:</p>
+
+    <pre><code>npx create-projelli-plugin my-plugin</code></pre>
+
+    <p>The CLI asks a couple of quick questions (display name, which permissions to declare), then creates a folder called <code>my-plugin/</code> with a complete TypeScript project. It runs <code>npm install</code> for you.</p>
+
+    <p>Inside <code>my-plugin/</code> you'll find:</p>
+
+    <table>
+      <tr><th>File</th><th>What it is</th></tr>
+      <tr><td><code>manifest.json</code></td><td>Plugin metadata: id, name, version, permissions.</td></tr>
+      <tr><td><code>src/index.ts</code></td><td>Your plugin code. Exports a default <code>{ activate }</code> object.</td></tr>
+      <tr><td><code>package.json</code></td><td>npm dependencies and scripts. Includes <code>@projelli/plugin-api</code>.</td></tr>
+      <tr><td><code>vite.config.ts</code></td><td>Bundles <code>src/index.ts</code> into a single ES module file at <code>dist/index.js</code>.</td></tr>
+      <tr><td><code>tsconfig.json</code></td><td>Strict TypeScript settings.</td></tr>
+      <tr><td><code>README.md</code></td><td>Notes for whoever installs your plugin.</td></tr>
+      <tr><td><code>LICENSE</code></td><td>MIT by default. Change if you want.</td></tr>
+    </table>
+
+    <h2>Step 3: Edit the plugin</h2>
+
+    <p>Open <code>src/index.ts</code> in your editor. The starter looks like this:</p>
+
+    <pre><code>import type { PluginAPI, PluginModule } from '@projelli/plugin-api';
+
+const plugin: PluginModule = {
+  async activate(api: PluginAPI) {
+    api.commands.register('my-plugin.hello', () =&gt; {
+      api.notify.info('Hello from my-plugin!');
+    });
+
+    api.toolbar.addButton({
+      id: 'my-plugin-button',
+      icon: 'sparkles',
+      tooltip: 'Say hello',
+      command: 'my-plugin.hello',
+    });
+  },
+};
+
+export default plugin;</code></pre>
+
+    <p>That's a complete plugin. It registers one command and adds one toolbar button. Click the button and you get a notification.</p>
+
+    <p>Try changing the message to whatever you want.</p>
+
+    <div class="callout">
+      <strong>Why TypeScript?</strong> The <code>@projelli/plugin-api</code> package is types-only. It gives you full autocomplete on <code>api.editor</code>, <code>api.workspace</code>, <code>api.ai</code>, and so on. You'll catch typos at build time instead of at runtime.
+    </div>
+
+    <h2>Step 4: Build</h2>
+
+    <pre><code>npm run build</code></pre>
+
+    <p>Vite bundles your plugin into a single ES module file at <code>dist/index.js</code>. That's the file Projelli loads.</p>
+
+    <h2>Step 5: Sideload</h2>
+
+    <p>Copy <code>manifest.json</code> and the <code>dist/</code> folder into Projelli's plugins directory:</p>
+
+    <table>
+      <tr><th>OS</th><th>Plugins folder</th></tr>
+      <tr><td>Windows</td><td><code>%APPDATA%\Projelli\plugins\my-plugin\</code></td></tr>
+      <tr><td>macOS</td><td><code>~/Library/Application Support/Projelli/plugins/my-plugin/</code></td></tr>
+      <tr><td>Linux</td><td><code>~/.local/share/Projelli/plugins/my-plugin/</code></td></tr>
+    </table>
+
+    <p>The folder name must match the <code>id</code> field in your manifest. After copying, the layout should look like:</p>
+
+    <pre><code>plugins/my-plugin/
+  manifest.json
+  dist/
+    index.js</code></pre>
+
+    <h2>Step 6: Enable in Projelli</h2>
+
+    <p>Open Projelli, then go to Settings, then Plugins. Your plugin appears in the Installed list. Toggle it on. Projelli reads the manifest, asks you to approve any permissions, then loads the plugin.</p>
+
+    <p>Look at the toolbar. You should see a sparkles icon. Click it. You'll see your notification.</p>
+
+    <h2>What's next</h2>
+
+    <ul>
+      <li>Read the <a href="/docs/plugins/api-reference">API reference</a> for every method you can call.</li>
+      <li>Read the <a href="/docs/plugins/permissions">permissions guide</a> before adding workspace, AI, or network access.</li>
+      <li>Read the <a href="/docs/plugins/examples">examples</a> for full walkthroughs of four real plugins.</li>
+      <li>When you're ready to share, read the <a href="/docs/plugins/publishing">publishing guide</a> for how to submit to the marketplace.</li>
+    </ul>
+
+    <a href="/docs/plugins/manifest-reference" class="next-link">Next: Manifest reference &rarr;</a>
+  </div>
+</body>
+</html>

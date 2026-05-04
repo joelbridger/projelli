@@ -8,6 +8,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Stream C5 plugin developer experience, complete (v2.0).** Third-party
+  developers can now `npx create-projelli-plugin <name>` to scaffold a
+  ready-to-build TypeScript plugin project, code against the typed
+  `@projelli/plugin-api` package, study four working example plugins, and
+  follow seven docs pages at projelli.com/docs/plugins/. Sums up Groups
+  I-V below; ships the public surface for the plugin ecosystem before C6
+  wires the seed catalog.
+- **Plugin docs site, Group V (Stream C5, v2.0).** Seven static pages at
+  `website/docs/plugins/`, all linked from a hub page and indexed in the
+  homepage footer. Pages: hub (`index.html`), getting started, manifest
+  reference, permissions reference, API reference (commands / toolbar /
+  sidebar / settings / editor / storage / AI / notify), permissions deep
+  dive, publishing guide (manifest checklist + GitHub catalog
+  submission), examples walkthrough (annotated tour of all four
+  example plugins). Voice-rules clean (no banned tells). Lint test
+  (`tests/unit/website-content-lint.test.ts`) covers all seven pages
+  and the homepage footer link.
+- **Plugin developer experience, Groups III + IV (Stream C5, v2.0).** Four
+  real working example plugins under `plugin-examples/`. Each is a
+  standalone TypeScript project scaffolded from the C5 template with full
+  `manifest.json`, `src/index.ts`, `package.json`, `tsconfig.json`,
+  `vite.config.ts`, `README.md`, `LICENSE`, `.gitignore`. All four build
+  to non-empty single-file IIFE bundles via `npm run build`.
+  - **`plugin-examples/word-counter/`** (2.78 kB bundle). Live word and
+    character counts in a sidebar panel that re-renders every 500 ms.
+    Adds a toolbar button + `word-counter.count` command. Demonstrates
+    `api.editor.getContent`, `api.sidebar.addPanel`, `api.toolbar`,
+    `api.commands`, `api.notify`. Permissions: `editor:selection` (the
+    v2.0 proxy for content read).
+  - **`plugin-examples/translator/`** (2.58 kB bundle). Translates the
+    selected text into a configurable target language using the user's
+    AI provider, then replaces the selection in place. Adds a toolbar
+    button, the `translator.translate` command, and a settings page
+    with 13 supported languages. Demonstrates `api.editor.getSelection`,
+    `api.editor.replaceSelection`, `api.ai.invoke`, `api.settings`.
+    Permissions: `editor:selection`, `editor:write`, `ai:invoke`.
+  - **`plugin-examples/pomodoro/`** (5.75 kB bundle). 25-minute focus /
+    5-minute break timer with a sidebar readout, three toolbar
+    buttons (start, pause, reset), phase-transition notifications, and
+    state persisted to `api.storage`. Demonstrates `api.commands`,
+    `api.toolbar`, `api.sidebar`, `api.storage`, `api.notify`.
+    Permissions: none (storage and notify are unconditional).
+  - **`plugin-examples/mermaid-preview/`** (3.80 kB bundle). Sidebar
+    panel that polls the active editor every second, extracts every
+    fenced ```mermaid block, and renders each as SVG inside the iframe
+    via mermaid 11.x loaded from a CDN. Worker-side bundle stays small
+    because mermaid runs in the iframe, not the worker (Web Workers
+    have no DOM). Demonstrates `api.editor.getContent`,
+    `api.sidebar.addPanel`. Permissions: `editor:selection`.
+- **Plugin developer experience, Groups I + II (Stream C5, v2.0).** Public
+  authoring surface for the plugin ecosystem: a typed types package and a
+  one-command project scaffolder.
+  - **`@projelli/plugin-api`** types package at `packages/plugin-api/`.
+    Re-exports the canonical plugin types from `src/types/plugin.ts`
+    (`PluginAPI`, `PluginManifest`, `PluginPermission`, `ToolbarButtonSpec`,
+    `SidebarPanelSpec`, `SettingsPageSpec`, `CommandSpec`, lifecycle types).
+    Build script copies app-source types into the package and emits a
+    flat self-contained `dist/index.d.ts` so authors get one drop-in
+    type entry, no path gymnastics. Types-only (no runtime), MIT,
+    semver against the v2.0 plugin API contract.
+  - **`create-projelli-plugin`** CLI scaffolder at
+    `packages/create-projelli-plugin/`. Zero-dependency Node CLI:
+    `npx create-projelli-plugin <name>` copies the bundled template,
+    substitutes `__PLUGIN_ID__` / `__PLUGIN_NAME__` placeholders, runs
+    `npm install`, and prints next-step instructions. Flags: `--no-install`
+    (skip install), `--force` (overwrite non-empty target), `--help`.
+    Validates the project name against the npm-friendly pattern
+    `^[a-z0-9][a-z0-9-]*$`.
+  - **Plugin template** at `packages/create-projelli-plugin/template/`.
+    Working hello-world plugin: registers a `<id>.greet` command that
+    calls `api.notify.info('Hello from your plugin!')`. Bundled with
+    strict TypeScript, Vite single-file IIFE config (no externals,
+    output `dist/index.js`), MIT license, README with sideload paths
+    for Win, macOS, Linux.
+  - **Workspace setup**: root `package.json` now declares
+    `"workspaces": ["packages/*", "plugin-examples/*"]` for in-tree
+    linking.
+  - **Smoke tests** (`tests/unit/packages/`): plugin-api test verifies
+    the built `dist/index.d.ts` exists, exports the canonical type
+    names, preserves the 6 declarable permissions, and typechecks
+    against a representative plugin author file. CLI test verifies
+    scaffolding file shape, placeholder substitution, name validation,
+    overwrite safety, and end-to-end build of the scaffolded plugin to
+    a non-empty Vite IIFE bundle.
+  - **No npm publish** in this stream. Packages are built locally and
+    verified; publish to the npm registry is a manual board action by
+    Jameson post-launch.
 - **Plugin marketplace UI (Stream C4, v2.0).** Browse community plugins from
   the `projelli/community-plugins` GitHub repo, see required permissions
   before install, approve via a permission consent dialog, and watch the

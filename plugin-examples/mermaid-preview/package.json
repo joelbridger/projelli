@@ -1,0 +1,16 @@
+{
+  "name": "mermaid-preview",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Live preview of mermaid diagrams from fenced code blocks in the active document.",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch"
+  },
+  "devDependencies": {
+    "@projelli/plugin-api": "*",
+    "typescript": "^5.6.2",
+    "vite": "^6.0.5"
+  }
+}
