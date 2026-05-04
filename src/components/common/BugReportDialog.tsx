@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -57,6 +58,7 @@ export interface BugReportDialogProps {
 }
 
 export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
+  const { t } = useTranslation();
   const [message, setMessage] = useState('');
   const [email, setEmail] = useState('');
   const [includeMetadata, setIncludeMetadata] = useState(true);
@@ -125,18 +127,17 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bug className="h-4 w-4 text-primary" />
-            Report a bug
+            {t('common.bug-report.title')}
           </DialogTitle>
           <DialogDescription>
-            Tell us what went wrong. Reports go straight to Jameson's inbox.
+            {t('common.bug-report.description')}
           </DialogDescription>
         </DialogHeader>
 
         {status === 'success' ? (
           <div className="py-4 space-y-4">
             <p className="text-sm">
-              Thanks — your report landed. If you left an email I'll reply
-              when there's something to share.
+              {t('common.bug-report.success')}
             </p>
             <div className="flex justify-end">
               <Button onClick={() => onOpenChange(false)}>Close</Button>
@@ -163,7 +164,7 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
 
               <div className="space-y-1.5">
                 <Label htmlFor="bug-report-email">
-                  Your email <span className="text-muted-foreground">(optional — so we can reply)</span>
+                  {t('common.bug-report.email-label')} <span className="text-muted-foreground">{t('common.bug-report.email-optional')}</span>
                 </Label>
                 <Input
                   id="bug-report-email"
@@ -186,8 +187,7 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
                   disabled={status === 'sending'}
                 />
                 <span>
-                  Include app version, OS, and browser info. Helpful for
-                  reproducing — untick if you'd rather not share.
+                  {t('common.bug-report.metadata-help')}
                 </span>
               </label>
 
@@ -196,10 +196,9 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
                   data-testid="bug-report-error"
                   className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm"
                 >
-                  <p className="font-medium">Couldn't send the report.</p>
+                  <p className="font-medium">{t('common.bug-report.send-failed')}</p>
                   <p className="text-muted-foreground text-xs mt-1">
-                    {errorText || 'Network error.'} You can retry or open your
-                    email client with the message pre-filled.
+                    {errorText || t('common.bug-report.network-error')} {t('common.bug-report.retry-hint')}
                   </p>
                 </div>
               )}
@@ -211,7 +210,7 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
                 onClick={handleFallbackEmail}
                 className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
               >
-                Open email client instead
+                {t('common.bug-report.open-email-client')}
               </button>
               <div className="flex items-center gap-2">
                 <Button

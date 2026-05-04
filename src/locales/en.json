@@ -32,6 +32,39 @@
       "error": "Error",
       "success": "Success",
       "empty": "No items"
+    },
+    "audit-log": {
+      "entry-details-title": "Audit Entry Details"
+    },
+    "bug-report": {
+      "title": "Report a bug",
+      "description": "Tell us what went wrong. Reports go straight to Jameson's inbox.",
+      "success": "Thanks, your report landed. If you left an email I'll reply when there's something to share.",
+      "email-label": "Your email",
+      "email-optional": "(optional, so we can reply)",
+      "metadata-help": "Include app version, OS, and browser info. Helpful for reproducing, untick if you'd rather not share.",
+      "send-failed": "Couldn't send the report.",
+      "network-error": "Network error.",
+      "retry-hint": "You can retry or open your email client with the message pre-filled.",
+      "open-email-client": "Open email client instead"
+    },
+    "command-palette": {
+      "search-description": "Type a command or search across the app",
+      "no-commands": "No commands found"
+    },
+    "drop-overlay": {
+      "default-message": "Drop files to add to your workspace",
+      "hint": "Drop on a folder to put them there, or drop anywhere else to add to the workspace root."
+    },
+    "trash": {
+      "delete-confirm": "This will permanently delete \"{{name}}\". This action cannot be undone.",
+      "retention-title": "Trash Retention Settings",
+      "retention-description": "Configure how long items stay in trash before automatic deletion",
+      "auto-delete-label": "Auto-delete after:",
+      "retention-never": "Never (keep forever)",
+      "retention-help": "Items older than this period will be automatically deleted from trash. Set to \"Never\" to keep items indefinitely.",
+      "empty-confirm_one": "This will permanently delete 1 item in the trash. This action cannot be undone.",
+      "empty-confirm_other": "This will permanently delete all {{count}} items in the trash. This action cannot be undone."
     }
   },
   "layout": {
@@ -383,6 +416,43 @@
       "files-in-plugin": "Files in this plugin",
       "files-in-template": "Files in this template",
       "view-audit-log": "View in Audit Log"
+    }
+  },
+  "research": {
+    "source-panel": {
+      "add-first-source": "Add your first source"
+    },
+    "source-form": {
+      "quote-label": "Quote or Snippet",
+      "optional-suffix": "(optional)",
+      "reliability-help": "Include keywords like \"verified\", \"official\", \"primary source\" for high reliability, or \"speculation\", \"unverified\" for low reliability.",
+      "tags-help": "Add tags to organize and filter your sources (e.g., \"competitor\", \"market-research\", \"pricing\")"
+    },
+    "source-editor": {
+      "parse-error-help": "This file may have been corrupted. You can try editing it as a text file or deleting and recreating it.",
+      "iframe-blocked": "Site blocks iframe embedding",
+      "quote-label": "Quote or Snippet",
+      "tags-help": "Add tags to organize and filter your sources",
+      "source-id-label": "Source ID (Read-only)",
+      "save-immediately": "to save immediately"
+    }
+  },
+  "analysis": {
+    "comparison": {
+      "no-outputs": "No outputs to compare"
+    },
+    "cost-metrics": {
+      "description": "Your AI spend for the current month, broken down by provider. Data from v1.5+ (earlier activity may be missing).",
+      "by-provider": "By provider (this month)",
+      "no-costs": "No recorded costs yet this month. Run a chat to see data here."
+    },
+    "multi-interview": {
+      "title": "Multi-interview synthesis",
+      "description": "Drop 3+ transcripts (or paste them below) to produce themes, contradictions, jobs-to-be-done, and a priority-ranked feature list.",
+      "drop-here": "Drop .md or .txt transcripts here",
+      "paste-label": "Or paste transcripts (separated by `---`)",
+      "save-as": "Save as INTERVIEW_SYNTHESIS.md",
+      "jobs-title": "Jobs to be done"
     }
   }
 }

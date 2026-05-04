@@ -2,6 +2,7 @@
 // Side-by-side comparison of multiple model outputs
 
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,6 +38,7 @@ export function ComparisonView({
   onRequestSynthesis,
   className,
 }: ComparisonViewProps) {
+  const { t } = useTranslation();
   const [expandedContradictions, setExpandedContradictions] = useState<Set<string>>(new Set());
 
   const toggleContradiction = useCallback((id: string) => {
@@ -54,7 +56,7 @@ export function ComparisonView({
   if (outputs.length === 0) {
     return (
       <div className={cn('flex items-center justify-center h-full text-muted-foreground', className)}>
-        <p>No outputs to compare</p>
+        <p>{t('analysis.comparison.no-outputs')}</p>
       </div>
     );
   }

@@ -2,6 +2,7 @@
 // Quick access to all application commands
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
@@ -52,6 +53,7 @@ export function CommandPalette({
   recentCommands = [],
   onExecute,
 }: CommandPaletteProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -199,7 +201,7 @@ export function CommandPalette({
             logs an a11y warning. */}
         <DialogTitle className="sr-only">Command Palette</DialogTitle>
         <DialogDescription className="sr-only">
-          Type a command or search across the app
+          {t('common.command-palette.search-description')}
         </DialogDescription>
 
         {/* Search input */}
@@ -223,7 +225,7 @@ export function CommandPalette({
           {filteredCommands.length === 0 ? (
             <div className="px-4 py-8 text-center text-muted-foreground">
               <Command className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No commands found</p>
+              <p className="text-sm">{t('common.command-palette.no-commands')}</p>
             </div>
           ) : (
             Array.from(groupedCommands.entries()).map(([category, categoryCommands]) => (
