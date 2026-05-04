@@ -33,5 +33,58 @@
       "success": "Success",
       "empty": "No items"
     }
+  },
+  "layout": {
+    "sidebar": {
+      "workspace-label": "Workspace",
+      "expand-aria": "Expand sidebar",
+      "collapse-aria": "Collapse sidebar",
+      "sections-aria": "Sidebar sections",
+      "grid-view-title": "Grid view",
+      "tabs": {
+        "files": "Files",
+        "search": "Search",
+        "workflows": "Workflows",
+        "ai-assistant": "AI Assistant",
+        "research": "Research",
+        "whiteboard": "Whiteboard",
+        "audit": "AI Audit",
+        "trash": "Trash",
+        "plugins": "Plugins"
+      }
+    },
+    "status-bar": {
+      "no-workspace": "No workspace",
+      "folder-path-aria": "Folder path",
+      "show-collapsed-aria": "Show collapsed path segments",
+      "modified": "Modified",
+      "tabs-open_one": "{{count}} file open",
+      "tabs-open_other": "{{count}} files open",
+      "bug-report-title": "Report a bug, sends directly to Jameson",
+      "bug-report-cta": "Something broken? Let us know!"
+    },
+    "main-panel": {
+      "no-file-open-title": "No file open",
+      "no-file-open-hint": "Select a file from the sidebar to start editing",
+      "workflow-load-failed": "Failed to load workflow file.",
+      "chat-load-failed": "Failed to load chat file: {{message}}",
+      "unknown-error": "Unknown error",
+      "opening-file": "Opening {{fileName}}...",
+      "export": {
+        "save-as-docx": "Save as Word (.docx)",
+        "save-as-pptx": "Save as PowerPoint (.pptx)"
+      },
+      "doc-legacy": {
+        "browser-message": "This is the older <docCode>.doc</docCode> format. Open it in Word and save as <docxCode>.docx</docxCode> to preview it here.",
+        "checking-libreoffice": "Checking for LibreOffice...",
+        "install-libreoffice": "<docCode>.doc</docCode> (legacy Word format) files need LibreOffice or Microsoft Word to preview. Install LibreOffice for free at <libreLink>libreoffice.org</libreLink>, then reopen this file.",
+        "convert-prompt": "Preview this legacy <docCode>.doc</docCode> file? We'll convert it to <docxCode>.docx</docxCode> using LibreOffice and save a copy next to the original.",
+        "converting": "Converting to .docx...",
+        "conversion-failed": "Conversion failed: {{error}}",
+        "try-again": "Try again",
+        "convert-button": "Convert to .docx",
+        "download-button": "Download File"
+      }
+    }
   }
 }

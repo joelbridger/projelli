@@ -2,6 +2,7 @@
 // Contains the editor area with tabs, split panes, and side panels
 
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   ApiKeySetupCard,
   hasDismissedApiKeyCard,
@@ -258,6 +259,7 @@ export function MainPanel({
   onWorkflowExportPptx,
   onActiveEditorChange,
 }: MainPanelProps = {}) {
+  const { t } = useTranslation();
   const {
     openTabs,
     activeTabPath,
@@ -558,8 +560,8 @@ export function MainPanel({
           className="flex-1 flex flex-col items-center justify-center text-muted-foreground h-full"
         >
           <FileText className="h-16 w-16 mb-4 opacity-50" />
-          <p className="text-lg font-medium">No file open</p>
-          <p className="text-sm">Select a file from the sidebar to start editing</p>
+          <p className="text-lg font-medium">{t('layout.main-panel.no-file-open-title')}</p>
+          <p className="text-sm">{t('layout.main-panel.no-file-open-hint')}</p>
         </div>
       );
     }
@@ -598,7 +600,7 @@ export function MainPanel({
         if (!parsed) {
           return (
             <div className="flex items-center justify-center h-full text-muted-foreground">
-              <p>Failed to load workflow file.</p>
+              <p>{t('layout.main-panel.workflow-load-failed')}</p>
             </div>
           );
         }
@@ -722,7 +724,7 @@ export function MainPanel({
         } catch (error) {
           return (
             <div className="flex items-center justify-center h-full text-muted-foreground">
-              <p>Failed to load chat file: {error instanceof Error ? error.message : 'Unknown error'}</p>
+              <p>{t('layout.main-panel.chat-load-failed', { message: error instanceof Error ? error.message : t('layout.main-panel.unknown-error') })}</p>
             </div>
           );
         }
@@ -1120,14 +1122,14 @@ export function MainPanel({
                       onClick={exportAsDocx}
                     >
                       <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
-                      Save as Word (.docx)
+                      {t('layout.main-panel.export.save-as-docx')}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       data-testid="workflow-export-pptx"
                       onClick={exportAsPptx}
                     >
                       <FileType className="h-3.5 w-3.5 mr-2 text-orange-600" />
-                      Save as PowerPoint (.pptx)
+                      {t('layout.main-panel.export.save-as-pptx')}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -1212,14 +1214,14 @@ export function MainPanel({
                       onClick={exportAsDocx}
                     >
                       <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
-                      Save as Word (.docx)
+                      {t('layout.main-panel.export.save-as-docx')}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       data-testid="toolbar-overflow-export-pptx"
                       onClick={exportAsPptx}
                     >
                       <FileType className="h-3.5 w-3.5 mr-2 text-orange-600" />
-                      Save as PowerPoint (.pptx)
+                      {t('layout.main-panel.export.save-as-pptx')}
                     </DropdownMenuItem>
                   </>
                 )}
@@ -1397,10 +1399,11 @@ export function MainPanel({
 }
 
 function DocLoadingFallback({ fileName }: { fileName: string }) {
+  const { t } = useTranslation();
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
       <FileType className="h-10 w-10 animate-pulse opacity-50" />
-      <p className="text-sm">Opening {fileName}...</p>
+      <p className="text-sm">{t('layout.main-panel.opening-file', { fileName })}</p>
     </div>
   );
 }
@@ -1437,6 +1440,7 @@ function DocLegacyFallback({
   tabContent,
   onFileOpen,
 }: DocLegacyFallbackProps) {
+  const { t } = useTranslation();
   // Detection state: undefined = still checking, null = not found,
   // string = soffice path.
   const [libreOfficePath, setLibreOfficePath] = useState<string | null | undefined>(
@@ -1511,11 +1515,13 @@ function DocLegacyFallback({
         <FileType className="h-16 w-16 mb-4 opacity-50" />
         <p className="text-lg font-medium">{tabName}</p>
         <p className="mt-2 text-sm max-w-md">
-          This is the older <code>.doc</code> format. Open it in Word and save
-          as <code>.docx</code> to preview it here.
+          <Trans
+            i18nKey="layout.main-panel.doc-legacy.browser-message"
+            components={{ docCode: <code />, docxCode: <code /> }}
+          />
         </p>
         <Button variant="outline" className="mt-4" onClick={handleDownload}>
-          Download File
+          {t('layout.main-panel.doc-legacy.download-button')}
         </Button>
       </div>
     );
@@ -1532,7 +1538,7 @@ function DocLegacyFallback({
           data-testid="doc-convert-loading"
           className="h-10 w-10 mb-3 animate-spin opacity-70"
         />
-        <p className="text-sm">Checking for LibreOffice…</p>
+        <p className="text-sm">{t('layout.main-panel.doc-legacy.checking-libreoffice')}</p>
       </div>
     );
   }
@@ -1550,20 +1556,23 @@ function DocLegacyFallback({
           data-testid="doc-convert-install-libreoffice"
           className="mt-2 text-sm max-w-md"
         >
-          <code>.doc</code> (legacy Word format) files need LibreOffice or
-          Microsoft Word to preview. Install LibreOffice for free at{' '}
-          <a
-            href="https://libreoffice.org"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline hover:text-foreground"
-          >
-            libreoffice.org
-          </a>
-          , then reopen this file.
+          <Trans
+            i18nKey="layout.main-panel.doc-legacy.install-libreoffice"
+            components={{
+              docCode: <code />,
+              libreLink: (
+                <a
+                  href="https://libreoffice.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline hover:text-foreground"
+                />
+              ),
+            }}
+          />
         </p>
         <Button variant="outline" className="mt-4" onClick={handleDownload}>
-          Download File
+          {t('layout.main-panel.doc-legacy.download-button')}
         </Button>
       </div>
     );
@@ -1579,9 +1588,10 @@ function DocLegacyFallback({
       <FileType className="h-16 w-16 mb-4 opacity-50" />
       <p className="text-lg font-medium">{tabName}</p>
       <p className="mt-2 text-sm max-w-md">
-        Preview this legacy <code>.doc</code> file? We'll convert it to{' '}
-        <code>.docx</code> using LibreOffice and save a copy next to the
-        original.
+        <Trans
+          i18nKey="layout.main-panel.doc-legacy.convert-prompt"
+          components={{ docCode: <code />, docxCode: <code /> }}
+        />
       </p>
       {conversionState === 'loading' ? (
         <div
@@ -1589,7 +1599,7 @@ function DocLegacyFallback({
           className="mt-4 flex items-center gap-2 text-sm"
         >
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Converting to .docx…</span>
+          <span>{t('layout.main-panel.doc-legacy.converting')}</span>
         </div>
       ) : conversionState === 'error' ? (
         <div
@@ -1597,24 +1607,24 @@ function DocLegacyFallback({
           className="mt-4 flex flex-col items-center gap-2 max-w-md"
         >
           <p className="text-sm text-destructive">
-            Conversion failed: {conversionError}
+            {t('layout.main-panel.doc-legacy.conversion-failed', { error: conversionError })}
           </p>
           <div className="flex gap-2">
             <Button onClick={handleConvert} data-testid="doc-convert-button">
-              Try again
+              {t('layout.main-panel.doc-legacy.try-again')}
             </Button>
             <Button variant="outline" onClick={handleDownload}>
-              Download File
+              {t('layout.main-panel.doc-legacy.download-button')}
             </Button>
           </div>
         </div>
       ) : (
         <div className="mt-4 flex gap-2">
           <Button onClick={handleConvert} data-testid="doc-convert-button">
-            Convert to .docx
+            {t('layout.main-panel.doc-legacy.convert-button')}
           </Button>
           <Button variant="outline" onClick={handleDownload}>
-            Download File
+            {t('layout.main-panel.doc-legacy.download-button')}
           </Button>
         </div>
       )}

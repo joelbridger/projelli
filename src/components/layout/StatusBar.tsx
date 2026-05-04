@@ -2,6 +2,7 @@
 // Shows workspace info and status indicators
 
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { FolderOpen, File, Edit, ChevronRight, Bug } from 'lucide-react';
@@ -20,8 +21,8 @@ import { TrialStatusChip } from '@/components/trial';
  * Extract project name from full path
  * Returns the last folder name, not the full path
  */
-function getProjectName(path: string | null): string {
-  if (!path) return 'No workspace';
+function getProjectName(path: string | null, fallback: string): string {
+  if (!path) return fallback;
   // Handle both Windows (backslash) and Unix (forward slash) paths
   const segments = path.replace(/\\/g, '/').split('/').filter(Boolean);
   return segments[segments.length - 1] || path;
@@ -120,13 +121,14 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
+  const { t } = useTranslation();
   const { rootPath, expandedPaths, setExpandedPaths, selectPath } =
     useWorkspaceStore();
   const { openTabs, activeTabPath } = useEditorStore();
   const activeTab = openTabs.find((t) => t.path === activeTabPath);
   const [bugReportOpen, setBugReportOpen] = useState(false);
 
-  const projectName = getProjectName(rootPath);
+  const projectName = getProjectName(rootPath, t('layout.status-bar.no-workspace'));
 
   const breadcrumbs = useMemo(
     () => buildBreadcrumbs(rootPath, activeTab?.path ?? null),
@@ -198,7 +200,7 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
         ) : (
           <nav
             data-testid="status-bar-breadcrumbs"
-            aria-label="Folder path"
+            aria-label={t('layout.status-bar.folder-path-aria')}
             className="flex items-center gap-0.5 min-w-0"
           >
             {displayed.left.map((seg, i) => (
@@ -221,7 +223,7 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
                     <button
                       data-testid="status-bar-breadcrumb-collapsed"
                       className="px-1 rounded-sm hover:bg-accent hover:text-accent-foreground"
-                      aria-label="Show collapsed path segments"
+                      aria-label={t('layout.status-bar.show-collapsed-aria')}
                     >
                       …
                     </button>
@@ -287,7 +289,7 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
                 className="flex items-center gap-1 text-amber-500"
               >
                 <Edit className="h-3 w-3" />
-                <span>Modified</span>
+                <span>{t('layout.status-bar.modified')}</span>
               </div>
             )}
           </>
@@ -296,18 +298,18 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
         <RagStatusBadge />
 
         <div data-testid="status-bar-tab-count">
-          {openTabs.length} file{openTabs.length !== 1 ? 's' : ''} open
+          {t('layout.status-bar.tabs-open', { count: openTabs.length })}
         </div>
 
         <button
           type="button"
           data-testid="status-bar-bug-report"
           className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
-          title="Report a bug — sends directly to Jameson"
+          title={t('layout.status-bar.bug-report-title')}
           onClick={() => setBugReportOpen(true)}
         >
           <Bug className="h-3 w-3" />
-          <span>Something broken? Let us know!</span>
+          <span>{t('layout.status-bar.bug-report-cta')}</span>
         </button>
       </div>
 
