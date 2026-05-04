@@ -37,6 +37,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { trackDemoByokUsed } from './demoPlausible';
 
 const BYOK_STORAGE_KEY = 'byokKey';
 const ANTHROPIC_KEY_PATTERN = /^sk-ant-[A-Za-z0-9_\-]{20,}$/;
@@ -103,6 +104,7 @@ export function BYOKKeyInput() {
     setPendingKey(null);
     setDraft('');
     setExpanded(false);
+    trackDemoByokUsed();
   }
 
   function handleCancelStore() {

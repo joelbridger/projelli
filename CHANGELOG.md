@@ -8,6 +8,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Stream D-web COMPLETE: web demo sandbox live at projelli.com/try.**
+  Anyone can now try Projelli in a browser without downloading anything.
+  The demo loads a pre-seeded sample workspace (12 founder workflow
+  templates plus sample notes and a chat history), gives 5 free AI
+  messages through a shared rate-limited Anthropic key, OR unlimited
+  messages if the visitor pastes their own key into the BYOK input. After
+  the limit a full-screen exit modal surfaces three OS-specific download
+  CTAs. Every download link carries `utm_source=demo` so Plausible can
+  attribute conversions back to the demo surface.
+- **Stream D-web Group VII: Plausible instrumentation, E2E test, deploy.**
+  - New `src/web-demo/demoPlausible.ts` wraps `window.plausible` with
+    safe no-op fallbacks. Five demo-funnel events fire on the documented
+    triggers: `demo_loaded` (once on mount), `demo_ai_first_message`
+    (first proxy-backed send per tab), `demo_limit_hit` (every modal
+    open, with reason prop: count / time / rate-limited / budget-
+    exhausted / proxy-error), `demo_download_clicked` (with surface +
+    optional os props), `demo_byok_used` (first BYOK store per tab).
+  - `index.demo.html` now includes the Plausible tag pointing at
+    `analytics.jamesondaines.com`, matching the marketing site.
+  - All download CTAs in DemoModeBanner + DemoExitModal verified to
+    carry `utm_source=demo&utm_campaign=v2-launch` plus surface-specific
+    `utm_content` (banner, exit_modal) and OS query params.
+  - New `tests/e2e/web-demo.spec.ts` Playwright test mocks
+    `/api/demo-chat`, drives the limit gate via the contract events,
+    checks the modal surfaces, exercises BYOK input validation.
+  - New `tests/unit/web-demo/demoPlausible.test.ts` covers session-once
+    semantics for first-message + BYOK events, prop shape on every
+    event, and silent fallback when Plausible is blocked.
+  - `infra/deploy.sh` executed: `dist-web-demo/` is rsynced into
+    `/var/www/projelli.com/try/`. Live URL `https://projelli.com/try/`
+    returns HTTP 200, Plausible script tag present in served HTML.
+    Proxy at `https://projelli.com/api/demo-status` returns healthy
+    JSON (budget $0/$50, 0 active sessions today). Test suite green:
+    1882 passed across 172 files (1 new e2e file deferred to manual
+    run since Playwright wasn't part of `npm run test`).
+  - **JAMESON ACTION REQUIRED**: still need to replace the placeholder
+    `ANTHROPIC_API_KEY=REPLACE_ME_BEFORE_GOING_LIVE` in
+    `/etc/projelli-demo-proxy.env`, then `sudo systemctl restart
+    projelli-demo-proxy`. Until then, demo proxy chat will 401 from
+    Anthropic but everything else works (UI, BYOK, sample workspace).
+    Optionally: rotate `SESSION_TOKEN_SECRET` from the bootstrap
+    default, and add `https://projelli.com/api/demo-status` to
+    UptimeRobot.
 - **Stream D-web Group VI: Caddy + systemd + deploy script wiring.**
   - System Caddyfile (`/etc/caddy/Caddyfile`) now serves the demo bundle
     from `/var/www/projelli.com/try/` with base path `/try/`, and reverse-

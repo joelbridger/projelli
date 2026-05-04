@@ -35,6 +35,10 @@ import {
   DEMO_LIMIT_HIT_EVENT,
   DEMO_MESSAGE_SENT_EVENT_NAME,
 } from './demoAIProvider';
+import {
+  trackDemoAiFirstMessage,
+  trackDemoLimitHit,
+} from './demoPlausible';
 
 const MESSAGE_LIMIT = 5;
 const SESSION_LIMIT_MS = 10 * 60 * 1000; // 10 minutes
@@ -94,7 +98,10 @@ export function DemoLimitGate() {
   }, []);
 
   useEffect(() => {
-    function maybeOpen(reason: 'count' | 'time' | 'limit-hit') {
+    function maybeOpen(reason: 'count' | 'time' | 'limit-hit', detail?: string) {
+      // Plausible: every modal open counts. The reason prop lets us see the
+      // mix in the funnel report (count vs time vs proxy-quota).
+      trackDemoLimitHit(detail ?? reason);
       if (reason === 'limit-hit') {
         // Limit-hit events from the proxy always open, even if the user
         // recently dismissed: this is a hard quota signal.
@@ -107,6 +114,9 @@ export function DemoLimitGate() {
     }
 
     function onMessageSent() {
+      // First proxy-backed message in this session is a key conversion
+      // signal: the user actually tried the product. Fire once per tab.
+      trackDemoAiFirstMessage();
       const next: PersistedCounter = {
         count: counterRef.current.count + 1,
         sessionStart: counterRef.current.sessionStart,
@@ -122,8 +132,14 @@ export function DemoLimitGate() {
       }
     }
 
-    function onLimitHit() {
-      maybeOpen('limit-hit');
+    function onLimitHit(event: Event) {
+      const reason =
+        event instanceof CustomEvent &&
+        event.detail &&
+        typeof (event.detail as { reason?: unknown }).reason === 'string'
+          ? (event.detail as { reason: string }).reason
+          : 'proxy-error';
+      maybeOpen('limit-hit', reason);
     }
 
     window.addEventListener(DEMO_MESSAGE_SENT_EVENT_NAME, onMessageSent);

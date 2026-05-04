@@ -14,6 +14,7 @@
 
 import { Button } from '@/components/ui/button';
 import { BYOKKeyInput } from './BYOKKeyInput';
+import { trackDemoDownloadClicked } from './demoPlausible';
 
 const DOWNLOAD_URL =
   'https://projelli.com/#download?utm_source=demo&utm_campaign=v2-launch&utm_content=banner';
@@ -52,7 +53,13 @@ export function DemoModeBanner() {
         variant="default"
         data-testid="demo-banner-download-button"
       >
-        <a href={DOWNLOAD_URL} rel="noopener">
+        <a
+          href={DOWNLOAD_URL}
+          rel="noopener"
+          onClick={() => {
+            trackDemoDownloadClicked('banner');
+          }}
+        >
           Download for full version
         </a>
       </Button>

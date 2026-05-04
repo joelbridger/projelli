@@ -27,6 +27,7 @@ import { useSettingsStore } from '../stores/settingsStore';
 import { seedWebDemoWorkspace } from './WebDemoSeeder';
 import { DemoModeBanner } from './DemoModeBanner';
 import { DemoLimitGate } from './DemoLimitGate';
+import { trackDemoLoaded } from './demoPlausible';
 
 const rootElement = document.getElementById('root');
 
@@ -65,6 +66,13 @@ async function bootstrap(): Promise<void> {
       </TooltipProvider>
     </StrictMode>,
   );
+
+  // Fire `demo_loaded` after React has mounted so Plausible only counts
+  // sessions that successfully reached the React shell. Wait one tick so the
+  // deferred Plausible script has a chance to attach `window.plausible`.
+  setTimeout(() => {
+    trackDemoLoaded();
+  }, 0);
 }
 
 void bootstrap();

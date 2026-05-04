@@ -25,6 +25,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { resetDemoSessionToken } from './demoSessionToken';
+import { trackDemoDownloadClicked } from './demoPlausible';
 
 const UTM_SUFFIX =
   '?utm_source=demo&utm_campaign=v2-launch&utm_content=exit_modal';
@@ -86,17 +87,35 @@ export function DemoExitModal({
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <Button asChild data-testid="demo-exit-download-mac">
-            <a href={DEMO_EXIT_DOWNLOAD_URLS.mac} rel="noopener">
+            <a
+              href={DEMO_EXIT_DOWNLOAD_URLS.mac}
+              rel="noopener"
+              onClick={() => {
+                trackDemoDownloadClicked('exit_modal', 'mac');
+              }}
+            >
               Download for Mac
             </a>
           </Button>
           <Button asChild data-testid="demo-exit-download-windows">
-            <a href={DEMO_EXIT_DOWNLOAD_URLS.windows} rel="noopener">
+            <a
+              href={DEMO_EXIT_DOWNLOAD_URLS.windows}
+              rel="noopener"
+              onClick={() => {
+                trackDemoDownloadClicked('exit_modal', 'windows');
+              }}
+            >
               Download for Windows
             </a>
           </Button>
           <Button asChild data-testid="demo-exit-download-linux">
-            <a href={DEMO_EXIT_DOWNLOAD_URLS.linux} rel="noopener">
+            <a
+              href={DEMO_EXIT_DOWNLOAD_URLS.linux}
+              rel="noopener"
+              onClick={() => {
+                trackDemoDownloadClicked('exit_modal', 'linux');
+              }}
+            >
               Download for Linux
             </a>
           </Button>
