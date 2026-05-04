@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Stream D-web Group VI: Caddy + systemd + deploy script wiring.**
+  - System Caddyfile (`/etc/caddy/Caddyfile`) now serves the demo bundle
+    from `/var/www/projelli.com/try/` with base path `/try/`, and reverse-
+    proxies `/api/demo-chat` and `/api/demo-status` to the loopback
+    `projelli-demo-proxy` Bun service on `127.0.0.1:5183`. Specific path
+    handles run before the existing catch-all so the marketing site,
+    `press-kit/`, `blog/`, and `/api/forms/*` continue to work unchanged.
+  - `infra/deploy.sh` now builds the web demo (`npm run build:web-demo`)
+    and rsyncs `dist-web-demo/` to `/var/www/projelli.com/try/` after the
+    main marketing-site sync. The main rsync excludes `/try/` so it never
+    overwrites the demo bundle. Added `--dry-run` and `--skip-demo` flags
+    for sanity-checking and incremental work.
+  - `projelli-demo-proxy.service` installed at `/etc/systemd/system/`,
+    `EnvironmentFile=/etc/projelli-demo-proxy.env` (root-owned, mode 0640),
+    state dir `/var/lib/projelli-demo-proxy` owned by `jameson`. Service is
+    `enabled --now`, active, listening on 127.0.0.1:5183. `/api/demo-status`
+    returns healthy JSON via Caddy.
+  - **JAMESON ACTION REQUIRED**: replace the placeholder
+    `ANTHROPIC_API_KEY=REPLACE_ME_BEFORE_GOING_LIVE` in
+    `/etc/projelli-demo-proxy.env` with a real `sk-ant-...` key, then
+    `sudo systemctl restart projelli-demo-proxy`. Until then, demo chat
+    requests will 401 from Anthropic; the rest of the demo (UI, BYOK
+    input, sample workspace) works fine.
 - **Stream C complete (v2.0): live community catalogs with day-one content.**
   Two public GitHub repos are now online, seeded, and feeding the in-app
   Marketplace UI through the install pipeline shipped in C1 + C4:
