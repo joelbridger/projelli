@@ -18,8 +18,20 @@ set -e
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WEBSITE_DIR="$REPO_DIR/website"
 WEB_ROOT="/var/www/projelli.com"
+WEB_DEMO_DIR="$REPO_DIR/dist-web-demo"
+WEB_DEMO_ROOT="$WEB_ROOT/try"
 TOKEN_FILE="$HOME/.cloudflare-projelli-token"
 ZONE_ID="${PROJELLI_CF_ZONE_ID:-}"
+
+# --dry-run previews rsync output without touching disk; useful for CI sanity.
+DRY_RUN_FLAG=""
+SKIP_DEMO=""
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY_RUN_FLAG="--dry-run" ;;
+    --skip-demo) SKIP_DEMO="1" ;;
+  esac
+done
 
 if [[ ! -d "$WEBSITE_DIR" ]]; then
   echo "ERROR: $WEBSITE_DIR does not exist"
@@ -43,15 +55,55 @@ echo "==> Syncing $WEBSITE_DIR/ → $WEB_ROOT/"
 # placeholders that would leak if served. Exclude them from deploy.
 # --no-perms / --no-owner / --no-group: don't try to preserve file ownership
 # from the source (we run as jameson; the dest is owned by www-data via setgid).
-rsync -rlD --delete \
+# Exclude /try/ here — the web-demo build owns that path.
+rsync -rlD --delete $DRY_RUN_FLAG \
   --no-perms --no-owner --no-group \
   --exclude='.DS_Store' \
   --exclude='*.swp' \
   --exclude='_*.html' \
+  --exclude='/try/' \
+  --exclude='/try/**' \
   "$WEBSITE_DIR/" "$WEB_ROOT/"
 
-echo "==> Verifying live file"
-ls -la "$WEB_ROOT/index.html"
+if [[ -z "$DRY_RUN_FLAG" ]]; then
+  echo "==> Verifying live file"
+  ls -la "$WEB_ROOT/index.html"
+fi
+
+# Build + deploy the /try/ web demo sandbox (Stream D-web).
+# Idempotent: vite rebuild always runs; rsync syncs the result.
+if [[ -z "$SKIP_DEMO" ]]; then
+  if [[ ! -d "$WEB_DEMO_ROOT" ]]; then
+    if [[ -n "$DRY_RUN_FLAG" ]]; then
+      echo "==> Would create $WEB_DEMO_ROOT (first deploy)"
+    else
+      echo "==> Creating $WEB_DEMO_ROOT (first deploy)"
+      mkdir -p "$WEB_DEMO_ROOT"
+    fi
+  fi
+
+  echo "==> Building web demo (npm run build:web-demo)"
+  if [[ -n "$DRY_RUN_FLAG" ]]; then
+    echo "    (skipped under --dry-run)"
+  else
+    (cd "$REPO_DIR" && npm run build:web-demo)
+  fi
+
+  if [[ -d "$WEB_DEMO_DIR" ]]; then
+    echo "==> Syncing $WEB_DEMO_DIR/ → $WEB_DEMO_ROOT/"
+    rsync -rlD --delete $DRY_RUN_FLAG \
+      --no-perms --no-owner --no-group \
+      --exclude='.DS_Store' \
+      "$WEB_DEMO_DIR/" "$WEB_DEMO_ROOT/"
+  elif [[ -z "$DRY_RUN_FLAG" ]]; then
+    echo "ERROR: build:web-demo did not produce $WEB_DEMO_DIR"
+    exit 1
+  else
+    echo "    (web demo dist not present yet; --dry-run skipped build)"
+  fi
+else
+  echo "==> SKIPPING web demo build/sync (--skip-demo)"
+fi
 
 if [[ -f "$TOKEN_FILE" && -n "$ZONE_ID" ]]; then
   echo "==> Purging Cloudflare cache for projelli.com"

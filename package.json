@@ -12,6 +12,7 @@
     "prebuild": "npm run copy-pdf-worker",
     "predev": "npm run copy-pdf-worker",
     "build": "tsc -b && vite build",
+    "build:web-demo": "vite build --config vite.config.web-demo.ts && mv dist-web-demo/index.demo.html dist-web-demo/index.html",
     "capture:all": "cd scripts/marketing-capture && npm install --silent && npm run run-all",
     "dev": "vite",
     "format": "prettier --write .",
