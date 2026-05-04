@@ -8,6 +8,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Stream C complete (v2.0): live community catalogs with day-one content.**
+  Two public GitHub repos are now online, seeded, and feeding the in-app
+  Marketplace UI through the install pipeline shipped in C1 + C4:
+  - `projelli/community-templates` (6 entries: beta-user-survey,
+    cold-email-sequence, customer-discovery-interview,
+    investor-update-email-community, launch-announcement-tweet-thread,
+    press-release).
+  - `projelli/community-plugins` (4 entries: mermaid-preview, pomodoro,
+    translator, word-counter, all built from the C5 example plugins).
+  - Catalogs are publicly fetchable at
+    `https://raw.githubusercontent.com/projelli/community-templates/main/catalog.json`
+    and `.../community-plugins/main/catalog.json`. Tarballs are reproducible,
+    SHA-256-pinned, and validated against the in-app Zod manifest schemas.
+  - On opening Settings -> Marketplace -> Templates or Plugins, users see
+    the seeded entries and can install + use them end-to-end (toolbar
+    buttons, sidebar panels, command-palette commands all wire through).
+  - Submission process documented in two places (the live repo READMEs +
+    `projelli.com/docs/marketplace-submissions`).
+  - Capstone PR for Stream C: templates marketplace (C1) + plugin runner
+    (C3) + plugin marketplace UI (C4) + plugin developer experience (C5)
+    + this seed catalog (C6) all working together with live content.
+- **Live-network marketplace integration test (Stream C6, v2.0, Group VI).**
+  New `tests/integration/marketplace-fetch-from-live-repos.test.ts` hits the
+  real `raw.githubusercontent.com` URLs, verifies both catalogs parse as
+  `CatalogEntry[]`, downloads one real tarball from each, confirms the
+  actual SHA-256 matches the catalog-declared checksum (catches bot drift
+  or a tampered repo), and validates a real `manifest.json` from each
+  repo against the in-app Zod schema. Gated behind `LIVE_NETWORK_OK=1` so
+  CI stays offline; Jameson runs it manually after seeding new entries.
+- **Seed catalog source-of-truth Action workflow + script (Stream C6, v2.0,
+  Group I).** New `infra/community-repos/build-catalog.mjs` is a Node 22 ESM
+  script that walks `entries/<id>/`, validates each `manifest.json` against
+  vendored Zod schemas (templates schema mirrors
+  `src/modules/marketplace/manifestValidator.ts`; plugins schema mirrors
+  `src/modules/plugins/PluginManifestSchema.ts`), builds reproducible
+  per-entry tarballs (sorted, fixed mtime, owner/group 0), computes SHA-256,
+  and writes `catalog.json` at the repo root with stable id-sorted ordering.
+  Selectable via `PROJELLI_CATALOG_KIND=templates|plugins`. Tarballs are
+  byte-identical across reruns when content is unchanged. Companion
+  `infra/community-repos/build-catalog.yml` is the GitHub Action that runs
+  the script on every push to `main`, autodetects kind from the repo name,
+  and commits regenerated `catalog.json` + tarballs back with `[skip ci]`
+  to avoid loops. Both files are pushed verbatim by the C6 sync tooling
+  to `projelli/community-templates` and `projelli/community-plugins`.
+- **Marketplace submission docs (Stream C6, v2.0, Group II).** Source-of-truth
+  READMEs for the live community repos at
+  `infra/community-repos/templates-readme.md` and
+  `infra/community-repos/plugins-readme.md`. Plugin README adds a
+  permissions-deep-dive section. Public-facing docs page at
+  `website/docs/marketplace-submissions.html` cross-links both repos and
+  walks through the fork + add entry + PR + review flow. Updated
+  `website/docs/plugins/publishing.html` with a prominent GitHub fork CTA
+  and a cross-link to `/docs/marketplace-submissions`; replaced the old
+  `npm run verify` instructions (which referenced a non-existent script)
+  with the real `PROJELLI_CATALOG_KIND=plugins node scripts/build-catalog.mjs`
+  flow. Added `docs/marketplace-submissions.html` to the website lint
+  TARGETS so it stays voice-clean and canonical-tagged.
 - **Stream C5 plugin developer experience, complete (v2.0).** Third-party
   developers can now `npx create-projelli-plugin <name>` to scaffold a
   ready-to-build TypeScript plugin project, code against the typed

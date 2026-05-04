@@ -1,0 +1,11 @@
+{
+  "questions": [
+    { "id": "productName", "question": "Product name", "type": "text", "required": true },
+    { "id": "oneLiner", "question": "One-line product pitch", "type": "text", "required": true, "placeholder": "Local-first AI workspace for indie founders" },
+    { "id": "targetAudience", "question": "Who's it for?", "type": "text", "required": true },
+    { "id": "problem", "question": "What problem does it solve? (One sentence.)", "type": "text", "required": true },
+    { "id": "topFeatures", "question": "Top 3 features or moments", "type": "textarea", "required": true },
+    { "id": "socialProof", "question": "Any quotes, numbers, or names you can drop? (Optional)", "type": "textarea", "required": false },
+    { "id": "landingUrl", "question": "Landing page URL", "type": "text", "required": true }
+  ]
+}

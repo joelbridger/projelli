@@ -34,6 +34,9 @@
     .callout strong { color: #92400E; }
     .next-link { display: inline-block; margin-top: 24px; padding: 12px 24px; background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white !important; border-radius: 8px; font-weight: 600; }
     .next-link:hover { text-decoration: none; opacity: 0.9; }
+    .repo-cta { display: flex; gap: 16px; flex-wrap: wrap; margin: 16px 0 32px; }
+    .repo-cta a { display: inline-block; padding: 12px 20px; background: #111F35; color: #fff !important; border-radius: 8px; font-weight: 600; }
+    .repo-cta a:hover { text-decoration: none; opacity: 0.9; }
   </style>
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -50,8 +53,13 @@
 
     <p>The Projelli marketplace is a public GitHub repository, <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener"><code>projelli/community-plugins</code></a>. Each plugin is one folder under <code>entries/</code>, containing the manifest, the built bundle, and screenshots. To publish, fork the repo, add your entry, and open a pull request. After review, your plugin appears in the in-app marketplace and users can install it with one click.</p>
 
+    <div class="repo-cta">
+      <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener">Fork projelli/community-plugins on GitHub</a>
+      <a href="/docs/marketplace-submissions">General submission guide</a>
+    </div>
+
     <div class="callout">
-      <strong>Before you start:</strong> publish-via-PR keeps the marketplace lightweight and reviewable. There's no signup, no API key, no separate dashboard. The repo is the source of truth.
+      <strong>Before you start:</strong> publish-via-PR keeps the marketplace lightweight and reviewable. There's no signup, no API key, no separate dashboard. The repo is the source of truth. The general flow (templates and plugins) is documented at <a href="/docs/marketplace-submissions">Marketplace Submissions</a>; this page covers the plugin-specific bits.
     </div>
 
     <h2>Prerequisites</h2>
@@ -71,14 +79,13 @@
     <pre><code>git clone https://github.com/&lt;your-username&gt;/community-plugins.git
 cd community-plugins</code></pre>
 
-    <h2>Step 2: Build a release tarball</h2>
+    <h2>Step 2: Build your bundle</h2>
 
     <p>From your plugin project, run:</p>
 
-    <pre><code>npm run build
-tar -czf my-plugin-1.0.0.tgz manifest.json dist/</code></pre>
+    <pre><code>npm run build</code></pre>
 
-    <p>The tarball must contain <code>manifest.json</code> at the top level and the <code>dist/</code> folder with your built bundle. Nothing else.</p>
+    <p>This produces <code>dist/index.js</code> (the bundled worker entry the runtime loads).</p>
 
     <h2>Step 3: Add your entry</h2>
 
@@ -86,22 +93,21 @@ tar -czf my-plugin-1.0.0.tgz manifest.json dist/</code></pre>
 
     <pre><code>entries/my-plugin/
   manifest.json           &larr; copy of your plugin's manifest
-  my-plugin-1.0.0.tgz     &larr; the tarball you built
+  index.js                &larr; copy of your built bundle (from dist/index.js)
   screenshots/
     main.png              &larr; 1280x800 PNG, primary screenshot
-    settings.png          &larr; optional, additional screenshots
-  README.md               &larr; same README that ships in your plugin</code></pre>
+    settings.png          &larr; optional, additional screenshots</code></pre>
 
-    <p>The folder name must match the <code>id</code> field in your manifest.</p>
+    <p>The folder name must match the <code>id</code> field in your manifest. The repo's GitHub Action regenerates the installable tarball and SHA-256 checksum on merge, so you don't need to ship those yourself.</p>
 
     <h2>Step 4: Verify locally</h2>
 
-    <p>Run the marketplace's verification script from the repo root:</p>
+    <p>Run the marketplace's build script from the repo root:</p>
 
-    <pre><code>npm install
-npm run verify entries/my-plugin</code></pre>
+    <pre><code>npm install --no-save zod@^4.3.6
+PROJELLI_CATALOG_KIND=plugins node scripts/build-catalog.mjs</code></pre>
 
-    <p>This checks: manifest validation, tarball contents, screenshot dimensions, license file, README presence. Fix any errors before opening the PR.</p>
+    <p>This validates every <code>manifest.json</code> against the production schema, builds a deterministic tarball per entry, and writes <code>catalog.json</code>. If validation fails you'll see the field path and reason. Fix any errors before opening the PR.</p>
 
     <h2>Step 5: Open a pull request</h2>
 

@@ -1,0 +1,20 @@
+{
+  "id": "beta-user-survey",
+  "name": "Beta User Survey",
+  "version": "1.0.0",
+  "apiVersion": "1.0",
+  "author": {
+    "name": "Projelli Team",
+    "githubUser": "projelli"
+  },
+  "description": "Short survey for beta users. PMF question (Sean Ellis), NPS, key activation question, and one open-ended request. Designed to take under 3 minutes.",
+  "category": "research",
+  "tags": ["survey", "pmf", "beta", "feedback"],
+  "screenshots": ["screenshots/preview.png"],
+  "files": [
+    { "path": "template.md", "type": "markdown" },
+    { "path": "workflow.json", "type": "workflow-definition" },
+    { "path": "questions.json", "type": "interview-questions" }
+  ],
+  "minProjelliVersion": "2.0.0"
+}

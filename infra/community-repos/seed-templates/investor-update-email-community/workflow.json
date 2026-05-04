@@ -1,0 +1,42 @@
+{
+  "id": "investor-update-email-community",
+  "name": "Investor Update Email (Community)",
+  "description": "Generate a short monthly investor update with metrics, learnings, and asks.",
+  "version": "1.0.0",
+  "category": "planning",
+  "steps": [
+    {
+      "id": "interview",
+      "type": "interview",
+      "name": "Update Setup",
+      "config": {
+        "questions": [
+          { "id": "companyName", "question": "Company name", "type": "text", "required": true },
+          { "id": "monthYear", "question": "Month and year (e.g. May 2026)", "type": "text", "required": true },
+          { "id": "senderName", "question": "Your name", "type": "text", "required": true },
+          { "id": "mrr", "question": "MRR (or 'pre-revenue')", "type": "text", "required": true },
+          { "id": "customerCount", "question": "Customer or active-user count", "type": "text", "required": true },
+          { "id": "cashOnHand", "question": "Cash on hand", "type": "text", "required": true },
+          { "id": "runwayMonths", "question": "Months of runway", "type": "text", "required": true },
+          { "id": "shipped", "question": "What did you ship this month? (3 bullets)", "type": "textarea", "required": true },
+          { "id": "learnings", "question": "What did you learn? (2 to 3 sentences. Honest beats optimistic.)", "type": "textarea", "required": true },
+          { "id": "nextMonth", "question": "What's next month's focus? (3 bullets)", "type": "textarea", "required": true },
+          { "id": "asks", "question": "Two specific asks (intros, hires, advice)", "type": "textarea", "required": true },
+          { "id": "shoutouts", "question": "Any wins or shoutouts? (Optional)", "type": "textarea", "required": false }
+        ]
+      }
+    },
+    {
+      "id": "generate",
+      "type": "generate",
+      "name": "Generate Update",
+      "config": {
+        "outputFile": "INVESTOR_UPDATE.md",
+        "promptTemplate": "Write a monthly investor update for {{companyName}} ({{monthYear}}). Use the TLDR + metrics + shipped + learned + next + asks structure. Sender: {{senderName}}. MRR: {{mrr}}. Customers: {{customerCount}}. Cash: {{cashOnHand}}. Runway: {{runwayMonths}} months. Shipped: {{shipped}}. Learned: {{learnings}}. Next: {{nextMonth}}. Asks: {{asks}}. Shoutouts: {{shoutouts}}. Tone: candid, plain, founder voice. Lead with the TLDR sentence that summarizes the whole update. Investors should be able to skim in 30 seconds. Don't sugar-coat misses. End with two specific asks and a thank you.",
+        "systemPrompt": "Investor updates work when they're honest. Highlight one miss alongside wins."
+      }
+    }
+  ],
+  "requiredInputs": [],
+  "outputs": ["INVESTOR_UPDATE.md"]
+}

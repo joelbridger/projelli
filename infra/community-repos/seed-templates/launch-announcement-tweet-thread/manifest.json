@@ -1,0 +1,20 @@
+{
+  "id": "launch-announcement-tweet-thread",
+  "name": "Launch Announcement Tweet Thread",
+  "version": "1.0.0",
+  "apiVersion": "1.0",
+  "author": {
+    "name": "Projelli Team",
+    "githubUser": "projelli"
+  },
+  "description": "Eight-tweet launch thread. Hook, problem, demo moment, three feature tweets, social proof, call to action. Each tweet under 280 chars.",
+  "category": "marketing",
+  "tags": ["launch", "twitter", "x", "thread", "marketing"],
+  "screenshots": ["screenshots/preview.png"],
+  "files": [
+    { "path": "template.md", "type": "markdown" },
+    { "path": "workflow.json", "type": "workflow-definition" },
+    { "path": "questions.json", "type": "interview-questions" }
+  ],
+  "minProjelliVersion": "2.0.0"
+}

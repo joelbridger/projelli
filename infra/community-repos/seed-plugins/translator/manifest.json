@@ -1,0 +1,20 @@
+{
+  "id": "translator",
+  "name": "Translator",
+  "version": "1.0.0",
+  "apiVersion": "1.0.0",
+  "author": {
+    "name": "Projelli Examples",
+    "githubUser": "projelli",
+    "url": "https://projelli.com"
+  },
+  "description": "Translate the selected text into a target language using your configured AI provider. Replaces the selection in place.",
+  "main": "index.js",
+  "permissions": ["editor:selection", "editor:write", "ai:invoke"],
+  "minProjelliVersion": "2.0.0",
+  "category": "writing",
+  "tags": ["editor", "ai", "translation", "i18n"],
+  "screenshots": ["screenshots/preview.png"],
+  "homepage": "https://projelli.com/docs/plugins/examples.html",
+  "license": "MIT"
+}

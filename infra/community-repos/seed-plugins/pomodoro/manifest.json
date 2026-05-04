@@ -1,0 +1,20 @@
+{
+  "id": "pomodoro",
+  "name": "Pomodoro",
+  "version": "1.0.0",
+  "apiVersion": "1.0.0",
+  "author": {
+    "name": "Projelli Examples",
+    "githubUser": "projelli",
+    "url": "https://projelli.com"
+  },
+  "description": "A 25/5 pomodoro timer in the sidebar. Start, pause, and reset from toolbar buttons or the command palette. State persists across reloads.",
+  "main": "index.js",
+  "permissions": [],
+  "minProjelliVersion": "2.0.0",
+  "category": "productivity",
+  "tags": ["focus", "timer", "productivity"],
+  "screenshots": ["screenshots/preview.png"],
+  "homepage": "https://projelli.com/docs/plugins/examples.html",
+  "license": "MIT"
+}

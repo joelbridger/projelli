@@ -1,0 +1,47 @@
+{
+  "id": "customer-discovery-interview",
+  "name": "Customer Discovery Interview (Community)",
+  "description": "Generate a non-leading interview script and notes template based on The Mom Test.",
+  "version": "1.0.0",
+  "category": "research",
+  "steps": [
+    {
+      "id": "interview",
+      "type": "interview",
+      "name": "Interview Setup",
+      "description": "Tell me what you're trying to learn.",
+      "config": {
+        "questions": [
+          { "id": "interviewGoal", "question": "What's the main thing you want to learn?", "type": "select", "required": true, "options": ["Whether the problem is real", "Whether they would use a solution", "Whether they would pay", "What feature matters most", "General discovery"] },
+          { "id": "targetCustomer", "question": "Who are you interviewing?", "type": "textarea", "required": true, "placeholder": "Freelance designers who invoice 3+ clients/month" },
+          { "id": "problemArea", "question": "What problem area are you exploring?", "type": "text", "required": true, "placeholder": "Time tracking and invoicing" },
+          { "id": "relevantTask", "question": "What's the specific task you want them to walk you through?", "type": "text", "required": true, "placeholder": "sent your last invoice" },
+          { "id": "assumptions", "question": "What assumptions do you want to test?", "type": "textarea", "required": true }
+        ]
+      }
+    },
+    {
+      "id": "generate-script",
+      "type": "generate",
+      "name": "Generate Interview Script",
+      "description": "Write the script and notes template.",
+      "config": {
+        "outputFile": "INTERVIEW_SCRIPT.md",
+        "promptTemplate": "You are a customer-research expert trained in The Mom Test. Generate a complete interview script for the following founder. Goal: {{interviewGoal}}. Target: {{targetCustomer}}. Problem: {{problemArea}}. Walk-through task: {{relevantTask}}. Assumptions to test: {{assumptions}}. Output sections: Goal, Audience, Opening, Past Behavior, Workarounds, Cost, Closing, Notes Template. Rules: never ask hypothetical or leading questions. Always anchor to past behavior. No selling.",
+        "systemPrompt": "Apply The Mom Test rigorously. Past behavior beats opinion. Never sell."
+      }
+    },
+    {
+      "id": "generate-recruiting",
+      "type": "generate",
+      "name": "Recruiting Message",
+      "description": "Short outreach message to find interviewees.",
+      "config": {
+        "outputFile": "RECRUITING.md",
+        "promptTemplate": "Write a friendly 4-sentence outreach message asking {{targetCustomer}} for a 20-minute call about {{problemArea}}. No pitch. Offer to share findings. Sign as 'the founder'."
+      }
+    }
+  ],
+  "requiredInputs": [],
+  "outputs": ["INTERVIEW_SCRIPT.md", "RECRUITING.md"]
+}

@@ -1,0 +1,9 @@
+{
+  "questions": [
+    { "id": "interviewGoal", "question": "What's the main thing you want to learn?", "type": "select", "required": true, "options": ["Whether the problem is real", "Whether they would use a solution", "Whether they would pay", "What feature matters most", "General discovery"] },
+    { "id": "targetCustomer", "question": "Who are you interviewing?", "type": "textarea", "required": true, "placeholder": "Freelance designers who invoice 3+ clients/month" },
+    { "id": "problemArea", "question": "What problem area are you exploring?", "type": "text", "required": true, "placeholder": "Time tracking and invoicing" },
+    { "id": "relevantTask", "question": "What's the specific task you want them to walk you through?", "type": "text", "required": true, "placeholder": "sent your last invoice" },
+    { "id": "assumptions", "question": "What assumptions do you want to test?", "type": "textarea", "required": true }
+  ]
+}

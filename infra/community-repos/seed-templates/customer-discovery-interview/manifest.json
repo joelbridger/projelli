@@ -1,0 +1,20 @@
+{
+  "id": "customer-discovery-interview",
+  "name": "Customer Discovery Interview (Community)",
+  "version": "1.0.0",
+  "apiVersion": "1.0",
+  "author": {
+    "name": "Projelli Team",
+    "githubUser": "projelli"
+  },
+  "description": "Run a non-leading discovery interview using The Mom Test rules. Produces a script, a recruiting message, and a notes template.",
+  "category": "research",
+  "tags": ["interview", "discovery", "validation", "mom-test"],
+  "screenshots": ["screenshots/preview.png"],
+  "files": [
+    { "path": "template.md", "type": "markdown" },
+    { "path": "workflow.json", "type": "workflow-definition" },
+    { "path": "questions.json", "type": "interview-questions" }
+  ],
+  "minProjelliVersion": "2.0.0"
+}

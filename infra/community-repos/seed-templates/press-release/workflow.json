@@ -1,0 +1,42 @@
+{
+  "id": "press-release",
+  "name": "Press Release",
+  "description": "Generate a wire-service-ready press release in inverted-pyramid format.",
+  "version": "1.0.0",
+  "category": "planning",
+  "steps": [
+    {
+      "id": "interview",
+      "type": "interview",
+      "name": "Release Setup",
+      "description": "Collect the facts.",
+      "config": {
+        "questions": [
+          { "id": "companyName", "question": "Company name", "type": "text", "required": true },
+          { "id": "companyDescription", "question": "One-line company description (what you do, who for)", "type": "text", "required": true },
+          { "id": "announcement", "question": "What are you announcing?", "type": "textarea", "required": true },
+          { "id": "whyNow", "question": "Why now? Why does this matter today?", "type": "textarea", "required": true },
+          { "id": "supportingFacts", "question": "Two or three supporting facts, numbers, or partner names", "type": "textarea", "required": true },
+          { "id": "quote1Speaker", "question": "First quote speaker (name and title)", "type": "text", "required": true },
+          { "id": "quote2Speaker", "question": "Second quote speaker, ideally a customer or partner", "type": "text", "required": false },
+          { "id": "callToAction", "question": "What should readers do? (Sign up, download, contact, etc.)", "type": "text", "required": true },
+          { "id": "boilerplate", "question": "Two-sentence company boilerplate", "type": "textarea", "required": true },
+          { "id": "mediaContact", "question": "Media contact (name, email, phone)", "type": "textarea", "required": true }
+        ]
+      }
+    },
+    {
+      "id": "generate",
+      "type": "generate",
+      "name": "Generate Press Release",
+      "description": "Write the release.",
+      "config": {
+        "outputFile": "PRESS_RELEASE.md",
+        "promptTemplate": "Write a wire-service-ready press release. Inverted pyramid: most important fact first. Format: dateline, lede paragraph (who/what/when/where/why), one supporting paragraph, one quote from {{quote1Speaker}}, one supporting paragraph, one quote from {{quote2Speaker}} (skip if blank), call to action, About boilerplate, media contact. Company: {{companyName}} ({{companyDescription}}). Announcement: {{announcement}}. Why now: {{whyNow}}. Supporting facts: {{supportingFacts}}. CTA: {{callToAction}}. Boilerplate: {{boilerplate}}. Contact: {{mediaContact}}. Tone: factual, declarative, no marketing-speak. No exclamation marks. No words like 'revolutionary', 'transform', 'leverage'.",
+        "systemPrompt": "Write like AP wire copy. Facts first. No fluff."
+      }
+    }
+  ],
+  "requiredInputs": [],
+  "outputs": ["PRESS_RELEASE.md"]
+}
