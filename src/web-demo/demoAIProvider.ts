@@ -37,6 +37,7 @@ import { getDemoSessionToken, resetDemoSessionToken } from './demoSessionToken';
 const BYOK_STORAGE_KEY = 'byokKey';
 const DEMO_PROXY_PATH = '/api/demo-chat';
 const DEMO_LIMIT_EVENT = 'projelli:demo-limit-hit';
+const DEMO_MESSAGE_SENT_EVENT = 'projelli:demo-message-sent';
 
 /** Reasons surfaced to Group IV's DemoLimitGate via the window event. */
 export type DemoLimitReason =
@@ -75,6 +76,15 @@ function emitLimitHit(detail: DemoLimitHitDetail): void {
   } catch {
     // Older browsers: tolerate. The DemoExitModal is a backup; the user can
     // still see the inline error in the chat surface.
+  }
+}
+
+function emitMessageSent(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.dispatchEvent(new CustomEvent(DEMO_MESSAGE_SENT_EVENT));
+  } catch {
+    // tolerate
   }
 }
 
@@ -178,6 +188,10 @@ class DemoProxyProvider implements Provider {
     const inputTokens = typeof json.usage?.input_tokens === 'number' ? json.usage.input_tokens : 0;
     const outputTokens = typeof json.usage?.output_tokens === 'number' ? json.usage.output_tokens : 0;
 
+    // Notify DemoLimitGate (Group IV) so it can advance the message counter.
+    // Only the proxy path counts; BYOK is unlimited by design.
+    emitMessageSent();
+
     return {
       content: json.text,
       usage: {
@@ -259,3 +273,4 @@ export function createDemoProvider(opts: { model?: string } = {}): Provider {
 
 /** Constants Group IV needs for its DemoLimitGate event listener. */
 export const DEMO_LIMIT_HIT_EVENT = DEMO_LIMIT_EVENT;
+export const DEMO_MESSAGE_SENT_EVENT_NAME = DEMO_MESSAGE_SENT_EVENT;
