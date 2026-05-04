@@ -185,6 +185,7 @@
     .item-status.shipped { background: rgba(16, 185, 129, 0.12); color: var(--accent-green); }
     .item-status.flight  { background: rgba(255, 124, 110, 0.14); color: var(--accent-coral); }
     .item-status.next    { background: rgba(59, 130, 246, 0.12); color: var(--accent-blue); }
+    .item-status.nogo    { background: rgba(100, 116, 139, 0.12); color: #475569; }
     .item-body h3 { color: var(--text-heading); font-size: 1.0625rem; font-weight: 600; line-height: 1.4; margin-bottom: 4px; }
     .item-body p { font-size: 0.9375rem; color: var(--text-body); margin: 0; }
     .item-body .when { font-size: 0.8125rem; color: var(--text-muted); margin-top: 4px; }
@@ -319,7 +320,7 @@
       <h2 class="section-title">From here to there</h2>
       <div class="timeline">
         <div class="timeline-track">
-          <div class="timeline-rail" style="--progress: 50%;"></div>
+          <div class="timeline-rail" style="--progress: 92%;"></div>
           <div class="tl-stop done">
             <span class="tl-quarter">Q4 2025</span>
             <span class="tl-dot"></span>
@@ -335,26 +336,44 @@
           <div class="tl-stop done">
             <span class="tl-quarter">Apr 2026</span>
             <span class="tl-dot"></span>
-            <div class="tl-title">Document suite + auto-updater</div>
-            <div class="tl-sub">.xlsx · .docx · .pptx · .csv · .rtf, in-app updates</div>
+            <div class="tl-title">Document suite + auto-updater (v1.0.8)</div>
+            <div class="tl-sub">.xlsx, .docx, .pptx, .csv, .rtf, in-app updates</div>
           </div>
-          <div class="tl-stop now">
+          <div class="tl-stop done">
+            <span class="tl-quarter">Apr 2026</span>
+            <span class="tl-dot"></span>
+            <div class="tl-title">v1.5: Memory, MCP, Voice, Ollama</div>
+            <div class="tl-sub">Local RAG, MCP server, side-by-side AI editing, voice input, Ollama as 4th provider</div>
+          </div>
+          <div class="tl-stop done">
+            <span class="tl-quarter">Apr 2026</span>
+            <span class="tl-dot"></span>
+            <div class="tl-title">v1.6 + v1.7: Mac notarized + trial system</div>
+            <div class="tl-sub">Apple-notarized .dmg, license activation, 30-day full-feature trial, opt-in telemetry</div>
+          </div>
+          <div class="tl-stop done">
             <span class="tl-quarter">May 2026</span>
             <span class="tl-dot"></span>
-            <div class="tl-title">Mac signed build + MCP support</div>
-            <div class="tl-sub">Notarized .dmg, plug any MCP server in</div>
+            <div class="tl-title">Multimodal + PDF + RAG + long-context</div>
+            <div class="tl-sub">Images and PDFs in chat across all 4 providers, workspace PDF index, [Compress] for long chats</div>
           </div>
-          <div class="tl-stop next">
-            <span class="tl-quarter">Jun 2026</span>
+          <div class="tl-stop done">
+            <span class="tl-quarter">May 2026</span>
             <span class="tl-dot"></span>
-            <div class="tl-title">Linux .deb + .AppImage</div>
-            <div class="tl-sub">One binary, packaged for Debian/Ubuntu and portable</div>
+            <div class="tl-title">Read aloud, plugins, templates marketplace</div>
+            <div class="tl-sub">Local Piper TTS, sandboxed plugin runtime, 4 example plugins, community templates and plugins on GitHub</div>
           </div>
-          <div class="tl-stop next">
-            <span class="tl-quarter">Q3 2026</span>
+          <div class="tl-stop done">
+            <span class="tl-quarter">May 2026</span>
             <span class="tl-dot"></span>
-            <div class="tl-title">Top-voted feature ships</div>
-            <div class="tl-sub">Whatever wins the polls below — your call</div>
+            <div class="tl-title">Try in browser + Spanish + German</div>
+            <div class="tl-sub">projelli.com/try sandbox, full UI translation across 421 strings</div>
+          </div>
+          <div class="tl-stop now">
+            <span class="tl-quarter">Next</span>
+            <span class="tl-dot"></span>
+            <div class="tl-title">Mobile reader (iOS, then Android)</div>
+            <div class="tl-sub">Tauri 2 mobile reader app, currently blocked on Apple Developer signup</div>
           </div>
         </div>
         <div class="tl-legend">
@@ -369,11 +388,148 @@
     <section class="section">
       <div class="section-eyebrow">Recently shipped</div>
       <h2 class="section-title">In your hands today</h2>
+      <p class="section-intro">For the full version-by-version history, see the <a href="/changelog/">changelog</a>.</p>
       <div class="item-list">
         <div class="item">
           <span class="item-status shipped">Live</span>
           <div class="item-body">
-            <h3>Document suite — .xlsx, .docx, .pptx, .csv, .rtf</h3>
+            <h3>Multimodal AI input (images in chat)</h3>
+            <p>Send screenshots, charts, UI mockups, photos to the AI for visual analysis. Drag-drop, paste from clipboard, or click to upload. Routed to native multimodal APIs for Claude, OpenAI, and Gemini, plus vision-enabled Ollama models. Token-cost preview before send. Try it at <a href="/try">projelli.com/try</a>.</p>
+            <p class="when">Shipped May 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>PDF chat (drop a PDF, ask questions)</h3>
+            <p>Drop a PDF into chat. Native PDF support via Anthropic's API for Claude (full layout, sees figures), local text extraction via <a href="https://mozilla.github.io/pdf.js/">PDF.js</a> for OpenAI, Gemini, and Ollama, with a "text extracted" mode chip so you know which path you got.</p>
+            <p class="when">Shipped May 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>PDF RAG (workspace PDFs as searchable AI context)</h3>
+            <p>Flip "Include PDFs in workspace index" in Settings, Memory and every PDF in your workspace becomes searchable context for chat. Embeddings via <a href="https://github.com/Anush008/fastembed-rs">fastembed-rs</a> with the multilingual e5-small ONNX model (384-dim), stored locally in LanceDB.</p>
+            <p class="when">Shipped May 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Long-context [Compress] for marathon chats</h3>
+            <p>When a chat gets long enough to bump into the model's context window, an auto-trigger modal offers to compress older turns through a fast model. Manual [Compress] button always available. Expand back, clear, or keep going. Every compression event lands in the audit log.</p>
+            <p class="when">Shipped May 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Read aloud (text-to-speech)</h3>
+            <p>"Read aloud" button on AI responses via bundled <a href="https://github.com/rhasspy/piper">Piper</a> sidecar (local TTS, no cloud, no API). Useful for hands-free workflows and accessibility.</p>
+            <p class="when">Shipped May 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Plugin system (sandboxed runtime + marketplace)</h3>
+            <p>Plugins run in a sandboxed Web Worker with a manifest-declared permission model (workspace read/write, editor selection, AI invoke, network). Plugin contributions appear in the toolbar, sidebar, command palette, and settings. Crash-isolated, with [Restart] when something goes sideways. Four day-one plugins live in the marketplace: <strong>Word Counter</strong>, <strong>Translator</strong>, <strong>Pomodoro</strong>, <strong>Mermaid Preview</strong>. <a href="/docs/plugins/">Developer docs</a>, scaffolder (<code>npx create-projelli-plugin</code>), and a typed <a href="https://www.npmjs.com/package/@projelli/plugin-api">@projelli/plugin-api</a> are live.</p>
+            <p class="when">Shipped May 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Templates marketplace (community workflows)</h3>
+            <p>Settings, Marketplace, Templates browses, installs, updates, and uninstalls community workflow templates. Catalog at <a href="https://github.com/projelli/community-templates">github.com/projelli/community-templates</a> with six day-one entries, GitHub Action auto-rebuilds <code>catalog.json</code> on PR merge. The 15 founder templates baked into the app stay where they are.</p>
+            <p class="when">Shipped May 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Try in browser at projelli.com/try</h3>
+            <p>Pre-seeded sample workspace, working AI chat. 5 messages or 10 minutes on the shared key, then a download nudge. Paste your own Claude key for unlimited use. <a href="/try">Take it for a spin.</a></p>
+            <p class="when">Shipped May 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Spanish + German localization</h3>
+            <p>421 UI strings translated into Espanol and Deutsch. Settings, General, Language picker, plus auto-detect from your OS locale on first launch. Manually-edited strings are protected by a lock so re-translation passes don't overwrite them.</p>
+            <p class="when">Shipped May 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Opt-in telemetry + privacy panel</h3>
+            <p>Anonymous lifecycle events (app launches, trial starts, license activations) sent only with explicit consent. Settings, Privacy shows exactly what's sent. No content, no files, no AI prompts, no email.</p>
+            <p class="when">Shipped v1.7.2, April 28, 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>30-day full-feature trial + license activation</h3>
+            <p>Every Projelli feature unlocked for 30 days, no card required. After 30 days, AI sends and workflow runs pause until license activation; existing files stay readable forever.</p>
+            <p class="when">Shipped v1.7.0 + v1.6.0 · April 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Mac signed + notarized (Apple Silicon + Intel)</h3>
+            <p>Apple Developer ID signed AND Apple-notarized. First launch goes through the standard Gatekeeper "Apple checked it" prompt. No right-click → Open dance.</p>
+            <p class="when">Shipped v1.6 · April 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Memory: local RAG over your workspace</h3>
+            <p>The AI remembers what you wrote weeks ago. Local vector store under <code>.projelli/vectors/</code>, embeddings via fastembed-rs (384-dim e5-small ONNX model). Nothing leaves your device. Use <code>@workspace</code> in chat or toggle "Ask my workspace" per chat.</p>
+            <p class="when">Shipped v1.5 · April 16, 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>MCP server: your workspace in Claude Desktop / Cursor / Zed</h3>
+            <p>Projelli ships its own Model Context Protocol server as a one-click <code>.mcpb</code> Desktop Extension. Five tools exposed (list / read / search / write / facts) over stdio. Your workspace becomes a queryable tool inside any MCP-compatible client.</p>
+            <p class="when">Shipped v1.5 · April 16, 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Side-by-side AI editing</h3>
+            <p>Select text, ask for a revision, watch the streaming diff land where your cursor was. Per-hunk Accept/Reject. Every accepted hunk tagged in version history with <code>author: 'ai'</code>, the original prompt, and the provider+model. Hotkey: Ctrl+Shift+E.</p>
+            <p class="when">Shipped v1.5 · April 16, 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Voice input + Ollama (offline AI)</h3>
+            <p>Press-to-talk voice capture via bundled Parakeet.cpp / whisper.cpp sidecar (audio never leaves the machine). Ollama as a first-class fourth AI provider, auto-detects models from your local install, $0 per call, fully offline.</p>
+            <p class="when">Shipped v1.5 · April 16, 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Real-time API cost meter + monthly cost dashboard</h3>
+            <p>Bottom-right of chat shows <code>$X.XX this chat / $X.XX today</code>. Settings → AI → Monthly Cost shows cumulative spend by provider, by month. Per-provider, per-model rates updated live as tokens stream.</p>
+            <p class="when">Shipped v1.5 · April 16, 2026</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status shipped">Live</span>
+          <div class="item-body">
+            <h3>Document suite (.xlsx, .docx, .pptx, .csv, .rtf)</h3>
             <p>Edit Excel, Word, PowerPoint, CSV, and RTF files natively in the workspace. Round-trip preserves formatting.</p>
             <p class="when">Shipped v1.0.8 · April 2026</p>
           </div>
@@ -381,25 +537,9 @@
         <div class="item">
           <span class="item-status shipped">Live</span>
           <div class="item-body">
-            <h3>Auto-updater</h3>
-            <p>The desktop app now checks for updates on launch and applies them in the background. No more chasing GitHub releases.</p>
+            <h3>Auto-updater + signed releases</h3>
+            <p>Desktop app checks for updates on launch and applies them in the background. Minisign-signed artifacts. No more chasing GitHub releases.</p>
             <p class="when">Shipped v1.0.8 · April 2026</p>
-          </div>
-        </div>
-        <div class="item">
-          <span class="item-status shipped">Live</span>
-          <div class="item-body">
-            <h3>10-step Feature Tour</h3>
-            <p>The first time you launch Projelli, a guided tour walks through every part of the workspace.</p>
-            <p class="when">Shipped v1.6 · April 2026</p>
-          </div>
-        </div>
-        <div class="item">
-          <span class="item-status shipped">Live</span>
-          <div class="item-body">
-            <h3>Auto-versioning + version history</h3>
-            <p>Every save is snapshotted automatically. Browse the full timeline and restore any version with one click.</p>
-            <p class="when">Shipped v1.5</p>
           </div>
         </div>
       </div>
@@ -409,29 +549,59 @@
     <section class="section">
       <div class="section-eyebrow">In flight</div>
       <h2 class="section-title">Building right now</h2>
+      <p class="section-intro">After the May 2026 mega-release, the only thing actively in flight is the dedicated mobile reader. Everything else on the previous "next" list shipped.</p>
       <div class="item-list">
         <div class="item">
           <span class="item-status flight">Building</span>
           <div class="item-body">
-            <h3>macOS desktop build (signed + notarized)</h3>
-            <p>Native .dmg with Apple Developer ID signing, so installing doesn't require right-click-Open. Windows already ships signed.</p>
-            <p class="when">Targeting May 2026</p>
+            <h3>Mobile reader (iOS, then Android)</h3>
+            <p>A dedicated <a href="https://v2.tauri.app/start/prerequisites/#mobile-targets">Tauri 2</a> mobile reader for browsing your Projelli workspace from iPhone, iPad, and Android. Read-only first (browse, search, tap through wiki-links), edit later. The desktop app stays where the AI work happens.</p>
+            <p>Currently blocked on Apple Developer signup. The reading workflow already works today via <a href="/docs/mobile-access/">iCloud Drive, Dropbox, Syncthing, or Google Drive</a>, the dedicated app is a polish layer on top.</p>
+            <p class="when">Blocked on Apple Developer signup, then TestFlight beta</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Won't build ──────────────────────────────────────────── -->
+    <section class="section">
+      <div class="section-eyebrow">Deliberate non-goals</div>
+      <h2 class="section-title">Won't build (and why)</h2>
+      <p class="section-intro">Honest about what Projelli is NOT going to be. Each of these would compromise a core differentiator.</p>
+      <div class="item-list">
+        <div class="item">
+          <span class="item-status nogo">Won't build</span>
+          <div class="item-body">
+            <h3>Real-time collaboration (multi-user editing)</h3>
+            <p>Local-first means single-user. If you want real-time collab, Notion does this well. If you want your data on YOUR machine, Projelli.</p>
           </div>
         </div>
         <div class="item">
-          <span class="item-status flight">Building</span>
+          <span class="item-status nogo">Won't build</span>
           <div class="item-body">
-            <h3>MCP server support</h3>
-            <p>Plug any Model Context Protocol server (Notion, Linear, GitHub, your custom one) directly into the AI chat. Bring your own integrations.</p>
-            <p class="when">Targeting May 2026</p>
+            <h3>Cloud sync (built-in)</h3>
+            <p>"No Projelli server in the data path" is a core promise. Sync via Dropbox, iCloud, or Syncthing on your own terms. The workspace folder works the same way against any synced folder, and the <a href="/docs/mobile-access/">mobile access guide</a> walks through every option.</p>
           </div>
         </div>
         <div class="item">
-          <span class="item-status flight">Building</span>
+          <span class="item-status nogo">Won't build</span>
           <div class="item-body">
-            <h3>Linux .deb + .AppImage builds</h3>
-            <p>Same Tauri binary, packaged for Debian/Ubuntu and as a portable AppImage so anyone on Linux can run Projelli without compiling.</p>
-            <p class="when">Targeting June 2026</p>
+            <h3>Autonomous / agentic AI workflows</h3>
+            <p>"AI proposes, user decides" is a core principle. If you want autonomous multi-step AI, use Cursor (for code) or Claude Code (for code) or ChatGPT Operator (for browsing). Projelli is for workspaces where every change is reviewed before it lands.</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status nogo">Won't build</span>
+          <div class="item-body">
+            <h3>Subscription tier ($X/month)</h3>
+            <p>Pricing is locked at $0 trial, $49 Pro, $99 Lifetime, $29 Founder's Launch (first 100 buyers). One-time pricing is a pillar. Adding a subscription tier dilutes the message and creates pricing complexity. Re-evaluable in year 2 if the math forces it, but the default is no.</p>
+          </div>
+        </div>
+        <div class="item">
+          <span class="item-status nogo">Won't build</span>
+          <div class="item-body">
+            <h3>Vertical SKUs (legal, medical, academic editions)</h3>
+            <p>Premature. The product is general-purpose for now. If buyer signal ever demands a vertical, I'll revisit.</p>
           </div>
         </div>
       </div>
@@ -441,62 +611,70 @@
     <section class="section">
       <div class="section-eyebrow">You decide</div>
       <h2 class="section-title">What should I build next?</h2>
-      <p class="section-intro">After what's already in flight, here's what's on the maybe-list. Vote for whatever you'd actually use — the highest-vote items get prioritized.</p>
+      <p class="section-intro">Vote for whatever you'd actually use. Highest-vote items get prioritized within each release window.</p>
 
-      <div class="poll" data-poll-id="next-major-feature">
-        <h3>Which big feature should ship first?</h3>
-        <div class="poll-sub">Pick one. You can change your vote anytime.</div>
+      <div class="poll" data-poll-id="next-major-feature-v3">
+        <h3>What should I build after the mobile reader?</h3>
+        <div class="poll-sub">The May 2026 release shipped multimodal, PDF chat, RAG, [Compress], read-aloud, plugins, templates marketplace, browser demo, and Spanish + German. Mobile reader is in flight. After that, here's what's on the candidate list. Pick one. You can change your vote anytime.</div>
         <div class="poll-options">
-          <button class="poll-option" data-option-id="mobile-companion">
+          <button class="poll-option" data-option-id="notion-obsidian-importers">
             <div class="fill"></div>
-            <div class="row"><span class="label">Mobile companion app (iOS / Android, read-only)</span><span class="pct">—</span></div>
+            <div class="row"><span class="label">Notion + Obsidian one-click importers (migrate your existing knowledge in seconds)</span><span class="pct">-</span></div>
           </button>
-          <button class="poll-option" data-option-id="cloud-sync-optional">
+          <button class="poll-option" data-option-id="long-context-1m">
             <div class="fill"></div>
-            <div class="row"><span class="label">Optional cloud sync (your own S3/Dropbox/iCloud bucket, end-to-end encrypted)</span><span class="pct">—</span></div>
+            <div class="row"><span class="label">1M-token context window (lift the 200K cap, "shove the whole workspace in")</span><span class="pct">-</span></div>
           </button>
-          <button class="poll-option" data-option-id="multi-workspace">
+          <button class="poll-option" data-option-id="more-languages">
             <div class="fill"></div>
-            <div class="row"><span class="label">Multiple workspaces (one per project, switch with Ctrl+1/2/3)</span><span class="pct">—</span></div>
+            <div class="row"><span class="label">More languages (French, Portuguese, Japanese, Mandarin, etc.)</span><span class="pct">-</span></div>
           </button>
-          <button class="poll-option" data-option-id="local-llm-better">
+          <button class="poll-option" data-option-id="more-plugins">
             <div class="fill"></div>
-            <div class="row"><span class="label">First-class local-LLM mode (sane Ollama defaults, no API keys ever needed)</span><span class="pct">—</span></div>
+            <div class="row"><span class="label">More official plugins (charts, citations, calendar, focus mode)</span><span class="pct">-</span></div>
           </button>
-          <button class="poll-option" data-option-id="rag-on-workspace">
+          <button class="poll-option" data-option-id="audio-input-files">
             <div class="fill"></div>
-            <div class="row"><span class="label">Workspace RAG (the AI semantically searches all your notes, not just by name)</span><span class="pct">—</span></div>
+            <div class="row"><span class="label">Audio file uploads (transcribe and chat about voice memos and meetings)</span><span class="pct">-</span></div>
+          </button>
+          <button class="poll-option" data-option-id="android-mobile-reader">
+            <div class="fill"></div>
+            <div class="row"><span class="label">Android mobile reader (the iOS one is the priority, this is the follow-up)</span><span class="pct">-</span></div>
           </button>
         </div>
         <div class="poll-footer">
-          <span class="poll-count">Loading votes…</span>
-          <span class="poll-thanks">✓ Thanks for voting</span>
+          <span class="poll-count">Loading votes...</span>
+          <span class="poll-thanks">Thanks for voting</span>
         </div>
       </div>
 
-      <div class="poll" data-poll-id="next-workflow-template">
-        <h3>Which workflow template would you use most?</h3>
-        <div class="poll-sub">Workflows are the structured AI interviews that produce a finished doc. Pick what'd save you the most time.</div>
+      <div class="poll" data-poll-id="next-workflow-template-v2">
+        <h3>Which new workflow template would you use most?</h3>
+        <div class="poll-sub">Workflows are the structured AI interviews that produce a finished doc. The 15 baked-in templates cover most founder needs; this is what to add next.</div>
         <div class="poll-options">
           <button class="poll-option" data-option-id="weekly-investor-update">
             <div class="fill"></div>
-            <div class="row"><span class="label">Weekly investor update (MRR, asks, narrative)</span><span class="pct">—</span></div>
-          </button>
-          <button class="poll-option" data-option-id="user-interview-synth">
-            <div class="fill"></div>
-            <div class="row"><span class="label">User interview synthesis (paste 5 transcripts, get themes + quotes)</span><span class="pct">—</span></div>
+            <div class="row"><span class="label">Weekly investor update (MRR, asks, narrative)</span><span class="pct">-</span></div>
           </button>
           <button class="poll-option" data-option-id="prd-generator">
             <div class="fill"></div>
-            <div class="row"><span class="label">PRD generator (problem → solution → success metrics → out-of-scope)</span><span class="pct">—</span></div>
+            <div class="row"><span class="label">PRD generator (problem → solution → success metrics → out-of-scope)</span><span class="pct">-</span></div>
           </button>
           <button class="poll-option" data-option-id="competitor-watch">
             <div class="fill"></div>
-            <div class="row"><span class="label">Competitor watch (paste their changelog/blog, get a "what changed for us" doc)</span><span class="pct">—</span></div>
+            <div class="row"><span class="label">Competitor watch (paste their changelog / blog, get a "what changed for us" doc)</span><span class="pct">-</span></div>
           </button>
           <button class="poll-option" data-option-id="meeting-prep">
             <div class="fill"></div>
-            <div class="row"><span class="label">Meeting prep (agenda, talking points, expected pushback)</span><span class="pct">—</span></div>
+            <div class="row"><span class="label">Meeting prep (agenda, talking points, expected pushback)</span><span class="pct">-</span></div>
+          </button>
+          <button class="poll-option" data-option-id="contract-redline">
+            <div class="fill"></div>
+            <div class="row"><span class="label">Contract red-line (paste a vendor contract, get plain-English summary + risky clauses flagged)</span><span class="pct">-</span></div>
+          </button>
+          <button class="poll-option" data-option-id="onboarding-doc">
+            <div class="fill"></div>
+            <div class="row"><span class="label">Customer onboarding doc (interview about your product, get a 5-step onboarding guide)</span><span class="pct">-</span></div>
           </button>
         </div>
         <div class="poll-footer">
@@ -523,7 +701,7 @@
   </div>
 
   <footer>
-    <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/eula">EULA</a> · <a href="/press-kit/">Press kit</a> · <a href="/blog/">Blog</a> · <a href="/tour">Tour</a> · <a href="/roadmap/">Roadmap</a>
+    <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/eula">EULA</a> · <a href="/press-kit/">Press kit</a> · <a href="/blog/">Blog</a> · <a href="/tour">Tour</a> · <a href="/roadmap/">Roadmap</a> · <a href="/changelog/">Changelog</a>
   </footer>
 
   <script>
@@ -558,7 +736,7 @@
         pollEl.classList.add('results-shown');
         var countEl = pollEl.querySelector('.poll-count');
         if (countEl) countEl.textContent = total === 0
-          ? 'No votes yet — be the first.'
+          ? 'No votes yet, be the first.'
           : (total === 1 ? '1 vote' : total + ' votes');
         if (myVote) pollEl.classList.add('voted');
       }
@@ -576,7 +754,7 @@
           })
           .catch(function () {
             document.querySelectorAll('.poll-count').forEach(function (el) {
-              el.textContent = 'Couldn’t load votes — refresh to retry.';
+              el.textContent = 'Couldn’t load votes, refresh to retry.';
             });
           });
       }
