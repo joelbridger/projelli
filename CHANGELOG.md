@@ -74,6 +74,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `sudo systemctl restart projelli-demo-proxy`. Until then, demo chat
     requests will 401 from Anthropic; the rest of the demo (UI, BYOK
     input, sample workspace) works fine.
+- **Stream E Group I (v2.0): i18n tooling foundation.**
+  Custom `eslint-plugin-projelli-i18n` workspace package now lives at
+  `packages/eslint-plugin-projelli-i18n/` with a `no-hardcoded-string` rule
+  that flags JSXText nodes containing 3+ alphabetic words outside `<Trans>`,
+  `<code>`, `<pre>`, `<style>`, or `<script>` blocks. Bypass via the
+  standard `// eslint-disable-next-line projelli-i18n/no-hardcoded-string`.
+  Severity is env-gated in `eslint.config.js`: warn locally, error when
+  `CI=true`. Vitest harness at `tests/unit/packages/eslint-plugin-projelli-i18n.test.ts`
+  drives ESLint's RuleTester (8 valid + 3 invalid cases). The i18n smoke
+  test at `tests/unit/i18n/i18n-config.test.ts` now asserts key fallthrough
+  on empty locale resources (Group II will populate). New
+  `npm run extract-i18n` script alias next to the existing `i18n:extract`.
 - **Stream C complete (v2.0): live community catalogs with day-one content.**
   Two public GitHub repos are now online, seeded, and feeding the in-app
   Marketplace UI through the install pipeline shipped in C1 + C4:

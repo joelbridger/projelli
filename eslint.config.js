@@ -6,10 +6,14 @@ import globals from 'globals';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const projelliI18n = require('./eslint-plugin-projelli-i18n/index.js');
+const projelliI18n = require('./packages/eslint-plugin-projelli-i18n/src/index.js');
+
+// Env-gated severity: warn locally so devs see the signal without blocking
+// every save, but error in CI so a hardcoded string can't sneak into main.
+const i18nSeverity = process.env['CI'] === 'true' ? 'error' : 'warn';
 
 export default tseslint.config(
-  { ignores: ['dist', 'dist-node', 'src-tauri', 'node_modules'] },
+  { ignores: ['dist', 'dist-node', 'src-tauri', 'node_modules', 'packages/*/dist'] },
   // Source files - strict TypeScript checking
   {
     extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],
@@ -41,7 +45,7 @@ export default tseslint.config(
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/no-empty-object-type': 'off',
-      'projelli-i18n/no-hardcoded-string': 'warn',
+      'projelli-i18n/no-hardcoded-string': i18nSeverity,
     },
   },
   // Config files - allow Node globals
