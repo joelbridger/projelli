@@ -218,12 +218,21 @@ jobs:
           # Add our keychain to the search list (don't replace user's, append).
           security list-keychains -d user -s "$KEYCHAIN_PATH" \
             $(security list-keychains -d user | sed -E 's/[[:space:]]*"([^"]+)"[[:space:]]*/\1 /g')
-          BIN="binaries/projelli-mcp-${MCP_TARGET}"
-          codesign --force --options runtime --timestamp \
-            --sign "$APPLE_SIGNING_IDENTITY" \
-            "$BIN"
-          codesign --verify --verbose=2 "$BIN"
-          codesign -dvvv "$BIN" 2>&1 | grep -E "Authority|Timestamp|Runtime|flags" || true
+          # Sign every embedded binary that ships in Contents/Resources/binaries/.
+          # Apple notarization rejects the .app if ANY nested binary lacks
+          # Developer ID + hardened runtime + secure timestamp. Each item gets
+          # the same triple-signed treatment as the MCP sidecar.
+          for BIN in "binaries/projelli-mcp-${MCP_TARGET}" "binaries/piper-${MCP_TARGET}"; do
+            if [ ! -f "$BIN" ]; then
+              echo "warn: expected binary missing: $BIN"
+              continue
+            fi
+            codesign --force --options runtime --timestamp \
+              --sign "$APPLE_SIGNING_IDENTITY" \
+              "$BIN"
+            codesign --verify --verbose=2 "$BIN"
+            codesign -dvvv "$BIN" 2>&1 | grep -E "Authority|Timestamp|Runtime|flags" || true
+          done
           rm -f "$CERT_PATH"
 
       # Phase 4 M6 (v1.5 Flag 4) - Fetch the voice sidecar binary
