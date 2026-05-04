@@ -48,6 +48,7 @@ import { AdvancedSettings } from '@/components/settings/AdvancedSettings';
 import { McpSettingsSection } from '@/components/settings/McpSettingsSection';
 import { OllamaSettingsSection } from '@/components/settings/OllamaSettingsSection';
 import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';
+import { LanguagePicker } from '@/components/settings/LanguagePicker';
 import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
 import type { AuditEntry } from '@/types/audit';
 import type { WorkflowTemplate } from '@/types/workflow';
@@ -761,6 +762,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
             ) : (
               <div>
                 {activeCategory === 'about' && <AboutHeader />}
+                {activeCategory === 'general' && <LanguagePicker />}
                 {activeCategory === 'voice' && (
                   <VoiceSettingsSection ttsEnabled={Boolean(getSetting('ttsEnabled'))} />
                 )}
