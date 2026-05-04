@@ -40,6 +40,7 @@ import { PrivacySettings } from '@/components/settings/PrivacySettings';
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
 import { MarketplaceTab } from '@/components/marketplace/MarketplaceTab';
 import { useTemplateUpdateCount } from '@/hooks/useTemplatesMarketplace';
+import { usePluginUpdateCount } from '@/hooks/usePluginsMarketplace';
 import { MobileSettings } from '@/components/settings/MobileSettings';
 import { PluginsSettings } from '@/components/settings/PluginsSettings';
 import { AdvancedSettings } from '@/components/settings/AdvancedSettings';
@@ -481,10 +482,13 @@ function AboutHeader() {
 
 export function SettingsModal({ open, onOpenChange, onAction, auditEntries, templates, initialCategory }: SettingsModalProps) {
   const [activeCategory, setActiveCategory] = useState<SettingCategory>(initialCategory ?? 'general');
-  // Group VIII (Stream C1): drives the small count pill on the Marketplace
-  // nav row when the launch-time checkForUpdates() finds installed templates
-  // with newer catalog versions. Hidden when 0.
+  // Group VIII (Stream C1) + Group VI (Stream C4): the Marketplace nav badge
+  // sums templates + plugins update counts into a single pill. v2.0 ships with
+  // a single sum for simplicity; if user feedback shows the combined number is
+  // confusing we can split into two badges in v2.x.
   const templateUpdateCount = useTemplateUpdateCount();
+  const pluginUpdateCount = usePluginUpdateCount();
+  const marketplaceUpdateCount = templateUpdateCount + pluginUpdateCount;
   const [searchQuery, setSearchQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -691,7 +695,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
               const visible = visibleCategories.has(cat.id);
               if (!visible) return null;
               const isActive = activeCategory === cat.id;
-              const showUpdateBadge = cat.id === 'marketplace' && templateUpdateCount > 0;
+              const showUpdateBadge = cat.id === 'marketplace' && marketplaceUpdateCount > 0;
               return (
                 <button
                   key={cat.id}
@@ -708,11 +712,11 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
                   {showUpdateBadge && (
                     <span
                       data-testid="settings-marketplace-update-badge"
-                      data-count={templateUpdateCount}
-                      aria-label={`${templateUpdateCount.toString()} template updates available`}
+                      data-count={marketplaceUpdateCount}
+                      aria-label={`${marketplaceUpdateCount.toString()} marketplace updates available`}
                       className="shrink-0 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary"
                     >
-                      {templateUpdateCount}
+                      {marketplaceUpdateCount}
                     </span>
                   )}
                 </button>

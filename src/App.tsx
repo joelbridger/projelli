@@ -59,6 +59,7 @@ import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import {
   createTemplatesMarketplaceService,
+  createPluginsMarketplaceService,
   TemplateMetadataReader,
   type MarketplaceService,
 } from '@/modules/marketplace';
@@ -103,6 +104,7 @@ import { useApiKeys } from '@/hooks/useApiKeys';
 import { useOpenFileAIContext } from '@/hooks/useOpenFileAIContext';
 import { useFileContextStore } from '@/stores/fileContextStore';
 import { useTemplatesMarketplaceStore } from '@/stores/templatesMarketplaceStore';
+import { usePluginsMarketplaceStore } from '@/stores/pluginsMarketplaceStore';
 import { buildOpenFilesPromptBlock } from '@/components/ai/AIChatViewer';
 import { useModelList } from '@/hooks/useModelList';
 import { useContentIndex } from '@/hooks/useContentIndex';
@@ -217,6 +219,9 @@ function App() {
   // engine. Both refs are nullable until a workspace is loaded.
   const templatesMarketplaceServiceRef = useRef<MarketplaceService | null>(null);
   const templatesMetadataReaderRef = useRef<TemplateMetadataReader | null>(null);
+  // Stream C4 — Plugins Marketplace service. Mirrors the templates service:
+  // one per workspace, install root under `<workspaceRoot>/.projelli/plugins`.
+  const pluginsMarketplaceServiceRef = useRef<MarketplaceService | null>(null);
 
   // Workflow state
   const [currentExecution, setCurrentExecution] = useState<WorkflowExecution | null>(null);
@@ -626,6 +631,14 @@ function App() {
         __templatesMarketplaceStore?: typeof useTemplatesMarketplaceStore;
       }).__templatesMarketplaceStore = useTemplatesMarketplaceStore;
 
+      // Stream C4 — same seam for the plugins marketplace store. The plugins
+      // E2E spec mounts a synthetic catalog and drives Install / Uninstall
+      // through the real React UI without going through the Tauri tarball
+      // pipeline (which has no backend in test mode).
+      (window as unknown as {
+        __pluginsMarketplaceStore?: typeof usePluginsMarketplaceStore;
+      }).__pluginsMarketplaceStore = usePluginsMarketplaceStore;
+
       console.log('Test mode enabled: Mock workspace initialized with 2 demo tabs + mock FS');
     }
   }, [IS_TEST_MODE, rootPath, setRootPath, openFile]);
@@ -689,6 +702,49 @@ function App() {
     });
     // Run once for the current state too (subscribe only fires on change).
     const current = useTemplatesMarketplaceStore.getState().service;
+    if (current) scheduleCheck(current);
+    return () => {
+      status.cancelled = true;
+      if (timer !== null) clearTimeout(timer);
+      unsubscribe();
+    };
+  }, []);
+
+  // Stream C4 Group VI — Deferred check-for-updates for the plugins
+  // marketplace. Same shape as the templates effect above; kept as a separate
+  // useEffect so each marketplace's lifecycle (debounce timer, cancellation,
+  // store subscription) is independent.
+  useEffect(() => {
+    const status = { cancelled: false };
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleCheck = (svc: MarketplaceService) => {
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (status.cancelled) return;
+        void (async () => {
+          try {
+            const updates = await svc.checkForUpdates();
+            if (status.cancelled) return;
+            usePluginsMarketplaceStore.getState().setUpdateCount(updates.length);
+          } catch (err) {
+            console.warn('[App] plugin checkForUpdates failed; badge remains hidden:', err);
+          }
+        })();
+      }, 2000);
+    };
+    const unsubscribe = usePluginsMarketplaceStore.subscribe((state, prev) => {
+      if (state.service === prev.service) return;
+      if (!state.service) {
+        if (timer !== null) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        usePluginsMarketplaceStore.getState().setUpdateCount(0);
+        return;
+      }
+      scheduleCheck(state.service);
+    });
+    const current = usePluginsMarketplaceStore.getState().service;
     if (current) scheduleCheck(current);
     return () => {
       status.cancelled = true;
@@ -993,6 +1049,30 @@ function App() {
       templatesMarketplaceServiceRef.current = null;
       templatesMetadataReaderRef.current = null;
       tplStore.clearMarketplace();
+    }
+
+    // Stream C4 — Construct the plugins marketplace service for this
+    // workspace. Same lifecycle as the templates one: per-workspace install
+    // root, store seeded for the PluginsTab to consume via
+    // usePluginsMarketplace(). The deferred check-for-updates fires from a
+    // useEffect that subscribes to the store (see further below).
+    const pluginStore = usePluginsMarketplaceStore.getState();
+    if (backend && newRootPath) {
+      try {
+        const plgService = createPluginsMarketplaceService(
+          backend,
+          newRootPath,
+        );
+        pluginsMarketplaceServiceRef.current = plgService;
+        pluginStore.seed(plgService);
+      } catch (err) {
+        console.warn('[App] Failed to construct PluginsMarketplaceService:', err);
+        pluginsMarketplaceServiceRef.current = null;
+        pluginStore.clear();
+      }
+    } else {
+      pluginsMarketplaceServiceRef.current = null;
+      pluginStore.clear();
     }
 
     let isNewWorkspace = false;

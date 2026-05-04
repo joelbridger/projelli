@@ -4,6 +4,14 @@ export type {
   InstallPhase,
   InstallOptions,
   CacheStatus,
+  ManifestValidator,
+  ManifestValidatorResult,
+  ValidatedMarketplaceManifest,
+  MarketplaceAuditEmitter,
+  InstallAuditPayload,
+  InstallFailedAuditPayload,
+  UninstallAuditPayload,
+  UpdateAuditPayload,
 } from './MarketplaceService';
 export {
   createTemplatesMarketplaceService,
@@ -11,6 +19,12 @@ export {
   TEMPLATES_CATALOG_PATH,
 } from './TemplatesMarketplaceService';
 export type { CreateTemplatesMarketplaceOptions } from './TemplatesMarketplaceService';
+export {
+  createPluginsMarketplaceService,
+  PLUGINS_REPO_URL,
+  PLUGINS_CATALOG_PATH,
+} from './PluginsMarketplaceService';
+export type { CreatePluginsMarketplaceOptions } from './PluginsMarketplaceService';
 export type { CatalogEntry, InstalledEntry, UpdateInfo } from '@/types/marketplace';
 export {
   downloadTarball,

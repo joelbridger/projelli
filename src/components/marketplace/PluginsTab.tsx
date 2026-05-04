@@ -1,0 +1,413 @@
+/**
+ * PluginsTab — the Plugins subtab inside Settings → Marketplace.
+ *
+ * Mirror of `TemplatesTab` from C1. Sub-toggle Browse / Installed.
+ * Browse renders the catalog grid using `PluginCatalogCard`. Installed
+ * delegates to `InstalledPluginsList` (a Group V stub today; the real
+ * implementation lands in C4 Group V).
+ *
+ * Selecting a card swaps the grid for `PluginDetailView` (Group IV stub
+ * today). The detail view returns to the catalog via `onBack`.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ChevronDown, Loader2, RefreshCw, Search } from 'lucide-react';
+import { usePluginsMarketplace } from '@/hooks/usePluginsMarketplace';
+import type { CatalogEntry, InstalledEntry } from '@/types/marketplace';
+import { compareSemver } from '@/modules/marketplace';
+import { PluginCatalogCard } from './PluginCatalogCard';
+import { PluginDetailView } from './PluginDetailView';
+import { InstalledPluginsList } from './InstalledPluginsList';
+
+const ALL_CATEGORIES = '__all__';
+
+type PluginsSubview = 'browse' | 'installed';
+
+export function PluginsTab() {
+  const { service, cacheStatus, setCacheStatus, setUpdateCount } =
+    usePluginsMarketplace();
+  void cacheStatus;
+
+  const [view, setView] = useState<PluginsSubview>('browse');
+  const [entries, setEntries] = useState<CatalogEntry[]>([]);
+  const [installed, setInstalled] = useState<InstalledEntry[]>([]);
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState<string>(ALL_CATEGORIES);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Permission counts learned by detail-view manifest fetches. Lifted to the
+  // tab so catalog cards can show the badge without each card refetching.
+  const [permissionCountById, setPermissionCountById] = useState<
+    Record<string, number>
+  >({});
+
+  // Initial load: silent refresh + list. Mirrors TemplatesTab semantics.
+  useEffect(() => {
+    if (!service) return;
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      try {
+        await service.refresh({ silent: true });
+      } catch {
+        // banner above us conveys network failure; nothing else to surface.
+      } finally {
+        if (!cancelled) {
+          setCacheStatus(service.cacheStatus());
+        }
+      }
+      try {
+        const [list, installedList] = await Promise.all([
+          service.list(),
+          service.listInstalled(),
+        ]);
+        if (!cancelled) {
+          setEntries(list);
+          setInstalled(installedList);
+        }
+      } catch {
+        // empty list is fine
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [service, setCacheStatus]);
+
+  const installedById = useMemo(() => {
+    const m = new Map<string, InstalledEntry>();
+    for (const e of installed) m.set(e.id, e);
+    return m;
+  }, [installed]);
+
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of entries) set.add(e.category);
+    return Array.from(set).sort();
+  }, [entries]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return entries.filter((e) => {
+      if (category !== ALL_CATEGORIES && e.category !== category) return false;
+      if (q.length === 0) return true;
+      const hay = [e.name, e.description, ...(e.tags ?? [])]
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [category, entries, search]);
+
+  const selected = selectedId
+    ? entries.find((e) => e.id === selectedId) ?? null
+    : null;
+
+  const handleRefresh = useCallback(async () => {
+    if (!service) return;
+    setRefreshing(true);
+    try {
+      await service.refresh();
+    } catch {
+      // banner shows the failure; nothing else to surface here.
+    } finally {
+      setCacheStatus(service.cacheStatus());
+    }
+    try {
+      const [list, installedList] = await Promise.all([
+        service.list(),
+        service.listInstalled(),
+      ]);
+      setEntries(list);
+      setInstalled(installedList);
+    } catch {
+      // keep prior state
+    } finally {
+      setRefreshing(false);
+    }
+  }, [service, setCacheStatus]);
+
+  const refreshUpdateCount = useCallback(() => {
+    if (!service) return;
+    void (async () => {
+      try {
+        const updates = await service.checkForUpdates();
+        setUpdateCount(updates.length);
+      } catch {
+        // non-fatal; leave the badge alone
+      }
+    })();
+  }, [service, setUpdateCount]);
+
+  const handleInstalled = useCallback(
+    (e: InstalledEntry) => {
+      setInstalled((prev) => {
+        const next = prev.filter((p) => p.id !== e.id);
+        next.push(e);
+        return next;
+      });
+      refreshUpdateCount();
+    },
+    [refreshUpdateCount],
+  );
+
+  const handleUninstalled = useCallback(
+    (id: string) => {
+      setInstalled((prev) => prev.filter((p) => p.id !== id));
+      refreshUpdateCount();
+    },
+    [refreshUpdateCount],
+  );
+
+  const handleManifestLoaded = useCallback(
+    (id: string, count: number) => {
+      setPermissionCountById((prev) =>
+        prev[id] === count ? prev : { ...prev, [id]: count },
+      );
+    },
+    [],
+  );
+
+  if (!service) {
+    return (
+      <div
+        data-testid="plugins-tab-empty"
+        className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
+      >
+        Open a workspace to browse community plugins.
+      </div>
+    );
+  }
+
+  if (selected) {
+    const installedEntry = installedById.get(selected.id);
+    const updateAvailable = Boolean(
+      installedEntry &&
+        compareSemver(selected.version, installedEntry.version) > 0,
+    );
+    return (
+      <PluginDetailView
+        entry={selected}
+        service={service}
+        installed={installedEntry}
+        updateAvailable={updateAvailable}
+        onBack={() => setSelectedId(null)}
+        onInstalled={handleInstalled}
+        onUninstalled={handleUninstalled}
+        onManifestLoaded={handleManifestLoaded}
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4" data-testid="plugins-tab">
+      <Tabs
+        value={view}
+        onValueChange={(v) => setView(v as PluginsSubview)}
+        className="space-y-4"
+      >
+        <TabsList data-testid="plugins-tab-subview-list">
+          <TabsTrigger value="browse" data-testid="plugins-tab-subview-browse">
+            Browse
+          </TabsTrigger>
+          <TabsTrigger
+            value="installed"
+            data-testid="plugins-tab-subview-installed"
+          >
+            Installed
+            {installed.length > 0 && (
+              <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">
+                {installed.length.toString()}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        {view === 'browse' && (
+          <BrowseView
+            entries={filtered}
+            installedById={installedById}
+            permissionCountById={permissionCountById}
+            categories={categories}
+            search={search}
+            category={category}
+            loading={loading}
+            refreshing={refreshing}
+            totalCount={entries.length}
+            onSearchChange={setSearch}
+            onCategoryChange={setCategory}
+            onRefresh={() => {
+              void handleRefresh();
+            }}
+            onSelect={setSelectedId}
+          />
+        )}
+
+        {view === 'installed' && <InstalledPluginsList />}
+      </Tabs>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Browse view
+// ---------------------------------------------------------------------------
+
+interface BrowseViewProps {
+  entries: CatalogEntry[];
+  installedById: Map<string, InstalledEntry>;
+  permissionCountById: Record<string, number>;
+  categories: string[];
+  search: string;
+  category: string;
+  loading: boolean;
+  refreshing: boolean;
+  totalCount: number;
+  onSearchChange: (q: string) => void;
+  onCategoryChange: (c: string) => void;
+  onRefresh: () => void;
+  onSelect: (id: string) => void;
+}
+
+function BrowseView({
+  entries,
+  installedById,
+  permissionCountById,
+  categories,
+  search,
+  category,
+  loading,
+  refreshing,
+  totalCount,
+  onSearchChange,
+  onCategoryChange,
+  onRefresh,
+  onSelect,
+}: BrowseViewProps) {
+  const categoryLabel =
+    category === ALL_CATEGORIES ? 'All categories' : category;
+
+  return (
+    <div className="space-y-4">
+      <div
+        className="flex flex-wrap items-center gap-2"
+        data-testid="plugins-tab-toolbar"
+      >
+        <div className="relative flex-1 min-w-[200px]">
+          <Search
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            data-testid="plugins-tab-search"
+            type="search"
+            placeholder="Search plugins..."
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              data-testid="plugins-tab-category-trigger"
+              className="gap-1.5 min-w-[160px] justify-between"
+            >
+              <span className="truncate">{categoryLabel}</span>
+              <ChevronDown className="h-4 w-4 opacity-60" aria-hidden="true" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" data-testid="plugins-tab-category-menu">
+            <DropdownMenuItem
+              data-testid="plugins-tab-category-all"
+              onClick={() => onCategoryChange(ALL_CATEGORIES)}
+            >
+              All categories
+            </DropdownMenuItem>
+            {categories.map((c) => (
+              <DropdownMenuItem
+                key={c}
+                data-testid={`plugins-tab-category-${c}`}
+                onClick={() => onCategoryChange(c)}
+              >
+                {c}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Button
+          data-testid="plugins-tab-refresh"
+          variant="outline"
+          onClick={onRefresh}
+          disabled={refreshing}
+          className="gap-1.5"
+        >
+          <RefreshCw
+            className={refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'}
+            aria-hidden="true"
+          />
+          {refreshing ? 'Refreshing...' : 'Refresh'}
+        </Button>
+      </div>
+
+      {loading ? (
+        <div
+          data-testid="plugins-tab-loading"
+          className="flex items-center justify-center py-16 text-sm text-muted-foreground gap-2"
+        >
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Loading plugins...
+        </div>
+      ) : entries.length === 0 ? (
+        <div
+          data-testid="plugins-tab-empty-state"
+          className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground"
+        >
+          {totalCount === 0
+            ? 'No plugins available yet. Check back soon.'
+            : 'No plugins match these filters.'}
+        </div>
+      ) : (
+        <div
+          data-testid="plugins-tab-grid"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+        >
+          {entries.map((e) => {
+            const installedEntry = installedById.get(e.id);
+            const updateAvailable = Boolean(
+              installedEntry &&
+                compareSemver(e.version, installedEntry.version) > 0,
+            );
+            const count = permissionCountById[e.id];
+            return (
+              <PluginCatalogCard
+                key={e.id}
+                entry={e}
+                installed={Boolean(installedEntry)}
+                updateAvailable={updateAvailable}
+                onSelect={onSelect}
+                {...(typeof count === 'number'
+                  ? { permissionCount: count }
+                  : {})}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
