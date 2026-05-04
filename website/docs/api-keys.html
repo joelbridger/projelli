@@ -53,7 +53,11 @@
       <li><strong>You control your usage.</strong> Set spending limits at the provider level. Switch providers or models any time.</li>
     </ul>
 
-    <p>You only need ONE provider to use Projelli. Most people start with Claude. You can add others later.</p>
+    <p>You only need ONE provider to use Projelli. Most people start with Claude. You can add others later. Or skip the cloud providers entirely and run <a href="#ollama">Ollama</a> locally for free.</p>
+
+    <div class="highlight">
+      <strong>Don't have a key yet?</strong> Try the in-browser demo at <a href="/try/"><strong>projelli.com/try</strong></a> first. It runs a real Projelli session against a sample workspace with a shared key, no signup, no credit card. Get a feel for the product before you sign up for any provider account.
+    </div>
 
     <div class="highlight">
       <strong>Where keys are stored:</strong> Projelli stores your API keys in your operating system's secure keychain, Keychain on Mac, Credential Manager on Windows, Secret Service on Linux. They're never written to a plain file, never logged, never sent anywhere except directly to the provider when you make a request. If you uninstall Projelli, your keys are removed from the keychain along with the app.
@@ -102,6 +106,21 @@
       <p><strong>Cost:</strong> Gemini 2.0 Flash has a generous free tier (up to 15 requests/minute and 1500 requests/day at no charge). Beyond that, paid usage is roughly $0.075 per million input tokens, the cheapest of the three. Worth using as a "draft" model and switching to Claude or GPT for the final pass.</p>
     </div>
 
+    <h2 id="ollama">Ollama (local, free, no key needed)</h2>
+
+    <div class="provider">
+      <h3>Recommended for: total privacy, no cost per request, working offline</h3>
+      <p>Ollama runs open-source models on your own machine. No API key, no provider account, no per-token charge. The tradeoff is hardware: you need a reasonably modern CPU and enough RAM (16 GB is comfortable for the smaller models, 32 GB+ if you want to run something like Llama 3.1 70B). On Apple Silicon it's genuinely fast.</p>
+      <ol>
+        <li>Install Ollama from <a href="https://ollama.com/">ollama.com</a> (Mac, Windows, and Linux supported)</li>
+        <li>Pull a model from your terminal: <code>ollama pull llama3.2</code> (or <code>qwen2.5</code>, <code>mistral</code>, etc.)</li>
+        <li>Make sure Ollama is running. By default it serves on <code>http://localhost:11434</code></li>
+        <li>In Projelli, go to <strong>Settings &rarr; API Keys &rarr; Ollama</strong>. The "key" field is optional, leave it blank for the default localhost server, or paste a custom URL if Ollama runs on another machine on your network</li>
+      </ol>
+      <p><strong>Cost:</strong> Free. Your electric bill, basically.</p>
+      <p><strong>Tradeoff:</strong> Local models are honestly really impressive in 2026, but they're still a notch below Claude Sonnet for long-form writing and complex instruction-following. Great for drafts, summaries, and anything you'd rather not send to a third party.</p>
+    </div>
+
     <h2>How to choose</h2>
 
     <table>
@@ -123,7 +142,11 @@
       </tr>
       <tr>
         <td>Multiple perspectives on the same prompt</td>
-        <td>All three (Projelli supports multi-model comparison)</td>
+        <td>All four (Projelli supports multi-model comparison)</td>
+      </tr>
+      <tr>
+        <td>Total privacy, offline use, no per-request cost</td>
+        <td>Ollama (local)</td>
       </tr>
     </table>
 
@@ -136,6 +159,12 @@
       <li><strong>Google:</strong> Google Cloud Console → Billing → Budgets & alerts</li>
     </ul>
     <p>A reasonable starting limit is $10/month per provider. Adjust up if you find yourself hitting it often.</p>
+
+    <h2>Plugins and your API key</h2>
+
+    <p>Plugins (the ones you install from <strong>Settings &rarr; Marketplace &rarr; Plugins</strong>) that ask for the <code>ai:invoke</code> permission use the same API key you already configured. There's one budget, not one per plugin. Every AI call a plugin makes is recorded in Projelli's audit log, tagged with the plugin's ID, so you can see exactly which plugin spent what.</p>
+
+    <p>Before a plugin installs, Projelli shows you a permission consent dialog with plain-language risk labels. If a plugin asks for <code>ai:invoke</code>, you'll see that listed. If you deny it, the plugin can still install but the AI features won't work. Read the <a href="/docs/plugins/permissions">plugin permissions doc</a> for the full picture.</p>
 
     <h2>What if my key gets compromised?</h2>
 

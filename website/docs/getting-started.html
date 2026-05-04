@@ -46,13 +46,19 @@
 
     <p>Projelli is a desktop app you install on your computer. It runs locally, your files never go to our servers, and your AI conversations go directly from your computer to whatever AI provider you choose. This guide walks you through installation, setup, and your first workflow.</p>
 
+    <h2>Try it in your browser first</h2>
+
+    <p>Want to kick the tires before downloading anything? The in-browser demo at <a href="/try/"><strong>projelli.com/try</strong></a> runs a real Projelli session against a pre-seeded sample workspace. No download, no API key, no signup. You can poke around for a few minutes and see what the editor + chat + workflows actually feel like.</p>
+
+    <p><a href="/try/" class="next-link">Open the in-browser demo &rarr;</a></p>
+
     <h2>Step 1: Download and install</h2>
 
     <div class="step">
       <h3>Windows</h3>
       <ol>
         <li>Click <a href="https://github.com/projelli/projelli/releases/latest">Download for Windows</a> and grab <code>Projelli_x.y.z_x64-setup.exe</code></li>
-        <li>Double-click the installer. There's no wizard, just a brief progress window, that's intentional. Projelli is signed via Azure Trusted Signing so SmartScreen will not warn you.</li>
+        <li>Double-click the installer. There's no wizard, just a brief progress window. That's intentional. Projelli is signed via Azure Trusted Signing so SmartScreen will not warn you.</li>
         <li>Projelli launches automatically when install finishes, and you'll find a desktop shortcut for next time.</li>
         <li>Want the full installer wizard instead? Open a terminal and run <code>Projelli_x.y.z_x64-setup.exe /INTERACTIVE</code></li>
       </ol>
@@ -88,9 +94,11 @@
 
     <h2>Step 3: Add an AI provider key</h2>
 
-    <p>Projelli works with three AI providers: Anthropic Claude, OpenAI ChatGPT, and Google Gemini. You bring your own API key for at least one of them. This is how Projelli stays local-first and private, your AI requests go directly from your computer to the provider, never through us.</p>
+    <p>Projelli works with four AI providers: Anthropic Claude, OpenAI ChatGPT, Google Gemini, and Ollama (local, free, no key needed). You bring your own API key for one of the cloud providers, or you point Projelli at a local Ollama install. This is how Projelli stays local-first and private, your AI requests go directly from your computer to the provider, never through us.</p>
 
-    <p><strong>You only need ONE provider to get started.</strong> Most people use Claude (Anthropic) because it's the best at long-form writing and follows instructions well. But all three work.</p>
+    <p>If you don't have a key yet and just want to test, the in-browser demo at <a href="/try/"><strong>projelli.com/try</strong></a> works without one. Worth trying before you sign up for an API account.</p>
+
+    <p><strong>You only need ONE provider to get started.</strong> Most people use Claude (Anthropic) because it's the best at long-form writing and follows instructions well. But all four work.</p>
 
     <p>To get an API key, see our <a href="/docs/api-keys">API Keys Guide</a>. The short version:</p>
     <ul>
@@ -133,6 +141,17 @@
       <li>Use the source cards feature to track research with citations</li>
       <li>Use the whiteboard for visual brainstorming</li>
       <li>Use the audio recorder for capturing voice memos that the AI can transcribe</li>
+    </ul>
+
+    <h3>What you can do in v2.0</h3>
+
+    <p>The v2.0 release shipped a bunch of new things on top of the core editor + chat + workflows. Worth a look once you have the basics working:</p>
+    <ul>
+      <li><strong>Marketplace.</strong> Open <strong>Settings &rarr; Marketplace</strong> to browse and install community <a href="https://github.com/projelli/community-templates">templates</a> and <a href="https://github.com/projelli/community-plugins">plugins</a>. Six community templates and four plugins shipped on day one.</li>
+      <li><strong>Image and PDF chat.</strong> Drag an image or a PDF into the chat input. Claude gets native PDF; other providers get text-extracted via PDF.js. Same paperclip-and-paste pattern works for screenshots.</li>
+      <li><strong>Read aloud.</strong> Click "Read aloud" on any AI message. Runs locally via the Piper sidecar, no cloud round trip.</li>
+      <li><strong>Spanish or German UI.</strong> Settings &rarr; General &rarr; Language. The whole app, all 421 strings, available in Espa&ntilde;ol and Deutsch alongside English.</li>
+      <li><strong>The full v2.0 picture.</strong> The <a href="/blog/projelli-v2-announce">v2.0 announce post</a> walks through every shipped feature with screenshots.</li>
     </ul>
 
     <p>Read the <a href="/docs/faq">FAQ</a> for answers to common questions, or email <a href="mailto:support@projelli.com">support@projelli.com</a> if you're stuck.</p>
