@@ -165,6 +165,50 @@
       font-weight: 600;
       font-size: 1rem;
     }
+    .community-section {
+      padding: 56px 0;
+      border-top: 1px solid var(--border-gray);
+    }
+    .community-section h2 {
+      font-size: 1.75rem;
+      color: var(--text-heading);
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .community-section p {
+      max-width: 680px;
+      font-size: 1rem;
+      color: var(--text-body);
+      margin-bottom: 16px;
+    }
+    .community-cta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 24px;
+    }
+    .community-cta a.primary {
+      display: inline-block;
+      padding: 12px 22px;
+      background: var(--gradient-cta);
+      color: white;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9375rem;
+    }
+    .community-cta a.secondary {
+      display: inline-block;
+      padding: 12px 22px;
+      background: white;
+      color: var(--text-heading);
+      border: 1px solid var(--border-gray);
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9375rem;
+    }
+    .community-cta a:hover { opacity: 0.92; }
     footer {
       text-align: center;
       padding: 32px 24px;
@@ -341,6 +385,18 @@
         <div class="actions"><a class="preview" href="/templates/user-interviews-synthesis">Preview →</a></div>
       </div>
 
+    </div>
+  </section>
+
+  <section class="community-section">
+    <div class="container">
+      <h2>Community templates</h2>
+      <p>The fifteen above are what ships in the box. The marketplace is where everything else lives. Open <strong>Settings &rarr; Marketplace &rarr; Templates</strong> inside Projelli to browse, install, and update community-built templates. Six community entries went live on day one of v2.0, with more landing as people submit them.</p>
+      <p>The catalog is a public GitHub repo, so you can read every template's source before you install it. If you build something useful, send a pull request and it shows up in everyone else's marketplace on the next 24-hour catalog refresh.</p>
+      <div class="community-cta">
+        <a href="https://github.com/projelli/community-templates" class="primary">Browse the catalog &rarr;</a>
+        <a href="/docs/marketplace-submissions/" class="secondary">Submit your own &rarr;</a>
+      </div>
     </div>
   </section>
 
