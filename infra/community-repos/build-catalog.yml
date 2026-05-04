@@ -1,0 +1,81 @@
+# Source-of-truth GitHub Actions workflow for the projelli community repos
+# (community-templates, community-plugins). The C6 sync script copies this
+# file into both repos at .github/workflows/build-catalog.yml.
+#
+# Trigger: any push to main that touches entries/. The script regenerates
+# catalog.json and per-entry tarballs, then commits the result back to main
+# with [skip ci] so the next push doesn't loop.
+#
+# The schema vendored in scripts/build-catalog.mjs MUST match the projelli
+# app's source schemas. The C6 sync script regenerates that file from the
+# app source before pushing here, so any drift is caught at sync time.
+
+name: Build catalog
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'entries/**'
+      - 'scripts/build-catalog.mjs'
+      - '.github/workflows/build-catalog.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-catalog-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install zod (required by build-catalog.mjs)
+        run: |
+          npm init -y > /dev/null
+          npm install --no-save --no-audit --no-fund zod@^4.3.6
+
+      - name: Detect catalog kind from repo name
+        id: kind
+        run: |
+          name="${GITHUB_REPOSITORY##*/}"
+          case "$name" in
+            community-templates) echo "kind=templates" >> "$GITHUB_OUTPUT" ;;
+            community-plugins)   echo "kind=plugins"   >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "Unknown repo name '$name'; expected community-templates or community-plugins" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Build catalog
+        env:
+          PROJELLI_CATALOG_KIND: ${{ steps.kind.outputs.kind }}
+          PROJELLI_CATALOG_REPO: ${{ github.repository }}
+          PROJELLI_CATALOG_REF: ${{ github.ref_name }}
+        run: node scripts/build-catalog.mjs
+
+      - name: Commit + push regenerated catalog
+        run: |
+          git config user.name "projelli-catalog-bot"
+          git config user.email "bot@projelli.com"
+          git add catalog.json entries/*/tarball.tar.gz entries/*/checksum.txt
+          if git diff --staged --quiet; then
+            echo "No catalog changes to commit"
+            exit 0
+          fi
+          git commit -m "chore(catalog): rebuild [skip ci]"
+          git push origin HEAD:${{ github.ref_name }}
