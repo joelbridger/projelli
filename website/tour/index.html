@@ -214,6 +214,22 @@
     <p>Every feature, shown plainly. No cloud required.</p>
   </section>
 
+  <section class="section" style="padding-top: 0;">
+    <div style="max-width: 920px; margin: 0 auto;">
+      <video autoplay muted loop playsinline preload="metadata"
+             poster="/videos/keepance-hero-poster.jpg"
+             aria-label="Keepance opening a deposition and finding where the witness contradicted himself, all on the user's machine"
+             style="width:100%; height:auto; display:block; border-radius:12px; box-shadow:0 24px 64px rgba(0,0,0,0.18); border:1px solid rgba(0,0,0,0.06);">
+        <source src="/videos/keepance-hero.mp4" type="video/mp4">
+      </video>
+    </div>
+    <script>
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        document.querySelectorAll('video[autoplay]').forEach(function (v) { v.removeAttribute('autoplay'); if (v.pause) v.pause(); });
+      }
+    </script>
+  </section>
+
   <section class="section">
     <h2>The core loop</h2>
     <p>Keepance works in three steps: you ask a question, the AI responds, and a real Markdown file appears on your hard drive.</p>
