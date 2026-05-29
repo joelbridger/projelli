@@ -444,7 +444,7 @@ jobs:
           $version = (node -p "require('./package.json').version")
           New-Item -ItemType Directory -Force -Path mcpb-dist | Out-Null
           node scripts/build-mcpb.mjs `
-            --binary "src-tauri/binaries/keepance-mcp-.exe" `
+            --binary "src-tauri/binaries/keepance-mcp-${target}.exe" `
             --target $target `
             --output "mcpb-dist/keepance-.mcpb" `
             --version $version
