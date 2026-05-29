@@ -284,6 +284,13 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # linuxdeploy is itself an AppImage; on the GitHub ubuntu runners it
+          # can stall then fail to mount via FUSE during AppImage bundling
+          # (deb/rpm bundle fine, only the appimage step hangs ~49 min then
+          # errors "failed to run linuxdeploy"). Extract-and-run avoids the FUSE
+          # mount; NO_STRIP skips the flaky strip pass. Both no-op on macOS.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          NO_STRIP: "true"
           # macOS signing + notarization. Apple's notary service was
           # unreliable for several weeks in spring 2026 (submissions stuck
           # "In Progress" for 8-24+ hours), which is why the three
