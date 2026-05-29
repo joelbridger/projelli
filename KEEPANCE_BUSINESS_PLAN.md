@@ -203,16 +203,22 @@ Jameson asked Claude to make every call. Each row below is a decision, the reaso
 
 ---
 
-### Decision 2: Pricing — one-time, $49 / $99, with a launch tier
+### Decision 2: Pricing, one-time, $49 / $129 / $399, with a charter tier
+
+> **Updated 2026-05-29 to the locked post-pivot model.** The original indie-founder table (Free / Pro $49 / Lifetime $99 / Founder's $29) is retired; see the Board Record at the top of this file. The permanent free tier and the Lifetime tier no longer exist. Pricing is now three one-time tiers plus a charter offer, sold via LemonSqueezy, with a 30-day free trial in place of a permanent free tier. Canonical detail lives in `docs/reference/PRICING_AND_POSITIONING.md`.
 
 **Decision:**
 
 | Tier | Price | What you get |
 |---|---|---|
-| **Free** | $0 | Core editor, file tree, Markdown, wiki-links, version history, audit log, **1 AI provider (Claude only)**, **3 templates**, **1 workspace** |
-| **Pro** | **$49 one-time** | Everything Free has + **all 3 AI providers** + **all 15 templates** + **unlimited workspaces** + whiteboard + audio + research/citations + multi-model comparison + **1 year of updates** |
-| **Lifetime** | **$99 one-time** | Everything Pro has + **updates forever** + **early access to new features** + **commercial use license** |
-| **Founder's Launch (first 100 buyers)** | **$29 lifetime** | Same as Lifetime, but capped at 100 sales. Creates urgency, rewards early adopters. |
+| **Personal** | **$49 one-time** | Full app for general confidential work: editor, file tree, Markdown, wiki-links, backlinks, version history, audit log, **all four AI providers (Claude / OpenAI / Gemini / Ollama, BYOK)**, whiteboard, audio, research/citations, multi-model comparison, unlimited workspaces, **single seat**. **No profession practice pack** (you bring your own templates). Updates and security patches for the life of the product. |
+| **Professional** | **$129 one-time** | Everything in Personal, **plus one profession practice pack** (Legal / Tax / Consulting). That pack is the structured AI interviews that produce the actual documents a practice writes. **This is the tier we sell.** Single seat. Priority access to new packs as they ship. |
+| **Practice** | **$399 one-time** | Everything in Professional, **up to 5 seats**, **all three practice packs**, white-label template customization, email support, priority access to new packs. |
+| **Charter (first 100 Professional buyers per pack)** | **$89 one-time** | Professional at $89 instead of $129. Capped at 100 sales per profession pack. Creates launch urgency, rewards early adopters, and seeds the testimonials each pack needs. Replaces the retired $29 Founder's Launch. |
+
+**Trial / license:** 30-day free trial, no credit card. One-time purchase, perpetual license. Updates and security patches included for the life of the product. New profession packs are sold separately. 14-day refund after purchase.
+
+**Why Personal is deliberately a "starter," not a discount Professional:** Personal and Professional run the same app, so the only thing separating them is the profession pack. That's intentional, and it's also a cannibalization risk if we let Personal look like "Professional minus $80." The fix is positioning, not feature-crippling: **Personal is sold as the general-purpose tool ("bring your own templates"), Professional is sold as "your profession, done for you."** A solo attorney choosing between them isn't comparing two feature sets, they're deciding whether they want to write their own engagement-letter scaffolding from a blank page (Personal) or have the Legal pack run the interview and produce the draft (Professional). Framed that way, the buyer who is actually our ICP self-selects into Professional, and Personal becomes the honest entry point for the general "I just want a private AI workspace" buyer who was never going to pay for a pack anyway. We do **not** gate AI providers or core features to force the upgrade. That punishes the wrong people and reads as petty. The pack is the line.
 
 **Sold via LemonSqueezy** as merchant of record.
 
@@ -223,15 +229,17 @@ Jameson asked Claude to make every call. Each row below is a decision, the reaso
 - The most successful local-first tools all use one-time pricing: Obsidian (free + paid sync addon), Sublime Text ($99 one-time), Things ($50 one-time per platform), BBEdit ($60 one-time). The ones that try subscription struggle (Reflect, Tana).
 - Subscription billing infrastructure (renewals, dunning, cancellation flows, upgrade paths) is a ~10x more complex commercial pipe than one-time.
 
-*Why $49:*
-- Notion paid plans start at $10/mo. ChatGPT Plus is $20/mo. $49 = 2.5 months of ChatGPT Plus.
-- Sublime Text is $99 one-time. Keepance is cheaper because it's newer and unproven.
-- $49 is in the "impulse buy" zone for indie tools (typically $20–60). Above $60 needs a sales process.
-- Leaves room to raise to $59 / $69 later as the brand strengthens.
+*Why $129 anchors the lineup (and $49 / $399 bracket it):*
+- The ICP shifted from hobbyist indie founders to billing professionals (attorneys, CPAs, consultants). For someone who bills $200-400/hr, $129 once is a rounding error, and a perpetual license they own outright is exactly what a confidentiality-bound professional wants. The old $49 indie anchor under-priced the profession packs, which are the real value.
+- Anchoring on Professional $129 is consistent everywhere: the homepage compares "Keepance Professional $129 one-time" against ChatGPT/Notion/Claude subscriptions, and the /vs/ comparison pages run the same $129 + BYOK math.
+- $49 Personal stays as the honest floor for the general "I just want a private workspace, no pack" buyer, and as the contrast point against free tools (Obsidian, Logseq) on the comparison pages. It is not the tier we push.
+- $399 Practice (up to 5 seats) captures small firms and is the natural multi-seat step; per-seat it undercuts any subscription stack.
+- Room remains to raise Professional to $149 later as the packs prove out and the testimonial wall fills.
 
-*Why a free tier exists at all:*
-- Local-first/BYOK products live or die on word of mouth. People need to be able to TRY it before they trust it with their business documents.
-- Free tier is intentionally limited so there's a real reason to upgrade — only 1 AI provider, only 3 templates, only 1 workspace. Not crippled, but obviously a "starter" version.
+*Why a 30-day trial instead of a permanent free tier:*
+- The permanent free tier was retired in the pivot. A free-forever tier made sense for a viral indie tool; it makes less sense for a professional tool where the buyer expects to pay for software that touches client work.
+- Local-first/BYOK products still live or die on word of mouth, so people must be able to TRY before trusting it with confidential documents. A 30-day trial (full app, no credit card) does that without giving the product away.
+- The trial is the top-of-funnel; the charter $89 offer is the conversion hook. Together they replace the old "free tier to upgrade" motion with "trial to charter to Professional."
 
 *Why LemonSqueezy over Stripe:*
 - LemonSqueezy is the **merchant of record**, meaning they handle EU VAT, US sales tax, refunds, chargebacks, customer accounts, and license key generation as a built-in feature.
@@ -239,10 +247,10 @@ Jameson asked Claude to make every call. Each row below is a decision, the reaso
 - Lemon Squeezy has a built-in license key system that integrates directly with Tauri apps via webhook + API.
 - Same tier as Paddle, but LemonSqueezy has a better indie-developer reputation and a better dashboard.
 
-*Why a launch tier:*
-- "Founder's Pricing" creates urgency on launch day
-- Rewards early adopters (who become evangelists)
-- Generates initial revenue + reviews
+*Why a charter tier:*
+- Charter pricing ($89 Professional, first 100 per pack) creates urgency on launch day
+- Rewards early adopters (who become evangelists and the first testimonials each pack needs)
+- Generates initial revenue + reviews, capped so it doesn't permanently discount the anchor price
 - Anchors people to the higher regular price
 - Standard playbook used by every successful indie launch
 
@@ -498,12 +506,13 @@ Root-level Markdown files reduced to: `README.md`, `CHANGELOG.md`, `BACKLOG.md`,
 
 | Tier | Price | Use case | % of buyers (projected) |
 |---|---|---|---|
-| Free | $0 | Trial, intro | 80% |
-| Pro | $49 one-time | Most paying users | 60% of paying |
-| Lifetime | $99 one-time | Power users, evangelists | 30% of paying |
-| Founder's Launch | $29 lifetime (capped at 100) | Launch buyers only | 10% of paying (during launch only) |
+| Trial | $0 (30 days) | Try before buying; no permanent free tier | n/a (not a tier) |
+| Personal | $49 one-time | General private-workspace buyers, no pack needed | 25% of paying |
+| Professional | $129 one-time | The core tier, one profession pack | 60% of paying |
+| Practice | $399 one-time | Small firms, up to 5 seats, all packs | 15% of paying |
+| Charter | $89 one-time (capped at 100/pack) | Launch buyers (counts within Professional) | first 100 Professional buyers per pack |
 
-**Average revenue per paying user (steady state):** ~$64 ((60% × $49) + (30% × $99) + (10% × $29))
+**Average revenue per paying user (steady state):** ~$166 ((25% × $49) + (60% × $129) + (15% × $399)). During launch, Charter buyers pay $89 instead of $129 for the first 100 per pack, so early ARPU runs lower until the charter caps fill.
 
 ### Revenue trajectory (conservative)
 
@@ -585,7 +594,7 @@ At $5K/mo revenue, Keepance's gross margin is ~94%. Compare to a SaaS with infra
 
 **Goal:** Take money.
 
-- [ ] LemonSqueezy product setup (Free/Pro/Lifetime/Founder's Launch tiers)
+- [ ] LemonSqueezy product setup (Personal $49 / Professional $129 / Practice $399 tiers; no free or Lifetime tier)
 - [ ] Build the license validation Bun service at `licenses.keepance.com`
 - [ ] In-app activation flow: settings screen → license key input → validate → store activation token
 - [ ] Tier-gating logic: free vs paid feature checks throughout the app
@@ -608,7 +617,7 @@ At $5K/mo revenue, Keepance's gross margin is ~94%. Compare to a SaaS with infra
 
 - [ ] Product Hunt launch (Tuesday or Wednesday, optimal slot)
 - [ ] Show HN post simultaneously
-- [ ] Coordinate the "Founder's Launch" $29 lifetime tier — capped at 100 buyers
+- [ ] Coordinate the Charter offer: Professional at $89 (instead of $129), capped at first 100 buyers per profession pack
 - [ ] All hands on deck for support / responding to comments
 - [ ] Email the (small) list with launch announcement
 
