@@ -1,45 +1,62 @@
-# Sample: Pricing Strategy
+# Sample: Fee Structure Strategy
 
-> Fictional product: **Acme Budget**, a personal finance app for freelancers.
-> This is a sample so you can see what a finished PricingStrategy run looks like. Delete it whenever you want.
+> Fictional practice: **Okafor Law, PLLC** — solo civil litigation and landlord-tenant practice.
+> This is a sample so you can see what a finished Pricing Strategy run looks like. Delete it whenever you want.
 
-## Who pays
+---
 
-Freelancers and solo consultants who file quarterly estimated taxes and hate surprises in April. They already use spreadsheets or Mint alternatives, and they're willing to pay for something that makes tax season boring.
+## Who the practice serves
 
-They are not Acme Budget's users in spirit. They are Acme Budget's users in practice.
+Solo and low-income tenants dealing with landlord habitability issues, wrongful evictions, and security deposit disputes. Some employment matters (wrongful termination, wage theft, discrimination). Civil litigation referrals from the Legal Clinic network.
 
-## Willingness to pay
+The client who fits best: someone who has a real legal problem, limited resources, and no idea how to navigate the process. They need someone who will actually explain things and not bill them for explaining things.
 
-I ran a short survey across 40 freelance designers, writers, and devs. The median ceiling landed at $9/month and the top quartile went to $19. Nobody said $49. A handful said $4 was "already too much for anything recurring."
+The client who doesn't fit: corporate representation, transactional work, anything that needs a big team behind it. Refer those out.
 
-Two signals stood out:
-1. People who had been audited or had a 1099 surprise paid 2x more readily than people who hadn't
-2. Annual plans got a 3x larger "yes" rate than monthly plans, even at higher total cost
+---
 
-## Pricing tiers
+## Current fee structure
 
-**Free.** Track income + expenses, one bank account, manual categorization. Cap at 200 transactions/month. This is the on-ramp.
+**Litigation (hourly):** $285/hr. This is below market for the metro area ($350-450 for comparable experience) and I know it. The discount is intentional for now — it keeps the Legal Clinic pipeline flowing and the referrals are warm. I revisit this annually.
 
-**Solo. $9/month or $79/year.** Unlimited transactions, unlimited accounts, quarterly tax estimator, auto-categorization, receipt capture. The default paid tier.
+**Flat-fee matters:**
+- Demand letter only: $600 (2 hours at internal rate, plus letter)
+- Uncontested small claims representation: $900
+- Security deposit dispute (demand through filing): $750 flat
+- Lease review: $350
 
-**Pro. $19/month or $169/year.** Everything in Solo, plus mileage tracking, Schedule C export, CPA-share mode (view-only link for your accountant), and anomaly alerts.
+**Contingency:** Available for employment discrimination and civil rights matters only, where damages are potentially significant. 33% pre-suit, 40% post-filing. I don't offer contingency for landlord-tenant — the damages are too small and the timeline too unpredictable for solo practice.
 
-I'm not launching with annual-only. I'm launching with both, because forcing annual at launch is a conversion killer when people don't trust the product yet.
+**Unbundled services:** I offer limited-scope representation for clients who want to represent themselves in small claims but need help preparing. Document review and coaching, billed hourly. $285/hr, 2-hour minimum.
+
+---
 
 ## What I'm not doing
 
-- No "Enterprise" tier. Freelancers don't have procurement departments.
-- No usage-based pricing. Charging per transaction makes people log in less, and fewer logins kills retention.
-- No free trial of Pro. The free tier IS the trial.
-- No "founder's discount" that expires. Confusing, feels scammy.
+No subscription or "legal plan" model. The revenue looks appealing in theory but the support burden is not compatible with solo litigation practice. Every subscription client who doesn't actively use the service still emails when something comes up, and the margin evaporates.
 
-## Price anchoring plan
+No contingency for landlord-tenant. Three years of watching other solos burn out on contingency habitability cases with $5K damage ceilings taught me this.
 
-On the pricing page, Pro sits in the middle column with a subtle highlight, not a "MOST POPULAR" sticker. Solo sits to the left as the default. Free sits to the right in gray, smaller. The visual weight nudges people toward Solo, which is where I want them.
+No payment plans beyond 90 days. I've written off more than I should have from payment plans that extended past 90 days. Cash at engagement start or at agreed milestones — the milestone structure works better than installment plans in practice.
 
-## Open questions
+---
 
-- Do I hold pricing for the first 100 paying customers? Leaning yes at $49/year for Solo, grandfathered forever.
-- Do I offer a 60-day refund instead of 30? The finance category is trust-sensitive.
-- Do I track NPS at 30 days or 90? 30 catches onboarding friction; 90 catches real retention.
+## What I'm adjusting next quarter
+
+The flat-fee matter pricing is due for a review. The $600 demand letter hasn't moved since 2024 and the cost of the intake and drafting work hasn't stayed flat. Target: $750 starting July 1, grandfathered for existing clients.
+
+The hourly rate goes to $310 in January 2027. I'll give existing active clients 90 days notice.
+
+The biggest leverage point isn't the rates — it's the intake process. Right now I spend too long in the intake on matters that don't move forward. The Client Intake Synthesizer template is helping triage faster. If I can cut non-converting intake time by half, that's 3-4 billable hours per month recovered without raising rates.
+
+---
+
+## What sustainability looks like
+
+27 billable hours per week is the target. That's 1,400 hours per year at $285/hr blended rate = approximately $400K gross, which after overhead and bar expenses nets to a comfortable solo practice.
+
+The ceiling on hourly-only practice is time. The leverage plays (as a solo) are: better intake triage, faster document production, and eventually one associate who handles the commodity work while I focus on complex litigation. The paralegal starting June 1 is step one.
+
+---
+
+*Generated by Keepance — Pricing Strategy*

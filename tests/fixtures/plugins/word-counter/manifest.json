@@ -4,13 +4,13 @@
   "version": "1.0.0",
   "apiVersion": "2.0.0",
   "author": {
-    "name": "Projelli Examples",
-    "url": "https://projelli.com"
+    "name": "Keepance Examples",
+    "url": "https://keepance.com"
   },
   "description": "Counts words and characters in the active editor. Adds a toolbar button, a sidebar panel that updates live, and a command 'word-counter.count'.",
   "main": "index.js",
   "permissions": ["editor:selection"],
-  "minProjelliVersion": "2.0.0",
+  "minKeepanceVersion": "2.0.0",
   "category": "writing",
   "tags": ["editor", "writing", "stats"],
   "license": "MIT"

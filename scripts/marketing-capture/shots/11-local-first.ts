@@ -43,7 +43,7 @@ export async function shot11() {
     shotKey: 'workspaceHero',
     outputName: '.tmp-workspace-raw-s11.png',
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Projelli',
+    windowTitle: 'Linterly — Keepance',
     raw: true,
   });
 
@@ -75,7 +75,7 @@ export async function shot11() {
   // 4. Wrap in macOS chrome using a fresh Playwright browser inside
   //    compose-chrome.  Import dynamically to reuse the existing helper.
   const { composeChrome } = await import('../lib/compose-chrome');
-  const final = await composeChrome(composited, { title: 'Linterly — Projelli' });
+  const final = await composeChrome(composited, { title: 'Linterly — Keepance' });
 
   mkdirSync(ASSETS_DIR, { recursive: true });
   const outPath = path.join(ASSETS_DIR, 'feature-local-first.png');

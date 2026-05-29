@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "apiVersion": "1.0",
   "author": {
-    "name": "Projelli Team",
-    "githubUser": "projelli"
+    "name": "Keepance Team",
+    "githubUser": "keepance"
   },
   "description": "Monthly investor update in the TLDR + metrics + asks format. Lighter than the built-in version. Designed for small angel rounds and pre-seed.",
   "category": "planning",
@@ -16,5 +16,5 @@
     { "path": "workflow.json", "type": "workflow-definition" },
     { "path": "questions.json", "type": "interview-questions" }
   ],
-  "minProjelliVersion": "2.0.0"
+  "minKeepanceVersion": "2.0.0"
 }

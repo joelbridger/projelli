@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "apiVersion": "1.0",
   "author": {
-    "name": "Projelli Team",
-    "githubUser": "projelli"
+    "name": "Keepance Team",
+    "githubUser": "keepance"
   },
   "description": "Standard press-release format with headline, dateline, lede, supporting paragraphs, two quotes, and a boilerplate. Inverted-pyramid structure.",
   "category": "marketing",
@@ -16,5 +16,5 @@
     { "path": "workflow.json", "type": "workflow-definition" },
     { "path": "questions.json", "type": "interview-questions" }
   ],
-  "minProjelliVersion": "2.0.0"
+  "minKeepanceVersion": "2.0.0"
 }

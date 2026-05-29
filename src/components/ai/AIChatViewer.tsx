@@ -1161,7 +1161,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
         const hasWorkspace = workspaceServiceRef?.current && rootPath;
         const workspaceInstructions = hasWorkspace
-          ? `You are running inside Projelli, a local-first workspace app. The user's active workspace folder is "${rootPath}". You have direct access to this workspace via tools: read_file, write_file, create_folder, move_file, delete_file, list_files, search_files. When the user asks you to create, edit, organize, or look at files, USE THESE TOOLS directly — do not refuse, do not ask the user to create the file themselves, and do not pretend you can't access files. You CAN. All file paths should be relative to the workspace root. When creating .md files (documentation, notes, plans, etc.), just write them directly using write_file. After creating or modifying files, briefly confirm what you did.\n\n`
+          ? `You are running inside Keepance, a local-first workspace app. The user's active workspace folder is "${rootPath}". You have direct access to this workspace via tools: read_file, write_file, create_folder, move_file, delete_file, list_files, search_files. When the user asks you to create, edit, organize, or look at files, USE THESE TOOLS directly — do not refuse, do not ask the user to create the file themselves, and do not pretend you can't access files. You CAN. All file paths should be relative to the workspace root. When creating .md files (documentation, notes, plans, etc.), just write them directly using write_file. After creating or modifying files, briefly confirm what you did.\n\n`
           : '';
 
         const baseRole = hasWorkspace
@@ -1904,7 +1904,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.effectAllowed = 'copy';
-                    e.dataTransfer.setData('application/x-projelli-chat-message', msg.content);
+                    e.dataTransfer.setData('application/x-keepance-chat-message', msg.content);
                     e.dataTransfer.setData('text/plain', msg.content);
                   }}
                   title="Drag to file tree to save as a file"

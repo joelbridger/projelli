@@ -1,12 +1,12 @@
-# Projelli sidecar binaries
+# Keepance sidecar binaries
 #
 # This folder holds platform-specific compiled sidecars that get bundled
 # into the installer via `tauri.conf.json:bundle.externalBin`.
 #
 # Phase 2 reserves the directory but doesn't populate it yet — the release
-# pipeline builds `projelli-mcp-<target>` per platform and stages the files
+# pipeline builds `keepance-mcp-<target>` per platform and stages the files
 # here before `tauri build`.
 #
 # Phase 4 adds:
-#   - projelli-mcp-<target>    (M4: MCP server)
+#   - keepance-mcp-<target>    (M4: MCP server)
 #   - parakeet-transcribe-<target>  (M6: voice input)

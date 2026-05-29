@@ -6,13 +6,13 @@
  * instead it observes three signals and renders <DemoExitModal /> when any
  * of them trips.
  *
- *   1. `projelli:demo-message-sent` — fired by `demoAIProvider` after every
+ *   1. `keepance:demo-message-sent` — fired by `demoAIProvider` after every
  *      successful proxy call. Each event increments a localStorage-persisted
  *      counter; at 5 messages the gate opens the modal.
  *   2. Wall-clock session age — `sessionStartTime` is recorded on mount; at
  *      10 minutes elapsed (checked on each event tick AND on a 30s timer)
  *      the gate opens the modal.
- *   3. `projelli:demo-limit-hit` — the proxy or the demoAIProvider can fire
+ *   3. `keepance:demo-limit-hit` — the proxy or the demoAIProvider can fire
  *      this directly (rate-limited / budget-exhausted / proxy error). The
  *      gate forwards it straight to the modal.
  *

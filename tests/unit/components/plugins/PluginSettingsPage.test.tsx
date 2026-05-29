@@ -43,7 +43,7 @@ function fakeManifest(id: string, name: string): PluginManifest {
     description: 'fixture',
     main: 'index.js',
     permissions: [],
-    minProjelliVersion: '0.0.0',
+    minKeepanceVersion: '0.0.0',
     category: 'test',
     tags: [],
   };

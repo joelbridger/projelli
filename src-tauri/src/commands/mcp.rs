@@ -1,14 +1,14 @@
 // Host-side Tauri commands for the MCP approval channel and install UI.
 //
-// The Projelli MCP sidecar binary (`src/bin/mcp/`) runs as a subprocess of
+// The Keepance MCP sidecar binary (`src/bin/mcp/`) runs as a subprocess of
 // whichever MCP client spawned it — usually Claude Desktop, launched by
 // double-clicking the `.mcpb` bundle. The sidecar has no UI surface of its
 // own, so when a client calls `write_workspace_file` with
 // `require_confirmation = true` it writes an approval request JSON to
-// `<temp>/projelli-mcp/approval-requests/<token>.json` and emits a single
-// `projelli/approval_request` line on stderr.
+// `<temp>/keepance-mcp/approval-requests/<token>.json` and emits a single
+// `keepance/approval_request` line on stderr.
 //
-// This module gives the Projelli desktop app the three commands it needs to
+// This module gives the Keepance desktop app the three commands it needs to
 // surface that request to the user and ship the decision back:
 //
 //   `mcp_list_pending_approvals()`
@@ -28,7 +28,7 @@
 // Polling the filesystem rather than piping stderr through the sidecar's
 // parent process keeps the approval channel stable regardless of which MCP
 // client happens to have spawned the binary (Claude Desktop, Cursor, or a
-// direct Projelli-as-server spawn).
+// direct Keepance-as-server spawn).
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -36,7 +36,7 @@ use std::path::PathBuf;
 /// Base dir mirrored from `src/bin/mcp/approval.rs`. If these two ever
 /// diverge, approval rendezvous breaks — the binary's constants are the
 /// SSOT; this copy is the host's read-side view of the same contract.
-const APPROVAL_PREFIX: &str = "projelli-mcp";
+const APPROVAL_PREFIX: &str = "keepance-mcp";
 
 fn approval_base_dir() -> PathBuf {
     std::env::temp_dir().join(APPROVAL_PREFIX)
@@ -147,8 +147,8 @@ pub async fn mcp_approve_write(token: String, approved: bool) -> Result<(), Stri
 /// Resolve the path to the `.mcpb` bundle for the current platform.
 ///
 /// Build order:
-///   1. `<resource_dir>/mcpb/projelli-<target>.mcpb`  (production Tauri)
-///   2. `<repo_root>/dist/projelli-<target>.mcpb`     (local dev build)
+///   1. `<resource_dir>/mcpb/keepance-<target>.mcpb`  (production Tauri)
+///   2. `<repo_root>/dist/keepance-<target>.mcpb`     (local dev build)
 ///
 /// Returns `None` when neither file is found so the UI can show a "run
 /// `npm run build:mcpb` first" hint instead of a scary error.
@@ -158,7 +158,7 @@ pub async fn mcp_bundle_path(
 ) -> Result<Option<String>, String> {
     use tauri::Manager;
     let target = current_target_triple();
-    let candidate_name = format!("projelli-{target}.mcpb");
+    let candidate_name = format!("keepance-{target}.mcpb");
 
     // Tauri resource lookup — wrapped in a catch-all so missing-resource
     // paths on dev builds don't crash the command.
@@ -174,7 +174,7 @@ pub async fn mcp_bundle_path(
     if let Ok(cwd) = std::env::current_dir() {
         // Walk up to find repo root (has a `package.json` and a `src-tauri`
         // sibling). Two levels up usually lands us at the repo root from
-        // `src-tauri/target/debug/projelli`.
+        // `src-tauri/target/debug/keepance`.
         for candidate in [cwd.clone(), cwd.join(".."), cwd.join("..").join("..")] {
             let p = candidate.join("dist").join(&candidate_name);
             if p.exists() {

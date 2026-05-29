@@ -23,7 +23,7 @@ const FACTS: Fact[] = [
   },
   {
     id: 'f2',
-    text: 'The user ships commercial software using Projelli.',
+    text: 'The user ships commercial software using Keepance.',
     created: '2026-04-12T12:00:00.000Z',
     approved_by: 'user',
   },
@@ -43,7 +43,7 @@ describe('buildFactsMemoryBlock', () => {
   it('renders facts as plain-text bullets', () => {
     const block = buildFactsMemoryBlock(FACTS);
     expect(block).toContain('- The user is a Senior Product Designer at Wheel Health.');
-    expect(block).toContain('- The user ships commercial software using Projelli.');
+    expect(block).toContain('- The user ships commercial software using Keepance.');
   });
 
   it('includes a human-readable label so the model knows what the block is', () => {

@@ -1,6 +1,6 @@
 /**
- * State seeder — applies per-shot UI state to a running Projelli dev server
- * via the `window.__projelli_seed` bridge (T03).
+ * State seeder — applies per-shot UI state to a running Keepance dev server
+ * via the `window.__keepance_seed` bridge (T03).
  *
  * Shape notes (verified against actual store definitions 2026-04-27):
  *  - workspaceStore: rootPath, fileTree, selectedPath, expandedPaths (Set)  ✓
@@ -22,7 +22,7 @@
  *  Playwright's page.evaluate serializes arguments via structured clone.
  *  Set objects do NOT survive the boundary — they arrive as plain objects.
  *  expandedPaths is passed as a string[] and reconstructed inside the
- *  browser context before calling __projelli_seed.
+ *  browser context before calling __keepance_seed.
  *
  * Per-shot overrides:
  *  - aiMidStream: opens an ai-assistant tab with a partial streaming message
@@ -51,7 +51,7 @@ export async function seedState(
 ): Promise<void> {
   // Wait for the bridge to mount (it runs after React hydrates).
   await page.waitForFunction(
-    () => typeof (window as any).__projelli_seed === 'function',
+    () => typeof (window as any).__keepance_seed === 'function',
     null,
     { timeout: 10_000 },
   );
@@ -218,7 +218,7 @@ export async function seedState(
 
   await page.evaluate(
     ({ workspacePayload, editorPayload, aiChatPayload }) => {
-      const seed = (window as any).__projelli_seed!;
+      const seed = (window as any).__keepance_seed!;
 
       // Reconstruct Set from serialised array.
       const { expandedPathsArray, ...workspaceRest } = workspacePayload as any;

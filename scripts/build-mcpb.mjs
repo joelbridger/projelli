@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build a Projelli `.mcpb` Desktop Extension bundle for one platform.
+// Build a Keepance `.mcpb` Desktop Extension bundle for one platform.
 //
 // Anthropic's DXT (".mcpb") spec:
 //   https://github.com/anthropics/dxt
@@ -8,16 +8,16 @@
 //   manifest.json     — declares the server, required env vars, MCP version
 //   server/<binary>   — pre-built platform-specific binary
 //
-// Output: `dist/projelli-<platform>.mcpb` (one per target triple).
+// Output: `dist/keepance-<platform>.mcpb` (one per target triple).
 //
 // Usage:
 //   node scripts/build-mcpb.mjs \
-//     --binary src-tauri/binaries/projelli-mcp-aarch64-apple-darwin \
+//     --binary src-tauri/binaries/keepance-mcp-aarch64-apple-darwin \
 //     --target aarch64-apple-darwin \
-//     --output dist/projelli-aarch64-apple-darwin.mcpb
+//     --output dist/keepance-aarch64-apple-darwin.mcpb
 //
 // The GitHub release workflow invokes this after `cargo build --bin
-// projelli-mcp`. For a local smoke test, run it the same way with a local
+// keepance-mcp`. For a local smoke test, run it the same way with a local
 // build output.
 //
 // Zero third-party deps: uses the shipped `fflate` via `zlib` crypto-ish
@@ -109,21 +109,21 @@ function parseArgs() {
  *                    they can pick their workspace folder
  */
 function buildManifest({ target, version }) {
-  const binaryName = target.includes('windows') ? 'projelli-mcp.exe' : 'projelli-mcp';
+  const binaryName = target.includes('windows') ? 'keepance-mcp.exe' : 'keepance-mcp';
   return {
     dxt_version: '0.1',
-    name: 'projelli',
-    display_name: 'Projelli Workspace',
+    name: 'keepance',
+    display_name: 'Keepance Workspace',
     version,
     description:
-      'Read your Projelli workspace (files + memory + semantic search) from any MCP client.',
+      'Read your Keepance workspace (files + memory + semantic search) from any MCP client.',
     long_description:
-      'Exposes five tools over the Model Context Protocol: list files, read files, semantic search (using the same local embeddings Projelli uses for @workspace), get memory facts, and (with your approval) write files back. Everything stays on your machine.',
+      'Exposes five tools over the Model Context Protocol: list files, read files, semantic search (using the same local embeddings Keepance uses for @workspace), get memory facts, and (with your approval) write files back. Everything stays on your machine.',
     author: {
-      name: 'Projelli',
-      url: 'https://projelli.com',
+      name: 'Keepance',
+      url: 'https://keepance.com',
     },
-    homepage: 'https://projelli.com',
+    homepage: 'https://keepance.com',
     license: 'MIT',
     server: {
       type: 'binary',
@@ -134,16 +134,16 @@ function buildManifest({ target, version }) {
         env: {
           // Populated from `user_config.workspace_root` at install time by
           // Claude Desktop — the double-brace is the DXT template syntax.
-          PROJELLI_WORKSPACE_ROOT: '${user_config.workspace_root}',
+          KEEPANCE_WORKSPACE_ROOT: '${user_config.workspace_root}',
         },
       },
     },
     user_config: {
       workspace_root: {
         type: 'directory',
-        title: 'Projelli workspace folder',
+        title: 'Keepance workspace folder',
         description:
-          'The folder Projelli opens as your workspace (the same folder you pick inside the Projelli app).',
+          'The folder Keepance opens as your workspace (the same folder you pick inside the Keepance app).',
         required: true,
       },
     },
@@ -268,7 +268,7 @@ function main() {
   }
   const binBytes = readFileSync(binary);
   const manifest = buildManifest({ target, version });
-  const binaryName = target.includes('windows') ? 'projelli-mcp.exe' : 'projelli-mcp';
+  const binaryName = target.includes('windows') ? 'keepance-mcp.exe' : 'keepance-mcp';
   const zip = buildZip([
     {
       path: 'manifest.json',

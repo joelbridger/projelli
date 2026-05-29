@@ -52,11 +52,11 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       },
       {
         title: 'Click "Create Key"',
-        body: 'A dialog opens. Give it a label like "Projelli" so you remember where it goes. Leave "Workspace" as default.',
+        body: 'A dialog opens. Give it a label like "Keepance" so you remember where it goes. Leave "Workspace" as default.',
       },
       {
         title: 'Copy the key IMMEDIATELY',
-        body: 'Anthropic shows the key ONCE. Copy it to your clipboard. Paste it into the Projelli wizard step 3.',
+        body: 'Anthropic shows the key ONCE. Copy it to your clipboard. Paste it into the Keepance wizard step 3.',
         hint: 'Keys start with sk-ant-. If you lose it, create a new one; the old one stays valid but is unrecoverable.',
       },
       {
@@ -82,11 +82,11 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       },
       {
         title: 'Click "Create new secret key"',
-        body: 'Name it "Projelli". Permissions: "All" is fine. Click Create.',
+        body: 'Name it "Keepance". Permissions: "All" is fine. Click Create.',
       },
       {
         title: 'Copy the key',
-        body: 'Shown once. Starts with sk-proj- or sk-. Paste into Projelli step 3.',
+        body: 'Shown once. Starts with sk-proj- or sk-. Paste into Keepance step 3.',
       },
       {
         title: 'Add billing credit',
@@ -114,12 +114,12 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       },
       {
         title: 'Copy the key',
-        body: 'Shown permanently (you can return to view it). Starts with AIza. Paste into Projelli step 3.',
+        body: 'Shown permanently (you can return to view it). Starts with AIza. Paste into Keepance step 3.',
         hint: 'Google keys are the most forgiving, visible anytime in the AI Studio UI, unlike Anthropic/OpenAI which show once.',
       },
       {
         title: 'Free tier is usually enough',
-        body: 'Gemini Flash free tier is 1500 requests/day with 1M tokens/minute. Most founders never exceed this. No billing setup needed unless you want higher limits.',
+        body: 'Gemini Flash free tier is 1500 requests/day with 1M tokens/minute. Most users never exceed this. No billing setup needed unless you want higher limits.',
       },
     ],
   },

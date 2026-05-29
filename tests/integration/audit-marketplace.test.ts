@@ -84,7 +84,7 @@ function makeFs(): FakeFs {
 }
 
 const TEMPLATE_ID = 'audit-template';
-const INSTALL_ROOT = '/ws/.projelli/templates';
+const INSTALL_ROOT = '/ws/.keepance/templates';
 const INSTALL_DIR = `${INSTALL_ROOT}/${TEMPLATE_ID}`;
 
 const ENTRY_V1: CatalogEntry = {
@@ -97,7 +97,7 @@ const ENTRY_V1: CatalogEntry = {
   tags: [],
   installUrl: 'https://example.test/audit-template-1.0.0.tar.gz',
   manifestUrl: 'https://example.test/audit-template-1.0.0/manifest.json',
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
   checksum: 'goodhash',
@@ -120,7 +120,7 @@ function makeManifest(version: string): TemplateManifest {
     category: 'misc',
     tags: [],
     files: [{ path: 'manifest.json', type: 'markdown' }],
-    minProjelliVersion: '2.0.0',
+    minKeepanceVersion: '2.0.0',
   };
 }
 
@@ -150,7 +150,7 @@ function buildService(fakeFs: FakeFs, audit: AuditService): MarketplaceService {
   return new MarketplaceService({
     repoUrl: 'https://example.test',
     catalogPath: 'catalog.json',
-    cachePath: '/ws/.projelli/cache/templates.json',
+    cachePath: '/ws/.keepance/cache/templates.json',
     installRoot: INSTALL_ROOT,
     fs: fakeFs.fs,
     provenance: 'community',

@@ -1,4 +1,4 @@
-// Smoke test for the @projelli/plugin-api package.
+// Smoke test for the @keepance/plugin-api package.
 //
 // The package is types-only; there is no runtime to assert against. Instead we
 // verify two things:
@@ -27,11 +27,11 @@ function ensureBuilt(): void {
     stdio: 'inherit',
   });
   if (result.status !== 0) {
-    throw new Error('Failed to build @projelli/plugin-api before tests');
+    throw new Error('Failed to build @keepance/plugin-api before tests');
   }
 }
 
-describe('@projelli/plugin-api package', () => {
+describe('@keepance/plugin-api package', () => {
   beforeAll(() => {
     ensureBuilt();
   });
@@ -78,12 +78,12 @@ describe('@projelli/plugin-api package', () => {
   });
 
   it('a representative plugin author file typechecks against the dist types', () => {
-    const tmp = mkdtempSync(join(tmpdir(), 'projelli-plugin-api-'));
+    const tmp = mkdtempSync(join(tmpdir(), 'keepance-plugin-api-'));
     try {
-      mkdirSync(join(tmp, 'node_modules', '@projelli'), { recursive: true });
+      mkdirSync(join(tmp, 'node_modules', '@keepance'), { recursive: true });
       // Symlink would be cleaner but we copy for portability across FSes used
       // in CI containers.
-      const linkTarget = join(tmp, 'node_modules', '@projelli', 'plugin-api');
+      const linkTarget = join(tmp, 'node_modules', '@keepance', 'plugin-api');
       mkdirSync(linkTarget, { recursive: true });
 
       // Copy the package.json + dist into the fixture's node_modules.
@@ -103,7 +103,7 @@ describe('@projelli/plugin-api package', () => {
       copyDir(resolve(PKG_ROOT, 'dist'), join(linkTarget, 'dist'));
 
       const sample = `
-import type { PluginModule, PluginAPI, PluginManifest, PluginPermission } from '@projelli/plugin-api';
+import type { PluginModule, PluginAPI, PluginManifest, PluginPermission } from '@keepance/plugin-api';
 
 const _manifest: PluginManifest = {
   id: 'sample.plugin',
@@ -114,7 +114,7 @@ const _manifest: PluginManifest = {
   description: 'sample',
   main: 'index.js',
   permissions: [],
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   category: 'utility',
   tags: [],
 };

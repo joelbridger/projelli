@@ -6,7 +6,7 @@ export async function shot01() {
     outputName: 'screenshot-01-workspace.png',
     pressKit: true,
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Projelli',
+    windowTitle: 'Linterly — Keepance',
   });
 }
 

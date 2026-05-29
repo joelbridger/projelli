@@ -1,5 +1,6 @@
 // MVP Scope Definition Workflow Template
 // Helps founders define their minimum viable product
+// @deprecated — Retiring in v2.1. Founder-ICP template not relevant to legal/tax/consulting audience.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 

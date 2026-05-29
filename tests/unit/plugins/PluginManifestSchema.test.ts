@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   validatePluginManifest,
-  checkMinProjelliVersion,
-  checkMaxProjelliVersion,
+  checkMinKeepanceVersion,
+  checkMaxKeepanceVersion,
   compareSemver,
 } from '@/modules/plugins/PluginManifestSchema';
 import type { PluginManifest } from '@/types/plugin';
 
 const VALID: PluginManifest = {
-  id: 'projelli-translator',
+  id: 'keepance-translator',
   name: 'Translator',
   version: '1.0.0',
   apiVersion: '1.0',
@@ -16,11 +16,11 @@ const VALID: PluginManifest = {
   description: 'Translate selected text using your AI provider',
   main: 'index.js',
   permissions: ['workspace:read', 'editor:selection', 'ai:invoke'],
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   category: 'writing',
   tags: ['translate', 'language', 'writing-tools'],
   screenshots: ['screenshot1.png'],
-  homepage: 'https://github.com/janedoe/projelli-translator',
+  homepage: 'https://github.com/janedoe/keepance-translator',
   license: 'MIT',
 };
 
@@ -29,7 +29,7 @@ describe('validatePluginManifest', () => {
     const res = validatePluginManifest(VALID);
     expect(res.ok).toBe(true);
     if (res.ok) {
-      expect(res.manifest.id).toBe('projelli-translator');
+      expect(res.manifest.id).toBe('keepance-translator');
       expect(res.manifest.permissions).toContain('ai:invoke');
       expect(res.manifest.main).toBe('index.js');
     }
@@ -45,7 +45,7 @@ describe('validatePluginManifest', () => {
       description: 'desc',
       main: 'index.js',
       permissions: [],
-      minProjelliVersion: '2.0.0',
+      minKeepanceVersion: '2.0.0',
       category: 'misc',
       tags: [],
     };
@@ -119,12 +119,12 @@ describe('validatePluginManifest', () => {
     }
   });
 
-  it('rejects a non-semver minProjelliVersion', () => {
-    const bad = { ...VALID, minProjelliVersion: 'two' };
+  it('rejects a non-semver minKeepanceVersion', () => {
+    const bad = { ...VALID, minKeepanceVersion: 'two' };
     const res = validatePluginManifest(bad);
     expect(res.ok).toBe(false);
     if (!res.ok) {
-      expect(res.errors.some((e) => e.includes('minProjelliVersion'))).toBe(true);
+      expect(res.errors.some((e) => e.includes('minKeepanceVersion'))).toBe(true);
     }
   });
 
@@ -167,39 +167,39 @@ describe('validatePluginManifest', () => {
   });
 });
 
-describe('checkMinProjelliVersion', () => {
+describe('checkMinKeepanceVersion', () => {
   it('returns null when current app version equals min', () => {
-    expect(checkMinProjelliVersion(VALID, '2.0.0')).toBeNull();
+    expect(checkMinKeepanceVersion(VALID, '2.0.0')).toBeNull();
   });
 
   it('returns null when current app version exceeds min', () => {
-    expect(checkMinProjelliVersion(VALID, '2.1.0')).toBeNull();
-    expect(checkMinProjelliVersion(VALID, '3.0.0')).toBeNull();
+    expect(checkMinKeepanceVersion(VALID, '2.1.0')).toBeNull();
+    expect(checkMinKeepanceVersion(VALID, '3.0.0')).toBeNull();
   });
 
-  it('returns an error string when manifest needs a future Projelli version', () => {
-    const futureManifest = { ...VALID, minProjelliVersion: '99.0.0' };
-    const err = checkMinProjelliVersion(futureManifest, '2.0.0');
+  it('returns an error string when manifest needs a future Keepance version', () => {
+    const futureManifest = { ...VALID, minKeepanceVersion: '99.0.0' };
+    const err = checkMinKeepanceVersion(futureManifest, '2.0.0');
     expect(err).not.toBeNull();
     expect(err).toContain('99.0.0');
     expect(err).toContain('2.0.0');
   });
 });
 
-describe('checkMaxProjelliVersion', () => {
+describe('checkMaxKeepanceVersion', () => {
   it('returns null when manifest has no max declared', () => {
-    expect(checkMaxProjelliVersion(VALID, '99.0.0')).toBeNull();
+    expect(checkMaxKeepanceVersion(VALID, '99.0.0')).toBeNull();
   });
 
   it('returns null when current is at or below max', () => {
-    const m = { ...VALID, maxProjelliVersion: '3.0.0' };
-    expect(checkMaxProjelliVersion(m, '2.5.0')).toBeNull();
-    expect(checkMaxProjelliVersion(m, '3.0.0')).toBeNull();
+    const m = { ...VALID, maxKeepanceVersion: '3.0.0' };
+    expect(checkMaxKeepanceVersion(m, '2.5.0')).toBeNull();
+    expect(checkMaxKeepanceVersion(m, '3.0.0')).toBeNull();
   });
 
   it('returns error when current exceeds max', () => {
-    const m = { ...VALID, maxProjelliVersion: '2.0.0' };
-    const err = checkMaxProjelliVersion(m, '3.0.0');
+    const m = { ...VALID, maxKeepanceVersion: '2.0.0' };
+    const err = checkMaxKeepanceVersion(m, '3.0.0');
     expect(err).not.toBeNull();
     expect(err).toContain('2.0.0');
     expect(err).toContain('3.0.0');

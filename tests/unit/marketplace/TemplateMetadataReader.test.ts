@@ -26,7 +26,7 @@ const VALID_MANIFEST: TemplateManifest = {
     { path: 'manifest.json', type: 'markdown' },
     { path: 'workflow.json', type: 'workflow-definition' },
   ],
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
 };
 
 const VALID_WORKFLOW = {
@@ -79,7 +79,7 @@ function makeInstalled(
     tags: [],
     installUrl: `http://e/${id}.tar.gz`,
     manifestUrl: `http://e/${id}/manifest.json`,
-    minProjelliVersion: '2.0.0',
+    minKeepanceVersion: '2.0.0',
     publishedAt: '2026-04-28',
     updatedAt: '2026-04-28',
     installedAt: '2026-05-03',
@@ -157,7 +157,7 @@ function makeServiceWithInstalled(
 
 describe('TemplateMetadataReader.readInstalled', () => {
   it('returns a valid WorkflowTemplate from manifest + workflow.json', async () => {
-    const path = '/ws/.projelli/templates/investor-update-v1';
+    const path = '/ws/.keepance/templates/investor-update-v1';
     const { fs } = fsForInstall(path, VALID_MANIFEST, VALID_WORKFLOW);
     const reader = new TemplateMetadataReader({ fs });
     const entry = makeInstalled('investor-update-v1', path);
@@ -174,7 +174,7 @@ describe('TemplateMetadataReader.readInstalled', () => {
   });
 
   it('falls back to manifest fields when workflow.json omits them', async () => {
-    const path = '/ws/.projelli/templates/min';
+    const path = '/ws/.keepance/templates/min';
     const minimalWorkflow = { steps: [] };
     const { fs } = fsForInstall(path, VALID_MANIFEST, minimalWorkflow);
     const reader = new TemplateMetadataReader({ fs });
@@ -188,7 +188,7 @@ describe('TemplateMetadataReader.readInstalled', () => {
   });
 
   it('coerces unknown category values to "custom"', async () => {
-    const path = '/ws/.projelli/templates/odd';
+    const path = '/ws/.keepance/templates/odd';
     const oddWorkflow = { ...VALID_WORKFLOW, category: 'something-else' };
     const { fs } = fsForInstall(path, VALID_MANIFEST, oddWorkflow);
     const reader = new TemplateMetadataReader({ fs });
@@ -200,7 +200,7 @@ describe('TemplateMetadataReader.readInstalled', () => {
   });
 
   it('injects questions.json into the first interview step when its question list is empty', async () => {
-    const path = '/ws/.projelli/templates/q';
+    const path = '/ws/.keepance/templates/q';
     const workflowWithEmptyInterview = {
       ...VALID_WORKFLOW,
       steps: [
@@ -237,7 +237,7 @@ describe('TemplateMetadataReader.readInstalled', () => {
   });
 
   it('throws when manifest is missing', async () => {
-    const path = '/ws/.projelli/templates/missing';
+    const path = '/ws/.keepance/templates/missing';
     const { fs } = makeFs({
       [`${path}/workflow.json`]: JSON.stringify(VALID_WORKFLOW),
     });
@@ -248,7 +248,7 @@ describe('TemplateMetadataReader.readInstalled', () => {
   });
 
   it('throws when workflow.json is missing', async () => {
-    const path = '/ws/.projelli/templates/no-workflow';
+    const path = '/ws/.keepance/templates/no-workflow';
     const { fs } = makeFs({
       [`${path}/manifest.json`]: JSON.stringify(VALID_MANIFEST),
     });
@@ -259,7 +259,7 @@ describe('TemplateMetadataReader.readInstalled', () => {
   });
 
   it('throws when manifest fails Zod validation', async () => {
-    const path = '/ws/.projelli/templates/corrupt';
+    const path = '/ws/.keepance/templates/corrupt';
     const corrupt = { id: 'corrupt' }; // missing every other required field
     const { fs } = fsForInstall(path, corrupt, VALID_WORKFLOW);
     const reader = new TemplateMetadataReader({ fs });
@@ -281,8 +281,8 @@ describe('TemplateMetadataReader.list', () => {
   });
 
   it('iterates and returns each successfully read template', async () => {
-    const pathA = '/ws/.projelli/templates/a';
-    const pathB = '/ws/.projelli/templates/b';
+    const pathA = '/ws/.keepance/templates/a';
+    const pathB = '/ws/.keepance/templates/b';
     const files: Record<string, string> = {
       [`${pathA}/manifest.json`]: JSON.stringify({ ...VALID_MANIFEST, id: 'a' }),
       [`${pathA}/workflow.json`]: JSON.stringify(VALID_WORKFLOW),
@@ -303,8 +303,8 @@ describe('TemplateMetadataReader.list', () => {
   });
 
   it('skips entries whose workflow.json is missing and audits the failure', async () => {
-    const goodPath = '/ws/.projelli/templates/good';
-    const badPath = '/ws/.projelli/templates/bad';
+    const goodPath = '/ws/.keepance/templates/good';
+    const badPath = '/ws/.keepance/templates/bad';
     const files: Record<string, string> = {
       [`${goodPath}/manifest.json`]: JSON.stringify(VALID_MANIFEST),
       [`${goodPath}/workflow.json`]: JSON.stringify(VALID_WORKFLOW),
@@ -331,8 +331,8 @@ describe('TemplateMetadataReader.list', () => {
   });
 
   it('skips entries with corrupt manifests and audits the failure', async () => {
-    const goodPath = '/ws/.projelli/templates/g';
-    const corruptPath = '/ws/.projelli/templates/c';
+    const goodPath = '/ws/.keepance/templates/g';
+    const corruptPath = '/ws/.keepance/templates/c';
     const files: Record<string, string> = {
       [`${goodPath}/manifest.json`]: JSON.stringify(VALID_MANIFEST),
       [`${goodPath}/workflow.json`]: JSON.stringify(VALID_WORKFLOW),
@@ -368,9 +368,9 @@ describe('TemplateMetadataReader.list', () => {
   });
 
   it('does not stop iteration when one entry fails', async () => {
-    const okA = '/ws/.projelli/templates/ok-a';
-    const broken = '/ws/.projelli/templates/broken';
-    const okB = '/ws/.projelli/templates/ok-b';
+    const okA = '/ws/.keepance/templates/ok-a';
+    const broken = '/ws/.keepance/templates/broken';
+    const okB = '/ws/.keepance/templates/ok-b';
     const files: Record<string, string> = {
       [`${okA}/manifest.json`]: JSON.stringify({ ...VALID_MANIFEST, id: 'ok-a' }),
       [`${okA}/workflow.json`]: JSON.stringify(VALID_WORKFLOW),

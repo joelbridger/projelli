@@ -1,4 +1,93 @@
-# Projelli Backlog
+# Keepance Backlog
+*(formerly Keepance — renamed 2026-05-27)*
+
+---
+
+## Pivot — 2026-05-27
+
+### PIVOT-01 — Name and domain — DONE
+Renamed product to Keepance. keepance.com registered. keepance.so registered (defensive).
+
+### PIVOT-02 — Business plan locked — DONE
+KEEPANCE_BUSINESS_PLAN.md updated with 2026-05-27 board entry locking name, positioning, ICP, pricing, template strategy.
+
+### PIVOT-03 — Pre-pivot codebase snapshot — DONE
+Git tag `pre-pivot-indie-founder-2026-05-27` on commit `5117b64`. Archive at `~/keepance-backups/keepance-indie-founder-complete-2026-05-27.tar.gz` (446 MB).
+
+### PIVOT-04 — keepance.com site live — DONE
+Production site deployed to `/var/www/keepance.com/`. Caddy config updated: keepance.com served, keepance.com → keepance.com (301 permanent). Source at `~/keepance/website-keepance/`. Deploy script: `~/keepance/infra/deploy-keepance.sh`.
+
+### PIVOT-05 — Legal advisor outreach — TODO (Jameson sends)
+Outreach templates ready at `docs/marketing/campaigns/2026-legal-launch/ADVISOR_OUTREACH_ATTORNEY.md` (warm + cold versions). Patent attorney outreach at `ADVISOR_OUTREACH_PATENT_ATTORNEY.md`. Site is live. Send now.
+
+### PIVOT-06 — Old marketing arsenal archived — DONE (2026-05-27)
+Moved to `docs/marketing/archive/2026-indie-founder-positioning/`. New campaign folders created: `docs/marketing/campaigns/2026-legal-launch/`, `2026-tax-q4/`, `2026-consulting/`.
+
+### PIVOT-07 — App internals renamed (Tauri / package.json) — TODO
+Update `tauri.conf.json` (productName, identifier), `package.json` (name), about screen, window title bar, installer names. Requires new code-signed build. Non-urgent — user-visible strings are clean; this is installer/system-level naming.
+Note: grep confirmed no `projelli` references remain in `package.json` or `src-tauri/`. Remaining work is likely in `tauri.conf.json` fields (productName, identifier) and installer bundle name — low urgency, affects system-level install path and About screen only.
+
+### PIVOT-08 — Legal Practice pack templates (v2.1) — DONE (drafts complete 2026-05-28)
+7 draft templates at `src/modules/workflow/templates/legal/`. All marked `@draft` pending advisor review.
+Wired into `allWorkflows` registry. Blocked from production deploy by: PIVOT-05 (advisor recruited + review).
+7 templates: Deposition Contradiction Finder, Evidence Gap Analyzer, Case Timeline Builder, Privilege Log Drafter, Discovery Document Triage, Patent Disclosure Draft, Client Intake Synthesizer.
+
+### PIVOT-08b — keepance.com/legal-practice/ landing page — DONE (2026-05-28)
+`website/legal-practice/index.html` complete. ABA Opinion 512 cited. Heppner citation VERIFIED and added (2026-05-28): *United States v. Heppner*, No. 1:25-cr-00503-JSR (S.D.N.Y. Feb. 17, 2026), with Kovel-theory framing.
+Deploy gate: PIVOT-11 (LemonSqueezy pricing). Citation gate cleared.
+
+### PIVOT-09 — Tax Practice pack templates (v2.2) — DONE (drafts complete 2026-05-28)
+7 draft templates at `src/modules/workflow/templates/tax/`. All marked `@draft` pending advisor review.
+Wired into `allWorkflows` registry. Landing page at `website/tax-practice/index.html`.
+Blocked from production deploy by: CPA/EA advisor recruited + §7216 framing reviewed (PIVOT-12).
+7 templates: Engagement Letter Builder, Pre-Review Checklist, §7216 Consent Template, Tax Research Memo, Client Document Inventory, Audit Defense File Builder, Quarterly Estimate Reminder.
+Outreach ready at `docs/marketing/campaigns/2026-tax-q4/ADVISOR_OUTREACH_CPA.md`.
+
+### PIVOT-10 — Consulting Practice pack templates (v2.3) — DONE (drafts complete 2026-05-28)
+5 draft templates at `src/modules/workflow/templates/consulting/`. No statutory claims; consultant read recommended.
+Wired into `allWorkflows` registry. Landing page at `website/consulting-practice/index.html`.
+5 templates: Client Discovery Synthesizer, Confidential Research Memo, Stakeholder Map Generator, NDA-Safe Slide Outliner, Engagement Retrospective Builder.
+Campaign folder at `docs/marketing/campaigns/2026-consulting/`.
+
+### PIVOT-11 — LemonSqueezy pricing updated — TODO (Jameson's hands)
+Retire $29 Founder's Launch. Add: Personal $49, Professional $129 (charter $89/first 100), Practice $399.
+Wire checkout URLs into `/legal-practice/`, `/tax-practice/`, `/consulting-practice/` CTA buttons (currently `href="#"` placeholders).
+Browser-only task in LemonSqueezy dashboard.
+
+### PIVOT-12 — Citation verification — PARTIALLY DONE (2026-05-28)
+- [x] **Heppner** — VERIFIED: *United States v. Heppner*, No. 1:25-cr-00503-JSR (S.D.N.Y. Feb. 17, 2026). All campaign docs and landing pages updated. Cleared for marketing copy.
+- [x] **ABA Formal Opinion 512** — Confirmed real. Framing corrected: removed "specifically designed to satisfy" overclaim; replaced with accurate language about removing Keepance from the data path.
+- [x] **§7216 / §6713 framing** — Updated across all copy: civil §6713 (strict liability, $250/disclosure, no intent) now leads; criminal §7216 is reinforcing context. Cleared without advisor needed for this framing.
+- [x] **Circular 230 §§10.35-10.37** — Stale "covered opinions" parenthetical corrected. Current names: §10.35 = Competence, §10.36 = Procedures, §10.37 = Written Advice (post T.D. 9668, 2014).
+- [ ] **EU absolute-novelty framing** — Still requires patent attorney review before Patent Disclosure Draft template ships. Blocked: PIVOT-05 (patent attorney advisor).
+- [ ] **Attorney advisor gut-check on Heppner marketing language** — One bar-active read to confirm our specific framing accurately characterizes dicta vs. holding. Blocked: PIVOT-05.
+
+### PIVOT-13 — In-app copy fully profession-neutral — DONE (2026-05-28)
+All user-facing founder strings removed: components, locale files (en/de/es), workflow template prompts, onboarding wizard, sample workspace files. General templates (WeeklyReview, BoardMeeting, FinancialModel, etc.) rewritten with professional-practice placeholder text.
+
+### PIVOT-14 — ABA TECHSHOW speaker submission — TODO (September 2026)
+Submission template ready at `docs/marketing/campaigns/2026-legal-launch/ABA_TECHSHOW_PITCH.md`. Requires: (1) attorney co-presenter recruited (PIVOT-05). Heppner citation gate cleared (PIVOT-12). Submission window opens ~September 2026.
+
+### PIVOT-15 — First-run profession picker — DONE (2026-05-28)
+Profession step added to `FirstRunWizard.tsx` between welcome and workspace. Four cards: Legal, Tax, Consulting, Other. Selection stored in `localStorage` as `keepance_profession`. Helper `getOnboardingProfession()` exported for template pre-installation logic.
+
+### PIVOT-16 — Template pre-installation from profession picker — TODO
+Wire `getOnboardingProfession()` into workspace initialization: when a user selects a profession during onboarding, pre-populate their `.keepance/templates/` folder with the relevant pack's template shortcuts. Blocked by: PIVOT-08/09/10 advisor reviews (templates must be production-ready before pre-installing).
+
+### PIVOT-17 — Deploy updated website — DONE (2026-05-28)
+Deployed via `~/keepance/infra/deploy.sh --skip-demo`. All three vertical landing pages live. Old Projelli blog/nav files deleted. Cloudflare cache purged. Permission fix applied: `sudo find /var/www/keepance.com -type d -exec chmod g+w {} \;` (was root-owned 755; now group-writable for future sudo-free deploys).
+Note: CTA buttons on vertical pages are still `href="#"` — live but non-functional until PIVOT-11 (LemonSqueezy) is done.
+
+### PIVOT-18 — Above the Law pitch — DONE (2026-05-28)
+`docs/marketing/campaigns/2026-legal-launch/ABOVE_THE_LAW_PITCH.md` — editorial pitch to Kathryn Rubino/Joe Patrice + sponsored content option. Ready to send after Legal pack ships.
+
+### PIVOT-19 — Bob Ambrogi (LawSites) pitch — DONE (2026-05-28)
+`docs/marketing/campaigns/2026-legal-launch/BOB_AMBROGI_LAWSITES_PITCH.md` — cold email (~175 words) + extended product review brief (~300 words). Send after Legal pack ships and v2.1 is tagged. Bob Ambrogi is the highest-credibility solo/small-firm legal tech journalist; a LawSites mention is worth more than most paid placements.
+
+### PIVOT-20 — Template pre-installation research action plan — DONE (2026-05-28)
+`docs/strategy/RESEARCH_ACTION_PLAN.md` written. Three AI research reports ingested; plan produced covering template redesigns, marketing copy corrections, and the minimal human-verification list (5 items).
+
+---
 
 > **🚀 LAUNCH STATUS (2026-04-27):** v1.6.0 is the first commercial release.
 > Public, signed, notarized, license-activated, end-to-end paid loop verified
@@ -7,7 +96,7 @@
 > session record and the rc.5 → rc.17 → v1.6.0 fix arc.
 >
 > **Last updated:** 2026-04-27 (post-launch).
-> **Plan:** See `PROJELLI_BUSINESS_PLAN.md` for the full 8-week roadmap and reasoning behind each ticket.
+> **Plan:** See `KEEPANCE_BUSINESS_PLAN.md` for the full 8-week roadmap and reasoning behind each ticket.
 > **How to use:** Tickets are organized by week of the launch roadmap. Within each week, work top to bottom. Use status `TODO` / `IN PROGRESS` / `DONE` / `BLOCKED`. When something is `BLOCKED`, name what's blocking it.
 >
 > **What's next post-launch:** marketing push (PH/HN/IH per `docs/marketing/`),
@@ -32,20 +121,20 @@ Mirror jameworld layout: `docs/reference/`, `docs/operations/`, `docs/quality/`,
 **Done — root reduced from 13 .md files to 3 (CHANGELOG, CLAUDE, BUSINESS_PLAN).**
 
 ### W1-04 — Sync `website/index.html` with live + create `infra/deploy.sh` — DONE
-Live `/var/www/projelli.com/index.html` is canonical. Pulled into repo. Deploy script created.
+Live `/var/www/keepance.com/index.html` is canonical. Pulled into repo. Deploy script created.
 
 ### W1-05 — Draft GitHub Actions release workflow — DONE
 `.github/workflows/release.yml` builds Tauri installers for Win/Mac/Linux on git tag.
 Won't actually run until pushed and a tag is created.
 
 ### W1-06 — Write a real `README.md` — TODO
-Public-facing repo intro. What is Projelli, install, dev setup, link to business plan.
+Public-facing repo intro. What is Keepance, install, dev setup, link to business plan.
 
-### W1-07 — Push everything to `projelli/projelli` — DONE
-Pushed 3 commits (`8bfa637`, `fa80df4`, `069c6e5`) to `joelbridger/projelli`, then transferred the repo to the new `projelli` org. Old URLs auto-redirect.
+### W1-07 — Push everything to `keepance/keepance` — DONE
+Pushed 3 commits (`8bfa637`, `fa80df4`, `069c6e5`) to `joelbridger/keepance`, then transferred the repo to the new `keepance` org. Old URLs auto-redirect.
 
 ### W1-08 — Resolve push credentials — DONE
-Authenticated `gh` CLI as joelbridger account on the server. Both joelbridger and scottdaly accounts now coexist in `~/.config/gh/hosts.yml`. joelbridger has admin access on the (now transferred) `projelli/projelli` repo via org ownership.
+Authenticated `gh` CLI as joelbridger account on the server. Both joelbridger and scottdaly accounts now coexist in `~/.config/gh/hosts.yml`. joelbridger has admin access on the (now transferred) `keepance/keepance` repo via org ownership.
 
 ### W1-09 — Write minimum-viable legal docs — DONE
 _Privacy, Terms, EULA written and live at /legal/{privacy,terms,eula}.html. Customized for local-first BYOK paid software, US (Texas) jurisdiction, 14-day refund._
@@ -60,8 +149,8 @@ Three separate Markdown pages served from the live site.
 - `website/docs/api-keys.html` — how to get a Claude/OpenAI/Gemini key, where to paste, how it's stored
 - `website/docs/faq.html` — common questions, privacy, billing, refund policy
 
-### W1-11 — Set up `support@projelli.com` — DONE
-_Brevo registered projelli.com sender, DNS configured (DKIM + SPF + DMARC), CF Email Routing enabled with catch-all → jamesondaines@outlook.com. Brevo verified the domain. noreply@projelli.com sender created._
+### W1-11 — Set up `support@keepance.com` — DONE
+_Brevo registered keepance.com sender, DNS configured (DKIM + SPF + DMARC), CF Email Routing enabled with catch-all → jamesondaines@outlook.com. Brevo verified the domain. noreply@keepance.com sender created._
 Same pattern as the other 4 sites: CF Email Routing inbound → `jamesondaines@outlook.com`, Brevo outbound for any automated mail. See `~/.claude/projects/-home-jameson/memory/project_email_architecture.md`.
 
 ### W1-12 — Replace footer placeholder `#` links — DONE
@@ -70,26 +159,26 @@ The live homepage footer has 8 placeholder links (Documentation, Getting Started
 
 ### W1-13 — Update Plausible goals — TODO
 _Plausible goals (Download click, GitHub click, Buy click) — requires browser access to dashboard. Punted to next session._
-Add conversion goals to the Plausible dashboard for projelli.com:
+Add conversion goals to the Plausible dashboard for keepance.com:
 - `Download click` (anyone who clicks a download CTA)
 - `GitHub click`
 - `Buy click` (later, when Buy button exists)
 
 ### W1-14 — Run trademark search — DONE
 _USPTO TESS + Google searches show no conflicts. Documented in docs/reference/TRADEMARK_SEARCH.md. Formal filing deferred to month 2 of revenue._
-USPTO TESS search for "projelli" in classes 9 + 42. Google search for any conflicts. Free, ~30 minutes. Document results in `docs/reference/TRADEMARK_SEARCH.md`. If clean → defer filing to Month 2 of revenue.
+USPTO TESS search for "keepance" in classes 9 + 42. Google search for any conflicts. Free, ~30 minutes. Document results in `docs/reference/TRADEMARK_SEARCH.md`. If clean → defer filing to Month 2 of revenue.
 
 ### W1-15 — Update CLAUDE.md for current state — DONE
-_CLAUDE.md prelude rewritten to point at PROJELLI_BUSINESS_PLAN.md and document the new file layout. Flags Jameson as non-developer._
+_CLAUDE.md prelude rewritten to point at KEEPANCE_BUSINESS_PLAN.md and document the new file layout. Flags Jameson as non-developer._
 The repo's `CLAUDE.md` was written during the v1 dev phase. Update to reflect:
-- Server-resident, canonical at `~/projelli/`
-- Linked to `PROJELLI_BUSINESS_PLAN.md` as the operating contract
+- Server-resident, canonical at `~/keepance/`
+- Linked to `KEEPANCE_BUSINESS_PLAN.md` as the operating contract
 - Pointers to key files and the new `docs/` layout
 - Note that Jameson is not a developer — explain things in plain language
 
-### W1-16 — Set up `projelli` org profile — DONE
-_Org metadata set via API: description, blog (projelli.com), email (support@projelli.com). Profile README at github.com/projelli/.github/profile/README.md._
-Add a bio, logo (the pink-bean Projelli logo), website link, and a public profile README at `github.com/projelli/.github`. README should explain what Projelli is, who built it (Jameson Daines), and link to projelli.com. ~10 min.
+### W1-16 — Set up `keepance` org profile — DONE
+_Org metadata set via API: description, blog (keepance.com), email (support@keepance.com). Profile README at github.com/keepance/.github/profile/README.md._
+Add a bio, logo (the pink-bean Keepance logo), website link, and a public profile README at `github.com/keepance/.github`. README should explain what Keepance is, who built it (Jameson Daines), and link to keepance.com. ~10 min.
 
 ---
 
@@ -142,19 +231,19 @@ Replace the fake "D&D / hobby / gaming" templates with the real 15 founder-focus
 ## Week 4 — Monetization
 
 ### W4-01 — Set up LemonSqueezy account + product — TODO (Jameson action required)
-Sign up at lemonsqueezy.com. Create a Projelli store. Create 3 products:
+Sign up at lemonsqueezy.com. Create a Keepance store. Create 3 products:
 - Pro: $49 one-time
 - Lifetime: $99 one-time
 - Founder's Launch: $29 one-time, capped at 100 sales (use LS's quantity limit feature)
 
 ### W4-02 — Build license validation Bun service — DONE
-_license-validator Bun service at ~/services/license-validator/. Live at https://licenses.projelli.com (CF tunnel → Caddy → 127.0.0.1:5181). Ed25519 keys auto-generated. Awaiting LEMONSQUEEZY_API_KEY in /etc/license-validator.env (set when account exists)._
+_license-validator Bun service at ~/services/license-validator/. Live at https://licenses.keepance.com (CF tunnel → Caddy → 127.0.0.1:5181). Ed25519 keys auto-generated. Awaiting LEMONSQUEEZY_API_KEY in /etc/license-validator.env (set when account exists)._
 New service at `~/services/license-validator/`, mirroring `~/services/form-handler/` pattern.
 - `POST /activate` — validates LemonSqueezy key, returns signed JWT
 - `POST /validate` — verifies existing JWT
 - `POST /webhook` — handles LS webhooks for revocation
 - Systemd unit at `/etc/systemd/system/license-validator.service`
-- Caddy reverse proxy: `licenses.projelli.com` → `127.0.0.1:5181`
+- Caddy reverse proxy: `licenses.keepance.com` → `127.0.0.1:5181`
 - Cloudflare DNS + tunnel ingress
 
 ### W4-03 — Generate Ed25519 signing keys — DONE
@@ -209,10 +298,10 @@ When the app opens with no workspace, show a wizard:
 - Step 1: Pick a starter workspace location
 - Step 2: Paste a Claude API key (with a "skip for now" link)
 - Step 3: Run the New Business Kickoff workflow on a sample idea
-- Step 4: Show the resulting files with a "this is what Projelli does" callout
+- Step 4: Show the resulting files with a "this is what Keepance does" callout
 
 ### W5-05 — Add email list signup to homepage — DONE
-_Email signup form on the homepage hero. Wires to /api/forms/projelli/email-list via form-handler service. Brevo email notifications working. Sign-ups stored at ~/projelli/sign-ups/ (gitignored)._
+_Email signup form on the homepage hero. Wires to /api/forms/keepance/email-list via form-handler service. Brevo email notifications working. Sign-ups stored at ~/keepance/sign-ups/ (gitignored)._
 Use Brevo or Listmonk. Capture name + email. One-tap unsubscribe. Privacy-respecting.
 
 ### W5-06 — Soft launch on X founder Twitter — TODO
@@ -229,10 +318,10 @@ Wheel Health network, friends, IndieHackers DMs. Gift them a free Lifetime licen
 Tuesday or Wednesday morning PT. Find an established PH user to "hunt" us (better algorithm signal). Prep: tagline, gallery, demo video, first comment, FAQ in comments.
 
 ### W6-02 — Show HN post — TODO
-Same day as PH. Title: "Show HN: Projelli – Local-first AI workspace where every chat becomes a real file". Be present in comments all day.
+Same day as PH. Title: "Show HN: Keepance – Local-first AI workspace where every chat becomes a real file". Be present in comments all day.
 
 ### W6-03 — Email the list — TODO
-Single launch email with the Founder's Launch $29 lifetime offer. Subject: "It's live: Projelli is shipping today (and the first 100 buyers get lifetime for $29)"
+Single launch email with the Founder's Launch $29 lifetime offer. Subject: "It's live: Keepance is shipping today (and the first 100 buyers get lifetime for $29)"
 
 ### W6-04 — All-hands support day — TODO
 Reply to every PH comment within 30 minutes. Reply to every HN comment in real time. Reply to every email within 1 hour. The launch is the engagement.
@@ -248,7 +337,7 @@ Monitor: PH ranking, HN points, traffic via Plausible, conversions via LemonSque
 Position vs Notion AI, Obsidian Copilot, Reflect, Tana. Add screenshots, video, real comparison points.
 
 ### W7-02 — IndieHackers post — TODO
-Narrative format: "I built and launched Projelli in 8 weeks — here's what happened". Include real revenue numbers from Week 6. Drive to the product page.
+Narrative format: "I built and launched Keepance in 8 weeks — here's what happened". Include real revenue numbers from Week 6. Drive to the product page.
 
 ### W7-03 — Reddit launches — TODO
 Posts to: r/SideProject (Sunday Show & Tell), r/Entrepreneur, r/ChatGPTPro, r/LocalLLaMA, r/SaaS. Each post tailored to the subreddit.
@@ -297,7 +386,7 @@ A second Claude session ran in parallel with the engineering work and produced t
 ### Web pages (in `website/`)
 - **W5-08** Press kit web page — `website/press-kit/index.html` — DONE (logo files, screenshot slots, founder bio, fact sheet, brand colors)
 - **W7-10** Blog directory + 3 posts — `website/blog/` — DONE
-  - `how-i-built-projelli-in-8-weeks.html` (12 min read, the 8-week launch story) — **DRAFT ONLY: do NOT publish until after launch day when placeholders can be filled with real numbers**
+  - `how-i-built-keepance-in-8-weeks.html` (12 min read, the 8-week launch story) — **DRAFT ONLY: do NOT publish until after launch day when placeholders can be filled with real numbers**
   - `why-local-first-ai-for-founders.html` (9 min read, the local-first case)
   - `picking-the-15-founder-templates.html` (10 min read, template selection criteria)
 
@@ -307,7 +396,7 @@ A second Claude session ran in parallel with the engineering work and produced t
 - **C.** Recruit 10-20 beta testers via warm and cold DMs
 - **D.** Take 6 product screenshots on Windows
 - **E.** Record 30-second demo video
-- **F.** Decide personal vs brand X account for Projelli content
+- **F.** Decide personal vs brand X account for Keepance content
 - **G.** Set up 3 Plausible conversion goals (5 min, browser only)
 - **H.** Post 5 build-in-public tweets to start the launch ramp
 
@@ -328,10 +417,10 @@ A second Claude session ran in parallel with the engineering work and produced t
 - LLC or sole proprietorship registration ($50-$200) — once revenue clears $1K/mo
 - Content marketing engine (weekly blog posts, SEO targeting)
 - Affiliate program via LemonSqueezy
-- "Projelli Teams" v2 product exploration
-- Optional: open-source "Projelli Lite" version as a marketing funnel
+- "Keepance Teams" v2 product exploration
+- Optional: open-source "Keepance Lite" version as a marketing funnel
 - Public roadmap on the website
-- Status page (uptimerobot already monitors projelli.com)
+- Status page (uptimerobot already monitors keepance.com)
 
 ---
 

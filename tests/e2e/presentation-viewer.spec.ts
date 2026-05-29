@@ -110,7 +110,7 @@ test.describe('PowerPoint Viewer (Phase 6)', () => {
 
     // Browser branch: no install message, no loading spinner visible after
     // mount, just a Download File button.
-    await expect(viewer).toContainText('only available in the Projelli desktop app');
+    await expect(viewer).toContainText('only available in the Keepance desktop app');
     await expect(page.getByTestId('presentation-install-libreoffice')).toHaveCount(0);
 
     const download = page.getByRole('button', { name: 'Download File' });

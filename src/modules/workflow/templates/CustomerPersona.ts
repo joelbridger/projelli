@@ -1,5 +1,5 @@
-// Customer Persona Workflow Template
-// Helps founders define their ideal customer profiles
+// Client Persona Workflow Template
+// Helps professionals define their ideal client profiles
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 
@@ -14,11 +14,11 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
   {
     id: 'currentCustomers',
-    question: 'Describe your best customers (or ideal customers if pre-launch)',
+    question: 'Describe your best customers (or ideal clients if pre-launch)',
     description: 'Who gets the most value from your product?',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Content marketing managers at B2B SaaS companies who publish 10+ blog posts per month',
+    placeholder: 'e.g., Small business owners who need outside legal or accounting help but can\'t afford a large firm; or independent consultants managing multiple client engagements',
   },
   {
     id: 'customerPains',
@@ -62,7 +62,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
 ];
 
-const personaDocPrompt = `You are helping a solo founder create detailed customer personas.
+const personaDocPrompt = `You are helping a professional create detailed client personas.
 
 Based on the following information:
 
@@ -74,7 +74,7 @@ Based on the following information:
 **Objections:** {{objections}}
 **Demographics:** {{demographics}}
 
-Generate 2-3 detailed Customer Persona documents in Markdown format.
+Generate 2-3 detailed Client Persona documents in Markdown format.
 
 For EACH persona, include:
 
@@ -132,7 +132,7 @@ For EACH persona, include:
 
 Differentiate each persona clearly. They should represent distinct segments of your target market.`;
 
-const icpSummaryPrompt = `You are helping a solo founder create an Ideal Customer Profile (ICP) summary.
+const icpSummaryPrompt = `You are helping a professional create an Ideal Customer Profile (ICP) summary.
 
 Based on the customer research:
 
@@ -147,7 +147,7 @@ Generate an ICP Summary document in Markdown format:
 # Ideal Customer Profile (ICP)
 
 ## Executive Summary
-[2 paragraph overview of who your ideal customer is]
+[2 paragraph overview of who your ideal client is]
 
 ## ICP Definition
 
@@ -209,8 +209,8 @@ Generate an ICP Summary document in Markdown format:
 
 export const CustomerPersona: WorkflowTemplate = {
   id: 'customer-persona',
-  name: 'Customer Persona Builder',
-  description: 'Create detailed customer personas and an Ideal Customer Profile (ICP) for targeting and messaging.',
+  name: 'Client Persona Builder',
+  description: 'Create detailed client personas and an Ideal Customer Profile (ICP) for targeting and messaging.',
   version: '1.0.0',
   category: 'research',
   steps: [
@@ -218,7 +218,7 @@ export const CustomerPersona: WorkflowTemplate = {
       id: 'interview',
       type: 'interview',
       name: 'Customer Research Interview',
-      description: 'Gather information about your target customers',
+      description: 'Gather information about your target clients',
       config: {
         questions: interviewQuestions,
       } as InterviewStepConfig,
@@ -226,12 +226,12 @@ export const CustomerPersona: WorkflowTemplate = {
     {
       id: 'generate-personas',
       type: 'generate',
-      name: 'Generate Customer Personas',
+      name: 'Generate Client Personas',
       description: 'Create detailed persona profiles',
       config: {
         outputFile: 'CUSTOMER_PERSONAS.md',
         promptTemplate: personaDocPrompt,
-        systemPrompt: 'You are a customer research expert helping founders deeply understand their target customers. Be specific and use realistic details.',
+        systemPrompt: 'You are a customer research expert helping professionals deeply understand their target clients. Be specific and use realistic details.',
       } as GenerateStepConfig,
     },
     {
@@ -242,7 +242,7 @@ export const CustomerPersona: WorkflowTemplate = {
       config: {
         outputFile: 'ICP_SUMMARY.md',
         promptTemplate: icpSummaryPrompt,
-        systemPrompt: 'You are a sales and marketing strategist helping founders focus on the right customers. Be practical and actionable.',
+        systemPrompt: 'You are a sales and marketing strategist helping professionals focus on the right customers. Be practical and actionable.',
       } as GenerateStepConfig,
     },
   ],

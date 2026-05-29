@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   validateTemplateManifest,
-  checkMinProjelliVersion,
+  checkMinKeepanceVersion,
   compareSemver,
 } from '@/modules/marketplace/manifestValidator';
 import type { TemplateManifest } from '@/types/templateManifest';
@@ -21,7 +21,7 @@ const VALID: TemplateManifest = {
     { path: 'questions.json', type: 'interview-questions' },
     { path: 'workflow.json', type: 'workflow-definition' },
   ],
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
 };
 
 describe('validateTemplateManifest', () => {
@@ -45,7 +45,7 @@ describe('validateTemplateManifest', () => {
       category: 'misc',
       tags: [],
       files: [{ path: 'template.md', type: 'markdown' }],
-      minProjelliVersion: '2.0.0',
+      minKeepanceVersion: '2.0.0',
     };
     const res = validateTemplateManifest(minimal);
     expect(res.ok).toBe(true);
@@ -113,19 +113,19 @@ describe('validateTemplateManifest', () => {
   });
 });
 
-describe('checkMinProjelliVersion', () => {
+describe('checkMinKeepanceVersion', () => {
   it('returns null when current app version equals min', () => {
-    expect(checkMinProjelliVersion(VALID, '2.0.0')).toBeNull();
+    expect(checkMinKeepanceVersion(VALID, '2.0.0')).toBeNull();
   });
 
   it('returns null when current app version exceeds min', () => {
-    expect(checkMinProjelliVersion(VALID, '2.1.0')).toBeNull();
-    expect(checkMinProjelliVersion(VALID, '3.0.0')).toBeNull();
+    expect(checkMinKeepanceVersion(VALID, '2.1.0')).toBeNull();
+    expect(checkMinKeepanceVersion(VALID, '3.0.0')).toBeNull();
   });
 
-  it('returns an error string when manifest needs a future Projelli version', () => {
-    const futureManifest = { ...VALID, minProjelliVersion: '99.0.0' };
-    const err = checkMinProjelliVersion(futureManifest, '2.0.0');
+  it('returns an error string when manifest needs a future Keepance version', () => {
+    const futureManifest = { ...VALID, minKeepanceVersion: '99.0.0' };
+    const err = checkMinKeepanceVersion(futureManifest, '2.0.0');
     expect(err).not.toBeNull();
     expect(err).toContain('99.0.0');
     expect(err).toContain('2.0.0');

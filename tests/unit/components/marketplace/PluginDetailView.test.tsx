@@ -68,7 +68,7 @@ const ENTRY: CatalogEntry = {
   ],
   installUrl: 'https://example.test/word-counter.tar.gz',
   manifestUrl: 'https://example.test/word-counter.manifest.json',
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
 };
@@ -85,7 +85,7 @@ function makeManifest(
     description: 'Counts words in your editor in real time.',
     main: 'index.js',
     permissions: ['editor:selection'],
-    minProjelliVersion: '2.0.0',
+    minKeepanceVersion: '2.0.0',
     category: 'utility',
     tags: ['editor', 'counter'],
     ...overrides,
@@ -97,7 +97,7 @@ function makeInstalled(version: string): InstalledEntry {
     ...ENTRY,
     version,
     installedAt: '2026-04-28T00:00:00.000Z',
-    installedPath: '/ws/.projelli/plugins/word-counter',
+    installedPath: '/ws/.keepance/plugins/word-counter',
     provenance: 'community',
     manifestVersion: '1',
   };
@@ -110,7 +110,7 @@ function makeInstance(
   return {
     manifest,
     status,
-    installPath: '/ws/.projelli/plugins/word-counter',
+    installPath: '/ws/.keepance/plugins/word-counter',
     lastError: status === 'crashed' ? 'kaboom' : null,
     installedAt: '2026-04-28T00:00:00.000Z',
     enabledAt: status === 'enabled' ? '2026-04-28T00:00:01.000Z' : null,
@@ -414,7 +414,7 @@ describe('PluginDetailView - install flow', () => {
       expect.objectContaining({ onProgress: expect.any(Function) }),
     );
     expect(manager.installFromTarball).toHaveBeenCalledWith(
-      '/ws/.projelli/plugins/word-counter',
+      '/ws/.keepance/plugins/word-counter',
       expect.objectContaining({ onConsent: expect.any(Function) }),
     );
     await waitFor(() =>

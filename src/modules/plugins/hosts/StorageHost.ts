@@ -1,7 +1,7 @@
 // Plugin runner — Storage host adapter.
 //
 // Per-plugin key-value store backed by `localStorage`. Keys are namespaced
-// `projelli:plugin:<pluginId>:<userKey>` so plugins can never read or
+// `keepance:plugin:<pluginId>:<userKey>` so plugins can never read or
 // overwrite each other's data, and so a `clearForPlugin(pluginId)` sweep on
 // uninstall can remove every entry deterministically.
 //
@@ -22,7 +22,7 @@
 
 import type { PluginApiDispatchCall } from '../PluginAPIBridge';
 
-const KEY_PREFIX = 'projelli:plugin:';
+const KEY_PREFIX = 'keepance:plugin:';
 const SETTINGS_SUBPREFIX = 'settings:';
 
 /**

@@ -3,7 +3,7 @@
  *
  * One-time seeder that pre-populates the demo workspace with a curated set of
  * notes, chats, source cards, and template descriptions. Runs at most once per
- * browser; the `__projelli_demo_seeded` localStorage key gates re-runs across
+ * browser; the `__keepance_demo_seeded` localStorage key gates re-runs across
  * page reloads.
  *
  * The desktop app never imports this module: the demo entry point in
@@ -20,8 +20,8 @@
 import sampleWorkspace from './sample-workspace.json';
 import { WebFSBackend } from '@/modules/workspace/WebFSBackend';
 
-const SEED_FLAG_KEY = '__projelli_demo_seeded';
-const SEED_VERSION_KEY = '__projelli_demo_seed_version';
+const SEED_FLAG_KEY = '__keepance_demo_seeded';
+const SEED_VERSION_KEY = '__keepance_demo_seed_version';
 
 interface SampleFile {
   path: string;
@@ -63,7 +63,7 @@ export async function seedWebDemoWorkspace(): Promise<{
 
   let demoDir: FileSystemDirectoryHandle;
   try {
-    demoDir = await opfsRoot.getDirectoryHandle('projelli-demo', { create: true });
+    demoDir = await opfsRoot.getDirectoryHandle('keepance-demo', { create: true });
   } catch (err) {
     console.warn('[WebDemoSeeder] failed to create demo directory', err);
     return { backend: null, seeded: false, reason: 'opfs-mkdir-failed' };
@@ -71,7 +71,7 @@ export async function seedWebDemoWorkspace(): Promise<{
 
   const backend = new WebFSBackend();
   backend.setRootHandle(demoDir);
-  await backend.setRootPath('/projelli-demo');
+  await backend.setRootPath('/keepance-demo');
 
   const alreadySeeded = readSeedFlag();
   const seededVersion = readSeedVersion();

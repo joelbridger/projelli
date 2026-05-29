@@ -1,7 +1,7 @@
 /**
- * useLicense — license activation, validation, and tier-gating hook for Projelli.
+ * useLicense — license activation, validation, and tier-gating hook for Keepance.
  *
- * Talks to the licenses.projelli.com Bun service. The desktop app stores the
+ * Talks to the licenses.keepance.com Bun service. The desktop app stores the
  * activation token in localStorage (would ideally be in the OS keychain, same
  * as API keys — that's a future TODO).
  *
@@ -15,7 +15,7 @@
  *
  * Activation flow (from the user's perspective):
  *   1. User pastes their license key into Settings → License
- *   2. App POSTs to licenses.projelli.com/activate with { license_key, machine_id }
+ *   2. App POSTs to licenses.keepance.com/activate with { license_key, machine_id }
  *   3. Server returns a signed JWT
  *   4. App stores the JWT in localStorage and calls /validate to confirm it
  *   5. UI now shows the user as activated, with the tier they purchased
@@ -42,9 +42,9 @@ export interface LicenseState {
   error: string | null;
 }
 
-const STORAGE_KEY = 'projelli_license_token';
-const MACHINE_ID_KEY = 'projelli_machine_id';
-const LICENSE_API_BASE = 'https://licenses.projelli.com';
+const STORAGE_KEY = 'keepance_license_token';
+const MACHINE_ID_KEY = 'keepance_machine_id';
+const LICENSE_API_BASE = 'https://licenses.keepance.com';
 
 /**
  * Generate or retrieve a stable machine ID. Stored in localStorage.

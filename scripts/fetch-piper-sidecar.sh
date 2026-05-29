@@ -5,14 +5,14 @@
 # Usage: bash scripts/fetch-piper-sidecar.sh
 #
 # Piper releases: https://github.com/rhasspy/piper/releases
-# Voice files: https://projelli.com/voices/
+# Voice files: https://keepance.com/voices/
 
 set -euo pipefail
 
 PIPER_VERSION="2023.11.14-2"
 BINARIES_DIR="src-tauri/binaries"
 VOICES_DIR="src-tauri/voices"
-CDN_BASE="https://projelli.com/voices"
+CDN_BASE="https://keepance.com/voices"
 
 mkdir -p "$BINARIES_DIR" "$VOICES_DIR"
 
@@ -57,7 +57,7 @@ cp "$SRC_BIN" "$DEST_BIN"
 chmod +x "$DEST_BIN"
 echo "Piper binary: $DEST_BIN"
 
-# Download bundled English voice from Projelli CDN.
+# Download bundled English voice from Keepance CDN.
 VOICE_ID="en_US-amy-medium"
 VOICE_ARCHIVE="$VOICE_ID.tar.gz"
 echo "Downloading bundled voice: $VOICE_ID..."

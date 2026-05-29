@@ -6,7 +6,7 @@
 //  - installFromTarball with consent rejection: audit fires plugin_install_failed,
 //    install dir is cleaned up, no plugin record exists
 //  - installFromTarball with invalid manifest: same failure path
-//  - installFromTarball with appVersion mismatch (minProjelliVersion in future)
+//  - installFromTarball with appVersion mismatch (minKeepanceVersion in future)
 //  - enable -> bridge spawned, init posted with plugin source, status -> enabled
 //  - enable on already-enabled is a no-op
 //  - disable -> bridge terminated, registrations cleared, status -> disabled
@@ -263,7 +263,7 @@ beforeEach(() => {
 });
 
 const APP_VERSION = '2.0.0';
-const INSTALL_ROOT = '/ws/.projelli/plugins';
+const INSTALL_ROOT = '/ws/.keepance/plugins';
 
 const SAMPLE_SOURCE = 'export default { activate(){} }';
 
@@ -382,10 +382,10 @@ describe('PluginManager.installFromTarball', () => {
     expect(manager.listInstalled()).toHaveLength(0);
   });
 
-  it('rejects install when minProjelliVersion is newer than appVersion', async () => {
+  it('rejects install when minKeepanceVersion is newer than appVersion', async () => {
     const fakeFs = makeFs();
     const wf = makeWorkerFactory();
-    const manifest = fakeManifest({ id: 'future', minProjelliVersion: '99.0.0' });
+    const manifest = fakeManifest({ id: 'future', minKeepanceVersion: '99.0.0' });
     const { tarballPath, mockExtract } = seedTarball(fakeFs.fs, fakeFs.files, manifest, SAMPLE_SOURCE);
     const manager = new PluginManager({
       fs: fakeFs.fs,
@@ -398,7 +398,7 @@ describe('PluginManager.installFromTarball', () => {
         sha256File: vi.fn(async () => 'deadbeef'),
       },
     });
-    await expect(manager.installFromTarball(tarballPath)).rejects.toThrow(/Projelli/);
+    await expect(manager.installFromTarball(tarballPath)).rejects.toThrow(/Keepance/);
     expect(manager.listInstalled()).toHaveLength(0);
   });
 });

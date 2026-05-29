@@ -66,7 +66,7 @@ export async function video03() {
   } else {
     await page.evaluate(
       ({ rootPath, content }) => {
-        (window as any).__projelli_seed!({
+        (window as any).__keepance_seed!({
           editor: {
             openTabs: [{ path: `${rootPath}/Vision.md`, name: 'Vision.md', content, isDirty: false, type: 'file' }],
             activeTabPath: `${rootPath}/Vision.md`,
@@ -147,7 +147,7 @@ export async function video03() {
       if (popup) popup.remove();
       const style = document.getElementById('__v03_ac_style');
       if (style) style.remove();
-      (window as any).__projelli_seed!({
+      (window as any).__keepance_seed!({
         editor: {
           openTabs: [{ path: `${rootPath}/Vision.md`, name: 'Vision.md', content, isDirty: false, type: 'file' }],
           activeTabPath: `${rootPath}/Vision.md`,
@@ -163,7 +163,7 @@ export async function video03() {
   beats.navigated = elapsedSec();
   await page.evaluate(
     ({ rootPath, content }) => {
-      (window as any).__projelli_seed!({
+      (window as any).__keepance_seed!({
         editor: {
           openTabs: [
             { path: `${rootPath}/Vision.md`,    name: 'Vision.md',    content: '', isDirty: false, type: 'file' },

@@ -19,7 +19,7 @@ const ENTRY: CatalogEntry = {
   ],
   installUrl: 'https://example.test/x.tar.gz',
   manifestUrl: 'https://example.test/x.json',
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
 };
@@ -29,7 +29,7 @@ function makeInstalled(version: string): InstalledEntry {
     ...ENTRY,
     version,
     installedAt: '2026-04-28T00:00:00.000Z',
-    installedPath: '/ws/.projelli/templates/investor-update-v1',
+    installedPath: '/ws/.keepance/templates/investor-update-v1',
     provenance: 'community',
     manifestVersion: '1.0',
   };
@@ -237,7 +237,7 @@ describe('TemplateDetailView — install flow', () => {
     );
   });
 
-  it('clicking "View in Audit Log" dispatches the projelli:open-audit-log window event', async () => {
+  it('clicking "View in Audit Log" dispatches the keepance:open-audit-log window event', async () => {
     const service = makeService();
     render(<TemplateDetailView entry={ENTRY} service={service} onBack={() => {}} />);
     await act(async () => {
@@ -250,10 +250,10 @@ describe('TemplateDetailView — install flow', () => {
     );
 
     const handler = vi.fn();
-    window.addEventListener('projelli:open-audit-log', handler);
+    window.addEventListener('keepance:open-audit-log', handler);
     fireEvent.click(screen.getByTestId('template-detail-view-audit-log'));
     expect(handler).toHaveBeenCalledTimes(1);
-    window.removeEventListener('projelli:open-audit-log', handler);
+    window.removeEventListener('keepance:open-audit-log', handler);
   });
 
   it('dismiss button hides the success outcome panel', async () => {

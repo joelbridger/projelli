@@ -1,6 +1,6 @@
 ---
 name: Marketing Asset Capture System
-description: Reproducible Playwright pipeline that produces a full library of macOS-styled product screenshots and videos for Projelli
+description: Reproducible Playwright pipeline that produces a full library of macOS-styled product screenshots and videos for Keepance
 type: design-spec
 status: shipped (v1 + video expansion)
 date: 2026-04-27
@@ -12,7 +12,7 @@ date: 2026-04-27
 
 ## Goal
 
-Produce a full library of marketing assets (screenshots + videos) that look like Projelli is being used on macOS, generated reproducibly from the React dev server, with a single command.
+Produce a full library of marketing assets (screenshots + videos) that look like Keepance is being used on macOS, generated reproducibly from the React dev server, with a single command.
 
 The library covers:
 
@@ -24,7 +24,7 @@ Tier 3 (Product Hunt gallery reframes) and Tier 4 (short social video clips) are
 
 ## Why this approach
 
-Projelli's UI is a React + Tailwind app served by Vite. Every supported platform (macOS native WebKit, Windows WebView2, Linux webkit2gtk) renders the same React tree. Capturing that React tree directly in **headless Chromium via Playwright**, then compositing macOS chrome around it in post, gives:
+Keepance's UI is a React + Tailwind app served by Vite. Every supported platform (macOS native WebKit, Windows WebView2, Linux webkit2gtk) renders the same React tree. Capturing that React tree directly in **headless Chromium via Playwright**, then compositing macOS chrome around it in post, gives:
 
 - The highest-fidelity rendering (Chromium ≥ webkit2gtk for text, GPU compositing, transitions)
 - Pixel-perfect reproducibility (seeded state + canned AI replay = identical output every run)
@@ -68,7 +68,7 @@ Running the actual Tauri Linux build under Xvfb was rejected: it produces a wors
 ## Architecture
 
 ```
-~/projelli/scripts/marketing-capture/
+~/keepance/scripts/marketing-capture/
 ├── fixtures/
 │   ├── linterly-workspace.ts     # seed state object
 │   └── ai-replays/
@@ -122,14 +122,14 @@ page.screenshot({ fullPage: false, clip: viewport }) ──► raw PNG
 compose-chrome wraps in macOS frame ──► final PNG
                                                        │
                                                        ▼
-write to ~/projelli/Assets/marketing/ + press-kit/assets/
+write to ~/keepance/Assets/marketing/ + press-kit/assets/
 ```
 
 ### Output destinations
 
-- **Press-kit slots (S01–S06)** → `~/projelli/website/press-kit/assets/` (matches existing slot filenames)
-- **All Tier 1 + Tier 2 originals** → `~/projelli/Assets/marketing/`
-- **Demo video V01** → both `~/projelli/Assets/marketing/demo-30s.mp4` and `~/projelli/website/press-kit/assets/demo-30s.mp4`
+- **Press-kit slots (S01–S06)** → `~/keepance/website/press-kit/assets/` (matches existing slot filenames)
+- **All Tier 1 + Tier 2 originals** → `~/keepance/Assets/marketing/`
+- **Demo video V01** → both `~/keepance/Assets/marketing/demo-30s.mp4` and `~/keepance/website/press-kit/assets/demo-30s.mp4`
 - All output paths gitignored if too large; otherwise committed. Decided per-asset at implementation time (PNGs commit, MP4 likely external).
 
 ## The Mac-styling layer (detailed)
@@ -228,7 +228,7 @@ Three completed conversations stored, plus one "in progress" for shot S02:
 - OpenAI key: similarly masked
 - Gemini: blank (shows "Add key" CTA — demonstrates BYOK story)
 - Default model: Claude Opus 4.7
-- Workspace path: `/Users/jameson/Projelli/Linterly` (matches macOS path conventions for visual consistency)
+- Workspace path: `/Users/jameson/Keepance/Linterly` (matches macOS path conventions for visual consistency)
 
 ### Templates
 
@@ -256,7 +256,7 @@ export const linterlyFixture = {
 }
 ```
 
-`seed-state.ts` applies the fixture by calling `page.evaluate()` to write directly into the Zustand stores (or localStorage keys, depending on how Projelli persists state — verified at implementation start). Per-shot overrides are merged on top.
+`seed-state.ts` applies the fixture by calling `page.evaluate()` to write directly into the Zustand stores (or localStorage keys, depending on how Keepance persists state — verified at implementation start). Per-shot overrides are merged on top.
 
 ## Canned AI streaming
 
@@ -361,10 +361,10 @@ This is a generation tool, not production code, so testing is pragmatic:
 
 The project is "done" (v1) when:
 
-1. `~/projelli/scripts/marketing-capture/run-all.ts` runs end-to-end on this server with no human input.
+1. `~/keepance/scripts/marketing-capture/run-all.ts` runs end-to-end on this server with no human input.
 2. All 11 PNGs and 1 MP4 land at the documented output paths.
 3. Each PNG matches the description in the Scope table (verified by Jameson by eye).
-4. The 6 press-kit slot files (`screenshot-01-workspace.png` through `screenshot-06-api-keys.png`) appear at `projelli.com/press-kit/` after `infra/deploy.sh` runs.
+4. The 6 press-kit slot files (`screenshot-01-workspace.png` through `screenshot-06-api-keys.png`) appear at `keepance.com/press-kit/` after `infra/deploy.sh` runs.
 5. The pipeline is reproducible: re-running `run-all.ts` produces byte-identical PNGs (or near-identical, allowing for browser PNG encoder nondeterminism within a small tolerance) and a byte-identical MP4.
 
 ## Open question for the plan phase

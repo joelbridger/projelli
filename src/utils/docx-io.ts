@@ -138,12 +138,12 @@ export async function serializeDocx(
   };
 
   const doc = new Document({
-    creator: 'Projelli',
-    description: 'Document edited in Projelli',
+    creator: 'Keepance',
+    description: 'Document edited in Keepance',
     numbering: {
       config: [
         {
-          reference: 'projelli-ordered',
+          reference: 'keepance-ordered',
           levels: [
             {
               level: 0,
@@ -207,7 +207,7 @@ interface TextFormatting {
 
 /**
  * Parse TipTap HTML into a flat list of docx top-level children
- * (Paragraphs). Uses DOMParser in the browser — Projelli's editors are
+ * (Paragraphs). Uses DOMParser in the browser — Keepance's editors are
  * client-only, so this is safe.
  */
 function htmlToDocxChildren(html: string): Paragraph[] {
@@ -361,7 +361,7 @@ function listToParagraphs(
           })
         : new Paragraph({
             children: paragraphChildren,
-            numbering: { reference: 'projelli-ordered', level },
+            numbering: { reference: 'keepance-ordered', level },
           });
     out.push(paragraph);
 

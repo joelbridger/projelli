@@ -1,4 +1,4 @@
-# Source-of-truth GitHub Actions workflow for the projelli community repos
+# Source-of-truth GitHub Actions workflow for the keepance community repos
 # (community-templates, community-plugins). The C6 sync script copies this
 # file into both repos at .github/workflows/build-catalog.yml.
 #
@@ -6,7 +6,7 @@
 # catalog.json and per-entry tarballs, then commits the result back to main
 # with [skip ci] so the next push doesn't loop.
 #
-# The schema vendored in scripts/build-catalog.mjs MUST match the projelli
+# The schema vendored in scripts/build-catalog.mjs MUST match the keepance
 # app's source schemas. The C6 sync script regenerates that file from the
 # app source before pushing here, so any drift is caught at sync time.
 
@@ -70,8 +70,8 @@ jobs:
 
       - name: Commit + push regenerated catalog
         run: |
-          git config user.name "projelli-catalog-bot"
-          git config user.email "bot@projelli.com"
+          git config user.name "keepance-catalog-bot"
+          git config user.email "bot@keepance.com"
           git add catalog.json entries/*/tarball.tar.gz entries/*/checksum.txt
           if git diff --staged --quiet; then
             echo "No catalog changes to commit"

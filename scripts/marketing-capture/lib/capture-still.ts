@@ -35,7 +35,7 @@ export interface StillShotOptions {
   viewport: { width: number; height: number };
   /** Optional AI replay fixture name (basename without .json). If set, mockAI() runs before navigation. */
   aiReplay?: string;
-  /** Window title in the macOS chrome. Defaults to "Projelli". */
+  /** Window title in the macOS chrome. Defaults to "Keepance". */
   windowTitle?: string;
   /** Async hook called after seed + style-injection but before screenshot. */
   beforeShot?: (page: Page) => Promise<void>;
@@ -89,7 +89,7 @@ export async function captureStill(opts: StillShotOptions): Promise<string> {
       const rawPng = await page.screenshot({ type: 'png', fullPage: false });
       const final = opts.raw
         ? rawPng
-        : await composeChrome(rawPng, { title: opts.windowTitle ?? 'Projelli', browser });
+        : await composeChrome(rawPng, { title: opts.windowTitle ?? 'Keepance', browser });
 
       mkdirSync(ASSETS_DIR, { recursive: true });
       const outPath = path.join(ASSETS_DIR, opts.outputName);

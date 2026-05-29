@@ -1,10 +1,10 @@
 /**
  * Default-model resolution helper (Q9 — Wave 1.5).
  *
- * Projelli ships as "bring your own key" + free tier. Free-tier founders
+ * Keepance ships as "bring your own key" + free tier. Free-tier founders
  * almost always want the cheapest capable model on Anthropic, which is Claude
  * Haiku 4.5. Pro / Lifetime users have made a deliberate commercial decision
- * to pay for Projelli and they're allowed to pick whichever model they want
+ * to pay for Keepance and they're allowed to pick whichever model they want
  * on a per-provider basis.
  *
  * This helper centralizes the decision so any surface that needs to

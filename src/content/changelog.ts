@@ -26,7 +26,7 @@ export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
     version: '1.5.0',
     date: '2026-04-16',
     highlights: [
-      'Memory: Projelli indexes your notes and can recall the right paragraph when you ask (use @workspace in any chat)',
+      'Memory: Keepance indexes your notes and can recall the right paragraph when you ask (use @workspace in any chat)',
       'Memory facts: a short list of user-approved truths the AI always sees, edit them under Settings → Memory',
       'MCP server: install the bundled .mcpb into Claude Desktop, Cursor, or Zed to read and search your workspace from any AI client',
       'Side-by-side AI editing: select text, ask for a revision, accept or reject each change hunk-by-hunk with version history',
@@ -44,7 +44,7 @@ export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
     version: '1.0.8',
     date: '2026-04-16',
     highlights: [
-      'Auto-updates: Projelli now checks for new versions and installs them with one click',
+      'Auto-updates: Keepance now checks for new versions and installs them with one click',
       'Document suite: open, edit, and create Excel, Word, PowerPoint, and RTF files',
       'Spreadsheets now have a live formula engine that recomputes dependent cells as you type',
       'AI sees your open files automatically, so you can ask questions about your spreadsheet or doc without pasting',

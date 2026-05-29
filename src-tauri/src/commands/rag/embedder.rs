@@ -27,7 +27,7 @@ static EMBEDDER: OnceCell<Arc<TextEmbedding>> = OnceCell::const_new();
 /// Resolve the cache directory used by fastembed. If a bundled copy of the
 /// model exists under `src-tauri/resources/embeddings/` (Phase 4 prefetch
 /// goal), we point fastembed at it so first-launch is offline-friendly.
-/// Otherwise we fall back to the system data dir under `projelli/models`.
+/// Otherwise we fall back to the system data dir under `keepance/models`.
 pub fn resolve_cache_dir() -> PathBuf {
     // 1. Bundled copy adjacent to the executable (production). Tauri puts
     //    `bundle.resources` next to the binary — check `<exe_dir>/resources/embeddings`
@@ -46,14 +46,14 @@ pub fn resolve_cache_dir() -> PathBuf {
         }
     }
 
-    // 2. App data dir under `projelli/models/e5-small`.
+    // 2. App data dir under `keepance/models/e5-small`.
     if let Some(data_dir) = dirs::data_dir() {
-        let p = data_dir.join("projelli").join("models").join("e5-small");
+        let p = data_dir.join("keepance").join("models").join("e5-small");
         return p;
     }
 
     // 3. Last resort: temp dir.
-    std::env::temp_dir().join("projelli-e5-small")
+    std::env::temp_dir().join("keepance-e5-small")
 }
 
 /// Get the singleton embedder, initializing on first use.

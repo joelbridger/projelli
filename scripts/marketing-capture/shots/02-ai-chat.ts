@@ -6,7 +6,7 @@ export async function shot02() {
     outputName: 'screenshot-02-ai-chat.png',
     pressKit: true,
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Projelli',
+    windowTitle: 'Linterly — Keepance',
     aiReplay: 'launch-plan-stream',
   });
 }

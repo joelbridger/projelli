@@ -33,7 +33,7 @@ describe('MemoryFactsSettings', () => {
   it('renders a row per fact with the expected testids', () => {
     const facts = [
       makeFact('a1', 'The user lives in Austin.'),
-      makeFact('a2', 'The user ships on Projelli.'),
+      makeFact('a2', 'The user ships on Keepance.'),
     ];
     render(<MemoryFactsSettings initialFacts={facts} />);
     expect(screen.getByTestId('settings-facts-row-a1')).toBeTruthy();

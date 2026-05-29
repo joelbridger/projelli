@@ -1,6 +1,6 @@
-import type { PluginAPI, PluginModule } from '@projelli/plugin-api';
+import type { PluginAPI, PluginModule } from '@keepance/plugin-api';
 
-// Translator - example Projelli plugin.
+// Translator - example Keepance plugin.
 //
 // Demonstrates:
 //   - api.commands.register

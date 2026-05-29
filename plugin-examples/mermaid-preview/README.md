@@ -1,6 +1,6 @@
 # Mermaid Preview
 
-A Projelli plugin that renders fenced ` ```mermaid ` blocks from your active document into a live diagram preview in the sidebar.
+A Keepance plugin that renders fenced ` ```mermaid ` blocks from your active document into a live diagram preview in the sidebar.
 
 ## What it does
 
@@ -34,17 +34,17 @@ Output: `dist/index.js` (single-file IIFE bundle, lightweight because mermaid is
 
 ## Sideload
 
-Copy `manifest.json` and `dist/index.js` into your local Projelli plugins folder, then enable under Settings -> Plugins:
+Copy `manifest.json` and `dist/index.js` into your local Keepance plugins folder, then enable under Settings -> Plugins:
 
 | OS | Path |
 |---|---|
-| Windows | `%APPDATA%/Projelli/plugins/mermaid-preview/` |
-| macOS | `~/Library/Application Support/Projelli/plugins/mermaid-preview/` |
-| Linux | `~/.local/share/Projelli/plugins/mermaid-preview/` |
+| Windows | `%APPDATA%/Keepance/plugins/mermaid-preview/` |
+| macOS | `~/Library/Application Support/Keepance/plugins/mermaid-preview/` |
+| Linux | `~/.local/share/Keepance/plugins/mermaid-preview/` |
 
 ## Try it
 
-Paste this into a Projelli document:
+Paste this into a Keepance document:
 
 ````markdown
 ```mermaid

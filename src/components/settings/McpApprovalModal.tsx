@@ -1,7 +1,7 @@
 /**
  * MCP write-approval modal (M4, v1.5 Flag 2).
  *
- * Renders when the `projelli-mcp` sidecar has queued one or more pending
+ * Renders when the `keepance-mcp` sidecar has queued one or more pending
  * write requests (the sidecar drops a JSON blob in a temp dir when an MCP
  * client calls `write_workspace_file` with `require_confirmation = true`).
  *
@@ -13,7 +13,7 @@
  *     Deny
  *
  * "Approve all for the session" is a per-React-tree flag stored in React
- * state (NOT persisted). Restarting Projelli clears it — a deliberate
+ * state (NOT persisted). Restarting Keepance clears it — a deliberate
  * safety default.
  *
  * This component does NOT own the polling loop; callers pass in the

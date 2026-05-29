@@ -1,5 +1,5 @@
 // User Interview Guide Workflow Template
-// Helps founders prepare for customer discovery interviews
+// Helps professionals prepare for customer discovery interviews
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 
@@ -55,7 +55,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
 ];
 
-const interviewGuidePrompt = `You are helping a solo founder prepare for customer discovery interviews.
+const interviewGuidePrompt = `You are helping a professional prepare for customer discovery interviews.
 
 Based on the following information:
 
@@ -233,7 +233,7 @@ Consider pivoting if:
 - No one can articulate the specific pain
 - Problem exists but won't pay to solve it`;
 
-const recruitingTemplatesPrompt = `You are helping a solo founder create outreach templates for customer interviews.
+const recruitingTemplatesPrompt = `You are helping a professional create outreach templates for customer interviews.
 
 Based on:
 **Product Concept:** {{productConcept}}
@@ -423,7 +423,7 @@ export const UserInterviews: WorkflowTemplate = {
       config: {
         outputFile: 'RECRUITING_TEMPLATES.md',
         promptTemplate: recruitingTemplatesPrompt,
-        systemPrompt: 'You are an outreach expert helping founders find people to interview. Create templates that are friendly and get responses.',
+        systemPrompt: 'You are an outreach expert helping professionals find people to interview. Create templates that are friendly and get responses.',
       } as GenerateStepConfig,
     },
   ],

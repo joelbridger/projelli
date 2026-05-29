@@ -1,27 +1,27 @@
 [package]
-name = "projelli"
+name = "keepance"
 version = "2.0.0"
-description = "Local-first workspace for solo founders building businesses with AI assistance"
-authors = ["Projelli Team"]
+description = "Local-first AI workspace for confidential client work"
+authors = ["Keepance"]
 license = "MIT"
 repository = ""
 edition = "2021"
 rust-version = "1.77.2"
-# Required when a crate ships multiple binaries (projelli + projelli-mcp)
+# Required when a crate ships multiple binaries (keepance + keepance-mcp)
 # so `tauri build` and plain `cargo run` know which main binary to use.
-default-run = "projelli"
+default-run = "keepance"
 
 [lib]
-name = "projelli_lib"
+name = "keepance_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-# Projelli MCP server (M4, v1.5). Hand-rolled JSON-RPC 2.0 server over stdio
+# Keepance MCP server (M4, v1.5). Hand-rolled JSON-RPC 2.0 server over stdio
 # that exposes the workspace (list / read / search / write / memory facts) to
 # any MCP-compatible client — Claude Desktop, Cursor, Zed, etc. The binary
 # lives in its own sub-folder so its helper modules (`protocol`, `tools`,
 # `approval`) can be split across files the way the Tauri host already does.
 [[bin]]
-name = "projelli-mcp"
+name = "keepance-mcp"
 path = "src/mcp_bin/main.rs"
 
 [build-dependencies]
@@ -98,7 +98,7 @@ tauri-plugin-process = "2"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
-# Integration tests for the `projelli-mcp` sidecar need a throwaway workspace
+# Integration tests for the `keepance-mcp` sidecar need a throwaway workspace
 # dir per test; `tempfile` is the de-facto standard and already transitively
 # in the lock via `lancedb` + `fastembed`, so no new build-time weight.
 tempfile = "3"

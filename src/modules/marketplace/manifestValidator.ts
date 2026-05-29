@@ -42,10 +42,10 @@ export const templateManifestSchema = z.object({
   tags: z.array(z.string()),
   screenshots: z.array(z.string().min(1)).optional(),
   files: z.array(templateFileEntrySchema).min(1, 'files must contain at least one entry'),
-  minProjelliVersion: z.string().regex(semverRegex, 'minProjelliVersion must be semver'),
-  maxProjelliVersion: z
+  minKeepcanceVersion: z.string().regex(semverRegex, 'minKeepcanceVersion must be semver'),
+  maxKeepcanceVersion: z
     .string()
-    .regex(semverRegex, 'maxProjelliVersion must be semver')
+    .regex(semverRegex, 'maxKeepcanceVersion must be semver')
     .optional(),
 });
 
@@ -70,7 +70,7 @@ export function validateTemplateManifest(
 /**
  * Compare two semver strings. Returns -1, 0, 1. Pre-release / build metadata
  * are ignored for the comparison (good enough for the "manifest needs newer
- * Projelli" check; full semver would be overkill here).
+ * Keepance" check; full semver would be overkill here).
  */
 export function compareSemver(a: string, b: string): number {
   const norm = (v: string) => {
@@ -89,16 +89,16 @@ export function compareSemver(a: string, b: string): number {
 }
 
 /**
- * Returns an error string if `manifest.minProjelliVersion` is newer than the
+ * Returns an error string if `manifest.minKeepcanceVersion` is newer than the
  * current app version, otherwise null. Callers fail the install with the
  * returned message.
  */
-export function checkMinProjelliVersion(
+export function checkMinKeepcanceVersion(
   manifest: TemplateManifest,
   currentAppVersion: string,
 ): string | null {
-  if (compareSemver(manifest.minProjelliVersion, currentAppVersion) > 0) {
-    return `Template requires Projelli ${manifest.minProjelliVersion} or newer (you have ${currentAppVersion}).`;
+  if (compareSemver(manifest.minKeepcanceVersion, currentAppVersion) > 0) {
+    return `Template requires Keepance ${manifest.minKeepcanceVersion} or newer (you have ${currentAppVersion}).`;
   }
   return null;
 }

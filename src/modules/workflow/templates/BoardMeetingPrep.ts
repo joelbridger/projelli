@@ -1,6 +1,6 @@
 // Board Meeting Prep Workflow Template
 // Generates an agenda, metrics review, decisions queue, and discussion prep
-// for a board meeting (whether formal board, advisory board, or weekly co-founder sync).
+// for a board meeting (whether formal board, advisory board, or practice leadership meeting).
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 
@@ -19,7 +19,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Board, advisory, or operational',
     type: 'select',
     required: true,
-    options: ['Formal board meeting', 'Advisory board meeting', 'Co-founder weekly sync', 'Investor check-in', 'Operational leadership team'],
+    options: ['Formal board meeting', 'Advisory board meeting', 'Practice leadership meeting', 'Client advisory board', 'Operational leadership team'],
     defaultValue: 'Formal board meeting',
   },
   {
@@ -28,7 +28,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Names and roles. The agenda gets shaped by who\'s in the room.',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Jane Smith (lead investor, Acme Ventures), Bob Lee (independent board member), me (CEO)',
+    placeholder: 'e.g., Jane Smith (outside counsel / board advisor), Bob Lee (independent board member), me (managing partner)',
   },
   {
     id: 'topics',
@@ -44,7 +44,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'What numbers will you bring to the meeting?',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., MRR ($15K, +40% QoQ), churn (2.5%), CAC ($85), LTV ($1,400), runway (14 months), pipeline ($240K weighted)',
+    placeholder: 'e.g., Revenue: $85K (+12% QoQ), Active client matters: 34, New engagements: 3, Pipeline: $120K, Realization rate: 91%, Avg days to collect: 38',
   },
   {
     id: 'decisions',
@@ -52,7 +52,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'What does the board need to formally approve or weigh in on?',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Approve 2026 budget; approve hiring of VP Eng; approve new equity grants for 3 employees; weigh in on fundraising strategy (raise now vs wait)',
+    placeholder: 'e.g., Approve 2026 operating budget; approve bringing on a junior associate; weigh in on practice area expansion; approve updated fee schedule',
   },
   {
     id: 'risks',
@@ -60,7 +60,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Risks and concerns the board should know. Don\'t hide these — surface them.',
     type: 'textarea',
     required: false,
-    placeholder: 'e.g., Customer #1 is 30% of revenue and their contract is up for renewal; the engineering team is stretched and we have two open roles we can\'t fill',
+    placeholder: 'e.g., One client represents 35% of revenue and their retainer is up for renewal; we\'re at capacity and turning away work without additional help',
   },
   {
     id: 'duration',
@@ -73,14 +73,14 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
 ];
 
-const agendaPrompt = `You are helping a founder prepare a board meeting agenda.
+const agendaPrompt = `You are helping a professional prepare a board meeting agenda.
 
 Meeting type: {{meetingType}}
 Date: {{meetingDate}}
 Duration: {{duration}}
 Attendees: {{attendees}}
 
-Topics the founder wants to cover:
+Topics the professional wants to cover:
 {{topics}}
 
 Decisions needed:
@@ -92,11 +92,11 @@ Generate a clean, time-boxed agenda in Markdown format. The agenda should:
 2. List attendees and meeting type
 3. Have a time-boxed agenda where the total adds up to the meeting duration
 4. Sequence topics intelligently:
-   - Open with a quick founder update (5 min)
+   - Open with a brief practice update (5 min)
    - Metrics review next (so context is set)
    - Strategic discussion topics
    - Decision items (actual votes/approvals)
-   - Closed session (board only, no founders) at the end if relevant
+   - Closed session (board or advisors only) at the end if relevant
    - Action items review at the very end (5 min)
 5. For each agenda item, include:
    - Time allocation
@@ -108,13 +108,13 @@ Format:
 
 | Time | Topic | Lead | Type |
 |---|---|---|---|
-| 2:00-2:05 | Opening + recent highlights | CEO | Inform |
-| 2:05-2:20 | Q1 financials review | CEO | Discuss |
+| 2:00-2:05 | Opening + recent highlights | Lead | Inform |
+| 2:05-2:20 | Q1 financials review | Lead | Discuss |
 | ... | ... | ... | ... |
 
 After the table, include a "Pre-read" section listing any documents the board should review before the meeting.`;
 
-const briefingPrompt = `You are helping a founder draft a pre-read briefing document for board members.
+const briefingPrompt = `You are helping a professional draft a pre-read briefing document for board members.
 
 Meeting type: {{meetingType}}
 Date: {{meetingDate}}
@@ -139,7 +139,7 @@ Generate a professional pre-read briefing in Markdown that board members can rea
 3. **Metrics dashboard** — clean table or bullet list of the key numbers, with QoQ or MoM comparisons where relevant
 4. **What's working** — 2-3 bullets on what's going well, with proof
 5. **What's not** — 2-3 bullets on what isn't working, with what we're doing about it
-6. **Strategic decisions for the board** — for each decision the board needs to make, write a 1-paragraph framing that includes: the question, the context, the founder's recommendation, and the alternatives considered
+6. **Strategic decisions for the board** — for each decision the board needs to make, write a 1-paragraph framing that includes: the question, the context, the professional's recommendation, and the alternatives considered
 7. **Risks worth surfacing** — bullet list of the top 3-5 risks, each with a one-sentence mitigation plan
 8. **Asks of the board** — specific things you need from board members between now and the next meeting
 

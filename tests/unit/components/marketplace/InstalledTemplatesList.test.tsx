@@ -22,7 +22,7 @@ const ENTRY: CatalogEntry = {
   tags: ['investor'],
   installUrl: 'https://example.test/x.tar.gz',
   manifestUrl: 'https://example.test/x.json',
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
 };
@@ -33,7 +33,7 @@ function makeInstalled(
   return {
     ...ENTRY,
     installedAt: '2026-04-28T00:00:00.000Z',
-    installedPath: '/ws/.projelli/templates/investor-update-v1',
+    installedPath: '/ws/.keepance/templates/investor-update-v1',
     provenance: 'community',
     manifestVersion: '1.0',
     ...overrides,

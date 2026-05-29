@@ -1,34 +1,36 @@
-# Projelli
+# Keepance
 
-> **Local-first AI workspace where every chat becomes a real file.**
-> Built for indie founders who want AI as a co-pilot, not a replacement.
+> **Local-first AI workspace for confidential client work.**
+> Your files stay on your machine. Your API keys never leave your OS keychain. Nothing touches a cloud.
 
-[**projelli.com**](https://projelli.com) • [Download](https://github.com/projelli/projelli/releases) • [Press kit](https://projelli.com/press-kit/) • [Blog](https://projelli.com/blog/) • [Business plan](./PROJELLI_BUSINESS_PLAN.md)
+[**keepance.com**](https://keepance.com) • [Download](https://github.com/keepance/keepance/releases) • [Press kit](https://keepance.com/press-kit/) • [Blog](https://keepance.com/blog/) • [Business plan](./KEEPANCE_BUSINESS_PLAN.md)
 
 ---
 
-## What is Projelli?
+## What is Keepance?
 
-Projelli is a desktop app (Tauri 2 + React 18 + TypeScript) that combines:
+Keepance is a desktop app (Tauri 2 + React 18 + TypeScript) for professionals who can't pipe their work into ChatGPT — lawyers, CPAs, consultants, and anyone else bound by privilege, NDA, or professional confidentiality obligations.
+
+It combines:
 
 - A **Markdown editor** with wiki-links, backlinks, version history, and split panes
 - An **integrated AI chat** that produces real, persistent files in your workspace — not throwaway conversations
-- **15 founder-focused workflow templates** (New Business Kickoff, Competitor Analysis, Pitch Deck, Investor Update, etc.)
+- **Profession-specific workflow template packs** built around the actual tasks attorneys, tax preparers, and consultants do every day
 - **Three AI providers** with streaming and per-chat model selection: Claude, OpenAI, Gemini
 - **Local-first** — your data stays on your machine, your API keys live in your OS keychain, the app works fully offline (except for actual AI calls)
-- **BYOK** (bring your own key) — Projelli never sees your data or your API requests
+- **BYOK** (bring your own key) — Keepance never sees your data or your API requests
 
-The pitch in one sentence: it's Obsidian for the AI era, built for founders, sold once.
+The pitch in one sentence: the AI workspace for people who legally or temperamentally cannot put their work in the cloud.
 
 ## Status
 
 - **v1.5** is the latest stable release (Windows). v1.6 is in active release-candidate testing with macOS as the new addition.
 - Code signing, payments via LemonSqueezy, license validation, auto-updater, and legal docs are all live.
-- See [`PROJELLI_BUSINESS_PLAN.md`](./PROJELLI_BUSINESS_PLAN.md) for the full strategy and [`BACKLOG.md`](./BACKLOG.md) for week-by-week tasks.
+- See [`KEEPANCE_BUSINESS_PLAN.md`](./KEEPANCE_BUSINESS_PLAN.md) for the full strategy and [`BACKLOG.md`](./BACKLOG.md) for week-by-week tasks.
 
 ## Install
 
-**Windows:** Download `Projelli_x.y.z_x64-setup.exe` from [Releases](https://github.com/projelli/projelli/releases). Double-click — installer runs silently, then Projelli auto-launches. Signed via Azure Trusted Signing (no SmartScreen warning).
+**Windows:** Download `Keepance_x.y.z_x64-setup.exe` from [Releases](https://github.com/keepance/keepance/releases). Double-click — installer runs silently, then Keepance auto-launches. Signed via Azure Trusted Signing (no SmartScreen warning).
 
 **macOS:** Download the DMG that matches your chip (`aarch64` for M-series, `x64` for Intel) from Releases, drag to Applications. First launch hits a Gatekeeper warning because Apple's notary service has been intermittent since spring 2026 — right-click → Open → "Open Anyway" to bypass (one time only). Signed with our Apple Developer ID.
 
@@ -36,7 +38,7 @@ The pitch in one sentence: it's Obsidian for the AI era, built for founders, sol
 
 ## Mobile access
 
-Projelli is a desktop app, but your workspace is just a folder of plain Markdown files. Point that folder at iCloud Drive, Dropbox, Syncthing, or Google Drive on your computer and your notes show up on your iPhone or Android in the matching files app, with no new account and no extra cost. The full setup steps (one guide per provider, plus a "which one should I pick" decision matrix) live at [projelli.com/docs/mobile-access/](https://projelli.com/docs/mobile-access/). A dedicated Projelli mobile reader is in beta and will land in the v2.0 cycle.
+Keepance is a desktop app, but your workspace is just a folder of plain Markdown files. Point that folder at iCloud Drive, Dropbox, Syncthing, or Google Drive on your computer and your notes show up on your iPhone or Android in the matching files app, with no new account and no extra cost. The full setup steps (one guide per provider, plus a "which one should I pick" decision matrix) live at [keepance.com/docs/mobile-access/](https://keepance.com/docs/mobile-access/). A dedicated Keepance mobile reader is in beta and will land in the v2.0 cycle.
 
 ## Development
 
@@ -73,16 +75,16 @@ npx playwright test  # E2E
 ## Repository layout
 
 ```
-projelli/
+keepance/
 ├── README.md                       — this file
-├── PROJELLI_BUSINESS_PLAN.md       — operating contract / 8-week launch plan
+├── KEEPANCE_BUSINESS_PLAN.md       — operating contract / 8-week launch plan
 ├── BACKLOG.md                      — week-by-week task list
 ├── CHANGELOG.md                    — release-by-release history
 ├── CLAUDE.md                       — instructions for Claude Code working in this repo
 ├── src/                            — frontend source (React + TypeScript)
 ├── src-tauri/                      — Rust backend
 ├── tests/                          — Vitest + Playwright test suites
-├── website/                        — marketing site (deploys to projelli.com)
+├── website/                        — marketing site (deploys to keepance.com)
 │   ├── index.html                  — homepage
 │   ├── docs/                       — public user docs (Getting Started, FAQ, API Keys)
 │   ├── legal/                      — Privacy / Terms / EULA
@@ -126,35 +128,34 @@ For details, see [`docs/reference/ARCHITECTURE.md`](docs/reference/ARCHITECTURE.
 
 ## Pricing (when launched)
 
-- **Free:** Core editor, 1 AI provider, 3 templates, 1 workspace — forever
-- **Pro:** $49 one-time — all 3 AI providers, all 15 templates, unlimited workspaces, 1 year of updates
-- **Lifetime:** $99 one-time — same as Pro + updates forever + early access + commercial license
-- **Founder's Launch:** $29 one-time lifetime — first 100 buyers only
+- **Personal:** $49 one-time — all features, all AI providers, unlimited workspaces
+- **Professional:** $129 one-time — Personal + one profession template pack of your choice (Legal, Tax, or Consulting)
+- **Practice:** $399 one-time — up to 5 seats + all profession packs + email support
 
-Sold via [LemonSqueezy](https://lemonsqueezy.com) (merchant of record handles tax and refunds).
+Sold via [LemonSqueezy](https://lemonsqueezy.com) (merchant of record handles tax and refunds). Perpetual license, no subscription, no ongoing fees.
 
 ## Privacy
 
-Projelli is local-first by design.
+Keepance is local-first by design.
 
 - All your files live in a folder on your hard drive that you choose
 - API keys are stored in your OS keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux)
 - AI calls go directly from your machine to your provider (Claude / OpenAI / Google)
-- Projelli's servers never see your files, your prompts, or your responses
-- The only call Projelli's server gets is a one-time license validation when you activate
+- Keepance's servers never see your files, your prompts, or your responses
+- The only call Keepance's server gets is a one-time license validation when you activate
 
-Privacy policy: [https://projelli.com/legal/privacy](https://projelli.com/legal/privacy)
+Privacy policy: [https://keepance.com/legal/privacy](https://keepance.com/legal/privacy)
 
 ## Support
 
-- **Email:** `support@projelli.com`
-- **Issues:** [GitHub Issues](https://github.com/projelli/projelli/issues)
+- **Email:** `support@keepance.com`
+- **Issues:** [GitHub Issues](https://github.com/keepance/keepance/issues)
 
 ## License
 
-Closed-source proprietary software. End-User License Agreement: [https://projelli.com/legal/eula](https://projelli.com/legal/eula).
+Closed-source proprietary software. End-User License Agreement: [https://keepance.com/legal/eula](https://keepance.com/legal/eula).
 
-A "Projelli Lite" open-source version may be released later as a marketing funnel — not on the v1 roadmap.
+A "Keepance Lite" open-source version may be released later as a marketing funnel — not on the v1 roadmap.
 
 ## Built by
 

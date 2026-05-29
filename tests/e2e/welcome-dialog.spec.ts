@@ -62,13 +62,13 @@ test.describe('Welcome screen (first run)', () => {
     expect(bg).toBe('rgb(255, 255, 255)');
   });
 
-  test('shows Projelli logo', async ({ page }) => {
+  test('shows Keepance logo', async ({ page }) => {
     await page.goto('/');
     await waitForAppLoad(page);
 
     const screen = page.getByTestId('workspace-selector-dialog');
-    // The logo wrapper has aria-label="Projelli"
-    const logo = screen.locator('[aria-label="Projelli"]');
+    // The logo wrapper has aria-label="Keepance"
+    const logo = screen.locator('[aria-label="Keepance"]');
     await expect(logo).toBeVisible();
   });
 

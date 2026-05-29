@@ -1,6 +1,6 @@
 # Tauri commands reference
 
-> Canonical list of every Rust-backed Tauri command Projelli exposes to the
+> Canonical list of every Rust-backed Tauri command Keepance exposes to the
 > frontend. Phase 2 of the v1.5 release added the Rust/Tauri foundation
 > (`http`, `keychain`, `rag`, `watcher`) on top of the pre-existing
 > filesystem helpers.
@@ -165,7 +165,7 @@ type KeychainErrorKind = 'notFound' | 'noBackend' | 'denied' | 'other';
 interface KeychainError { kind: KeychainErrorKind; message: string }
 ```
 
-Default service namespace: `"com.projelli.app"`. Pass `service` to scope a
+Default service namespace: `"com.keepance.app"`. Pass `service` to scope a
 secret to a sub-feature.
 
 ### `keychain_set`
@@ -278,10 +278,10 @@ const unlisten = await listen<WorkspaceChangeEvent>(
 
 ## MCP (`src-tauri/src/commands/mcp.rs`) — Phase 4 M4 (v1.5 Flag 2)
 
-Host-side bridge between the `projelli-mcp` sidecar binary and the desktop
+Host-side bridge between the `keepance-mcp` sidecar binary and the desktop
 app. The sidecar is cross-process — whichever MCP client (Claude Desktop,
 Cursor, Zed) spawned it owns its stdio — so the approval channel is a
-filesystem rendezvous under `<temp>/projelli-mcp/{requests,responses}/`.
+filesystem rendezvous under `<temp>/keepance-mcp/{requests,responses}/`.
 
 ### `mcp_list_pending_approvals`
 
@@ -329,8 +329,8 @@ async fn mcp_bundle_path(app: AppHandle) -> Result<Option<String>, String>
 ```
 
 Resolve the absolute path of the platform `.mcpb` bundle. Lookup order:
-1. Tauri resource dir: `<resource>/mcpb/projelli-<target>.mcpb` (production)
-2. Dev-build fallback: `<cwd>/dist/projelli-<target>.mcpb` and one/two
+1. Tauri resource dir: `<resource>/mcpb/keepance-<target>.mcpb` (production)
+2. Dev-build fallback: `<cwd>/dist/keepance-<target>.mcpb` and one/two
    levels up, so engineers running `npm run tauri:dev` after
    `node scripts/build-mcpb.mjs` get a hit.
 
@@ -405,6 +405,6 @@ daemon running.
 Run everything with:
 ```bash
 cd src-tauri
-cargo test -p projelli
+cargo test -p keepance
 cargo clippy --all-targets -- -D warnings
 ```

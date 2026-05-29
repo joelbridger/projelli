@@ -5,7 +5,7 @@
  * picker alongside the built-ins. Built-ins are loaded from code as
  * before (`allWorkflows`); user templates are loaded from an abstraction
  * whose default implementation is `localStorage`. In Tauri builds the
- * same data could be mirrored to `~/.projelli/user-templates/*.json` in
+ * same data could be mirrored to `~/.keepance/user-templates/*.json` in
  * a future wave without changing the public API of this module.
  *
  * Public shape:
@@ -25,7 +25,7 @@
 import type { WorkflowTemplate } from '@/types/workflow';
 import { allWorkflows } from '.';
 
-export const USER_TEMPLATES_STORAGE_KEY = 'projelli:userWorkflowTemplates';
+export const USER_TEMPLATES_STORAGE_KEY = 'keepance:userWorkflowTemplates';
 
 // ---------------------------------------------------------------------------
 // Storage adapter — minimal interface so tests can swap in an in-memory

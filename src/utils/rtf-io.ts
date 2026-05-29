@@ -2,8 +2,8 @@
 //
 // Parse and serialize `.rtf` (Rich Text Format) files for `RtfEditor`.
 //
-// Projelli previously routed `.rtf` to the internal `.rt` handler, which
-// expected Projelli's native HTML-serialized rich text and showed users the
+// Keepance previously routed `.rtf` to the internal `.rt` handler, which
+// expected Keepance's native HTML-serialized rich text and showed users the
 // raw `{\rtf1\ansi...}` markup instead of a rendered document. This module
 // implements a minimal but faithful round-trip:
 //
@@ -11,7 +11,7 @@
 //
 // Why a custom parser instead of an off-the-shelf library? The popular RTF
 // libraries on npm pull in heavy Node streams or cheerio / juice (tens of MB
-// of transitive deps). Projelli ships as a desktop app, so bundle size
+// of transitive deps). Keepance ships as a desktop app, so bundle size
 // matters. The subset of RTF users realistically produce in Word /
 // TextEdit / Pages is small -- control words for paragraphs, bold, italic,
 // underline, strikethrough, font/char escapes, and bullet lists cover 95% of

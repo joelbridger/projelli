@@ -279,7 +279,7 @@ fn djb2_hash(bytes: &[u8]) -> u64 {
 ///   - Key = `<djb2(canonical_path)>_<mtime_unix_seconds>` → deterministic for
 ///     an unchanged file, automatically invalidated on edit because the mtime
 ///     moves forward.
-///   - Location = `<tempdir>/projelli-ppt-cache/<key>.pdf`
+///   - Location = `<tempdir>/keepance-ppt-cache/<key>.pdf`
 ///   - If the file already exists AND is newer than the source, skip
 ///     conversion and return the cached path immediately.
 ///
@@ -342,7 +342,7 @@ pub fn convert_ppt_to_pdf(input_path: String) -> Result<String, String> {
 
     // Cache dir under the OS temp dir — survives across runs of the app.
     let mut cache_dir: PathBuf = std::env::temp_dir();
-    cache_dir.push("projelli-ppt-cache");
+    cache_dir.push("keepance-ppt-cache");
     if !cache_dir.exists() {
         std::fs::create_dir_all(&cache_dir)
             .map_err(|e| format!("Failed to create cache dir: {}", e))?;

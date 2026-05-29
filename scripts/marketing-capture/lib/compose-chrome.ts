@@ -24,13 +24,13 @@ export async function composeChrome(
   screenshot: Buffer,
   opts: ComposeChromeOptions = {}
 ): Promise<Buffer> {
-  const { title = 'Projelli', padding = 80 } = opts;
+  const { title = 'Keepance', padding = 80 } = opts;
   const ownsBrowser = !opts.browser;
   const browser = opts.browser ?? await chromium.launch();
 
   try {
     const html = loadTemplate().replace(
-      '<div class="title" id="title">Projelli</div>',
+      '<div class="title" id="title">Keepance</div>',
       `<div class="title" id="title">${escapeHtml(title)}</div>`
     );
 

@@ -62,7 +62,7 @@ export async function video08() {
   // Switch to single-pane without backlinks for this video
   await page.evaluate(
     ({ rootPath, content }) => {
-      (window as any).__projelli_seed!({
+      (window as any).__keepance_seed!({
         editor: {
           openTabs: [{ path: `${rootPath}/Vision.md`, name: 'Vision.md', content, isDirty: false, type: 'file' }],
           activeTabPath: `${rootPath}/Vision.md`,
@@ -89,7 +89,7 @@ export async function video08() {
     // Seed the edited content directly
     await page.evaluate(
       ({ rootPath, content }) => {
-        (window as any).__projelli_seed!({
+        (window as any).__keepance_seed!({
           editor: {
             openTabs: [{ path: `${rootPath}/Vision.md`, name: 'Vision.md', content, isDirty: true, type: 'file' }],
             activeTabPath: `${rootPath}/Vision.md`,
@@ -270,7 +270,7 @@ export async function video08() {
   // Show the diff/preview — seed the editor with older content visible
   await page.evaluate(
     ({ rootPath, content }) => {
-      (window as any).__projelli_seed!({
+      (window as any).__keepance_seed!({
         editor: {
           openTabs: [{ path: `${rootPath}/Vision.md`, name: 'Vision.md', content, isDirty: false, type: 'file' }],
           activeTabPath: `${rootPath}/Vision.md`,

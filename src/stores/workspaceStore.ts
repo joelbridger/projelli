@@ -140,7 +140,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       ].slice(0, 10);
       // Persist to localStorage
       try {
-        localStorage.setItem('projelli_recent_workspaces', JSON.stringify(updated));
+        localStorage.setItem('keepance_recent_workspaces', JSON.stringify(updated));
         console.log(`[RecentWorkspaces] Saved ${updated.length} recent workspaces, latest: ${workspace.name}`);
       } catch (error) {
         console.error('Failed to save recent workspaces:', error);
@@ -152,14 +152,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   saveRecentWorkspaces: () => {
     const state = get();
     try {
-      localStorage.setItem('projelli_recent_workspaces', JSON.stringify(state.recentWorkspaces));
+      localStorage.setItem('keepance_recent_workspaces', JSON.stringify(state.recentWorkspaces));
     } catch (error) {
       console.error('Failed to save recent workspaces:', error);
     }
   },
 
   loadRecentWorkspaces: () => {
-    const stored = localStorage.getItem('projelli_recent_workspaces');
+    const stored = localStorage.getItem('keepance_recent_workspaces');
     console.log(`[RecentWorkspaces] Loading from localStorage, found: ${!!stored}`);
     if (stored) {
       try {

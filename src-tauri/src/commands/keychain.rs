@@ -8,12 +8,12 @@
 //   - Windows : Credential Manager
 //   - Linux   : Secret Service (gnome-keyring / KWallet via D-Bus)
 //
-// Default service namespace is `com.projelli.app`. Callers may override
-// when storing keys for scoped features later (e.g. `com.projelli.sync`).
+// Default service namespace is `com.keepance.app`. Callers may override
+// when storing keys for scoped features later (e.g. `com.keepance.sync`).
 
 use serde::{Deserialize, Serialize};
 
-const DEFAULT_SERVICE: &str = "com.projelli.app";
+const DEFAULT_SERVICE: &str = "com.keepance.app";
 
 /// Structured error returned to the frontend. Separating "not found" from
 /// "unsupported platform" from "generic backend error" lets the frontend
@@ -130,8 +130,8 @@ mod tests {
     #[test]
     fn resolves_custom_service_when_provided() {
         assert_eq!(
-            resolve_service(Some("com.projelli.sync".to_string())),
-            "com.projelli.sync"
+            resolve_service(Some("com.keepance.sync".to_string())),
+            "com.keepance.sync"
         );
     }
 
@@ -183,15 +183,15 @@ mod tests {
         assert_eq!(format!("{}", e), "denied: no access");
     }
 
-    /// Live keychain test. Gated behind `PROJELLI_TEST_KEYCHAIN=1` at runtime
+    /// Live keychain test. Gated behind `KEEPANCE_TEST_KEYCHAIN=1` at runtime
     /// so CI (which typically has no secret service daemon running) doesn't
-    /// fail. Run locally with `PROJELLI_TEST_KEYCHAIN=1 cargo test -- --test-threads=1`.
+    /// fail. Run locally with `KEEPANCE_TEST_KEYCHAIN=1 cargo test -- --test-threads=1`.
     #[test]
     fn live_roundtrip_set_get_delete() {
-        if std::env::var_os("PROJELLI_TEST_KEYCHAIN").is_none() {
+        if std::env::var_os("KEEPANCE_TEST_KEYCHAIN").is_none() {
             return;
         }
-        let svc = "com.projelli.app.test";
+        let svc = "com.keepance.app.test";
         let key = "phase2-keychain-test";
         let entry =
             keyring::Entry::new(svc, key).expect("entry should build on this platform");

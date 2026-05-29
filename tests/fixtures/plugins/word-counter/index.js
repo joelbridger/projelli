@@ -1,4 +1,4 @@
-// Word Counter — example plugin for the Projelli sandboxed plugin runner.
+// Word Counter — example plugin for the Keepance sandboxed plugin runner.
 //
 // Three contributions:
 //   - command   `word-counter.count`  returns { words, characters } for the

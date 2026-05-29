@@ -2,9 +2,9 @@
  * Stream D-web Group IV · Task 4.4 — DemoLimitGate tests.
  *
  * Three triggers to verify:
- *   1. Five `projelli:demo-message-sent` events open the modal.
+ *   1. Five `keepance:demo-message-sent` events open the modal.
  *   2. A 10-minute-old session opens the modal on the next event tick.
- *   3. A `projelli:demo-limit-hit` event opens the modal immediately.
+ *   3. A `keepance:demo-limit-hit` event opens the modal immediately.
  *
  * jsdom + fake timers + manual localStorage seeding cover all three.
  */
@@ -25,7 +25,7 @@ afterEach(() => {
 
 function fireMessageSent() {
   act(() => {
-    window.dispatchEvent(new CustomEvent('projelli:demo-message-sent'));
+    window.dispatchEvent(new CustomEvent('keepance:demo-message-sent'));
   });
 }
 
@@ -65,13 +65,13 @@ describe('DemoLimitGate', () => {
     expect(screen.getByTestId('demo-exit-modal')).toBeInTheDocument();
   });
 
-  it('opens the modal in response to a projelli:demo-limit-hit event', () => {
+  it('opens the modal in response to a keepance:demo-limit-hit event', () => {
     render(<DemoLimitGate />);
     expect(screen.queryByTestId('demo-exit-modal')).not.toBeInTheDocument();
 
     act(() => {
       window.dispatchEvent(
-        new CustomEvent('projelli:demo-limit-hit', {
+        new CustomEvent('keepance:demo-limit-hit', {
           detail: { reason: 'rate-limited', message: 'rate limit' },
         }),
       );
@@ -99,7 +99,7 @@ describe('DemoLimitGate', () => {
     // But a hard limit-hit event SHOULD reopen.
     act(() => {
       window.dispatchEvent(
-        new CustomEvent('projelli:demo-limit-hit', {
+        new CustomEvent('keepance:demo-limit-hit', {
           detail: { reason: 'budget-exhausted', message: 'budget' },
         }),
       );

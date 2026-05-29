@@ -20,12 +20,12 @@ The items below are from the 2026-04-08 pre-v1.0.8 push. Most are complete; kept
 
 The product is **structurally ready to take money**. All the code, content, infrastructure, services, legal docs, and marketing assets that can be built without Jameson's hands are done. Live verification:
 
-- ✅ https://projelli.com — homepage live with new copy, animated demo, email signup form
-- ✅ https://projelli.com/legal/{privacy,terms,eula} — legal docs live
-- ✅ https://projelli.com/docs/{getting-started,api-keys,faq} — user docs live
-- ✅ https://licenses.projelli.com/healthz — license validator service live (returns "ok")
-- ✅ https://github.com/projelli — org page live with profile README
-- ✅ https://github.com/projelli/projelli — repo live with 6 commits ahead of pre-marathon state
+- ✅ https://keepance.com — homepage live with new copy, animated demo, email signup form
+- ✅ https://keepance.com/legal/{privacy,terms,eula} — legal docs live
+- ✅ https://keepance.com/docs/{getting-started,api-keys,faq} — user docs live
+- ✅ https://licenses.keepance.com/healthz — license validator service live (returns "ok")
+- ✅ https://github.com/keepance — org page live with profile README
+- ✅ https://github.com/keepance/keepance — repo live with 6 commits ahead of pre-marathon state
 
 The remaining items below are **pure capital + identity work** that only Jameson can do. Most of them take 5-15 minutes each. Together they unblock Weeks 2, 4, and 6 of the launch plan.
 
@@ -38,8 +38,8 @@ The remaining items below are **pure capital + identity work** that only Jameson
 **Status:** ✅ Azure Artifact Signing account created 2026-04-08 (Microsoft renamed "Trusted Signing" → "Artifact Signing"). Identity Validation Request submitted, status: **In Progress**. Microsoft typically takes 1-3 business days.
 
 **Validation details:**
-- Account: `projelli-signing` (in resource group `projelli-rg`, region East US)
-- Account email: `microsoft@projelli.com`
+- Account: `keepance-signing` (in resource group `keepance-rg`, region East US)
+- Account email: `microsoft@keepance.com`
 - Identity validation ID: `03efa33b-7e76-41f9-b862-10473e3b3757`
 - Subject Name (cert): Jameson Daines (Individual Validation)
 - Plan: Basic (~$10/mo)
@@ -67,7 +67,7 @@ Claude will then wire Azure Artifact Signing into `.github/workflows/release.yml
 5. OpenSSL combined .cer + private key into `.p12` with auto-generated password
 6. All credentials pushed to GitHub Secrets via `gh secret set`
 
-**GitHub Secrets set on projelli/projelli:**
+**GitHub Secrets set on keepance/keepance:**
 - `APPLE_CERTIFICATE` (base64 of .p12)
 - `APPLE_CERTIFICATE_PASSWORD`
 - `APPLE_SIGNING_IDENTITY` = "Developer ID Application: Jameson Daines (7HCXDCS279)"
@@ -76,10 +76,10 @@ Claude will then wire Azure Artifact Signing into `.github/workflows/release.yml
 - `APPLE_TEAM_ID` = 7HCXDCS279
 
 **Files on the server:**
-- `~/.projelli-certs/projelli-developer-id.key` (private key, chmod 600)
-- `~/.projelli-certs/developerID_application.cer` (Apple-issued cert)
-- `~/.projelli-certs/projelli-developer-id.p12` (combined, chmod 600)
-- `~/.projelli-secrets` (credential values, chmod 600)
+- `~/.keepance-certs/keepance-developer-id.key` (private key, chmod 600)
+- `~/.keepance-certs/developerID_application.cer` (Apple-issued cert)
+- `~/.keepance-certs/keepance-developer-id.p12` (combined, chmod 600)
+- `~/.keepance-secrets` (credential values, chmod 600)
 
 **The `.github/workflows/release.yml` workflow already references these secrets** — macOS signing + notarization will activate automatically on the next git tag push. No further manual steps needed for Apple. ✅
 
@@ -87,7 +87,7 @@ Claude will then wire Azure Artifact Signing into `.github/workflows/release.yml
 
 ### 3. Set up LemonSqueezy account + create products — ✅ COMPLETE (2026-04-13, STRIPE APPROVED)
 
-**Status:** ✅ FULLY LIVE. LemonSqueezy store `projelli` (ID `340394`) approved by Stripe on 2026-04-13. Account rep: Ankith. Test mode can be turned off. **Buy buttons on projelli.com are now accepting real payments.** All 3 product variants (Pro $49, Lifetime $99, Founder's Launch $29) should be active.
+**Status:** ✅ FULLY LIVE. LemonSqueezy store `keepance` (ID `340394`) approved by Stripe on 2026-04-13. Account rep: Ankith. Test mode can be turned off. **Buy buttons on keepance.com are now accepting real payments.** All 3 product variants (Pro $49, Lifetime $99, Founder's Launch $29) should be active.
 
 **Important from LemonSqueezy's approval email:**
 - "Everything must be download ready the second the buyer clicks purchase" — this is satisfied (v1.0.2 is live on GitHub Releases).
@@ -101,14 +101,14 @@ Claude will then wire Azure Artifact Signing into `.github/workflows/release.yml
 **Status:** 12 CI attempts, all 4 platforms building cleanly on attempt 12 (run id `24194263726`).
 
 **v1.0.2-rc.1 draft release has 9 signed artifacts:**
-- `Projelli_1.0.2_x64-setup.exe` (Windows, signed via Azure Trusted Signing)
-- `Projelli_1.0.2_x64_en-US.msi` (Windows, signed via Azure Trusted Signing)
-- `Projelli_1.0.2_aarch64.dmg` (Mac ARM, signed with Developer ID, **not notarized**)
-- `Projelli_1.0.2_x64.dmg` (Mac Intel, signed with Developer ID, **not notarized**)
-- `Projelli_aarch64.app.tar.gz` + `Projelli_x64.app.tar.gz` (Mac app bundles)
-- `Projelli_1.0.2_amd64.AppImage` + `Projelli_1.0.2_amd64.deb` + `Projelli-1.0.2-1.x86_64.rpm` (Linux)
+- `Keepance_1.0.2_x64-setup.exe` (Windows, signed via Azure Trusted Signing)
+- `Keepance_1.0.2_x64_en-US.msi` (Windows, signed via Azure Trusted Signing)
+- `Keepance_1.0.2_aarch64.dmg` (Mac ARM, signed with Developer ID, **not notarized**)
+- `Keepance_1.0.2_x64.dmg` (Mac Intel, signed with Developer ID, **not notarized**)
+- `Keepance_aarch64.app.tar.gz` + `Keepance_x64.app.tar.gz` (Mac app bundles)
+- `Keepance_1.0.2_amd64.AppImage` + `Keepance_1.0.2_amd64.deb` + `Keepance-1.0.2-1.x86_64.rpm` (Linux)
 
-Draft release URL: https://github.com/projelli/projelli/releases
+Draft release URL: https://github.com/keepance/keepance/releases
 
 **Issues resolved during the 12 attempts** (preserved here so we don't repeat them):
 1. `@rollup/rollup-linux-x64-gnu` was a hard dep → removed
@@ -120,7 +120,7 @@ Draft release URL: https://github.com/projelli/projelli/releases
 11. Mac notarization failed with "Internet connection appears to be offline" after 49 minutes → **Apple's notary service has been degraded since March 2026** (multiple dev forum reports)
 12. **Mac notarization DISABLED** in the workflow — Mac builds are signed with Developer ID but unnotarized. Re-enable by uncommenting the 3 `APPLE_ID`/`APPLE_PASSWORD`/`APPLE_TEAM_ID` env vars in `.github/workflows/release.yml` when Apple's service recovers. Check https://developer.apple.com/system-status/ for "Notarization" status.
 
-**What users experience with unnotarized Mac builds:** Gatekeeper shows a warning on first open ("Projelli can't be opened because Apple cannot check it for malicious software"). To install: right-click the .app → Open → Open. After the first open, macOS trusts it for all future launches. The app is still cryptographically signed by Jameson's Developer ID cert.
+**What users experience with unnotarized Mac builds:** Gatekeeper shows a warning on first open ("Keepance can't be opened because Apple cannot check it for malicious software"). To install: right-click the .app → Open → Open. After the first open, macOS trusts it for all future launches. The app is still cryptographically signed by Jameson's Developer ID cert.
 
 **For the real v1.0.2 launch release:** Check Apple's status. If notary is still down, ship unnotarized with a FAQ note. If notary is back, re-enable the env vars and re-tag.
 
@@ -131,7 +131,7 @@ Draft release URL: https://github.com/projelli/projelli/releases
 **Why it matters:** Without conversion goals, the Plausible dashboard can't tell us how many people clicked Download or Buy. Useful for the launch.
 
 **Steps (do this in your browser):**
-1. Go to https://analytics.jamesondaines.com/projelli.com/settings/goals (or whatever the Plausible URL is)
+1. Go to https://analytics.jamesondaines.com/keepance.com/settings/goals (or whatever the Plausible URL is)
 2. Sign in
 3. Add three goals:
    - **Download click** — type: Custom Event, name: `Download click`
@@ -164,15 +164,15 @@ Defer until revenue clears $1K/mo. At that point:
 These are the things Claude built during the marathon session. **You don't need to do anything about these** — they just exist now.
 
 ### Code & infrastructure
-- 6 commits pushed to `projelli/projelli:master` (including the move to the org)
-- Live website: https://projelli.com (with new copy, animated demo, email signup, footer with real legal/docs links)
-- License validator service: https://licenses.projelli.com (Bun systemd, Ed25519 JWT, awaiting LemonSqueezy creds)
+- 6 commits pushed to `keepance/keepance:master` (including the move to the org)
+- Live website: https://keepance.com (with new copy, animated demo, email signup, footer with real legal/docs links)
+- License validator service: https://licenses.keepance.com (Bun systemd, Ed25519 JWT, awaiting LemonSqueezy creds)
 - 3 new founder workflow templates: InvestorUpdate, BoardMeetingPrep, FirstHirePlaybook
 - React `useLicense` hook + LicenseSettings UI component (in-app license activation flow)
 - React `FirstRunWizard` component (onboarding for new users)
 - GitHub Actions workflow at `.github/workflows/release.yml` ready to build cross-platform installers
-- support@projelli.com fully configured (Brevo + CF Email Routing + DKIM)
-- Org profile at https://github.com/projelli with README and metadata
+- support@keepance.com fully configured (Brevo + CF Email Routing + DKIM)
+- Org profile at https://github.com/keepance with README and metadata
 
 ### Documentation
 - `PROJELLI_BUSINESS_PLAN.md` — operating contract (16 CEO decisions, 8-week roadmap, revenue model, risks)
@@ -187,10 +187,10 @@ These are the things Claude built during the marathon session. **You don't need 
 ### Server-side state (not in the repo)
 - `/etc/systemd/system/license-validator.service` — installed, enabled, running
 - `/etc/license-validator.env` — created, awaiting LemonSqueezy creds
-- `/etc/caddy/Caddyfile` — patched to add `licenses.projelli.com` block + projelli.com `/api/forms/*` route + try_files for clean URLs
-- `/etc/cloudflared/config.yml` — patched to add `licenses.projelli.com` ingress
-- DNS: `licenses.projelli.com` CNAME added to projelli.com zone
-- Brevo: `projelli.com` registered as a verified sender domain, `noreply@projelli.com` sender created
+- `/etc/caddy/Caddyfile` — patched to add `licenses.keepance.com` block + keepance.com `/api/forms/*` route + try_files for clean URLs
+- `/etc/cloudflared/config.yml` — patched to add `licenses.keepance.com` ingress
+- DNS: `licenses.keepance.com` CNAME added to keepance.com zone
+- Brevo: `keepance.com` registered as a verified sender domain, `noreply@keepance.com` sender created
 
 ---
 

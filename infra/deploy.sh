@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Sudo-free deploy. Requires: jameson is in www-data group AND /var/www/projelli.com
+# Sudo-free deploy. Requires: jameson is in www-data group AND /var/www/keepance.com
 # has the setgid bit on directories. Run setup-claude-deploy.sh ONCE to set both up.
 #
 # What this does:
-#   1. rsync website/ → /var/www/projelli.com/  (no sudo; jameson can write because
+#   1. rsync website/ → /var/www/keepance.com/  (no sudo; jameson can write because
 #      jameson is in www-data group and the dir is group-writable)
 #   2. New files inherit www-data group via setgid, so Caddy can still serve them
 #   3. Optional Cloudflare cache purge if token + zone are configured
 #
 # Usage:
-#   ~/projelli-marketing/infra/deploy-noroot.sh
+#   ~/keepance/infra/deploy.sh
 #
 # Replaces deploy.sh for routine deploys. Original deploy.sh is preserved as fallback.
 
@@ -17,11 +17,11 @@ set -e
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WEBSITE_DIR="$REPO_DIR/website"
-WEB_ROOT="/var/www/projelli.com"
+WEB_ROOT="/var/www/keepance.com"
 WEB_DEMO_DIR="$REPO_DIR/dist-web-demo"
 WEB_DEMO_ROOT="$WEB_ROOT/try"
-TOKEN_FILE="$HOME/.cloudflare-projelli-token"
-ZONE_ID="${PROJELLI_CF_ZONE_ID:-}"
+TOKEN_FILE="$HOME/.cloudflare-keepance-token"
+ZONE_ID="${KEEPANCE_CF_ZONE_ID:-b12c60acef16317a66994606f79792e2}"
 
 # --dry-run previews rsync output without touching disk; useful for CI sanity.
 DRY_RUN_FLAG=""
@@ -106,18 +106,28 @@ else
 fi
 
 if [[ -f "$TOKEN_FILE" && -n "$ZONE_ID" ]]; then
-  echo "==> Purging Cloudflare cache for projelli.com"
+  echo "==> Purging Cloudflare cache for keepance.com"
   TOKEN=$(cat "$TOKEN_FILE")
-  curl -sX POST "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/purge_cache" \
-    -H "Authorization: Bearer ${TOKEN}" \
-    -H "Content-Type: application/json" \
-    --data '{"purge_everything":true}' | grep -o '"success":[^,]*' || echo "  (no response from CF API)"
+  # Token starting with "cfk_" is the global API key (uses X-Auth-Email + X-Auth-Key);
+  # any other prefix is treated as a scoped Bearer token.
+  if [[ "$TOKEN" == cfk_* ]]; then
+    curl -sX POST "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/purge_cache" \
+      -H "X-Auth-Email: jamesondaines@outlook.com" \
+      -H "X-Auth-Key: ${TOKEN}" \
+      -H "Content-Type: application/json" \
+      --data '{"purge_everything":true}' | grep -o '"success":[^,]*' || echo "  (no response from CF API)"
+  else
+    curl -sX POST "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/purge_cache" \
+      -H "Authorization: Bearer ${TOKEN}" \
+      -H "Content-Type: application/json" \
+      --data '{"purge_everything":true}' | grep -o '"success":[^,]*' || echo "  (no response from CF API)"
+  fi
 elif [[ ! -f "$TOKEN_FILE" ]]; then
   echo "==> SKIPPING Cloudflare cache purge: $TOKEN_FILE not found"
   echo "    To enable: write your CF API token to $TOKEN_FILE and chmod 600"
 elif [[ -z "$ZONE_ID" ]]; then
-  echo "==> SKIPPING Cloudflare cache purge: PROJELLI_CF_ZONE_ID not set"
-  echo "    To enable: export PROJELLI_CF_ZONE_ID=<zone-id-from-cloudflare>"
+  echo "==> SKIPPING Cloudflare cache purge: KEEPANCE_CF_ZONE_ID not set"
+  echo "    To enable: export KEEPANCE_CF_ZONE_ID=<zone-id-from-cloudflare>"
 fi
 
-echo "==> Done. Live at https://projelli.com"
+echo "==> Done. Live at https://keepance.com"

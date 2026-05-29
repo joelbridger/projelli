@@ -119,7 +119,7 @@ export function AIAssistantPane({
 
   // Model selection state.
   // Defaults resolve through `getDefaultModelsForTier` (Q9 — Wave 1.5) so free-tier
-  // founders land on Claude Haiku 4.5 out of the box. Paid tiers keep Sonnet 4.6.
+  // Free tier defaults to Claude Haiku 4.5. Paid tiers keep Sonnet 4.6.
   // This only seeds the initial selection; a user's explicit pick is respected.
   const [selectedModels, setSelectedModels] = useState<Record<string, string>>(() =>
     getDefaultModelsForTier(tier)

@@ -441,7 +441,7 @@ export function PluginDetailView({
 
   const handleViewAuditLog = useCallback(() => {
     window.dispatchEvent(
-      new CustomEvent('projelli:open-audit-log', {
+      new CustomEvent('keepance:open-audit-log', {
         detail: { source: 'marketplace', pluginId: entry.id },
       }),
     );

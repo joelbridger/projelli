@@ -7,7 +7,7 @@
  *   2. Mocks the proxy at /api/demo-chat so we can drive the limit gate
  *      without a real Anthropic key.
  *   3. Triggers the limit modal directly via the
- *      `projelli:demo-limit-hit` window event (the same hook DemoLimitGate
+ *      `keepance:demo-limit-hit` window event (the same hook DemoLimitGate
  *      listens for from the proxy). This avoids a 5-message UI walk and
  *      keeps the test stable across product UI changes.
  *   4. Verifies download buttons in the modal carry UTM params.
@@ -29,7 +29,7 @@ const DEMO_URL = '/index.demo.html';
 
 test.describe('Web demo sandbox (/try)', () => {
   test.beforeEach(async ({ context }) => {
-    // The demo proxy lives at projelli.com in production. In dev it is not
+    // The demo proxy lives at keepance.com in production. In dev it is not
     // reachable, so any real send would fail. We mock it to a 200 response
     // shaped like the proxy's contract so the limit-gate code path runs as
     // designed.
@@ -78,7 +78,7 @@ test.describe('Web demo sandbox (/try)', () => {
     // not depend on a chat surface render path that may still be evolving.
     await page.evaluate(() => {
       window.dispatchEvent(
-        new CustomEvent('projelli:demo-limit-hit', {
+        new CustomEvent('keepance:demo-limit-hit', {
           detail: { reason: 'rate-limited', message: 'mock' },
         }),
       );
@@ -113,11 +113,11 @@ test.describe('Web demo sandbox (/try)', () => {
     await expect(page.getByTestId('demo-mode-banner')).toBeVisible();
 
     // Simulate five successful proxy sends by dispatching the contract
-    // `projelli:demo-message-sent` event the way demoAIProvider does on
+    // `keepance:demo-message-sent` event the way demoAIProvider does on
     // success. After the fifth one, DemoLimitGate opens the modal.
     await page.evaluate(() => {
       for (let i = 0; i < 5; i++) {
-        window.dispatchEvent(new CustomEvent('projelli:demo-message-sent'));
+        window.dispatchEvent(new CustomEvent('keepance:demo-message-sent'));
       }
     });
 

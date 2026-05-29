@@ -33,7 +33,7 @@ describe('TTS barrel exports', () => {
 
   it('exports TTS_CDN_BASE string', () => {
     expect(typeof TTS_CDN_BASE).toBe('string');
-    expect(TTS_CDN_BASE).toContain('projelli.com');
+    expect(TTS_CDN_BASE).toContain('keepance.com');
   });
 
   it('exports getVoiceById function', () => {

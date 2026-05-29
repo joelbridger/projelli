@@ -14,7 +14,7 @@
  *
  * Indexing + @workspace retrieval are NOT exercised here — those need a real
  * Tauri runtime (LanceDB + the native file watcher). They are covered by the
- * Rust `cargo test -p projelli` suite and by the Vitest suites listed in the
+ * Rust `cargo test -p keepance` suite and by the Vitest suites listed in the
  * smoke spec's docstring. The stress tests below focus on what the browser
  * harness can actually observe: the React tree, the settings store, and the
  * FactsService in-memory path.

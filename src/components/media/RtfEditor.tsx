@@ -6,7 +6,7 @@
 // first-edit backup via `fileBackupStore`, dismissible fidelity banner).
 //
 // This replaces the pre-Phase-6 behavior where `.rtf` files were routed to
-// Projelli's internal `.rt` handler (HTML-backed rich text editor), which
+// Keepance's internal `.rt` handler (HTML-backed rich text editor), which
 // showed users the raw `{\rtf1\ansi...}` markup because `.rt` expected its
 // own HTML wire format.
 

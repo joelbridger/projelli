@@ -55,7 +55,7 @@ _Time spent: [target 2 hr]_
 
 ## 3. Buyer retrospective (20 min)
 
-### Strongest stories from this quarter (from `~/projelli/sign-ups/recommendation-stories.csv`)
+### Strongest stories from this quarter (from `~/keepance/sign-ups/recommendation-stories.csv`)
 1. Workflow named: ___ Quote: ___
 2. Workflow named: ___ Quote: ___
 3. Workflow named: ___ Quote: ___
@@ -89,7 +89,7 @@ _Time spent: [target 2 hr]_
 - Episodes aired:
 
 ### Personal brand
-- Real-name Projelli posts this Q (target: 3-6):
+- Real-name Keepance posts this Q (target: 3-6):
 - Voice profile compliance: [yes/no]
 
 ---

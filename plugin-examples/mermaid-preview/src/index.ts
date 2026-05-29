@@ -1,6 +1,6 @@
-import type { PluginAPI, PluginModule } from '@projelli/plugin-api';
+import type { PluginAPI, PluginModule } from '@keepance/plugin-api';
 
-// Mermaid Preview - example Projelli plugin.
+// Mermaid Preview - example Keepance plugin.
 //
 // Demonstrates:
 //   - api.editor.getContent (gated by editor:selection in v2.0)

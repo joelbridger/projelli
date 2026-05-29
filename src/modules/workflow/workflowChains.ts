@@ -1,6 +1,6 @@
 // Workflow chain persistence (M7)
 //
-// Chains are saved as JSON files under `<workspace>/.projelli/chains/<id>.json`
+// Chains are saved as JSON files under `<workspace>/.keepance/chains/<id>.json`
 // in Tauri builds; in the browser prototype we fall back to localStorage so
 // the same UI works without needing a workspace selected.
 //
@@ -10,7 +10,7 @@
 import type { WorkflowChain } from '@/types/workflow';
 import { deserializeChain, serializeChain } from './WorkflowChainEngine';
 
-export const CHAIN_STORAGE_KEY = 'projelli:workflowChains';
+export const CHAIN_STORAGE_KEY = 'keepance:workflowChains';
 
 export interface ChainStorage {
   read(): string | null;

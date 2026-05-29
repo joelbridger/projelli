@@ -40,7 +40,7 @@ function makeManifest(
     description: 'Counts words in your editor in real time.',
     main: 'index.js',
     permissions: ['editor:selection'],
-    minProjelliVersion: '2.0.0',
+    minKeepanceVersion: '2.0.0',
     category: 'utility',
     tags: ['editor'],
     ...overrides,
@@ -55,7 +55,7 @@ function makeInstance(
   return {
     manifest,
     status,
-    installPath: `/ws/.projelli/plugins/${manifest.id}`,
+    installPath: `/ws/.keepance/plugins/${manifest.id}`,
     lastError: status === 'crashed' ? 'kaboom' : null,
     installedAt: '2026-04-28T00:00:00.000Z',
     enabledAt: status === 'enabled' ? '2026-04-28T00:00:01.000Z' : null,

@@ -1,90 +1,90 @@
 // Financial Model Workflow Template
-// Helps founders create basic financial projections
+// Helps professionals create basic financial projections
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'businessType',
-    question: 'What type of business are you building?',
-    description: 'The business model and industry',
+    question: 'What type of practice or business are you modeling?',
+    description: 'Your practice model and profession',
     type: 'select',
     required: true,
-    options: ['SaaS/Subscription', 'E-commerce', 'Marketplace', 'Service/Consulting', 'Mobile App', 'Hardware', 'Other'],
-    defaultValue: 'SaaS/Subscription',
+    options: ['Law firm / Legal practice', 'Accounting / Tax / CPA firm', 'Independent consulting', 'Boutique agency', 'Financial advisory', 'Other professional services'],
+    defaultValue: 'Law firm / Legal practice',
   },
   {
     id: 'revenueModel',
-    question: 'How will you make money?',
-    description: 'Your pricing and revenue structure',
+    question: 'How do you bill for your services?',
+    description: 'Your billing structure and engagement types',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Monthly subscription at $29/user, with annual discount. Targeting small businesses.',
+    placeholder: 'e.g., Hourly billing at $350/hr for litigation matters, flat-fee for estate planning documents, monthly retainer for ongoing advisory clients',
   },
   {
     id: 'pricing',
-    question: 'What is your pricing?',
-    description: 'Specific prices for your tiers/products',
+    question: 'What are your rates and fees?',
+    description: 'Specific rates, flat fees, or retainer amounts',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Starter: $19/mo, Pro: $49/mo, Team: $99/mo (up to 5 users)',
+    placeholder: 'e.g., Hourly rate: $350, Standard will package: $1,500 flat, Monthly advisory retainer: $2,500/mo',
   },
   {
     id: 'currentNumbers',
     question: 'What are your current numbers (if any)?',
-    description: 'Current revenue, customers, costs',
+    description: 'Current revenue, active client matters, and monthly costs',
     type: 'textarea',
     required: false,
-    placeholder: 'e.g., $2K MRR, 50 paying customers, $3K/mo expenses',
+    placeholder: 'e.g., 38 active client matters, $15K/mo billable, $8K/mo overhead, 3 retainer clients at $2,500/mo each',
   },
   {
     id: 'acquisitionChannels',
-    question: 'How will you acquire customers?',
-    description: 'Your main customer acquisition channels',
+    question: 'How do you bring in new clients?',
+    description: 'Your main client development channels',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Content marketing, paid ads ($500/mo budget), partnerships, product-led growth',
+    placeholder: 'e.g., Referrals from past clients, bar association networking, LinkedIn, co-counsel relationships',
   },
   {
-    id: 'estimatedCAC',
-    question: 'What do you estimate customer acquisition will cost?',
-    description: 'Cost to acquire one customer (or your best guess)',
+    id: 'clientAcquisitionCost',
+    question: 'What does it cost to bring in a new client?',
+    description: 'Estimated cost per new client (or your best guess)',
     type: 'text',
     required: true,
-    placeholder: 'e.g., $50 per customer, or "I don\'t know"',
+    placeholder: 'e.g., ~$200 in networking/event costs, or "mostly referrals, hard to quantify"',
   },
   {
     id: 'fixedCosts',
     question: 'What are your fixed monthly costs?',
-    description: 'Costs that don\'t change with customers',
+    description: 'Overhead that does not change with client volume',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Hosting: $100, Tools: $200, Insurance: $100, My salary: $0 (bootstrapping)',
+    placeholder: 'e.g., Office/rent: $1,200, Malpractice insurance: $400, Software/tools: $300, Bar dues (amortized): $150',
   },
   {
     id: 'variableCosts',
-    question: 'What are your variable costs per customer?',
-    description: 'Costs that scale with customers',
+    question: 'What are your variable costs per engagement?',
+    description: 'Costs that scale with client matters',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Payment processing: 3%, Server costs: $0.50/user, Support: $2/user',
+    placeholder: 'e.g., Filing fees, court reporter, expert witnesses, subcontractor costs, payment processing (2.9%)',
   },
   {
     id: 'teamPlans',
-    question: 'What are your hiring/team plans?',
-    description: 'When you plan to hire and who',
+    question: 'What are your staffing plans?',
+    description: 'When and who you plan to hire',
     type: 'textarea',
     required: false,
-    placeholder: 'e.g., Solo for first year, hire first engineer at $10K MRR, marketer at $25K MRR',
+    placeholder: 'e.g., Solo for now; plan to bring on a paralegal when billing exceeds $20K/mo, then a junior associate in year 2',
   },
   {
     id: 'fundingPlans',
-    question: 'What are your funding plans?',
-    description: 'Bootstrapped, raising, or other',
+    question: 'How is the practice funded?',
+    description: 'Self-funded, line of credit, or other',
     type: 'select',
     required: true,
-    options: ['Bootstrapping', 'Planning to raise seed ($250K-$2M)', 'Planning to raise Series A', 'Already raised funding', 'Undecided'],
-    defaultValue: 'Bootstrapping',
+    options: ['Self-funded / operating cash flow', 'Business line of credit', 'SBA loan', 'Partner capital contributions', 'Undecided'],
+    defaultValue: 'Self-funded / operating cash flow',
   },
   {
     id: 'timeHorizon',
@@ -97,20 +97,20 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
 ];
 
-const financialModelPrompt = `You are helping a solo founder create financial projections.
+const financialModelPrompt = `You are helping a professional service provider create financial projections for their practice.
 
 Based on the following information:
 
-**Business Type:** {{businessType}}
-**Revenue Model:** {{revenueModel}}
-**Pricing:** {{pricing}}
+**Practice Type:** {{businessType}}
+**Billing Model:** {{revenueModel}}
+**Rates & Fees:** {{pricing}}
 **Current Numbers:** {{currentNumbers}}
-**Acquisition Channels:** {{acquisitionChannels}}
-**Estimated CAC:** {{estimatedCAC}}
+**Client Development Channels:** {{acquisitionChannels}}
+**Client Acquisition Cost:** {{clientAcquisitionCost}}
 **Fixed Costs:** {{fixedCosts}}
 **Variable Costs:** {{variableCosts}}
-**Team Plans:** {{teamPlans}}
-**Funding Plans:** {{fundingPlans}}
+**Staffing Plans:** {{teamPlans}}
+**Funding:** {{fundingPlans}}
 **Time Horizon:** {{timeHorizon}}
 
 Generate a Financial Model document in Markdown format:
@@ -118,71 +118,71 @@ Generate a Financial Model document in Markdown format:
 # Financial Model
 
 ## Executive Summary
-[2-3 paragraph overview of the financial projections]
+[2-3 paragraph overview of the financial projections for this practice]
 
 ## Assumptions
 
 ### Revenue Assumptions
 | Assumption | Value | Rationale |
 |------------|-------|-----------|
-| Average Revenue Per User (ARPU) | $X/mo | [Based on pricing mix] |
-| Annual vs Monthly Mix | X% annual | [Industry standard or estimate] |
-| Annual Discount | X% | [If applicable] |
-| Churn Rate | X%/mo | [Industry benchmark or estimate] |
-| Expansion Revenue | X%/mo | [Upgrades, upsells] |
+| Average Revenue per Matter / Engagement | $X | [Based on billing mix] |
+| Retainer vs. Project Mix | X% retainer | [Estimate or current mix] |
+| Billable Hours per Week | X hrs | [Realistic capacity] |
+| Realization Rate | X% | [Billed vs. worked hours] |
+| Client Retention Rate | X% annually | [Estimate or historical] |
 
 ### Growth Assumptions
 | Assumption | Value | Rationale |
 |------------|-------|-----------|
-| Month 1 Customers | X | [Starting point] |
-| Monthly Growth Rate (Months 1-6) | X% | [Early growth] |
-| Monthly Growth Rate (Months 7-12) | X% | [Maturing growth] |
-| Monthly Growth Rate (Year 2) | X% | [Scaled growth] |
+| Active Matters / Engagements (Month 1) | X | [Starting point] |
+| New Client Growth Rate (Months 1-6) | X/mo | [Early growth] |
+| New Client Growth Rate (Months 7-12) | X/mo | [Maturing growth] |
+| New Client Growth Rate (Year 2) | X/mo | [Scaled growth] |
 
 ### Cost Assumptions
 | Category | Amount | Notes |
 |----------|--------|-------|
-| Fixed Costs | $X/mo | [Breakdown] |
-| Variable Cost per Customer | $X | [Breakdown] |
-| Customer Acquisition Cost | $X | [Based on channels] |
+| Fixed Overhead | $X/mo | [Breakdown] |
+| Variable Cost per Engagement | $X | [Filing fees, etc.] |
+| Client Development Cost | $X/mo | [Networking, marketing] |
 
 ## Revenue Projections
 
-### Monthly Recurring Revenue (MRR)
+### Billable Revenue
 
 #### Year 1 (Monthly)
-| Month | New Customers | Churned | Total Customers | MRR |
-|-------|--------------|---------|-----------------|-----|
-| 1 | | | | $ |
-| 2 | | | | $ |
-| 3 | | | | $ |
-| 4 | | | | $ |
-| 5 | | | | $ |
-| 6 | | | | $ |
-| 7 | | | | $ |
-| 8 | | | | $ |
-| 9 | | | | $ |
-| 10 | | | | $ |
-| 11 | | | | $ |
-| 12 | | | | $ |
+| Month | New Clients | Active Matters | Billable Revenue | Collected Revenue |
+|-------|-------------|----------------|-----------------|-------------------|
+| 1 | | | $ | $ |
+| 2 | | | $ | $ |
+| 3 | | | $ | $ |
+| 4 | | | $ | $ |
+| 5 | | | $ | $ |
+| 6 | | | $ | $ |
+| 7 | | | $ | $ |
+| 8 | | | $ | $ |
+| 9 | | | $ | $ |
+| 10 | | | $ | $ |
+| 11 | | | $ | $ |
+| 12 | | | $ | $ |
 
 **Year 1 Summary:**
-- Ending MRR: $X
-- Total Customers: X
-- Annual Recurring Revenue (ARR): $X
+- Total Revenue Collected: $X
+- Active Client Matters (end of year): X
+- Annualized Run Rate: $X
 
 #### Year 2 (Quarterly)
-| Quarter | New Customers | Churned | Total Customers | MRR |
-|---------|--------------|---------|-----------------|-----|
-| Q1 | | | | $ |
-| Q2 | | | | $ |
-| Q3 | | | | $ |
-| Q4 | | | | $ |
+| Quarter | New Clients | Active Matters | Billable Revenue | Collected Revenue |
+|---------|-------------|----------------|-----------------|-------------------|
+| Q1 | | | $ | $ |
+| Q2 | | | $ | $ |
+| Q3 | | | $ | $ |
+| Q4 | | | $ | $ |
 
 **Year 2 Summary:**
-- Ending MRR: $X
-- Total Customers: X
-- ARR: $X
+- Total Revenue Collected: $X
+- Active Client Matters (end of year): X
+- Annualized Run Rate: $X
 
 [Add Year 3 if time horizon extends]
 
@@ -191,22 +191,22 @@ Generate a Financial Model document in Markdown format:
 ### Operating Expenses
 
 #### Year 1 (Monthly)
-| Month | Fixed Costs | Variable Costs | Marketing | Salaries | Total |
-|-------|-------------|----------------|-----------|----------|-------|
+| Month | Fixed Overhead | Variable Costs | Client Development | Salaries | Total |
+|-------|----------------|----------------|--------------------|----------|-------|
 | 1-3 avg | $ | $ | $ | $ | $ |
 | 4-6 avg | $ | $ | $ | $ | $ |
 | 7-9 avg | $ | $ | $ | $ | $ |
 | 10-12 avg | $ | $ | $ | $ | $ |
 
 #### Year 2 (Quarterly)
-| Quarter | Fixed Costs | Variable Costs | Marketing | Salaries | Total |
-|---------|-------------|----------------|-----------|----------|-------|
+| Quarter | Fixed Overhead | Variable Costs | Client Development | Salaries | Total |
+|---------|----------------|----------------|--------------------|----------|-------|
 | Q1 | $ | $ | $ | $ | $ |
 | Q2 | $ | $ | $ | $ | $ |
 | Q3 | $ | $ | $ | $ | $ |
 | Q4 | $ | $ | $ | $ | $ |
 
-### Hiring Plan
+### Staffing Plan
 | Role | When | Monthly Cost | Annual Cost |
 |------|------|--------------|-------------|
 | [Role 1] | [Month/Quarter] | $ | $ |
@@ -218,9 +218,9 @@ Generate a Financial Model document in Markdown format:
 
 | Metric | Month 6 | Month 12 | Month 18 | Month 24 |
 |--------|---------|----------|----------|----------|
-| MRR | $ | $ | $ | $ |
-| Total Revenue | $ | $ | $ | $ |
-| COGS | $ | $ | $ | $ |
+| Billable Revenue | $ | $ | $ | $ |
+| Collected Revenue | $ | $ | $ | $ |
+| Direct Costs | $ | $ | $ | $ |
 | Gross Profit | $ | $ | $ | $ |
 | Gross Margin | X% | X% | X% | X% |
 | Operating Expenses | $ | $ | $ | $ |
@@ -229,27 +229,29 @@ Generate a Financial Model document in Markdown format:
 
 ### Break-Even Analysis
 - **Monthly Break-Even Revenue:** $X
-- **Customers Needed for Break-Even:** X
+- **Active Matters Needed for Break-Even:** X
 - **Projected Break-Even Date:** [Month/Quarter]
 
-## Unit Economics
+## Practice Economics
 
-### Current State (or Projected)
+### Key Performance Indicators (Current or Projected)
 | Metric | Value | Benchmark |
 |--------|-------|-----------|
-| Customer Acquisition Cost (CAC) | $X | [Industry: $X] |
-| Lifetime Value (LTV) | $X | [Calculation below] |
-| LTV:CAC Ratio | X:1 | [Target: 3:1+] |
-| Payback Period | X months | [Target: <12 mo] |
+| Revenue per Matter (avg) | $X | [Practice area norm] |
+| Realization Rate | X% | [Target: >90%] |
+| Utilization Rate | X% | [Target: >75% of capacity] |
+| Client Retention Rate | X% | [Target: >85% annually] |
+| Client Development Cost | $X | [Cost per new client] |
+| Revenue per Matter vs. Cost to Serve | $X / $X | [Track margin] |
 
-### LTV Calculation
-- ARPU: $X/month
-- Gross Margin: X%
-- Churn Rate: X%/month
-- Average Customer Lifetime: X months
-- **LTV = ARPU × Gross Margin × Lifetime = $X**
+### Revenue per Matter Calculation
+- Average hourly rate or flat fee: $X
+- Average hours per matter (if hourly): X hrs
+- Average revenue per matter: $X
+- Direct costs per matter: $X
+- **Gross profit per matter: $X**
 
-## Cash Flow & Runway
+## Cash Flow
 
 ### Cash Flow Projection
 
@@ -261,19 +263,19 @@ Generate a Financial Model document in Markdown format:
 | 9 | $ | $ | $ | $ |
 | 12 | $ | $ | $ | $ |
 
-### Runway Analysis
-- **Starting Cash:** $X
-- **Monthly Burn Rate (Current):** $X
-- **Runway:** X months
+### Cash Management Notes
+- **Average days to collect:** X days
+- **Monthly operating reserve target:** $X (X months of overhead)
+- **Current cash position:** $X
 
 ### Funding Scenarios
-**If Bootstrapping:**
-- Time to profitability: X months
-- Cash needed: $X
+**Self-funded / Operating cash flow:**
+- Time to consistent profitability: X months
+- Operating reserve needed: $X
 
-**If Raising Seed:**
-- Amount needed: $X
-- Runway provided: X months
+**With line of credit or capital:**
+- Amount: $X
+- Purpose: [Staffing, equipment, etc.]
 - Milestones achievable: [List]
 
 ## Key Metrics Dashboard
@@ -281,39 +283,39 @@ Generate a Financial Model document in Markdown format:
 ### Metrics to Track Monthly
 | Metric | Definition | Target |
 |--------|------------|--------|
-| MRR | Monthly Recurring Revenue | Growth |
-| MRR Growth | Month-over-month change | >10% early |
-| Net Revenue Retention | Expansion - Churn | >100% |
-| Gross Margin | (Revenue - COGS) / Revenue | >70% |
-| CAC Payback | CAC / (ARPU × Gross Margin) | <12 months |
-| Burn Multiple | Net Burn / Net New ARR | <2x |
+| Billable Revenue | Total invoiced for the month | Growth |
+| Collected Revenue | Cash received | Track vs. billed |
+| Realization Rate | Collected / Billed | >90% |
+| Utilization Rate | Billable hrs / Available hrs | >75% |
+| Revenue per Matter | Revenue / Active matters | Track trend |
+| Client Retention Rate | Returning clients / Prior clients | >85% |
 
 ## Scenario Analysis
 
 ### Conservative Case
-[Assumptions and outcomes if things go slower]
+[Assumptions and outcomes if client growth is slower than projected]
 
 ### Base Case
 [Your main projections]
 
 ### Optimistic Case
-[Assumptions and outcomes if things go better]
+[Assumptions and outcomes if referrals accelerate or major matters close]
 
 ## Risks & Sensitivities
 
 | Risk | Impact on Model | Mitigation |
 |------|----------------|------------|
-| Higher churn | [Impact] | [Plan] |
-| Lower conversion | [Impact] | [Plan] |
-| Higher CAC | [Impact] | [Plan] |
-| Delayed revenue | [Impact] | [Plan] |`;
+| Key client departure | [Impact] | [Plan] |
+| Lower utilization | [Impact] | [Plan] |
+| Slow collections | [Impact] | [Plan] |
+| Delayed new engagements | [Impact] | [Plan] |`;
 
-const metricsTrackerPrompt = `You are helping a solo founder set up financial metrics tracking.
+const metricsTrackerPrompt = `You are helping a professional service provider set up financial metrics tracking for their practice.
 
 Based on:
-**Business Type:** {{businessType}}
-**Revenue Model:** {{revenueModel}}
-**Pricing:** {{pricing}}
+**Practice Type:** {{businessType}}
+**Billing Model:** {{revenueModel}}
+**Rates & Fees:** {{pricing}}
 
 Generate a Metrics Tracking Guide in Markdown format:
 
@@ -321,77 +323,68 @@ Generate a Metrics Tracking Guide in Markdown format:
 
 ## Weekly Metrics (Track Every Week)
 
-### Revenue Metrics
+### Revenue & Billing
 | Metric | How to Calculate | Where to Find | Target |
 |--------|-----------------|---------------|--------|
-| New MRR | Sum of new subscription revenue | Payment processor | Track trend |
-| Churned MRR | Revenue from cancellations | Payment processor | <5% of MRR |
-| Net New MRR | New - Churned | Calculation | Positive |
-| Trial Starts | New trial signups | App database | Track trend |
-| Trial Conversions | Trials → Paid | App database | >15% |
+| Hours billed | Sum of billable hours logged | Time tracking system | Track vs. capacity |
+| New invoices sent | Total invoiced this week | Billing system | Track trend |
+| Payments received | Cash collected | Bank / payment processor | Track vs. invoiced |
+| New client inquiries | Leads / consultations | CRM / intake log | Track trend |
 
 ### Cash Metrics
 | Metric | How to Calculate | Where to Find | Target |
 |--------|-----------------|---------------|--------|
-| Cash Balance | Current bank balance | Bank account | Know your runway |
-| Weekly Burn | Outflows this week | Bank account | Track trend |
+| Cash Balance | Current bank balance | Bank account | 2-3 months of overhead |
+| Outstanding invoices (A/R) | Sum of unpaid invoices | Billing system | <45 days avg |
 
 ## Monthly Metrics (Track Monthly)
 
-### Revenue & Growth
+### Revenue & Productivity
 | Metric | Formula | Target |
 |--------|---------|--------|
-| MRR | Sum of all recurring revenue | Track growth |
-| ARR | MRR × 12 | Track growth |
-| MRR Growth Rate | (MRR - Last Month) / Last Month | >10% early stage |
-| Revenue per Customer | MRR / Customers | Track trend |
+| Billable Revenue | Total invoiced for the month | Track growth |
+| Collected Revenue | Cash received | Track vs. billed |
+| Realization Rate | Collected / Billed | >90% |
+| Utilization Rate | Billable hrs / Available hrs | >75% of capacity |
+| Revenue per Matter | Total revenue / Active matters | Track trend |
+| Avg days to collect | Days from invoice to payment | <30 days |
 
-### Customer Metrics
+### Client Metrics
 | Metric | Formula | Target |
 |--------|---------|--------|
-| Total Customers | Count of paying customers | Track growth |
-| New Customers | Customers added this month | Track growth |
-| Churned Customers | Customers lost this month | <5% monthly |
-| Net Customer Growth | New - Churned | Positive |
-| Logo Churn Rate | Churned / Start of Month | <5% |
-
-### Unit Economics
-| Metric | Formula | Target |
-|--------|---------|--------|
-| ARPU | MRR / Customers | Track trend |
-| CAC | Marketing Spend / New Customers | Decreasing |
-| LTV | ARPU × Avg Lifetime × Gross Margin | >3× CAC |
-| LTV:CAC | LTV / CAC | >3:1 |
-| Payback Period | CAC / (ARPU × Gross Margin) | <12 months |
+| Active Client Matters | Count of open matters/engagements | Track growth |
+| New Clients | New clients added this month | Track growth |
+| Closed Matters | Matters completed or closed | Track |
+| Client Retention Rate | Returning clients / Prior-period clients | >85% annually |
 
 ### Profitability
 | Metric | Formula | Target |
 |--------|---------|--------|
-| Gross Revenue | Total revenue collected | Track growth |
-| COGS | Direct costs of delivery | Track % |
-| Gross Profit | Revenue - COGS | Track growth |
-| Gross Margin % | Gross Profit / Revenue | >70% for SaaS |
-| Operating Expenses | All other costs | Track trend |
-| Net Profit/Loss | Gross Profit - OpEx | Path to positive |
-| Burn Rate | Monthly cash decrease | Track runway |
-| Runway | Cash / Burn Rate | >12 months |
+| Gross Revenue | Total collected | Track growth |
+| Direct Costs | Costs tied to specific matters | Track % of revenue |
+| Gross Profit | Revenue - Direct Costs | Track growth |
+| Gross Margin % | Gross Profit / Revenue | >65% for most practices |
+| Operating Expenses | Fixed overhead + salaries | Track trend |
+| Net Profit/Loss | Gross Profit - OpEx | Path to consistent profitability |
+| Monthly Operating Surplus | Net Profit (if positive) | Build 3-month reserve |
 
 ## Quarterly Metrics (Track Quarterly)
 
-### Retention & Expansion
+### Practice Health
 | Metric | Formula | Target |
 |--------|---------|--------|
-| Net Revenue Retention | (Start MRR + Expansion - Churn - Contraction) / Start MRR | >100% |
-| Gross Revenue Retention | (Start MRR - Churn - Contraction) / Start MRR | >90% |
-| Expansion Revenue | Upgrades + Add-ons | Growing |
-| Customer Lifetime (Avg) | 1 / Monthly Churn Rate | >24 months |
+| Realization Rate (QoQ) | Collected / Billed for quarter | >90% |
+| Client Retention (Annual) | Clients retained / Prior year count | >85% |
+| Revenue per Matter | Total revenue / Matters handled | Track trend |
+| New Client Revenue | Revenue from clients acquired this quarter | Growing |
+| Revenue Concentration | Top client % of total revenue | <30% from any single client |
 
 ### Efficiency
 | Metric | Formula | Target |
 |--------|---------|--------|
-| Burn Multiple | Net Burn / Net New ARR | <2x |
-| Magic Number | Net New ARR / Sales & Marketing Spend | >0.75 |
-| Rule of 40 | Revenue Growth % + Profit Margin % | >40% |
+| Revenue per Available Hour | Monthly revenue / Available billable hours | Track trend |
+| Overhead as % of Revenue | Total overhead / Revenue | <40% for healthy practice |
+| Collection Efficiency | Collected / Invoiced (90-day rolling) | >95% |
 
 ## Tracking Template
 
@@ -399,16 +392,17 @@ Generate a Metrics Tracking Guide in Markdown format:
 
 **Week of:** [Date]
 
-**Revenue:**
-- New MRR: $___
-- Churned MRR: $___
-- Net New MRR: $___
-- Running MRR: $___
+**Billing & Revenue:**
+- Hours billed: ___ hrs
+- New invoices sent: $___
+- Payments received: $___
+- Outstanding A/R: $___
 
-**Customers:**
-- New: ___
-- Churned: ___
-- Total: ___
+**Clients:**
+- New inquiries: ___
+- New matters opened: ___
+- Matters closed: ___
+- Active matters total: ___
 
 **Cash:**
 - Balance: $___
@@ -423,16 +417,17 @@ Generate a Metrics Tracking Guide in Markdown format:
 **Month:** [Month]
 
 **Key Metrics:**
-- MRR: $___  (___% growth)
-- Customers: ___ (net +___)
-- Churn Rate: ___%
-- ARPU: $___
-- CAC: $___
-- LTV:CAC: ___:1
+- Billable Revenue: $___  (___% vs last month)
+- Collected Revenue: $___
+- Realization Rate: ___%
+- Utilization Rate: ___%
+- Active Matters: ___ (net +___)
+- New Clients: ___
+- Avg Days to Collect: ___ days
 - Gross Margin: ___%
 - Net Profit/Loss: $___
 - Cash Balance: $___
-- Runway: ___ months
+- Operating Reserve: ___ months
 
 **Highlights:**
 1.
@@ -452,32 +447,32 @@ Generate a Metrics Tracking Guide in Markdown format:
 
 ### Free/Low Cost
 - **Spreadsheet**: Google Sheets for basic tracking
-- **Stripe Dashboard**: Built-in MRR tracking
+- **Wave / FreshBooks**: Invoicing + basic P&L
 - **Bank Account**: Cash tracking
 
 ### Paid Tools (When Ready)
-- **Baremetrics**: SaaS metrics ($50+/mo)
-- **ChartMogul**: Revenue analytics ($100+/mo)
-- **ProfitWell**: Free MRR tracking
+- **Clio Manage**: Legal practice management + billing
+- **QuickBooks**: Accounting + P&L reporting
+- **PracticePanther / MyCase**: Matter management + time tracking
 
 ## Red Flags to Watch
 
 ### Immediate Action Needed
-- 🚨 Churn rate >10% monthly
-- 🚨 LTV:CAC <1:1
-- 🚨 Runway <3 months
-- 🚨 Negative net MRR growth for 3+ months
+- Realization rate below 80% for 2+ months
+- A/R aging beyond 60 days on major invoices
+- Cash balance below 1 month of overhead
+- Single client representing more than 40% of revenue
 
 ### Warning Signs
-- ⚠️ Churn rate increasing month over month
-- ⚠️ CAC increasing without explanation
-- ⚠️ Gross margin declining
-- ⚠️ Expansion revenue flat`;
+- Utilization rate trending below 65% without a clear reason
+- New client inquiries declining month over month
+- Collection time increasing without explanation
+- Gross margin declining despite stable pricing`;
 
 export const FinancialModel: WorkflowTemplate = {
   id: 'financial-model',
   name: 'Financial Projections',
-  description: 'Create financial projections and a metrics tracking framework for your startup.',
+  description: 'Create financial projections and a metrics tracking framework for your professional practice.',
   version: '1.0.0',
   category: 'planning',
   steps: [
@@ -498,7 +493,7 @@ export const FinancialModel: WorkflowTemplate = {
       config: {
         outputFile: 'FINANCIAL_MODEL.md',
         promptTemplate: financialModelPrompt,
-        systemPrompt: 'You are a startup financial advisor helping founders create realistic projections. Be conservative in estimates and clear about assumptions.',
+        systemPrompt: 'You are a financial advisor for professional service firms helping practitioners create realistic projections. Be conservative in estimates and clear about assumptions.',
       } as GenerateStepConfig,
     },
     {
@@ -509,7 +504,7 @@ export const FinancialModel: WorkflowTemplate = {
       config: {
         outputFile: 'METRICS_TRACKER.md',
         promptTemplate: metricsTrackerPrompt,
-        systemPrompt: 'You are a startup metrics expert helping founders track what matters. Be practical about what a solo founder can realistically track.',
+        systemPrompt: 'You are a practice management advisor helping professionals track what matters for a healthy practice. Be practical about what a solo or small-firm practitioner can realistically track.',
       } as GenerateStepConfig,
     },
   ],

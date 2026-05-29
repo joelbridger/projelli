@@ -1,7 +1,7 @@
 /**
  * useTrial — 30-day full-feature trial state.
  *
- * Pricing model: Projelli is fully featured for 30 days from first launch.
+ * Pricing model: Keepance is fully featured for 30 days from first launch.
  * After that, the app drops into "viewer" mode — open existing files,
  * read-only — until the user activates a paid license via useLicense.
  *
@@ -27,7 +27,7 @@ import { useEffect, useState } from 'react';
 import { useLicense } from './useLicense';
 import { sendEventOnce } from '@/utils/telemetry';
 
-const FIRST_LAUNCH_KEY = 'projelli_first_launch_at';
+const FIRST_LAUNCH_KEY = 'keepance_first_launch_at';
 const TRIAL_DAYS = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 

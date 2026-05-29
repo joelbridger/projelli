@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'node:path';
 
-// Bundles the plugin to a single-file ES module at dist/index.js. The Projelli
+// Bundles the plugin to a single-file ES module at dist/index.js. The Keepance
 // plugin runner loads this file via a blob URL and dynamic `import()` inside
 // a sandboxed worker, then reads the module's `default` export, so the bundle
 // must be a real ES module (not IIFE) and self-contained.

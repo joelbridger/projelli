@@ -45,7 +45,7 @@ export function UpdateReleaseNotesModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-amber-500" />
-            <span>Projelli {version}</span>
+            <span>Keepance {version}</span>
           </DialogTitle>
           <DialogDescription>
             {date

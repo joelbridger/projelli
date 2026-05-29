@@ -1,15 +1,15 @@
-# Projelli Development Workflow
+# Keepance Development Workflow
 
 ## 🎯 Overview
 
-This guide explains how to continue developing, testing, and updating Projelli after the v1.0.0 launch.
+This guide explains how to continue developing, testing, and updating Keepance after the v1.0.0 launch.
 
 ---
 
 ## 📁 Repository Structure
 
-- **GitHub:** https://github.com/projelli/projelli
-- **Website:** https://projelli.com (served from home server)
+- **GitHub:** https://github.com/keepance/keepance
+- **Website:** https://keepance.com (served from home server)
 - **Development:** WSL2 for code editing, native Windows for building
 - **Branch Strategy:** `master` branch for production releases
 
@@ -20,7 +20,7 @@ This guide explains how to continue developing, testing, and updating Projelli a
 ### 1. **Making Code Changes** (WSL2)
 
 ```bash
-cd /mnt/c/Users/james/Projects/projelli
+cd /mnt/c/Users/james/Projects/keepance
 
 # Pull latest changes
 git pull origin master
@@ -38,7 +38,7 @@ git push origin master
 
 **Option A: Development Mode (Quick Testing)**
 ```powershell
-cd C:\Users\james\Projects\projelli
+cd C:\Users\james\Projects\keepance
 git pull origin master
 npm install  # Only needed if dependencies changed
 npm run tauri:dev  # Opens app in dev mode
@@ -46,7 +46,7 @@ npm run tauri:dev  # Opens app in dev mode
 
 **Option B: Production Build (Full Testing)**
 ```powershell
-cd C:\Users\james\Projects\projelli
+cd C:\Users\james\Projects\keepance
 git pull origin master
 npm run tauri build
 # Test the installer from: src-tauri\target\release\bundle\nsis\
@@ -66,7 +66,7 @@ npm run tauri build
 
 2. **Fix the code** (WSL2):
    ```bash
-   cd /mnt/c/Users/james/Projects/projelli
+   cd /mnt/c/Users/james/Projects/keepance
    # Edit the relevant file(s)
    git add .
    git commit -m "Fix: [bug description]"
@@ -75,7 +75,7 @@ npm run tauri build
 
 3. **Test the fix** (Windows):
    ```powershell
-   cd C:\Users\james\Projects\projelli
+   cd C:\Users\james\Projects\keepance
    git pull origin master
    npm run tauri:dev  # Quick test
    # Or build if you want to test the full installer
@@ -91,7 +91,7 @@ npm run tauri build
 
 **Step 1: Update Version Numbers** (WSL2)
 ```bash
-cd /mnt/c/Users/james/Projects/projelli
+cd /mnt/c/Users/james/Projects/keepance
 
 # Edit these 3 files to bump version to 1.0.1:
 # - package.json
@@ -107,42 +107,42 @@ git push origin v1.0.1
 
 **Step 2: Build Installers** (Windows)
 ```powershell
-cd C:\Users\james\Projects\projelli
+cd C:\Users\james\Projects\keepance
 git pull origin master
 npm run tauri build
 ```
 
 **Step 3: Create GitHub Release**
-- Go to: https://github.com/projelli/projelli/releases/new
+- Go to: https://github.com/keepance/keepance/releases/new
 - Select tag: `v1.0.1`
-- Title: "Projelli v1.0.1 - [Brief description]"
+- Title: "Keepance v1.0.1 - [Brief description]"
 - Description: List of changes/fixes
 - Upload files:
-  - `src-tauri\target\release\bundle\nsis\Projelli_1.0.1_x64-setup.exe`
-  - `src-tauri\target\release\bundle\msi\Projelli_1.0.1_x64_en-US.msi`
+  - `src-tauri\target\release\bundle\nsis\Keepance_1.0.1_x64-setup.exe`
+  - `src-tauri\target\release\bundle\msi\Keepance_1.0.1_x64_en-US.msi`
 - **Publish release**
 
 **Step 4: Update Website Download Links** (WSL2)
 ```bash
-cd /mnt/c/Users/james/Projects/projelli
+cd /mnt/c/Users/james/Projects/keepance
 
 # Edit website/index.html
 # Find all occurrences of:
-#   v1.0.0/Projelli_1.0.0_x64-setup.exe
+#   v1.0.0/Keepance_1.0.0_x64-setup.exe
 # Replace with:
-#   v1.0.1/Projelli_1.0.1_x64-setup.exe
+#   v1.0.1/Keepance_1.0.1_x64-setup.exe
 
 git add website/index.html
 git commit -m "Update website to v1.0.1 download links"
 git push origin master
 
 # Deploy to server
-scp website/index.html jameson@10.0.0.88:/tmp/projelli-index.html
-ssh jameson@10.0.0.88 "sudo cp /tmp/projelli-index.html /var/www/projelli.com/index.html && sudo chown www-data:www-data /var/www/projelli.com/index.html"
+scp website/index.html jameson@10.0.0.88:/tmp/keepance-index.html
+ssh jameson@10.0.0.88 "sudo cp /tmp/keepance-index.html /var/www/keepance.com/index.html && sudo chown www-data:www-data /var/www/keepance.com/index.html"
 ```
 
 **Step 5: Verify**
-- Visit https://projelli.com
+- Visit https://keepance.com
 - Click download button
 - Install and test the new version
 
@@ -153,7 +153,7 @@ ssh jameson@10.0.0.88 "sudo cp /tmp/projelli-index.html /var/www/projelli.com/in
 ### For Bug Fixes:
 ```bash
 # In your terminal, start a Claude Code session
-cd /mnt/c/Users/james/Projects/projelli
+cd /mnt/c/Users/james/Projects/keepance
 
 # Then ask Claude:
 # "I found a bug where [describe issue]. Can you help me fix it?"
@@ -210,7 +210,7 @@ git commit -m "Update stuff"
 ### Update Dependencies
 ```bash
 # WSL2
-cd /mnt/c/Users/james/Projects/projelli
+cd /mnt/c/Users/james/Projects/keepance
 npm update
 git add package.json package-lock.json
 git commit -m "Update npm dependencies"
@@ -220,21 +220,21 @@ git push origin master
 ### Check for TypeScript Errors
 ```bash
 # WSL2
-cd /mnt/c/Users/james/Projects/projelli
+cd /mnt/c/Users/james/Projects/keepance
 npm run typecheck
 ```
 
 ### Run Tests
 ```bash
 # WSL2
-cd /mnt/c/Users/james/Projects/projelli
+cd /mnt/c/Users/james/Projects/keepance
 npm test
 ```
 
 ### Format Code
 ```bash
 # WSL2
-cd /mnt/c/Users/james/Projects/projelli
+cd /mnt/c/Users/james/Projects/keepance
 npm run format
 ```
 
@@ -251,11 +251,11 @@ npm run format
 ### Website Not Updating
 ```bash
 # Verify deployment
-ssh jameson@10.0.0.88 "cat /var/www/projelli.com/index.html | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1"
+ssh jameson@10.0.0.88 "cat /var/www/keepance.com/index.html | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1"
 
 # Redeploy if needed
-scp website/index.html jameson@10.0.0.88:/tmp/projelli-index.html
-ssh jameson@10.0.0.88 "sudo cp /tmp/projelli-index.html /var/www/projelli.com/index.html"
+scp website/index.html jameson@10.0.0.88:/tmp/keepance-index.html
+ssh jameson@10.0.0.88 "sudo cp /tmp/keepance-index.html /var/www/keepance.com/index.html"
 ```
 
 ### Git Issues
@@ -291,7 +291,7 @@ grep '"version"' package.json | head -1
 ```
 
 ### See All Releases
-Visit: https://github.com/projelli/projelli/releases
+Visit: https://github.com/keepance/keepance/releases
 
 ---
 

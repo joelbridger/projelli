@@ -2,7 +2,7 @@
  * Stream D-web Group II · Task 2.3
  *
  * Demo entry point. Mounted by `index.demo.html`; built by
- * `vite.config.web-demo.ts` with `__PROJELLI_DEMO__ = true`.
+ * `vite.config.web-demo.ts` with `__KEEPANCE_DEMO__ = true`.
  *
  * Boot sequence:
  *   1. Seed the OPFS workspace from `sample-workspace.json` (idempotent;

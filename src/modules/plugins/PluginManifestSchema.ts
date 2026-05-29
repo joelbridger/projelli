@@ -45,10 +45,10 @@ export const pluginManifestSchema = z.object({
   description: z.string().min(1, 'description required'),
   main: z.string().min(1, 'main required'),
   permissions: z.array(pluginPermissionSchema),
-  minProjelliVersion: z.string().regex(semverRegex, 'minProjelliVersion must be semver'),
-  maxProjelliVersion: z
+  minKeepcanceVersion: z.string().regex(semverRegex, 'minKeepcanceVersion must be semver'),
+  maxKeepcanceVersion: z
     .string()
-    .regex(semverRegex, 'maxProjelliVersion must be semver')
+    .regex(semverRegex, 'maxKeepcanceVersion must be semver')
     .optional(),
   category: z.string().min(1, 'category required'),
   tags: z.array(z.string()),
@@ -76,7 +76,7 @@ export function validatePluginManifest(raw: unknown): PluginManifestValidationRe
 /**
  * Compare two semver strings. Returns -1, 0, 1. Pre-release / build metadata
  * are ignored for the comparison (good enough for "manifest needs newer
- * Projelli" gating; full semver would be overkill here). Same algorithm as
+ * Keepance" gating; full semver would be overkill here). Same algorithm as
  * the marketplace `compareSemver`; duplicated to avoid a cross-module import.
  */
 export function compareSemver(a: string, b: string): number {
@@ -96,32 +96,32 @@ export function compareSemver(a: string, b: string): number {
 }
 
 /**
- * Returns an error string if `manifest.minProjelliVersion` is newer than the
+ * Returns an error string if `manifest.minKeepcanceVersion` is newer than the
  * current app version, otherwise null. Callers fail the install with the
  * returned message.
  */
-export function checkMinProjelliVersion(
+export function checkMinKeepcanceVersion(
   manifest: PluginManifest,
   currentAppVersion: string,
 ): string | null {
-  if (compareSemver(manifest.minProjelliVersion, currentAppVersion) > 0) {
-    return `Plugin requires Projelli ${manifest.minProjelliVersion} or newer (you have ${currentAppVersion}).`;
+  if (compareSemver(manifest.minKeepcanceVersion, currentAppVersion) > 0) {
+    return `Plugin requires Keepance ${manifest.minKeepcanceVersion} or newer (you have ${currentAppVersion}).`;
   }
   return null;
 }
 
 /**
  * Returns an error string if the current app version is newer than the
- * declared `maxProjelliVersion`, otherwise null. The `maxProjelliVersion`
+ * declared `maxKeepcanceVersion`, otherwise null. The `maxKeepcanceVersion`
  * field is optional; an absent field never triggers an error.
  */
-export function checkMaxProjelliVersion(
+export function checkMaxKeepcanceVersion(
   manifest: PluginManifest,
   currentAppVersion: string,
 ): string | null {
-  if (!manifest.maxProjelliVersion) return null;
-  if (compareSemver(currentAppVersion, manifest.maxProjelliVersion) > 0) {
-    return `Plugin supports Projelli up to ${manifest.maxProjelliVersion} (you have ${currentAppVersion}).`;
+  if (!manifest.maxKeepcanceVersion) return null;
+  if (compareSemver(currentAppVersion, manifest.maxKeepcanceVersion) > 0) {
+    return `Plugin supports Keepance up to ${manifest.maxKeepcanceVersion} (you have ${currentAppVersion}).`;
   }
   return null;
 }

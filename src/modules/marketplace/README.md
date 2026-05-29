@@ -13,18 +13,18 @@ Foundation skeleton for v2.0 Stream C (templates marketplace + plugins marketpla
 
 ```typescript
 const templatesMarket = new MarketplaceService({
-  repoUrl: 'https://raw.githubusercontent.com/projelli/community-templates/main',
+  repoUrl: 'https://raw.githubusercontent.com/keepance/community-templates/main',
   catalogPath: 'catalog.json',
-  cachePath: '.projelli/cache/marketplace-templates.json',
-  installRoot: '.projelli/templates',
+  cachePath: '.keepance/cache/marketplace-templates.json',
+  installRoot: '.keepance/templates',
   fs: workspaceService.fs,
 });
 
 const pluginsMarket = new MarketplaceService({
-  repoUrl: 'https://raw.githubusercontent.com/projelli/community-plugins/main',
+  repoUrl: 'https://raw.githubusercontent.com/keepance/community-plugins/main',
   catalogPath: 'catalog.json',
-  cachePath: '.projelli/cache/marketplace-plugins.json',
-  installRoot: '.projelli/plugins',
+  cachePath: '.keepance/cache/marketplace-plugins.json',
+  installRoot: '.keepance/plugins',
   fs: workspaceService.fs,
 });
 ```

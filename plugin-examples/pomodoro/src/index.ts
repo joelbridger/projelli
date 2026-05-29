@@ -1,6 +1,6 @@
-import type { PluginAPI, PluginModule } from '@projelli/plugin-api';
+import type { PluginAPI, PluginModule } from '@keepance/plugin-api';
 
-// Pomodoro - example Projelli plugin.
+// Pomodoro - example Keepance plugin.
 //
 // Demonstrates:
 //   - api.commands.register / api.commands.invoke

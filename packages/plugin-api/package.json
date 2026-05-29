@@ -1,7 +1,7 @@
 {
-  "name": "@projelli/plugin-api",
+  "name": "@keepance/plugin-api",
   "version": "1.0.0",
-  "description": "TypeScript types for the Projelli plugin API. Import these in your plugin source for full IntelliSense against the Projelli runtime.",
+  "description": "TypeScript types for the Keepance plugin API. Import these in your plugin source for full IntelliSense against the Keepance runtime.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,16 +21,16 @@
     "clean": "rm -rf dist src/_app-types src/index.ts"
   },
   "keywords": [
-    "projelli",
+    "keepance",
     "plugin",
     "api",
     "types"
   ],
-  "author": "Projelli",
-  "homepage": "https://projelli.com/docs/plugins",
+  "author": "Keepance",
+  "homepage": "https://keepance.com/docs/plugins",
   "repository": {
     "type": "git",
-    "url": "https://github.com/projelli/projelli.git",
+    "url": "https://github.com/keepance/keepance.git",
     "directory": "packages/plugin-api"
   },
   "publishConfig": {

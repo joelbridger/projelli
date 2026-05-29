@@ -166,7 +166,7 @@ function estimateTokens(s) {
 }
 
 function buildSystemPrompt(targetLang) {
-  return `You are translating UI strings for Projelli, a desktop AI workspace app.
+  return `You are translating UI strings for Keepance, a desktop AI workspace app.
 Target language: ${LOCALE_LABELS[targetLang]}.
 
 Rules:
@@ -176,7 +176,7 @@ Rules:
 - Keep punctuation style of the target language.
 - Match the tone of a productivity app: clear, concise, professional but warm.
 - Short labels (buttons, menu items) must stay concise; longer descriptions can breathe.
-- Do NOT translate brand names: "Projelli", "Claude", "OpenAI", "Anthropic", "Markdown", "GitHub".
+- Do NOT translate brand names: "Keepance", "Claude", "OpenAI", "Anthropic", "Markdown", "GitHub".
 - Do NOT add em dashes (—). Use commas or restructure if needed.
 
 CRITICAL JSON OUTPUT RULES:

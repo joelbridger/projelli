@@ -1,7 +1,7 @@
 /**
  * V07 — Local-first (12s)
  *
- * Shows a file in Projelli, then slides in the macOS Finder to show the same
+ * Shows a file in Keepance, then slides in the macOS Finder to show the same
  * file exists on disk. Reinforces "your data stays on your machine."
  *
  * Timing:
@@ -9,7 +9,7 @@
  *   t=2-3s:  "Brand Voice.md" appears in the tree (seed mutation)
  *   t=3-5s:  Brief focus on new file (click or seed active)
  *   t=5-7s:  Finder mockup slides in from the right
- *   t=7-12s: Both side-by-side — Projelli left, Finder right — hold
+ *   t=7-12s: Both side-by-side — Keepance left, Finder right — hold
  *
  * The Finder overlay is built entirely via safe DOM APIs — no innerHTML.
  */
@@ -54,10 +54,10 @@ export async function video07() {
 
   // ── t=0-2s: Workspace hero (Launch Plan.md, file tree visible, no Brand Voice) ──
   const filesWithoutBrandVoice = linterlyFixture.files.filter((f) => f.name !== 'Brand Voice.md');
-  await page.waitForFunction(() => typeof (window as any).__projelli_seed === 'function', null, { timeout: 10_000 });
+  await page.waitForFunction(() => typeof (window as any).__keepance_seed === 'function', null, { timeout: 10_000 });
   await page.evaluate(
     ({ rootPath, files }) => {
-      (window as any).__projelli_seed!({
+      (window as any).__keepance_seed!({
         skipOnboarding: true,
         workspace: {
           rootPath,
@@ -82,7 +82,7 @@ export async function video07() {
   const brandVoiceFile = linterlyFixture.files.find((f) => f.name === 'Brand Voice.md')!;
   await page.evaluate(
     ({ rootPath, files }) => {
-      (window as any).__projelli_seed!({ workspace: { rootPath, fileTree: files } });
+      (window as any).__keepance_seed!({ workspace: { rootPath, fileTree: files } });
     },
     { rootPath: ROOT, files: [...filesWithoutBrandVoice, brandVoiceFile] },
   );
@@ -98,7 +98,7 @@ export async function video07() {
   } else {
     await page.evaluate(
       ({ rootPath, content }) => {
-        (window as any).__projelli_seed!({
+        (window as any).__keepance_seed!({
           editor: {
             openTabs: [{ path: `${rootPath}/Brand Voice.md`, name: 'Brand Voice.md', content, isDirty: false, type: 'file' }],
             activeTabPath: `${rootPath}/Brand Voice.md`,
@@ -249,7 +249,7 @@ export async function video07() {
       // path bar
       const pathBar = document.createElement('div');
       pathBar.className = 'v07-path-bar';
-      ['Users', ' > ', 'jameson', ' > ', 'Projelli', ' > '].forEach((s) => {
+      ['Users', ' > ', 'jameson', ' > ', 'Keepance', ' > '].forEach((s) => {
         const sp = document.createElement('span');
         sp.className = s.trim() === '>' ? 'v07-path-sep' : '';
         sp.textContent = s;
@@ -331,7 +331,7 @@ export async function video07() {
 
   console.log('[V07] beats:', JSON.stringify(beats));
 
-  // Camera stays wide so both Projelli (left) and Finder (right) are visible
+  // Camera stays wide so both Keepance (left) and Finder (right) are visible
   // when the Finder slides in.
   const shots: CameraShot[] = [
     { tSec: 0,                         crop: wideCrop(), label: 'wide' },

@@ -2,13 +2,13 @@
 /**
  * analyze-telemetry.ts
  *
- * Reads the JSONL files that the form-handler writes for the Projelli
+ * Reads the JSONL files that the form-handler writes for the Keepance
  * desktop app's opt-in telemetry and email signups, and prints a funnel
  * digest to stdout.
  *
  * Sources (one-line-JSON-object-per-line):
- *   ~/projelli/sign-ups/projelli-telemetry-event-YYYY-MM.jsonl
- *   ~/projelli/sign-ups/projelli-in-app-onboarding-signup-YYYY-MM.jsonl
+ *   ~/keepance/sign-ups/keepance-telemetry-event-YYYY-MM.jsonl
+ *   ~/keepance/sign-ups/keepance-in-app-onboarding-signup-YYYY-MM.jsonl
  *
  * Each row looks like:
  *   { received_at, site, form, form_id, ip, user_agent, referer, fields: { ... } }
@@ -25,9 +25,9 @@
  *   - Email signups
  *
  * Usage:
- *   bun analyze-telemetry.ts            # print to stdout
- *   bun analyze-telemetry.ts --email    # also email via Brevo (uses /etc/form-handler.env)
- *   bun analyze-telemetry.ts --json     # JSON output (for piping to jq / other tools)
+ *   bun ~/keepance/scripts/analyze-telemetry.ts            # print to stdout
+ *   bun ~/keepance/scripts/analyze-telemetry.ts --email    # also email via Brevo (uses /etc/form-handler.env)
+ *   bun ~/keepance/scripts/analyze-telemetry.ts --json     # JSON output (for piping to jq / other tools)
  */
 
 import { readdir, readFile } from 'node:fs/promises';
@@ -35,7 +35,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 
 const HOME = homedir();
-const SIGNUPS_DIR = path.join(HOME, 'projelli', 'sign-ups');
+const SIGNUPS_DIR = path.join(HOME, 'keepance', 'sign-ups');
 
 type Row = {
   received_at: string;
@@ -50,8 +50,8 @@ const WINDOWS = [
   { key: 'all', label: 'All time', cutoffMs: Infinity },
 ] as const;
 
-const TELEMETRY_PREFIX = 'projelli-telemetry-event-';
-const SIGNUP_PREFIX = 'projelli-in-app-onboarding-signup-';
+const TELEMETRY_PREFIX = 'keepance-telemetry-event-';
+const SIGNUP_PREFIX = 'keepance-in-app-onboarding-signup-';
 
 async function readJsonlFiles(prefix: string): Promise<Row[]> {
   let entries: string[];
@@ -144,7 +144,7 @@ function pct(numerator: number, denominator: number): string {
 function formatDigest(metrics: Record<string, WindowMetrics>): string {
   const today = new Date().toISOString().slice(0, 10);
   const lines: string[] = [];
-  lines.push(`PROJELLI TELEMETRY DIGEST — ${today}`);
+  lines.push(`KEEPANCE TELEMETRY DIGEST — ${today}`);
   lines.push('=' .repeat(48));
   lines.push('');
 
@@ -203,7 +203,7 @@ async function emailDigest(body: string): Promise<void> {
     return;
   }
   const recipient = process.env['DIGEST_TO'] ?? 'jamesondaines@outlook.com';
-  const subject = `Projelli telemetry — ${new Date().toISOString().slice(0, 10)}`;
+  const subject = `Keepance telemetry — ${new Date().toISOString().slice(0, 10)}`;
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
@@ -212,7 +212,7 @@ async function emailDigest(body: string): Promise<void> {
       Accept: 'application/json',
     },
     body: JSON.stringify({
-      sender: { name: 'Projelli', email: 'noreply@projelli.com' },
+      sender: { name: 'Keepance', email: 'noreply@keepance.com' },
       to: [{ email: recipient }],
       subject,
       textContent: body,

@@ -1,6 +1,6 @@
 [Unit]
-Description=Daily Projelli telemetry digest timer
-Requires=projelli-telemetry-digest.service
+Description=Daily Keepance telemetry digest timer
+Requires=keepance-telemetry-digest.service
 
 [Timer]
 OnCalendar=*-*-* 09:00:00

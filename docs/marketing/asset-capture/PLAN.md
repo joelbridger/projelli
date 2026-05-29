@@ -1,10 +1,10 @@
-# Projelli Marketing Asset Library — Implementation Plan
+# Keepance Marketing Asset Library — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a Playwright-driven pipeline that produces 11 macOS-styled product screenshots and a 30-second deterministic demo video for Projelli, runnable with one command on this Linux server.
+**Goal:** Build a Playwright-driven pipeline that produces 11 macOS-styled product screenshots and a 30-second deterministic demo video for Keepance, runnable with one command on this Linux server.
 
-**Architecture:** A self-contained Node project at `~/projelli/scripts/marketing-capture/` that drives `npm run dev` (the Vite-served React app) via headless Chromium. Each shot seeds Zustand stores with a "Linterly" fixture, injects a macOS CSS overlay, intercepts AI fetch calls with canned SSE replays, takes a 2x-DPI screenshot, and composites a macOS Sequoia window frame around it.
+**Architecture:** A self-contained Node project at `~/keepance/scripts/marketing-capture/` that drives `npm run dev` (the Vite-served React app) via headless Chromium. Each shot seeds Zustand stores with a "Linterly" fixture, injects a macOS CSS overlay, intercepts AI fetch calls with canned SSE replays, takes a 2x-DPI screenshot, and composites a macOS Sequoia window frame around it.
 
 **Tech Stack:** Playwright (already in deps), `sharp` for image compositing, `tsx` for direct TS execution, `ffmpeg` for video post-processing, Apple SF Pro + SF Mono fonts.
 
@@ -55,7 +55,7 @@ Expected: a `ffmpeg version 6.x.x` line.
 
 - [ ] **Step 4: Verify Playwright Chromium**
 
-Run: `cd ~/projelli && npx playwright install chromium --with-deps && npx playwright --version`
+Run: `cd ~/keepance && npx playwright install chromium --with-deps && npx playwright --version`
 Expected: a version number.
 
 - [ ] **Step 5: No commit (system-only changes).**
@@ -75,7 +75,7 @@ Expected: a version number.
 
 ```
 {
-  "name": "projelli-marketing-capture",
+  "name": "keepance-marketing-capture",
   "private": true,
   "type": "module",
   "version": "0.0.0",
@@ -125,7 +125,7 @@ out/raw/
 - [ ] **Step 4: Write `scripts/marketing-capture/README.md`:**
 
 ```
-# Projelli Marketing Capture
+# Keepance Marketing Capture
 
 Produces the marketing asset library (11 stills + 1 video) reproducibly
 from headless Chromium.
@@ -136,29 +136,29 @@ Quickstart:
     npm install
     npm run run-all
 
-Output: ~/projelli/Assets/marketing/ and website/press-kit/assets/.
+Output: ~/keepance/Assets/marketing/ and website/press-kit/assets/.
 See ../docs/marketing/asset-capture/SPEC.md for design details.
 ```
 
-- [ ] **Step 5: Add a top-level npm script.** In `~/projelli/package.json`, under `"scripts"`, add:
+- [ ] **Step 5: Add a top-level npm script.** In `~/keepance/package.json`, under `"scripts"`, add:
 
 ```
 "capture:all": "cd scripts/marketing-capture && npm install --silent && npm run run-all"
 ```
 
-- [ ] **Step 6: Install deps.** Run: `cd ~/projelli/scripts/marketing-capture && npm install`. Expected: `node_modules/` created, no errors.
+- [ ] **Step 6: Install deps.** Run: `cd ~/keepance/scripts/marketing-capture && npm install`. Expected: `node_modules/` created, no errors.
 
-- [ ] **Step 7: Commit.** Run: `cd ~/projelli && git add scripts/marketing-capture/ package.json && git commit -m "scripts: scaffold marketing-capture project"`.
+- [ ] **Step 7: Commit.** Run: `cd ~/keepance && git add scripts/marketing-capture/ package.json && git commit -m "scripts: scaffold marketing-capture project"`.
 
 ---
 
-### Task 3: Add the marketing-capture bridge to the Projelli app
+### Task 3: Add the marketing-capture bridge to the Keepance app
 
 **Files:**
 - Create: `src/dev/marketing-capture-bridge.ts`
 - Modify: `src/main.tsx`
 
-The bridge exposes `window.__projelli_seed(state)` and `window.__projelli_signal(name)`. Mounted ONLY when `import.meta.env.VITE_MARKETING_CAPTURE === '1'`. Production builds do not include it.
+The bridge exposes `window.__keepance_seed(state)` and `window.__keepance_signal(name)`. Mounted ONLY when `import.meta.env.VITE_MARKETING_CAPTURE === '1'`. Production builds do not include it.
 
 - [ ] **Step 1: Create the bridge file:**
 
@@ -181,30 +181,30 @@ export interface SeedPayload {
 
 declare global {
   interface Window {
-    __projelli_seed?: (payload: SeedPayload) => void;
-    __projelli_signal?: (name: string, data?: unknown) => void;
-    __projelli_signals?: Array<{ name: string; data?: unknown; ts: number }>;
+    __keepance_seed?: (payload: SeedPayload) => void;
+    __keepance_signal?: (name: string, data?: unknown) => void;
+    __keepance_signals?: Array<{ name: string; data?: unknown; ts: number }>;
   }
 }
 
 export function mountMarketingCaptureBridge(): void {
-  window.__projelli_seed = (payload) => {
+  window.__keepance_seed = (payload) => {
     if (payload.workspace) useWorkspaceStore.setState(payload.workspace);
     if (payload.editor) useEditorStore.setState(payload.editor);
     if (payload.aiChat) useAIChatStore.setState(payload.aiChat);
     if (payload.settings) useSettingsStore.setState(payload.settings);
     if (payload.workflow) useWorkflowStore.setState(payload.workflow);
     if (payload.skipOnboarding) {
-      localStorage.setItem('projelli.onboarding.complete', 'true');
+      localStorage.setItem('keepance.onboarding.complete', 'true');
     }
   };
 
-  window.__projelli_signals = [];
-  window.__projelli_signal = (name, data) => {
-    window.__projelli_signals!.push({ name, data, ts: Date.now() });
+  window.__keepance_signals = [];
+  window.__keepance_signal = (name, data) => {
+    window.__keepance_signals!.push({ name, data, ts: Date.now() });
   };
 
-  console.info('[projelli] marketing-capture bridge mounted');
+  console.info('[keepance] marketing-capture bridge mounted');
 }
 ```
 
@@ -219,7 +219,7 @@ if (import.meta.env.VITE_MARKETING_CAPTURE === '1') {
 
 If `main.tsx` is not currently top-level-async, wrap it in a `bootstrap()` async function. Match the existing pattern.
 
-- [ ] **Step 3: Verify the bridge mounts in dev.** Start the dev server: `cd ~/projelli && VITE_MARKETING_CAPTURE=1 npm run dev`. In a separate terminal, run a one-off Playwright check:
+- [ ] **Step 3: Verify the bridge mounts in dev.** Start the dev server: `cd ~/keepance && VITE_MARKETING_CAPTURE=1 npm run dev`. In a separate terminal, run a one-off Playwright check:
 
 ```ts
 // /tmp/verify-bridge.ts
@@ -228,14 +228,14 @@ const browser = await chromium.launch();
 const page = await browser.newPage();
 await page.goto('http://localhost:5173');
 await page.waitForLoadState('networkidle');
-const exists = await page.evaluate(() => typeof (window as any).__projelli_seed === 'function');
+const exists = await page.evaluate(() => typeof (window as any).__keepance_seed === 'function');
 console.log('bridge present:', exists);
 await browser.close();
 ```
 
-Run: `cd ~/projelli/scripts/marketing-capture && npx tsx /tmp/verify-bridge.ts`. Expected: `bridge present: true`.
+Run: `cd ~/keepance/scripts/marketing-capture && npx tsx /tmp/verify-bridge.ts`. Expected: `bridge present: true`.
 
-- [ ] **Step 4: Verify the bridge does NOT ship in prod.** Run: `cd ~/projelli && npm run build && grep -r "__projelli_seed" dist/ ; echo "exit: $?"`. Expected: no matches (exit 1 from grep).
+- [ ] **Step 4: Verify the bridge does NOT ship in prod.** Run: `cd ~/keepance && npm run build && grep -r "__keepance_seed" dist/ ; echo "exit: $?"`. Expected: no matches (exit 1 from grep).
 
 - [ ] **Step 5: Commit.** `git add src/dev/marketing-capture-bridge.ts src/main.tsx && git commit -m "feat(dev): marketing-capture bridge for screenshot pipeline"`.
 
@@ -280,7 +280,7 @@ Run: `cd ~/projelli/scripts/marketing-capture && npx tsx /tmp/verify-bridge.ts`.
       <div class="traffic-lights">
         <span class="dot close"></span><span class="dot min"></span><span class="dot max"></span>
       </div>
-      <div class="title" id="title">Projelli</div>
+      <div class="title" id="title">Keepance</div>
     </div>
     <div class="content"><img id="screenshot" alt=""></div>
   </div>
@@ -299,7 +299,7 @@ test('composeChrome wraps PNG in macOS frame at expected dimensions', async () =
     create: { width: 1280, height: 800, channels: 3, background: { r: 255, g: 0, b: 0 } }
   }).png().toBuffer();
 
-  const out = await composeChrome(fakeScreenshot, { title: 'Projelli — Test' });
+  const out = await composeChrome(fakeScreenshot, { title: 'Keepance — Test' });
   const meta = await sharp(out).metadata();
   expect(meta.format).toBe('png');
   expect(meta.width).toBeGreaterThan(1280);
@@ -338,13 +338,13 @@ export async function composeChrome(
   screenshot: Buffer,
   opts: ComposeChromeOptions = {}
 ): Promise<Buffer> {
-  const { title = 'Projelli', padding = 80 } = opts;
+  const { title = 'Keepance', padding = 80 } = opts;
   const ownsBrowser = !opts.browser;
   const browser = opts.browser ?? await chromium.launch();
 
   try {
     const html = loadTemplate().replace(
-      '<div class="title" id="title">Projelli</div>',
+      '<div class="title" id="title">Keepance</div>',
       `<div class="title" id="title">${escapeHtml(title)}</div>`
     );
 
@@ -462,7 +462,7 @@ export function macStyles(): string {
 ```ts
 import type { FileNode } from '../../../src/types/workspace';
 
-const ROOT = '/Users/jameson/Projelli/Linterly';
+const ROOT = '/Users/jameson/Keepance/Linterly';
 
 const fileContents: Record<string, string> = {
   'Vision.md': `# Linterly — Vision\n\n... (see SPEC § State seeding)`,
@@ -540,7 +540,7 @@ export async function seedState(
   shot: ShotKey
 ): Promise<void> {
   await page.waitForFunction(
-    () => typeof (window as any).__projelli_seed === 'function',
+    () => typeof (window as any).__keepance_seed === 'function',
     null,
     { timeout: 10_000 }
   );
@@ -548,7 +548,7 @@ export async function seedState(
   const shotConfig = fixture.shots[shot] as Record<string, unknown>;
 
   await page.evaluate(({ fixture, shotConfig }) => {
-    const seed = (window as any).__projelli_seed!;
+    const seed = (window as any).__keepance_seed!;
     const activeFile = (shotConfig as any).activeFile as string | undefined;
     seed({
       skipOnboarding: true,
@@ -744,7 +744,7 @@ export async function captureStill(opts: StillShotOptions): Promise<string> {
     const raw = await page.screenshot({ type: 'png', fullPage: false });
     const final = opts.raw
       ? raw
-      : await composeChrome(raw, { title: opts.windowTitle ?? 'Projelli', browser });
+      : await composeChrome(raw, { title: opts.windowTitle ?? 'Keepance', browser });
 
     mkdirSync(ASSETS_DIR, { recursive: true });
     const outPath = path.join(ASSETS_DIR, opts.outputName);
@@ -781,7 +781,7 @@ export async function shot01() {
     outputName: 'screenshot-01-workspace.png',
     pressKit: true,
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Projelli',
+    windowTitle: 'Linterly — Keepance',
   });
 }
 
@@ -790,7 +790,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 ```
 
-- [ ] **Step 2: Run.** With dev server up on port 5173 (with `VITE_MARKETING_CAPTURE=1`), run: `cd scripts/marketing-capture && npx tsx shots/01-workspace-hero.ts`. Expected: a path printed; output PNG exists at `~/projelli/Assets/marketing/screenshot-01-workspace.png` and `~/projelli/website/press-kit/assets/screenshot-01-workspace.png`.
+- [ ] **Step 2: Run.** With dev server up on port 5173 (with `VITE_MARKETING_CAPTURE=1`), run: `cd scripts/marketing-capture && npx tsx shots/01-workspace-hero.ts`. Expected: a path printed; output PNG exists at `~/keepance/Assets/marketing/screenshot-01-workspace.png` and `~/keepance/website/press-kit/assets/screenshot-01-workspace.png`.
 
 - [ ] **Step 3: Eyeball.** `scp` to local. Confirm: three panes (file tree → editor → chat), 8 files visible in tree, `Launch Plan.md` editor content visible, macOS chrome around the whole thing, SF Pro fonts, no Linux scrollbars.
 
@@ -815,7 +815,7 @@ export async function shot02() {
     pressKit: true,
     viewport: { width: 1280, height: 800 },
     aiReplay: 'launch-plan-stream',
-    windowTitle: 'Linterly — Projelli',
+    windowTitle: 'Linterly — Keepance',
     beforeShot: async (page: Page) => {
       await page.getByTestId('chat-input').fill(
         'Draft a brand voice doc based on Vision.md and Customers.md.'
@@ -834,7 +834,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 }
 ```
 
-- [ ] **Step 2: Verify required testids exist.** Run: `cd ~/projelli && grep -rE 'data-testid="(chat-input|chat-send|chat-streaming-message)"' src/`. If any missing: add them to the chat components in `src/components/chat/`. Commit those edits separately: `git commit -am "test(chat): add data-testids for marketing capture"`.
+- [ ] **Step 2: Verify required testids exist.** Run: `cd ~/keepance && grep -rE 'data-testid="(chat-input|chat-send|chat-streaming-message)"' src/`. If any missing: add them to the chat components in `src/components/chat/`. Commit those edits separately: `git commit -am "test(chat): add data-testids for marketing capture"`.
 
 - [ ] **Step 3: Run, eyeball, commit.** Same as Task 10 Step 2-4 but with `02-ai-chat`.
 
@@ -856,7 +856,7 @@ export async function shot03() {
     outputName: 'screenshot-03-wikilinks.png',
     pressKit: true,
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Projelli',
+    windowTitle: 'Linterly — Keepance',
     beforeShot: async (page: Page) => {
       await page.getByTestId('toggle-backlinks').click();
       await page.waitForFunction(() => {
@@ -892,7 +892,7 @@ export async function shot04() {
     outputName: 'screenshot-04-templates.png',
     pressKit: true,
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Projelli',
+    windowTitle: 'Linterly — Keepance',
   });
 }
 
@@ -911,7 +911,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
 **Files:** Create `scripts/marketing-capture/shots/05-multi-model.ts`.
 
-- [ ] **Step 1: Verify multi-model UI exists.** Run: `cd ~/projelli && grep -rE "multi.?model|MultiModel" src/components/ src/stores/`. If empty: defer this shot to v2, document in `SPEC.md` § Out of scope, skip Steps 2–4.
+- [ ] **Step 1: Verify multi-model UI exists.** Run: `cd ~/keepance && grep -rE "multi.?model|MultiModel" src/components/ src/stores/`. If empty: defer this shot to v2, document in `SPEC.md` § Out of scope, skip Steps 2–4.
 
 - [ ] **Step 2: Write the shot script:**
 
@@ -929,10 +929,10 @@ export async function shot05() {
     outputName: 'screenshot-05-multi-model.png',
     pressKit: true,
     viewport: { width: 1440, height: 900 },
-    windowTitle: 'Linterly — Projelli',
+    windowTitle: 'Linterly — Keepance',
     beforeShot: async (page: Page) => {
       await page.evaluate(({ left, right }) => {
-        (window as any).__projelli_seed!({
+        (window as any).__keepance_seed!({
           aiChat: {
             multiModel: {
               prompt: 'Draft a one-paragraph vision statement for Linterly.',
@@ -975,7 +975,7 @@ export async function shot06() {
     outputName: 'screenshot-06-api-keys.png',
     pressKit: true,
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Settings — Projelli',
+    windowTitle: 'Settings — Keepance',
     beforeShot: async (page: Page) => {
       await page.getByTestId('open-settings').click();
       await page.getByTestId('settings-tab-api-keys').click();
@@ -1076,7 +1076,7 @@ This shot needs binary fixtures (xlsx, pptx) so the editor has something to rend
 
 **Option A — Skip Office binary rendering. Show only the .md tab as active, with `.xlsx` and `.pptx` tabs visible but inactive.** Cheap, works today.
 
-**Option B — Generate minimal valid .xlsx/.pptx files with sample content.** Use `exceljs` and `pptxgenjs` (both small npm deps). Requires Projelli's editor to actually render those formats — verify before investing.
+**Option B — Generate minimal valid .xlsx/.pptx files with sample content.** Use `exceljs` and `pptxgenjs` (both small npm deps). Requires Keepance's editor to actually render those formats — verify before investing.
 
 - [ ] **Step 1: Decide A vs B.** Default: **A** (cheaper, ships sooner).
 
@@ -1091,7 +1091,7 @@ export async function shot10() {
     shotKey: 'documentSuite',
     outputName: 'feature-document-suite.png',
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Projelli',
+    windowTitle: 'Linterly — Keepance',
     beforeShot: async (page: Page) => {
       // The fixture seeds 3 tabs; ensure they're visible in the strip.
       await page.waitForFunction(() => {
@@ -1166,7 +1166,7 @@ export async function shot11() {
     .png().toBuffer();
 
   // 4) Wrap in macOS chrome.
-  const final = await composeChrome(composited, { title: 'Linterly — Projelli' });
+  const final = await composeChrome(composited, { title: 'Linterly — Keepance' });
 
   mkdirSync(ASSETS_DIR, { recursive: true });
   const outPath = path.join(ASSETS_DIR, 'feature-local-first.png');
@@ -1371,7 +1371,7 @@ async function main() {
 main().catch((e) => { console.error(e); process.exit(1); });
 ```
 
-- [ ] **Step 2: Run end-to-end.** `cd ~/projelli && npm run capture:all`. Expected: ~5 minutes, all 11 PNGs + 1 MP4 written, no errors.
+- [ ] **Step 2: Run end-to-end.** `cd ~/keepance && npm run capture:all`. Expected: ~5 minutes, all 11 PNGs + 1 MP4 written, no errors.
 
 - [ ] **Step 3: Commit.** `git add scripts/marketing-capture/run-all.ts && git commit -m "feat(capture): run-all orchestrator"`.
 
@@ -1379,13 +1379,13 @@ main().catch((e) => { console.error(e); process.exit(1); });
 
 ### Task 21: Final library run, eyeball, commit assets
 
-- [ ] **Step 1: Clean previous outputs.** `rm -f ~/projelli/Assets/marketing/*.png ~/projelli/Assets/marketing/*.mp4 ~/projelli/website/press-kit/assets/screenshot-*.png ~/projelli/website/press-kit/assets/demo-30s.mp4`.
+- [ ] **Step 1: Clean previous outputs.** `rm -f ~/keepance/Assets/marketing/*.png ~/keepance/Assets/marketing/*.mp4 ~/keepance/website/press-kit/assets/screenshot-*.png ~/keepance/website/press-kit/assets/demo-30s.mp4`.
 
-- [ ] **Step 2: Run the full library.** `cd ~/projelli && npm run capture:all`. Expected: clean run.
+- [ ] **Step 2: Run the full library.** `cd ~/keepance && npm run capture:all`. Expected: clean run.
 
 - [ ] **Step 3: Eyeball every output.** `scp` the entire `Assets/marketing/` and the press-kit folder to local. Walk each asset against the description in `SPEC.md` § Scope. For mismatches: file an issue (do NOT fix in this task — document the gap, ship the rest).
 
-- [ ] **Step 4: Verify press-kit page.** `cd ~/projelli && bash infra/deploy.sh`. Visit `https://projelli.com/press-kit/` and confirm all 6 screenshot slots show the new images.
+- [ ] **Step 4: Verify press-kit page.** `cd ~/keepance && bash infra/deploy.sh`. Visit `https://keepance.com/press-kit/` and confirm all 6 screenshot slots show the new images.
 
 - [ ] **Step 5: Commit final assets.** `git add Assets/marketing/ website/press-kit/assets/ && git commit -m "feat: marketing asset library v1 (11 stills + 30s video)"`.
 

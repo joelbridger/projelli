@@ -22,7 +22,7 @@ import { useLicense } from '@/hooks/useLicense';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const SESSION_DISMISS_KEY = 'projelli_trial_banner_dismissed_at';
+const SESSION_DISMISS_KEY = 'keepance_trial_banner_dismissed_at';
 // Re-show banner if the dismissal is older than this many minutes (so a
 // long-running app eventually nags again as the day-count drops).
 const RESHOW_AFTER_MIN = 60;

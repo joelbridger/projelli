@@ -160,11 +160,11 @@ export const useEditorStore = create<EditorState>()(
 
   // UX-36: persisted tab overflow preference. Default: horizontal scroll.
   tabOverflow: (typeof localStorage !== 'undefined'
-    ? (localStorage.getItem('projelli:tabOverflow') as 'scroll' | 'wrap') ?? 'scroll'
+    ? (localStorage.getItem('keepance:tabOverflow') as 'scroll' | 'wrap') ?? 'scroll'
     : 'scroll') as 'scroll' | 'wrap',
   setTabOverflow: (mode) => {
     set({ tabOverflow: mode });
-    try { localStorage.setItem('projelli:tabOverflow', mode); } catch { /* noop */ }
+    try { localStorage.setItem('keepance:tabOverflow', mode); } catch { /* noop */ }
   },
 
   openFile: (path, name, content) => {

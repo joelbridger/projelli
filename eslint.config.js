@@ -6,7 +6,7 @@ import globals from 'globals';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const projelliI18n = require('./packages/eslint-plugin-projelli-i18n/src/index.js');
+const keepanceI18n = require('./packages/eslint-plugin-keepance-i18n/src/index.js');
 
 // Env-gated severity: warn locally so devs see the signal without blocking
 // every save, but error in CI so a hardcoded string can't sneak into main.
@@ -28,7 +28,7 @@ export default tseslint.config(
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
-      'projelli-i18n': projelliI18n,
+      'keepance-i18n': keepanceI18n,
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
@@ -45,7 +45,7 @@ export default tseslint.config(
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/no-empty-object-type': 'off',
-      'projelli-i18n/no-hardcoded-string': i18nSeverity,
+      'keepance-i18n/no-hardcoded-string': i18nSeverity,
     },
   },
   // Config files - allow Node globals

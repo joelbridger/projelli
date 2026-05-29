@@ -10,9 +10,9 @@
  *
  * Triggered when:
  *   - The app launches with no recent workspaces (`workspaceStore.recentWorkspaces.length === 0`)
- *   - AND no `projelli_onboarding_complete` flag in localStorage
+ *   - AND no `keepance_onboarding_complete` flag in localStorage
  *
- * Sets `projelli_onboarding_complete = "true"` after the user finishes (or skips).
+ * Sets `keepance_onboarding_complete = "true"` after the user finishes (or skips).
  *
  * Designed to be embedded inside the existing WorkspaceSelector flow rather
  * than replacing it — we want to honor the existing path-input vs file-picker
@@ -25,7 +25,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { writeSampleFiles, SAMPLE_FILES } from '@/onboarding/samples';
 
-const STORAGE_KEY = 'projelli_onboarding_complete';
+const STORAGE_KEY = 'keepance_onboarding_complete';
+const PROFESSION_STORAGE_KEY = 'keepance_profession';
 
 /**
  * Minimal slice of `WorkspaceService` that the wizard needs. Typed as a
@@ -51,11 +52,43 @@ export interface FirstRunWizardProps {
   workspace?: WizardWorkspace;
 }
 
-type Step = 'welcome' | 'workspace' | 'apikey' | 'demo' | 'done';
+type Step = 'welcome' | 'profession' | 'workspace' | 'apikey' | 'demo' | 'done';
+
+type Profession = 'legal' | 'tax' | 'consulting' | 'other';
+
+interface ProfessionOption {
+  id: Profession;
+  heading: string;
+  description: string;
+}
+
+const PROFESSION_OPTIONS: ProfessionOption[] = [
+  {
+    id: 'legal',
+    heading: 'Legal practice',
+    description: 'Attorneys, paralegals, and legal professionals. Comes with the Legal Practice template pack.',
+  },
+  {
+    id: 'tax',
+    heading: 'Tax & accounting',
+    description: 'CPAs, EAs, tax preparers, and bookkeepers. Comes with the Tax Practice template pack.',
+  },
+  {
+    id: 'consulting',
+    heading: 'Consulting & strategy',
+    description: 'Independent consultants, fractional executives, and agency owners. Comes with the Consulting Practice template pack.',
+  },
+  {
+    id: 'other',
+    heading: 'Something else',
+    description: 'Writers, researchers, designers, and everyone else. Starts with the general templates.',
+  },
+];
 
 export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizardProps) {
   const { t } = useTranslation();
   const [step, setStep] = useState<Step>('welcome');
+  const [profession, setProfession] = useState<Profession | null>(null);
   const [apiKey, setApiKey] = useState('');
   // Q11 (Wave 1.5): default ON — new users benefit from seeing realistic
   // artifacts before they run their first workflow.
@@ -79,6 +112,9 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
         setIsFinishing(false);
       }
     }
+    // Store profession selection for template pre-installation (template registry
+    // wiring is handled separately). Default to 'other' if the user skipped.
+    localStorage.setItem(PROFESSION_STORAGE_KEY, profession ?? 'other');
     localStorage.setItem(STORAGE_KEY, 'true');
     onComplete();
   };
@@ -89,8 +125,8 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
         {/* Progress indicator */}
         <div className="flex items-center justify-between px-8 pt-6">
           <div className="flex gap-2">
-            {(['welcome', 'workspace', 'apikey', 'demo'] as Step[]).map((s) => {
-              const order: Step[] = ['welcome', 'workspace', 'apikey', 'demo', 'done'];
+            {(['welcome', 'profession', 'workspace', 'apikey', 'demo'] as Step[]).map((s) => {
+              const order: Step[] = ['welcome', 'profession', 'workspace', 'apikey', 'demo', 'done'];
               const currentIdx = order.indexOf(step);
               const stepIdx = order.indexOf(s);
               return (
@@ -132,9 +168,51 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
                 </div>
               }
               actions={
-                <Button onClick={() => setStep('workspace')} size="lg">
+                <Button onClick={() => setStep('profession')} size="lg">
                   {t('onboarding.first-run.welcome.cta')}
                 </Button>
+              }
+            />
+          )}
+
+          {step === 'profession' && (
+            <Pane
+              title="What kind of work do you do?"
+              subtitle="We'll set up your workspace with the right starting templates."
+              body={
+                <div className="grid grid-cols-2 gap-3">
+                  {PROFESSION_OPTIONS.map((option) => {
+                    const isSelected = profession === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        data-testid={`profession-card-${option.id}`}
+                        onClick={() => setProfession(option.id)}
+                        className={`rounded-lg border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                          isSelected
+                            ? 'bg-primary/10 border-primary'
+                            : 'border-border hover:bg-muted/30'
+                        }`}
+                      >
+                        <p className="text-sm font-semibold text-foreground">{option.heading}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{option.description}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              }
+              actions={
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setStep('welcome')}>
+                    {t('onboarding.first-run.back')}
+                  </Button>
+                  <Button onClick={() => setStep('workspace')} size="lg">
+                    {profession
+                      ? t('onboarding.first-run.workspace.cta')
+                      : t('onboarding.first-run.skip-for-now')}
+                  </Button>
+                </div>
               }
             />
           )}
@@ -157,8 +235,8 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
                   <div className="rounded-lg border border-border bg-muted/30 p-4">
                     <p className="text-xs font-medium text-foreground mb-2">{t('onboarding.first-run.workspace.common-choices')}</p>
                     <ul className="text-xs space-y-1 font-mono">
-                      <li>~/Documents/Projelli</li>
-                      <li>~/Dropbox/Projelli</li>
+                      <li>~/Documents/Keepance</li>
+                      <li>~/Dropbox/Keepance</li>
                       <li>{t('onboarding.first-run.workspace.icloud-path')}</li>
                     </ul>
                   </div>
@@ -169,7 +247,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
               }
               actions={
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setStep('welcome')}>
+                  <Button variant="outline" onClick={() => setStep('profession')}>
                     {t('onboarding.first-run.back')}
                   </Button>
                   <Button onClick={() => setStep('apikey')} size="lg">
@@ -371,4 +449,22 @@ export function hasCompletedOnboarding(): boolean {
  */
 export function resetOnboarding(): void {
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(PROFESSION_STORAGE_KEY);
+}
+
+/**
+ * Helper: retrieve the profession the user selected during onboarding.
+ * Defaults to 'other' when onboarding was skipped or the key was never set.
+ */
+export function getOnboardingProfession(): Profession {
+  const stored = localStorage.getItem(PROFESSION_STORAGE_KEY);
+  if (
+    stored === 'legal' ||
+    stored === 'tax' ||
+    stored === 'consulting' ||
+    stored === 'other'
+  ) {
+    return stored;
+  }
+  return 'other';
 }

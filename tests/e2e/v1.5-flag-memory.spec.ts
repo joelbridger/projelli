@@ -17,7 +17,7 @@
  * Full retrieval + citation-click round-trip is out of harness scope because
  * it requires: (a) a real Claude/OpenAI/Gemini API key, (b) a LanceDB-backed
  * indexed workspace (Tauri-only), and (c) a streaming provider response. All
- * three are covered in the Rust `cargo test -p projelli` suite and in the
+ * three are covered in the Rust `cargo test -p keepance` suite and in the
  * Vitest suites referenced above.
  */
 
@@ -52,7 +52,7 @@ test.describe('v1.5 Flag 1 — Memory', () => {
 
     const input = page.getByTestId('settings-facts-add-input');
     const addBtn = page.getByTestId('settings-facts-add');
-    await input.fill('The user is shipping Projelli v1.5 in April 2026');
+    await input.fill('The user is shipping Keepance v1.5 in April 2026');
     await expect(addBtn).toBeEnabled();
     await addBtn.click();
 
@@ -60,7 +60,7 @@ test.describe('v1.5 Flag 1 — Memory', () => {
     await expect(input).toHaveValue('');
     const factsTable = page.getByTestId('settings-facts-table');
     await expect(factsTable).toBeVisible();
-    await expect(factsTable).toContainText('shipping Projelli v1.5');
+    await expect(factsTable).toContainText('shipping Keepance v1.5');
   });
 
   test('AI Assistant pane mounts without error', async ({ page }) => {

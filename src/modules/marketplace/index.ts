@@ -46,7 +46,7 @@ export {
   templateManifestSchema,
   templateFileEntrySchema,
   templateManifestAuthorSchema,
-  checkMinProjelliVersion,
+  checkMinKeepcanceVersion,
   compareSemver,
 } from './manifestValidator';
 export type { TemplateManifestValidationResult } from './manifestValidator';

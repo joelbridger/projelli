@@ -4,13 +4,13 @@
  * Two opt-ins, both default-OFF, presented in a single moment so the
  * user has one decision instead of two:
  *   1. Email updates: "Send me launch updates, tips, and discount codes."
- *   2. Anonymous telemetry: "Help me improve Projelli with anonymous
+ *   2. Anonymous telemetry: "Help me improve Keepance with anonymous
  *      usage stats." (no PII, no content, just lifecycle events)
  *
  * Both can be skipped entirely. Skipping marks onboarding complete so
  * this never re-prompts.
  *
- * Lives in `~/projelli/src/components/onboarding/`. Mounted once from
+ * Lives in `~/keepance/src/components/onboarding/`. Mounted once from
  * App.tsx after the workspace is open (so the very first impression is
  * still the workspace, not a modal — but the consent comes before any
  * meaningful AI usage).
@@ -34,7 +34,7 @@ import { useOnboardingCompleted } from '@/hooks/useOnboarding';
 import { setTelemetryConsent } from '@/hooks/useTelemetryConsent';
 import { sendEvent } from '@/utils/telemetry';
 
-const SIGNUP_ENDPOINT = 'https://projelli.com/api/forms/projelli/app-onboarding';
+const SIGNUP_ENDPOINT = 'https://keepance.com/api/forms/keepance/app-onboarding';
 
 interface WelcomeOnboardingDialogProps {
   open: boolean;

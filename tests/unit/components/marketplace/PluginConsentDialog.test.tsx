@@ -25,7 +25,7 @@ function makeManifest(
     description: 'Counts words in your editor.',
     main: 'index.js',
     permissions,
-    minProjelliVersion: '2.0.0',
+    minKeepanceVersion: '2.0.0',
     category: 'utility',
     tags: ['editor'],
     ...overrides,
@@ -97,7 +97,7 @@ describe('PluginConsentDialog (controlled)', () => {
 
   it('prefers manifest.homepage for the Source line when present', () => {
     const manifest = makeManifest(['workspace:read'], {
-      homepage: 'https://github.com/projelli/word-counter',
+      homepage: 'https://github.com/keepance/word-counter',
     });
     render(
       <PluginConsentDialog
@@ -109,7 +109,7 @@ describe('PluginConsentDialog (controlled)', () => {
     );
     expect(
       screen.getByTestId('plugin-consent-dialog-source'),
-    ).toHaveTextContent('github.com/projelli/word-counter');
+    ).toHaveTextContent('github.com/keepance/word-counter');
   });
 
   it('Approve button fires onApprove', () => {

@@ -183,7 +183,7 @@ export function TemplateDetailView({
     // Fire a window-level event so the App shell (which owns the AuditLog
     // panel) can optionally focus / open it. No-op if no listener is wired.
     window.dispatchEvent(
-      new CustomEvent('projelli:open-audit-log', {
+      new CustomEvent('keepance:open-audit-log', {
         detail: { source: 'marketplace', templateId: entry.id },
       }),
     );

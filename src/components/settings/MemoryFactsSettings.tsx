@@ -4,7 +4,7 @@
  *
  * What it shows:
  *   - A table of every fact currently saved under
- *     `<workspace>/.projelli/memory.json`, newest first.
+ *     `<workspace>/.keepance/memory.json`, newest first.
  *   - A trash button per row to delete a fact.
  *   - A one-line "Add fact manually" input with a Save button.
  *

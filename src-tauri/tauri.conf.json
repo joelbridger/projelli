@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Projelli",
+  "productName": "Keepance",
   "version": "2.0.0",
-  "identifier": "com.projelli.app",
+  "identifier": "com.keepance.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Projelli",
+        "title": "Keepance",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
@@ -29,7 +29,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://projelli.com https://licenses.projelli.com http://127.0.0.1:11434"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://api.anthropic.com https://api.openai.com https://generativelanguage.googleapis.com https://keepance.com https://licenses.keepance.com http://127.0.0.1:11434"
     }
   },
   "bundle": {
@@ -50,10 +50,10 @@
       "icons/icon.ico"
     ],
     "category": "Productivity",
-    "shortDescription": "Local-first workspace for solo founders",
-    "longDescription": "Projelli is a local-first, artifact-driven workspace application for solo founders building businesses with AI assistance. Unlike chat-based AI tools, Projelli produces and manages persistent business documents while keeping the human founder in control of all decisions.",
-    "publisher": "Projelli",
-    "copyright": "Copyright 2026 Projelli",
+    "shortDescription": "Local-first AI workspace for confidential client work",
+    "longDescription": "Keepance is a local-first AI workspace for professionals who handle confidential client work. Your files stay on your machine. Bring your own API key or run AI models locally with Ollama. Supports attorneys, CPAs, consultants, and other professionals where client confidentiality is non-negotiable.",
+    "publisher": "Keepance",
+    "copyright": "Copyright 2026 Keepance",
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
@@ -91,7 +91,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJDMjMyQzcyQThCMDA4QjkKUldTNUNMQ29jaXdqTEQ2V0tEcUxIMS9IZy9BaFUyeXNHQmk5NlAyZ2hEMlZ5QUxNTmNiSnNBNjgK",
       "endpoints": [
-        "https://github.com/projelli/projelli/releases/latest/download/latest.json"
+        "https://github.com/keepance/keepance/releases/latest/download/latest.json"
       ]
     }
   }

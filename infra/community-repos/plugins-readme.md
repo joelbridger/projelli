@@ -1,8 +1,8 @@
-# projelli/community-plugins
+# keepance/community-plugins
 
-The community catalog of plugins for [Projelli](https://projelli.com).
+The community catalog of plugins for [Keepance](https://keepance.com).
 
-Anything in this repo's `entries/` folder shows up in the in-app marketplace under Plugins. Users browse, install with one click, and the plugin's worker spins up inside Projelli's sandboxed runtime.
+Anything in this repo's `entries/` folder shows up in the in-app marketplace under Plugins. Users browse, install with one click, and the plugin's worker spins up inside Keepance's sandboxed runtime.
 
 ## What's in here
 
@@ -15,12 +15,12 @@ Anything in this repo's `entries/` folder shows up in the in-app marketplace und
 
 ### 1. Build your plugin
 
-Follow the [Projelli plugin docs](https://projelli.com/docs/plugins/getting-started) to scaffold and build a plugin. The output is a `manifest.json` and a `dist/index.js` (the bundled worker entry).
+Follow the [Keepance plugin docs](https://keepance.com/docs/plugins/getting-started) to scaffold and build a plugin. The output is a `manifest.json` and a `dist/index.js` (the bundled worker entry).
 
 ### 2. Fork this repo
 
 ```
-gh repo fork projelli/community-plugins
+gh repo fork keepance/community-plugins
 ```
 
 Or click Fork on github.com.
@@ -41,7 +41,7 @@ The folder name MUST match `manifest.id` exactly. The build script enforces this
 
 ### 4. Author the manifest
 
-Your `manifest.json` follows the [PluginManifest schema](https://github.com/projelli/projelli/blob/master/src/types/plugin.ts). Required fields:
+Your `manifest.json` follows the [PluginManifest schema](https://github.com/keepance/keepance/blob/master/src/types/plugin.ts). Required fields:
 
 ```json
 {
@@ -53,7 +53,7 @@ Your `manifest.json` follows the [PluginManifest schema](https://github.com/proj
   "description": "One-sentence pitch for what this plugin does.",
   "main": "index.js",
   "permissions": ["editor:selection"],
-  "minProjelliVersion": "2.0.0",
+  "minKeepanceVersion": "2.0.0",
   "category": "writing",
   "tags": ["editor", "stats"],
   "screenshots": ["screenshots/main.png"],
@@ -149,4 +149,4 @@ Bump `version` in your manifest, replace `index.js` with the new build, and open
 
 ## Removing a plugin
 
-Open a PR that deletes the entry folder. Existing installs in user copies of Projelli keep working; the plugin just disappears from the marketplace.
+Open a PR that deletes the entry folder. Existing installs in user copies of Keepance keep working; the plugin just disappears from the marketplace.

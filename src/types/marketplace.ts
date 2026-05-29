@@ -13,8 +13,8 @@ export interface CatalogEntry {
   screenshots?: string[];
   installUrl: string;
   manifestUrl: string;
-  minProjelliVersion: string;
-  maxProjelliVersion?: string;
+  minKeepcanceVersion: string;
+  maxKeepcanceVersion?: string;
   ratings?: { stars: number; count: number };
   publishedAt: string;
   updatedAt: string;

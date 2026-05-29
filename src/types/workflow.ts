@@ -96,7 +96,7 @@ export type TemplateProviderId = 'claude' | 'openai' | 'gemini' | 'ollama';
 /**
  * M7 — A named output produced by a template. The `id` is stable and used
  * for chain wiring; the `name` is human-readable for UI; `schema` is a free-
- * form JSON-schema-ish hint (optional — Projelli chains only require the id).
+ * form JSON-schema-ish hint (optional — Keepance chains only require the id).
  */
 export interface NamedOutput {
   id: string;
@@ -124,7 +124,7 @@ export interface WorkflowTemplate {
   name: string;
   description: string;
   version: string;
-  category: 'kickoff' | 'research' | 'analysis' | 'planning' | 'custom';
+  category: 'kickoff' | 'research' | 'analysis' | 'planning' | 'custom' | 'legal' | 'tax' | 'consulting';
   steps: WorkflowStep[];
   requiredInputs: string[];
   outputs: string[];
@@ -193,7 +193,7 @@ export interface WorkflowChainStep {
 
 /**
  * M7 — A persisted chain definition. Saved to
- * `<workspace>/.projelli/chains/<name>.json`.
+ * `<workspace>/.keepance/chains/<name>.json`.
  */
 export interface WorkflowChain {
   schemaVersion: 1;

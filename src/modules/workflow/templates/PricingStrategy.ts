@@ -1,5 +1,5 @@
 // Pricing Strategy Workflow Template
-// Helps founders develop their pricing model
+// Helps professionals develop their pricing model
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 
@@ -50,8 +50,8 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'How you plan to charge customers',
     type: 'select',
     required: true,
-    options: ['SaaS Subscription', 'Usage-Based', 'One-Time Purchase', 'Freemium', 'Marketplace/Transaction Fee', 'Hybrid'],
-    defaultValue: 'SaaS Subscription',
+    options: ['Hourly / Time-based', 'Flat-fee / Fixed-scope', 'Monthly Retainer', 'Project-based', 'Contingency / Success-fee', 'Hybrid'],
+    defaultValue: 'Hourly / Time-based',
   },
   {
     id: 'currentPricing',
@@ -71,7 +71,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
 ];
 
-const pricingStrategyPrompt = `You are helping a solo founder develop a pricing strategy.
+const pricingStrategyPrompt = `You are helping a professional develop a pricing strategy.
 
 Based on the following information:
 
@@ -151,24 +151,24 @@ Generate a comprehensive Pricing Strategy document in Markdown format:
 ### Discounting Strategy
 | Scenario | Discount | Terms |
 |----------|----------|-------|
-| Annual commitment | | |
-| Early adopter | | |
-| Startup program | | |
-| Enterprise deal | | |
+| Annual / retainer commitment | | |
+| New client introductory rate | | |
+| Nonprofit / pro bono | | |
+| Multi-matter / volume | | |
 
 ### Price Change Protocol
 [How to handle future price changes]
 
 ## Metrics to Track
-- Conversion rate by tier
-- Average Revenue Per User (ARPU)
-- Upgrade/downgrade rates
+- Engagement / proposal conversion rate
+- Average revenue per client or matter
+- Retainer vs. project revenue mix
 - Price sensitivity indicators
 
 ## Testing Recommendations
 [How to validate pricing before full launch]`;
 
-const pricingPageCopyPrompt = `You are helping a solo founder write pricing page copy.
+const pricingPageCopyPrompt = `You are helping a professional write pricing page copy.
 
 Based on the business information:
 
@@ -271,7 +271,7 @@ export const PricingStrategy: WorkflowTemplate = {
       config: {
         outputFile: 'PRICING_STRATEGY.md',
         promptTemplate: pricingStrategyPrompt,
-        systemPrompt: 'You are a pricing strategist helping founders optimize their revenue model. Be data-driven and practical.',
+        systemPrompt: 'You are a pricing strategist helping professionals optimize their revenue model. Be data-driven and practical.',
       } as GenerateStepConfig,
     },
     {
@@ -282,7 +282,7 @@ export const PricingStrategy: WorkflowTemplate = {
       config: {
         outputFile: 'PRICING_PAGE_COPY.md',
         promptTemplate: pricingPageCopyPrompt,
-        systemPrompt: 'You are a conversion copywriter helping founders communicate value. Be clear and persuasive.',
+        systemPrompt: 'You are a conversion copywriter helping professionals communicate value. Be clear and persuasive.',
       } as GenerateStepConfig,
     },
   ],

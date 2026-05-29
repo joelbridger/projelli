@@ -2,15 +2,15 @@
 # One-time setup so Claude (running as jameson, no sudo) can deploy directly.
 #
 # What this does:
-#   1. Adds jameson to the www-data group so it can write to /var/www/projelli.com/
-#   2. Sets the setgid bit on /var/www/projelli.com/ so new files inherit www-data group
+#   1. Adds jameson to the www-data group so it can write to /var/www/keepance.com/
+#   2. Sets the setgid bit on /var/www/keepance.com/ so new files inherit www-data group
 #   3. Ensures group-write permissions are correct
 #
-# After this runs ONCE (with sudo), Claude can run ~/projelli-marketing/infra/deploy.sh
+# After this runs ONCE (with sudo), Claude can run ~/keepance-marketing/infra/deploy.sh
 # without sudo or password prompts.
 #
 # Usage (one time only):
-#   sudo bash ~/projelli-marketing/infra/setup-claude-deploy.sh
+#   sudo bash ~/keepance-marketing/infra/setup-claude-deploy.sh
 #
 # Then in YOUR current shell only, activate the new group:
 #   newgrp www-data
@@ -24,7 +24,7 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-WEB_ROOT=/var/www/projelli.com
+WEB_ROOT=/var/www/keepance.com
 USER=jameson
 
 if [[ ! -d "$WEB_ROOT" ]]; then
@@ -53,4 +53,4 @@ echo "    newgrp www-data"
 echo ""
 echo "    (Or log out and back in.)"
 echo ""
-echo "After that, ~/projelli-marketing/infra/deploy.sh will work without sudo."
+echo "After that, ~/keepance-marketing/infra/deploy.sh will work without sudo."

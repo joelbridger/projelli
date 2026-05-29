@@ -1,13 +1,13 @@
 /**
  * FactsService — durable "facts about the user" persisted under
- * `<workspace>/.projelli/memory.json`.
+ * `<workspace>/.keepance/memory.json`.
  *
  * Part of M3 (v1.5 Flag 1). Complements `MemoryService` (M1 vector RAG) —
  * where RAG gives the AI paragraph-level recall from workspace files,
  * Facts gives it a short, user-approved list of durable truths that are
  * ALWAYS in the system prompt (not retrieved conditionally). Think
  * "the user is a Senior Product Designer", "the user's wife is Allison",
- * "the user ships via the Projelli 8-week plan".
+ * "the user ships via the Keepance 8-week plan".
  *
  * Design notes:
  *   - All IO goes through a pluggable `FactsStorage` adapter so the unit
@@ -30,7 +30,7 @@
  *     happening on the full parsed object.
  */
 
-export const FACTS_FILE_RELATIVE_PATH = '.projelli/memory.json';
+export const FACTS_FILE_RELATIVE_PATH = '.keepance/memory.json';
 
 export const FACTS_SCHEMA_VERSION = 1 as const;
 
@@ -54,7 +54,7 @@ export interface Fact {
   source_message_index?: number;
 }
 
-/** Serialized shape of `<workspace>/.projelli/memory.json`. */
+/** Serialized shape of `<workspace>/.keepance/memory.json`. */
 export interface MemoryFacts {
   version: 1;
   facts: Fact[];

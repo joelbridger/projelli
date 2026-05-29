@@ -7,7 +7,7 @@ import type { FSBackend } from '@/modules/workspace/types';
 import { MarketplaceService } from './MarketplaceService';
 
 export const TEMPLATES_REPO_URL =
-  'https://raw.githubusercontent.com/projelli/community-templates/main';
+  'https://raw.githubusercontent.com/keepance/community-templates/main';
 export const TEMPLATES_CATALOG_PATH = 'catalog.json';
 
 export interface CreateTemplatesMarketplaceOptions {
@@ -20,9 +20,9 @@ export interface CreateTemplatesMarketplaceOptions {
 /**
  * Build a `MarketplaceService` configured for the community templates repo.
  *
- * Cache lives at `<workspaceRoot>/.projelli/cache/templates.json` so multiple
- * Projelli windows pointed at the same workspace see the same cached catalog.
- * Installs land under `<workspaceRoot>/.projelli/templates/<id>/`.
+ * Cache lives at `<workspaceRoot>/.keepance/cache/templates.json` so multiple
+ * Keepance windows pointed at the same workspace see the same cached catalog.
+ * Installs land under `<workspaceRoot>/.keepance/templates/<id>/`.
  */
 export function createTemplatesMarketplaceService(
   fs: FSBackend,
@@ -33,8 +33,8 @@ export function createTemplatesMarketplaceService(
   return new MarketplaceService({
     repoUrl: opts.repoUrl ?? TEMPLATES_REPO_URL,
     catalogPath: opts.catalogPath ?? TEMPLATES_CATALOG_PATH,
-    cachePath: `${root}/.projelli/cache/templates.json`,
-    installRoot: `${root}/.projelli/templates`,
+    cachePath: `${root}/.keepance/cache/templates.json`,
+    installRoot: `${root}/.keepance/templates`,
     fs,
     provenance: 'community',
   });

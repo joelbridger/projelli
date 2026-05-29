@@ -94,14 +94,14 @@
   "settings": {
     "modal": {
       "title": "Settings",
-      "description": "Configure Projelli preferences",
+      "description": "Configure Keepance preferences",
       "search-placeholder": "Search settings...",
       "clear-search-aria": "Clear search",
       "close-aria": "Close settings",
       "marketplace-badge-aria": "{{count}} marketplace updates available",
       "no-matches": "No settings match your search in this category.",
       "context-warning": "Selected model maxes at {{max}} tokens. Lower the limit or switch to a larger-context model.",
-      "about-tagline": "Local-first workspace for solo founders.",
+      "about-tagline": "Local-first workspace for confidential client work.",
       "export": "Export",
       "import": "Import",
       "reset": "Reset to Defaults",
@@ -115,7 +115,7 @@
     },
     "license": {
       "title": "License",
-      "description": "Activate Projelli with a license key purchased at <pricingLink>projelli.com</pricingLink>.",
+      "description": "Activate Keepance with a license key purchased at <pricingLink>keepance.com</pricingLink>.",
       "deactivate-confirm": "Deactivate this license? You will lose access to paid features until you re-activate.",
       "badge": {
         "activated": "ACTIVATED",
@@ -136,15 +136,15 @@
       "activate-success": "License activated successfully.",
       "activate-to-continue": "Activate to continue",
       "trial-expired-detail": "Your {{days}}-day free trial ended on <endDateBold>{{endDate}}</endDateBold>. AI chat and workflows are paused. Your existing files are still here, fully readable. Activate a license to keep building.",
-      "trial-active-detail": "You're on the free trial. Every Projelli feature is unlocked for {{days}} days from first launch, bring your own AI keys, run workflows, edit files, the works. When the trial ends, AI chat and workflows pause until you activate a license; your files stay accessible.",
+      "trial-active-detail": "You're on the free trial. Every Keepance feature is unlocked for {{days}} days from first launch, bring your own AI keys, run workflows, edit files, the works. When the trial ends, AI chat and workflows pause until you activate a license; your files stay accessible.",
       "days-left_one": "1 day left",
       "days-left_other": "{{count}} days left",
-      "get-license-cta": "Get a license at projelli.com",
+      "get-license-cta": "Get a license at keepance.com",
       "already-have-key": "Already have a license key?",
       "unlocks-heading": "What your license unlocks:",
       "unlocks": {
         "ai-chat": "AI chat with your own keys (Claude, OpenAI, Gemini)",
-        "workflows": "All 15 founder workflow templates",
+        "workflows": "All workflow templates",
         "workspaces": "Unlimited workspaces, files, and version history",
         "whiteboard-audio-research": "Whiteboard, audio recording, research citations",
         "multi-model": "Multi-model comparison",
@@ -155,18 +155,18 @@
     },
     "privacy": {
       "title": "Privacy",
-      "description": "Projelli is local-first. Your files, your AI prompts, and your API keys never leave your machine. The two opt-ins below are the only data Projelli ever collects, and both default to off.",
+      "description": "Keepance is local-first. Your files, your AI prompts, and your API keys never leave your machine. The two opt-ins below are the only data Keepance ever collects, and both default to off.",
       "telemetry": {
         "title": "Anonymous usage stats",
-        "description": "Help improve Projelli by sending lifecycle events: app launches, trial start, trial end, license activated, license deactivated. No content, no files, no AI prompts, no email.",
+        "description": "Help improve Keepance by sending lifecycle events: app launches, trial start, trial end, license activated, license deactivated. No content, no files, no AI prompts, no email.",
         "enabled": "Enabled",
         "disabled": "Disabled",
         "what-is-sent": "What is sent, exactly:",
         "field-install-id": "<c>install_id</c>: a random UUID generated on this machine (visible below). Not tied to your email or license.",
-        "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of Projelli, and macOS / Windows / Linux.",
+        "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of Keepance, and macOS / Windows / Linux.",
         "field-event": "<c>event</c>: one of <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
         "field-license-tier": "<c>license_tier</c> (when relevant): trial, pro, lifetime.",
-        "endpoint-note": "Endpoint: <c>projelli.com/api/forms/projelli/app-event</c>. JSONL stored on Jameson's server. Used only for funnel metrics and roadmap decisions.",
+        "endpoint-note": "Endpoint: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL stored on Jameson's server. Used only for funnel metrics and roadmap decisions.",
         "install-id-display": "Your install ID: <c>{{id}}</c>"
       },
       "email": {
@@ -177,7 +177,7 @@
     },
     "mcp": {
       "title": "MCP server",
-      "description": "Expose your Projelli workspace to any MCP-compatible AI client. Install once, then ask Claude Desktop, Cursor, or any other client about your notes, chats, and memory facts without copy-pasting.",
+      "description": "Expose your Keepance workspace to any MCP-compatible AI client. Install once, then ask Claude Desktop, Cursor, or any other client about your notes, chats, and memory facts without copy-pasting.",
       "copied-status": "Copied bundle path to clipboard: {{path}}",
       "status": {
         "loading": "Looking up bundle path...",
@@ -191,8 +191,8 @@
         "step-download": "Click <b>Download .mcpb</b> above to copy the bundle path to your clipboard.",
         "step-open-claude": "Open Claude Desktop.",
         "step-config": "Open <b>Settings, Developer, Edit Config</b>, or drag the <c>.mcpb</c> file into the Claude Desktop window.",
-        "step-pick-folder": "When prompted for a workspace folder, pick the same folder you opened in Projelli.",
-        "after-install": "After install, ask Claude \"search my Projelli workspace for X\" or \"read notes/plan.md\" and watch it work."
+        "step-pick-folder": "When prompted for a workspace folder, pick the same folder you opened in Keepance.",
+        "after-install": "After install, ask Claude \"search my Keepance workspace for X\" or \"read notes/plan.md\" and watch it work."
       }
     },
     "mcp-approval": {
@@ -209,7 +209,7 @@
     },
     "ollama": {
       "title": "Ollama (local models)",
-      "description": "Run AI models directly on your machine: free, offline, private. Projelli talks to a locally running Ollama daemon on <c>127.0.0.1:11434</c>.",
+      "description": "Run AI models directly on your machine: free, offline, private. Keepance talks to a locally running Ollama daemon on <c>127.0.0.1:11434</c>.",
       "status": {
         "checking": "Checking Ollama...",
         "ready_one": "Ollama ready, {{count}} model installed",
@@ -230,7 +230,7 @@
     },
     "memory-facts": {
       "title": "Memory Facts",
-      "description": "Durable facts about you that the AI always knows. Stored locally at <c>.projelli/memory.json</c> in your workspace.",
+      "description": "Durable facts about you that the AI always knows. Stored locally at <c>.keepance/memory.json</c> in your workspace.",
       "load-error": "Couldn't load facts: {{error}}",
       "empty": "No facts saved yet. Proposed facts from chat conversations will show up here after you accept them.",
       "delete-aria": "Delete fact",
@@ -243,7 +243,7 @@
     },
     "mobile-page": {
       "title": "Mobile",
-      "description": "Read your Projelli workspace on your phone today. Point Projelli at a synced folder on your computer (iCloud, Dropbox, Syncthing, or Google Drive) and the same files show up on your phone in the matching app. The dedicated Projelli mobile reader is in beta and lands in the v2.0 cycle.",
+      "description": "Read your Keepance workspace on your phone today. Point Keepance at a synced folder on your computer (iCloud, Dropbox, Syncthing, or Google Drive) and the same files show up on your phone in the matching app. The dedicated Keepance mobile reader is in beta and lands in the v2.0 cycle.",
       "heads-up-label": "Heads up:",
       "heads-up-text": "Treat your phone as read-only while using the cloud sync workaround. Editing the same file on two devices in quick succession can produce a conflict copy.",
       "setup-steps": "Setup steps",
@@ -355,7 +355,7 @@
       "trial-ended-description": "Activate a license in Settings, License to run workflows.",
       "step-of-click": "Step {{current}} of {{total}}, click to view",
       "modal-title": "All workflows",
-      "modal-description": "Pre-built AI workflows for founders. Pick one to start a guided conversation.",
+      "modal-description": "Pre-built AI workflows for your practice. Pick one to start a guided conversation.",
       "no-matches": "No workflows match \"{{query}}\"."
     },
     "fork": {
@@ -489,9 +489,9 @@
       "skip-for-now": "Skip for now",
       "back": "Back",
       "welcome": {
-        "title": "Welcome to Projelli",
+        "title": "Welcome to Keepance",
         "subtitle": "The AI workspace where every chat becomes a real file.",
-        "body-1": "Projelli is a desktop app that combines a Markdown editor with an AI chat interface. Every conversation produces real, persistent files in a folder on your computer, not throwaway chat bubbles.",
+        "body-1": "Keepance is a desktop app that combines a Markdown editor with an AI chat interface. Every conversation produces real, persistent files in a folder on your computer, not throwaway chat bubbles.",
         "body-2": "This setup takes about 2 minutes. We'll help you pick a workspace folder, set up an AI provider (optional), and run your first workflow.",
         "step-1": "Step 1. Pick a workspace folder",
         "step-2": "Step 2. Add an AI provider key (optional)",
@@ -501,17 +501,17 @@
       "workspace": {
         "title": "Pick a workspace folder",
         "subtitle": "This is where all your work will live.",
-        "body-1": "Projelli stores everything as plain Markdown files in a folder on your hard drive. Pick a location that's easy to find and easy to back up.",
+        "body-1": "Keepance stores everything as plain Markdown files in a folder on your hard drive. Pick a location that's easy to find and easy to back up.",
         "body-2": "<s>Pro tip:</s> If you put this folder inside Dropbox, iCloud, or OneDrive, you'll get automatic sync across all your devices for free.",
         "common-choices": "Common choices:",
-        "icloud-path": "~/iCloud Drive/Projelli",
+        "icloud-path": "~/iCloud Drive/Keepance",
         "body-3": "The next screen will let you actually pick the folder. For now, just confirm you understand what we're about to ask.",
         "cta": "Got it"
       },
       "apikey": {
         "title": "Add an AI provider key",
         "subtitle": "Optional, but you'll need one to use the AI features.",
-        "body-1": "Projelli is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their API key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
+        "body-1": "Keepance is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their API key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
         "body-2": "The fastest way to get started is with <s>Anthropic Claude</s>:",
         "step-go-to": "Go to <a>console.anthropic.com</a>",
         "step-signup": "Sign up (free, $5 in credits to start)",
@@ -523,13 +523,13 @@
       "demo": {
         "title": "Run your first workflow",
         "subtitle": "See the magic moment in action.",
-        "body-1": "The fastest way to understand what Projelli does is to run a workflow. We recommend starting with <s>New Business Kickoff</s>. It asks you a series of questions about a business idea (rough is fine!) and produces real, editable Markdown files in your workspace.",
+        "body-1": "The fastest way to understand what Keepance does is to run a workflow. Pick any template from the Workflows tab, answer the questions it asks, and watch it produce real, editable Markdown files in your workspace.",
         "step-1": "Click <s>Workflows</s> in the sidebar",
-        "step-2": "Pick <s>New Business Kickoff</s>",
+        "step-2": "Pick any template that fits your work",
         "step-3": "Answer the questions and click <s>Generate</s>",
-        "outcome": "You'll get back a Vision document, a PRD, and a Lean Canvas, all as real Markdown files you can edit, link together, and back up however you want.",
+        "outcome": "You'll get back finished documents as real Markdown files you can edit, link together, and back up however you want.",
         "populate-toggle": "Populate workspace with {{count}} sample files",
-        "populate-help": "Adds finished examples of a pricing strategy, pitch deck, and weekly review so you can see what a completed workflow looks like. You can delete them later.",
+        "populate-help": "Adds finished examples so you can see what a completed workflow looks like before running your own. You can delete them later.",
         "copy-error": "Could not copy samples: {{error}}. Don't worry, you're still in.",
         "setting-up": "Setting up...",
         "open-cta": "Open my workspace"
@@ -537,7 +537,7 @@
     },
     "api-key-card": {
       "title": "Next step: add your AI key",
-      "description": "Projelli uses your own API key from Anthropic, OpenAI, or Google. You only pay the provider for what you use. Projelli doesn't charge a subscription.",
+      "description": "Keepance uses your own API key from Anthropic, OpenAI, or Google. You only pay the provider for what you use. Keepance doesn't charge a subscription.",
       "walk-me-through": "Walk me through it",
       "add-key": "Add API key",
       "keys-local": "Keys are stored locally on your computer. Never sent to us."
@@ -547,7 +547,7 @@
         "body": "Click the button below to open <s>{{dashboard}}</s> in your browser. You'll need to sign in (or sign up) to get to the keys page."
       },
       "step-2-ollama": {
-        "body": "Download Ollama for your OS, then in a terminal run <c>ollama pull llama3.2</c> (or any model you want). Projelli auto-detects Ollama on the next step."
+        "body": "Download Ollama for your OS, then in a terminal run <c>ollama pull llama3.2</c> (or any model you want). Keepance auto-detects Ollama on the next step."
       },
       "ollama-running": "Ollama is running",
       "ollama-models-ready_one": "1 model ready",
@@ -560,11 +560,11 @@
       "direct-urls": "Direct URLs (click to open in your browser):"
     },
     "welcome": {
-      "title": "Welcome to Projelli",
+      "title": "Welcome to Keepance",
       "description": "A couple of optional things, both off by default. Skip if you'd rather not.",
       "email-optin-label": "Email me launch updates, tips, and discount codes",
       "email-optin-help": "Real updates only, no drip campaigns, no weekly newsletters. Unsubscribe any time. Goes straight to Jameson.",
-      "telemetry-label": "Help improve Projelli with anonymous usage stats",
+      "telemetry-label": "Help improve Keepance with anonymous usage stats",
       "telemetry-help": "Sends a random install ID, the app version, your platform, and lifecycle events (trial started, license activated, etc.). No content, no files, no AI prompts, no email. You can turn this off in Settings, Privacy."
     }
   },
@@ -661,7 +661,7 @@
       "see-whats-new": "See what's new"
     },
     "modal": {
-      "title": "What's new in Projelli",
+      "title": "What's new in Keepance",
       "description": "Highlights from the most recent releases."
     }
   },

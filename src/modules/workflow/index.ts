@@ -4,57 +4,44 @@
 export * from './WorkflowEngine';
 export * from './RunRecordService';
 
-// Workflow Templates
-export { NewBusinessKickoff } from './templates/NewBusinessKickoff';
+// Profession template packs
+export { LEGAL_TEMPLATES } from './templates/legal/index';
+export { TAX_TEMPLATES } from './templates/tax/index';
+export { CONSULTING_TEMPLATES } from './templates/consulting/index';
+
+// General templates (profession-neutral)
 export { CompetitorAnalysis } from './templates/CompetitorAnalysis';
 export { CustomerPersona } from './templates/CustomerPersona';
-export { PricingStrategy } from './templates/PricingStrategy';
-export { GoToMarketPlan } from './templates/GoToMarketPlan';
-export { PitchDeck } from './templates/PitchDeck';
-export { ContentStrategy } from './templates/ContentStrategy';
 export { UserInterviews } from './templates/UserInterviews';
 export { UserInterviewsSynthesis } from './templates/UserInterviewsSynthesis';
-export { MVPScope } from './templates/MVPScope';
-export { FinancialModel } from './templates/FinancialModel';
-export { LandingPage } from './templates/LandingPage';
 export { WeeklyReviewWorkflow } from './templates/WeeklyReviewWorkflow';
-export { InvestorUpdate } from './templates/InvestorUpdate';
 export { BoardMeetingPrep } from './templates/BoardMeetingPrep';
+export { FinancialModel } from './templates/FinancialModel';
 export { FirstHirePlaybook } from './templates/FirstHirePlaybook';
 
 // All workflows collection
-import { NewBusinessKickoff } from './templates/NewBusinessKickoff';
+import { LEGAL_TEMPLATES } from './templates/legal/index';
+import { TAX_TEMPLATES } from './templates/tax/index';
+import { CONSULTING_TEMPLATES } from './templates/consulting/index';
 import { CompetitorAnalysis } from './templates/CompetitorAnalysis';
 import { CustomerPersona } from './templates/CustomerPersona';
-import { PricingStrategy } from './templates/PricingStrategy';
-import { GoToMarketPlan } from './templates/GoToMarketPlan';
-import { PitchDeck } from './templates/PitchDeck';
-import { ContentStrategy } from './templates/ContentStrategy';
 import { UserInterviews } from './templates/UserInterviews';
 import { UserInterviewsSynthesis } from './templates/UserInterviewsSynthesis';
-import { MVPScope } from './templates/MVPScope';
-import { FinancialModel } from './templates/FinancialModel';
-import { LandingPage } from './templates/LandingPage';
 import { WeeklyReviewWorkflow } from './templates/WeeklyReviewWorkflow';
-import { InvestorUpdate } from './templates/InvestorUpdate';
 import { BoardMeetingPrep } from './templates/BoardMeetingPrep';
+import { FinancialModel } from './templates/FinancialModel';
 import { FirstHirePlaybook } from './templates/FirstHirePlaybook';
 
 export const allWorkflows = [
-  NewBusinessKickoff,
+  ...LEGAL_TEMPLATES,
+  ...TAX_TEMPLATES,
+  ...CONSULTING_TEMPLATES,
   CompetitorAnalysis,
   CustomerPersona,
-  PricingStrategy,
-  GoToMarketPlan,
-  PitchDeck,
-  ContentStrategy,
   UserInterviews,
   UserInterviewsSynthesis,
-  MVPScope,
-  FinancialModel,
-  LandingPage,
   WeeklyReviewWorkflow,
-  InvestorUpdate,
   BoardMeetingPrep,
+  FinancialModel,
   FirstHirePlaybook,
 ];

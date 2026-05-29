@@ -143,7 +143,7 @@ function escapeCsvField(value: string): string {
 }
 
 /**
- * Build a filename like `projelli-audit-2026-04-16T14-32-07.json` using the
+ * Build a filename like `keepance-audit-2026-04-16T14-32-07.json` using the
  * given Date in local time. Colons in ISO time are replaced with `-` so the
  * name is portable across Windows.
  */
@@ -158,7 +158,7 @@ export function buildExportFilename(
   const hh = pad(now.getHours());
   const mm = pad(now.getMinutes());
   const ss = pad(now.getSeconds());
-  return `projelli-audit-${y}-${m}-${d}T${hh}-${mm}-${ss}.${extension}`;
+  return `keepance-audit-${y}-${m}-${d}T${hh}-${mm}-${ss}.${extension}`;
 }
 
 /**

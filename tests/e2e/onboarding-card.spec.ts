@@ -30,7 +30,7 @@ test.describe('API key setup card (UX-04)', () => {
       ['anthropic', 'openai', 'google'].forEach((p) => {
         localStorage.removeItem(`apiKey_${p}`);
       });
-      sessionStorage.removeItem('projelli:apiKeyCardDismissed');
+      sessionStorage.removeItem('keepance:apiKeyCardDismissed');
     });
     // Soft reload to make the app pick up the cleared state
     await page.reload();
@@ -97,7 +97,7 @@ test.describe('API key setup card (UX-04)', () => {
 
     // Verify the sessionStorage flag was set
     const flag = await page.evaluate(() =>
-      sessionStorage.getItem('projelli:apiKeyCardDismissed')
+      sessionStorage.getItem('keepance:apiKeyCardDismissed')
     );
     expect(flag).toBe('true');
   });

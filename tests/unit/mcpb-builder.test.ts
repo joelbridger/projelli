@@ -1,6 +1,6 @@
 /**
  * Unit tests for `scripts/build-mcpb.mjs` — the zip writer that produces
- * the Projelli MCP `.mcpb` Desktop Extension bundle.
+ * the Keepance MCP `.mcpb` Desktop Extension bundle.
  *
  * We verify:
  *   - the emitted bytes start with the local-file-header magic (`PK\x03\x04`)
@@ -68,16 +68,16 @@ describe('build-mcpb zip writer', () => {
 
   it('supports multiple entries without corrupting their offsets', () => {
     const manifest = Buffer.from(
-      JSON.stringify({ dxt_version: '0.1', name: 'projelli' }),
+      JSON.stringify({ dxt_version: '0.1', name: 'keepance' }),
       'utf8',
     );
     const binary = Buffer.from('\x7fELF' + 'fakebinary'.repeat(10), 'utf8');
     const zip = buildZip([
       { path: 'manifest.json', content: manifest },
-      { path: 'server/projelli-mcp', content: binary, mode: 0o100755 },
+      { path: 'server/keepance-mcp', content: binary, mode: 0o100755 },
     ]);
     // Both filenames must be findable in the archive bytes.
     expect(zip.includes(Buffer.from('manifest.json', 'utf8'))).toBe(true);
-    expect(zip.includes(Buffer.from('server/projelli-mcp', 'utf8'))).toBe(true);
+    expect(zip.includes(Buffer.from('server/keepance-mcp', 'utf8'))).toBe(true);
   });
 });

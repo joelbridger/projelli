@@ -15,7 +15,7 @@ import { Bug, Loader2 } from 'lucide-react';
 import { getCorsSafeFetch } from '@/modules/models/fetchUtils';
 import { openExternal } from '@/utils/openExternal';
 
-const BUG_REPORT_URL = 'https://projelli.com/api/forms/projelli/bug-report';
+const BUG_REPORT_URL = 'https://keepance.com/api/forms/keepance/bug-report';
 const MAILTO_ADDRESS = 'jamesondaines@outlook.com';
 
 type Status = 'idle' | 'sending' | 'success' | 'error';
@@ -39,13 +39,13 @@ function collectMetadata(): Metadata {
 }
 
 function buildMailto(message: string, email: string, meta: Metadata): string {
-  const subject = `Projelli ${meta.version} bug report`;
+  const subject = `Keepance ${meta.version} bug report`;
   const lines = [
     message,
     '',
     email ? `Reply to: ${email}` : '',
     '---',
-    `Projelli version: ${meta.version}`,
+    `Keepance version: ${meta.version}`,
     `Platform: ${meta.os}`,
     `User agent: ${meta.userAgent}`,
   ].filter(Boolean);

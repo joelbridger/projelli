@@ -2,7 +2,7 @@
  * Live-network integration test for the seed catalog (Stream C6 Group VI,
  * Task 6.1).
  *
- * Hits the actual `projelli/community-templates` and `projelli/community-plugins`
+ * Hits the actual `keepance/community-templates` and `keepance/community-plugins`
  * repos on raw.githubusercontent.com and verifies the end-to-end shape:
  *
  *   1. catalog.json fetches with HTTP 200 and parses as CatalogEntry[].
@@ -32,9 +32,9 @@ import type { CatalogEntry } from '@/types/marketplace';
 const LIVE_OK = process.env.LIVE_NETWORK_OK === '1';
 
 const TEMPLATES_CATALOG_URL =
-  'https://raw.githubusercontent.com/projelli/community-templates/main/catalog.json';
+  'https://raw.githubusercontent.com/keepance/community-templates/main/catalog.json';
 const PLUGINS_CATALOG_URL =
-  'https://raw.githubusercontent.com/projelli/community-plugins/main/catalog.json';
+  'https://raw.githubusercontent.com/keepance/community-plugins/main/catalog.json';
 
 function assertCatalogShape(catalog: unknown): asserts catalog is CatalogEntry[] {
   expect(Array.isArray(catalog)).toBe(true);
@@ -50,7 +50,7 @@ function assertCatalogShape(catalog: unknown): asserts catalog is CatalogEntry[]
     expect(Array.isArray(entry.tags)).toBe(true);
     expect(typeof entry.installUrl).toBe('string');
     expect(typeof entry.manifestUrl).toBe('string');
-    expect(typeof entry.minProjelliVersion).toBe('string');
+    expect(typeof entry.minKeepanceVersion).toBe('string');
     expect(typeof entry.publishedAt).toBe('string');
     expect(typeof entry.updatedAt).toBe('string');
     expect(typeof entry.checksum).toBe('string');
@@ -80,11 +80,11 @@ describe.skipIf(!LIVE_OK)('marketplace fetch from live community repos', () => {
 
     for (const entry of catalog) {
       expect(entry.installUrl).toMatch(
-        /^https:\/\/raw\.githubusercontent\.com\/projelli\/community-templates\/main\/entries\//,
+        /^https:\/\/raw\.githubusercontent\.com\/keepance\/community-templates\/main\/entries\//,
       );
       expect(entry.installUrl).toMatch(/tarball\.tar\.gz$/);
       expect(entry.manifestUrl).toMatch(
-        /^https:\/\/raw\.githubusercontent\.com\/projelli\/community-templates\/main\/entries\//,
+        /^https:\/\/raw\.githubusercontent\.com\/keepance\/community-templates\/main\/entries\//,
       );
       expect(entry.manifestUrl).toMatch(/manifest\.json$/);
     }
@@ -101,11 +101,11 @@ describe.skipIf(!LIVE_OK)('marketplace fetch from live community repos', () => {
 
     for (const entry of catalog) {
       expect(entry.installUrl).toMatch(
-        /^https:\/\/raw\.githubusercontent\.com\/projelli\/community-plugins\/main\/entries\//,
+        /^https:\/\/raw\.githubusercontent\.com\/keepance\/community-plugins\/main\/entries\//,
       );
       expect(entry.installUrl).toMatch(/tarball\.tar\.gz$/);
       expect(entry.manifestUrl).toMatch(
-        /^https:\/\/raw\.githubusercontent\.com\/projelli\/community-plugins\/main\/entries\//,
+        /^https:\/\/raw\.githubusercontent\.com\/keepance\/community-plugins\/main\/entries\//,
       );
       expect(entry.manifestUrl).toMatch(/manifest\.json$/);
     }

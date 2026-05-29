@@ -96,7 +96,7 @@ async function seedMarketplaceForTest(page: Page) {
         tags: ['kickoff', 'community'],
         installUrl: 'https://example.test/kickoff-lite-1.0.0.tar.gz',
         manifestUrl: 'https://example.test/kickoff-lite-1.0.0/manifest.json',
-        minProjelliVersion: '2.0.0',
+        minKeepanceVersion: '2.0.0',
         publishedAt: '2026-04-28T00:00:00.000Z',
         updatedAt: '2026-04-28T00:00:00.000Z',
         checksum: 'fakehash',
@@ -104,7 +104,7 @@ async function seedMarketplaceForTest(page: Page) {
 
       // Seed manifest + workflow on the fake FS so when the user clicks
       // Install, the metadata reader can produce a valid WorkflowTemplate.
-      const installRoot = '/test-workspace/.projelli/templates';
+      const installRoot = '/test-workspace/.keepance/templates';
       const installDir = `${installRoot}/${templateId}`;
       const manifest = {
         id: templateId,
@@ -119,7 +119,7 @@ async function seedMarketplaceForTest(page: Page) {
           { path: 'manifest.json', type: 'markdown' },
           { path: 'workflow.json', type: 'workflow-definition' },
         ],
-        minProjelliVersion: '2.0.0',
+        minKeepanceVersion: '2.0.0',
       };
       const workflow = {
         name: templateName,
@@ -296,7 +296,7 @@ async function exposeMarketplaceTestKit(page: Page) {
         const svc = new m.MarketplaceService({
           repoUrl: 'https://example.test',
           catalogPath: 'catalog.json',
-          cachePath: '/test-workspace/.projelli/cache/templates.json',
+          cachePath: '/test-workspace/.keepance/cache/templates.json',
           installRoot,
           fs,
           provenance: 'community',

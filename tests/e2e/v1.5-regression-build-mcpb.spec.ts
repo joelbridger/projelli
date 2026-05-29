@@ -52,11 +52,11 @@ test.describe('v1.5 regression — build-mcpb.mjs main-check', () => {
       [
         scriptPath,
         '--binary',
-        '/tmp/projelli-regression-nonexistent',
+        '/tmp/keepance-regression-nonexistent',
         '--target',
         'x86_64-pc-windows-msvc',
         '--output',
-        '/tmp/projelli-regression-output.mcpb',
+        '/tmp/keepance-regression-output.mcpb',
       ],
       {
         encoding: 'utf8',

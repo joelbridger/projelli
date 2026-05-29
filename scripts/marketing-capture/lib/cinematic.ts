@@ -73,7 +73,7 @@ export interface CinematicRenderOptions {
   videoTitle?: string;
   /**
    * End-card tagline shown under the logo (~3s, fade-in). When
-   * omitted, defaults to "projelli.com".
+   * omitted, defaults to "keepance.com".
    */
   endTagline?: string;
 }
@@ -189,7 +189,7 @@ function buildExpr(values: Array<{ t: number; v: number }>, transitionSec: numbe
   return expr;
 }
 
-// Brand logo (extracted from website/scripts/projelli-nav.v2.js). Used
+// Brand logo (extracted from website/scripts/keepance-nav.v2.js). Used
 // on title + end cards. The white-fill variant for dark backgrounds.
 const PROJELLI_LOGO_WHITE_SVG = `<svg viewBox="0 0 2697 727" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <path d="M236.565 0C373.994 0 478.215 124.076 454.667 259.652L443.272 325.261C438.907 350.393 438.907 376.091 443.272 401.223L454.667 466.832C478.214 602.41 373.993 726.485 236.567 726.485C132.427 726.485 42.3667 653.804 20.243 551.905C-6.74766 427.582 -6.74766 298.905 20.243 174.582C42.3639 72.6812 132.424 0 236.565 0Z" fill="#FF7C6E"/>
@@ -394,7 +394,7 @@ export async function renderCinematic(options: CinematicRenderOptions): Promise<
       mainPath,
       outPath,
       videoTitle: options.videoTitle!,
-      endTagline: options.endTagline ?? 'projelli.com',
+      endTagline: options.endTagline ?? 'keepance.com',
       cardDir: captionDir, // reuse the tmp dir for card PNGs
     });
   }
@@ -445,7 +445,7 @@ export async function composeWithCards(opts: ComposeWithCardsOpts): Promise<void
     .replace(/>/g, '&gt;');
 
   // Shared visual: deep navy gradient with a subtle coral accent dot
-  // in the corner. Logo is the white-ink Projelli wordmark.
+  // in the corner. Logo is the white-ink Keepance wordmark.
   const cardStyle = `
     body { margin: 0; padding: 0; }
     .card {

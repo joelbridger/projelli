@@ -1,5 +1,5 @@
 // Competitor Analysis Workflow Template
-// Helps founders analyze their competitive landscape
+// Helps professionals analyze their competitive landscape
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 
@@ -55,7 +55,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
 ];
 
-const competitorMatrixPrompt = `You are helping a solo founder analyze their competitive landscape.
+const competitorMatrixPrompt = `You are helping a professional analyze their competitive landscape.
 
 Based on the following information:
 
@@ -94,7 +94,7 @@ Generate a comprehensive Competitor Analysis document in Markdown format:
 
 Be specific and actionable. Identify real weaknesses you can exploit.`;
 
-const battleCardsPrompt = `You are helping a solo founder create sales battle cards against competitors.
+const battleCardsPrompt = `You are helping a professional create sales battle cards against competitors.
 
 Based on the competitive analysis information:
 
@@ -168,7 +168,7 @@ export const CompetitorAnalysis: WorkflowTemplate = {
       config: {
         outputFile: 'COMPETITOR_ANALYSIS.md',
         promptTemplate: competitorMatrixPrompt,
-        systemPrompt: 'You are a strategic business analyst helping founders understand their competitive landscape. Be thorough and objective.',
+        systemPrompt: 'You are a strategic business analyst helping professionals understand their competitive landscape. Be thorough and objective.',
       } as GenerateStepConfig,
     },
     {

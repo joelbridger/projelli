@@ -1,4 +1,4 @@
-# Projelli bundled resources
+# Keepance bundled resources
 #
 # Files under this directory are copied into the app's resource folder at
 # install time via `tauri.conf.json:bundle.resources`.

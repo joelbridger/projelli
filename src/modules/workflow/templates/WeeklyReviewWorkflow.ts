@@ -1,5 +1,5 @@
 // Weekly Review Workflow Template
-// Helps founders conduct weekly business reviews
+// Helps professionals conduct weekly business reviews
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 
@@ -7,7 +7,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'businessName',
     question: 'What is your business name?',
-    description: 'The name of your startup',
+    description: 'The name of your practice or firm',
     type: 'text',
     required: true,
     placeholder: 'e.g., TaskFlow',
@@ -18,7 +18,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Accomplishments, milestones, positive developments',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Launched beta, got 3 new paying customers, fixed major bug, had great customer call',
+    placeholder: 'e.g., Closed a new client engagement, won a contested matter, delivered a project on time, had a strong client call',
   },
   {
     id: 'weekChallenges',
@@ -26,15 +26,15 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Problems, setbacks, frustrations',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Struggled with marketing copy, lost a customer to churn, feature took longer than expected',
+    placeholder: 'e.g., Proposal didn\'t convert, spent too much time on admin instead of billable work, difficult client situation',
   },
   {
     id: 'keyMetrics',
     question: 'What are your key metrics this week?',
-    description: 'Numbers that matter (MRR, users, signups, etc.)',
+    description: 'Numbers that matter (billable hours, active matters, revenue, pipeline, etc.)',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., MRR: $2,500 (+$300), Active users: 150 (+20), Signups: 45, Churn: 2 users',
+    placeholder: 'e.g., Billable hours: 32 hrs (+4), Active client matters: 18, Revenue collected: $12,400, New engagements signed: 1',
   },
   {
     id: 'tasksCompleted',
@@ -42,7 +42,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Major items you checked off',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Shipped new dashboard, wrote 2 blog posts, interviewed 5 users, updated pricing page',
+    placeholder: 'e.g., Filed motion, completed client deliverable, sent 3 proposals, updated engagement letter template',
   },
   {
     id: 'tasksIncomplete',
@@ -50,7 +50,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Items that carried over or got stuck',
     type: 'textarea',
     required: false,
-    placeholder: 'e.g., Mobile app still needs polish, waiting on API partner response, landing page redesign',
+    placeholder: 'e.g., Waiting on client documents to proceed, contract review still in progress, intake for new matter not yet started',
   },
   {
     id: 'learnings',
@@ -58,7 +58,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Insights about customers, product, market, yourself',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Users want simpler onboarding, Twitter ads don\'t convert well for us, I need to batch my work better',
+    placeholder: 'e.g., Clients respond faster to phone than email, bundling related tasks cuts context-switching, I need to protect morning hours for deep work',
   },
   {
     id: 'nextWeekPriorities',
@@ -66,11 +66,11 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'The most important things to focus on',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., 1) Launch email campaign, 2) Fix onboarding flow, 3) Close 2 enterprise deals',
+    placeholder: 'e.g., 1) Finish brief due Thursday, 2) Follow up with 3 prospective clients, 3) Complete Q2 billing run',
   },
   {
     id: 'energyLevel',
-    question: 'How are you feeling? (Founder wellbeing)',
+    question: 'How are you feeling? (Professional wellbeing)',
     description: 'Your energy, motivation, stress levels',
     type: 'select',
     required: true,
@@ -83,11 +83,11 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Support, advice, connections, tools',
     type: 'textarea',
     required: false,
-    placeholder: 'e.g., Intro to potential investors, advice on hiring first employee, need a designer for logo',
+    placeholder: 'e.g., Referral to a specialist for a matter outside my practice area, advice on fee structure, recommendation for a bookkeeper',
   },
 ];
 
-const weeklyReviewPrompt = `You are helping a solo founder conduct their weekly business review.
+const weeklyReviewPrompt = `You are helping a professional conduct their weekly business review.
 
 Based on the following information:
 
@@ -107,7 +107,7 @@ Generate a Weekly Review document in Markdown format:
 # {{businessName}} Weekly Review
 
 **Week of:** [Current date range]
-**Founder:** [Name]
+**Name:** [Name]
 
 ---
 
@@ -182,7 +182,7 @@ Based on this week's experiences:
 
 ---
 
-## Founder Wellbeing Check
+## Wellbeing Check
 
 **Energy Level:** {{energyLevel}}
 
@@ -249,7 +249,7 @@ Based on this week's experiences:
 
 *Review completed: [Date]*`;
 
-const actionPlanPrompt = `You are helping a solo founder create next week's action plan.
+const actionPlanPrompt = `You are helping a professional create next week's action plan.
 
 Based on:
 **Business:** {{businessName}}
@@ -451,7 +451,7 @@ export const WeeklyReviewWorkflow: WorkflowTemplate = {
       config: {
         outputFile: 'WEEKLY_REVIEW.md',
         promptTemplate: weeklyReviewPrompt,
-        systemPrompt: 'You are a startup coach helping founders reflect on their progress and learn from their experiences. Be encouraging but honest.',
+        systemPrompt: 'You are a professional practice advisor helping practitioners reflect on their progress and learn from their experiences. Be encouraging but honest.',
       } as GenerateStepConfig,
     },
     {
@@ -462,7 +462,7 @@ export const WeeklyReviewWorkflow: WorkflowTemplate = {
       config: {
         outputFile: 'WEEKLY_ACTION_PLAN.md',
         promptTemplate: actionPlanPrompt,
-        systemPrompt: 'You are a productivity expert helping founders structure their time effectively. Be realistic about capacity and energy.',
+        systemPrompt: 'You are a productivity expert helping professionals structure their time effectively. Be realistic about capacity and energy.',
       } as GenerateStepConfig,
     },
   ],

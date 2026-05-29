@@ -1,4 +1,6 @@
-# Marketing Playbook — Projelli Launch
+> **CHANNEL STRATEGY OUTDATED** — This playbook was written for Product Hunt / Hacker News / IndieHackers launch targeting indie founders. As of 2026-05-27, the ICP is attorneys, CPAs, and consultants. The new channels are bar association CLEs, AICPA/NAEA newsletters, and Umbrex/Lenny (consulting). This content needs rewriting before use.
+
+# Marketing Playbook, Keepance Launch
 
 > **Status:** Index of all marketing assets produced 2026-04-09.
 > **Audience:** Future Claude sessions, Jameson reviewing during launch ramp.
@@ -99,7 +101,7 @@ These items, in order, are the critical path. Skip any of them and the launch ce
 | T-4 | Send second build-in-public tweet | Jameson | `JAMESON_ACTION_PACK.md` § H |
 | T-3 | Send pre-launch teaser email to list | Claude (drafts), Jameson (sends) | `EMAIL_SEQUENCES.md` § Email 02 |
 | T-3 | Send third build-in-public tweet (vulnerability angle) | Jameson | `JAMESON_ACTION_PACK.md` § H |
-| T-2 | Confirm hunter timing | Both | — |
+| T-2 | Confirm hunter timing | Both |, |
 | T-2 | Final review of PH listing copy + maker comment | Jameson | `PRODUCT_HUNT_LAUNCH.md` |
 | T-1 | Pin demo tweet on X profile | Jameson | `JAMESON_ACTION_PACK.md` § H |
 | T-1 | Send Founder's Launch tease tweet | Jameson | `JAMESON_ACTION_PACK.md` § H |
@@ -115,11 +117,11 @@ Follow the timeline in `PRODUCT_HUNT_LAUNCH.md` § Launch day timeline. The full
 | T+1 | Day-1 IH update post with first numbers | Jameson | `INDIE_HACKERS_LAUNCH.md` § Day 1 |
 | T+1 | Day-one check-in emails to all paying customers | Automated | `EMAIL_SEQUENCES.md` § Email 06 |
 | T+2 | Send first newsletter outreach pitches (Tier 1: BetaList, MakerNews, Console.dev) | Jameson | `NEWSLETTER_OUTREACH.md` |
-| T+3 | Submit to AlternativeTo | Jameson | — (web form) |
-| T+3 | Reddit post sequence: r/SideProject, r/Entrepreneur, r/SaaS, r/LocalLLaMA, r/ChatGPTPro (1 per day, customized) | Jameson | — |
-| T+5 | Publish first blog post: "How I built Projelli in 8 weeks" | Both | `website/blog/how-i-built-projelli-in-8-weeks.html` |
+| T+3 | Submit to AlternativeTo | Jameson |, (web form) |
+| T+3 | Reddit post sequence: r/SideProject, r/Entrepreneur, r/SaaS, r/LocalLLaMA, r/ChatGPTPro (1 per day, customized) | Jameson |, |
+| T+5 | Publish first blog post: "How I built Keepance in 8 weeks" | Both | `website/blog/how-i-built-keepance-in-8-weeks.html` |
 | T+6 | Send week-1 retention email + week-1 IH update post | Both | `EMAIL_SEQUENCES.md` + `INDIE_HACKERS_LAUNCH.md` |
-| T+7 | Post-launch debrief — fill in numbers in `PRODUCT_HUNT_LAUNCH.md` debrief table | Both | `PRODUCT_HUNT_LAUNCH.md` |
+| T+7 | Post-launch debrief, fill in numbers in `PRODUCT_HUNT_LAUNCH.md` debrief table | Both | `PRODUCT_HUNT_LAUNCH.md` |
 | T+7 | Publish second blog post: "Why local-first AI for founders" | Both | `website/blog/why-local-first-ai-for-founders.html` |
 | T+10 | Publish third blog post: "Picking the 15 founder templates" | Both | `website/blog/picking-the-15-founder-templates.html` |
 
@@ -129,13 +131,13 @@ Follow the timeline in `PRODUCT_HUNT_LAUNCH.md` § Launch day timeline. The full
 
 The 8 marketing docs are intentionally cross-referencing. Here's how to navigate them:
 
-- **If someone asks "how is Projelli different from X?"** → Open `COMPETITIVE_LANDSCAPE.md`, find the relevant "vs X" paragraph, copy.
+- **If someone asks "how is Keepance different from X?"** → Open `COMPETITIVE_LANDSCAPE.md`, find the relevant "vs X" paragraph, copy.
 - **If something needs to go on Product Hunt** → Open `PRODUCT_HUNT_LAUNCH.md`, lift directly. The maker comment, gallery captions, and FAQ replies are launch-ready.
-- **If something needs to go on Hacker News** → Open `SHOW_HN_LAUNCH.md`. DO NOT use the PH copy on HN — different audience, different rules.
+- **If something needs to go on Hacker News** → Open `SHOW_HN_LAUNCH.md`. DO NOT use the PH copy on HN, different audience, different rules.
 - **If the IndieHackers narrative needs writing** → Open `INDIE_HACKERS_LAUNCH.md`. Lift the body, fill in the post-launch numbers, post.
 - **If a buyer needs an email** → Open `EMAIL_SEQUENCES.md`, find the right email (post-purchase, day-1, week-1, refund, etc.), copy, send.
 - **If a newsletter editor needs to be pitched** → Open `NEWSLETTER_OUTREACH.md`, use the cold pitch template, customize the personalization line, send.
-- **If a journalist or blogger asks for assets** → Send them `https://projelli.com/press-kit/`. Everything they need is there.
+- **If a journalist or blogger asks for assets** → Send them `https://keepance.com/press-kit/`. Everything they need is there.
 - **If Jameson needs to know what to do next** → Open `JAMESON_ACTION_PACK.md`. The 8 actions are checklist-style with pre-staged drafts.
 
 ---
@@ -151,7 +153,7 @@ Even after this playbook, there are things that aren't here yet. Most of them de
 | **Launch retrospective post** | Need real numbers | Day 7-10 post-launch |
 | **30-day post-launch update post** | Need a month of data | Day 30 post-launch |
 | **First customer testimonials** | Need first customers | Day 14 post-launch |
-| **Case study: how Founder X uses Projelli** | Need at least one customer who's willing | Month 2 |
+| **Case study: how Founder X uses Keepance** | Need at least one customer who's willing | Month 2 |
 | **Blog post: lessons from the first 100 customers** | Need 100 customers | When it happens |
 
 ### Things that need decisions before they can be written
@@ -161,15 +163,15 @@ Even after this playbook, there are things that aren't here yet. Most of them de
 | **Affiliate program copy** | Yes/no on standing up an affiliate program in LemonSqueezy | Jameson |
 | **Public roadmap** | Yes/no on publishing a roadmap (incompatible with "build what users actually ask for") | Jameson |
 | **v1.1 launch announcement** | When v1.1 ships | Both |
-| **"Projelli Lite" open-source funnel** | Per Decision #15: explicitly NOT in v1, possibly never | Future |
+| **"Keepance Lite" open-source funnel** | Per Decision #15: explicitly NOT in v1, possibly never | Future |
 
 ### Things that need different channels
 
 | What | Channel | Status |
 |---|---|---|
-| **YouTube tutorial videos** | YouTube channel | Not in v1 launch — too much production time |
-| **Podcast appearances** | Indie hackers / startup podcasts | Reactive, not proactive — wait for invites |
-| **Twitter Spaces / X spaces** | X | Reactive — only if a high-trust founder hosts and invites |
+| **YouTube tutorial videos** | YouTube channel | Not in v1 launch, too much production time |
+| **Podcast appearances** | Indie hackers / startup podcasts | Reactive, not proactive, wait for invites |
+| **Twitter Spaces / X spaces** | X | Reactive, only if a high-trust founder hosts and invites |
 | **In-person events / meetups** | Local indie hacker meetups | Out of scope for launch |
 
 ---
@@ -189,7 +191,7 @@ Every marketing artifact in this playbook was written under these rules. If you'
 9. **No rule-of-three on every sentence.** Break the symmetry.
 10. **Occasional informal constructions and sentence fragments are good.** Real humans aren't polished.
 
-When in doubt: read the homepage at projelli.com, which was audited 2026-04-08 and is the canonical voice reference for the brand.
+When in doubt: read the homepage at keepance.com, which was audited 2026-04-08 and is the canonical voice reference for the brand.
 
 ---
 
@@ -213,9 +215,9 @@ When in doubt: read the homepage at projelli.com, which was audited 2026-04-08 a
 
 Future marketing docs go in `docs/features/` if they're internal-only (drafts, plans, playbooks) or `website/` if they're publishable (blog posts, press pages, landing pages for specific campaigns).
 
-**Don't** put marketing docs in `docs/reference/` — that's for evergreen reference material like the competitive landscape and architecture decisions.
+**Don't** put marketing docs in `docs/reference/`, that's for evergreen reference material like the competitive landscape and architecture decisions.
 
-**Don't** put marketing docs in `docs/operations/` — that's for runbooks and operational procedures.
+**Don't** put marketing docs in `docs/operations/`, that's for runbooks and operational procedures.
 
 ---
 

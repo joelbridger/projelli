@@ -1,7 +1,7 @@
 # WIN-024: Manual Testing Checklist for Windows Desktop Release
 
 **Date:** 2026-01-28
-**Target:** Projelli v1.0.0 Windows Desktop (Tauri)
+**Target:** Keepance v1.0.0 Windows Desktop (Tauri)
 **Status:** Ready for Testing
 
 ## Pre-Testing Setup
@@ -12,10 +12,10 @@
 - [ ] Antivirus software enabled (test real-world conditions)
 - [ ] Internet connection for AI API testing
 - [ ] Microphone for audio recording tests (optional)
-- [ ] Test workspace folder: `C:\Users\[YourName]\Documents\ProjelliiTest`
+- [ ] Test workspace folder: `C:\Users\[YourName]\Documents\KeepanceiTest`
 
 ### Installation Testing
-- [ ] Download Projelli installer (`.msi` or `.exe`)
+- [ ] Download Keepance installer (`.msi` or `.exe`)
 - [ ] Verify installer file size (~50-100 MB expected)
 - [ ] Check digital signature (if code signed)
 - [ ] Run installer as normal user (not admin)
@@ -31,9 +31,9 @@
 ### 1. First Launch
 - [ ] App launches without console window
 - [ ] Workspace selector dialog appears
-- [ ] Dialog shows "Welcome to Projelli" (not "Business OS")
+- [ ] Dialog shows "Welcome to Keepance" (not "Business OS")
 - [ ] Path input field visible (Tauri mode)
-- [ ] Enter valid workspace path: `C:\Users\[YourName]\Documents\ProjelliiTest`
+- [ ] Enter valid workspace path: `C:\Users\[YourName]\Documents\KeepanceiTest`
 - [ ] Click "Open Existing" button
 - [ ] App loads workspace successfully
 - [ ] File tree displays on left sidebar
@@ -84,7 +84,7 @@
 ### 4. External Link Opening (Shell Plugin)
 - [ ] Open API key help dialog (Settings → Keys → "How to get keys")
 - [ ] Click "Open Console" for Anthropic
-  - [ ] System default browser opens (NOT new Projelli window)
+  - [ ] System default browser opens (NOT new Keepance window)
   - [ ] URL loads correctly: https://console.anthropic.com/
 
 - [ ] Test other external links:
@@ -186,11 +186,11 @@
 - [ ] **Taskbar**: App appears when running
   - [ ] Icon is correct (not generic)
   - [ ] Can pin to taskbar
-  - [ ] Hover shows app name "Projelli"
+  - [ ] Hover shows app name "Keepance"
 
 - [ ] **File Associations**: (If configured)
-  - [ ] Double-click `.projelli` file opens app
-  - [ ] Context menu shows "Open with Projelli"
+  - [ ] Double-click `.keepance` file opens app
+  - [ ] Context menu shows "Open with Keepance"
 
 - [ ] **Windows Notifications**: (If implemented)
   - [ ] Notifications appear in Action Center
@@ -339,7 +339,7 @@
 
 ## Uninstallation Testing
 - [ ] Open "Add or Remove Programs"
-- [ ] Find "Projelli" in list
+- [ ] Find "Keepance" in list
 - [ ] Click "Uninstall"
 - [ ] Uninstaller runs
 - [ ] App removed from Start Menu
@@ -354,7 +354,7 @@
 ### Pre-Release Verification
 - [ ] No console window appears at launch
 - [ ] App icon looks professional (not default Tauri)
-- [ ] Window title shows "Projelli" (not "projelli" or "Business OS")
+- [ ] Window title shows "Keepance" (not "keepance" or "Business OS")
 - [ ] About dialog shows correct version (1.0.0)
 - [ ] About dialog shows correct copyright (2026)
 - [ ] No debug logs in production build

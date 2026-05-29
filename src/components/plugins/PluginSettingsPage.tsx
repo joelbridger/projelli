@@ -24,7 +24,7 @@ interface PluginSettingsPageProps {
   page: RegisteredSettingsPage;
 }
 
-const STORAGE_PREFIX = 'projelli:plugin';
+const STORAGE_PREFIX = 'keepance:plugin';
 
 function settingStorageKey(pluginId: string, key: string): string {
   return `${STORAGE_PREFIX}:${pluginId}:settings:${key}`;

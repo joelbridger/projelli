@@ -1,39 +1,39 @@
-# Projelli — Claude Code Project Context
+# Keepance — Claude Code Project Context
 
 > **Read this first if you're a future Claude session working in this repo.**
 >
-> **Operating contract:** Read `~/projelli/PROJELLI_BUSINESS_PLAN.md` BEFORE doing anything substantive. It's the strategic plan, the 8-week launch roadmap, and the record of every CEO-level decision made on Jameson's behalf. Don't override its decisions without explicit board input.
+> **Operating contract:** Read `~/keepance/KEEPANCE_BUSINESS_PLAN.md` BEFORE doing anything substantive. It's the strategic plan, the 8-week launch roadmap, and the record of every CEO-level decision made on Jameson's behalf. Don't override its decisions without explicit board input.
 >
-> **Current state:** Read `~/projelli/BACKLOG.md` for the live week-by-week task list, what's done, what's in flight, and what's blocked.
+> **Current state:** Read `~/keepance/BACKLOG.md` for the live week-by-week task list, what's done, what's in flight, and what's blocked.
 >
-> **If you're working on marketing:** Read `~/projelli/docs/marketing/README.md` first. It's the canonical entry point for all marketing work — explains the marketing/ folder structure (playbook/, channels/, action-packs/, campaigns/) and where new campaigns land. The playbook subfolder ties together email sequences, master playbook, and reply bank; channels/ has per-platform launch packages (PH, HN, IH, Reddit, newsletter, etc.). **Don't write any new marketing content without checking what's already there** — the channel playbooks have pre-staged FAQ replies and reply templates that should be reused, not duplicated. New marketing pushes get a folder under `docs/marketing/campaigns/YYYY-MM-<slug>/`.
+> **If you're working on marketing:** Read `~/keepance/docs/marketing/README.md` first. It's the canonical entry point for all marketing work — explains the marketing/ folder structure (playbook/, channels/, action-packs/, campaigns/) and where new campaigns land. The playbook subfolder ties together email sequences, master playbook, and reply bank; channels/ has per-platform launch packages (PH, HN, IH, Reddit, newsletter, etc.). **Don't write any new marketing content without checking what's already there** — the channel playbooks have pre-staged FAQ replies and reply templates that should be reused, not duplicated. New marketing pushes get a folder under `docs/marketing/campaigns/YYYY-MM-<slug>/`.
 >
-> **User profile:** Jameson is **NOT a developer**. He's a Senior Product Designer at Wheel Health. Explain technical concepts in plain language. Don't assume he can read code. Don't dump stack traces on him — translate them. The persistent project memory file at `~/.claude/projects/-home-jameson/memory/project_projelli.md` has the full user/project context.
+> **User profile:** Jameson is **NOT a developer**. He's a Senior Product Designer at Wheel Health. Explain technical concepts in plain language. Don't assume he can read code. Don't dump stack traces on him — translate them. The persistent project memory file at `~/.claude/projects/-home-jameson/memory/project_keepance.md` has the full user/project context.
 >
-> **Voice rules for any user-facing copy:** Every marketing artifact in `docs/features/` and `website/blog/` was written under the rules in `~/.claude/projects/-home-jameson/memory/feedback_marketing_copy_voice.md` and `~/.claude/projects/-home-jameson/memory/reference_ai_writing_tells.md`. The short version: first-person singular always, contractions, specific concrete nouns over abstractions, no "leverage / delve / seamless / transform / empower / elevate / unlock", no italicized fragments at sentence ends, no "It's not X, it's Y" parallelism, uneven sentence length, occasional informal fragments. If in doubt, read the homepage at projelli.com (audited 2026-04-08) for the canonical voice reference.
+> **Voice rules for any user-facing copy:** Every marketing artifact in `docs/features/` and `website/blog/` was written under the rules in `~/.claude/projects/-home-jameson/memory/feedback_marketing_copy_voice.md` and `~/.claude/projects/-home-jameson/memory/reference_ai_writing_tells.md`. The short version: first-person singular always, contractions, specific concrete nouns over abstractions, no "leverage / delve / seamless / transform / empower / elevate / unlock", no italicized fragments at sentence ends, no "It's not X, it's Y" parallelism, uneven sentence length, occasional informal fragments. If in doubt, read the homepage at keepance.com (audited 2026-04-08) for the canonical voice reference.
 
 ## Where things live
 
 | Item | Path | Notes |
 |---|---|---|
-| **Canonical source** | `/home/jameson/projelli/` | Server-resident, mirrors jameworld/behaviorux/portfolio pattern |
-| **GitHub** | `github.com/projelli/projelli` | Org owned by joelbridger account; transferred from joelbridger/projelli on 2026-04-08 |
-| **Live website** | `https://projelli.com` → `/var/www/projelli.com/index.html` | System Caddy on `:8080`, Cloudflare tunnel `d4e16129` |
-| **Deploy script** | `~/projelli/infra/deploy.sh` | rsync website/ → /var/www/projelli.com + CF cache purge |
-| **Business plan** | `~/projelli/PROJELLI_BUSINESS_PLAN.md` | Operating contract — every CEO decision lives here |
-| **Backlog** | `~/projelli/BACKLOG.md` | Week-by-week tickets, includes marketing asset inventory section |
-| **Board action items** | `~/projelli/docs/operations/BOARD_ACTION_ITEMS.md` | Engineering / financial / identity work that needs Jameson's hands (Azure signing, Apple Developer, LemonSqueezy, etc.) |
-| **Marketing entry point** | `~/projelli/docs/marketing/README.md` | **Read first before any marketing work.** Explains the marketing/ folder structure (playbook, channels, action-packs, campaigns) and where new campaigns land. |
-| **Marketing playbook** | `~/projelli/docs/marketing/playbook/MARKETING_PLAYBOOK.md` | Master index tying all marketing artifacts together + critical-path launch timeline. |
-| **Marketing action pack** | `~/projelli/docs/marketing/action-packs/JAMESON_ACTION_PACK.md` | The 8 marketing tasks only Jameson can do (PH hunters, beta testers, screenshots, demo video, X posts, etc.) with pre-staged drafts. Complementary to BOARD_ACTION_ITEMS.md, not a duplicate. |
-| **Competitive landscape** | `~/projelli/docs/reference/COMPETITIVE_LANDSCAPE.md` | Side-by-side vs Notion AI / Obsidian / ChatGPT / Reflect / Tana / etc. with reply paragraphs ready for PH/HN comments. |
-| **Channel playbooks** | `~/projelli/docs/marketing/channels/{PRODUCT_HUNT_LAUNCH,SHOW_HN_LAUNCH,INDIE_HACKERS_LAUNCH,NEWSLETTER_OUTREACH,REDDIT_SIDEPROJECT_POST,DIRECTORY_SUBMISSIONS,PH_HUNTERS,BUILD_IN_PUBLIC_TWEETS}.md` | Per-channel launch playbooks with title variants, reply templates, anti-patterns. |
-| **Email sequences** | `~/projelli/docs/marketing/playbook/EMAIL_SEQUENCES.md` | 10 plain-text emails covering signup → purchase → retention → refund → re-engagement. |
-| **Press kit** | `~/projelli/website/press-kit/` | Live at projelli.com/press-kit/ — founder bio (3 lengths), fact sheet, brand colors, screenshot slots, demo video links. |
-| **Blog** | `~/projelli/website/blog/` | Live at projelli.com/blog/ — multiple publishable posts (8-week launch story, why local-first, picking templates, Notion AI math, hidden tokenizer tax, chat persistence, v1.5 announce). |
-| **Docs** | `~/projelli/docs/{reference,operations,features,marketing,quality,strategy,launch-v1.0,archive}/` | Reorganized 2026-04-22: `features/` = product release plans only; `marketing/` = ALL marketing work; `launch-v1.0/` = one-time v1.0 launch operational docs (renamed from `launch/`). |
+| **Canonical source** | `/home/jameson/keepance/` | Server-resident, mirrors jameworld/behaviorux/portfolio pattern |
+| **GitHub** | `github.com/keepance/keepance` | Org owned by joelbridger account; transferred from joelbridger/keepance on 2026-04-08 |
+| **Live website** | `https://keepance.com` → `/var/www/keepance.com/index.html` | System Caddy on `:8080`, Cloudflare tunnel `d4e16129` |
+| **Deploy script** | `~/keepance/infra/deploy.sh` | rsync website/ → /var/www/keepance.com + CF cache purge |
+| **Business plan** | `~/keepance/KEEPANCE_BUSINESS_PLAN.md` | Operating contract — every CEO decision lives here |
+| **Backlog** | `~/keepance/BACKLOG.md` | Week-by-week tickets, includes marketing asset inventory section |
+| **Board action items** | `~/keepance/docs/operations/BOARD_ACTION_ITEMS.md` | Engineering / financial / identity work that needs Jameson's hands (Azure signing, Apple Developer, LemonSqueezy, etc.) |
+| **Marketing entry point** | `~/keepance/docs/marketing/README.md` | **Read first before any marketing work.** Explains the marketing/ folder structure (playbook, channels, action-packs, campaigns) and where new campaigns land. |
+| **Marketing playbook** | `~/keepance/docs/marketing/playbook/MARKETING_PLAYBOOK.md` | Master index tying all marketing artifacts together + critical-path launch timeline. |
+| **Marketing action pack** | `~/keepance/docs/marketing/action-packs/JAMESON_ACTION_PACK.md` | The 8 marketing tasks only Jameson can do (PH hunters, beta testers, screenshots, demo video, X posts, etc.) with pre-staged drafts. Complementary to BOARD_ACTION_ITEMS.md, not a duplicate. |
+| **Competitive landscape** | `~/keepance/docs/reference/COMPETITIVE_LANDSCAPE.md` | Side-by-side vs Notion AI / Obsidian / ChatGPT / Reflect / Tana / etc. with reply paragraphs ready for PH/HN comments. |
+| **Channel playbooks** | `~/keepance/docs/marketing/channels/{PRODUCT_HUNT_LAUNCH,SHOW_HN_LAUNCH,INDIE_HACKERS_LAUNCH,NEWSLETTER_OUTREACH,REDDIT_SIDEPROJECT_POST,DIRECTORY_SUBMISSIONS,PH_HUNTERS,BUILD_IN_PUBLIC_TWEETS}.md` | Per-channel launch playbooks with title variants, reply templates, anti-patterns. |
+| **Email sequences** | `~/keepance/docs/marketing/playbook/EMAIL_SEQUENCES.md` | 10 plain-text emails covering signup → purchase → retention → refund → re-engagement. |
+| **Press kit** | `~/keepance/website/press-kit/` | Live at keepance.com/press-kit/ — founder bio (3 lengths), fact sheet, brand colors, screenshot slots, demo video links. |
+| **Blog** | `~/keepance/website/blog/` | Live at keepance.com/blog/ — multiple publishable posts (8-week launch story, why local-first, picking templates, Notion AI math, hidden tokenizer tax, chat persistence, v1.5 announce). |
+| **Docs** | `~/keepance/docs/{reference,operations,features,marketing,quality,strategy,launch-v1.0,archive}/` | Reorganized 2026-04-22: `features/` = product release plans only; `marketing/` = ALL marketing work; `launch-v1.0/` = one-time v1.0 launch operational docs (renamed from `launch/`). |
 | **Financial / legal** | `~/financial/` | Server-wide repository for tax, entity, banking, legal, insurance, retirement decisions. **Read first for any tax/legal/banking question.** Core timeline: `~/financial/08-recommendations/minimum-viable-launch.md` (milestone-gated launch framework reusable across projects). |
-| **CI** | `~/projelli/.github/workflows/release.yml` | Tauri matrix build for Win/Mac/Linux on git tag |
+| **CI** | `~/keepance/.github/workflows/release.yml` | Tauri matrix build for Win/Mac/Linux on git tag |
 
 ## Quick Reference (development)
 
@@ -48,15 +48,17 @@
 
 ---
 
-## What Projelli is
+## What Keepance is
 
-**Projelli** is a local-first AI workspace for indie founders. Every AI chat conversation produces real Markdown files in a real folder on the user's hard drive. The product combines a CodeMirror 6 editor (with wiki-links, backlinks, version history, split panes) with an AI chat interface (Claude/OpenAI/Gemini, BYOK, streaming) and 12+ founder-focused workflow templates.
+**Keepance** is a local-first AI workspace for confidential client work. Every AI chat conversation produces real Markdown files in a real folder on the user's hard drive. The product combines a CodeMirror 6 editor (with wiki-links, backlinks, version history, split panes) with an AI chat interface (Claude/OpenAI/Gemini, BYOK, streaming) and profession-specific workflow template packs.
 
-**The pitch in one sentence:** *Obsidian for the AI era, built for founders, sold once.*
+**The pitch in one sentence:** *The AI workspace for professionals who legally or temperamentally cannot pipe their work into the cloud.*
 
-**The differentiator:** local-first + BYOK + chat-as-artifacts. Your data stays on your machine. Your API keys live in your OS keychain. AI requests go directly from your machine to the provider, never via Projelli's servers.
+**The differentiator:** local-first + BYOK + chat-as-artifacts. Your data stays on your machine. Your API keys live in your OS keychain. AI requests go directly from your machine to the provider, never via Keepance's servers. This is the product story for lawyers, CPAs, consultants, and others bound by NDA, privilege, or professional confidentiality obligations.
 
-**Pricing (post-Week 4):** $0 free / $49 one-time Pro / $99 one-time Lifetime / $29 Founder's Launch (first 100 buyers). Sold via LemonSqueezy.
+**ICP (locked 2026-05-27):** Solo + small-firm attorneys (general + patent), tax preparers / CPAs / EAs, independent strategy consultants + boutique agencies. Lead with law (ABA Op 512, Heppner ruling), fast-follow with tax (IRC §7216), then consulting.
+
+**Pricing:** $49 one-time Personal / $129 one-time Professional (+ one profession pack) / $399 one-time Practice (up to 5 seats). Sold via LemonSqueezy. Charter pricing: $89 for first 100 Professional buyers per profession pack.
 
 **Key Principles:**
 - **Local-first** — works offline (except for AI calls)
@@ -64,7 +66,7 @@
 - **User in control** — AI proposes, user decides; destructive ops need confirmation
 - **Reproducible** — every workflow run is replayable
 - **Auditable** — append-only log of all AI actions
-- **BYOK forever** — Projelli never holds AI keys, never sees user data, never charges for inference
+- **BYOK forever** — Keepance never holds AI keys, never sees user data, never charges for inference
 
 ---
 
@@ -343,7 +345,7 @@ npm run test:security     # Security tests
 ## Directory Structure
 
 ```
-projelli/
+keepance/
 ├── src/
 │   ├── main.tsx                    # Entry point
 │   ├── App.tsx                     # Root component
@@ -522,13 +524,22 @@ interface DocSummary {
 
 - Cloud sync
 - Real-time collaboration
-- Payments/monetization
 - Mobile support
 - Autonomous agents (multi-step without approval)
 - Web scraping/crawling
-- Voice/audio input
-- Plugin/extension system
 
 ---
 
 *When in doubt, choose the path that keeps the founder in control and produces auditable, persistent artifacts.*
+
+---
+
+## Sub-agent model routing
+
+Claude Code routes through a LiteLLM gateway. Two tiers:
+
+- **`haiku`** → local RTX 5070 (Qwen2.5-7B, free, ~1-3s). Use for implementation sub-agents: writing boilerplate, scaffolding components, mechanical code changes, repetitive file edits.
+- **`sonnet`** → Anthropic cloud (billed). Use for reasoning-heavy work: architecture decisions, complex debugging, novel problem-solving, anything requiring broad knowledge.
+- **`opus`** → Anthropic cloud (billed, expensive). Orchestration only. Don't spawn sub-agents on opus.
+
+**Rule of thumb:** If the sub-agent is executing a well-specified task, use `model: "haiku"`. If it needs to figure something out, use `model: "sonnet"`.

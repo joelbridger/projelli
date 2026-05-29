@@ -17,7 +17,7 @@ export async function shot10() {
     shotKey: 'documentSuite',
     outputName: 'feature-document-suite.png',
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Projelli',
+    windowTitle: 'Linterly — Keepance',
   });
 }
 

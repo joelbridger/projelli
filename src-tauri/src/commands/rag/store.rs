@@ -1,6 +1,6 @@
 // LanceDB-backed vector store for the RAG indexer.
 //
-// One dataset per workspace, living at `<workspace>/.projelli/vectors/`.
+// One dataset per workspace, living at `<workspace>/.keepance/vectors/`.
 // Schema (A3 extension):
 //   id              : Utf8           — sha256(path || ":" || paragraph_index)
 //   path            : Utf8           — absolute source path
@@ -46,7 +46,7 @@ pub const TABLE_NAME: &str = "chunks";
 
 /// Compute the path of the LanceDB dataset for a given workspace root.
 pub fn dataset_path(workspace_root: &Path) -> PathBuf {
-    workspace_root.join(".projelli").join("vectors")
+    workspace_root.join(".keepance").join("vectors")
 }
 
 /// Stable id for `(path, paragraph_index)`. Hex-encoded SHA-256.
@@ -328,9 +328,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn dataset_path_lives_under_dot_projelli() {
+    fn dataset_path_lives_under_dot_keepance() {
         let p = dataset_path(Path::new("/tmp/work"));
-        assert_eq!(p, PathBuf::from("/tmp/work/.projelli/vectors"));
+        assert_eq!(p, PathBuf::from("/tmp/work/.keepance/vectors"));
     }
 
     #[test]

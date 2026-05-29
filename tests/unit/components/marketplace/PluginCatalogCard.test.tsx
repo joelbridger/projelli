@@ -13,7 +13,7 @@ const SAMPLE: CatalogEntry = {
   tags: ['editor', 'word-count'],
   installUrl: 'https://example.test/wc.tar.gz',
   manifestUrl: 'https://example.test/wc-manifest.json',
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
 };

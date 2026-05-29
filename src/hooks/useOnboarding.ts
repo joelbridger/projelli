@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 
-const KEY = 'projelli_onboarding_completed_at';
+const KEY = 'keepance_onboarding_completed_at';
 
 export function useOnboardingCompleted(): {
   completed: boolean;

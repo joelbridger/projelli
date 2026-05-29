@@ -1,4 +1,4 @@
-// Integration test for the `projelli-mcp` sidecar binary.
+// Integration test for the `keepance-mcp` sidecar binary.
 //
 // Spawns the binary as a child process with a stubbed workspace, writes a
 // canonical MCP handshake (`initialize` → `tools/list`) to its stdin, and
@@ -15,27 +15,27 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
-/// Locate the compiled `projelli-mcp` binary for the current profile. Cargo
+/// Locate the compiled `keepance-mcp` binary for the current profile. Cargo
 /// sets `CARGO_BIN_EXE_<name>` when running integration tests, so no need
 /// to hard-code the target dir layout.
 fn binary_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_BIN_EXE_projelli-mcp"))
+    PathBuf::from(env!("CARGO_BIN_EXE_keepance-mcp"))
 }
 
 /// Spawn the binary with a fresh temp workspace. Returns the child so the
 /// caller can speak JSON-RPC over its stdin/stdout.
 fn spawn_with_workspace() -> (std::process::Child, tempfile::TempDir) {
     let tmp = tempfile::Builder::new()
-        .prefix("projelli-mcp-it-")
+        .prefix("keepance-mcp-it-")
         .tempdir()
         .expect("tmpdir");
     let child = Command::new(binary_path())
-        .env("PROJELLI_WORKSPACE_ROOT", tmp.path())
+        .env("KEEPANCE_WORKSPACE_ROOT", tmp.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn projelli-mcp");
+        .expect("spawn keepance-mcp");
     (child, tmp)
 }
 
@@ -63,7 +63,7 @@ fn initialize_returns_server_info_and_protocol_version() {
     assert_eq!(parsed["id"], 1);
     // Server-info + protocol version + capabilities are mandatory.
     let info = &parsed["result"]["serverInfo"];
-    assert_eq!(info["name"], "projelli");
+    assert_eq!(info["name"], "keepance");
     assert!(info["version"].is_string(), "got {info:?}");
     assert_eq!(parsed["result"]["protocolVersion"], "2025-03-26");
     assert!(parsed["result"]["capabilities"]["tools"].is_object());
@@ -74,7 +74,7 @@ fn initialize_returns_server_info_and_protocol_version() {
 }
 
 #[test]
-fn tools_list_returns_five_projelli_tools() {
+fn tools_list_returns_five_keepance_tools() {
     let (mut child, _tmp) = spawn_with_workspace();
     // We can skip initialize and jump straight to tools/list — the spec
     // recommends the handshake but doesn't require it for stateless servers.

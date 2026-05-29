@@ -1,8 +1,5 @@
 /**
- * Business OS - Founder Workspace
- *
- * A local-first, artifact-driven workspace application for solo founders
- * building businesses with AI assistance.
+ * Keepance — Local-first AI workspace for confidential client work.
  *
  * Core Thesis: This is NOT a chat UI. It is an artifact-driven workspace
  * where AI proposes and the user approves all destructive actions.
@@ -216,13 +213,13 @@ function App() {
   }, []);
   // Stream C1 — Templates Marketplace service. Constructed once when a
   // workspace is selected (each workspace gets its own install root under
-  // `<workspaceRoot>/.projelli/templates`). The metadata reader reads
+  // `<workspaceRoot>/.keepance/templates`). The metadata reader reads
   // installed entries off disk and adapts them into WorkflowTemplate for the
   // engine. Both refs are nullable until a workspace is loaded.
   const templatesMarketplaceServiceRef = useRef<MarketplaceService | null>(null);
   const templatesMetadataReaderRef = useRef<TemplateMetadataReader | null>(null);
   // Stream C4 — Plugins Marketplace service. Mirrors the templates service:
-  // one per workspace, install root under `<workspaceRoot>/.projelli/plugins`.
+  // one per workspace, install root under `<workspaceRoot>/.keepance/plugins`.
   const pluginsMarketplaceServiceRef = useRef<MarketplaceService | null>(null);
 
   // Workflow state
@@ -963,7 +960,7 @@ function App() {
 
     // Stream C3 — tear down any previous workspace's PluginManager and
     // construct a fresh one for the newly-selected workspace. Each workspace
-    // has its own install root under `.projelli/plugins`, so a per-workspace
+    // has its own install root under `.keepance/plugins`, so a per-workspace
     // manager is the cleanest isolation. We use a brand-new manager rather
     // than mutating the old one to avoid leaking host state across workspaces.
     if (pluginManagerRef.current) {
@@ -983,7 +980,7 @@ function App() {
         const manager = new PluginManager({
           fs: pluginBackend,
           workspaceService: service,
-          installRoot: `${newRootPath}/.projelli/plugins`,
+          installRoot: `${newRootPath}/.keepance/plugins`,
           appVersion,
           workerFactory: () => new PluginWorker() as unknown as Worker,
           notifyDelegate: (pluginId, level, message) => {
@@ -3052,7 +3049,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
             // without touching this wiring.
             if (typeof window !== 'undefined' && typeof paragraphIndex === 'number') {
               window.dispatchEvent(
-                new CustomEvent('projelli:scroll-to-paragraph', {
+                new CustomEvent('keepance:scroll-to-paragraph', {
                   detail: { path: absPath, paragraphIndex },
                 }),
               );
@@ -3131,9 +3128,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
           } else if (actionId === 'open-whats-new') {
             setShowWhatsNewModalDirect(true);
           } else if (actionId === 'open-website') {
-            void openExternal('https://projelli.com');
+            void openExternal('https://keepance.com');
           } else if (actionId === 'open-github') {
-            void openExternal('https://github.com/projelli/projelli');
+            void openExternal('https://github.com/keepance/keepance');
           } else if (actionId === 'reset-feature-tour') {
             featureTour.restart();
             setTimeout(() => setTourOpen(true), 300);

@@ -1,0 +1,36 @@
+{
+  "name": "create-keepance-plugin",
+  "version": "1.0.0",
+  "description": "Scaffolder for new Keepance plugins. Run with `npx create-keepance-plugin <name>`.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "create-keepance-plugin": "./bin/create.js"
+  },
+  "files": [
+    "bin",
+    "template",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "keepance",
+    "plugin",
+    "scaffold",
+    "create",
+    "cli"
+  ],
+  "author": "Keepance",
+  "homepage": "https://keepance.com/docs/plugins",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/keepance/keepance.git",
+    "directory": "packages/create-keepance-plugin"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

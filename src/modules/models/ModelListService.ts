@@ -21,7 +21,7 @@ const FETCH_TIMEOUT_MS = 10_000; // 10 seconds
 const CACHE_VERSION = 2;
 
 function cacheKey(provider: ProviderType): string {
-  return `projelli_models_${provider}`;
+  return `keepance_models_${provider}`;
 }
 
 function readCache(provider: ProviderType): CacheEntry | null {

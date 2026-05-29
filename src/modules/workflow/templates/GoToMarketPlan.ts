@@ -1,5 +1,6 @@
 // Go-To-Market Plan Workflow Template
 // Helps founders plan their product launch
+// @deprecated — Retiring in v2.1. Founder-ICP template not relevant to legal/tax/consulting audience.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 

@@ -1,6 +1,6 @@
 import type { FileNode } from '../../../src/types/workspace';
 
-const ROOT = '/Users/jameson/Projelli/Linterly';
+const ROOT = '/Users/jameson/Keepance/Linterly';
 
 const fileContents: Record<string, string> = {
   'Vision.md': `# Linterly — Vision

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # infra/community-repos/sync-to-github.sh
 #
-# One-shot, idempotent sync from this projelli/projelli repo's source-of-truth
+# One-shot, idempotent sync from this keepance/keepance repo's source-of-truth
 # files in infra/community-repos/ to the two live community GitHub repos:
 #
-#   - projelli/community-templates  (catalog of community template entries)
-#   - projelli/community-plugins    (catalog of community plugin entries)
+#   - keepance/community-templates  (catalog of community template entries)
+#   - keepance/community-plugins    (catalog of community plugin entries)
 #
 # What it does, per kind:
 #   1. Creates the repo via `gh repo create` if it doesn't exist (idempotent;
@@ -39,22 +39,22 @@
 #   ./infra/community-repos/sync-to-github.sh
 #
 # Optional env:
-#   PROJELLI_SYNC_KIND=templates  Sync only that one kind. Defaults to both.
-#   PROJELLI_SYNC_DRYRUN=1        Skip push step (still commits locally).
+#   KEEPANCE_SYNC_KIND=templates  Sync only that one kind. Defaults to both.
+#   KEEPANCE_SYNC_DRYRUN=1        Skip push step (still commits locally).
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 SRC_DIR="${REPO_ROOT}/infra/community-repos"
 WORK_DIR="/tmp/community-repos-sync"
-GH_OWNER="projelli"
+GH_OWNER="keepance"
 
-KINDS_TO_SYNC=("${PROJELLI_SYNC_KIND:-both}")
+KINDS_TO_SYNC=("${KEEPANCE_SYNC_KIND:-both}")
 if [[ "${KINDS_TO_SYNC[0]}" == "both" ]]; then
   KINDS_TO_SYNC=("templates" "plugins")
 fi
 
-DRYRUN="${PROJELLI_SYNC_DRYRUN:-0}"
+DRYRUN="${KEEPANCE_SYNC_DRYRUN:-0}"
 
 mkdir -p "${WORK_DIR}"
 
@@ -89,13 +89,13 @@ sync_one_kind() {
       repo_name="community-templates"
       readme_src="${SRC_DIR}/templates-readme.md"
       seeds_src="${SRC_DIR}/seed-templates"
-      description="Community-contributed templates for Projelli. See README for submission process."
+      description="Community-contributed templates for Keepance. See README for submission process."
       ;;
     plugins)
       repo_name="community-plugins"
       readme_src="${SRC_DIR}/plugins-readme.md"
       seeds_src="${SRC_DIR}/seed-plugins"
-      description="Community-contributed plugins for Projelli. See README for submission process."
+      description="Community-contributed plugins for Keepance. See README for submission process."
       ;;
     *)
       echo "ERROR: unknown kind '$kind' (expected templates|plugins)" >&2
@@ -163,10 +163,10 @@ sync_one_kind() {
   # scripts/package.json (declares zod runtime dep for the Action)
   cat > "${clone_dir}/scripts/package.json" <<'PKG_EOF'
 {
-  "name": "projelli-community-catalog-build",
+  "name": "keepance-community-catalog-build",
   "private": true,
   "type": "module",
-  "description": "Catalog rebuild script vendored from projelli/projelli. Do not edit here.",
+  "description": "Catalog rebuild script vendored from keepance/keepance. Do not edit here.",
   "dependencies": {
     "zod": "^4.3.6"
   }
@@ -207,17 +207,17 @@ PKG_EOF
   if ! git rev-parse --verify --quiet HEAD >/dev/null; then
     # First commit ever for this repo. Skip CI so the Action doesn't loop on
     # the initial seed import (we ship an empty catalog.json alongside seeds).
-    commit_msg="chore: initial seed sync from projelli/projelli [skip ci]
+    commit_msg="chore: initial seed sync from keepance/keepance [skip ci]
 
-Source-of-truth synced from infra/community-repos/ in projelli/projelli."
+Source-of-truth synced from infra/community-repos/ in keepance/keepance."
   else
-    commit_msg="chore: sync from projelli/projelli
+    commit_msg="chore: sync from keepance/keepance
 
-Source-of-truth synced from infra/community-repos/ in projelli/projelli."
+Source-of-truth synced from infra/community-repos/ in keepance/keepance."
   fi
 
-  git -c user.name="projelli-catalog-bot" \
-      -c user.email="bot@projelli.com" \
+  git -c user.name="keepance-catalog-bot" \
+      -c user.email="bot@keepance.com" \
       commit -m "${commit_msg}"
 
   if [[ "${DRYRUN}" == "1" ]]; then

@@ -1,4 +1,4 @@
-# Projelli v1.6 Implementation Plan
+# Keepance v1.6 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -383,7 +383,7 @@ Expected: 4/4 platforms green in ~40 min. Same pattern as rc.8 because nothing c
 - [ ] **Step 4: Verify the draft release**
 
 ```bash
-gh release view v1.5-rc.9 --repo projelli/projelli --json isDraft,assets --jq '.isDraft, (.assets | length)'
+gh release view v1.5-rc.9 --repo keepance/keepance --json isDraft,assets --jq '.isDraft, (.assets | length)'
 ```
 
 Expected: `true` (draft) and `19` (asset count).
@@ -432,7 +432,7 @@ git push -u origin release/v1.6
 - [ ] **Step 1: Run the version bump**
 
 ```bash
-cd /home/jameson/projelli
+cd /home/jameson/keepance
 npm version 1.6.0 --no-git-tag-version
 sed -i 's/^version = "1.5.0"/version = "1.6.0"/' src-tauri/Cargo.toml
 python3 -c "
@@ -445,7 +445,7 @@ open(p,'w').write(json.dumps(d, indent=2) + '\n')
 cd src-tauri && ~/.cargo/bin/cargo check 2>&1 | tail -3
 ```
 
-Expected: `package.json` and `Cargo.toml` both at 1.6.0. `cargo check` updates `Cargo.lock`'s `projelli` entry and exits clean.
+Expected: `package.json` and `Cargo.toml` both at 1.6.0. `cargo check` updates `Cargo.lock`'s `keepance` entry and exits clean.
 
 - [ ] **Step 2: Verify**
 
@@ -482,7 +482,7 @@ EOF
 - [ ] **Step 1: Write the tracker with all planned items as 🔲 Not started**
 
 ```markdown
-# Projelli v1.6 Release Tracking
+# Keepance v1.6 Release Tracking
 
 > Ticket-by-ticket status for v1.6. Mirrors V1_5_RELEASE.md shape.
 >
@@ -549,7 +549,7 @@ wc -l /tmp/installer-upstream.nsi
 
 Expected: ~900 lines of NSIS script.
 
-- [ ] **Step 2: Copy to the Projelli override location with the passive-default patch**
+- [ ] **Step 2: Copy to the Keepance override location with the passive-default patch**
 
 ```bash
 cp /tmp/installer-upstream.nsi src-tauri/windows/installer-silent.nsi
@@ -559,7 +559,7 @@ Then edit the file: find `Function .onInit` (around line 471). Add `StrCpy $Pass
 
 ```nsis
 Function .onInit
-  ; Projelli v1.6: silent install is the DEFAULT for double-click UX.
+  ; Keepance v1.6: silent install is the DEFAULT for double-click UX.
   ; Passing `/INTERACTIVE` on the command line reverts to the full
   ; wizard. Passing `/S` is equivalent to the default (passive).
   StrCpy $PassiveMode 1
@@ -572,7 +572,7 @@ Then in the existing `${GetOptions}` parsing block (grep for `/P` in the file), 
 - [ ] **Step 3: Verify the patch landed**
 
 ```bash
-grep -n "Projelli v1.6: silent install is the DEFAULT" src-tauri/windows/installer-silent.nsi
+grep -n "Keepance v1.6: silent install is the DEFAULT" src-tauri/windows/installer-silent.nsi
 ```
 
 Expected: one hit, ~line 475 (depending on upstream line offsets).
@@ -618,14 +618,14 @@ Append to the existing hook body (inside the `!macroend` block). The full hook m
 !macro NSIS_HOOK_POSTINSTALL
   ; Create desktop shortcut if it doesn't already exist
   SetShellVarContext current
-  IfFileExists "$DESKTOP\Projelli.lnk" +2 0
-    CreateShortcut "$DESKTOP\Projelli.lnk" "$INSTDIR\Projelli.exe" "" "$INSTDIR\Projelli.exe" 0
+  IfFileExists "$DESKTOP\Keepance.lnk" +2 0
+    CreateShortcut "$DESKTOP\Keepance.lnk" "$INSTDIR\Keepance.exe" "" "$INSTDIR\Keepance.exe" 0
 
   ; v1.6: when installing silently (double-click UX) auto-launch the
   ; app after install. Skipped in /INTERACTIVE mode because the
-  ; built-in finish page there has a "Run Projelli" checkbox.
+  ; built-in finish page there has a "Run Keepance" checkbox.
   ${If} $PassiveMode = 1
-    nsis_tauri_utils::RunAsUser "$INSTDIR\Projelli.exe" ""
+    nsis_tauri_utils::RunAsUser "$INSTDIR\Keepance.exe" ""
   ${EndIf}
 !macroend
 ```
@@ -635,7 +635,7 @@ Append to the existing hook body (inside the `!macroend` block). The full hook m
 ```bash
 git add src-tauri/windows/installer-hooks.nsh
 git commit -m "$(cat <<'EOF'
-W-SI(2/4): Auto-launch Projelli after silent install
+W-SI(2/4): Auto-launch Keepance after silent install
 
 Makes the double-click flow feel like Claude Desktop: download,
 double-click, app opens. No wizard, no finish screen with a "Run"
@@ -744,14 +744,14 @@ Expected: CI kicks off, produces signed Windows `.exe` (no `.msi` this time), al
 
 Download the `.exe` from the draft release. Double-click.
 
-Expected: brief progress indicator, then Projelli launches. **No wizard screens.** No SmartScreen on Jameson's own machine (cert reputation already built from rc.8 run-anyway).
+Expected: brief progress indicator, then Keepance launches. **No wizard screens.** No SmartScreen on Jameson's own machine (cert reputation already built from rc.8 run-anyway).
 
 - [ ] **Step 3: Try `/INTERACTIVE` to confirm the opt-out works**
 
 From a Windows cmd prompt in the download folder:
 
 ```cmd
-Projelli_1.6.0_x64-setup.exe /INTERACTIVE
+Keepance_1.6.0_x64-setup.exe /INTERACTIVE
 ```
 
 Expected: the old wizard appears (welcome / install location / progress / finish).
@@ -761,7 +761,7 @@ Expected: the old wizard appears (welcome / install location / progress / finish
 ```bash
 git tag -d v1.6-rc.1-silent-install-test
 git push origin :refs/tags/v1.6-rc.1-silent-install-test
-gh release delete v1.6-rc.1-silent-install-test --yes --repo projelli/projelli 2>/dev/null || true
+gh release delete v1.6-rc.1-silent-install-test --yes --repo keepance/keepance 2>/dev/null || true
 ```
 
 - [ ] **Step 5: Update V1_6_RELEASE.md**
@@ -799,12 +799,12 @@ Find the `Sign Windows artifacts with Azure Trusted Signing` step. Add AFTER it 
         shell: pwsh
         working-directory: src-tauri
         run: |
-          # The Tauri build produced target/release/projelli.exe as the
+          # The Tauri build produced target/release/keepance.exe as the
           # native app binary (before NSIS wrapping it into an installer).
           # That standalone exe IS the portable version.
           $version = (node -p "require('../package.json').version")
-          $portable = "target/release/Projelli_${version}_x64-portable.exe"
-          Copy-Item "target/release/projelli.exe" $portable
+          $portable = "target/release/Keepance_${version}_x64-portable.exe"
+          Copy-Item "target/release/keepance.exe" $portable
           Get-Item $portable | Format-Table Name,Length
 
       - name: Sign portable Windows .exe with Azure Trusted Signing
@@ -829,8 +829,8 @@ Find the `Sign Windows artifacts with Azure Trusted Signing` step. Add AFTER it 
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $version = (node -p "require('../package.json').version")
-          $portable = "src-tauri/target/release/Projelli_${version}_x64-portable.exe"
-          gh release upload ${{ github.ref_name }} $portable --clobber --repo projelli/projelli
+          $portable = "src-tauri/target/release/Keepance_${version}_x64-portable.exe"
+          gh release upload ${{ github.ref_name }} $portable --clobber --repo keepance/keepance
 ```
 
 - [ ] **Step 3: Verify the YAML is valid**
@@ -849,12 +849,12 @@ git commit -m "$(cat <<'EOF'
 W-PX(1/2): Build + sign + upload portable Windows .exe
 
 Adds three CI steps to the Windows job, after Azure signing:
-1. Copy target/release/projelli.exe -> Projelli_{version}_x64-portable.exe
+1. Copy target/release/keepance.exe -> Keepance_{version}_x64-portable.exe
 2. Sign via Azure Trusted Signing (same cert as the installer)
 3. Upload to the GitHub release alongside the NSIS installer
 
 Users who want a no-install Windows experience can download the
-portable .exe and drop it anywhere. Data still saves to %APPDATA%\\Projelli
+portable .exe and drop it anywhere. Data still saves to %APPDATA%\\Keepance
 per Tauri's default dirs::data_dir() (true portable data would require
 Rust-side refactor deferred to v1.7).
 
@@ -878,7 +878,7 @@ Append after the Phase status table:
 
 Document these for release notes + docs + launch-day reply bank:
 
-- **Data still saves to `%APPDATA%\Projelli`.** The portable binary does NOT save config / workspaces next to itself. This is a Tauri limitation (`dirs::data_dir()` returns absolute paths). Users who move the portable .exe between drives should also copy `%APPDATA%\Projelli`. True self-contained portable data is a v1.7 item.
+- **Data still saves to `%APPDATA%\Keepance`.** The portable binary does NOT save config / workspaces next to itself. This is a Tauri limitation (`dirs::data_dir()` returns absolute paths). Users who move the portable .exe between drives should also copy `%APPDATA%\Keepance`. True self-contained portable data is a v1.7 item.
 - **Auto-updater is disabled in portable mode.** The updater requires a writable install dir + permission to replace the running binary. Portable users re-download manually.
 - **MCP .mcpb sidecar is NOT bundled.** The portable .exe is a single file; the MCP server binary is a separate artifact the .mcpb install flow fetches. Portable users can't use the MCP server unless they also download the installer version.
 - **First-run behavior is identical.** Welcome dialog, workspace picker, API key wizard, sample files, and the new feature tour all work.
@@ -892,8 +892,8 @@ Edit `website/docs/faq.html`. Find a logical spot (near "Is this safe to install
 ```html
 <details>
   <summary><strong>What's the "portable" Windows .exe?</strong></summary>
-  <p>v1.6 adds a portable Windows build. It's a single <code>.exe</code> you can drop anywhere, no install step, no Start Menu entry, no Admin rights needed. Useful if you want to run Projelli from a USB drive, try it without committing to a full install, or install on a machine where you can't run installers.</p>
-  <p><strong>Caveats:</strong> the portable build still saves your workspaces + settings to <code>%APPDATA%\Projelli</code> (not next to the .exe). The auto-updater is disabled; you re-download manually. The MCP extension (<code>.mcpb</code>) isn't supported in portable mode, use the full installer if you need MCP.</p>
+  <p>v1.6 adds a portable Windows build. It's a single <code>.exe</code> you can drop anywhere, no install step, no Start Menu entry, no Admin rights needed. Useful if you want to run Keepance from a USB drive, try it without committing to a full install, or install on a machine where you can't run installers.</p>
+  <p><strong>Caveats:</strong> the portable build still saves your workspaces + settings to <code>%APPDATA%\Keepance</code> (not next to the .exe). The auto-updater is disabled; you re-download manually. The MCP extension (<code>.mcpb</code>) isn't supported in portable mode, use the full installer if you need MCP.</p>
 </details>
 ```
 
@@ -969,11 +969,11 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       },
       {
         title: 'Click "Create Key"',
-        body: 'A dialog opens. Give it a label like "Projelli" so you remember where it goes. Leave "Workspace" as default.',
+        body: 'A dialog opens. Give it a label like "Keepance" so you remember where it goes. Leave "Workspace" as default.',
       },
       {
         title: 'Copy the key IMMEDIATELY',
-        body: 'Anthropic shows the key ONCE. Copy it to your clipboard. Paste it into the Projelli wizard step 3.',
+        body: 'Anthropic shows the key ONCE. Copy it to your clipboard. Paste it into the Keepance wizard step 3.',
         hint: 'Keys start with sk-ant-. If you lose it, create a new one, old one stays valid but is unrecoverable.',
       },
       {
@@ -1000,11 +1000,11 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       },
       {
         title: 'Click "Create new secret key"',
-        body: 'Name it "Projelli". Permissions: "All" is fine. Click Create.',
+        body: 'Name it "Keepance". Permissions: "All" is fine. Click Create.',
       },
       {
         title: 'Copy the key',
-        body: 'Shown once. Starts with sk-proj- or sk-. Paste into Projelli step 3.',
+        body: 'Shown once. Starts with sk-proj- or sk-. Paste into Keepance step 3.',
       },
       {
         title: 'Add $5 to billing',
@@ -1033,7 +1033,7 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       },
       {
         title: 'Copy the key',
-        body: 'Shown permanently (you can return to view it). Starts with AIza. Paste into Projelli step 3.',
+        body: 'Shown permanently (you can return to view it). Starts with AIza. Paste into Keepance step 3.',
         hint: 'Google keys are the most forgiving, visible anytime in the AI Studio UI, unlike Anthropic/OpenAI which show once.',
       },
       {
@@ -1535,14 +1535,14 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'intro',
     title: "Let's take a 60-second tour",
-    body: 'Projelli has four big ideas. Skip any time with Esc. You can restart this tour later from Settings, Onboarding.',
+    body: 'Keepance has four big ideas. Skip any time with Esc. You can restart this tour later from Settings, Onboarding.',
     targetSelector: null,
     placement: 'center',
   },
   {
     id: 'file-tree',
     title: 'Your files, on your disk',
-    body: 'Every chat, every workflow output, every note lives here as a real Markdown file. Open them with any editor, back them up with git, take them with you. Projelli never holds your files hostage.',
+    body: 'Every chat, every workflow output, every note lives here as a real Markdown file. Open them with any editor, back them up with git, take them with you. Keepance never holds your files hostage.',
     targetSelector: '[data-testid="feature-tour-target-filetree"]',
     placement: 'right',
   },
@@ -1996,7 +1996,7 @@ test.describe('v1.6 feature tour', () => {
     await page.reload();
 
     await page.evaluate(() => {
-      localStorage.setItem('projelli_onboarding_complete', 'true');
+      localStorage.setItem('keepance_onboarding_complete', 'true');
       const raw = localStorage.getItem('settings-store') ?? '{}';
       const parsed = JSON.parse(raw);
       parsed.state = parsed.state ?? {};
@@ -2026,7 +2026,7 @@ test.describe('v1.6 feature tour', () => {
   test('Esc skips the tour', async ({ page }) => {
     await page.goto('http://localhost:5173');
     await page.evaluate(() => {
-      localStorage.setItem('projelli_onboarding_complete', 'true');
+      localStorage.setItem('keepance_onboarding_complete', 'true');
       const raw = localStorage.getItem('settings-store') ?? '{}';
       const parsed = JSON.parse(raw);
       parsed.state = parsed.state ?? {};
@@ -2072,10 +2072,10 @@ git commit -m "T-FT(6/6): Feature tour unit + E2E tests"
 
 ### Added
 - Windows silent install as the double-click default. Installer shows a
-  brief progress indicator and auto-launches Projelli. No wizard
+  brief progress indicator and auto-launches Keepance. No wizard
   screens. Pass `/INTERACTIVE` on the command line to get the old
   wizard back.
-- Portable Windows `.exe` artifact (`Projelli_1.6.0_x64-portable.exe`).
+- Portable Windows `.exe` artifact (`Keepance_1.6.0_x64-portable.exe`).
   Single file you can drop anywhere, no install step. Signed via
   Azure Trusted Signing.
 - API-key tutorial tab in the first-run wizard's API key step. Real
@@ -2102,7 +2102,7 @@ git commit -m "T-FT(6/6): Feature tour unit + E2E tests"
 - Portable `.exe` does not auto-update (requires manual re-download).
 - Portable `.exe` can't use the MCP `.mcpb` server (sidecar binary
   not bundled). Full installer users get MCP.
-- Portable `.exe` still saves config to `%APPDATA%\Projelli` rather
+- Portable `.exe` still saves config to `%APPDATA%\Keepance` rather
   than next to the binary. True self-contained portable mode is a
   v1.7 item.
 
@@ -2147,8 +2147,8 @@ Expected: 4/4 platforms green. Windows job now produces `.exe` (NSIS, silent) + 
 - [ ] **Step 1: Download the portable + installer on Windows**
 
 Expected:
-- Installer (`Projelli_1.6.0_x64-setup.exe`): double-click → brief progress → Projelli launches. No wizard. No SmartScreen (reputation built from v1.5).
-- Portable (`Projelli_1.6.0_x64-portable.exe`): double-click → Projelli launches. No install step.
+- Installer (`Keepance_1.6.0_x64-setup.exe`): double-click → brief progress → Keepance launches. No wizard. No SmartScreen (reputation built from v1.5).
+- Portable (`Keepance_1.6.0_x64-portable.exe`): double-click → Keepance launches. No install step.
 
 - [ ] **Step 2: Exercise the new features on both**
 
@@ -2185,7 +2185,7 @@ Same as v1.5 ship. Reference the Session doc.
 - [ ] **Step 4: Publish the draft release**
 
 ```bash
-gh release edit v1.6.0 --draft=false --latest --repo projelli/projelli
+gh release edit v1.6.0 --draft=false --latest --repo keepance/keepance
 ```
 
 - [ ] **Step 5: Fast-forward merge to master**
@@ -2200,11 +2200,11 @@ git push origin master
 - [ ] **Step 6: Deploy website**
 
 ```bash
-cd ~/projelli
+cd ~/keepance
 ./infra/deploy.sh
 ```
 
-Verify new FAQ entry for portable .exe is live on projelli.com/docs/faq.
+Verify new FAQ entry for portable .exe is live on keepance.com/docs/faq.
 
 - [ ] **Step 7: Commit the v1.6 ship retrospective**
 

@@ -2,9 +2,9 @@
  * Stream D-web Group III · Task 3.3
  *
  * Mints and persists the session token the demo browser sends to the
- * `projelli-demo-proxy`. Format (matches Group I's validator):
+ * `keepance-demo-proxy`. Format (matches Group I's validator):
  *
- *   projelli-demo-<random-base64url>-<YYYY-MM-DD-utc>
+ *   keepance-demo-<random-base64url>-<YYYY-MM-DD-utc>
  *
  * The middle segment is opaque session entropy minted in the browser. The
  * proxy only validates shape + that the date matches today's UTC date; the
@@ -15,7 +15,7 @@
  * suffix becomes stale; we re-mint on the first call after a date change.
  */
 
-const STORAGE_KEY = '__projelli_demo_session_token';
+const STORAGE_KEY = '__keepance_demo_session_token';
 const SECRET_BYTES = 16; // 128 bits → ~22 url-safe chars; well within proxy's 8..96 bound.
 
 function utcDate(): string {
@@ -41,7 +41,7 @@ function randomBase64Url(byteCount: number): string {
 }
 
 function mintToken(): string {
-  return `projelli-demo-${randomBase64Url(SECRET_BYTES)}-${utcDate()}`;
+  return `keepance-demo-${randomBase64Url(SECRET_BYTES)}-${utcDate()}`;
 }
 
 function readStoredToken(): string | null {
@@ -67,7 +67,7 @@ function writeStoredToken(token: string): void {
 export function getDemoSessionToken(): string {
   const today = utcDate();
   const stored = readStoredToken();
-  if (stored && stored.endsWith(`-${today}`) && stored.startsWith('projelli-demo-')) {
+  if (stored && stored.endsWith(`-${today}`) && stored.startsWith('keepance-demo-')) {
     return stored;
   }
   const fresh = mintToken();

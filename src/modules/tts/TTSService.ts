@@ -111,7 +111,7 @@ export const TTSService = {
   },
 
   /**
-   * Download a lazy-loaded voice from Projelli CDN.
+   * Download a lazy-loaded voice from Keepance CDN.
    * Used for Spanish and German voices on first selection.
    *
    * @param voiceId  Piper voice ID to download.

@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-// projelli/projelli build-catalog.mjs
+// keepance/keepance build-catalog.mjs
 //
 // Source of truth for the catalog-rebuild script that lives inside both
 // community repos at scripts/build-catalog.mjs. The sync-to-github tooling
 // copies this file verbatim into each repo, which is why the schema lives
-// inline in this file rather than imported from the projelli app source.
+// inline in this file rather than imported from the keepance app source.
 //
 // WHY the schemas are inlined (not imported):
 //   The community repos are independent and run this script under GitHub
-//   Actions with no access to the projelli app. So we vendor the Zod
+//   Actions with no access to the keepance app. So we vendor the Zod
 //   manifest schemas here. This file MUST be kept in lockstep with:
 //     - src/modules/marketplace/manifestValidator.ts (templates)
 //     - src/modules/plugins/PluginManifestSchema.ts  (plugins)
@@ -35,8 +35,8 @@
 //
 // Optional env:
 //   PROJELLI_CATALOG_REPO  Defaults to inferred owner/name from $GITHUB_REPOSITORY,
-//                          falling back to "projelli/community-templates" or
-//                          "projelli/community-plugins" depending on KIND.
+//                          falling back to "keepance/community-templates" or
+//                          "keepance/community-plugins" depending on KIND.
 //   PROJELLI_CATALOG_REF   Branch/ref the URLs should point at. Defaults to "main".
 //   PROJELLI_CATALOG_ROOT  Path to the repo root the script should walk. Defaults
 //                          to the current working directory.
@@ -57,7 +57,7 @@ import { join, resolve } from 'node:path';
 import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
-// Vendored Zod schemas (must match projelli app source)
+// Vendored Zod schemas (must match keepance app source)
 // ---------------------------------------------------------------------------
 
 const semverRegex = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
@@ -86,8 +86,8 @@ const templateManifestSchema = z.object({
   tags: z.array(z.string()),
   screenshots: z.array(z.string().min(1)).optional(),
   files: z.array(templateFileEntrySchema).min(1, 'files must contain at least one entry'),
-  minProjelliVersion: z.string().regex(semverRegex, 'minProjelliVersion must be semver'),
-  maxProjelliVersion: z.string().regex(semverRegex, 'maxProjelliVersion must be semver').optional(),
+  minKeepanceVersion: z.string().regex(semverRegex, 'minKeepanceVersion must be semver'),
+  maxKeepanceVersion: z.string().regex(semverRegex, 'maxKeepanceVersion must be semver').optional(),
 });
 
 const PLUGIN_PERMISSIONS = [
@@ -116,8 +116,8 @@ const pluginManifestSchema = z.object({
   description: z.string().min(1, 'description required'),
   main: z.string().min(1, 'main required'),
   permissions: z.array(pluginPermissionSchema),
-  minProjelliVersion: z.string().regex(semverRegex, 'minProjelliVersion must be semver'),
-  maxProjelliVersion: z.string().regex(semverRegex, 'maxProjelliVersion must be semver').optional(),
+  minKeepanceVersion: z.string().regex(semverRegex, 'minKeepanceVersion must be semver'),
+  maxKeepanceVersion: z.string().regex(semverRegex, 'maxKeepanceVersion must be semver').optional(),
   category: z.string().min(1, 'category required'),
   tags: z.array(z.string()),
   screenshots: z.array(z.string().min(1)).optional(),
@@ -145,7 +145,7 @@ const REF = process.env.PROJELLI_CATALOG_REF ?? 'main';
 function inferRepo() {
   if (process.env.PROJELLI_CATALOG_REPO) return process.env.PROJELLI_CATALOG_REPO;
   if (process.env.GITHUB_REPOSITORY) return process.env.GITHUB_REPOSITORY;
-  return KIND === 'templates' ? 'projelli/community-templates' : 'projelli/community-plugins';
+  return KIND === 'templates' ? 'keepance/community-templates' : 'keepance/community-plugins';
 }
 const REPO = inferRepo();
 
@@ -196,7 +196,7 @@ function rawUrl(repo, ref, repoRelativePath) {
  * make the byte output reproducible across machines and CI runs.
  */
 function buildTarball(entryAbsDir, entryId) {
-  const stagingRoot = mkdtempSync(join(tmpdir(), `projelli-catalog-${entryId}-`));
+  const stagingRoot = mkdtempSync(join(tmpdir(), `keepance-catalog-${entryId}-`));
   const stagingEntry = join(stagingRoot, entryId);
   spawnSync('mkdir', ['-p', stagingEntry], { stdio: 'inherit' });
 
@@ -315,13 +315,13 @@ function main() {
       tags: manifest.tags,
       installUrl: rawUrl(REPO, REF, `entries/${id}/tarball.tar.gz`),
       manifestUrl: rawUrl(REPO, REF, `entries/${id}/manifest.json`),
-      minProjelliVersion: manifest.minProjelliVersion,
+      minKeepanceVersion: manifest.minKeepanceVersion,
       publishedAt: now,
       updatedAt: now,
       checksum,
     };
     if (screenshotsRel.length > 0) catalogEntry.screenshots = screenshotsRel;
-    if (manifest.maxProjelliVersion) catalogEntry.maxProjelliVersion = manifest.maxProjelliVersion;
+    if (manifest.maxKeepanceVersion) catalogEntry.maxKeepanceVersion = manifest.maxKeepanceVersion;
 
     catalogEntries.push(catalogEntry);
     console.log(`[build-catalog] ok: ${id} v${manifest.version} sha256=${checksum.slice(0, 12)}...`);

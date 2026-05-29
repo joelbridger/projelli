@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keepance Co-Founder Agreement</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.75;
+    color: #1a1a2e;
+    background: #fff;
+  }
+
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 60px 60px 80px;
+  }
+
+  /* Header */
+  .doc-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    border-bottom: 3px solid #FF7C6E;
+    padding-bottom: 28px;
+    margin-bottom: 36px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .brand-logo {
+    width: 40px;
+    height: 40px;
+    background: #FF7C6E;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    flex-shrink: 0;
+  }
+
+  .brand-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1a1a2e;
+    letter-spacing: -0.5px;
+  }
+
+  .brand-tagline {
+    font-size: 9pt;
+    color: #888;
+    margin-top: 1px;
+  }
+
+  .doc-meta {
+    text-align: right;
+  }
+
+  .doc-title {
+    font-size: 13pt;
+    font-weight: 700;
+    color: #1a1a2e;
+    letter-spacing: -0.3px;
+  }
+
+  .doc-date {
+    font-size: 9pt;
+    color: #888;
+    margin-top: 3px;
+  }
+
+  /* Parties block */
+  .parties-block {
+    background: #f9f9fb;
+    border: 1px solid #e8e8ef;
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 36px;
+  }
+
+  .parties-label {
+    font-size: 8.5pt;
+    font-weight: 600;
+    color: #FF7C6E;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+  }
+
+  .party-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 10pt;
+  }
+
+  .party-row:last-child { margin-bottom: 0; }
+
+  .party-name {
+    font-weight: 600;
+    color: #1a1a2e;
+    min-width: 210px;
+  }
+
+  .party-role {
+    color: #666;
+  }
+
+  /* Sections */
+  .section {
+    margin-bottom: 32px;
+    page-break-inside: avoid;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .section-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: #FF7C6E;
+    color: white;
+    font-size: 8.5pt;
+    font-weight: 700;
+    border-radius: 50%;
+    flex-shrink: 0;
+    position: relative;
+    top: -1px;
+  }
+
+  .section-title {
+    font-size: 11.5pt;
+    font-weight: 700;
+    color: #1a1a2e;
+    letter-spacing: -0.2px;
+  }
+
+  .section p {
+    margin-bottom: 10px;
+    color: #333;
+  }
+
+  .section p:last-child { margin-bottom: 0; }
+
+  /* Highlight box */
+  .highlight-box {
+    background: #fff8f7;
+    border-left: 3px solid #FF7C6E;
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 12px 0;
+    font-size: 10pt;
+  }
+
+  .highlight-box strong {
+    color: #1a1a2e;
+    font-weight: 600;
+  }
+
+  /* Milestone box */
+  .milestone-box {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 12px 0;
+    font-size: 10pt;
+  }
+
+  .milestone-box .milestone-label {
+    font-size: 8.5pt;
+    font-weight: 600;
+    color: #16a34a;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 6px;
+  }
+
+  /* Bullet list */
+  ul {
+    padding-left: 0;
+    margin: 10px 0;
+    list-style: none;
+  }
+
+  ul li {
+    padding: 4px 0 4px 20px;
+    position: relative;
+    color: #333;
+    font-size: 10pt;
+  }
+
+  ul li::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    background: #FF7C6E;
+    border-radius: 50%;
+    position: absolute;
+    left: 4px;
+    top: 12px;
+  }
+
+  /* Vesting timeline */
+  .vesting-timeline {
+    margin: 14px 0;
+  }
+
+  .vesting-row {
+    display: flex;
+    gap: 14px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    font-size: 10pt;
+    align-items: flex-start;
+  }
+
+  .vesting-row:nth-child(odd) { background: #f9f9fb; }
+  .vesting-row:nth-child(even) { background: #fff; }
+
+  .vesting-period {
+    font-weight: 600;
+    color: #1a1a2e;
+    min-width: 160px;
+    flex-shrink: 0;
+  }
+
+  .vesting-desc {
+    color: #444;
+  }
+
+  /* Example callout */
+  .example-callout {
+    background: #f4f4f8;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+    font-size: 9.5pt;
+    color: #555;
+    font-style: italic;
+  }
+
+  .example-callout strong {
+    font-style: normal;
+    color: #333;
+    font-weight: 600;
+  }
+
+  /* Two-column decisions */
+  .decision-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 12px 0;
+  }
+
+  .decision-card {
+    background: #f9f9fb;
+    border: 1px solid #e8e8ef;
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+
+  .decision-card-title {
+    font-size: 9pt;
+    font-weight: 700;
+    color: #FF7C6E;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 8px;
+  }
+
+  .decision-card p {
+    font-size: 9.5pt;
+    color: #444;
+    margin-bottom: 0 !important;
+  }
+
+  /* Exit scenarios */
+  .exit-block {
+    margin: 10px 0;
+  }
+
+  .exit-scenario {
+    border: 1px solid #e8e8ef;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+  }
+
+  .exit-scenario-title {
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 6px;
+  }
+
+  .exit-scenario ul {
+    margin: 0;
+  }
+
+  /* Divider */
+  .divider {
+    border: none;
+    border-top: 1px solid #e8e8ef;
+    margin: 32px 0;
+  }
+
+  /* Signature block */
+  .signature-section {
+    page-break-before: always;
+    padding-top: 20px;
+  }
+
+  .signature-header {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .signature-header h2 {
+    font-size: 14pt;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 6px;
+  }
+
+  .signature-header p {
+    font-size: 10pt;
+    color: #666;
+  }
+
+  .signature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    margin-top: 20px;
+  }
+
+  .signer-block {
+    border: 1px solid #e8e8ef;
+    border-radius: 10px;
+    padding: 24px;
+  }
+
+  .signer-role {
+    font-size: 8.5pt;
+    font-weight: 600;
+    color: #FF7C6E;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 4px;
+  }
+
+  .signer-name {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin-bottom: 20px;
+  }
+
+  .sig-field-label {
+    font-size: 8.5pt;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    margin-top: 16px;
+  }
+
+  .sig-field-label:first-of-type {
+    margin-top: 0;
+  }
+
+  .sig-line {
+    border: none;
+    border-bottom: 1.5px solid #d0d0d8;
+    height: 36px;
+    width: 100%;
+    display: block;
+    background: #fafafa;
+    border-radius: 4px 4px 0 0;
+  }
+
+  /* Legal note */
+  .legal-note {
+    background: #fffbf0;
+    border: 1px solid #fde68a;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-top: 32px;
+    font-size: 9pt;
+    color: #78350f;
+  }
+
+  .legal-note strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 9.5pt;
+  }
+
+  /* Footer */
+  .doc-footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid #e8e8ef;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 8.5pt;
+    color: #aaa;
+  }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { padding: 40px 50px 60px; }
+    .signature-section { page-break-before: always; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="doc-header">
+    <div class="brand">
+      <div class="brand-logo">P</div>
+      <div>
+        <div class="brand-name">Keepance</div>
+        <div class="brand-tagline">keepance.com</div>
+      </div>
+    </div>
+    <div class="doc-meta">
+      <div class="doc-title">Co-Founder Agreement</div>
+      <div class="doc-date">May 2026 &nbsp;&middot;&nbsp; Version 1.0</div>
+    </div>
+  </div>
+
+  <!-- Parties -->
+  <div class="parties-block">
+    <div class="parties-label">Parties to this agreement</div>
+    <div class="party-row">
+      <span class="party-name">Jameson Samuel Daines</span>
+      <span class="party-role">Founder &mdash; referred to in this document as "Jameson"</span>
+    </div>
+    <div class="party-row">
+      <span class="party-name">Matthan William Daines</span>
+      <span class="party-role">Incoming Co-Founder &mdash; referred to as "Matthan"</span>
+    </div>
+  </div>
+
+  <!-- Section 1 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-number">1</span>
+      <span class="section-title">What This Agreement Is</span>
+    </div>
+    <p>This is the agreement between Jameson and Matthan about how they will work together on Keepance, how money gets split, and what happens if either of them decides to stop.</p>
+    <p>Both parties agree to everything written below by signing at the bottom.</p>
+  </div>
+
+  <!-- Section 2 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-number">2</span>
+      <span class="section-title">What Matthan Will Do</span>
+    </div>
+    <p>Matthan joins Keepance as Co-Founder. His primary responsibilities include:</p>
+    <ul>
+      <li>Marketing: running launch campaigns, social media, community outreach</li>
+      <li>Market research: understanding what customers want and what competitors are doing</li>
+      <li>Outreach: contacting newsletters, directories, podcasts, and communities</li>
+      <li>General co-founder input: contributing ideas, feedback, and direction on the product and business</li>
+    </ul>
+    <p>This role can grow over time by mutual agreement between Jameson and Matthan.</p>
+  </div>
+
+  <!-- Section 3 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-number">3</span>
+      <span class="section-title">Matthan's Ownership of the Company</span>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Matthan owns 25% of Keepance.</strong> This is not handed over all at once &mdash; he earns it gradually over 4 years.
+    </div>
+
+    <div class="vesting-timeline">
+      <div class="vesting-row">
+        <span class="vesting-period">First 6 months</span>
+        <span class="vesting-desc">No ownership vests yet. If either party stops within this window, Matthan receives no ownership. This is called the cliff.</span>
+      </div>
+      <div class="vesting-row">
+        <span class="vesting-period">At 6 months</span>
+        <span class="vesting-desc">Matthan earns 12.5% of his total share all at once (equal to 3.125% of the total company).</span>
+      </div>
+      <div class="vesting-row">
+        <span class="vesting-period">Months 7 &ndash; 48</span>
+        <span class="vesting-desc">The remaining ownership trickles in each month automatically, in equal monthly amounts.</span>
+      </div>
+      <div class="vesting-row">
+        <span class="vesting-period">After 4 full years</span>
+        <span class="vesting-desc">Matthan has earned his complete 25%.</span>
+      </div>
+    </div>
+
+    <div class="example-callout">
+      <strong>Example:</strong> If Matthan stops after 2 years, he has earned roughly half of his 25%, which is about 12.5% of the company. The other half returns to Jameson.
+    </div>
+
+    <p>Keepance is currently a sole proprietorship. This ownership agreement is binding between both parties, but to make the 25% fully official and legally protected, Keepance should be converted to an LLC or corporation within 12 months of signing. Both parties commit to doing that together.</p>
+  </div>
+
+  <!-- Section 4 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-number">4</span>
+      <span class="section-title">Matthan's Cut of Every Sale</span>
+    </div>
+
+    <div class="highlight-box">
+      <strong>Until Keepance has made $25,000 in total cumulative sales, Matthan receives 50% of every sale.</strong>
+    </div>
+
+    <p>Every time a customer buys Keepance, Matthan gets half of what they paid, and Jameson keeps the other half. This applies to every pricing tier.</p>
+
+    <p><strong>How sales are tracked:</strong> Total cumulative sales are measured using the gross sale amount in the LemonSqueezy dashboard (the amount the customer paid, before platform fees). Matthan has read-only access to the LemonSqueezy dashboard at all times.</p>
+
+    <p><strong>When Matthan gets paid:</strong> Jameson pays Matthan his share within 15 days of the end of each calendar month.</p>
+  </div>
+
+  <!-- Section 5 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-number">5</span>
+      <span class="section-title">What Happens When Sales Hit $25,000</span>
+    </div>
+
+    <div class="milestone-box">
+      <div class="milestone-label">&#127881; Milestone</div>
+      When total cumulative sales reach <strong>$25,000</strong>, two things happen automatically.
+    </div>
+
+    <p><strong>First:</strong> The 50% sales cut stops. From that point on, Matthan earns money through his 25% ownership only &mdash; not through a cut of individual sales.</p>
+
+    <p><strong>Second:</strong> Both Jameson and Matthan sit down together within 30 days of hitting $25,000 to renegotiate. This conversation covers:</p>
+    <ul>
+      <li>Matthan's ongoing role &mdash; whether it stays focused on marketing, or expands into other areas of the business</li>
+      <li>Whether a new revenue share makes sense at the new scale of the company</li>
+      <li>Whether a salary or regular payment should be introduced</li>
+      <li>Any changes to responsibilities as the product grows</li>
+    </ul>
+
+    <p>Reaching $25,000 in sales is a milestone worth celebrating. Both parties are obligated to show up to the renegotiation conversation in good faith and complete it within 30 days of hitting the milestone.</p>
+  </div>
+
+  <!-- Section 6 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-number">6</span>
+      <span class="section-title">Everything Built for Keepance Belongs to Keepance</span>
+    </div>
+    <p>Anything Matthan creates while working on Keepance belongs to Keepance, not to Matthan personally. This includes:</p>
+    <ul>
+      <li>Marketing copy, ads, and campaign materials</li>
+      <li>Social media accounts created for Keepance</li>
+      <li>Email lists and contact databases built for Keepance</li>
+      <li>Research documents, competitive analyses, and strategy documents</li>
+      <li>Any designs, videos, or creative assets made for Keepance</li>
+    </ul>
+    <p>If Matthan ever steps away from Keepance, he does not take any of these things with him. They stay with the company.</p>
+  </div>
+
+  <!-- Section 7 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-number">7</span>
+      <span class="section-title">Keeping Things Private</span>
+    </div>
+    <p>Both Jameson and Matthan agree to keep the following things private, and not share them with anyone outside of Keepance without the other's permission:</p>
+    <ul>
+      <li>How much money Keepance makes</li>
+      <li>The customer list and any customer data</li>
+      <li>The product roadmap and future plans</li>
+      <li>Any business strategies discussed between them</li>
+      <li>Pricing details and business decisions</li>
+    </ul>
+    <p>This confidentiality continues even after either party stops working on Keepance.</p>
+  </div>
+
+  <!-- Section 8 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-number">8</span>
+      <span class="section-title">Not Working for a Competitor</span>
+    </div>
+    <p>While working on Keepance, and for 12 months after stopping, Matthan agrees not to build, co-found, or work in a marketing role for a product that directly competes with Keepance. A competing product means a local-first AI workspace desktop app targeting indie founders.</p>
+    <p>This clause is narrow on purpose. It does not stop Matthan from having other jobs, doing other work, or working in marketing in any other industry.</p>
+  </div>
+
+  <!-- Section 9 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-number">9</span>
+      <span class="section-title">Decision Making</span>
+    </div>
+    <div class="decision-grid">
+      <div class="decision-card">
+        <div class="decision-card-title">Matthan decides</div>
+        <p>All day-to-day marketing decisions. He is trusted to execute without needing approval.</p>
+      </div>
+      <div class="decision-card">
+        <div class="decision-card-title">Jameson decides</div>
+        <p>Product direction, pricing changes, major business strategy, and any single spend over $300.</p>
+      </div>
+    </div>
+    <p>If there is ever a disagreement that cannot be resolved, both parties agree to talk it through before taking any formal action. Family comes first.</p>
+  </div>
+
+  <!-- Section 10 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-number">10</span>
+      <span class="section-title">If Either Person Wants to Stop</span>
+    </div>
+    <div class="exit-block">
+      <div class="exit-scenario">
+        <div class="exit-scenario-title">If Matthan wants to stop</div>
+        <ul>
+          <li>He gives Jameson 30 days notice</li>
+          <li>He keeps whatever ownership he has already earned</li>
+          <li>The 50% sales cut stops on his last day</li>
+          <li>Any unearned ownership returns to Jameson</li>
+        </ul>
+      </div>
+      <div class="exit-scenario">
+        <div class="exit-scenario-title">If Jameson asks Matthan to stop</div>
+        <ul>
+          <li>Jameson gives Matthan 30 days notice</li>
+          <li>Matthan keeps whatever ownership he has already earned</li>
+          <li>Matthan receives a final sales payment for sales already in progress</li>
+        </ul>
+      </div>
+      <div class="exit-scenario">
+        <div class="exit-scenario-title">If Keepance is sold</div>
+        <ul>
+          <li>Matthan receives his ownership percentage of the sale price, based on how much he has vested at that time</li>
+        </ul>
+        <div class="example-callout" style="margin-top:10px; margin-bottom:0;">
+          <strong>Example:</strong> If Keepance sells for $400,000 and Matthan has earned his full 25%, he receives $100,000.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 11 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-number">11</span>
+      <span class="section-title">What This Agreement Does Not Cover</span>
+    </div>
+    <p>This agreement does not cover salary. Neither Jameson nor Matthan is paying the other a regular wage right now. The 50% sales cut is Matthan's only regular income from Keepance until ownership becomes valuable. Both parties understand and accept this.</p>
+    <p>If either party wants to introduce a salary in the future, that would be a separate conversation and a separate written agreement.</p>
+  </div>
+
+  <!-- Section 12 -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-number">12</span>
+      <span class="section-title">This Is a Binding Agreement</span>
+    </div>
+    <p>Both parties have read this agreement, understand it, and agree to it. Both parties also agree to have this document reviewed by a lawyer within 60 days of signing, and to update it if a lawyer identifies anything that needs to change.</p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- Signature Section -->
+  <div class="signature-section">
+    <div class="signature-header">
+      <h2>Signatures</h2>
+      <p>By signing below, both parties confirm they have read and agree to this entire agreement.</p>
+    </div>
+
+    <div class="signature-grid">
+      <div class="signer-block">
+        <div class="signer-role">Founder</div>
+        <div class="signer-name">Jameson Samuel Daines</div>
+        <div class="sig-field-label">Signature</div>
+        <div class="sig-line"></div>
+        <div class="sig-field-label">Date</div>
+        <div class="sig-line"></div>
+      </div>
+      <div class="signer-block">
+        <div class="signer-role">Co-Founder</div>
+        <div class="signer-name">Matthan William Daines</div>
+        <div class="sig-field-label">Signature</div>
+        <div class="sig-line"></div>
+        <div class="sig-field-label">Date</div>
+        <div class="sig-line"></div>
+      </div>
+    </div>
+
+    <div class="legal-note">
+      <strong>Important note for both parties</strong>
+      Keepance is currently a sole proprietorship. The ownership clause in this agreement is binding between Jameson and Matthan personally, but converting Keepance to an LLC or corporation within 12 months of signing is required to make the 25% ownership fully official in a legal entity structure. Both parties also agree to consult a startup lawyer within 60 days of signing.
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="doc-footer">
+    <span>Keepance Co-Founder Agreement &nbsp;&middot;&nbsp; Version 1.0 &nbsp;&middot;&nbsp; May 2026</span>
+    <span>keepance.com</span>
+  </div>
+
+</div>
+</body>
+</html>

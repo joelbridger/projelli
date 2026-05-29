@@ -54,7 +54,7 @@ describe('McpSettingsSection', () => {
   it('shows "ready" status when the bundle is available', async () => {
     render(
       <McpSettingsSection
-        onResolveBundlePath={async () => '/tmp/projelli-mcp.mcpb'}
+        onResolveBundlePath={async () => '/tmp/keepance-mcp.mcpb'}
       />,
     );
     await waitFor(() => {
@@ -78,7 +78,7 @@ describe('McpSettingsSection', () => {
     const onDownload = vi.fn(async () => undefined);
     render(
       <McpSettingsSection
-        onResolveBundlePath={async () => '/tmp/projelli-mcp.mcpb'}
+        onResolveBundlePath={async () => '/tmp/keepance-mcp.mcpb'}
         onDownload={onDownload}
       />,
     );
@@ -89,7 +89,7 @@ describe('McpSettingsSection', () => {
     });
     fireEvent.click(screen.getByTestId('mcp-download-mcpb'));
     await waitFor(() => {
-      expect(onDownload).toHaveBeenCalledWith('/tmp/projelli-mcp.mcpb');
+      expect(onDownload).toHaveBeenCalledWith('/tmp/keepance-mcp.mcpb');
     });
     // Success toast surfaces the clipboard message.
     await waitFor(() => {
@@ -103,7 +103,7 @@ describe('McpSettingsSection', () => {
     });
     render(
       <McpSettingsSection
-        onResolveBundlePath={async () => '/tmp/projelli-mcp.mcpb'}
+        onResolveBundlePath={async () => '/tmp/keepance-mcp.mcpb'}
         onDownload={onDownload}
       />,
     );

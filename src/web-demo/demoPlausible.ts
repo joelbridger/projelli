@@ -37,8 +37,8 @@ declare global {
   }
 }
 
-const FIRST_MESSAGE_FLAG = 'projelli:demo:firstMessageReported';
-const BYOK_REPORTED_FLAG = 'projelli:demo:byokReported';
+const FIRST_MESSAGE_FLAG = 'keepance:demo:firstMessageReported';
+const BYOK_REPORTED_FLAG = 'keepance:demo:byokReported';
 
 function safeCall(eventName: string, props?: PlausibleProps): void {
   if (typeof window === 'undefined') return;

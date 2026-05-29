@@ -114,7 +114,7 @@ const SAMPLE_ENTRY: CatalogEntry = {
   tags: ['editor', 'stats'],
   installUrl: 'https://example.test/word-counter.tar.gz',
   manifestUrl: 'https://example.test/manifest.json',
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
   checksum: 'deadbeefcafef00d',
@@ -129,7 +129,7 @@ const SAMPLE_MANIFEST: PluginManifest = {
   description: 'Live word and character count for the active editor',
   main: 'index.js',
   permissions: SAMPLE_PERMISSIONS,
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   category: 'productivity',
   tags: ['editor', 'stats'],
 };
@@ -203,8 +203,8 @@ function buildService(fs: FakeFs, audit?: AuditService): MarketplaceService {
   const svc = new MarketplaceService({
     repoUrl: 'https://example.test',
     catalogPath: 'catalog.json',
-    cachePath: '/ws/.projelli/cache/plugins.json',
-    installRoot: '/ws/.projelli/plugins',
+    cachePath: '/ws/.keepance/cache/plugins.json',
+    installRoot: '/ws/.keepance/plugins',
     fs: fs.fs,
     provenance: 'community',
     validator: pluginValidator,
@@ -221,7 +221,7 @@ function buildService(fs: FakeFs, audit?: AuditService): MarketplaceService {
  * checksum returns matching hash, Tauri extract returns expected file list,
  * fs.read returns a valid plugin manifest.json after extraction.
  */
-function wireHappyPath(fs: FakeFs, manifestPath = '/ws/.projelli/plugins/word-counter/manifest.json'): void {
+function wireHappyPath(fs: FakeFs, manifestPath = '/ws/.keepance/plugins/word-counter/manifest.json'): void {
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => fakeStreamingResponse([new Uint8Array([1, 2, 3])])),
@@ -254,12 +254,12 @@ describe('PluginsMarketplaceService.install (happy path)', () => {
     expect(installed.id).toBe('word-counter');
     expect(installed.provenance).toBe('community');
     expect(installed.manifestVersion).toBe('1.0');
-    expect(installed.installedPath).toBe('/ws/.projelli/plugins/word-counter');
+    expect(installed.installedPath).toBe('/ws/.keepance/plugins/word-counter');
     expect(installed.installedAt).toBeDefined();
 
     // installed.json index was written under the plugin install root.
-    expect(fs.files.has('/ws/.projelli/plugins/.installed.json')).toBe(true);
-    const indexRaw = fs.files.get('/ws/.projelli/plugins/.installed.json')!;
+    expect(fs.files.has('/ws/.keepance/plugins/.installed.json')).toBe(true);
+    const indexRaw = fs.files.get('/ws/.keepance/plugins/.installed.json')!;
     const index = JSON.parse(indexRaw);
     expect(index.entries).toHaveLength(1);
     expect(index.entries[0].id).toBe('word-counter');
@@ -280,7 +280,7 @@ describe('PluginsMarketplaceService.install (happy path)', () => {
 
     // Tarball cleaned up at the temp path.
     expect(
-      fs.binaryFiles.has('/ws/.projelli/plugins/.tmp/word-counter.tar.gz'),
+      fs.binaryFiles.has('/ws/.keepance/plugins/.tmp/word-counter.tar.gz'),
     ).toBe(false);
   });
 
@@ -327,10 +327,10 @@ describe('PluginsMarketplaceService.install (failure paths)', () => {
     expect(events).toContain('plugin_install_failed');
     expect(events).not.toContain('plugin_installed');
     expect(fs.spies.delete).toHaveBeenCalledWith(
-      '/ws/.projelli/plugins/.tmp/word-counter.tar.gz',
+      '/ws/.keepance/plugins/.tmp/word-counter.tar.gz',
     );
-    expect(fs.spies.delete).toHaveBeenCalledWith('/ws/.projelli/plugins/word-counter');
-    expect(fs.files.has('/ws/.projelli/plugins/.installed.json')).toBe(false);
+    expect(fs.spies.delete).toHaveBeenCalledWith('/ws/.keepance/plugins/word-counter');
+    expect(fs.files.has('/ws/.keepance/plugins/.installed.json')).toBe(false);
   });
 
   it('audits plugin_install_failed when the catalog entry is missing', async () => {
@@ -358,7 +358,7 @@ describe('PluginsMarketplaceService.install (failure paths)', () => {
       if (cmd === 'extract_tarball') {
         // Plugin manifest missing required `main` field.
         fs.files.set(
-          '/ws/.projelli/plugins/word-counter/manifest.json',
+          '/ws/.keepance/plugins/word-counter/manifest.json',
           JSON.stringify({ ...SAMPLE_MANIFEST, main: '' }),
         );
         return ['manifest.json'];
@@ -386,7 +386,7 @@ describe('PluginsMarketplaceService.install (failure paths)', () => {
     mockInvoke.mockImplementation(async (cmd: string) => {
       if (cmd === 'extract_tarball') {
         fs.files.set(
-          '/ws/.projelli/plugins/word-counter/manifest.json',
+          '/ws/.keepance/plugins/word-counter/manifest.json',
           JSON.stringify(SAMPLE_MANIFEST),
         );
         return ['manifest.json'];
@@ -412,8 +412,8 @@ describe('PluginsMarketplaceService.uninstall', () => {
 
     await svc.uninstall('word-counter');
 
-    expect(fs.spies.delete).toHaveBeenCalledWith('/ws/.projelli/plugins/word-counter');
-    const indexRaw = fs.files.get('/ws/.projelli/plugins/.installed.json')!;
+    expect(fs.spies.delete).toHaveBeenCalledWith('/ws/.keepance/plugins/word-counter');
+    const indexRaw = fs.files.get('/ws/.keepance/plugins/.installed.json')!;
     const index = JSON.parse(indexRaw);
     expect(index.entries).toHaveLength(0);
     const events = audit.getAll();
@@ -462,7 +462,7 @@ describe('PluginsMarketplaceService.install (concurrency)', () => {
 
     expect(a.installedAt).toBe(b.installedAt);
 
-    const index = JSON.parse(fs.files.get('/ws/.projelli/plugins/.installed.json')!);
+    const index = JSON.parse(fs.files.get('/ws/.keepance/plugins/.installed.json')!);
     expect(index.entries).toHaveLength(1);
 
     const successes = audit.getAll().filter((e) => e.action === 'plugin_installed');
@@ -507,7 +507,7 @@ describe('createPluginsMarketplaceService factory', () => {
 
     // Cache path under workspace root, scoped to plugins.
     expect(fs.spies.write).toHaveBeenCalledWith(
-      '/ws/.projelli/cache/plugins.json',
+      '/ws/.keepance/cache/plugins.json',
       expect.any(String),
     );
   });
@@ -521,7 +521,7 @@ describe('createPluginsMarketplaceService factory', () => {
     );
     await svc.refresh();
     expect(fs.spies.write).toHaveBeenCalledWith(
-      '/ws/.projelli/cache/plugins.json',
+      '/ws/.keepance/cache/plugins.json',
       expect.any(String),
     );
   });
@@ -541,8 +541,8 @@ describe('createPluginsMarketplaceService factory', () => {
     const svc = new MarketplaceService({
       repoUrl: 'https://example.test',
       catalogPath: 'catalog.json',
-      cachePath: '/ws/.projelli/cache/plugins.json',
-      installRoot: '/ws/.projelli/plugins',
+      cachePath: '/ws/.keepance/cache/plugins.json',
+      installRoot: '/ws/.keepance/plugins',
       fs: fs.fs,
       provenance: 'community',
       validator: pluginValidator,

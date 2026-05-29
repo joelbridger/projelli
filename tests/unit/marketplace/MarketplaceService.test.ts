@@ -24,7 +24,7 @@ const SAMPLE: CatalogEntry[] = [
     id: 'a', name: 'A', description: '', version: '1.0.0',
     author: { name: 'x' }, category: 'misc', tags: [],
     installUrl: 'http://e/a.tar.gz', manifestUrl: 'http://e/manifest.json',
-    minProjelliVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
+    minKeepanceVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
   },
 ];
 
@@ -43,15 +43,15 @@ describe('MarketplaceService.refresh', () => {
 
   it('fetches catalog from repo and writes cache', async () => {
     const svc = new MarketplaceService({
-      repoUrl: 'https://raw.githubusercontent.com/projelli/community-templates/main',
+      repoUrl: 'https://raw.githubusercontent.com/keepance/community-templates/main',
       catalogPath: 'catalog.json',
-      cachePath: '.projelli/cache/marketplace-templates.json',
-      installRoot: '.projelli/templates',
+      cachePath: '.keepance/cache/marketplace-templates.json',
+      installRoot: '.keepance/templates',
       fs,
     });
     await svc.refresh();
     expect(fetchSpy).toHaveBeenCalledWith(
-      'https://raw.githubusercontent.com/projelli/community-templates/main/catalog.json'
+      'https://raw.githubusercontent.com/keepance/community-templates/main/catalog.json'
     );
     const cached = await svc.list();
     expect(cached).toHaveLength(1);
@@ -62,8 +62,8 @@ describe('MarketplaceService.refresh', () => {
     const svc = new MarketplaceService({
       repoUrl: 'http://e',
       catalogPath: 'catalog.json',
-      cachePath: '.projelli/cache/m.json',
-      installRoot: '.projelli/templates',
+      cachePath: '.keepance/cache/m.json',
+      installRoot: '.keepance/templates',
       fs,
     });
     await svc.refresh();
@@ -230,7 +230,7 @@ describe('MarketplaceService.readInstalledManifest', () => {
             id: 'x', name: 'X', description: 'd', version: '1.0.0',
             author: { name: 'a' }, category: 'misc', tags: [],
             installUrl: 'http://e/x.tar.gz', manifestUrl: 'http://e/m.json',
-            minProjelliVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
+            minKeepanceVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
             installedAt: '2026-04-28T00:00:00Z',
             installedPath: '/r/x',
             provenance: 'community',
@@ -251,7 +251,7 @@ describe('MarketplaceService.readInstalledManifest', () => {
         category: 'misc',
         tags: [],
         files: [{ path: 'workflow.json', type: 'workflow-definition' }],
-        minProjelliVersion: '2.0.0',
+        minKeepanceVersion: '2.0.0',
       }),
     );
 
@@ -275,7 +275,7 @@ describe('MarketplaceService.readInstalledManifest', () => {
             id: 'x', name: 'X', description: 'd', version: '1.0.0',
             author: { name: 'a' }, category: 'misc', tags: [],
             installUrl: 'http://e/x.tar.gz', manifestUrl: 'http://e/m.json',
-            minProjelliVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
+            minKeepanceVersion: '2.0.0', publishedAt: '2026-04-28', updatedAt: '2026-04-28',
             installedAt: '2026-04-28T00:00:00Z',
             installedPath: '/r/x',
             provenance: 'community',

@@ -11,7 +11,7 @@
 The pipeline is a self-contained Node project at `scripts/marketing-capture/` that drives `npm run dev` (the React app) via headless Chromium and produces a deterministic library of marketing assets. **It runs entirely on this Linux server.** No human-in-the-loop required. One command rebuilds everything:
 
 ```
-cd ~/projelli && npm run capture:all
+cd ~/keepance && npm run capture:all
 ```
 
 Total runtime: 5–10 minutes. Output lands in `Assets/marketing/` and (for press-kit slots + videos) `website/press-kit/assets/`.
@@ -19,7 +19,7 @@ Total runtime: 5–10 minutes. Output lands in `Assets/marketing/` and (for pres
 If something is broken, the fastest path is to look at `scripts/marketing-capture/run-all.ts` to find which shot/video crashed, then run that one in isolation:
 
 ```
-cd ~/projelli/scripts/marketing-capture && npx tsx shots/01-workspace-hero.ts
+cd ~/keepance/scripts/marketing-capture && npx tsx shots/01-workspace-hero.ts
 ```
 
 The dev server must be running on `localhost:5173` with `VITE_MARKETING_CAPTURE=1` for any shot/video to work. The orchestrator starts it automatically; for manual runs, start it yourself first.
@@ -56,7 +56,7 @@ The dev server must be running on `localhost:5173` with `VITE_MARKETING_CAPTURE=
 | V04 | `workflow-templates.mp4` | 30s | Heavy DOM injection — workflow execution UI is React-local |
 | V05 | `feature-document-suite-15s.mp4` | 15s | Tab switching across .md / .xlsx / .pptx |
 | V06 | `byok-setup.mp4` | 15s | Settings → API keys → typed key animation |
-| V07 | `local-first.mp4` | 12s | File appears in Projelli, then reveals in Sequoia Finder mockup |
+| V07 | `local-first.mp4` | 12s | File appears in Keepance, then reveals in Sequoia Finder mockup |
 | V08 | `version-history.mp4` | 18s | DOM-injected history panel — version history UI may not be wired up in browser mode |
 
 ---
@@ -64,7 +64,7 @@ The dev server must be running on `localhost:5173` with `VITE_MARKETING_CAPTURE=
 ## File map
 
 ```
-~/projelli/
+~/keepance/
 ├── docs/marketing/asset-capture/      # this folder
 │   ├── SPEC.md                        # original design spec (v1 scope)
 │   ├── PLAN.md                        # 21-task implementation plan
@@ -120,7 +120,7 @@ The dev server must be running on `localhost:5173` with `VITE_MARKETING_CAPTURE=
 │   └── run-all.ts                     # orchestrator — preflight, dev server, all shots, all videos, teardown
 │
 ├── src/
-│   ├── dev/marketing-capture-bridge.ts   # the only production code touched: window.__projelli_seed bridge
+│   ├── dev/marketing-capture-bridge.ts   # the only production code touched: window.__keepance_seed bridge
 │   └── main.tsx                          # async bootstrap that conditionally mounts the bridge
 ├── vite.config.ts                        # has a `define` entry that lets Rollup tree-shake the bridge in prod builds
 │
@@ -139,7 +139,7 @@ The dev server must be running on `localhost:5173` with `VITE_MARKETING_CAPTURE=
 ### Full library (5–10 min)
 
 ```
-cd ~/projelli && npm run capture:all
+cd ~/keepance && npm run capture:all
 ```
 
 This invokes `scripts/marketing-capture/run-all.ts`, which:
@@ -153,15 +153,15 @@ This invokes `scripts/marketing-capture/run-all.ts`, which:
 ### One shot or one video at a time (faster)
 
 ```
-cd ~/projelli && VITE_MARKETING_CAPTURE=1 npm run dev    # in one terminal, leave running
-cd ~/projelli/scripts/marketing-capture && npx tsx shots/01-workspace-hero.ts
-cd ~/projelli/scripts/marketing-capture && npx tsx videos/02-workspace-tour.ts
+cd ~/keepance && VITE_MARKETING_CAPTURE=1 npm run dev    # in one terminal, leave running
+cd ~/keepance/scripts/marketing-capture && npx tsx shots/01-workspace-hero.ts
+cd ~/keepance/scripts/marketing-capture && npx tsx videos/02-workspace-tour.ts
 ```
 
 ### Just the social reframes (no Playwright needed)
 
 ```
-cd ~/projelli/scripts/marketing-capture && npx tsx shots/07-09-social-reframes.ts
+cd ~/keepance/scripts/marketing-capture && npx tsx shots/07-09-social-reframes.ts
 ```
 
 This is pure `sharp` cropping of `screenshot-01-workspace.png` → 3 social crops. Doesn't need a dev server.
@@ -178,7 +178,7 @@ This is enforced inside `lib/capture-still.ts`. New shot scripts that bypass `ca
 
 ### 2. State seeding > UI interaction (when possible)
 
-The bridge at `src/dev/marketing-capture-bridge.ts` exposes `window.__projelli_seed(payload)` which writes directly into Zustand stores. This is faster, more deterministic, and doesn't need testids.
+The bridge at `src/dev/marketing-capture-bridge.ts` exposes `window.__keepance_seed(payload)` which writes directly into Zustand stores. This is faster, more deterministic, and doesn't need testids.
 
 But: not everything is in Zustand. Some UI states are React-local. We worked around this with **DOM injection** in S04, V03, V04, V07, V08 — `page.evaluate` writes synthetic DOM that looks like the real component.
 
@@ -206,7 +206,7 @@ This is enforced two ways:
 1. **Build-time:** `vite.config.ts` has a `define` entry that replaces `import.meta.env.VITE_MARKETING_CAPTURE` with the literal value at build time. When unset, the value is `''`, so the conditional dead-codes and Rollup tree-shakes the bridge out of `dist/`.
 2. **Runtime:** the bridge mounts only when the var is exactly `'1'`.
 
-Verified: `npm run build` produces a `dist/` with no references to `__projelli_seed` or `marketing-capture-bridge`. **Don't break this.** If you add features to the bridge, keep them inside `mountMarketingCaptureBridge()` so they're behind the gate.
+Verified: `npm run build` produces a `dist/` with no references to `__keepance_seed` or `marketing-capture-bridge`. **Don't break this.** If you add features to the bridge, keep them inside `mountMarketingCaptureBridge()` so they're behind the gate.
 
 ### 5. AI mocking has a buffering quirk
 
@@ -249,7 +249,7 @@ If you write `Assets/marketing/index.html` (the local preview gallery), it's git
 |------|--------|-------|
 | Action pack Item D (6 product screenshots) | ✅ shipped | Marked done in JAMESON_ACTION_PACK.md (S05 deferred to v2) |
 | Action pack Item E (30s demo video) | ✅ shipped | Marked done in JAMESON_ACTION_PACK.md |
-| Press-kit page deploy | ⏳ pending | `bash infra/deploy.sh` to push assets to projelli.com/press-kit/ — REQUIRES JAMESON APPROVAL before running |
+| Press-kit page deploy | ⏳ pending | `bash infra/deploy.sh` to push assets to keepance.com/press-kit/ — REQUIRES JAMESON APPROVAL before running |
 | Branch merge | ⏳ pending | `feat/marketing-asset-capture` not yet merged into `release/v1.6` |
 | LicenseSettings bug fix (commit `fef1f9d`) | ⚠️ verify | Implementer rolled in a fix to the Settings modal during V06 work. Independent verification recommended — the commit message says "wire LicenseSettings into the Settings modal" but it's worth a separate review since it's not part of the original capture scope. |
 | Clean up subagent test mode flag | low priority | The `?testMode=true` URL param relies on `IS_TEST_MODE` in `App.tsx`. If that's also exposed for E2E tests, it's fine. If not, consider renaming to `?marketingCapture=1` for clarity. |
@@ -260,9 +260,9 @@ If you write `Assets/marketing/index.html` (the local preview gallery), it's git
 
 Jameson is a senior product designer (NOT a developer per CLAUDE.md). For him:
 
-- **Review the gallery first.** The local preview server at `Assets/marketing/index.html` is the fastest way. Start it with `cd ~/projelli/Assets/marketing && python3 -m http.server 8765 --bind 0.0.0.0` and open `http://100.68.20.52:8765/` in any browser. (You can regenerate `index.html` from this runbook if it's missing — it's just a static gallery wrapping each .png and .mp4 in a card.)
+- **Review the gallery first.** The local preview server at `Assets/marketing/index.html` is the fastest way. Start it with `cd ~/keepance/Assets/marketing && python3 -m http.server 8765 --bind 0.0.0.0` and open `http://100.68.20.52:8765/` in any browser. (You can regenerate `index.html` from this runbook if it's missing — it's just a static gallery wrapping each .png and .mp4 in a card.)
 - **Don't ask him to read code.** Ask in plain language about visual quality (does it look authentic? does the streaming animation feel natural?). Take notes; iterate.
-- **Production deploy is a manual step.** Don't push to projelli.com without his explicit ask.
+- **Production deploy is a manual step.** Don't push to keepance.com without his explicit ask.
 - **He's a Wheel Health employee** — don't assume infinite session bandwidth. Wrap conversations cleanly so the next session can pick up cold from `RUNBOOK.md`.
 
 ---
@@ -273,7 +273,7 @@ Jameson is a senior product designer (NOT a developer per CLAUDE.md). For him:
 - **Commits ahead of `release/v1.6`:** 38 (37 marketing-capture + 1 incidental LicenseSettings fix)
 - **Not yet pushed to remote.** Local only.
 - **Not yet merged.** Awaiting Jameson's review and merge call.
-- **Press-kit pages on projelli.com still serve the OLD assets.** Deploy is pending Jameson approval.
+- **Press-kit pages on keepance.com still serve the OLD assets.** Deploy is pending Jameson approval.
 
 To revert to a clean v1.6 state at any point: `git checkout release/v1.6`. The `feat/marketing-asset-capture` branch keeps all the work safe.
 
@@ -285,10 +285,10 @@ To inspect what changed: `git log release/v1.6..feat/marketing-asset-capture --o
 
 Start here:
 
-1. **Is the dev server running?** `curl -fsS http://localhost:5173 -o /dev/null -w "%{http_code}\n"` should return 200. If not, start it with `cd ~/projelli && VITE_MARKETING_CAPTURE=1 npm run dev` (use `Bash run_in_background: true`).
+1. **Is the dev server running?** `curl -fsS http://localhost:5173 -o /dev/null -w "%{http_code}\n"` should return 200. If not, start it with `cd ~/keepance && VITE_MARKETING_CAPTURE=1 npm run dev` (use `Bash run_in_background: true`).
 2. **Are SF Pro fonts present?** `fc-list :family | grep -ic "SF Pro"` should be ≥4. If not, re-run `/tmp/install-marketing-capture-deps.sh` (still on disk) or follow Task 1 of `PLAN.md`.
 3. **Does ffmpeg work?** `ffmpeg -version | head -1`. If not: `sudo apt-get install -y ffmpeg`.
 4. **Did a Zustand store change?** Run any single shot script and look at `Assets/marketing/<file>.png` — if the workspace looks empty, the seeder shape is out of date. Inspect `src/stores/*.ts` and update `lib/seed-state.ts`.
-5. **Did the bridge break?** `npm run build && grep "__projelli_seed" dist/`. If it shows up in dist/, the `define` entry in `vite.config.ts` is wrong.
+5. **Did the bridge break?** `npm run build && grep "__keepance_seed" dist/`. If it shows up in dist/, the `define` entry in `vite.config.ts` is wrong.
 
 The pipeline is opinionated but fragile — each piece depends on assumptions about the React app it captures. If the app changes, the pipeline needs to follow.

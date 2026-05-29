@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "apiVersion": "1.0",
   "author": {
-    "name": "Projelli Team",
-    "githubUser": "projelli"
+    "name": "Keepance Team",
+    "githubUser": "keepance"
   },
   "description": "Eight-tweet launch thread. Hook, problem, demo moment, three feature tweets, social proof, call to action. Each tweet under 280 chars.",
   "category": "marketing",
@@ -16,5 +16,5 @@
     { "path": "workflow.json", "type": "workflow-definition" },
     { "path": "questions.json", "type": "interview-questions" }
   ],
-  "minProjelliVersion": "2.0.0"
+  "minKeepanceVersion": "2.0.0"
 }

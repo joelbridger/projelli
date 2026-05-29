@@ -14,7 +14,7 @@
 
 import { useEffect, useState } from 'react';
 
-const KEY = 'projelli_telemetry_consent';
+const KEY = 'keepance_telemetry_consent';
 
 export type TelemetryConsent = 'unset' | 'enabled' | 'disabled';
 
@@ -33,7 +33,7 @@ export function setTelemetryConsent(c: TelemetryConsent): void {
   else localStorage.setItem(KEY, c);
   // Notify subscribers in this tab too — `storage` events only fire
   // cross-tab. Internal pub/sub is light enough.
-  window.dispatchEvent(new CustomEvent('projelli:telemetry-consent-change'));
+  window.dispatchEvent(new CustomEvent('keepance:telemetry-consent-change'));
 }
 
 export function useTelemetryConsent(): {
@@ -44,10 +44,10 @@ export function useTelemetryConsent(): {
 
   useEffect(() => {
     const onChange = () => setLocal(read());
-    window.addEventListener('projelli:telemetry-consent-change', onChange);
+    window.addEventListener('keepance:telemetry-consent-change', onChange);
     window.addEventListener('storage', onChange);
     return () => {
-      window.removeEventListener('projelli:telemetry-consent-change', onChange);
+      window.removeEventListener('keepance:telemetry-consent-change', onChange);
       window.removeEventListener('storage', onChange);
     };
   }, []);

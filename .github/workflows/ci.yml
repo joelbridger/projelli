@@ -41,7 +41,7 @@ jobs:
         # key set has drifted from what's in src/locales/*.json. Hard gate.
         run: npm run i18n:check
 
-      - name: ESLint with projelli-i18n rule
+      - name: ESLint with keepance-i18n rule
         # --max-warnings=480: baseline is 468 warnings; 12-unit buffer catches
         # new warning regressions while tolerating the pre-existing count.
         # `|| true` keeps this informational until Stream E fixes the error baseline

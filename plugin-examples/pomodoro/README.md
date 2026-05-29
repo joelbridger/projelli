@@ -1,6 +1,6 @@
 # Pomodoro
 
-A Projelli plugin that runs the classic 25-minute focus / 5-minute break cycle, with a sidebar readout, toolbar controls, and persistent state.
+A Keepance plugin that runs the classic 25-minute focus / 5-minute break cycle, with a sidebar readout, toolbar controls, and persistent state.
 
 ## What it does
 
@@ -33,13 +33,13 @@ Output: `dist/index.js` (single-file IIFE bundle).
 
 ## Sideload
 
-Copy `manifest.json` and `dist/index.js` into your local Projelli plugins folder, then enable under Settings -> Plugins:
+Copy `manifest.json` and `dist/index.js` into your local Keepance plugins folder, then enable under Settings -> Plugins:
 
 | OS | Path |
 |---|---|
-| Windows | `%APPDATA%/Projelli/plugins/pomodoro/` |
-| macOS | `~/Library/Application Support/Projelli/plugins/pomodoro/` |
-| Linux | `~/.local/share/Projelli/plugins/pomodoro/` |
+| Windows | `%APPDATA%/Keepance/plugins/pomodoro/` |
+| macOS | `~/Library/Application Support/Keepance/plugins/pomodoro/` |
+| Linux | `~/.local/share/Keepance/plugins/pomodoro/` |
 
 ## Screenshot
 

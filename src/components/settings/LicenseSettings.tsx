@@ -1,5 +1,5 @@
 /**
- * LicenseSettings — UI for activating, viewing, and deactivating a Projelli license.
+ * LicenseSettings — UI for activating, viewing, and deactivating a Keepance license.
  *
  * Renders three states:
  *   1. Not activated: shows a license key input and an "Activate" button
@@ -50,7 +50,7 @@ export function LicenseSettings() {
             components={{
               pricingLink: (
                 <a
-                  href="https://projelli.com/#pricing"
+                  href="https://keepance.com/#pricing"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary underline"
@@ -160,7 +160,7 @@ export function LicenseSettings() {
               className="w-full text-base font-semibold h-12"
             >
               <a
-                href="https://projelli.com/#pricing"
+                href="https://keepance.com/#pricing"
                 target="_blank"
                 rel="noopener noreferrer"
                 data-testid="license-buy-button"

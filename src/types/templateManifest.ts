@@ -28,6 +28,6 @@ export interface TemplateManifest {
   tags: string[];
   screenshots?: string[];
   files: TemplateFileEntry[];
-  minProjelliVersion: string;
-  maxProjelliVersion?: string;
+  minKeepcanceVersion: string;
+  maxKeepcanceVersion?: string;
 }

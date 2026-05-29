@@ -8,8 +8,117 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Stream D-web COMPLETE: web demo sandbox live at projelli.com/try.**
-  Anyone can now try Projelli in a browser without downloading anything.
+- **ICP Pivot (2026-05-27): Repositioned from indie-founder to confidential-client-work professionals.**
+  Lead vertical: solo + small-firm attorneys. Fast-follow: tax preparers/CPAs/EAs. Consulting pack third.
+  Pricing restructured: $49 Personal / $129 Professional (+ profession pack) / $399 Practice (5 seats).
+- **Legal Practice Pack (v2.1 draft — 7 templates):** Deposition Contradiction Finder, Evidence Gap
+  Analyzer, Case Timeline Builder, Privilege Log Drafter, Discovery Document Triage, Patent Disclosure
+  Draft, Client Intake Synthesizer. Files: `src/modules/workflow/templates/legal/`.
+  All marked `@draft` pending attorney advisor review before production use.
+- **Tax Practice Pack (v2.2 draft — 7 templates):** Engagement Letter Builder, 1040 Pre-Review
+  Checklist, §7216 Consent Template, Tax Research Memo, Client Document Inventory, Audit Defense File
+  Builder, Quarterly Estimate Reminder. Files: `src/modules/workflow/templates/tax/`.
+  All marked `@draft` pending CPA/EA advisor review before production use.
+- **Consulting Practice Pack (v2.3 draft — 5 templates):** Client Discovery Synthesizer, Confidential
+  Research Memo, Stakeholder Map Generator, NDA-Safe Slide Outliner, Engagement Retrospective Builder.
+  Files: `src/modules/workflow/templates/consulting/`. No statutory claims; consultant read-through
+  recommended before production use.
+- **Workflow registry wired for all three packs.** `src/modules/workflow/index.ts` now exports
+  `LEGAL_TEMPLATES`, `TAX_TEMPLATES`, `CONSULTING_TEMPLATES` and includes them all in `allWorkflows`.
+  Retired founder-coded templates (PitchDeck, InvestorUpdate, LandingPage, GoToMarketPlan,
+  ContentStrategy, MVPScope, NewBusinessKickoff) from the default registry.
+- **WorkflowTemplate category union extended.** `src/types/workflow.ts` category field now accepts
+  `'legal' | 'tax' | 'consulting'` in addition to the existing values.
+- **First-run profession picker step.** `src/components/onboarding/FirstRunWizard.tsx` now includes
+  a `profession` step (between welcome and workspace) with four cards: Legal, Tax, Consulting, Other.
+  Selection persisted to `localStorage` as `keepance_profession` for post-onboarding template
+  pre-installation. Helper export `getOnboardingProfession()` added.
+- **On-disk sample files rewritten for solo law practice.** `src/onboarding/samples/` now contains
+  `Sample - Client Intake.md` (Vasquez v. Meridian Property Management, Okafor Law PLLC) and
+  `Sample - Weekly Review.md` (billable hours + active matters + invoices framing). Pitch Deck
+  sample deleted; Pricing Strategy sample rewritten as attorney fee structure.
+- **Vertical landing pages:** `website/legal-practice/index.html`, `website/tax-practice/index.html`,
+  `website/consulting-practice/index.html`. All three live under `/legal-practice/`, `/tax-practice/`,
+  `/consulting-practice/`. Footer cross-links between all three pages. Sitemap updated.
+- **POSITIONING.md:** `docs/strategy/POSITIONING.md` — canonical umbrella statement, ICP table,
+  statutory hooks (with verification status), channels-by-vertical, competitive moat section.
+- **Marketing campaign folders:** `docs/marketing/campaigns/2026-legal-launch/`,
+  `docs/marketing/campaigns/2026-tax-q4/`, `docs/marketing/campaigns/2026-consulting/` — advisor
+  outreach emails, Reddit posts, conference talk abstracts, Lawyerist pitch, Umbrex pitch, Tom
+  Critchlow pitch, r/taxpros post, Lenny's newsletter pitch. Full article draft at
+  `docs/marketing/campaigns/2026-legal-launch/LAWYERIST_ARTICLE_DRAFT.md`.
+- **Launch readiness doc:** `docs/operations/LAUNCH_READINESS_2026-05-28.md`.
+
+### Changed
+- **Homepage hero rewritten** for confidential-client-work ICP. Pricing section updated to
+  Personal/Professional/Practice tiers; Founder's Launch removed.
+- **Blog posts rewritten** for attorney/CPA/consultant audience. All nine targeted posts audited;
+  "indie founder," "solo founder," "for founders" removed from body copy. URLs preserved.
+- **Press kit, FAQ, getting-started docs** rewritten for new ICP. "Founder availability" →
+  "creator availability"; pricing updated; profession-specific framing throughout.
+- **In-app copy neutralized.** Onboarding wizard, ApiKeyWizard cost lines, feature tour steps,
+  AIAssistantPane comment, and three locale files (en/de/es) all scrubbed of founder/startup/MRR
+  language. WeeklyReviewWorkflow, BoardMeetingPrep, FirstHirePlaybook, FinancialModel, and other
+  general templates updated with profession-neutral placeholder text.
+- **App.tsx header comment** updated to reflect new product description.
+- **Legal-practice footer** updated: "indie founders" brand blurb replaced; Verticals cross-links
+  column added matching the tax and consulting page footers.
+
+### Changed (2026-05-28 — template improvements + citation corrections)
+
+#### Legal Practice Pack — template redesigns
+- **ClientIntakeSynthesizer.ts** — Document 2 redesigned from "Conflict Check Memo" to "Conflict
+  Check Search Guide." Now generates Boolean search strings and a structured parties table instead
+  of conflict check output. Explicit disclaimer: this does not perform the conflict check.
+  `namedOutputs` updated: `conflict_parties` → `conflict_search_terms`.
+- **PrivilegeLogDrafter.ts** — Table columns expanded from 7 to 9: added Doc No./Bates range,
+  Document Type, and Withheld/Redacted Status columns. Added description-waiver-risk warning.
+- **DiscoveryDocumentTriage.ts** — Added volume disclaimer (~500 pages max) and privilege-flag
+  step before triage output. New Privilege Flag Review section in output.
+
+#### Tax Practice Pack — template redesigns
+- **Section7216ConsentTemplate.ts** — IMPORTANT NOTICE block now cites Rev. Proc. 2013-14 §5.04
+  by name with all 6 specific requirements (separate document, signed/dated, specific purpose
+  language, 12-point type per Treas. Reg. §301.7216-3(b)(3)(i), consent before disclosure, one
+  consent per use type). Added 6-item pre-flight Practitioner Checklist.
+- **AuditDefenseFileBuilder.ts** — Added four new structural sections: SOL/Extension Tracker
+  (with Form 872 tracking), IDR Cross-Reference Index, explicit Substantiation (documents only)
+  vs. Legal Position (argument only) separation per issue, and Appeals/Litigation Track Note
+  covering all three post-exam tracks (IRS Appeals, Tax Court, refund suit).
+
+#### Marketing copy corrections
+- **Heppner citation verified** — *United States v. Heppner*, No. 1:25-cr-00503-JSR (S.D.N.Y.
+  Feb. 17, 2026), Dkt. No. 27 (Rakoff, J.) confirmed real. All CRITICAL/unverified warnings
+  removed from 8 campaign docs. Citation and Kovel-theory framing added.
+- **Legal landing page** — Meta description overclaim fixed ("ABA Op 512 compliant approach" →
+  "Built for the confidentiality review ABA Op 512 requires"). Heppner paragraph added to
+  privilege section.
+- **Tax landing page** — §7216 opening rewritten to lead with civil §6713 ($250/disclosure,
+  strict liability, no intent required, $10K cap). Callout updated. FTC Safeguards Rule paragraph
+  added (16 CFR Part 314, no small-practitioner exemption, WISP hook).
+- **POSITIONING.md** — *Heppner* section added with full citation, marketing framing guidance,
+  and Kovel-theory analysis. §7216 verification status updated to direct civil §6713 lead.
+- **KNOWLEDGE_GATHERING.md** — Q10 resolved (Heppner verified), Q28 updated with correct
+  post-2014 Circular 230 section names (§10.35 = Competence, §10.36 = Procedures, §10.37 =
+  Written advice; covered opinions regime repealed T.D. 9668 2014), Q47 corrected: §1.6060-1
+  was a mis-citation; proper reg is §1.6107-1 for preparer copy/retention.
+- **Blog post** (`why-local-first-ai-for-founders.html`) — §7216 framing updated: §6713 civil
+  now leads, §7216 criminal is reinforcing context.
+- **Lawyerist article draft** — Heppner paragraph inserted into privilege section.
+
+#### New marketing content
+- `docs/marketing/campaigns/2026-legal-launch/BOB_AMBROGI_LAWSITES_PITCH.md` — Pitch email and
+  extended review pitch for Bob Ambrogi's LawSites newsletter. Two options: short cold email
+  (~175 words) and longer product review brief (~300 words). Includes follow-up protocol and
+  coverage pattern notes.
+
+#### Stale comment cleanup
+- Removed stale `// NOTE: 'legal' category requires adding...` comment blocks from
+  `ClientIntakeSynthesizer.ts`, `PrivilegeLogDrafter.ts`, and `DiscoveryDocumentTriage.ts`.
+  (Type union was already fixed in a prior session; these were dead comments.)
+
+### Stream D-web COMPLETE: web demo sandbox live at keepance.com/try.
+  Anyone can now try Keepance in a browser without downloading anything.
   The demo loads a pre-seeded sample workspace (12 founder workflow
   templates plus sample notes and a chat history), gives 5 free AI
   messages through a shared rate-limited Anthropic key, OR unlimited
@@ -37,45 +146,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     semantics for first-message + BYOK events, prop shape on every
     event, and silent fallback when Plausible is blocked.
   - `infra/deploy.sh` executed: `dist-web-demo/` is rsynced into
-    `/var/www/projelli.com/try/`. Live URL `https://projelli.com/try/`
+    `/var/www/keepance.com/try/`. Live URL `https://keepance.com/try/`
     returns HTTP 200, Plausible script tag present in served HTML.
-    Proxy at `https://projelli.com/api/demo-status` returns healthy
+    Proxy at `https://keepance.com/api/demo-status` returns healthy
     JSON (budget $0/$50, 0 active sessions today). Test suite green:
     1882 passed across 172 files (1 new e2e file deferred to manual
     run since Playwright wasn't part of `npm run test`).
   - **JAMESON ACTION REQUIRED**: still need to replace the placeholder
     `ANTHROPIC_API_KEY=REPLACE_ME_BEFORE_GOING_LIVE` in
-    `/etc/projelli-demo-proxy.env`, then `sudo systemctl restart
-    projelli-demo-proxy`. Until then, demo proxy chat will 401 from
+    `/etc/keepance-demo-proxy.env`, then `sudo systemctl restart
+    keepance-demo-proxy`. Until then, demo proxy chat will 401 from
     Anthropic but everything else works (UI, BYOK, sample workspace).
     Optionally: rotate `SESSION_TOKEN_SECRET` from the bootstrap
-    default, and add `https://projelli.com/api/demo-status` to
+    default, and add `https://keepance.com/api/demo-status` to
     UptimeRobot.
 - **Stream D-web Group VI: Caddy + systemd + deploy script wiring.**
   - System Caddyfile (`/etc/caddy/Caddyfile`) now serves the demo bundle
-    from `/var/www/projelli.com/try/` with base path `/try/`, and reverse-
+    from `/var/www/keepance.com/try/` with base path `/try/`, and reverse-
     proxies `/api/demo-chat` and `/api/demo-status` to the loopback
-    `projelli-demo-proxy` Bun service on `127.0.0.1:5183`. Specific path
+    `keepance-demo-proxy` Bun service on `127.0.0.1:5183`. Specific path
     handles run before the existing catch-all so the marketing site,
     `press-kit/`, `blog/`, and `/api/forms/*` continue to work unchanged.
   - `infra/deploy.sh` now builds the web demo (`npm run build:web-demo`)
-    and rsyncs `dist-web-demo/` to `/var/www/projelli.com/try/` after the
+    and rsyncs `dist-web-demo/` to `/var/www/keepance.com/try/` after the
     main marketing-site sync. The main rsync excludes `/try/` so it never
     overwrites the demo bundle. Added `--dry-run` and `--skip-demo` flags
     for sanity-checking and incremental work.
-  - `projelli-demo-proxy.service` installed at `/etc/systemd/system/`,
-    `EnvironmentFile=/etc/projelli-demo-proxy.env` (root-owned, mode 0640),
-    state dir `/var/lib/projelli-demo-proxy` owned by `jameson`. Service is
+  - `keepance-demo-proxy.service` installed at `/etc/systemd/system/`,
+    `EnvironmentFile=/etc/keepance-demo-proxy.env` (root-owned, mode 0640),
+    state dir `/var/lib/keepance-demo-proxy` owned by `jameson`. Service is
     `enabled --now`, active, listening on 127.0.0.1:5183. `/api/demo-status`
     returns healthy JSON via Caddy.
   - **JAMESON ACTION REQUIRED**: replace the placeholder
     `ANTHROPIC_API_KEY=REPLACE_ME_BEFORE_GOING_LIVE` in
-    `/etc/projelli-demo-proxy.env` with a real `sk-ant-...` key, then
-    `sudo systemctl restart projelli-demo-proxy`. Until then, demo chat
+    `/etc/keepance-demo-proxy.env` with a real `sk-ant-...` key, then
+    `sudo systemctl restart keepance-demo-proxy`. Until then, demo chat
     requests will 401 from Anthropic; the rest of the demo (UI, BYOK
     input, sample workspace) works fine.
 - **Stream E complete (v2.0): Spanish + German UI localization.**
-  Projelli now ships in three languages. The app auto-detects the OS
+  Keepance now ships in three languages. The app auto-detects the OS
   language on first launch (English, Spanish, or German) and the user can
   switch between them at any time via Settings -> General -> Language. The
   switch is instant with no reload. The choice persists across restarts.
@@ -83,7 +192,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `src/locales/en.json` (source of truth), translated to `es.json` and
   `de.json` via a hash-incremental LLM script (`npm run translate-i18n`,
   reproducible, ~$0.65 for the full catalog), with a custom ESLint rule
-  (`projelli-i18n/no-hardcoded-string`) blocking new hardcoded strings in
+  (`keepance-i18n/no-hardcoded-string`) blocking new hardcoded strings in
   CI. Stream E Groups I-VII; spec section 8 in full.
 - **Stream E Group V (v2.0): translation lock helper + review process doc.**
   New `scripts/lock-translation.mjs` flips `__locked: true` on a chosen
@@ -108,13 +217,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/quality/v2.0-i18n-qa-report.md` for Jameson to walk during launch
   cert.
 - **Stream E Group I (v2.0): i18n tooling foundation.**
-  Custom `eslint-plugin-projelli-i18n` workspace package now lives at
-  `packages/eslint-plugin-projelli-i18n/` with a `no-hardcoded-string` rule
+  Custom `eslint-plugin-keepance-i18n` workspace package now lives at
+  `packages/eslint-plugin-keepance-i18n/` with a `no-hardcoded-string` rule
   that flags JSXText nodes containing 3+ alphabetic words outside `<Trans>`,
   `<code>`, `<pre>`, `<style>`, or `<script>` blocks. Bypass via the
-  standard `// eslint-disable-next-line projelli-i18n/no-hardcoded-string`.
+  standard `// eslint-disable-next-line keepance-i18n/no-hardcoded-string`.
   Severity is env-gated in `eslint.config.js`: warn locally, error when
-  `CI=true`. Vitest harness at `tests/unit/packages/eslint-plugin-projelli-i18n.test.ts`
+  `CI=true`. Vitest harness at `tests/unit/packages/eslint-plugin-keepance-i18n.test.ts`
   drives ESLint's RuleTester (8 valid + 3 invalid cases). The i18n smoke
   test at `tests/unit/i18n/i18n-config.test.ts` now asserts key fallthrough
   on empty locale resources (Group II will populate). New
@@ -122,21 +231,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Stream C complete (v2.0): live community catalogs with day-one content.**
   Two public GitHub repos are now online, seeded, and feeding the in-app
   Marketplace UI through the install pipeline shipped in C1 + C4:
-  - `projelli/community-templates` (6 entries: beta-user-survey,
+  - `keepance/community-templates` (6 entries: beta-user-survey,
     cold-email-sequence, customer-discovery-interview,
     investor-update-email-community, launch-announcement-tweet-thread,
     press-release).
-  - `projelli/community-plugins` (4 entries: mermaid-preview, pomodoro,
+  - `keepance/community-plugins` (4 entries: mermaid-preview, pomodoro,
     translator, word-counter, all built from the C5 example plugins).
   - Catalogs are publicly fetchable at
-    `https://raw.githubusercontent.com/projelli/community-templates/main/catalog.json`
+    `https://raw.githubusercontent.com/keepance/community-templates/main/catalog.json`
     and `.../community-plugins/main/catalog.json`. Tarballs are reproducible,
     SHA-256-pinned, and validated against the in-app Zod manifest schemas.
   - On opening Settings -> Marketplace -> Templates or Plugins, users see
     the seeded entries and can install + use them end-to-end (toolbar
     buttons, sidebar panels, command-palette commands all wire through).
   - Submission process documented in two places (the live repo READMEs +
-    `projelli.com/docs/marketplace-submissions`).
+    `keepance.com/docs/marketplace-submissions`).
   - Capstone PR for Stream C: templates marketplace (C1) + plugin runner
     (C3) + plugin marketplace UI (C4) + plugin developer experience (C5)
     + this seed catalog (C6) all working together with live content.
@@ -162,7 +271,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the script on every push to `main`, autodetects kind from the repo name,
   and commits regenerated `catalog.json` + tarballs back with `[skip ci]`
   to avoid loops. Both files are pushed verbatim by the C6 sync tooling
-  to `projelli/community-templates` and `projelli/community-plugins`.
+  to `keepance/community-templates` and `keepance/community-plugins`.
 - **Marketplace submission docs (Stream C6, v2.0, Group II).** Source-of-truth
   READMEs for the live community repos at
   `infra/community-repos/templates-readme.md` and
@@ -177,10 +286,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   flow. Added `docs/marketplace-submissions.html` to the website lint
   TARGETS so it stays voice-clean and canonical-tagged.
 - **Stream C5 plugin developer experience, complete (v2.0).** Third-party
-  developers can now `npx create-projelli-plugin <name>` to scaffold a
+  developers can now `npx create-keepance-plugin <name>` to scaffold a
   ready-to-build TypeScript plugin project, code against the typed
-  `@projelli/plugin-api` package, study four working example plugins, and
-  follow seven docs pages at projelli.com/docs/plugins/. Sums up Groups
+  `@keepance/plugin-api` package, study four working example plugins, and
+  follow seven docs pages at keepance.com/docs/plugins/. Sums up Groups
   I-V below; ships the public surface for the plugin ecosystem before C6
   wires the seed catalog.
 - **Plugin docs site, Group V (Stream C5, v2.0).** Seven static pages at
@@ -228,7 +337,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Plugin developer experience, Groups I + II (Stream C5, v2.0).** Public
   authoring surface for the plugin ecosystem: a typed types package and a
   one-command project scaffolder.
-  - **`@projelli/plugin-api`** types package at `packages/plugin-api/`.
+  - **`@keepance/plugin-api`** types package at `packages/plugin-api/`.
     Re-exports the canonical plugin types from `src/types/plugin.ts`
     (`PluginAPI`, `PluginManifest`, `PluginPermission`, `ToolbarButtonSpec`,
     `SidebarPanelSpec`, `SettingsPageSpec`, `CommandSpec`, lifecycle types).
@@ -236,15 +345,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     flat self-contained `dist/index.d.ts` so authors get one drop-in
     type entry, no path gymnastics. Types-only (no runtime), MIT,
     semver against the v2.0 plugin API contract.
-  - **`create-projelli-plugin`** CLI scaffolder at
-    `packages/create-projelli-plugin/`. Zero-dependency Node CLI:
-    `npx create-projelli-plugin <name>` copies the bundled template,
+  - **`create-keepance-plugin`** CLI scaffolder at
+    `packages/create-keepance-plugin/`. Zero-dependency Node CLI:
+    `npx create-keepance-plugin <name>` copies the bundled template,
     substitutes `__PLUGIN_ID__` / `__PLUGIN_NAME__` placeholders, runs
     `npm install`, and prints next-step instructions. Flags: `--no-install`
     (skip install), `--force` (overwrite non-empty target), `--help`.
     Validates the project name against the npm-friendly pattern
     `^[a-z0-9][a-z0-9-]*$`.
-  - **Plugin template** at `packages/create-projelli-plugin/template/`.
+  - **Plugin template** at `packages/create-keepance-plugin/template/`.
     Working hello-world plugin: registers a `<id>.greet` command that
     calls `api.notify.info('Hello from your plugin!')`. Bundled with
     strict TypeScript, Vite single-file IIFE config (no externals,
@@ -264,7 +373,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     verified; publish to the npm registry is a manual board action by
     Jameson post-launch.
 - **Plugin marketplace UI (Stream C4, v2.0).** Browse community plugins from
-  the `projelli/community-plugins` GitHub repo, see required permissions
+  the `keepance/community-plugins` GitHub repo, see required permissions
   before install, approve via a permission consent dialog, and watch the
   plugin auto-enable.
   - **Settings to Marketplace to Plugins** subtab is now live (previously
@@ -336,7 +445,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Dropbox) and a "Full guide" link out to the matching website page for
     each tab.
   - **README + FAQ updates.** README gains a "Mobile access" section. FAQ
-    gains a new "Can I use Projelli on my phone?" item, and the existing
+    gains a new "Can I use Keepance on my phone?" item, and the existing
     "Will there be a mobile app?" item now points users at the cloud sync
     workaround and the in-beta dedicated reader.
   - **Homepage docs nav** gains a "Mobile access" link in the footer.
@@ -361,7 +470,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Plugin lifecycle.** `PluginManager` handles install / enable / disable
     / update / uninstall / restart. Each plugin's worker spawns on enable,
     terminates on disable, and respawns on restart. Storage at
-    `<workspace>/.projelli/plugins/<id>/data/` is preserved across update
+    `<workspace>/.keepance/plugins/<id>/data/` is preserved across update
     and uninstall per spec §6.4.
   - **Plugin API.** Full surface from spec §6.4: `commands.register/invoke`,
     `toolbar.addButton/removeButton`, `sidebar.addPanel/removePanel`,
@@ -380,7 +489,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     manifests are rejected on install with a structured error.
   - **UI registry stores.** `pluginRegistryStore` mirrors plugin
     contributions (commands, toolbar buttons, sidebar panels, settings
-    pages) so the Projelli UI can render plugin content without holding
+    pages) so the Keepance UI can render plugin content without holding
     references to individual workers. `pluginManagerStore` tracks
     lifecycle status + last-known errors per plugin.
   - **UI surfaces.** Toolbar buttons render in the editor toolbar, sidebar
@@ -401,7 +510,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     catalog lands in C6.
 - **Templates Marketplace (Stream C1, v2.0).** New "Marketplace" surface
   under Settings lets users browse, install, update, and uninstall workflow
-  templates published in `projelli/community-templates`.
+  templates published in `keepance/community-templates`.
   - **Browse / Install / Uninstall flows** at Settings → Marketplace →
     Templates. Catalog tiles show name, description, version, and author;
     detail view shows the full file list, screenshots, and a state-aware
@@ -411,7 +520,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     sections.
   - **24-hour cached catalog** with an inline offline banner and [Retry]
     action when the catalog fetch fails. Cache lives at
-    `<workspace>/.projelli/cache/templates.json`.
+    `<workspace>/.keepance/cache/templates.json`.
   - **Update notifications** via `MarketplaceService.checkForUpdates()`,
     triggered 2 seconds after the workspace loads. A count pill renders on
     the Settings → Marketplace nav row whenever at least one installed
@@ -424,6 +533,143 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tauri commands** `sha256_file` and `extract_tarball` (path-traversal
     hardened), wired to the install pipeline so tarballs are checksum-
     verified before extraction.
+Website + marketing-infrastructure work, no app changes since v1.7.2.
+
+### Pre-launch readiness fixes (2026-04-29)
+All 5 fixes from `strategy/11-pre-launch-gap-analysis.md` § 6 shipped:
+- **`docs/reference/FEATURES.md` fully rewritten** from v1.0.8 / 2026-04-16
+  snapshot to current v1.7.2 state. Now accurately documents 4 AI providers
+  (Ollama added), Memory + RAG, MCP server, Voice input, Side-by-side AI
+  editing, trial system, privacy + telemetry consent UI, Mac notarization
+  (no longer "currently unnotarized"). "Not yet supported" reflects true
+  v1.7.2 gaps. ~300 lines → ~480 lines.
+- **3 stale FAQ replies refreshed** in PH (Linux, models, free tier/trial)
+  + Show HN (Ollama, $49 pricing).
+- **9 new FAQ replies added** for previously-unprepared criticism:
+  multimodal, PDF chat, mobile, MCP integration story, plugin system,
+  long context, Notion/Obsidian import, install friction, trial clarification.
+- **`/changelog/` page built** and live at keepance.com/changelog/. User-
+  friendly format covering v1.7.2 → v1.0. Cross-linked from homepage
+  footer + roadmap page footer.
+- **Press kit refreshed.** One-paragraph + long-form descriptions now
+  mention all 4 providers, local RAG, side-by-side AI editing, voice, MCP.
+
+### Strategy + exposure (2026-04-29)
+- **`docs/marketing/strategy/11-pre-launch-gap-analysis.md`** written. Pre-
+  launch product audit identifying real vs perceived gaps. Critical finding:
+  `docs/reference/FEATURES.md` is from v1.0.8 / 2026-04-16 and badly stale —
+  flags features as missing that actually shipped in v1.5 (Mermaid, KaTeX,
+  cost meter, RAG, MCP server, side-by-side AI editing, voice input, Ollama)
+  / v1.6 (Mac notarization) / v1.7.x (trial system, telemetry consent UI).
+  True remaining gaps: multimodal AI input, PDF as chat context, mobile,
+  web — none shipped in v1.7.2. 27 anticipated PH/HN comments already
+  covered by FAQ replies; 3 stale (Linux, model count, Ollama) and 9
+  uncovered (multimodal, PDF chat, mobile, MCP integration story, plugin
+  system, long context, Notion import, trial system, install friction).
+  Top 5 pre-launch fixes ranked by ROI: (1) rewrite FEATURES.md to v1.7.2,
+  (2) refresh stale FAQ replies, (3) add 9 new FAQ replies, (4) surface
+  CHANGELOG on website, (5) refresh press kit one-paragraph description.
+  ~5 hours total to close embarrassment risk to near-zero.
+- **`docs/marketing/strategy/10-creative-experiments.md`** written. 7 Tier-A
+  creative tactics (Local-First podcast as host, annotated public Keepance
+  workspace, sticker packs, reverse `/alternatives` page with 12 honest
+  competitor comparisons, 100-day AI Files challenge, MicroConf physical
+  presence, AI Conversation Archaeology free tool) + 4 Tier-B stretch ideas
+  + 7 things that look creative but don't work (flyers, billboards, swag
+  to randoms, skywriting, etc.) + 5-question decision rule for evaluating
+  new creative ideas. Resolves Jameson's question "really creative unique
+  ways to spread the word, even flyers?" Honest answer on flyers: no, wrong
+  targeting; redirect the physical-world instinct to MicroConf (Phase 5+).
+  Single best first creative bet post-launch: sticker packs.
+- **`docs/marketing/strategy/08-market-sizing-and-growth-paths.md`** written.
+  TAM analysis for the indie founder ICP, math for $10K MRR target,
+  comparables table (Logseq, Reflect, Heptabase, Notesnook, Things 3),
+  honest probability assessment by month 12 (30-40% for $10K, 50-60% for
+  $5K, 75-85% for $1-2K, 15-25% functional failure), wide-market scenario
+  modeling, natural growth path (Phase A → D, the Notion/Cursor/Obsidian/
+  Roam pattern), recalibration triggers. Resolves Jameson's question
+  "is there enough indie founder market to make $5-10K/mo consistently?"
+  Answer: yes with execution, narrow ICP for Year 1, plan to evaluate
+  broadening at month 12.
+- **`docs/marketing/strategy/09-non-paid-exposure-channels.md`** written.
+  Full menu of non-paid distribution organized by ROI tier 1-4. The
+  Tier A (TechCrunch/Verge) vs Tier B (AlternativeTo/MakerNews/Console)
+  "tech reviews" honest distinction. Capacity reality check.
+  Monthly/quarterly/annual cadence. Resolves Jameson's question
+  "what's the best non-paid way to get this idea out there?"
+- **`strategy/README.md`** index updated with refs to docs 08 + 09.
+- **Launch HQ** (`/launch-hq-jdc-2026/`) updated with 3 new sections:
+  Market sizing + wide-market scenario (embedded summary of doc 08),
+  Non-paid exposure menu (embedded summary of doc 09), Today's extras
+  shipped (log of GitHub work).
+
+### GitHub discoverability (2026-04-29)
+- **15 topics added to `keepance/keepance` repo:** `local-first`,
+  `ai-workspace`, `byok`, `tauri`, `react`, `markdown`, `desktop`,
+  `obsidian-alternative`, `notion-ai-alternative`, `ai-tools`, `claude`,
+  `openai`, `gemini`, `ollama`, `mcp`. Immediate discoverability via
+  GitHub topic browsing.
+- **3 awesome-list PRs opened** (each a single-line alphabetical
+  addition with thoughtful PR body):
+  - https://github.com/tauri-apps/awesome-tauri/pull/681
+    (7,577-star list, Productivity section)
+  - https://github.com/steven2358/awesome-generative-ai/pull/694
+    (11,917-star list, Productivity section)
+  - https://github.com/schickling/awesome-local-first/pull/26
+    (smaller list, perfect topical fit)
+- **Skipped** punkpeye/awesome-mcp-servers (85K stars): their format
+  requires standalone MCP server repos with Glama.ai badges; Keepance's
+  MCP is bundled with desktop app and would likely be rejected. Revisit
+  if MCP server is published as standalone npm package.
+
+### Website voice + Option B positioning (2026-04-28)
+
+### Changed (website voice + Option B positioning)
+- **Homepage Option B implementation.** Universal hero subhead with founder
+  wedge embedded ("Built for indie founders, useful for anyone who works with
+  AI on real projects") instead of exclusive-leading "For indie founders." copy.
+  Same treatment applied to meta description, footer brand description, and
+  the demo animation's visionContent. Live at keepance.com.
+- **Press kit Option B.** Intro + one-paragraph descriptions in
+  `website/press-kit/index.html` rewritten to match the homepage's universal
+  framing. `Last updated` bumped to 2026-04-28.
+- **Em-dash cleanup pass.** Removed all user-facing em dashes from website
+  (homepage, press kit, 11 blog posts, /vs/ pages, /tour page) and channel
+  docs (PH_HUNTERS, SHOW_HN_LAUNCH, INDIE_HACKERS_LAUNCH, PRODUCT_HUNT_LAUNCH,
+  NEWSLETTER_OUTREACH, REDDIT_SIDEPROJECT_POST, EMAIL_SEQUENCES,
+  JAMESON_ACTION_PACK, MARKETING_PLAYBOOK, DIRECTORY_SUBMISSIONS). ~270
+  instances total. Per `feedback_no_em_dashes.md`.
+- **Blog post AI-tell fixes.** Removed 3 "leverage" violations across
+  `how-i-built-keepance-in-8-weeks.html` (2) and
+  `picking-the-15-founder-templates.html` (1).
+- **form-handler welcome email rewrite.** Email body rewritten with Option B
+  framing, em dashes replaced with commas, sign-off updated. Success message
+  for the launch email-list updated from outdated "We'll email you when v1.1
+  ships" to Founder's Launch teaser. Service restarted 2026-04-28.
+- **PH_HUNTERS.md updated for v1.7.2.** Doc previously framed v1.5 launch;
+  now references current product state. All four flagship features (memory/RAG,
+  MCP server, side-by-side AI editing, voice + Ollama) shipped in v1.5 and
+  remain in v1.7.2. Added Option B note re: per-channel framing decisions.
+
+### Added
+- **Spots-remaining auto-decrement.** New Bun script
+  `scripts/update-spots-remaining.ts` + user crontab entry every 5 minutes
+  that polls LemonSqueezy Orders API (filtered to variant 1506887, paid,
+  non-test, non-refunded) and updates both `website/spots-remaining.json`
+  and `/var/www/keepance.com/spots-remaining.json`. Replaces the manual
+  file edit. Log: `~/keepance/logs/spots-update.log`.
+- **Marketing campaign artifact.** `docs/marketing/campaigns/2026-04-launch-blast/`
+  with README (decisions ratified, phased execution), plan.md (phase-by-phase
+  deliverables + advance criteria), tracking.md (running daily log),
+  retro.md + launch-day-harvest-template.md (post-launch templates), and
+  copy/ subdirectory with ph-hunter-strategy.md (dual-path), reddit-posts.md
+  (5 subreddits), keepance-posts-queue.md (first 5 brand-X posts),
+  newsletter-pitches.md (Day-4 packet), pre-launch-teases.md (Phase 1+2
+  warm-up posts). All voice-audited.
+- **Deploy script auto-purge fallback.** `infra/deploy.sh` now defaults
+  PROJELLI_CF_ZONE_ID to the actual zone ID (`15eed43c0a43012ff214f1290b1bc5cf`)
+  so future runs auto-purge Cloudflare cache without requiring the env var.
+  CF token cached at `~/.cloudflare-keepance-token` (chmod 600).
 
 ## [1.7.2] - 2026-04-28
 
@@ -452,7 +698,7 @@ Lead capture + funnel telemetry, opt-in only. Plus chip polish.
   workspace renders first.
 - **Anonymous lifecycle telemetry** sends `app_launch`, `trial_start`,
   `trial_end`, `license_activated`, `license_deactivated` events to
-  `projelli.com/api/forms/projelli/app-event`. Payload contains a
+  `keepance.com/api/forms/keepance/app-event`. Payload contains a
   random install ID, the app version, the platform, and the event
   name — no content, no files, no AI prompts, no email. Gated on
   explicit opt-in. Code: `src/utils/telemetry.ts`,
@@ -462,7 +708,7 @@ Lead capture + funnel telemetry, opt-in only. Plus chip polish.
   one-click toggle to enable/disable telemetry at any time. Code:
   `src/components/settings/PrivacySettings.tsx`.
 - **In-app email signup endpoint** at
-  `projelli.com/api/forms/projelli/app-onboarding`. Captures emails
+  `keepance.com/api/forms/keepance/app-onboarding`. Captures emails
   from users who explicitly opt in via the welcome dialog. Triggers
   the same Brevo welcome email as the public site signup, with
   `source: 'app-onboarding'` recorded for downstream segmentation.
@@ -505,7 +751,7 @@ Trial visibility: surface the countdown outside Settings.
 
 ### Changed
 - **License section: prominent buy CTA.** The "Get a license at
-  projelli.com" link is now a full-width primary button at the top
+  keepance.com" link is now a full-width primary button at the top
   of the activation panel, with the license-key input demoted to
   "Already have a license key?" beneath it. Conversion-first.
 - StatusBar component now accepts an optional `onOpenSettings` prop
@@ -518,7 +764,7 @@ Pricing model rewrite + honest license-state UI.
 
 ### Added
 - **30-day full-feature trial.** First launch records a timestamp in
-  localStorage. For 30 days every Projelli feature is unlocked: AI
+  localStorage. For 30 days every Keepance feature is unlocked: AI
   chat with your own keys, all 15 workflow templates, all workspaces,
   all panels. After 30 days, AI chat sends and workflow runs are
   paused until a license is activated; existing files stay fully
@@ -554,15 +800,15 @@ activation, and 6+ rounds of polish caught during the rc.5 → rc.17
 dogfood arc on real Mac and Windows installs.
 
 ### Added
-- **macOS support** as a first-class platform. `Projelli_1.6.0_aarch64.dmg`
-  for Apple Silicon and `Projelli_1.6.0_x64.dmg` for Intel. Both are signed
-  with the Projelli Developer ID cert AND notarized by Apple, so the first
+- **macOS support** as a first-class platform. `Keepance_1.6.0_aarch64.dmg`
+  for Apple Silicon and `Keepance_1.6.0_x64.dmg` for Intel. Both are signed
+  with the Keepance Developer ID cert AND notarized by Apple, so the first
   launch goes through macOS's standard "downloaded from the Internet" prompt
   with the green "Apple checked it for malicious software" line. No
   right-click → Open dance.
 - **License activation panel** in Settings, second item under General.
   Paste the license key from the LemonSqueezy purchase email, click
-  Activate, and the app talks to `licenses.projelli.com` to verify and
+  Activate, and the app talks to `licenses.keepance.com` to verify and
   unlock all paid features. Validator service handles the LemonSqueezy
   /activate API call, issues a signed JWT, persists activation records
   for revocation tracking.
@@ -592,7 +838,7 @@ dogfood arc on real Mac and Windows installs.
   `DialogContent` uses CSS Grid, and grid items default to
   `min-width: auto`, refusing to shrink below their content's intrinsic
   width. The destination path shown above the input (e.g.
-  `/Users/.../Projelli Test Projects/3/docs/`) is one long unbreakable
+  `/Users/.../Keepance Test Projects/3/docs/`) is one long unbreakable
   string, so it expanded the grid track wider than the modal's
   `max-w-lg` cap. The full-width `<Input>` then followed the
   overinflated track. Added `min-w-0` to the body wrapper and the
@@ -603,7 +849,7 @@ dogfood arc on real Mac and Windows installs.
   Tauri plugin-fs reads `require_literal_leading_dot` from the plugin
   config and defaults it to `true` on Unix (false on Windows) — when
   true, `**/*` does NOT match paths whose final component starts with
-  a dot. Projelli's default workspace structure creates a `.trash`
+  a dot. Keepance's default workspace structure creates a `.trash`
   folder, which is a dotfile under Unix glob rules, so the scope
   check rejected it. Set `plugins.fs.requireLiteralLeadingDot: false`
   in `tauri.conf.json` to make Mac match Windows behavior. Verified
@@ -648,10 +894,10 @@ dogfood pass that reshaped the tab + tab-group interaction model.
 
 ### Added
 - Windows silent install as the double-click default. Installer shows a
-  brief progress indicator and auto-launches Projelli. No wizard
+  brief progress indicator and auto-launches Keepance. No wizard
   screens. Pass `/INTERACTIVE` on the command line to get the old
   wizard back.
-- Portable Windows `.exe` artifact (`Projelli_1.6.0_x64-portable.exe`).
+- Portable Windows `.exe` artifact (`Keepance_1.6.0_x64-portable.exe`).
   Single file you can drop anywhere, no install step. Signed via
   Azure Trusted Signing.
 - API key tutorial dialog with per-provider 5-step guides for
@@ -720,13 +966,13 @@ dogfood pass that reshaped the tab + tab-group interaction model.
 - Portable `.exe` does not auto-update (requires manual re-download).
 - Portable `.exe` can't use the MCP `.mcpb` server (sidecar binary
   not bundled). Full installer users get MCP.
-- Portable `.exe` still saves config to `%APPDATA%\Projelli` rather
+- Portable `.exe` still saves config to `%APPDATA%\Keepance` rather
   than next to the binary. True self-contained portable mode is a
   v1.7 item.
 
 ## [1.5.0] - 2026-04-16
 
-The biggest Projelli release yet. v1.5 ships four headline capabilities and
+The biggest Keepance release yet. v1.5 ships four headline capabilities and
 a wall of quality-of-life extras, all under the same "works offline, keys
 in your keychain, files on your disk" contract as v1.0.
 
@@ -766,13 +1012,13 @@ pass.
 
 - **v1.5 launch content (Phase 6), homepage refresh, template gallery, /vs comparison pages, announcement blog post.** The homepage now leads with Flag 1: the headline is "The AI workspace that remembers your stuff" and the subhead is "Local files. Your API keys. Every chat becomes a durable note. Available in every AI tool you use." The previous six-card feature grid is replaced with four cards, one per v1.5 flag (Memory, MCP, Side-by-side AI editing, Voice+Ollama), each linking to the relevant doc or external reference. The 15-template scroller is replaced with four excerpt cards from the new gallery plus a "Browse all 15" link to `/templates/`. Every em dash that had crept back into the copy is gone, and navigation (desktop, mobile, footer) now includes `/templates/` and `/vs/`. Plausible Download / GitHub / Buy click goals are already wired and still fire.
   - **Q10, `/templates/` gallery**: `website/templates/index.html` lists all 15 founder templates plus the M8 multi-interview synthesis template in a card grid. Each card has name, short description, a one-line excerpt from the worked example, and a Preview button that links to `website/templates/<slug>/index.html`, a detail page that fetches the corresponding `.md` file and renders it via `marked@12.0.2` with `DOMPurify@3.0.9` sanitization. All 16 example files (`website/templates/examples/*.md`) use a consistent fictional company (Acme Budget, a personal finance app for US freelancers, built by Maya Chen) so the documents connect into a believable workspace across templates. Every example is between 150 and 800 words, links every tool / study / benchmark claim, and contains zero em dashes and zero banned marketing-voice words. 65 new Vitest tests (`tests/unit/template-examples.test.ts`) enforce these constraints file-by-file.
-  - **Q17, `/vs/` comparison pages**: `website/vs/index.html` is a /vs landing page; `website/vs/obsidian.html`, `website/vs/notion.html`, and stretch `website/vs/chatgpt.html` are deep comparison pages. Each one has a hero + one-line verdict, a side-by-side feature table with green/amber/red pills, three or four deeper paragraphs grounded in `docs/strategy/market-assessment-2026-04/` research (citing Smart Connections's 786K downloads per [obsidian-stats](https://www.moritzjung.dev/obsidian-stats/plugins/smart-connections/), Copilot for Obsidian's 100K+ users, Ollama, MCP, Notion AI pricing), a "When to pick Projelli" list, a "When to pick [them]" list, an honest caveat about where the competitor is genuinely better, and a CTA back to `/#pricing`. Every factual claim has a live link.
+  - **Q17, `/vs/` comparison pages**: `website/vs/index.html` is a /vs landing page; `website/vs/obsidian.html`, `website/vs/notion.html`, and stretch `website/vs/chatgpt.html` are deep comparison pages. Each one has a hero + one-line verdict, a side-by-side feature table with green/amber/red pills, three or four deeper paragraphs grounded in `docs/strategy/market-assessment-2026-04/` research (citing Smart Connections's 786K downloads per [obsidian-stats](https://www.moritzjung.dev/obsidian-stats/plugins/smart-connections/), Copilot for Obsidian's 100K+ users, Ollama, MCP, Notion AI pricing), a "When to pick Keepance" list, a "When to pick [them]" list, an honest caveat about where the competitor is genuinely better, and a CTA back to `/#pricing`. Every factual claim has a live link.
   - **Homepage**: `website/index.html` title, meta description, OG tags, Twitter Card, hero H1, hero subhead, Features grid (6 cards to 4 flag cards), Templates section (15-card scroller to 4 preview excerpt cards plus "Browse all 15" button), and nav (desktop, mobile, footer) all updated. Every em dash in the file, 16 of them, replaced with commas, periods, or a parenthetical clause. The v1.0.8 quality-of-life extras (cost meter, `?` overlay, memory badge, wizard, per-template model, Mermaid, KaTeX) surface in a short paragraph below the four-flag grid so they're part of the conversion pitch.
-  - **v1.5 announcement blog post**: `website/blog/projelli-1-5-announce.html` is a ~1,200-word first-person walkthrough of the four flags, each with a demo sentence. Includes a "What didn't make it into 1.5" section that names the TipTap / DOCX / RTF editors, the still-un-pinned Parakeet.cpp binary, the absence of cloud sync / mobile / real-time collaboration / AI-agent positioning. Install / upgrade instructions cover 1.0.8+ (auto-updater), 1.0.0-1.0.7 (manual installer), and fresh installs (download link). Credit note: "Built by me on 5-10 hours a week around a day job." Added to `website/blog/index.html` at the top of the post list.
+  - **v1.5 announcement blog post**: `website/blog/keepance-1-5-announce.html` is a ~1,200-word first-person walkthrough of the four flags, each with a demo sentence. Includes a "What didn't make it into 1.5" section that names the TipTap / DOCX / RTF editors, the still-un-pinned Parakeet.cpp binary, the absence of cloud sync / mobile / real-time collaboration / AI-agent positioning. Install / upgrade instructions cover 1.0.8+ (auto-updater), 1.0.0-1.0.7 (manual installer), and fresh installs (download link). Credit note: "Built by me on 5-10 hours a week around a day job." Added to `website/blog/index.html` at the top of the post list.
   - **Content-lint tests**: `tests/unit/website-content-lint.test.ts` scans `website/index.html`, every `/templates/` page, every `/vs/` page, and every blog page touched by Phase 6 for (a) any em dash character `\u2014`, (b) any `&mdash;` HTML entity, (c) any banned marketing-voice word outside `<script>` or `<style>` blocks, (d) a present `<link rel="canonical">` tag. 100 tests in this suite pass; 165 new Phase 6 tests in total across `template-examples` and `website-content-lint`.
   - **Docs**: `docs/features/V1_5_RELEASE.md` flips Q10 and Q17 to ✅ Done with SHAs, updates the Phase 1 summary to "18 of 20 Quick Wins, ALL DONE", and logs the Phase 6 commits. All Phase 1 items are now complete (Q1-Q20 or inherited from v1.0.8). Phase 1's 🔲 Not started entries are gone.
 
-- **Template chaining (M7) — run templates end-to-end and forward one template's output into the next** — `WorkflowTemplate` now carries `namedOutputs` and `namedInputs` (each with an `acceptsOutputFrom` hint so downstream templates can declare which upstream IDs they understand). Four built-ins ship annotations for v1.5: `CompetitorAnalysis` emits `competitors` + `key_gaps`, `PricingStrategy` emits `tiers` + `anchors` and accepts `competitor_list` from `competitors`, `UserInterviews` emits `transcripts` + `common_themes`, `CustomerPersona` emits `personas` + `quotes` and accepts `interview_themes` from `common_themes` / `themes` / `killer_quotes`. A new **Chain** button in `WorkflowPanel` opens a `ChainBuilderModal` that lists steps, lets the user pick a template per step, and offers a dropdown to map any prior step's named output onto each new step's named input — with `Recommended` vs `Manual mapping` optgroups based on the `acceptsOutputFrom` metadata. Saved chains persist as JSON via `workflowChains.ts` (localStorage in the browser, `.projelli/chains/<id>.json`-ready adapter for Tauri). `WorkflowChainEngine.runChain` executes steps sequentially, calls the underlying `WorkflowEngine` per step, extracts named outputs via direct-key / `_<id>` suffix / last-generate-step fallback, and records per-step warnings for any missing mappings without aborting the chain. After any completed workflow with `namedOutputs`, the execution tab now renders a `ChainSuggestions` callout that highlights every compatible downstream template and dims the rest behind a "Other templates (manual mapping required)" disclosure. 15 new Vitest tests (`workflow-chain.test.ts`, `workflow-chain-execution.test.ts`) cover round-trip serialization, save/load, named-output resolution, input mapping, and a two-step MockProvider pipeline.
+- **Template chaining (M7) — run templates end-to-end and forward one template's output into the next** — `WorkflowTemplate` now carries `namedOutputs` and `namedInputs` (each with an `acceptsOutputFrom` hint so downstream templates can declare which upstream IDs they understand). Four built-ins ship annotations for v1.5: `CompetitorAnalysis` emits `competitors` + `key_gaps`, `PricingStrategy` emits `tiers` + `anchors` and accepts `competitor_list` from `competitors`, `UserInterviews` emits `transcripts` + `common_themes`, `CustomerPersona` emits `personas` + `quotes` and accepts `interview_themes` from `common_themes` / `themes` / `killer_quotes`. A new **Chain** button in `WorkflowPanel` opens a `ChainBuilderModal` that lists steps, lets the user pick a template per step, and offers a dropdown to map any prior step's named output onto each new step's named input — with `Recommended` vs `Manual mapping` optgroups based on the `acceptsOutputFrom` metadata. Saved chains persist as JSON via `workflowChains.ts` (localStorage in the browser, `.keepance/chains/<id>.json`-ready adapter for Tauri). `WorkflowChainEngine.runChain` executes steps sequentially, calls the underlying `WorkflowEngine` per step, extracts named outputs via direct-key / `_<id>` suffix / last-generate-step fallback, and records per-step warnings for any missing mappings without aborting the chain. After any completed workflow with `namedOutputs`, the execution tab now renders a `ChainSuggestions` callout that highlights every compatible downstream template and dims the rest behind a "Other templates (manual mapping required)" disclosure. 15 new Vitest tests (`workflow-chain.test.ts`, `workflow-chain-execution.test.ts`) cover round-trip serialization, save/load, named-output resolution, input mapping, and a two-step MockProvider pipeline.
 
 - **Multi-interview synthesis (M8) — drop 3+ transcripts, get themes + contradictions + JTBD + priority features** — A new `UserInterviewsSynthesis` template plus `MultiInterviewSynthesisPanel` that accepts transcripts three ways: forwarded from an upstream `UserInterviews` chain step, drag-dropped `.md` / `.txt` files, or pasted text separated by `---` dividers (parsed via `splitPastedTranscripts`). `runMultiInterviewSynthesis(provider, transcripts)` runs a two-phase flow: Phase A fires `structuredOutput<TranscriptSummary>()` per transcript in parallel (one quotes + themes + JTBD pass each), then Phase B hands every summary into a single cross-transcript `structuredOutput<MultiInterviewSynthesisResult>()` call. Output maps to the declared schema: `themes: [{ name, frequency, quotes }]`, `killer_quotes`, `contradictions: [{ statement_a, statement_b, sources }]`, `jtbd_frameworks: [{ job, current_solution, friction }]`, `priority_ranked_features: [{ feature, frequency, urgency, supporting_quotes }]`. The panel renders themes as collapsible sections, contradictions in amber-highlighted cards, JTBD in a table, and priority features with red/amber/muted urgency pills. A `renderSynthesisMarkdown` helper emits the same content as a Markdown file for saving to the workspace. Uses the active provider's structured-output path so Claude, OpenAI, Gemini, and Ollama (where JSON mode is available) all participate. 8 new Vitest tests (`multi-interview-synthesis.test.ts`) cover Phase-A per-transcript runs, Phase-A parallelism (measures max-in-flight = 3), Phase-B prompt composition, result shape, zero-transcript rejection, and paste-divider parsing.
 
@@ -803,7 +1049,7 @@ pass.
   - **Files added**: `src/modules/models/OllamaProvider.ts`, `src/components/settings/OllamaSettingsSection.tsx`, `tests/unit/ollama-provider.test.ts`.
   - **Files modified**: `src/modules/models/index.ts`, `src/components/settings/index.ts`, `src/components/settings/SettingsModal.tsx` (render OllamaSettingsSection under Integrations alongside McpSettingsSection), `src/components/onboarding/ApiKeyWizard.tsx` (new Ollama tile + step 3 check-connection flow + submit-with-empty-key path), `docs/reference/TAURI_COMMANDS.md` (mark Ollama stubs as legacy).
 
-- **Side-by-side AI editing with streaming diff + per-hunk accept/reject (M5) — the AI edits your doc next to you, you take only what you like** — Select any text in a Markdown or plain-text editor and a small **Ask AI** anchor appears next to the selection (or hit `Ctrl+Shift+E` / `Cmd+Shift+E`). Type an instruction like "tighten this to 3 sentences", and Projelli streams a revised version from your active provider straight into an inline diff that renders right where the selection was. Deleted lines are red and struck through; added lines are green. Once the stream finishes the diff splits into hunks, and every hunk gets its own Accept / Reject buttons. There's also Accept all / Reject all at the top. Accepted hunks apply to your document immediately; rejected hunks leave that region untouched. Every accepted hunk becomes a version-history entry tagged `author: 'ai'` with the original prompt, the provider + model, and the offset range — so you can always see what the AI changed and roll it back. This is Flag 3 of v1.5 ("AI edits your doc side-by-side with you"), and with M5 shipped, Flag 3 is complete.
+- **Side-by-side AI editing with streaming diff + per-hunk accept/reject (M5) — the AI edits your doc next to you, you take only what you like** — Select any text in a Markdown or plain-text editor and a small **Ask AI** anchor appears next to the selection (or hit `Ctrl+Shift+E` / `Cmd+Shift+E`). Type an instruction like "tighten this to 3 sentences", and Keepance streams a revised version from your active provider straight into an inline diff that renders right where the selection was. Deleted lines are red and struck through; added lines are green. Once the stream finishes the diff splits into hunks, and every hunk gets its own Accept / Reject buttons. There's also Accept all / Reject all at the top. Accepted hunks apply to your document immediately; rejected hunks leave that region untouched. Every accepted hunk becomes a version-history entry tagged `author: 'ai'` with the original prompt, the provider + model, and the offset range — so you can always see what the AI changed and roll it back. This is Flag 3 of v1.5 ("AI edits your doc side-by-side with you"), and with M5 shipped, Flag 3 is complete.
   - **Engine** (`src/modules/editor/aiEdit/streamingDiff.ts`): new pure-function layer on top of the existing LCS line diff (`src/utils/diff.ts`). Exports `computeLineDiff`, `splitIntoHunks` (single-pass scan, O(n)), `applyHunks` (deterministic re-build from the original + accept set), and `stripAccidentalMarkdownFence` (post-stream cleanup when a model wraps the whole reply in ``` regardless of the system prompt's no-fence rule).
   - **Prompt builder** (`src/modules/editor/aiEdit/editPrompt.ts`): `buildEditSystemPrompt({ selection, instruction, formatHint })` emits the compact edit system prompt. Instructs the model to output ONLY the replacement text with no preamble / no fence wrapper, to preserve original formatting cues (headings, list markers, code fences, indentation), and — when `formatHint === 'markdown' | 'plain' | 'rich'` — adds a single extra line tailored to the document format. Phase 3 M3 facts + M1/M2 `<workspace_context>` are pre-pended automatically by the provider call path.
   - **Orchestration hook** (`src/components/editor/useInlineAiEdit.ts`): `useInlineAiEdit({ adapter, getProvider, formatHint, docVersion })` owns selection tracking (anchor coords + `externalOpenSignal` counter for the keyboard shortcut), the streaming session (original + rolling proposed + hunks + per-hunk resolution), and the accept/reject application path. Everything sits behind a tiny `EditorAdapter` interface so the hook itself doesn't import CodeMirror types — `codeMirrorAdapter(view, { filePath })` adapts any CodeMirror 6 view in one function. Streaming is done via `provider.sendMessageStreaming` and is cancellable via an `AbortController`. Each accept dispatches a single `replaceRange` on the editor (keeps undo history intact) and records a `VersionService.saveVersion` with `{ author: 'ai', aiMetadata: { prompt, model, hunkIndex, hunkRange } }`.
@@ -818,15 +1064,15 @@ pass.
   - **Files added**: `src/modules/editor/aiEdit/types.ts`, `src/modules/editor/aiEdit/streamingDiff.ts`, `src/modules/editor/aiEdit/editPrompt.ts`, `src/modules/editor/aiEdit/index.ts`, `src/components/editor/InlineChatAnchor.tsx`, `src/components/editor/StreamingDiffOverlay.tsx`, `src/components/editor/useInlineAiEdit.ts`, `tests/unit/streaming-diff.test.ts`, `tests/unit/selection-anchor.test.tsx`, `tests/unit/hunk-accept-reject.test.tsx`, `tests/unit/m5-history-attribution.test.ts`.
   - **Files modified**: `src/components/editor/MarkdownEditor.tsx`, `src/components/editor/PlainTextEditor.tsx`, `src/modules/versioning/VersionService.ts`.
 
-- **Projelli MCP server + `.mcpb` Desktop Extension bundle (M4) — expose your workspace to any AI client** — The `projelli-mcp` sidecar (was a Phase 2 stub) is now a real Model Context Protocol server speaking JSON-RPC 2.0 over stdio. It exposes five tools to any MCP-compatible client (Claude Desktop, Cursor, Zed, etc.): `list_workspace_files(pattern?)`, `read_workspace_file(path)`, `search_workspace(query, top_k?=8)` (reuses the M1 local embedder + LanceDB store read-only — same result quality as the in-app `@workspace` command), `write_workspace_file(path, content, require_confirmation?=true)`, and `get_memory_facts()`. Your workspace path is supplied via the `PROJELLI_WORKSPACE_ROOT` env var so one user's install can't accidentally touch another workspace.
-  - **Approval flow for writes** — `write_workspace_file` with `require_confirmation = true` triggers a cross-process rendezvous: the sidecar drops a request JSON in `<temp>/projelli-mcp/approval-requests/<token>.json`, emits a `projelli/approval_request` line on stderr, and polls the matching `responses/<token>.json` for up to 60 seconds. The Projelli desktop app polls the same directory every second, surfaces an approval modal with a diff preview and three actions (Approve this write, Approve all this session, Deny), and drops the user's decision back as JSON. Works regardless of which MCP client spawned the sidecar because the channel lives on the filesystem, not through the client's stderr pipe.
+- **Keepance MCP server + `.mcpb` Desktop Extension bundle (M4) — expose your workspace to any AI client** — The `keepance-mcp` sidecar (was a Phase 2 stub) is now a real Model Context Protocol server speaking JSON-RPC 2.0 over stdio. It exposes five tools to any MCP-compatible client (Claude Desktop, Cursor, Zed, etc.): `list_workspace_files(pattern?)`, `read_workspace_file(path)`, `search_workspace(query, top_k?=8)` (reuses the M1 local embedder + LanceDB store read-only — same result quality as the in-app `@workspace` command), `write_workspace_file(path, content, require_confirmation?=true)`, and `get_memory_facts()`. Your workspace path is supplied via the `PROJELLI_WORKSPACE_ROOT` env var so one user's install can't accidentally touch another workspace.
+  - **Approval flow for writes** — `write_workspace_file` with `require_confirmation = true` triggers a cross-process rendezvous: the sidecar drops a request JSON in `<temp>/keepance-mcp/approval-requests/<token>.json`, emits a `keepance/approval_request` line on stderr, and polls the matching `responses/<token>.json` for up to 60 seconds. The Keepance desktop app polls the same directory every second, surfaces an approval modal with a diff preview and three actions (Approve this write, Approve all this session, Deny), and drops the user's decision back as JSON. Works regardless of which MCP client spawned the sidecar because the channel lives on the filesystem, not through the client's stderr pipe.
   - **Why hand-rolled** — MCP is plain JSON-RPC 2.0 with five methods; hand-writing it dodges rmcp's `schemars` + proc-macro deps and keeps the binary small (~151 MiB stripped — dominated by LanceDB + fastembed, which we need for real search parity anyway).
   - **Path safety** — `resolve_workspace_path` rejects absolute paths (POSIX `/` and Windows drive-letter), `..` traversal (pre-join scan + post-canonicalize ancestor check), and symlinks escaping the workspace. Read is capped at 5 MiB to match the RAG extractor.
-  - **`.mcpb` bundle** — Anthropic's DXT format. `scripts/build-mcpb.mjs` is a dependency-free zip writer that produces `dist/projelli-<target>.mcpb` with a `manifest.json` declaring `dxt_version: 0.1`, `server.type: binary`, a `mcp_config` template wiring `PROJELLI_WORKSPACE_ROOT` to `${user_config.workspace_root}`, and a `user_config.workspace_root` directory prompt so Claude Desktop shows a folder picker on install. Exec bit set on the binary so Mac/Linux clients can spawn without post-extract `chmod +x`.
+  - **`.mcpb` bundle** — Anthropic's DXT format. `scripts/build-mcpb.mjs` is a dependency-free zip writer that produces `dist/keepance-<target>.mcpb` with a `manifest.json` declaring `dxt_version: 0.1`, `server.type: binary`, a `mcp_config` template wiring `PROJELLI_WORKSPACE_ROOT` to `${user_config.workspace_root}`, and a `user_config.workspace_root` directory prompt so Claude Desktop shows a folder picker on install. Exec bit set on the binary so Mac/Linux clients can spawn without post-extract `chmod +x`.
   - **CI integration** — `.github/workflows/release.yml` now builds + uploads a `.mcpb` per platform. Mac/Linux matrix invokes `node scripts/build-mcpb.mjs` right after the binary copy; Windows job does the same in pwsh. Both jobs `gh release upload --clobber` the bundle alongside the existing installers. The draft-release body lists the `.mcpb` download explicitly.
   - **In-app Settings surface** — new **Integrations** category under Settings (`settingCategory: 'integrations'`). `McpSettingsSection.tsx` shows a status pill ("Ready to install in Claude Desktop" / "Bundle not available"), a **Download .mcpb for Claude Desktop** button that copies the resolved bundle path to the clipboard, a link to modelcontextprotocol.io, and a four-step install readme. `data-testids`: `mcp-settings-section`, `mcp-server-status`, `mcp-download-mcpb`, `mcp-download-status`, `mcp-download-error`.
   - **Approval modal** — new `McpApprovalModal.tsx` renders when the pending-approvals queue is non-empty. Shows the workspace-relative path, a line-by-line inline diff (red `- ` / green `+ `) for existing-file overwrites or full green preview for new files, plus three action buttons: `mcp-approve-write`, `mcp-approve-all-session` (per-React-tree state — NOT persisted; a deliberate safety default), `mcp-deny-write`. A "N more queued" hint shows when the queue runs deeper. Session-wide approval auto-drains the queue without surfacing the modal body, matching what users expect from repeated writes in a single agent run.
-  - **Host-side Tauri bridge** (`src-tauri/src/commands/mcp.rs`): three new commands — `mcp_list_pending_approvals` (FIFO-sorted by `receivedAt`, quiet about malformed files), `mcp_approve_write(token, approved)` (hex-only token validation, writes `{approved, reason}` JSON), `mcp_bundle_path` (Tauri resource lookup, then dev-build fallback at `<repo>/dist/projelli-<target>.mcpb`, then `null`). Wrapped in `src/utils/tauri-commands.ts` as `mcpListPendingApprovals`, `mcpApproveWrite`, `mcpBundlePath` with browser-mode fallbacks that return empty / no-op.
+  - **Host-side Tauri bridge** (`src-tauri/src/commands/mcp.rs`): three new commands — `mcp_list_pending_approvals` (FIFO-sorted by `receivedAt`, quiet about malformed files), `mcp_approve_write(token, approved)` (hex-only token validation, writes `{approved, reason}` JSON), `mcp_bundle_path` (Tauri resource lookup, then dev-build fallback at `<repo>/dist/keepance-<target>.mcpb`, then `null`). Wrapped in `src/utils/tauri-commands.ts` as `mcpListPendingApprovals`, `mcpApproveWrite`, `mcpBundlePath` with browser-mode fallbacks that return empty / no-op.
   - **Layout** — the binary is split across `src-tauri/src/bin/mcp/{main.rs, protocol.rs, tools.rs, approval.rs}` so each file stays under 400 lines. `src-tauri/src/lib.rs` flips `mod commands` to `pub mod commands` so the binary can reuse the M1 `commands::rag::{store, embedder, extractor}` sub-modules without a full workspace refactor. LanceDB is opened read-only by the binary — it supports multi-process read concurrency, so the app indexing and the MCP reading never race.
   - **Tests** — 89 new Rust tests: 28 binary unit (path traversal, glob matcher, approval tokens, JSON-RPC parse/serialize), 5 integration (`tests/mcp_binary.rs` spawns the binary with a throwaway workspace and drives `initialize` + `tools/list` + `tools/call`), 4 host-side command tests (token validation, response-file shape). Plus 19 TS Vitest tests: 5 `mcpb-builder.test.ts` (zip wire format — PKZIP local-file-header magic, EOCD entry count, filename offsets), 14 `mcp-install.test.tsx` (Settings panel render + status transitions + download success/error, approval modal path + preview + diff + three-button wiring + session-approve-all + busy-state). Total Vitest: 458 passing / 23 failing (baseline + 19 new passing, no regressions).
   - **Files added**: `src-tauri/src/bin/mcp/main.rs`, `src-tauri/src/bin/mcp/protocol.rs`, `src-tauri/src/bin/mcp/tools.rs`, `src-tauri/src/bin/mcp/approval.rs`, `src-tauri/src/commands/mcp.rs`, `src-tauri/tests/mcp_binary.rs`, `scripts/build-mcpb.mjs`, `src/components/settings/McpSettingsSection.tsx`, `src/components/settings/McpApprovalModal.tsx`, `tests/unit/mcpb-builder.test.ts`, `tests/unit/mcp-install.test.tsx`.
@@ -844,32 +1090,32 @@ pass.
   - **Test-setup polyfill** (`tests/setup.ts`): jsdom's Range implementation returns `null` from `getClientRects()` / `getBoundingClientRect`, which makes CodeMirror's measure phase throw whenever a real `EditorView` is mounted in a test. The setup file now ships a zero-height rect polyfill so the Q12 tests (which mount real editors to verify paste behavior) stay green.
   - **Tests** (`tests/unit/smart-paste-url.test.ts`): 23 new Vitest tests. Covers `isSingleUrl` matching / rejection / trim handling / non-http schemes, `isInsideCodeBlock` fenced + inline + out-of-range, `findUrlPlaceholder` exact + drifted + absent, `resolveUrlPasteReplacement` empty / whitespace / populated, plus seven extension-integration cases: placeholder insertion + title swap, empty-title fallback, throw fallback, selection linkification, non-URL fall-through, no-fire inside fenced block, no-fire inside inline backticks, and placeholder survival across mid-stream typing. Baseline stays at 23 failing / 422 passing (up from 399) with no regressions.
 
-- **Memory facts file + fact extraction (M3) — durable long-lived knowledge the AI always has** — Projelli now persists a short list of user-approved "facts" under `<workspace>/.projelli/memory.json` and prepends them to every chat system prompt as a `<memory>` block. Unlike M1 RAG (situational paragraph recall) and M2 `@workspace` (conditional retrieval), facts are **always** in the prompt, so durable context like "the user is a Senior Product Designer" or "the user ships with Projelli" frames every response without the model having to earn the retrieval. Facts can be added manually in Settings, or proposed automatically by the AI every 10 messages of a chat via a `structuredOutput` extraction pass; proposed facts show up as Accept / Edit / Reject chips below the most recent AI response, and nothing is saved without explicit user approval (unless the `factsAutoAccept` opt-in is turned on). With M3 shipped, all three pieces of v1.5 Flag 1, "the AI workspace that remembers your stuff", are live.
-  - **Storage + CRUD** (`src/modules/memory/FactsService.ts`): exports `createFactsService({ storage, generateId?, now? })` returning `loadFacts`, `saveFacts`, `addFact`, `updateFact`, `deleteFact`, `listFacts`. Persists a versioned JSON envelope (`{ version: 1, facts: Fact[] }`). Atomic write goes `.projelli/memory.json.tmp` first, then the real file, then removes the tmp (best-effort). `parseMemoryFactsJson` is defensive: invalid JSON, unknown schema versions, and corrupt rows all fall through to an empty list rather than throwing, so a bad file never bricks the app. Exports `buildFactsMemoryBlock(facts)` and `injectFactsMemory(basePrompt, facts)` for the prompt-injection path.
+- **Memory facts file + fact extraction (M3) — durable long-lived knowledge the AI always has** — Keepance now persists a short list of user-approved "facts" under `<workspace>/.keepance/memory.json` and prepends them to every chat system prompt as a `<memory>` block. Unlike M1 RAG (situational paragraph recall) and M2 `@workspace` (conditional retrieval), facts are **always** in the prompt, so durable context like "the user is a Senior Product Designer" or "the user ships with Keepance" frames every response without the model having to earn the retrieval. Facts can be added manually in Settings, or proposed automatically by the AI every 10 messages of a chat via a `structuredOutput` extraction pass; proposed facts show up as Accept / Edit / Reject chips below the most recent AI response, and nothing is saved without explicit user approval (unless the `factsAutoAccept` opt-in is turned on). With M3 shipped, all three pieces of v1.5 Flag 1, "the AI workspace that remembers your stuff", are live.
+  - **Storage + CRUD** (`src/modules/memory/FactsService.ts`): exports `createFactsService({ storage, generateId?, now? })` returning `loadFacts`, `saveFacts`, `addFact`, `updateFact`, `deleteFact`, `listFacts`. Persists a versioned JSON envelope (`{ version: 1, facts: Fact[] }`). Atomic write goes `.keepance/memory.json.tmp` first, then the real file, then removes the tmp (best-effort). `parseMemoryFactsJson` is defensive: invalid JSON, unknown schema versions, and corrupt rows all fall through to an empty list rather than throwing, so a bad file never bricks the app. Exports `buildFactsMemoryBlock(facts)` and `injectFactsMemory(basePrompt, facts)` for the prompt-injection path.
   - **Singleton + settings readers** (`src/modules/memory/factsSingleton.ts`): module-level holder for the active `FactsServiceApi` plus `setFactsInjectionReader` / `setFactsAutoAcceptReader` so the chat send path and Settings panel both read the same instance without prop-drilling. `isFactsInjectionEnabled` defaults to true on reader-throws (same defensive contract as `isMemoryEnabled`). `snapshotFactsForInjection` is the single ingress the chat viewer awaits at the top of `handleSendMessage`.
   - **Extraction** (`src/modules/memory/factsExtraction.ts`): pure state-machine functions (`shouldRunExtraction`, `markCheckpointRan`, `markRejected`, `markAccepted`, `makeInitialState`) + `runExtraction(provider, messages)` which calls `Provider.structuredOutput<{ facts: { text }[] }>` against the last 10 messages with a short schema. Error-silent-skip: any provider throw, null return, or schema-mismatched response resolves to `[]`. Throttles one extraction per 10-message window and mutes the chat after 5 consecutive rejects. Caps proposals at 3 per checkpoint.
   - **Prompt injection order** (`src/components/ai/AIChatViewer.tsx`): system prompt now assembles as `${factsPrefix}${workspacePrefix}${baseRole}${fileBlock}...`. `<memory>` is always first (durable framing), `<workspace_context>` second (situational retrieval), then the base role + open files + conversation history. Both blocks are omitted cleanly when empty; the non-memory / non-workspace code path is byte-identical to pre-M3.
   - **Proposed-facts chip UI** (`src/components/ai/AIChatViewer.tsx`): after each completed turn, `AIChatViewer` checks the extraction state machine and fires a background `runExtraction` call if the window says yes. Proposed facts render in a `ProposedFactsPanel` below the most recent message with Accept / Edit / Reject per chip. Accept saves via `FactsService.addFact` with `approved_by: 'user'` and resets the reject streak. Reject bumps the streak toward the 5-reject mute. Edit swaps the chip for an inline textarea + Save / Cancel. Auto-accept mode routes straight to `addFact({ approved_by: 'auto' })` without chips. `data-testid`: `proposed-facts-panel`, `proposed-fact-chip-{key}`, `fact-accept-{key}`, `fact-reject-{key}`, `fact-edit-{key}`, `fact-edit-input-{key}`, `fact-edit-save-{key}`, `fact-edit-cancel-{key}`, `proposed-facts-toggle`.
   - **Settings panel** (`src/components/settings/MemoryFactsSettings.tsx` + `SettingsModal.tsx`): new `Memory Facts` section rendered inside the existing Memory settings category, below the `memoryEnabled` toggle. Lists every saved fact newest-first with trash-icon delete, and a one-line "Add fact manually" input with Save. Two new schema entries (`settings/schema.ts`): `factsInjection` (default ON) and `factsAutoAccept` (default OFF). `data-testid`: `settings-facts-section`, `settings-facts-table`, `settings-facts-empty`, `settings-facts-row-{id}`, `settings-facts-delete-{id}`, `settings-facts-add-input`, `settings-facts-add`, `settings-facts-inject-toggle`, `settings-facts-auto-accept-toggle`.
-  - **Wiring** (`src/hooks/useMemoryWiring.ts`, `src/App.tsx`): the existing memory-wiring hook is extended to accept the active `WorkspaceService` and instantiate a `FactsService` bound to a `FactsStorage` adapter that resolves `.projelli/memory.json` under the current workspace root. Adapter methods go through the WorkspaceService's public `readFile` / `writeFile` / `exists` / `delete`, so path validation and backend abstraction are preserved. Injection + auto-accept toggle readers are installed on mount.
+  - **Wiring** (`src/hooks/useMemoryWiring.ts`, `src/App.tsx`): the existing memory-wiring hook is extended to accept the active `WorkspaceService` and instantiate a `FactsService` bound to a `FactsStorage` adapter that resolves `.keepance/memory.json` under the current workspace root. Adapter methods go through the WorkspaceService's public `readFile` / `writeFile` / `exists` / `delete`, so path validation and backend abstraction are preserved. Injection + auto-accept toggle readers are installed on mount.
   - **Tests** (`tests/unit/facts-service.test.ts`, `facts-extraction.test.ts`, `facts-prompt-injection.test.ts`, `facts-settings.test.tsx`): 44 new Vitest tests. Service tests cover CRUD round-trip, empty-file default, atomic write order (tmp, final, remove(tmp)), missing-`remove`-method tolerance, schema version coercion, corrupt-row skipping, and JSON round-trip. Extraction tests cover window throttling (no fire before turn 10, fire at turn 10, no fire again until turn 20), 5-reject giveup path, accept resets streak but not muted, provider-throw / null-return / schema-mismatch all resolve to `[]`, 3-fact cap, whitespace trimming, prompt content. Injection tests pin `<memory>` format + empty-omission + ordering (memory before workspace_context). Settings tests: empty state, row rendering, delete handler, add handler, empty-input disabled, Enter-submits. Total Vitest count: 355 to 399 passing; 23 pre-existing failures unchanged.
   - **Out of scope for M3**: cross-provider Memory API import (Claude Memory, ChatGPT Memory) is explicitly deferred; this is a future nice-to-have. MemoryService and the RAG engine are untouched beyond the new `<memory>` prefix in the system prompt string.
 
-- **`@workspace` + Ask-my-workspace (M2) — bring RAG retrieval into every chat** — The M1 vector store now has two user-facing entrypoints: an inline `@workspace` command that can be typed anywhere in a chat message, and a per-chat "Ask my workspace" toggle in the chat header that turns retrieval on for every turn. Both paths call `MemoryService.retrieve(query, 8)` (so the Settings toggle still gates everything with a clean no-op), then prepend a `<workspace_context>` block to the system prompt so Claude / OpenAI / Gemini all receive the same retrieved chunks through their existing `systemPrompt` field. AI responses cite sources with `[filename paragraph N]`; those citations are rendered as clickable chips that open the cited file and dispatch a `projelli:scroll-to-paragraph` event. A small "Sources" accordion beneath each retrieval-aware response lets the user see every chunk that was handed to the model, even the ones the response didn't cite directly. Commits `bd6b818` (core + parser tests) and `bfc4f1c` (UI mount tests).
+- **`@workspace` + Ask-my-workspace (M2) — bring RAG retrieval into every chat** — The M1 vector store now has two user-facing entrypoints: an inline `@workspace` command that can be typed anywhere in a chat message, and a per-chat "Ask my workspace" toggle in the chat header that turns retrieval on for every turn. Both paths call `MemoryService.retrieve(query, 8)` (so the Settings toggle still gates everything with a clean no-op), then prepend a `<workspace_context>` block to the system prompt so Claude / OpenAI / Gemini all receive the same retrieved chunks through their existing `systemPrompt` field. AI responses cite sources with `[filename paragraph N]`; those citations are rendered as clickable chips that open the cited file and dispatch a `keepance:scroll-to-paragraph` event. A small "Sources" accordion beneath each retrieval-aware response lets the user see every chunk that was handed to the model, even the ones the response didn't cite directly. Commits `bd6b818` (core + parser tests) and `bfc4f1c` (UI mount tests).
   - **Parser / prompt helpers** (`src/modules/memory/workspaceCommand.ts`): `parseWorkspaceCommand` detects `@workspace` with word boundaries (so `alex@workspace.com` doesn't trip) and strips it from the retrieval query; `buildWorkspaceContextBlock` assembles the exact `<workspace_context>` section with numbered sources + path + paragraph index + chunk text; `parseCitations` handles both `[filename paragraph N]` and the shorter `[filename §N]` form the model sometimes emits; `resolveCitationPath` maps a citation basename to a real workspace path with paragraph-index tie-breaking. Empty-query path falls back to the last two user turns so lone `@workspace` still embeds something meaningful.
   - **`AIChatViewer` integration** (`src/components/ai/AIChatViewer.tsx`): retrieval runs BEFORE the provider call; hits are attached to both the user message (for the chip) and the assistant message (for the accordion + citation resolution). Streaming + non-streaming branches both honour this; retrieval never happens mid-stream (spec explicitly forbids it). New data-testids: `workspace-command-chip`, `ask-workspace-toggle`, `chat-sources-accordion`, `chat-sources-toggle`, `chat-citation-{basename}-{paragraph}`, `chat-missing-source-warning`, `chat-message-{idx}-hint`. Graceful degrade when memory is off surfaces an inline "this message wasn't workspace-aware" hint below the message bubble.
   - **Per-chat toggle state** (`src/stores/aiChatStore.ts`): new `askWorkspaceMode: Record<chatId, boolean>` slice + `setAskWorkspaceMode` action + `useAskWorkspaceMode` selector. Persist version bumped 3 → 4 with a migration that hydrates existing chats with an empty map. `clearAllSessions` now resets the toggle map too.
-  - **Citation navigation wiring** (`src/App.tsx`, `src/components/layout/MainPanel.tsx`): new `onOpenFileAtPath?: (path, paragraphIndex?) => void | Promise<void>` prop forwarded through MainPanel to AIChatViewer. App.tsx resolves workspace-relative retrieval paths to absolute paths, reuses the existing `handleFileOpen` pipeline, and fires a `projelli:scroll-to-paragraph` `CustomEvent` so the editor integration can land in a follow-up without touching this wiring. Missing source (basename not in hits) surfaces a dismissible amber warning strip above the input.
+  - **Citation navigation wiring** (`src/App.tsx`, `src/components/layout/MainPanel.tsx`): new `onOpenFileAtPath?: (path, paragraphIndex?) => void | Promise<void>` prop forwarded through MainPanel to AIChatViewer. App.tsx resolves workspace-relative retrieval paths to absolute paths, reuses the existing `handleFileOpen` pipeline, and fires a `keepance:scroll-to-paragraph` `CustomEvent` so the editor integration can land in a follow-up without touching this wiring. Missing source (basename not in hits) surfaces a dismissible amber warning strip above the input.
   - **Message schema** (`src/types/ai.ts`): `ChatMessage` gains optional `sources?: WorkspaceSource[]` and `workspaceHint?: string` so retrieval metadata survives serialization to `.aichat` files.
   - **Tests**: 41 new Vitest tests across 4 files (307 → 348 passing; baseline 23 failures unchanged). `tests/unit/workspace-command.test.ts` (17 tests) covers every parser edge case. `tests/unit/workspace-prompt-injection.test.ts` (10 tests) pins the exact block format. `tests/unit/ask-workspace-mode.test.tsx` (8 tests) mounts the viewer with mocked providers and verifies toggle state + retrieval-before-streaming ordering + system-prompt injection + sources-on-assistant-message. `tests/unit/citation-navigation.test.tsx` (6 tests) pre-populates a chat and verifies citation chip rendering, click-through, accordion expand, and missing-source toast. `tests/setup.ts` polyfills `Element.prototype.scrollIntoView` for jsdom.
   - **Out of scope for M2 (follow-up tickets)**: paragraph-level scroll in the CodeMirror editor (App.tsx already emits the event — editor listener lands in a separate commit), Memory facts file + extraction (M3), surfacing retrieval progress / count on the cost chip.
 
-- **Local workspace memory (M1) — RAG over your files with LanceDB + fastembed-rs + e5-small** — Projelli now indexes the workspace into a local vector store so the AI can recall the right paragraph from any of your notes when you ask. Embeddings are generated on-device with a 384-dim ONNX model (intfloat/multilingual-e5-small via fastembed-rs); vectors are stored per-workspace in a LanceDB dataset under `<workspace>/.projelli/vectors/`. Nothing is sent off-device. The Settings → Memory toggle (default ON) gates the whole pipeline, and a slim banner across the top of the workspace shows live indexing progress with a Cancel button. The status bar gets a `Brain` badge that reads "Memory: ready" when idle, "Memory: indexing 47 / 312" mid-walk, and "Memory: paused" when the toggle is off. The watcher already shipped in Phase 2 now drives incremental re-index + delete on file changes, so the index stays fresh without a manual rebuild.
+- **Local workspace memory (M1) — RAG over your files with LanceDB + fastembed-rs + e5-small** — Keepance now indexes the workspace into a local vector store so the AI can recall the right paragraph from any of your notes when you ask. Embeddings are generated on-device with a 384-dim ONNX model (intfloat/multilingual-e5-small via fastembed-rs); vectors are stored per-workspace in a LanceDB dataset under `<workspace>/.keepance/vectors/`. Nothing is sent off-device. The Settings → Memory toggle (default ON) gates the whole pipeline, and a slim banner across the top of the workspace shows live indexing progress with a Cancel button. The status bar gets a `Brain` badge that reads "Memory: ready" when idle, "Memory: indexing 47 / 312" mid-walk, and "Memory: paused" when the toggle is off. The watcher already shipped in Phase 2 now drives incremental re-index + delete on file changes, so the index stays fresh without a manual rebuild.
   - **Rust deps** (`src-tauri/Cargo.toml`): `lancedb 0.21`, `fastembed 4`, `arrow-array 55`, `arrow-schema 55`, `sha2 0.10`, `walkdir 2`, `async-stream 0.3`, `anyhow 1`. Compile time grows by ~4 minutes cold and final binary ~500 MB on disk; build also requires `protoc` on the host (lance-encoding uses prost-build).
   - **Module layout** (`src-tauri/src/commands/rag/`):
     - `chunker.rs` — paragraph-aware ~384-token chunker with 64-token overlap, splits on double-newlines, char-boundary safe for UTF-8. 9 unit tests.
-    - `embedder.rs` — singleton fastembed `TextEmbedding` wrapped in `OnceCell<Arc<>>`; lazy-loads `MultilingualE5Small` on first call via `spawn_blocking` so the runtime stays responsive. `resolve_cache_dir()` prefers a bundled copy under `src-tauri/resources/embeddings/` (Phase 4 prefetch goal) and falls back to `~/.local/share/projelli/models/e5-small`. `cosine_distance_to_score()` maps LanceDB cosine distance `[0, 2]` → similarity `[0, 1]`. 7 unit tests.
-    - `extractor.rs` — text-format only for M1 (`.md`, `.markdown`, `.txt`, `.text`, `.aichat`, `.workflow`, `.json`, `.csv`, `.log`, `.yml`, `.yaml`, `.toml`). 5 MiB per-file cap. Skip-dirs include `node_modules`, `.git`, `.projelli`, `target`, `dist`, `build`. `xlsx` / `docx` / `pptx` / `rtf` are flagged TODO (frontend extractors already exist; Rust-side equivalents land in a follow-up). 6 unit tests.
+    - `embedder.rs` — singleton fastembed `TextEmbedding` wrapped in `OnceCell<Arc<>>`; lazy-loads `MultilingualE5Small` on first call via `spawn_blocking` so the runtime stays responsive. `resolve_cache_dir()` prefers a bundled copy under `src-tauri/resources/embeddings/` (Phase 4 prefetch goal) and falls back to `~/.local/share/keepance/models/e5-small`. `cosine_distance_to_score()` maps LanceDB cosine distance `[0, 2]` → similarity `[0, 1]`. 7 unit tests.
+    - `extractor.rs` — text-format only for M1 (`.md`, `.markdown`, `.txt`, `.text`, `.aichat`, `.workflow`, `.json`, `.csv`, `.log`, `.yml`, `.yaml`, `.toml`). 5 MiB per-file cap. Skip-dirs include `node_modules`, `.git`, `.keepance`, `target`, `dist`, `build`. `xlsx` / `docx` / `pptx` / `rtf` are flagged TODO (frontend extractors already exist; Rust-side equivalents land in a follow-up). 6 unit tests.
     - `store.rs` — LanceDB dataset opener + frozen schema (`id Utf8`, `path Utf8`, `paragraph_index UInt32`, `text Utf8`, `vector FixedSizeList<Float32, 384>`, `indexed_at Int64`). `chunk_id` = `sha256(path || ':' || index)` so re-index is idempotent. `upsert_chunks_for_path` deletes-then-appends. `nearest()` consumes the LanceDB query stream, downcasts the columns, returns sorted by ascending cosine distance. 4 unit tests.
     - `mod.rs` — six Tauri commands: `rag_set_workspace`, `rag_index_file`, `rag_index_workspace`, `rag_retrieve`, `rag_cancel_indexing`, `rag_delete_path`. Shared `RagState` (active workspace + AtomicBool cancel flag) registered via `manage_state()` in `lib.rs` setup. `rag_index_workspace` walks the tree with `walkdir` (filtering through `extractor::is_skipped_dir_name` + `is_indexable`), emits `rag-indexing-progress` events with `{ status, processed, total, currentPath }` per file, polls the cancel flag between files, and logs (does not abort) on per-file errors. `rag_retrieve` embeds the query, runs nearest-neighbor at `top_k`, sorts descending by score, returns frozen `Hit { path, chunkText, score, paragraphIndex }` rows.
     - `lib.rs` — registers six new commands in `tauri::generate_handler!` and calls `commands::rag::manage_state(app)` in the setup hook so all `rag_*` commands can pull `State<'_, RagState>`.
@@ -888,19 +1134,19 @@ pass.
 
 - **Internal: Rust/Tauri foundation for v1.5 Mediums (Phase 2)** — four new command modules land under `src-tauri/src/commands/` to unblock Phase 3 (Memory / RAG), Phase 4 (MCP, Canvas, Voice, Ollama), and the two deferred Quick Wins (Q12 smart paste URL, Q13 image paste). New crates added to `src-tauri/Cargo.toml`: `reqwest` (HTTP client for Ollama + URL title fetch), `tokio` (async runtime, now explicit), `futures-util` (streaming body reads), `notify` (workspace file watcher), `keyring` (native OS keychain). Heavyweight deps (`lancedb`, `fastembed`, MCP Rust SDK) are intentionally deferred to their respective phases to keep Phase 2 compile time manageable.
   - `src-tauri/src/commands/http.rs` — `fetch_url_title(url)` for Q12 smart paste (5s timeout, 10 MiB body cap, follows up to 5 redirects, returns `""` on any failure so the frontend falls back to the raw URL). Stubs for `ollama_list_models` and `ollama_chat_stream` (real implementations in Phase 4). Ships a pure `extract_title_from_html` helper with full entity decoding + whitespace collapse, unit-tested without network access (13 tests).
-  - `src-tauri/src/commands/keychain.rs` — `keychain_set`, `keychain_get`, `keychain_delete` using the `keyring` v3 crate. Default service namespace `com.projelli.app`. Returns a structured `KeychainError { kind: 'notFound' | 'noBackend' | 'denied' | 'other'; message }` the frontend can switch on. Includes `map_keyring_error` helper + 7 unit tests covering the error contract and service resolution.
+  - `src-tauri/src/commands/keychain.rs` — `keychain_set`, `keychain_get`, `keychain_delete` using the `keyring` v3 crate. Default service namespace `com.keepance.app`. Returns a structured `KeychainError { kind: 'notFound' | 'noBackend' | 'denied' | 'other'; message }` the frontend can switch on. Includes `map_keyring_error` helper + 7 unit tests covering the error contract and service resolution.
   - `src-tauri/src/commands/rag.rs` — Phase 2 stubs with a frozen `Hit { path, chunkText, score, paragraphIndex }` result type so UI can wire against the final API today. All three commands currently return a "not implemented in Phase 2" error; Phase 3 M1 will replace the bodies with LanceDB + fastembed. 2 serde round-trip tests.
   - `src-tauri/src/commands/watcher.rs` — `watch_workspace(path)` starts a recursive `notify` watcher that emits `workspace-file-changed` Tauri events with `{ path, kind }` where kind is `'create' | 'modify' | 'delete' | 'rename'`. Only one watcher is active at a time; bursts coalesce through a 200 ms per-path debounce. Ships a time-injectable `Debouncer` struct + `map_event_kind` helper with 7 unit tests.
   - `src-tauri/src/bin/mcp.rs` — stub MCP server binary (exits 0 with a marker log) plus a matching `[[bin]]` entry in `Cargo.toml`. The real MCP implementation lands in Phase 4 M4; the stub exists so the release pipeline can cross-compile and stage the sidecar on every platform today.
-  - `src-tauri/binaries/.gitkeep` + `src-tauri/resources/.gitkeep` + `src-tauri/resources/embeddings/.gitkeep` — reserved directories for Tauri `externalBin` + `resources` bundling. Phase 4 populates `binaries/` with `projelli-mcp-<target>`; Phase 3 M1 drops the e5-small ONNX model under `resources/embeddings/`.
+  - `src-tauri/binaries/.gitkeep` + `src-tauri/resources/.gitkeep` + `src-tauri/resources/embeddings/.gitkeep` — reserved directories for Tauri `externalBin` + `resources` bundling. Phase 4 populates `binaries/` with `keepance-mcp-<target>`; Phase 3 M1 drops the e5-small ONNX model under `resources/embeddings/`.
   - `src-tauri/tauri.conf.json` — `bundle.resources` now set to `["resources/**/*"]` so future model files are picked up automatically. CSP `connect-src` gains `http://127.0.0.1:11434` for Ollama (Phase 4); the rest of the policy is unchanged.
   - `src-tauri/src/lib.rs` — all ten new commands registered in `tauri::generate_handler!`. Unused `tauri::Manager` import cleaned up to satisfy `clippy -D warnings`; `commands::fs::SystemTime` import similarly dropped.
   - `src/utils/tauri-commands.ts` — TypeScript wrappers for each new command (`fetchUrlTitle`, `keychainSet/Get/Delete`, `ragIndexFile/IndexWorkspace/Retrieve`, `watchWorkspace`) plus exported `KeychainError`, `RagHit`, `WorkspaceChangeEvent`, `WorkspaceChangeKind` types. Each wrapper gates on `isTauri()` with a documented browser fallback.
   - `docs/reference/TAURI_COMMANDS.md` — new reference doc for every existing + new command (signatures, error conditions, frontend examples) plus an "adding a new command" checklist.
-  - `.github/workflows/release.yml` — Mac/Linux and Windows jobs now build `projelli-mcp` per platform with `cargo build --release --bin projelli-mcp` and stage the binary under `src-tauri/binaries/projelli-mcp-<target-triple>` before `tauri build`. Includes a TODO for the Phase 4 M6 Parakeet sidecar step.
+  - `.github/workflows/release.yml` — Mac/Linux and Windows jobs now build `keepance-mcp` per platform with `cargo build --release --bin keepance-mcp` and stage the binary under `src-tauri/binaries/keepance-mcp-<target-triple>` before `tauri build`. Includes a TODO for the Phase 4 M6 Parakeet sidecar step.
 
 - **Template fork / remix (Q19)** — every template in the workflow picker now has a Duplicate button (Copy icon). Clicking opens a modal with the template's name and first-generate-step system prompt editable. Saving persists a new user template (id `<original-id>-user-<timestamp>`, `isUser: true`) which then appears in the picker alongside the built-ins, tagged with a Custom badge. User templates can be deleted via a trash icon with a confirm prompt. Built-ins are never mutated.
-  - `src/modules/workflow/userTemplates.ts` — new module. Pure CRUD API (`listUserTemplates`, `saveUserTemplate`, `deleteUserTemplate`, `clearUserTemplates`, `loadAllTemplates`), fork helpers (`duplicateTemplate`, `setSystemPrompt`, `getSystemPrompt`), and a swappable storage adapter (`UserTemplateStorage`) so tests can run in-memory and Tauri builds can later mount a filesystem adapter pointing at `~/.projelli/user-templates/`. Default adapter uses `localStorage` (storage key `projelli:userWorkflowTemplates`). Stored JSON is an array of `WorkflowTemplate`; malformed JSON is tolerated (returns empty list).
+  - `src/modules/workflow/userTemplates.ts` — new module. Pure CRUD API (`listUserTemplates`, `saveUserTemplate`, `deleteUserTemplate`, `clearUserTemplates`, `loadAllTemplates`), fork helpers (`duplicateTemplate`, `setSystemPrompt`, `getSystemPrompt`), and a swappable storage adapter (`UserTemplateStorage`) so tests can run in-memory and Tauri builds can later mount a filesystem adapter pointing at `~/.keepance/user-templates/`. Default adapter uses `localStorage` (storage key `keepance:userWorkflowTemplates`). Stored JSON is an array of `WorkflowTemplate`; malformed JSON is tolerated (returns empty list).
   - `src/types/workflow.ts` — extended earlier with `isUser?: boolean` (Q8 commit). User templates always have this set.
   - `src/components/workflow/WorkflowPanel.tsx` — loads the combined built-in + user template list via `loadAllTemplates()`, adds Duplicate + Delete buttons per card (both in the sidebar list and the full-view modal grid), Custom badge for user templates, and a new `TemplateForkModal` dialog with an editable name + 8-row `<textarea>` for the system prompt. `data-testid`: `template-picker-duplicate-{id}`, `template-picker-delete-{id}`, `workflow-modal-duplicate-{id}`, `workflow-modal-delete-{id}`, `workflow-user-badge-{id}`, `workflow-modal-user-badge-{id}`, `template-fork-modal`, `template-fork-name`, `template-fork-system-prompt`, `template-fork-save`.
   - `src/App.tsx` — `SettingsModal` now receives `loadAllTemplates()` so the Q8 Settings -> Templates table lists user templates with the Custom badge alongside built-ins.
@@ -946,7 +1192,7 @@ pass.
 - **Sample workspace on first run (Q11)** — FirstRunWizard now offers a toggle (default ON) to populate the newly-selected workspace with three realistic Markdown samples so new users see what a finished workflow output looks like before they run their first one. Samples are written via `WorkspaceService.writeFile`; collisions get `(1)`, `(2)` suffixes rather than overwriting. Failure to copy samples does not block onboarding completion.
   - `src/onboarding/samples/Sample - Pricing Strategy.md`, `Sample - Pitch Deck.md`, `Sample - Weekly Review.md` — ~200-400 word realistic founder-voiced outputs for a fictional product ("Acme Budget", a personal finance app for freelancers). No em dashes, contractions, first-person singular, concrete nouns.
   - `src/onboarding/samples/index.ts` — raw-imports the three markdown files via Vite `?raw`, exposes `SAMPLE_FILES` array and `writeSampleFiles(workspace)` helper that writes non-colliding filenames via the supplied workspace abstraction.
-  - `src/components/onboarding/FirstRunWizard.tsx` — new `workspace` prop (optional), `populateSamples` state (default true), toggle UI on the demo step with `data-testid="first-run-samples-toggle"`, `isFinishing` state while samples are being written. Onboarding completion marks `projelli_onboarding_complete` even if the sample copy fails.
+  - `src/components/onboarding/FirstRunWizard.tsx` — new `workspace` prop (optional), `populateSamples` state (default true), toggle UI on the demo step with `data-testid="first-run-samples-toggle"`, `isFinishing` state while samples are being written. Onboarding completion marks `keepance_onboarding_complete` even if the sample copy fails.
   - `tests/unit/samples.test.ts` — 14 tests verifying file existence, no em dashes, `# Sample:` heading format, non-trivial size, index export.
   - `tests/unit/first-run-samples.test.tsx` — 4 RTL tests covering toggle presence/default, 3x writeFile when on, no writeFile when off, and onboarding-complete flag.
 
@@ -963,7 +1209,7 @@ pass.
   - `src/components/editor/MarkdownPreview.tsx` — math expressions extracted to opaque placeholders alongside mermaid blocks, rendered synchronously via `katex.renderToString`. KaTeX CSS imported at the component level.
   - `tests/unit/markdown-preview-katex.test.ts` — 7 unit tests covering inline/block rendering, ordering, currency guard, escape guard, spy-on-katex call args, and graceful fallback on invalid math.
 
-- **Audit log export to JSON and CSV (Q5)** — the JSON and CSV buttons in the audit log panel now produce real downloads of the currently-filtered entries. JSON is pretty-printed with 2-space indentation; CSV follows RFC 4180 (quotes `,`, `"`, CR, LF; doubles embedded quotes; CRLF separators). Filenames follow `projelli-audit-YYYY-MM-DDTHH-mm-ss.{json|csv}` in local time. CSV columns include future-proof `tokens_in`, `tokens_out`, `cost_usd` for the Wave 1.2 cost dashboard (empty until populated).
+- **Audit log export to JSON and CSV (Q5)** — the JSON and CSV buttons in the audit log panel now produce real downloads of the currently-filtered entries. JSON is pretty-printed with 2-space indentation; CSV follows RFC 4180 (quotes `,`, `"`, CR, LF; doubles embedded quotes; CRLF separators). Filenames follow `keepance-audit-YYYY-MM-DDTHH-mm-ss.{json|csv}` in local time. CSV columns include future-proof `tokens_in`, `tokens_out`, `cost_usd` for the Wave 1.2 cost dashboard (empty until populated).
   - `src/utils/audit-export.ts` — new pure helpers: `entriesToJSON`, `entriesToCSV`, `buildExportFilename`, `triggerDownload`, `downloadAuditJSON`, `downloadAuditCSV`, `filterEntries`, `uniqueModels`. No React / Tauri coupling below the download layer.
   - `src/components/common/AuditLog.tsx` — export buttons always render (previously hidden when no callback supplied). Component default-implements `downloadAudit{JSON,CSV}`; callback props still accepted as an override so callers can swap in a custom path (e.g. Tauri save dialog). New `data-testid` attributes `audit-log-export-json-btn` and `audit-log-export-csv-btn`. Filter logic routed through the shared `filterEntries` helper.
   - `tests/unit/audit-export.test.ts` — 34 tests covering CSV escaping (commas, quotes, newlines, CRLF), JSON shape, filename format, `uniqueModels`, `filterEntries` composition, and `triggerDownload` DOM side effects (object URL creation + revocation).
@@ -974,7 +1220,7 @@ pass.
 
 ## [1.0.8] - 2026-04-16
 
-The first release with auto-updates. From now on, Projelli checks for new
+The first release with auto-updates. From now on, Keepance checks for new
 versions on launch and installs them with one click, so you never have to
 hunt down a new installer again. This release also ships a full document
 suite (Excel, Word, PowerPoint, RTF), ambient AI context, persistent
@@ -985,7 +1231,7 @@ workflow executions, and a redesigned brand experience.
 - **Auto-update system** (headline feature)
   - `tauri-plugin-updater` wired into the Tauri shell with a check-then-prompt UI
   - Settings panel surfaces update state and a manual "Check for updates" button
-  - Releases point at `https://github.com/projelli/projelli/releases/latest/download/latest.json`
+  - Releases point at `https://github.com/keepance/keepance/releases/latest/download/latest.json`
   - New minisign pubkey embedded in `tauri.conf.json` for signature verification
   - Desktop-only target filter keeps the iOS/Android crate graph slim
 
@@ -1035,8 +1281,8 @@ workflow executions, and a redesigned brand experience.
 
 ### Changed
 
-- **Redesigned start screen** with a white, branded, full-viewport layout featuring the coral Projelli logo and a gradient glow
-- **Installer branding** refreshed with new Projelli logo BMPs and NSIS installer hooks
+- **Redesigned start screen** with a white, branded, full-viewport layout featuring the coral Keepance logo and a gradient glow
+- **Installer branding** refreshed with new Keepance logo BMPs and NSIS installer hooks
 - **Horizontal-scrolling tab bar** replaces the old wrapping behavior, with overflow navigation buttons
 - **Reactive auto-save indicator** — shows real state (saving, saved, unsaved, error) with a spinner and relative time
 - **Theme toggle** cycles System → Light → Dark and follows the OS setting
@@ -1101,8 +1347,8 @@ release pipeline end-to-end. Pre-release; draft on GitHub.
   - Cert generated server-side via OpenSSL (no Mac required)
   - Tauri 2 + tauri-action handles the .app and .dmg signing
 - **Azure Trusted Signing** for Windows builds
-  - Service principal `projelli-github-actions` with role `Trusted Signing Certificate Profile Signer`
-  - Cert profile `projelli-public-trust` (Public Trust type)
+  - Service principal `keepance-github-actions` with role `Trusted Signing Certificate Profile Signer`
+  - Cert profile `keepance-public-trust` (Public Trust type)
   - .exe and .msi signed by Microsoft Trusted Root Program cert (no SmartScreen warning)
 - **`.gitattributes`** to normalize line endings to LF (stops CRLF noise from Windows-authored repo)
 - **`infra/deploy.sh`** for website deploys (rsync + ownership + Cloudflare cache purge)
@@ -1168,7 +1414,7 @@ release pipeline end-to-end. Pre-release; draft on GitHub.
   - Previously all chats used hardcoded `ClaudeProvider` with `claude-sonnet-4-20250514` — now each provider and model works correctly
   - Files modified: `ai.ts`, `AIAssistantPane.tsx`, `useAIChatFiles.ts`, `AIChatViewer.tsx`
 
-- **Custom Windows Installer Branding (WIN-003)** - NSIS installer now shows Projelli branding
+- **Custom Windows Installer Branding (WIN-003)** - NSIS installer now shows Keepance branding
   - Created `src-tauri/icons/installer-header.bmp` (150x57px) and `installer-sidebar.bmp` (164x314px) with brand colors
   - Updated `tauri.conf.json` NSIS config with `headerImage` and `sidebarImage`
 
@@ -1180,7 +1426,7 @@ release pipeline end-to-end. Pre-release; draft on GitHub.
 ### Added
 - **Dynamic Model List Fetching** - AI model dropdowns now auto-populate from provider APIs instead of being hardcoded
   - On startup, fetches available models from Anthropic, OpenAI, and Google APIs for providers with valid keys
-  - 24-hour localStorage cache (`projelli_models_{provider}`) prevents redundant API calls
+  - 24-hour localStorage cache (`keepance_models_{provider}`) prevents redundant API calls
   - Graceful fallback chain: fresh API response → stale cache → hardcoded defaults
   - 10-second fetch timeout via AbortController prevents UI blocking
   - New files created:

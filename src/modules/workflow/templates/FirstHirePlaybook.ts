@@ -1,6 +1,6 @@
 // First Hire Playbook Workflow Template
 // Generates a job description, interview rubric, scoring scorecard, and
-// onboarding plan for a founder making their first hire.
+// onboarding plan for a professional making their first hire.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 
@@ -28,7 +28,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'A few sentences. What does it do, what stage, what\'s the team size today?',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., We\'re a 1-person SaaS shipping productivity tools for indie founders. ~$8K MRR, 6 months in. I\'m the founder and only employee. Looking for the second person on the team.',
+    placeholder: 'e.g., Solo law practice, 3 years in practice, growing faster than I can handle alone. Looking to hire a first associate or paralegal to take on overflow work and help with client intake.',
   },
   {
     id: 'whyThisRole',
@@ -36,7 +36,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'What problem will this hire solve? What changes after they start?',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., I\'m the bottleneck on engineering velocity and customer success at the same time. Bringing on an engineer lets me focus on customer-facing work and unblocks the product roadmap.',
+    placeholder: 'e.g., I\'m the bottleneck on both billable client work and practice management. Bringing on support lets me focus on the work only I can do and stop losing billable hours to admin.',
   },
   {
     id: 'topResponsibilities',
@@ -44,7 +44,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'What will this person do day-to-day in their first 6 months?',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., 1) Own the backend codebase end-to-end, 2) Ship 2-3 features per month, 3) Handle production issues, 4) Help shape the engineering culture as we grow',
+    placeholder: 'e.g., 1) Handle client intake and initial consultations, 2) Draft standard documents for review, 3) Manage matter files and deadlines, 4) Take on independent client matters with light supervision',
   },
   {
     id: 'mustHaveSkills',
@@ -52,7 +52,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'What are the non-negotiables?',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., 5+ years building production web apps, strong TypeScript, comfortable with Postgres, has shipped at a startup before',
+    placeholder: 'e.g., 2+ years of relevant experience, licensed in our jurisdiction (if applicable), strong written communication, comfortable working independently with light supervision',
   },
   {
     id: 'niceToHave',
@@ -60,7 +60,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Things that would be great but aren\'t deal-breakers.',
     type: 'textarea',
     required: false,
-    placeholder: 'e.g., Tauri/Rust experience, design sense, prior founding-engineer experience',
+    placeholder: 'e.g., Experience in our specific practice area, existing client relationships, bilingual, familiarity with our case management software',
   },
   {
     id: 'compensation',
@@ -81,7 +81,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
 ];
 
-const jdPrompt = `You are helping a founder write a job description for their first hire.
+const jdPrompt = `You are helping a professional write a job description for their first hire.
 
 **Role:** {{role}} ({{roleType}})
 **Company context:** {{companyContext}}
@@ -94,19 +94,19 @@ const jdPrompt = `You are helping a founder write a job description for their fi
 
 Write a job description that:
 
-1. **Doesn't sound like a corporate job posting.** This is a founder's first hire. The tone should be honest, specific, and a little bit personal — like a founder pitching the role over coffee, not an HR document.
+1. **Doesn't sound like a corporate job posting.** This is a professional's first hire. The tone should be honest, specific, and a little bit personal — like a professional pitching the role over coffee, not an HR document.
 2. **Starts with the company story** — why this exists, what it does, who it's for. 2-3 short paragraphs max.
-3. **Explains why this role exists** — what's broken without it, what the founder is trying to accomplish by hiring.
+3. **Explains why this role exists** — what's broken without it, what the professional is trying to accomplish by hiring.
 4. **Lists responsibilities** clearly but doesn't overdo the bullet points. The reader should be able to picture what their week will look like.
 5. **Lists must-haves and nice-to-haves separately** — and is honest that the nice-to-haves are nice-to-haves.
-6. **Is upfront about compensation.** Don't hide the salary range. Founders who hide salary attract worse candidates and waste everyone's time.
+6. **Is upfront about compensation.** Don't hide the salary range. Hiding it attracts mismatched candidates and wastes everyone's time.
 7. **Describes what this person will get from the role** — equity, learning, autonomy, the chance to shape something early. The pitch.
 8. **Includes "How to apply"** — a simple, low-friction process. Not a 5-step ATS form.
 9. **Avoids cliches** — no "rockstar", no "ninja", no "fast-paced environment", no "we're not just a company, we're a family". Specific over generic, always.
 
 Output format: Markdown, suitable for posting on a job board, the company website, or sharing as a Notion page.`;
 
-const rubricPrompt = `You are helping a founder build a structured interview rubric for the {{role}} hire.
+const rubricPrompt = `You are helping a professional build a structured interview rubric for the {{role}} hire.
 
 Top responsibilities: {{topResponsibilities}}
 Must-have skills: {{mustHaveSkills}}
@@ -114,7 +114,7 @@ Must-have skills: {{mustHaveSkills}}
 Generate an interview rubric that includes:
 
 1. **# Interview Rubric: {{role}}**
-2. **Interview process overview** — what the stages are (e.g., screening call, take-home or live exercise, founder deep-dive, reference check). For each stage, what's being evaluated and how long it takes.
+2. **Interview process overview** — what the stages are (e.g., screening call, take-home or live exercise, in-depth interview with the principal, reference check). For each stage, what's being evaluated and how long it takes.
 3. **For each interview stage, a structured question list** — 5-8 questions per stage, each tagged with what it's testing for (skill, judgment, culture, motivation, communication)
 4. **A scoring scale** for each dimension (1 = clear no, 5 = strong yes). Be specific about what each score level means — don't just say "1-5", say what behaviors map to each score.
 5. **Red flags to watch for** — at least 5 things that should trigger a "no" or a deep dive in the next stage
@@ -122,7 +122,7 @@ Generate an interview rubric that includes:
 
 Format as Markdown. Be concrete and specific to the role, not generic.`;
 
-const onboardingPrompt = `You are helping a founder design an onboarding plan for their first hire ({{role}}).
+const onboardingPrompt = `You are helping a professional design an onboarding plan for their first hire ({{role}}).
 
 Top responsibilities: {{topResponsibilities}}
 Company context: {{companyContext}}
@@ -130,8 +130,8 @@ Company context: {{companyContext}}
 Generate a 30/60/90 day onboarding plan in Markdown with:
 
 1. **# Onboarding Plan: {{role}}**
-2. **Pre-start (week before they begin)** — what the founder needs to do: hardware setup, accounts created, intro emails, first-day prep
-3. **Day 1** — concrete schedule for the first day. What they read, who they meet (likely just the founder if it's first hire), what they ship by end of day (a small win matters).
+2. **Pre-start (week before they begin)** — what the professional needs to do: hardware setup, accounts created, intro emails, first-day prep
+3. **Day 1** — concrete schedule for the first day. What they read, who they meet (likely just the professional if it's first hire), what they ship by end of day (a small win matters).
 4. **Week 1** — what they ship, what they learn, what 1:1s look like
 5. **Days 1-30** — goals, deliverables, learning targets. End-of-month review checklist.
 6. **Days 31-60** — what changes once they're past onboarding. Shift toward independent ownership.
@@ -164,7 +164,7 @@ export const FirstHirePlaybook: WorkflowTemplate = {
       config: {
         outputFile: 'hiring/{{role}}/job-description.md',
         promptTemplate: jdPrompt,
-        systemPrompt: 'You are an experienced startup hiring advisor. You have helped hundreds of founders make their first hire. You know what works (specific, honest, founder-voiced JDs) and what doesn\'t (cliches, hidden salary, corporate language).',
+        systemPrompt: 'You are an experienced practice-building advisor. You have helped many solo practitioners and small firms make their first hire. You know what works (specific, honest, direct job descriptions) and what doesn\'t (cliches, hidden salary, corporate language).',
       } as GenerateStepConfig,
     },
     {
@@ -175,7 +175,7 @@ export const FirstHirePlaybook: WorkflowTemplate = {
       config: {
         outputFile: 'hiring/{{role}}/interview-rubric.md',
         promptTemplate: rubricPrompt,
-        systemPrompt: 'You are a hiring manager who has interviewed hundreds of candidates and trained other founders on structured interviewing. You believe in rubrics over gut feel.',
+        systemPrompt: 'You are a hiring manager who has interviewed hundreds of candidates and helped solo practitioners and small firms build structured interview processes. You believe in rubrics over gut feel.',
       } as GenerateStepConfig,
     },
     {

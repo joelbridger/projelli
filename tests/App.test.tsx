@@ -6,7 +6,7 @@ describe('App', () => {
   it('renders the workspace selector welcome pitch', () => {
     render(<App />);
     // v1.0.8 branded start screen replaced the "Welcome to Business OS"
-    // heading with the Projelli SVG wordmark + a pitch line. Assert on
+    // heading with the Keepance SVG wordmark + a pitch line. Assert on
     // the pitch data-testid so this doesn't re-break on future copy tweaks.
     expect(screen.getByTestId('welcome-dialog-pitch')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-dialog-pitch').textContent).toMatch(

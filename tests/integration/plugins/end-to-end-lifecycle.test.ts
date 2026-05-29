@@ -244,7 +244,7 @@ function makePairedWorkerFactory(modules: Record<string, PluginModule>): {
 // ---------------------------------------------------------------------------
 
 const APP_VERSION = '2.0.0';
-const INSTALL_ROOT = '/ws/.projelli/plugins';
+const INSTALL_ROOT = '/ws/.keepance/plugins';
 
 function seedPlugin(fakeFs: FakeFs, fixture: PluginFixture): void {
   fakeFs.files.set(

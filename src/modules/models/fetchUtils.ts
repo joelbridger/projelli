@@ -147,7 +147,7 @@ export class ApiResponseParseError extends Error {
    */
   toDiagnostic(): string {
     const lines: string[] = [];
-    lines.push('=== Projelli API Parse Error Diagnostic ===');
+    lines.push('=== Keepance API Parse Error Diagnostic ===');
     lines.push(`Time: ${new Date().toISOString()}`);
     lines.push(`Parse error: ${this.parseErrorMessage}`);
     lines.push(`Body length: ${this.bodyLength} chars`);

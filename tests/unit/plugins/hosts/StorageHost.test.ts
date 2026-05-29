@@ -2,7 +2,7 @@
 //
 // Coverage:
 //  - get/set/remove round-trip via dispatch (api-call surface)
-//  - Keys are namespaced `projelli:plugin:<pluginId>:<key>` so two plugins
+//  - Keys are namespaced `keepance:plugin:<pluginId>:<key>` so two plugins
 //    using the same user-key do not collide
 //  - Lower-level get/set/remove + getSetting/setSetting/removeSetting work
 //  - Settings sub-namespace (`:settings:`) does not collide with plain storage
@@ -110,9 +110,9 @@ describe('StorageHost — namespacing', () => {
     expect(host.handle({ pluginId: 'plugin-b', method: 'storage.get', args: ['shared'] })).toBe('B');
   });
 
-  it('uses the canonical projelli:plugin:<id>:<key> key prefix', () => {
+  it('uses the canonical keepance:plugin:<id>:<key> key prefix', () => {
     host.set('alpha', 'k', 1);
-    expect(backend.getItem('projelli:plugin:alpha:k')).toBe('1');
+    expect(backend.getItem('keepance:plugin:alpha:k')).toBe('1');
   });
 
   it('settings sub-namespace does not collide with plain storage of the same key', () => {
@@ -139,7 +139,7 @@ describe('StorageHost — JSON round-trip fidelity', () => {
   });
 
   it('falls back to the raw string when storage was hand-edited to non-JSON', () => {
-    backend.setItem('projelli:plugin:p:k', 'not-json');
+    backend.setItem('keepance:plugin:p:k', 'not-json');
     expect(host.get('p', 'k')).toBe('not-json');
   });
 });

@@ -1,8 +1,8 @@
-# projelli/community-templates
+# keepance/community-templates
 
-The community catalog of workflow templates for [Projelli](https://projelli.com).
+The community catalog of workflow templates for [Keepance](https://keepance.com).
 
-Anything in this repo's `entries/` folder shows up in the in-app marketplace. Users browse, install, and run these templates from inside Projelli without ever leaving the app.
+Anything in this repo's `entries/` folder shows up in the in-app marketplace. Users browse, install, and run these templates from inside Keepance without ever leaving the app.
 
 ## What's in here
 
@@ -16,7 +16,7 @@ Anything in this repo's `entries/` folder shows up in the in-app marketplace. Us
 ### 1. Fork this repo
 
 ```
-gh repo fork projelli/community-templates
+gh repo fork keepance/community-templates
 ```
 
 Or click Fork on github.com.
@@ -39,7 +39,7 @@ The folder name MUST match `manifest.id` exactly. The build script enforces this
 
 ### 3. Author the manifest
 
-Your `manifest.json` follows the [TemplateManifest schema](https://github.com/projelli/projelli/blob/master/src/types/templateManifest.ts). Required fields:
+Your `manifest.json` follows the [TemplateManifest schema](https://github.com/keepance/keepance/blob/master/src/types/templateManifest.ts). Required fields:
 
 ```json
 {
@@ -57,7 +57,7 @@ Your `manifest.json` follows the [TemplateManifest schema](https://github.com/pr
     { "path": "workflow.json", "type": "workflow-definition" },
     { "path": "questions.json", "type": "interview-questions" }
   ],
-  "minProjelliVersion": "2.0.0"
+  "minKeepanceVersion": "2.0.0"
 }
 ```
 
@@ -118,4 +118,4 @@ Bump `version` in your manifest, update the files, and open a PR with the change
 
 ## Removing a template
 
-Open a PR that deletes the entry folder. Existing installs in user copies of Projelli keep working; the template just disappears from the marketplace.
+Open a PR that deletes the entry folder. Existing installs in user copies of Keepance keep working; the template just disappears from the marketplace.

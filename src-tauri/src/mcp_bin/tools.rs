@@ -27,7 +27,7 @@ pub fn describe_tools() -> Vec<Value> {
     vec![
         json!({
             "name": "list_workspace_files",
-            "description": "List all files in the user's Projelli workspace. Optionally filter by a glob pattern like '**/*.md'. Returns workspace-relative paths.",
+            "description": "List all files in the user's Keepance workspace. Optionally filter by a glob pattern like '**/*.md'. Returns workspace-relative paths.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -40,7 +40,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "read_workspace_file",
-            "description": "Read a file from the user's Projelli workspace. Path must be workspace-relative; absolute paths and '..' traversal are rejected.",
+            "description": "Read a file from the user's Keepance workspace. Path must be workspace-relative; absolute paths and '..' traversal are rejected.",
             "inputSchema": {
                 "type": "object",
                 "required": ["path"],
@@ -54,7 +54,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "search_workspace",
-            "description": "Semantic search across the user's Projelli workspace using the same local embedding model the app uses for @workspace queries. Returns the top-k most relevant paragraphs with their source paths.",
+            "description": "Semantic search across the user's Keepance workspace using the same local embedding model the app uses for @workspace queries. Returns the top-k most relevant paragraphs with their source paths.",
             "inputSchema": {
                 "type": "object",
                 "required": ["query"],
@@ -74,7 +74,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "write_workspace_file",
-            "description": "Write (or overwrite) a file in the user's Projelli workspace. By default the user is prompted to approve the write — pass `require_confirmation: false` to skip the prompt (not recommended).",
+            "description": "Write (or overwrite) a file in the user's Keepance workspace. By default the user is prompted to approve the write — pass `require_confirmation: false` to skip the prompt (not recommended).",
             "inputSchema": {
                 "type": "object",
                 "required": ["path", "content"],
@@ -97,7 +97,7 @@ pub fn describe_tools() -> Vec<Value> {
         }),
         json!({
             "name": "get_memory_facts",
-            "description": "Return the user's durable memory facts stored in '.projelli/memory.json'. These are short, user-approved statements the AI is meant to always know.",
+            "description": "Return the user's durable memory facts stored in '.keepance/memory.json'. These are short, user-approved statements the AI is meant to always know.",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
@@ -298,7 +298,7 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
         .map_err(|e| JsonRpcError::internal(format!("list tables: {e}")))?;
     if !names.iter().any(|n| n == store::TABLE_NAME) {
         return Ok(vec![super::text_content(
-            "Workspace hasn't been indexed yet. Open the workspace in Projelli to build the index.",
+            "Workspace hasn't been indexed yet. Open the workspace in Keepance to build the index.",
         )]);
     }
     let table = conn
@@ -440,7 +440,7 @@ use std::io::Write;
 // ---------------------------------------------------------------------------
 
 pub async fn get_memory_facts(ctx: &ServerCtx, _args: Value) -> Result<Vec<Value>, JsonRpcError> {
-    let facts_path = ctx.workspace_root.join(".projelli").join("memory.json");
+    let facts_path = ctx.workspace_root.join(".keepance").join("memory.json");
     if !facts_path.exists() {
         return Ok(vec![super::text_content(
             "(no memory facts — the user hasn't approved any yet)",

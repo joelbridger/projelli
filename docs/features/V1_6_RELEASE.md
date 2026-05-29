@@ -1,4 +1,4 @@
-# Projelli v1.6 Release Tracking
+# Keepance v1.6 Release Tracking
 
 > **Current state:** ✅ **SHIPPED 2026-04-27.** `v1.6.0` is the public
 > Latest release on GitHub. Mac (aarch64 + Intel) DMGs are notarized,
@@ -8,7 +8,7 @@
 > rehearsal during the ship session. Auto-updater path valid for the
 > v1.0.8 → v1.6.0 upgrade (pubkey unchanged across releases).
 >
-> **Public URL:** https://github.com/projelli/projelli/releases/tag/v1.6.0
+> **Public URL:** https://github.com/keepance/keepance/releases/tag/v1.6.0
 > **Integration branch:** `release/v1.6` (ff-merged into `master` at ship time).
 > **Commits since fork:** ~165 across rc.1 → rc.17 → v1.6.0.
 
@@ -44,7 +44,7 @@
 | `v1.6.0-rc.12` | 2026-04-23 | ✅ Added explicit codesign step for the MCP sidecar before Tauri bundles it into `.app/Contents/Resources/binaries/`. Notarization passed. First fully-Gatekeeper-clean Mac build. |
 | `v1.6.0-rc.13` | 2026-04-27 | ⚠️ Wired LicenseSettings into the Settings modal (component existed but was never imported). Built green; rc.14 bug surfaced when Allison opened Settings. |
 | `v1.6.0-rc.14` | 2026-04-27 | ⚠️ Added `'license'` to the `visibleCategories` auto-add block so the License nav button actually renders. Built green; CSP error on activation surfaced rc.15. |
-| `v1.6.0-rc.15` | 2026-04-27 | ⚠️ Added `https://licenses.projelli.com` to CSP `connect-src` AND http:default capability scope. CI build failed at protoc install (GitHub releases API returning empty for authenticated requests). |
+| `v1.6.0-rc.15` | 2026-04-27 | ⚠️ Added `https://licenses.keepance.com` to CSP `connect-src` AND http:default capability scope. CI build failed at protoc install (GitHub releases API returning empty for authenticated requests). |
 | `v1.6.0-rc.16` | 2026-04-27 | ❌ Pinned arduino/setup-protoc version to "25.9" (was "25.x"). Same auth-token-API failure — the action queries the API even with a pinned version. |
 | `v1.6.0-rc.17` | 2026-04-27 | ✅ Replaced `arduino/setup-protoc` with native package managers (`brew install protobuf` on Mac, `apt-get install protobuf-compiler` on Linux, `choco install protoc` on Windows). All 4 platforms green. **Validated as launch candidate via Allison's full LemonSqueezy buy → activate rehearsal.** |
 | `v1.6.0` | 2026-04-27 | ✅ **SHIPPED.** Tagged on rc.17 commit. Manual Windows updater-sign per the v1.0.8 procedure. `latest.json` patched with all 4 platform entries. Promoted as Latest non-prerelease, ff-merged to master, website deployed. |
@@ -54,8 +54,8 @@
 ## What shipped in v1.6
 
 ### Installer (Windows)
-- **Silent install default.** Double-clicking `Projelli_1.6.0_x64-setup.exe` shows only a brief progress window, no wizard. Pass `/INTERACTIVE` for the full wizard.
-- **Portable `.exe`** (`Projelli_1.6.0_x64-portable.exe`) — Azure-signed single-file executable. See "Portable mode caveats" below.
+- **Silent install default.** Double-clicking `Keepance_1.6.0_x64-setup.exe` shows only a brief progress window, no wizard. Pass `/INTERACTIVE` for the full wizard.
+- **Portable `.exe`** (`Keepance_1.6.0_x64-portable.exe`) — Azure-signed single-file executable. See "Portable mode caveats" below.
 
 ### Onboarding
 - **10-step feature tour** after first-run wizard. Every step anchors to a visible UI element (sidebar tabs, Ctrl+K button, settings gear) with a coral highlight outline. Arrow keys + Enter, Escape to skip, auto-advances if target missing. Restartable from Settings → Onboarding → "Start tour".
@@ -92,7 +92,7 @@ Rewrote the drag/drop model around a unified zone-based pattern matching Chrome/
 
 ### Other
 - `AuditLog` and `WorkflowPanel` sidebar headers tightened to fit the 256px sidebar slot (shorter titles, icon-only export buttons).
-- **"Something broken? Let us know!"** link (bug icon, far-right of status bar). In rc.5+, opens an in-app dialog (`src/components/common/BugReportDialog.tsx`) with a textarea, optional reply-email field, and an opt-in metadata checkbox (version + OS + user agent). Submit POSTs to `https://projelli.com/api/forms/projelli/bug-report`, which is reverse-proxied by system Caddy to the shared form-handler service at `~/services/form-handler/server.ts`. The handler stores a JSONL record in `~/projelli/sign-ups/projelli-bug-report-YYYY-MM.jsonl` and emails Jameson via Brevo. On network failure the dialog shows an "Open email client instead" link that falls back to the rc.4 mailto behavior so the user's message is never lost.
+- **"Something broken? Let us know!"** link (bug icon, far-right of status bar). In rc.5+, opens an in-app dialog (`src/components/common/BugReportDialog.tsx`) with a textarea, optional reply-email field, and an opt-in metadata checkbox (version + OS + user agent). Submit POSTs to `https://keepance.com/api/forms/keepance/bug-report`, which is reverse-proxied by system Caddy to the shared form-handler service at `~/services/form-handler/server.ts`. The handler stores a JSONL record in `~/keepance/sign-ups/keepance-bug-report-YYYY-MM.jsonl` and emails Jameson via Brevo. On network failure the dialog shows an "Open email client instead" link that falls back to the rc.4 mailto behavior so the user's message is never lost.
 
 ---
 
@@ -127,16 +127,16 @@ All drag events use `dataTransfer.setData('text/plain', payload)`:
 Handlers branch on `payload.startsWith('group:')` vs `startsWith('tabgm:')` vs numeric.
 
 ### Bug-report dialog uses the shared form-handler service (rc.5+)
-The dialog's POST target (`https://projelli.com/api/forms/projelli/bug-report`) is reverse-proxied by Caddy to the Bun service at `~/services/form-handler/server.ts` (already used by healthful, heardify, behaviorux, and the Projelli email-list signup). The form-handler validates the form ID, sanitizes fields, stores a JSONL record in `~/projelli/sign-ups/`, and best-effort emails Jameson via Brevo. CORS headers are added to all `/api/forms/*` responses so the Tauri webview's `tauri://localhost` origin can read the response. The Tauri app uses `getCorsSafeFetch()` (from `src/modules/models/fetchUtils.ts`) which routes through `@tauri-apps/plugin-http` in production builds (CORS bypass via Rust) and native fetch in dev.
+The dialog's POST target (`https://keepance.com/api/forms/keepance/bug-report`) is reverse-proxied by Caddy to the Bun service at `~/services/form-handler/server.ts` (already used by healthful, heardify, behaviorux, and the Keepance email-list signup). The form-handler validates the form ID, sanitizes fields, stores a JSONL record in `~/keepance/sign-ups/`, and best-effort emails Jameson via Brevo. CORS headers are added to all `/api/forms/*` responses so the Tauri webview's `tauri://localhost` origin can read the response. The Tauri app uses `getCorsSafeFetch()` (from `src/modules/models/fetchUtils.ts`) which routes through `@tauri-apps/plugin-http` in production builds (CORS bypass via Rust) and native fetch in dev.
 
-Two Tauri allowlists must include `https://projelli.com`:
+Two Tauri allowlists must include `https://keepance.com`:
 1. `src-tauri/tauri.conf.json` → `app.security.csp` `connect-src` (covers Tauri-dev native fetch).
-2. `src-tauri/capabilities/default.json` → `http:default.allow` (covers Tauri-prod plugin-http fetch). The narrow scope `https://projelli.com/api/forms/**` is intentional — don't widen it.
+2. `src-tauri/capabilities/default.json` → `http:default.allow` (covers Tauri-prod plugin-http fetch). The narrow scope `https://keepance.com/api/forms/**` is intentional — don't widen it.
 
 Failure path: dialog catches the error, shows "Open email client instead" link that triggers `openExternal()` with a pre-filled mailto. The user's typed message is preserved across the failure-to-fallback transition.
 
 ### Brand Coral in one place
-`src/styles/globals.css` defines `--color-primary: hsl(6 100% 72%)` for both light and dark themes. Any new surface that needs the accent should use `text-primary` / `bg-primary` Tailwind classes and inherit. Hard-coded hex `#FF7C6E` only appears in `FeatureTour.tsx` (highlight border) and `ProjelliLogo.tsx` (SVG fills).
+`src/styles/globals.css` defines `--color-primary: hsl(6 100% 72%)` for both light and dark themes. Any new surface that needs the accent should use `text-primary` / `bg-primary` Tailwind classes and inherit. Hard-coded hex `#FF7C6E` only appears in `FeatureTour.tsx` (highlight border) and `KeepanceLogo.tsx` (SVG fills).
 
 ---
 
@@ -154,7 +154,7 @@ Failure path: dialog catches the error, shows "Open email client instead" link t
 
 Document these for release notes + docs + launch-day reply bank:
 
-- **Data still saves to `%APPDATA%\Projelli`.** The portable binary does NOT save config / workspaces next to itself. This is a Tauri limitation (`dirs::data_dir()` returns absolute paths). Users who move the portable `.exe` between drives should also copy `%APPDATA%\Projelli`. True self-contained portable data is a v1.7 item.
+- **Data still saves to `%APPDATA%\Keepance`.** The portable binary does NOT save config / workspaces next to itself. This is a Tauri limitation (`dirs::data_dir()` returns absolute paths). Users who move the portable `.exe` between drives should also copy `%APPDATA%\Keepance`. True self-contained portable data is a v1.7 item.
 - **Auto-updater is disabled in portable mode.** The updater requires a writable install dir + permission to replace the running binary. Portable users re-download manually.
 - **MCP `.mcpb` sidecar is NOT bundled.** The portable `.exe` is a single file; the MCP server binary is a separate artifact the `.mcpb` install flow fetches. Portable users can't use the MCP server unless they also download the installer version.
 - **First-run behavior is identical.** Welcome dialog, workspace picker, API key wizard, sample files, and the feature tour all work.
@@ -170,10 +170,10 @@ When Jameson confirms rc.4 works on Windows:
 2. Watch CI (`gh run watch <id>`). All 4 platforms must go green.
 3. Per v1.5 procedure: **manual Windows updater-sign** (see `docs/operations/SESSION_2026-04-16_v1.0.8_SHIP.md` Phase 8 Step 2) until the CI patch lands.
 4. **Patch `latest.json`** to merge the Windows `windows-x86_64` entry (until updater-sign CI fix).
-5. `gh release edit v1.6.0 --draft=false --latest --prerelease=false --repo projelli/projelli`
+5. `gh release edit v1.6.0 --draft=false --latest --prerelease=false --repo keepance/keepance`
 6. Fast-forward merge to master: `git checkout master && git pull && git merge --ff-only release/v1.6 && git push`
-7. Deploy website: `cd ~/projelli && ./infra/deploy.sh`
-8. Optional: announce via blog + email list (drafts at `website/blog/projelli-1-6-launch.html` if created).
+7. Deploy website: `cd ~/keepance && ./infra/deploy.sh`
+8. Optional: announce via blog + email list (drafts at `website/blog/keepance-1-6-launch.html` if created).
 
 ---
 

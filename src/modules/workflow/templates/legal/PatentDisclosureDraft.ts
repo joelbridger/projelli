@@ -1,0 +1,229 @@
+// @draft — Legal Practice Pack v2.1
+// Requires attorney review before shipping. Do not expose to users without review.
+
+// NOTE: `category: 'legal'` requires adding 'legal' to the WorkflowTemplate category
+// union in src/types/workflow.ts before this template is registered.
+
+import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
+
+const interviewQuestions: InterviewStepConfig['questions'] = [
+  {
+    id: 'inventorNames',
+    question: 'Inventor name(s)',
+    description: 'Full legal names of all inventors. All individuals who contributed to the conception of the claimed invention must be listed. Inventorship is a legal determination — this is a starting point for the attorney to verify.',
+    type: 'text',
+    required: true,
+    placeholder: 'e.g., Dr. Aisha Patel, Marcus Chen',
+  },
+  {
+    id: 'inventionTitle',
+    question: 'Invention title',
+    description: 'A descriptive working title for the invention. This will likely be refined before filing.',
+    type: 'text',
+    required: true,
+    placeholder: 'e.g., Adaptive Thermal Management System for High-Density Lithium-Ion Battery Arrays',
+  },
+  {
+    id: 'technicalField',
+    question: 'Technical field',
+    description: 'The field of technology to which the invention belongs. This maps to the "Field of the Invention" section of the application.',
+    type: 'text',
+    required: true,
+    placeholder: 'e.g., Battery management systems, electric vehicle engineering, thermal management',
+  },
+  {
+    id: 'problemSolved',
+    question: 'Problem the invention solves',
+    description: 'Describe the problem or need that existed before this invention. What was wrong with existing solutions? What gap did this invention address? Be specific and technical.',
+    type: 'textarea',
+    required: true,
+    placeholder: 'e.g., Existing lithium-ion battery management systems rely on passive thermal dissipation, which causes uneven heat distribution across cells during high-load discharge cycles. This leads to premature cell degradation in the hottest cells while cooler cells remain underutilized, reducing overall pack life and creating safety risks at high discharge rates.',
+  },
+  {
+    id: 'howItWorks',
+    question: 'How the invention works',
+    description: 'Describe the invention in technical detail — how it achieves the result, what its key components are, and how they interact. The more specific and technical, the better the disclosure. Include any novel steps, structures, or methods.',
+    type: 'textarea',
+    required: true,
+    placeholder: 'e.g., The system uses a network of micro-sensors embedded between cells to monitor individual cell temperature in real time at 100ms intervals. A microcontroller processes sensor data and dynamically routes coolant through individually addressable microchannels using shape-memory alloy actuators. Routing is determined by a predictive thermal model that anticipates hotspot formation 2–3 cycles in advance...',
+  },
+  {
+    id: 'novelty',
+    question: 'What makes it novel — how it differs from existing solutions',
+    description: 'Describe specifically what is new about this invention compared to what was already known. What did prior systems do differently? What does this invention do that no prior system could do?',
+    type: 'textarea',
+    required: true,
+    placeholder: 'e.g., Prior systems use fixed coolant routing determined at design time. This invention uses dynamic, real-time routing based on actual sensor data rather than static thermal models. The use of shape-memory alloy actuators for coolant routing in this context is believed to be novel — prior art uses motorized valves which are slower, larger, and have higher failure rates.',
+  },
+  {
+    id: 'priorArt',
+    question: 'Prior art the inventor knows of (optional)',
+    description: 'List any patents, publications, products, or other prior art the inventor is aware of. Inventors have a duty of candor to the USPTO — full disclosure is important. Include patent numbers if known.',
+    type: 'textarea',
+    required: false,
+    placeholder: 'e.g., US Patent 10,xxx,xxx (Smith et al.) — describes passive thermal management for battery arrays. Tesla BMS system (general knowledge). Paper: "Active Thermal Management in EV Battery Packs," Journal of Power Sources, 2023.',
+  },
+  {
+    id: 'bestMode',
+    question: 'Best mode of carrying out the invention',
+    description: 'Describe the preferred embodiment — the specific implementation the inventors believe is the best way to practice the invention. US patent law requires disclosure of the best mode known to the inventors at the time of filing.',
+    type: 'textarea',
+    required: true,
+    placeholder: 'e.g., The preferred embodiment uses Nitinol (nickel-titanium) shape-memory alloy actuators rated for 50,000+ cycles, an STM32H7 microcontroller running the thermal prediction algorithm at 200MHz, and 1mm diameter microchannels etched into an aluminum cold plate. Target operating temperature range is -20°C to 60°C ambient.',
+  },
+  {
+    id: 'filingJurisdictions',
+    question: 'Filing jurisdiction targets',
+    description: 'Where the patent will be filed. Affects the attorney\'s strategy for claim scope, translation requirements, and prosecution timeline.',
+    type: 'select',
+    required: true,
+    options: ['US only', 'US + PCT (international)', 'US + specific countries (note in comments)'],
+    defaultValue: 'US only',
+  },
+];
+
+const patentDisclosurePrompt = `You are assisting a patent attorney in structuring an invention disclosure document from an inventor's description. This document is for the attorney's internal use in preparing a patent application — it is not itself a patent application, and it does not constitute legal advice.
+
+Inventor(s): {{inventorNames}}
+Invention title: {{inventionTitle}}
+Technical field: {{technicalField}}
+Problem solved: {{problemSolved}}
+How it works: {{howItWorks}}
+Novelty: {{novelty}}
+Prior art known to inventor: {{priorArt}}
+Best mode: {{bestMode}}
+Filing jurisdictions: {{filingJurisdictions}}
+
+Produce a structured Markdown invention disclosure document:
+
+> **Draft document** — Review and edit before use in any matter.
+
+> **IMPORTANT NOTICE:** This document is a structural starting point to assist your patent attorney in preparing an application. It is not a formal patent application, does not constitute legal advice, and has not been reviewed by the USPTO or any patent authority. No confidential technical information was transmitted to any third party in generating this document — Keepance processes all AI requests locally using your own API key, and no data leaves your machine except in direct API calls to your chosen AI provider under your own account.
+
+# Invention Disclosure Document
+**Inventor(s):** {{inventorNames}}
+**Working title:** {{inventionTitle}}
+**Prepared for attorney review:** [date]
+**Filing target(s):** {{filingJurisdictions}}
+
+---
+
+## 1. Technical Field
+[Concise statement of the field of the invention, suitable for the "Field of the Invention" section of a US patent application]
+
+---
+
+## 2. Background and Prior Art
+### Problem Statement
+[Describe the problem or unmet need in the field, drawing from the inventor's description]
+
+### Limitations of Existing Solutions
+[Describe what the prior art does and why it is inadequate, drawing from the inventor's input and the prior art they disclosed]
+
+### Prior Art Disclosed by Inventor
+[List the prior art items the inventor mentioned. Note: inventor has a duty of candor to the USPTO — the attorney should conduct a thorough prior art search to supplement this list]
+
+---
+
+## 3. Summary of the Invention
+[A paragraph-length summary of the invention at a high level — what it is, what it does, and why it is better. Suitable as a starting point for the "Summary of the Invention" section]
+
+---
+
+## 4. Detailed Description
+### Overview of Key Components
+[List and describe the primary components or steps of the invention]
+
+### How the Components Interact
+[Describe the functional relationships and operation of the invention, drawing from the inventor's description of how it works]
+
+### Preferred Embodiment
+[Describe the best mode as disclosed by the inventor — this section directly addresses the best mode requirement for US applications]
+
+### Possible Variations and Alternative Embodiments
+[Based on the description, suggest possible alternative embodiments or design variations the attorney may want to capture in the claims — note these as suggestions for attorney consideration, not as a definitive list]
+
+---
+
+## 5. Claims Sketch (Starting Point Only)
+**IMPORTANT: These are not formal patent claims. They are a structural starting point for the attorney's claims drafting, based on the inventor's description. Claims require attorney authorship, legal precision, and prosecution strategy that AI cannot provide.**
+
+**Independent claim sketch (method):**
+A method for [achieving the result], comprising:
+- [Step 1]
+- [Step 2]
+- [Step 3]
+
+**Independent claim sketch (apparatus/system):**
+A system for [the function], comprising:
+- [Component 1] configured to [function]
+- [Component 2] configured to [function]
+- [Component 3] configured to [function]
+
+**Dependent claim directions to consider:**
+- [Narrower limitation 1]
+- [Narrower limitation 2]
+- [Narrower limitation 3]
+
+---
+
+## 6. Abstract (Draft)
+[A 150-word-or-fewer abstract suitable as a starting point for the patent abstract]
+
+---
+
+## 7. Pre-Filing Checklist
+
+The following items should be gathered or confirmed before filing:
+
+- [ ] Confirm inventorship — verify all inventors who contributed to the conception of the claimed subject matter are listed; verify no one is listed who did not contribute
+- [ ] Prior art search — conduct a professional search beyond the art disclosed by the inventor
+- [ ] Drawings — prepare formal patent drawings for all embodiments described (required for most mechanical/electrical inventions)
+- [ ] Duty of disclosure review — confirm all known material prior art has been disclosed
+- [ ] Best mode verification — confirm the best mode section reflects the inventors' current best understanding as of the filing date
+- [ ] Assignment — confirm assignment agreements are in place if the invention was made in the course of employment or under a funded research agreement
+- [ ] Filing deadline — determine whether a statutory bar date applies (e.g., if the invention has been publicly disclosed or offered for sale)
+- [ ] PCT / international strategy — if filing internationally, confirm countries and deadlines
+
+---
+
+*This document was prepared with the assistance of AI and has not been reviewed by a licensed patent attorney. Do not rely on it as legal advice. Do not submit it to any patent office without attorney review.*`;
+
+export const PatentDisclosureDraft: WorkflowTemplate = {
+  id: 'legal-patent-disclosure-draft',
+  name: 'Patent Disclosure Draft',
+  description: 'Structure an invention disclosure document from an inventor\'s description, for use by a patent attorney in drafting the application. Covers technical field, background, summary, detailed description, claims sketch (starting point only), abstract, and a pre-filing checklist. Includes a local-first data notice.',
+  version: '1.0.0',
+  category: 'legal',
+  steps: [
+    {
+      id: 'interview',
+      type: 'interview',
+      name: 'Invention Description',
+      description: 'Describe the invention — what it does, how it works, what makes it new, and where you plan to file',
+      config: {
+        questions: interviewQuestions,
+      } as InterviewStepConfig,
+    },
+    {
+      id: 'generate-disclosure',
+      type: 'generate',
+      name: 'Generate Invention Disclosure',
+      description: 'Structure the invention description into a formal disclosure document',
+      config: {
+        outputFile: 'PATENT_DISCLOSURE_DRAFT.md',
+        promptTemplate: patentDisclosurePrompt,
+        systemPrompt: 'You are a patent prosecution assistant helping a licensed patent attorney structure an invention disclosure. You are technically precise, methodical, and explicit about what requires attorney judgment (especially claims). You never draft formal claims as if they were legally sufficient — you frame them as structural sketches that the attorney will rewrite. You surface best mode and inventorship issues proactively. You prominently note that this document is not legal advice and that no confidential information was transmitted to third parties, given Keepance\'s local-first architecture.',
+      } as GenerateStepConfig,
+    },
+  ],
+  requiredInputs: [],
+  outputs: ['PATENT_DISCLOSURE_DRAFT.md'],
+  namedOutputs: [
+    { id: 'claims_sketch', name: 'Claims sketch (starting point)', schema: 'array' },
+    { id: 'prefiling_checklist', name: 'Pre-filing checklist', schema: 'array' },
+    { id: 'prior_art_flagged', name: 'Prior art flagged by inventor', schema: 'array' },
+  ],
+};
+
+export default PatentDisclosureDraft;

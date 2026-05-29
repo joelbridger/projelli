@@ -1,8 +1,8 @@
-# Projelli Documentation Index
+# Keepance Documentation Index
 
 This is the docs index. The repo root has only the highest-level files; everything else lives here, organized by purpose.
 
-**Start here if you're new to the project:** read `~/projelli/PROJELLI_BUSINESS_PLAN.md` (in the repo root) — it's the operating contract that explains what Projelli is, who it's for, how it makes money, and what we're doing for the next 8 weeks.
+**Start here if you're new to the project:** read `~/keepance/KEEPANCE_BUSINESS_PLAN.md` (in the repo root) — it's the operating contract that explains what Keepance is, who it's for, how it makes money, and what we're doing for the next 8 weeks.
 
 ## Layout
 
@@ -18,7 +18,7 @@ docs/
 
 | File | What it covers |
 |---|---|
-| [FEATURES.md](reference/FEATURES.md) | Canonical feature reference — every capability, file type, shortcut, and setting. Read first for "what can Projelli do". |
+| [FEATURES.md](reference/FEATURES.md) | Canonical feature reference — every capability, file type, shortcut, and setting. Read first for "what can Keepance do". |
 | [VISION.md](reference/VISION.md) | Current product vision (founder-focused positioning) |
 | [PROJECT_VISION_ORIGINAL.md](reference/PROJECT_VISION_ORIGINAL.md) | Original vision doc — preserved for context |
 | [ARCHITECTURE.md](reference/ARCHITECTURE.md) | System architecture, layered design, modules |
@@ -45,7 +45,7 @@ docs/
 
 | File | Why it's archived |
 |---|---|
-| [OLD_BACKLOG_2026-02-18.md](archive/OLD_BACKLOG_2026-02-18.md) | Original v1 backlog (all 46 tickets done). Replaced by `~/projelli/BACKLOG.md`. |
+| [OLD_BACKLOG_2026-02-18.md](archive/OLD_BACKLOG_2026-02-18.md) | Original v1 backlog (all 46 tickets done). Replaced by `~/keepance/BACKLOG.md`. |
 | [V1_LAUNCH_PLAN.md](archive/V1_LAUNCH_PLAN.md) | Plan for the original v1.0 launch. Done. |
 | [WINDOWS_MIGRATION_PLAN.md](archive/WINDOWS_MIGRATION_PLAN.md) | Plan for migrating from browser to Tauri Windows desktop. Done. |
 | [WINDOWS_MIGRATION_COMPLETE.md](archive/WINDOWS_MIGRATION_COMPLETE.md) | Summary of the completed Windows migration. |
@@ -57,6 +57,6 @@ docs/
 
 - `README.md` — public-facing project intro
 - `CLAUDE.md` — instructions for Claude Code working in this repo
-- `PROJELLI_BUSINESS_PLAN.md` — the operating contract (read this first)
+- `KEEPANCE_BUSINESS_PLAN.md` — the operating contract (read this first)
 - `BACKLOG.md` — current week-by-week task list
 - `CHANGELOG.md` — release-by-release history

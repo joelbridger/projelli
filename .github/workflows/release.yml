@@ -14,7 +14,7 @@ name: Release Tauri builds
 # them.
 #
 # After the workflow finishes:
-#   1. Go to https://github.com/projelli/projelli/releases
+#   1. Go to https://github.com/keepance/keepance/releases
 #   2. Find the draft release
 #   3. Edit the description with the changelog from CHANGELOG.md
 #   4. Click "Publish release"
@@ -31,11 +31,11 @@ name: Release Tauri builds
 #
 #   Windows code signing via Azure Trusted/Artifact Signing:
 #     AZURE_TENANT_ID                  Entra tenant ID
-#     AZURE_CLIENT_ID                  service principal app id (projelli-github-actions)
+#     AZURE_CLIENT_ID                  service principal app id (keepance-github-actions)
 #     AZURE_CLIENT_SECRET              service principal client secret
 #     AZURE_TRUSTED_SIGNING_ENDPOINT   region endpoint, e.g. https://eus.codesigning.azure.net/
-#     AZURE_TRUSTED_SIGNING_ACCOUNT    artifact signing account name (projelli-signing)
-#     AZURE_TRUSTED_SIGNING_CERT_PROFILE  certificate profile name (projelli-public-trust)
+#     AZURE_TRUSTED_SIGNING_ACCOUNT    artifact signing account name (keepance-signing)
+#     AZURE_TRUSTED_SIGNING_CERT_PROFILE  certificate profile name (keepance-public-trust)
 
 on:
   push:
@@ -114,9 +114,9 @@ jobs:
       # can bundle it via externalBin. Phase 4 (M4) swaps the stub for a
       # real MCP server; the real implementation lands in src/mcp_bin/.
       #
-      # Cargo builds projelli-mcp into
-      # src-tauri/target/<target?>/release/projelli-mcp[.exe]. Tauri's
-      # externalBin expects src-tauri/binaries/projelli-mcp-<target-triple>
+      # Cargo builds keepance-mcp into
+      # src-tauri/target/<target?>/release/keepance-mcp[.exe]. Tauri's
+      # externalBin expects src-tauri/binaries/keepance-mcp-<target-triple>
       # so we copy + rename here. The externalBin array in
       # tauri.conf.json is still empty in Phase 2 - wiring it in Phase 4
       # will flip these builds from "nice to have" to "required".
@@ -159,7 +159,7 @@ jobs:
           rm -rf "$TMP"
           ls -la binaries/
 
-      - name: Build Projelli MCP stub binary (Mac/Linux)
+      - name: Build Keepance MCP stub binary (Mac/Linux)
         shell: bash
         working-directory: src-tauri
         env:
@@ -172,16 +172,16 @@ jobs:
             # the cargo build uses the same target.
             TARGET="${MATRIX_ARGS##*--target }"
             rustup target add "$TARGET"
-            cargo build --release --bin projelli-mcp --target "$TARGET"
-            SRC="target/$TARGET/release/projelli-mcp"
+            cargo build --release --bin keepance-mcp --target "$TARGET"
+            SRC="target/$TARGET/release/keepance-mcp"
           else
             # Linux: host triple, no cross compile.
             TARGET="$(rustc -vV | sed -n 's|host: ||p')"
-            cargo build --release --bin projelli-mcp
-            SRC="target/release/projelli-mcp"
+            cargo build --release --bin keepance-mcp
+            SRC="target/release/keepance-mcp"
           fi
           mkdir -p binaries
-          cp "$SRC" "binaries/projelli-mcp-$TARGET"
+          cp "$SRC" "binaries/keepance-mcp-"
           echo "MCP_TARGET=$TARGET" >> "$GITHUB_ENV"
           ls -la binaries/
 
@@ -203,12 +203,12 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: |
           set -euo pipefail
-          KEYCHAIN_PATH="$RUNNER_TEMP/projelli-mcp-sign.keychain-db"
+          KEYCHAIN_PATH="$RUNNER_TEMP/keepance-mcp-sign.keychain-db"
           KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          CERT_PATH="$RUNNER_TEMP/projelli-mcp-cert.p12"
+          CERT_PATH="$RUNNER_TEMP/keepance-mcp-cert.p12"
           echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
           security import "$CERT_PATH" -k "$KEYCHAIN_PATH" \
             -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
@@ -222,7 +222,7 @@ jobs:
           # Apple notarization rejects the .app if ANY nested binary lacks
           # Developer ID + hardened runtime + secure timestamp. Each item gets
           # the same triple-signed treatment as the MCP sidecar.
-          for BIN in "binaries/projelli-mcp-${MCP_TARGET}" "binaries/piper-${MCP_TARGET}"; do
+          for BIN in "binaries/keepance-mcp-" "binaries/piper-${MCP_TARGET}"; do
             if [ ! -f "$BIN" ]; then
               echo "warn: expected binary missing: $BIN"
               continue
@@ -261,7 +261,7 @@ jobs:
             echo "No voice sidecar binary found in archive; skipping"
           fi
 
-      # Phase 4 M4 (v1.5 Flag 2) - Bundle the projelli-mcp binary into a
+      # Phase 4 M4 (v1.5 Flag 2) - Bundle the keepance-mcp binary into a
       # `.mcpb` Desktop Extension archive. Claude Desktop installs these
       # with a double-click; other MCP clients can unpack and register the
       # binary directly. One archive per platform so the download stays
@@ -274,9 +274,9 @@ jobs:
           VERSION="$(node -p "require('./package.json').version")"
           mkdir -p mcpb-dist
           node scripts/build-mcpb.mjs \
-            --binary "src-tauri/binaries/projelli-mcp-$TARGET" \
+            --binary "src-tauri/binaries/keepance-mcp-" \
             --target "$TARGET" \
-            --output "mcpb-dist/projelli-$TARGET.mcpb" \
+            --output "mcpb-dist/keepance-.mcpb" \
             --version "$VERSION"
           ls -la mcpb-dist/
 
@@ -308,7 +308,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Projelli ${{ github.ref_name }}'
+          releaseName: 'Keepance ${{ github.ref_name }}'
           releaseBody: |
             Auto-generated release. See `CHANGELOG.md` for changes.
 
@@ -317,7 +317,7 @@ jobs:
             - **macOS Apple Silicon:** `.dmg` (signed with Developer ID + notarized by Apple — opens cleanly with no Gatekeeper warning)
             - **macOS Intel:** `.dmg` (signed with Developer ID + notarized by Apple — opens cleanly with no Gatekeeper warning)
             - **Linux:** `.AppImage` or `.deb`
-            - **MCP bundle:** `projelli-<platform>.mcpb` (install into Claude Desktop)
+            - **MCP bundle: `keepance-<platform>.mcpb`` (install into Claude Desktop)
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
@@ -336,8 +336,8 @@ jobs:
           TAG="${{ github.ref_name }}"
           TARGET="${MCP_TARGET}"
           gh release upload "$TAG" \
-            "mcpb-dist/projelli-$TARGET.mcpb" \
-            --clobber --repo projelli/projelli
+            "mcpb-dist/keepance-.mcpb" \
+            --clobber --repo keepance/keepance
 
   # Windows job: separate from the matrix because we don't use Tauri's
   # signCommand. Build with raw npm + sign with Microsoft's official action
@@ -404,14 +404,14 @@ jobs:
 
       # Phase 2 (v1.5) - stage the stub MCP sidecar binary. See the Mac/Linux
       # job above for rationale. Windows uses the MSVC host triple.
-      - name: Build Projelli MCP stub binary (Windows)
+      - name: Build Keepance MCP stub binary (Windows)
         shell: pwsh
         working-directory: src-tauri
         run: |
           $host_triple = (& rustc -vV | Select-String '^host: ').ToString().Replace('host: ','').Trim()
-          cargo build --release --bin projelli-mcp
+          cargo build --release --bin keepance-mcp
           New-Item -ItemType Directory -Force -Path binaries | Out-Null
-          Copy-Item "target/release/projelli-mcp.exe" "binaries/projelli-mcp-$host_triple.exe"
+          Copy-Item "target/release/keepance-mcp.exe" "binaries/keepance-mcp-$host_triple.exe"
           "MCP_TARGET=$host_triple" | Out-File -FilePath $env:GITHUB_ENV -Append
           Get-ChildItem binaries
 
@@ -435,7 +435,7 @@ jobs:
             Write-Host 'No voice sidecar binary found in archive; skipping'
           }
 
-      # Phase 4 M4 (v1.5 Flag 2) - Bundle the Windows projelli-mcp binary
+      # Phase 4 M4 (v1.5 Flag 2) - Bundle the Windows keepance-mcp binary
       # into a `.mcpb` archive. See the Mac/Linux block above for rationale.
       - name: Build .mcpb bundle (Windows)
         shell: pwsh
@@ -444,9 +444,9 @@ jobs:
           $version = (node -p "require('./package.json').version")
           New-Item -ItemType Directory -Force -Path mcpb-dist | Out-Null
           node scripts/build-mcpb.mjs `
-            --binary "src-tauri/binaries/projelli-mcp-$target.exe" `
+            --binary "src-tauri/binaries/keepance-mcp-.exe" `
             --target $target `
-            --output "mcpb-dist/projelli-$target.mcpb" `
+            --output "mcpb-dist/keepance-.mcpb" `
             --version $version
           Get-ChildItem mcpb-dist
 
@@ -468,13 +468,13 @@ jobs:
           Write-Host "=== MSI bundles ==="
           Get-ChildItem -Path src-tauri/target/release/bundle/msi -Recurse -ErrorAction SilentlyContinue | Format-Table FullName,Length
           Write-Host "=== standalone binary ==="
-          Get-ChildItem -Path src-tauri/target/release/projelli.exe -ErrorAction SilentlyContinue | Format-Table FullName,Length
+          Get-ChildItem -Path src-tauri/target/release/keepance.exe -ErrorAction SilentlyContinue | Format-Table FullName,Length
 
       # v1.6 W-PX: stage the portable .exe.
-      # Tauri produces target/release/projelli.exe as the native app binary
+      # Tauri produces target/release/keepance.exe as the native app binary
       # before NSIS wraps it into an installer. That same exe IS the portable
       # version, we just rename it + sign it + upload it alongside the
-      # installer. Data still lives in %APPDATA%\Projelli (true portable
+      # installer. Data still lives in %APPDATA%\Keepance (true portable
       # data dir requires Rust refactor; v1.7).
       - name: Copy portable Windows .exe
         shell: pwsh
@@ -483,7 +483,7 @@ jobs:
           $version = (node -p "require('../package.json').version")
           $portableDir = "target/release/portable"
           New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
-          Copy-Item "target/release/projelli.exe" "$portableDir/Projelli_${version}_x64-portable.exe"
+          Copy-Item "target/release/keepance.exe" "$portableDir/Keepance__x64-portable.exe"
           Get-ChildItem $portableDir | Format-Table Name,Length
 
       - name: Sign Windows artifacts with Azure Trusted Signing
@@ -533,7 +533,7 @@ jobs:
           $maxAttempts = 60
           $attempt = 0
           while ($attempt -lt $maxAttempts) {
-            $exists = gh release view $tag --repo projelli/projelli 2>$null
+            $exists = gh release view $tag --repo keepance/keepance 2>$null
             if ($LASTEXITCODE -eq 0) {
               Write-Host "Draft release exists for $tag"
               break
@@ -544,7 +544,7 @@ jobs:
           }
           if ($attempt -eq $maxAttempts) {
             Write-Host "Draft release didn't appear in time. Creating it ourselves."
-            gh release create $tag --draft --title "Projelli $tag" --notes "Auto-generated release. See CHANGELOG.md for changes." --repo projelli/projelli
+            gh release create $tag --draft --title "Keepance $tag" --notes "Auto-generated release. See CHANGELOG.md for changes." --repo keepance/keepance
           }
 
       - name: Upload signed Windows artifacts to release
@@ -564,7 +564,7 @@ jobs:
           }
           foreach ($f in $files) {
             Write-Host "Uploading $($f.FullName) to release $tag"
-            gh release upload $tag $f.FullName --clobber --repo projelli/projelli
+            gh release upload $tag $f.FullName --clobber --repo keepance/keepance
           }
 
       # Phase 4 M4 (v1.5 Flag 2) - Upload the Windows `.mcpb` bundle.
@@ -575,10 +575,10 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           $target = $env:MCP_TARGET
-          $mcpb = "mcpb-dist/projelli-$target.mcpb"
+          $mcpb = "mcpb-dist/keepance-.mcpb"
           if (-not (Test-Path $mcpb)) {
             Write-Error "No .mcpb bundle found at $mcpb"
             exit 1
           }
           Write-Host "Uploading $mcpb to release $tag"
-          gh release upload $tag $mcpb --clobber --repo projelli/projelli
+          gh release upload $tag $mcpb --clobber --repo keepance/keepance

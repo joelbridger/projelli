@@ -1,63 +1,71 @@
-# Business OS - Vision Document
+# Keepance — Vision Document
 
 ## Executive Summary
 
-Business OS is a local-first, artifact-driven workspace application designed specifically for solo founders who are starting and building businesses with AI assistance. Unlike typical chat-based AI interfaces, Business OS treats AI as a collaborative tool that produces, manages, and refines tangible business-building artifacts—documents, research, analyses, and strategic outputs—while keeping the human founder firmly in control of all decisions.
+Keepance is a local-first, artifact-driven workspace application designed specifically for attorneys, CPAs, and consultants who cannot use cloud AI due to confidentiality obligations. Unlike typical chat-based AI interfaces, Keepance treats AI as a collaborative tool that produces, manages, and refines tangible work artifacts — documents, research, analyses, and strategic outputs — while keeping the professional firmly in control of all decisions.
 
-The application addresses a critical gap in the founder toolkit: while AI chatbots can answer questions and generate text, they lack the structure, persistence, and auditability that serious business planning requires. Business OS provides a complete workspace where founders can organize their thinking, maintain research with proper citations, run repeatable AI-powered workflows, compare outputs across multiple AI models, and build a traceable record of their strategic evolution.
+The application addresses a critical gap in the professional services toolkit: while AI chatbots can answer questions and generate text, they pipe confidential client data to vendor servers, creating real exposure under attorney-client privilege (ABA Formal Opinion 512), IRC §7216, and professional NDA obligations. Keepance provides a complete workspace where professionals can organize client work, maintain research with proper citations, run repeatable AI-powered workflows, and build a traceable record of their work — without any client data ever leaving their machine.
 
-Built on a modern stack (React, TypeScript, Tauri, CodeMirror 6, SQLite), Business OS prioritizes offline capability, data sovereignty, and reproducibility. Every AI interaction is logged, every output is versioned, and every destructive action requires explicit approval with a diff preview. This is not a toy—it's a professional-grade tool for founders who take their business seriously.
+Built on a modern stack (React, TypeScript, Tauri, CodeMirror 6, SQLite), Keepance prioritizes offline capability, data sovereignty, and reproducibility. Every AI interaction is logged, every output is versioned, and every destructive action requires explicit approval with a diff preview. This is not a toy — it's a professional-grade tool for attorneys, CPAs, and consultants who take their confidentiality obligations seriously.
 
 ## Vision Statement
 
-**Empower solo founders to build businesses confidently by providing an intelligent, auditable workspace where AI assists but humans decide.**
+**Give attorneys, CPAs, and consultants a local-first AI workspace where every conversation produces persistent, editable files on their own machine — and no client data ever touches a vendor's cloud.**
 
 ## Target Audience
 
-**Solo Founders** who are:
-- Starting or validating new business ideas
-- Building products independently or with small teams
-- Using AI tools for research, strategy, and content generation
-- Value data ownership and offline capability
-- Need structured approach to business planning
+**Attorneys, CPAs, and consultants** who are:
+- Solo practitioners or small-firm professionals
+- Bound by confidentiality obligations (privilege, §7216, NDA) that bar uploading client files to cloud AI services
+- Using or interested in AI tools for drafting, research, and workflow automation
+- Value data ownership and the ability to work offline
+- Need a structured, auditable approach to client document management
+
+## ICP (locked 2026-05-27)
+
+| Segment | Lead obligation | Channel |
+|---|---|---|
+| Solo + small-firm attorneys (general + patent) | ABA Formal Opinion 512, U.S. v. Heppner (SDNY Feb 2026) | ABA TECHSHOW, Lawyerist, Above the Law, IPWatchdog, r/LawFirm |
+| Tax preparers / CPAs / EAs | IRC §7216 | AICPA, NAEA, r/taxpros |
+| Independent strategy consultants + boutique agencies | Client NDA obligations | Umbrex, Lenny's Newsletter |
 
 ## Jobs-to-be-Done
 
-1. **Research and Organize Information**: Founders need to gather, organize, and cite research from multiple sources to build evidence-based strategies.
+1. **Draft client-facing documents without cloud exposure**: Professionals need to produce memos, briefs, letters, reports, and engagement documents using AI without uploading client data to OpenAI, Anthropic, or Google servers.
 
-2. **Generate Strategy Documents**: Creating foundational documents (Vision, PRD, Lean Canvas) that capture and communicate business strategy.
+2. **Research and organize confidential information**: Gathering, organizing, and citing research from multiple sources to build evidence-based strategies — all stored locally.
 
-3. **Manage Artifacts**: Organizing, versioning, and connecting documents in a knowledge base with wiki-style linking.
+3. **Manage client work artifacts**: Organizing, versioning, and connecting documents in a knowledge base with wiki-style linking, across multiple client workspaces.
 
-4. **Compare AI Outputs**: Running the same query across multiple AI models to get diverse perspectives and identify contradictions.
+4. **Run repeatable profession-specific workflows**: Executing structured processes (like "Matter Intake", "Tax Engagement Kickoff", "Consulting SOW Draft") that can be re-run with updated inputs and produce a full audit trail.
 
-5. **Run Repeatable Workflows**: Executing structured processes (like "New Business Kickoff") that can be re-run with updated inputs.
+5. **Demonstrate AI governance to clients**: Producing an append-only log of every AI action that can be shown to a client or regulator as evidence of responsible AI use.
 
 ## Primary Goals
 
-1. **Artifact-Driven Workflow**: Replace ephemeral chat with persistent, versioned business documents (Vision, PRD, Lean Canvas, competitor matrices, pricing hypotheses) that form the foundation of strategic decision-making.
+1. **Artifact-Driven Workflow**: Replace ephemeral chat with persistent, versioned client work documents that form the foundation of professional service delivery.
 
-2. **"New Business Kickoff" Workflow**: Deliver a guided, AI-assisted interview that generates a complete initial document set for a new business idea, with full run records for reproducibility.
+2. **Profession-Specific Workflow Packs**: Deliver guided, AI-assisted interviews that generate complete document sets for attorney, CPA, and consultant workflows, with full run records for reproducibility.
 
-3. **Research with Citations**: Enable founders to capture, organize, and cite sources (SourceCards) so that every claim in their documents can be traced back to evidence, distinguishing fact from assumption.
+3. **Research with Citations**: Enable professionals to capture, organize, and cite sources (SourceCards) so that every claim in their documents can be traced back to evidence.
 
-4. **Multi-Model Comparison**: Allow founders to run the same prompt across Claude, OpenAI, and Gemini, compare outputs side-by-side, detect contradictions, and synthesize reconciled insights.
+4. **Multi-Model Comparison**: Allow professionals to run the same prompt across Claude, OpenAI, and Gemini, compare outputs side-by-side, detect contradictions, and synthesize reconciled insights.
 
-5. **Local-First with Full Audit**: Ensure all data stays on the founder's machine, all AI actions are logged in an append-only audit trail, and all destructive operations require explicit approval with diff previews.
+5. **Local-First with Full Audit**: Ensure all data stays on the professional's machine, all AI actions are logged in an append-only audit trail, and all destructive operations require explicit approval with diff previews.
 
 ## Secondary Goals
 
-1. **Custom Workflow Creation**: Enable power users to define their own AI-powered workflows from templates, extending beyond the built-in workflows.
+1. **Custom Workflow Creation**: Enable power users to define their own AI-powered workflows from templates, extending beyond the built-in profession packs.
 
 2. **Extensible Search Architecture**: Design the search layer (starting with FlexSearch) to support future semantic/embedding-based search without API changes.
 
-3. **Export-Ready Outputs**: Generate diagrams (Mermaid), charts, and exportable artifacts (SVG, PNG) that can be directly used in pitch decks and presentations.
+3. **Export-Ready Outputs**: Generate diagrams (Mermaid), charts, and exportable artifacts (SVG, PNG) that can be directly used in client deliverables.
 
 ## Success Criteria (MVP)
 
 - [ ] **Workspace functional**: User can create a workspace, create/rename/delete folders and files, and navigate via file tree and tabs
 - [ ] **Editor complete**: CodeMirror 6 Markdown editor with split panes, outline navigation, and wiki-style links working
-- [ ] **New Business Kickoff workflow operational**: Interview flow generates VISION.md, PRD.md, and Lean Canvas with run record stored
+- [ ] **Profession-specific workflow operational**: Interview flow generates client-ready documents with run record stored
 - [ ] **Multi-model support**: At least Claude and OpenAI adapters functional with API key storage in OS keychain
 - [ ] **History and safety**: Undo/redo, soft delete with trash, diff preview for all destructive operations
 - [ ] **Audit trail**: All AI actions logged in append-only audit log with model, inputs, outputs, and timestamps
@@ -76,7 +84,7 @@ Built on a modern stack (React, TypeScript, Tauri, CodeMirror 6, SQLite), Busine
 | **Multi-model API differences** | High | Medium | Design Provider interface abstractly; implement adapters incrementally; comprehensive error handling for each provider |
 | **SQLite + file hybrid complexity** | Medium | Medium | Clear separation of concerns; files are source of truth; SQLite is index/metadata only; rebuild index if corrupted |
 | **Tauri + web dual-target maintenance** | Medium | Medium | Abstract filesystem operations behind interface; test both backends in CI; prioritize web for rapid iteration |
-| **Scope creep toward chat UI** | Medium | High | Strict adherence to artifact-driven philosophy; reject features that don't produce persistent outputs; regular vision alignment reviews |
+| **Profession-specific legal accuracy** | High | High | All Legal Practice pack content reviewed by a bar-active attorney before ship; Tax Practice pack reviewed by CPA/EA; citations verified before use in marketing copy |
 | **Prompt injection from external content** | Medium | High | Sanitize all external content before including in prompts; validate structured outputs against schemas; isolate tool execution |
 
 ## Out of Scope
@@ -84,7 +92,7 @@ Built on a modern stack (React, TypeScript, Tauri, CodeMirror 6, SQLite), Busine
 The following are explicitly **NOT** included in this project:
 
 - **Cloud sync**: All data remains local. No server-side storage, no sync between devices.
-- **Collaboration**: Single-user application only. No sharing, no real-time co-editing, no team features.
+- **Collaboration**: Single-user application only. No sharing, no real-time co-editing, no team features (Practice tier allows up to 5 seats with separate local workspaces).
 - **Payments/monetization**: No billing, subscriptions, usage limits, or payment processing.
 - **Mobile support**: Desktop (via Tauri) and browser only. No iOS or Android builds.
 - **Autonomous agents**: AI proposes, human decides. No auto-executing chains, no unsupervised multi-step operations.
@@ -96,12 +104,13 @@ The following are explicitly **NOT** included in this project:
 
 ## Principles
 
-1. **Local-First**: Everything works offline (except optional web research)
-2. **User-in-Control**: AI proposes, user decides; all destructive ops require confirmation
-3. **Artifact-Driven**: Every interaction produces persistent, versioned documents
-4. **Reproducible**: Every workflow run is replayable (inputs, prompts, tool results saved)
-5. **Auditable**: Append-only log of all AI actions
+1. **Local-First**: Everything works offline (except AI calls). Client data never leaves the machine.
+2. **Professional-in-Control**: AI proposes, professional decides; all destructive ops require confirmation.
+3. **Artifact-Driven**: Every interaction produces persistent, versioned documents.
+4. **Reproducible**: Every workflow run is replayable (inputs, prompts, tool results saved).
+5. **Auditable**: Append-only log of all AI actions — demonstrable to clients and regulators.
+6. **BYOK Forever**: Keepance never holds AI keys, never sees user data, never charges for inference.
 
 ---
 
-*This document defines the north star for Business OS. All implementation decisions should be validated against this vision. When in doubt, choose the path that keeps the founder in control and produces auditable, persistent artifacts.*
+*This document defines the north star for Keepance. All implementation decisions should be validated against this vision. When in doubt, choose the path that keeps the professional in control and produces auditable, persistent artifacts.*

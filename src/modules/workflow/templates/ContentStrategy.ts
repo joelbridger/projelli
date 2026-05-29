@@ -1,5 +1,5 @@
 // Content Strategy Workflow Template
-// Helps founders plan their content marketing
+// Helps professionals plan their content marketing
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 
@@ -71,7 +71,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
 ];
 
-const contentStrategyPrompt = `You are helping a solo founder create a content strategy.
+const contentStrategyPrompt = `You are helping a professional create a content strategy.
 
 Based on the following information:
 
@@ -199,7 +199,7 @@ Generate a comprehensive Content Strategy document in Markdown format:
 ## Tools & Resources
 [Recommended tools for execution]`;
 
-const contentCalendarPrompt = `You are helping a solo founder create a 30-day content calendar.
+const contentCalendarPrompt = `You are helping a professional create a 30-day content calendar.
 
 Based on:
 **Business:** {{businessDescription}}
@@ -312,7 +312,7 @@ export const ContentStrategy: WorkflowTemplate = {
       config: {
         outputFile: 'CONTENT_STRATEGY.md',
         promptTemplate: contentStrategyPrompt,
-        systemPrompt: 'You are a content marketing strategist helping founders build sustainable content engines. Be practical given limited resources.',
+        systemPrompt: 'You are a content marketing strategist helping professionals build sustainable content engines. Be practical given limited resources.',
       } as GenerateStepConfig,
     },
     {

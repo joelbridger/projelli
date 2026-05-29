@@ -1,5 +1,5 @@
 [Unit]
-Description=Projelli demo proxy (rate-limited Anthropic forwarder for projelli.com/try)
+Description=Keepance demo proxy (rate-limited Anthropic forwarder for keepance.com/try)
 After=network-online.target
 Wants=network-online.target
 
@@ -7,9 +7,9 @@ Wants=network-online.target
 Type=simple
 User=jameson
 Group=jameson
-WorkingDirectory=/home/jameson/services/projelli-demo-proxy
-EnvironmentFile=/etc/projelli-demo-proxy.env
-ExecStart=/home/jameson/.bun/bin/bun run /home/jameson/services/projelli-demo-proxy/index.ts
+WorkingDirectory=/home/jameson/services/keepance-demo-proxy
+EnvironmentFile=/etc/keepance-demo-proxy.env
+ExecStart=/home/jameson/.bun/bin/bun run /home/jameson/services/keepance-demo-proxy/index.ts
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
@@ -19,7 +19,7 @@ StandardError=journal
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/lib/projelli-demo-proxy
+ReadWritePaths=/var/lib/keepance-demo-proxy
 PrivateTmp=true
 
 [Install]

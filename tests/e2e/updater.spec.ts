@@ -117,7 +117,7 @@ test.describe('Auto-updater UI', () => {
     await page.getByTestId('update-banner-see-changes').click();
     const modal = page.getByTestId('update-release-notes-modal');
     await expect(modal).toBeVisible();
-    await expect(modal.getByRole('heading', { name: /projelli 1\.0\.8/i })).toBeVisible();
+    await expect(modal.getByRole('heading', { name: /keepance 1\.0\.8/i })).toBeVisible();
     // Body shows the release notes verbatim.
     await expect(page.getByTestId('update-release-notes-body')).toContainText(
       'Auto-updater now ships out of the box'

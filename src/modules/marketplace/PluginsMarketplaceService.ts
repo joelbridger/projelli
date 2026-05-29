@@ -19,7 +19,7 @@ import {
 import { validatePluginManifest } from '@/modules/plugins/PluginManifestSchema';
 
 export const PLUGINS_REPO_URL =
-  'https://raw.githubusercontent.com/projelli/community-plugins/main';
+  'https://raw.githubusercontent.com/keepance/community-plugins/main';
 export const PLUGINS_CATALOG_PATH = 'catalog.json';
 
 export interface CreatePluginsMarketplaceOptions {
@@ -88,9 +88,9 @@ const pluginAuditEmitter: MarketplaceAuditEmitter = {
 /**
  * Build a `MarketplaceService` configured for the community plugins repo.
  *
- * Cache lives at `<workspaceRoot>/.projelli/cache/plugins.json` so multiple
- * Projelli windows pointed at the same workspace see the same cached
- * catalog. Installs land under `<workspaceRoot>/.projelli/plugins/<id>/`.
+ * Cache lives at `<workspaceRoot>/.keepance/cache/plugins.json` so multiple
+ * Keepance windows pointed at the same workspace see the same cached
+ * catalog. Installs land under `<workspaceRoot>/.keepance/plugins/<id>/`.
  *
  * The returned service uses `validatePluginManifest` for manifest validation
  * and emits plugin_* audit events instead of template_* events.
@@ -104,8 +104,8 @@ export function createPluginsMarketplaceService(
   return new MarketplaceService({
     repoUrl: opts.repoUrl ?? PLUGINS_REPO_URL,
     catalogPath: opts.catalogPath ?? PLUGINS_CATALOG_PATH,
-    cachePath: `${root}/.projelli/cache/plugins.json`,
-    installRoot: `${root}/.projelli/plugins`,
+    cachePath: `${root}/.keepance/cache/plugins.json`,
+    installRoot: `${root}/.keepance/plugins`,
     fs,
     provenance: 'community',
     validator: pluginValidator,

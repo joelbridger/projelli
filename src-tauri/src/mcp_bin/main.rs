@@ -1,4 +1,4 @@
-// Projelli MCP server (M4, v1.5 Flag 2) — hand-rolled JSON-RPC 2.0 over stdio.
+// Keepance MCP server (M4, v1.5 Flag 2) — hand-rolled JSON-RPC 2.0 over stdio.
 //
 // Why hand-rolled instead of the `rmcp` crate:
 //   - MCP's wire protocol is straightforward JSON-RPC 2.0 with a small handful
@@ -8,7 +8,7 @@
 //     and leaves the tests plain-Rust rather than macro-heavy.
 //   - rmcp pulls `schemars` + `tokio-util` + `pastey` + a dozen proc-macros
 //     we don't need anywhere else in the host crate. Hand-rolling keeps the
-//     `projelli-mcp` release binary small (under 10 MiB stripped) so the
+//     `keepance-mcp` release binary small (under 10 MiB stripped) so the
 //     .mcpb bundle stays a friendly download.
 //   - A plain stdio JSON-RPC loop is trivial to exercise in the integration
 //     test (spawn child, write JSON, read lines) — no SDK harness needed.
@@ -16,9 +16,9 @@
 // Approval channel (see `approval.rs` for the full design):
 //   - `write_workspace_file` with `require_confirmation = true` writes a JSON
 //     blob to a platform temp directory (`approval-requests/<token>.json`),
-//     prints a `projelli/approval_request` line to stderr, and polls for
+//     prints a `keepance/approval_request` line to stderr, and polls for
 //     `approval-responses/<token>.json` for up to 60s.
-//   - The Projelli desktop app launches the binary as a child, reads stderr
+//   - The Keepance desktop app launches the binary as a child, reads stderr
 //     line-by-line, shows the approval modal, then drops the decision file.
 //
 // Protocol version: we advertise `2025-03-26` in the initialize handshake,
@@ -34,7 +34,7 @@ use std::sync::{Arc, Mutex};
 // Reuse the pure sub-modules of the main Tauri crate so the binary and the
 // host app share one implementation of the vector store + embedder + file
 // extractor. See `src-tauri/src/lib.rs` — `commands` is `pub` for this reason.
-use projelli_lib::commands::rag::{embedder, extractor, store};
+use keepance_lib::commands::rag::{embedder, extractor, store};
 
 mod approval;
 mod protocol;
@@ -50,16 +50,16 @@ use protocol::{
 pub const MCP_PROTOCOL_VERSION: &str = "2025-03-26";
 
 /// Server name advertised in `initialize` and the `.mcpb` manifest.
-pub const SERVER_NAME: &str = "projelli";
+pub const SERVER_NAME: &str = "keepance";
 
 /// Short human description shown in clients' tool pickers.
 pub const SERVER_DESCRIPTION: &str =
-    "Read your Projelli workspace (files + memory + semantic search) from any MCP client.";
+    "Read your Keepance workspace (files + memory + semantic search) from any MCP client.";
 
-/// Workspace root is supplied by the parent process (the Projelli app or a
+/// Workspace root is supplied by the parent process (the Keepance app or a
 /// directly-invoked Claude Desktop install) via this env var. Stored in the
 /// .mcpb manifest so clients prompt the user for it at install time.
-pub const WORKSPACE_ENV: &str = "PROJELLI_WORKSPACE_ROOT";
+pub const WORKSPACE_ENV: &str = "KEEPANCE_WORKSPACE_ROOT";
 
 /// Shared immutable context handed to every tool call.
 #[derive(Clone)]
@@ -109,7 +109,7 @@ fn main() {
     let ctx = match ServerCtx::from_env() {
         Ok(c) => Some(c),
         Err(e) => {
-            eprintln!("projelli-mcp: {e}");
+            eprintln!("keepance-mcp: {e}");
             None
         }
     };
@@ -130,7 +130,7 @@ fn main() {
         let line = match line {
             Ok(l) => l,
             Err(e) => {
-                eprintln!("projelli-mcp: stdin read error: {e}");
+                eprintln!("keepance-mcp: stdin read error: {e}");
                 break;
             }
         };
@@ -169,11 +169,11 @@ fn write_response(out: &mut impl Write, resp: &JsonRpcResponse) {
     match serde_json::to_string(resp) {
         Ok(s) => {
             if let Err(e) = writeln!(out, "{s}") {
-                eprintln!("projelli-mcp: stdout write error: {e}");
+                eprintln!("keepance-mcp: stdout write error: {e}");
             }
             let _ = out.flush();
         }
-        Err(e) => eprintln!("projelli-mcp: serialize error: {e}"),
+        Err(e) => eprintln!("keepance-mcp: serialize error: {e}"),
     }
 }
 
@@ -191,7 +191,7 @@ async fn dispatch(req: &JsonRpcRequest, ctx: Option<&ServerCtx>) -> Option<JsonR
             None => Some(JsonRpcResponse::error(
                 id,
                 ERROR_INTERNAL,
-                format!("{WORKSPACE_ENV} is not configured — restart Projelli and try again"),
+                format!("{WORKSPACE_ENV} is not configured — restart Keepance and try again"),
             )),
         },
         // `notifications/cancelled`, `logging/setLevel`, etc. — swallow quietly.
@@ -410,7 +410,7 @@ mod tests {
 
     #[test]
     fn server_name_matches_manifest() {
-        assert_eq!(SERVER_NAME, "projelli");
+        assert_eq!(SERVER_NAME, "keepance");
     }
 
     #[test]

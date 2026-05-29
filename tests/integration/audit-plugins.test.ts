@@ -77,7 +77,7 @@ const CRASH_SOURCE = readFileSync(
 
 const APP_VERSION = '2.0.0';
 const WORKSPACE_ROOT = '/ws';
-const INSTALL_ROOT = `${WORKSPACE_ROOT}/.projelli/plugins`;
+const INSTALL_ROOT = `${WORKSPACE_ROOT}/.keepance/plugins`;
 const TARBALL_CHECKSUM = 'a1b2c3d4e5f6';
 
 const WC_ENTRY: CatalogEntry = {
@@ -90,7 +90,7 @@ const WC_ENTRY: CatalogEntry = {
   tags: WC_MANIFEST.tags,
   installUrl: 'https://example.test/word-counter-1.0.0.tar.gz',
   manifestUrl: 'https://example.test/word-counter-1.0.0/manifest.json',
-  minProjelliVersion: WC_MANIFEST.minProjelliVersion,
+  minKeepanceVersion: WC_MANIFEST.minKeepanceVersion,
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
   checksum: TARBALL_CHECKSUM,

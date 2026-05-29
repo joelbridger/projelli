@@ -1,5 +1,5 @@
 // New Business Kickoff Workflow Template
-// The flagship workflow that interviews the founder and generates core documents
+// The flagship workflow that interviews the professional and generates core documents
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 
@@ -53,7 +53,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'What is your pricing and revenue model?',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., SaaS subscription at $29/month per user',
+    placeholder: 'e.g., Hourly billing at $300/hr, flat-fee packages, or monthly retainer engagements',
   },
   {
     id: 'competitors',
@@ -69,7 +69,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Where are you in your journey?',
     type: 'select',
     required: true,
-    options: ['Idea', 'Validation', 'Building MVP', 'Launched', 'Growing'],
+    options: ['Idea', 'Planning', 'Pre-launch', 'Launched', 'Growing'],
     defaultValue: 'Idea',
   },
 ];
@@ -77,9 +77,9 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
 /**
  * Vision document generation prompt
  */
-const visionPrompt = `You are helping a solo founder create a Vision document for their business.
+const visionPrompt = `You are helping a professional create a Vision document for their business.
 
-Based on the following information from the founder:
+Based on the following information from the professional:
 
 **Problem:** {{problem}}
 
@@ -107,7 +107,7 @@ Make it specific to this business, not generic. Use concrete numbers and example
 /**
  * PRD generation prompt
  */
-const prdPrompt = `You are helping a solo founder create a Product Requirements Document (PRD).
+const prdPrompt = `You are helping a professional create a Product Requirements Document (PRD).
 
 Based on the business information:
 
@@ -129,12 +129,12 @@ Generate a PRD in Markdown format that includes:
 7. **Open Questions** - Decisions that still need to be made
 8. **Future Considerations** - What might come next
 
-Focus on an MVP scope appropriate for a {{stage}} stage business.`;
+Focus on an initial scope appropriate for a {{stage}} stage business.`;
 
 /**
  * Lean Canvas generation prompt
  */
-const leanCanvasPrompt = `You are helping a solo founder create a Lean Canvas.
+const leanCanvasPrompt = `You are helping a professional create a Lean Canvas.
 
 Based on the business information:
 
@@ -189,7 +189,7 @@ export const NewBusinessKickoff: WorkflowTemplate = {
       config: {
         outputFile: 'VISION.md',
         promptTemplate: visionPrompt,
-        systemPrompt: 'You are an experienced startup advisor helping founders create clear, compelling business documents. Be specific and actionable.',
+        systemPrompt: 'You are an experienced professional practice advisor helping practitioners create clear, compelling business documents. Be specific and actionable.',
       } as GenerateStepConfig,
     },
     {
@@ -200,7 +200,7 @@ export const NewBusinessKickoff: WorkflowTemplate = {
       config: {
         outputFile: 'PRD.md',
         promptTemplate: prdPrompt,
-        systemPrompt: 'You are a senior product manager helping founders define their MVP. Be practical and focused on what matters most.',
+        systemPrompt: 'You are a senior practice development advisor helping professionals define their initial service offering. Be practical and focused on what matters most.',
       } as GenerateStepConfig,
     },
     {
@@ -211,7 +211,7 @@ export const NewBusinessKickoff: WorkflowTemplate = {
       config: {
         outputFile: 'LEAN_CANVAS.md',
         promptTemplate: leanCanvasPrompt,
-        systemPrompt: 'You are a business model expert helping founders think through their business systematically.',
+        systemPrompt: 'You are a business model expert helping professionals think through their business systematically.',
       } as GenerateStepConfig,
     },
   ],

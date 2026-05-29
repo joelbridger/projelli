@@ -42,7 +42,7 @@ export async function shot06() {
     outputName: 'screenshot-06-api-keys.png',
     pressKit: true,
     viewport: { width: 1280, height: 800 },
-    windowTitle: 'Linterly — Projelli',
+    windowTitle: 'Linterly — Keepance',
     localStorageSeed: {
       apiKey_anthropic: FAKE_ANTHROPIC_KEY,
       apiKey_openai: FAKE_OPENAI_KEY,

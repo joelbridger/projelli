@@ -41,18 +41,18 @@ const PROVIDERS: ProviderTab[] = [
     tagline: 'Easiest path on Apple devices. About 5 minutes.',
     steps: [
       'On your Mac, make sure iCloud Drive is on under System Settings → Apple ID → iCloud.',
-      'In Projelli, open File → Open Workspace and pick a folder inside ~/Library/Mobile Documents/com~apple~CloudDocs/. A folder called "Projelli" works well.',
+      'In Keepance, open File → Open Workspace and pick a folder inside ~/Library/Mobile Documents/com~apple~CloudDocs/. A folder called "Keepance" works well.',
       'Wait for the first sync to finish (watch the cloud icons in Finder).',
-      'On your iPhone, open the Files app → Browse → iCloud Drive → Projelli to read your workspace.',
+      'On your iPhone, open the Files app → Browse → iCloud Drive → Keepance to read your workspace.',
     ],
     tips: [
       'Treat your phone as read-only for now to avoid conflict copies.',
-      'Free iCloud tier is 5 GB. A typical Projelli workspace fits easily.',
+      'Free iCloud tier is 5 GB. A typical Keepance workspace fits easily.',
       'For pretty Markdown rendering on iPhone, install a Markdown reader like Taio or 1Writer and point it at the same iCloud folder.',
     ],
     // Apple's documented Files app deep link. Opens straight into Files.
     deepLink: { href: 'shareddocuments://', label: 'Open Files on iPhone' },
-    docsHref: 'https://projelli.com/docs/mobile-access/icloud',
+    docsHref: 'https://keepance.com/docs/mobile-access/icloud',
   },
   {
     id: 'dropbox',
@@ -60,18 +60,18 @@ const PROVIDERS: ProviderTab[] = [
     tagline: 'Cross-platform. Reliable conflict handling. Works on iOS and Android.',
     steps: [
       'Install Dropbox for desktop from dropbox.com/install if you don\'t already have it.',
-      'In Projelli, open File → Open Workspace and pick a folder inside your Dropbox folder.',
+      'In Keepance, open File → Open Workspace and pick a folder inside your Dropbox folder.',
       'Wait for the green checkmark next to the folder in Finder / File Explorer.',
-      'Install the Dropbox iOS or Android app, sign in, and navigate to the Projelli folder. Tap any .md file.',
+      'Install the Dropbox iOS or Android app, sign in, and navigate to the Keepance folder. Tap any .md file.',
     ],
     tips: [
       'Dropbox creates clearly labeled "conflicted copy" files when both devices edit at once. Still cleanest to edit on one at a time.',
       'Free tier is 2 GB. Markdown is tiny so this is rarely the bottleneck.',
-      'If you use Smart Sync, right-click your Projelli folder and "Make Available Offline" so Projelli can always read from disk.',
+      'If you use Smart Sync, right-click your Keepance folder and "Make Available Offline" so Keepance can always read from disk.',
     ],
     // Documented Dropbox iOS scheme used to open the app.
     deepLink: { href: 'dbapi-2://1/connect', label: 'Open Dropbox on iPhone' },
-    docsHref: 'https://projelli.com/docs/mobile-access/dropbox',
+    docsHref: 'https://keepance.com/docs/mobile-access/dropbox',
   },
   {
     id: 'syncthing',
@@ -79,8 +79,8 @@ const PROVIDERS: ProviderTab[] = [
     tagline: 'Open source, peer-to-peer. Your data stays on your devices.',
     steps: [
       'Install Syncthing on your computer from syncthing.net/downloads. The admin UI opens at http://127.0.0.1:8384.',
-      'In Syncthing, add a folder (label "Projelli") pointing at a local path like ~/Projelli-Sync/.',
-      'In Projelli, open File → Open Workspace and select that same folder.',
+      'In Syncthing, add a folder (label "Keepance") pointing at a local path like ~/Keepance-Sync/.',
+      'In Keepance, open File → Open Workspace and select that same folder.',
       'On Android: install Syncthing-Fork and pair using your computer\'s device ID. On iPhone: use Möbius Sync (paid) and follow the same pairing flow.',
     ],
     tips: [
@@ -88,7 +88,7 @@ const PROVIDERS: ProviderTab[] = [
       'iOS does not have an official free Syncthing client. If you don\'t want to pay for Möbius Sync, the iCloud Drive tab is a better fit on iPhone.',
       'For nicer Markdown rendering on Android, install Markor and open .md files with that.',
     ],
-    docsHref: 'https://projelli.com/docs/mobile-access/syncthing',
+    docsHref: 'https://keepance.com/docs/mobile-access/syncthing',
   },
   {
     id: 'gdrive',
@@ -96,16 +96,16 @@ const PROVIDERS: ProviderTab[] = [
     tagline: 'Best on Android. Requires the Google Drive desktop app in "Mirror" mode.',
     steps: [
       'Install Google Drive for desktop from google.com/drive/download. When asked, choose "Mirror files" (not "Stream files"), so a real local copy lives on your hard drive.',
-      'In Projelli, open File → Open Workspace and pick a folder inside the mirrored Drive location.',
+      'In Keepance, open File → Open Workspace and pick a folder inside the mirrored Drive location.',
       'Wait for the green checkmark in Finder / File Explorer.',
-      'On Android, open the Google Drive app and navigate to the Projelli folder. On iPhone, install Google Drive for iOS and do the same.',
+      'On Android, open the Google Drive app and navigate to the Keepance folder. On iPhone, install Google Drive for iOS and do the same.',
     ],
     tips: [
-      '"Mirror" mode is required. "Stream" mode keeps files cloud-only and Projelli won\'t reliably read them.',
+      '"Mirror" mode is required. "Stream" mode keeps files cloud-only and Keepance won\'t reliably read them.',
       'Free tier is 15 GB shared across Drive, Gmail, and Photos. Check your overall Google storage isn\'t already full.',
       'On Android, tap a .md file to pick a default Markdown app once. Markor is a solid free choice.',
     ],
-    docsHref: 'https://projelli.com/docs/mobile-access/google-drive',
+    docsHref: 'https://keepance.com/docs/mobile-access/google-drive',
   },
 ];
 

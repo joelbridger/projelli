@@ -15,7 +15,7 @@ const ENTRY_A: CatalogEntry = {
   tags: ['investor', 'update'],
   installUrl: 'https://example.test/a.tar.gz',
   manifestUrl: 'https://example.test/a.json',
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
 };
@@ -30,7 +30,7 @@ const ENTRY_B: CatalogEntry = {
   tags: ['launch', 'product'],
   installUrl: 'https://example.test/b.tar.gz',
   manifestUrl: 'https://example.test/b.json',
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
 };
@@ -186,7 +186,7 @@ describe('TemplatesTab', () => {
     const installed: InstalledEntry = {
       ...ENTRY_A,
       installedAt: '2026-04-28T00:00:00.000Z',
-      installedPath: '/ws/.projelli/templates/investor-update-v1',
+      installedPath: '/ws/.keepance/templates/investor-update-v1',
       provenance: 'community',
       manifestVersion: '1.0',
     };
@@ -233,7 +233,7 @@ describe('TemplatesTab', () => {
     const installed: InstalledEntry = {
       ...ENTRY_A,
       installedAt: '2026-04-28T00:00:00.000Z',
-      installedPath: '/ws/.projelli/templates/investor-update-v1',
+      installedPath: '/ws/.keepance/templates/investor-update-v1',
       provenance: 'community',
       manifestVersion: '1.0',
     };

@@ -11,7 +11,7 @@
  * id is generated lazily at first use.
  */
 
-const KEY = 'projelli_install_id';
+const KEY = 'keepance_install_id';
 
 function uuidv4(): string {
   // Prefer the platform's secure UUID generator. Fall back only for very

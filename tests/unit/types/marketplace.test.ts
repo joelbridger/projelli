@@ -13,7 +13,7 @@ describe('CatalogEntry type', () => {
       tags: ['monthly'],
       installUrl: 'https://example.com/x.tar.gz',
       manifestUrl: 'https://example.com/manifest.json',
-      minProjelliVersion: '2.0.0',
+      minKeepanceVersion: '2.0.0',
       publishedAt: '2026-04-28T00:00:00Z',
       updatedAt: '2026-04-28T00:00:00Z',
     };
@@ -31,11 +31,11 @@ describe('CatalogEntry type', () => {
       tags: [],
       installUrl: '',
       manifestUrl: '',
-      minProjelliVersion: '2.0.0',
+      minKeepanceVersion: '2.0.0',
       publishedAt: '',
       updatedAt: '',
       installedAt: '2026-04-28T00:00:00Z',
-      installedPath: '.projelli/templates/x',
+      installedPath: '.keepance/templates/x',
     };
     expect(e.installedAt).toBeDefined();
   });

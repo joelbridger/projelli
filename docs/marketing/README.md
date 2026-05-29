@@ -1,6 +1,8 @@
-# Projelli Marketing
+# Keepance Marketing
 
-This folder is the canonical home for **all ongoing marketing work** for Projelli — campaigns, channel-specific playbooks, action packs, copy, and operational marketing materials. Created 2026-04-22 during the docs reorganization that consolidated marketing files previously scattered across `docs/features/` and `docs/launch/`.
+This folder is the canonical home for **all ongoing marketing work** for Keepance — campaigns, channel-specific playbooks, action packs, copy, and operational marketing materials. Created 2026-04-22 during the docs reorganization that consolidated marketing files previously scattered across `docs/features/` and `docs/launch/`.
+
+> **Channel pivot — 2026-05-27:** As of the ICP pivot on 2026-05-27, the primary marketing channels are **bar associations (legal)**: ABA TECHSHOW, Lawyerist, Above the Law, IPWatchdog; **AICPA/NAEA (tax)**; and **Umbrex/Lenny (consulting)**. PH/HN/IH are not primary channels for the current ICP. Channel playbooks in `channels/` are retained as reference but are not the active distribution strategy.
 
 ---
 
@@ -16,20 +18,8 @@ docs/marketing/
 └── campaigns/         One folder per discrete marketing campaign (NEW work goes here)
 ```
 
-### `strategy/` — read this first
-Authored 2026-04-27. The 12-month strategic plan: definition of winning, ICP, positioning, message hierarchy, two-engine model (SEO compounding + spike booster), retention, personal brand binding, measurement cadence, anti-patterns. Channel-level tactics in `channels/` and `playbook/` are subordinate to this plan.
-
-| File | What it covers |
-|---|---|
-| `strategy/README.md` | Index + 1-page summary of the entire strategy |
-| `strategy/00-master-strategy.md` | Strategic spine: ICP, positioning, two-engine model, hours allocation, eight non-goals |
-| `strategy/01-seo-engine.md` | Compounding engine: 30-40 page architecture, AI-search optimization, 12-week cadence |
-| `strategy/02-launch-fuel.md` | Launch week reframed as engine fuel: 5-day sequence, harvest mechanics |
-| `strategy/03-partnership-spikes.md` | Newsletter sponsorships, integrations, podcasts, affiliate program |
-| `strategy/04-retention-and-wom.md` | Buyer-to-advocate engine: onboarding, upgrades, testimonials |
-| `strategy/05-personal-brand-binding.md` | The selective hybrid: brand voice + Jameson 1-2x/month amplification |
-| `strategy/06-measurement-cadence.md` | KPIs, weekly/monthly/quarterly review rituals, abort triggers |
-| `strategy/07-anti-patterns.md` | 22 traps we won't fall into |
+### `strategy/` — ARCHIVED
+The original strategy/ folder (SEO engine, launch fuel, partnership spikes) was built for the indie-founder ICP and has been archived to `archive/2026-05-pre-pivot/strategy/`. A new professional-ICP strategy will be written for attorneys/CPAs/consultants under a new `strategy/` folder once the advisor review is complete.
 
 ### `playbook/`
 Generic how-to docs that apply across channels and campaigns. The shared toolbox. Current contents:
@@ -71,7 +61,7 @@ campaigns/2026-05-relaunch/      ← example, name = YYYY-MM-<slug>
 ├── README.md                    Campaign goal, audience, success criteria, timeline
 ├── plan.md                      Week-by-week execution plan
 ├── copy/                        All written copy variants
-├── assets/                      Asset list (images live in ~/projelli/Assets/ or website/press-kit/assets/)
+├── assets/                      Asset list (images live in ~/keepance/Assets/ or website/press-kit/assets/)
 ├── tracking.md                  Channels touched, dates, results, links
 └── retro.md                     Post-campaign retrospective (what worked, what didn't)
 ```
@@ -80,14 +70,14 @@ campaigns/2026-05-relaunch/      ← example, name = YYYY-MM-<slug>
 
 ## Where marketing-relevant stuff lives elsewhere on disk
 
-- **Strategy** (positioning, market analysis, competitive deep-dive): `~/projelli/docs/strategy/market-assessment-2026-04/` — read first when planning a campaign
-- **Reference** (product features, competitive landscape, vision): `~/projelli/docs/reference/` — pull facts from here, don't restate
-- **Live website** (blog posts, press kit, /vs pages, templates gallery): `~/projelli/website/` → deploys to `/var/www/projelli.com/`. New blog posts go in `website/blog/`.
+- **Strategy** (positioning, market analysis, competitive deep-dive): `~/keepance/docs/strategy/market-assessment-2026-04/` — read first when planning a campaign
+- **Reference** (product features, competitive landscape, vision): `~/keepance/docs/reference/` — pull facts from here, don't restate
+- **Live website** (blog posts, press kit, /vs pages, templates gallery): `~/keepance/website/` → deploys to `/var/www/keepance.com/`. New blog posts go in `website/blog/`.
 - **Raw assets / screenshots** (images NOT yet in production):
-  - `~/projelli/Assets/` — raw working images (gitignored, local only). Includes Projelli logo SVG, install screenshots, error screenshots.
-  - `~/projelli/screenshots/` — ad-hoc Windows screenshots (gitignored, local only)
-- **Production press-kit assets** (images already published on the website): `~/projelli/website/press-kit/assets/`
-- **Sign-up data** (email lists, beta requests, bug reports): `~/projelli/sign-ups/` (gitignored)
+  - `~/keepance/Assets/` — raw working images (gitignored, local only). Includes Keepance logo SVG, install screenshots, error screenshots.
+  - `~/keepance/screenshots/` — ad-hoc Windows screenshots (gitignored, local only)
+- **Production press-kit assets** (images already published on the website): `~/keepance/website/press-kit/assets/`
+- **Sign-up data** (email lists, beta requests, bug reports): `~/keepance/sign-ups/` (gitignored)
   - `email-lists/` — campaign-collected email signups (.jsonl)
   - `bug-reports/` — incoming bug reports (.jsonl)
 - **Voice rules**: see `~/.claude/projects/-home-jameson/memory/feedback_jameson_voice_profile.md` and `feedback_marketing_copy_voice.md` — bound to every public-facing draft

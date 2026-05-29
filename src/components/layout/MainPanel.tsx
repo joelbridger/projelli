@@ -744,7 +744,7 @@ export function MainPanel({
         return <ImageViewer src={tab.content} alt={tab.name} />;
       }
       // Audio check runs BEFORE video — .webm and .ogg are containers
-      // that can hold audio OR video, but in Projelli they're used for
+      // that can hold audio OR video, but in Keepance they're used for
       // audio recording. Route to WaveformEditor first so recorded audio
       // gets the waveform + edit tools, not a bare HTML5 video player.
       if (isAudio) {
@@ -843,7 +843,7 @@ export function MainPanel({
         );
       }
 
-      // Projelli's internal `.rt` format (HTML-serialized TipTap state).
+      // Keepance's internal `.rt` format (HTML-serialized TipTap state).
       if (isInternalRichText) {
         return (
           <RichTextEditor

@@ -1,7 +1,7 @@
 /**
  * Settings Store -- Zustand + persist middleware.
  *
- * Persisted to localStorage under `projelli:settings`.
+ * Persisted to localStorage under `keepance:settings`.
  * Defaults derive from the schema. `getSetting` returns the stored value or
  * the schema default if not yet set.
  *
@@ -122,7 +122,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
     }),
     {
-      name: 'projelli:settings',
+      name: 'keepance:settings',
       // Only persist `values` and the migration flag.
       partialize: (state) => ({
         values: state.values,
@@ -155,9 +155,9 @@ function migrateLegacySettings(): void {
     }
   } catch { /* noop */ }
 
-  // tabOverflow -- was at "projelli:tabOverflow"
+  // tabOverflow -- was at "keepance:tabOverflow"
   try {
-    const oldOverflow = localStorage.getItem('projelli:tabOverflow');
+    const oldOverflow = localStorage.getItem('keepance:tabOverflow');
     if (oldOverflow && (oldOverflow === 'scroll' || oldOverflow === 'wrap')) {
       if (state.values['tabOverflow'] === undefined) {
         updates['tabOverflow'] = oldOverflow;

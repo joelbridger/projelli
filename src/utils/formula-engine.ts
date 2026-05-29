@@ -1,11 +1,11 @@
 // Formula Engine
 // ---------------------------------------------------------------------------
-// Lightweight Excel-formula engine for the Projelli spreadsheet viewer.
+// Lightweight Excel-formula engine for the Keepance spreadsheet viewer.
 //
 // Why in-house: the obvious off-the-shelf option, HyperFormula, is dual-
-// licensed GPL-3 / proprietary. GPL-3 would force Projelli's entire JS
+// licensed GPL-3 / proprietary. GPL-3 would force Keepance's entire JS
 // bundle open under GPL, which conflicts with the commercial launch plan
-// (~/projelli/PROJELLI_BUSINESS_PLAN.md). Rather than pay for a proprietary
+// (~/keepance/KEEPANCE_BUSINESS_PLAN.md). Rather than pay for a proprietary
 // seat up front, we implement a small engine that covers the common cases:
 //
 //   - Arithmetic: +, -, *, /, %, ^ with standard precedence

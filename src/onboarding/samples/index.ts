@@ -2,9 +2,9 @@
  * Sample workspace files (Q11 — Wave 1.5).
  *
  * Loaded as raw strings via Vite's `?raw` import. Each sample is a realistic,
- * founder-voiced Markdown artifact built for a fictional product ("Acme Budget",
- * a personal finance app for freelancers) so a first-run user can see what a
- * finished workflow output looks like without having to run one.
+ * realistic Markdown artifact built for a fictional solo law practice so a
+ * first-run user can see what a finished workflow output looks like without having
+ * to run one.
  *
  * Wired into FirstRunWizard. When the "Populate workspace with samples" toggle
  * is ON (default), these files are copied into the selected workspace root at
@@ -13,7 +13,7 @@
  */
 
 import pricingStrategy from './Sample - Pricing Strategy.md?raw';
-import pitchDeck from './Sample - Pitch Deck.md?raw';
+import clientIntake from './Sample - Client Intake.md?raw';
 import weeklyReview from './Sample - Weekly Review.md?raw';
 
 export interface SampleFile {
@@ -24,9 +24,9 @@ export interface SampleFile {
 }
 
 export const SAMPLE_FILES: SampleFile[] = [
-  { filename: 'Sample - Pricing Strategy.md', content: pricingStrategy },
-  { filename: 'Sample - Pitch Deck.md', content: pitchDeck },
+  { filename: 'Sample - Client Intake.md', content: clientIntake },
   { filename: 'Sample - Weekly Review.md', content: weeklyReview },
+  { filename: 'Sample - Pricing Strategy.md', content: pricingStrategy },
 ];
 
 /**

@@ -1,16 +1,16 @@
 /**
- * Voice catalog for Projelli TTS (Stream B).
+ * Voice catalog for Keepance TTS (Stream B).
  *
  * Bundled voice: en_US-amy-medium (ships with the installer).
  * Lazy-download voices: es_ES-mls-medium, de_DE-thorsten-medium.
- * Additional voices are downloaded on first use from Projelli's CDN.
+ * Additional voices are downloaded on first use from Keepance's CDN.
  *
- * CDN pattern: https://projelli.com/voices/<voice-id>.tar.gz
+ * CDN pattern: https://keepance.com/voices/<voice-id>.tar.gz
  * Each archive unpacks to <voice-id>.onnx + <voice-id>.onnx.json
  * (the two files Piper requires).
  */
 
-export const TTS_CDN_BASE = 'https://projelli.com/voices';
+export const TTS_CDN_BASE = 'https://keepance.com/voices';
 
 export interface VoiceEntry {
   /** Piper voice ID, e.g. en_US-amy-medium */

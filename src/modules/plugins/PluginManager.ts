@@ -32,7 +32,7 @@
 // host shared across all plugins while preserving ownership.
 //
 // Workspace storage layout (per spec §6.4):
-//   <workspace>/.projelli/plugins/
+//   <workspace>/.keepance/plugins/
 //     <pluginId>/
 //       manifest.json         (plugin metadata)
 //       index.js              (plugin source; name from manifest.main)
@@ -71,8 +71,8 @@ import { WorkspaceHost } from './hosts/WorkspaceHost';
 import type { PluginBridgeHooks, PluginWorkerFactory } from './PluginAPIBridge';
 import {
   validatePluginManifest,
-  checkMinProjelliVersion,
-  checkMaxProjelliVersion,
+  checkMinKeepcanceVersion,
+  checkMaxKeepcanceVersion,
 } from './PluginManifestSchema';
 import { PluginPermissions } from './PluginPermissions';
 import { PluginWorkerHost } from './PluginWorkerHost';
@@ -114,9 +114,9 @@ export interface PluginManagerOptions {
   fs: FSBackend;
   /** Active workspace service; threaded into WorkspaceHost via accessor. */
   workspaceService: WorkspaceService | null;
-  /** Absolute path to `<workspace>/.projelli/plugins`. Manager treats this as authoritative. */
+  /** Absolute path to `<workspace>/.keepance/plugins`. Manager treats this as authoritative. */
   installRoot: string;
-  /** Currently-running app version. Validated against `minProjelliVersion`. */
+  /** Currently-running app version. Validated against `minKeepcanceVersion`. */
   appVersion: string;
   /** Production: Vite-bundled `?worker` import. Tests: paired-mock factory. */
   workerFactory: PluginWorkerFactory;
@@ -293,12 +293,12 @@ export class PluginManager {
       }
       manifest = result.manifest;
 
-      const minErr = checkMinProjelliVersion(manifest, this.appVersion);
+      const minErr = checkMinKeepcanceVersion(manifest, this.appVersion);
       if (minErr) {
         await this.safeDelete(stagingPath);
         throw new Error(minErr);
       }
-      const maxErr = checkMaxProjelliVersion(manifest, this.appVersion);
+      const maxErr = checkMaxKeepcanceVersion(manifest, this.appVersion);
       if (maxErr) {
         await this.safeDelete(stagingPath);
         throw new Error(maxErr);

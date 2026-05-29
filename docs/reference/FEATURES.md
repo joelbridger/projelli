@@ -1,21 +1,21 @@
-# Projelli Feature Reference
+# Keepance Feature Reference
 
 _Last updated: 2026-04-16 · v1.0.8_
 
-Canonical "what can Projelli do" reference. Built from the actual code in `src/` and `src-tauri/`, not from marketing copy. Update this when features ship.
+Canonical "what can Keepance do" reference. Built from the actual code in `src/` and `src-tauri/`, not from marketing copy. Update this when features ship.
 
 ## Overview
 
-Projelli is a local-first, artifact-driven desktop workspace for solo founders building businesses with AI assistance. Tauri 2 + React 18 + TypeScript, BYOK (bring your own API key), data never leaves the user's machine.
+Keepance is a local-first, artifact-driven desktop workspace for solo founders building businesses with AI assistance. Tauri 2 + React 18 + TypeScript, BYOK (bring your own API key), data never leaves the user's machine.
 
-Unlike chat-first AI tools, Projelli treats **files as first-class citizens**: every AI conversation, workflow run, whiteboard, and research note lives on disk as a real file the user owns. The AI proposes, the user approves destructive actions. Think Obsidian plus ChatGPT artifacts plus founder playbooks, under one roof, with no cloud dependency.
+Unlike chat-first AI tools, Keepance treats **files as first-class citizens**: every AI conversation, workflow run, whiteboard, and research note lives on disk as a real file the user owns. The AI proposes, the user approves destructive actions. Think Obsidian plus ChatGPT artifacts plus founder playbooks, under one roof, with no cloud dependency.
 
 Ships as signed installers for Windows (NSIS + MSI), macOS (signed, currently unnotarized), and Linux (AppImage + deb). Auto-updates via GitHub Releases and minisign signatures as of v1.0.8.
 
 ## Core concepts
 
-- **Workspace model.** A workspace is any folder the user picks. Every file in that folder is part of the workspace; Projelli never writes outside it. Recent workspaces persist across launches.
-- **BYOK AI.** Users paste their own API keys for Anthropic (Claude), OpenAI, or Google (Gemini). Keys live in `localStorage`, never on a server. No Projelli-managed AI, no usage metering.
+- **Workspace model.** A workspace is any folder the user picks. Every file in that folder is part of the workspace; Keepance never writes outside it. Recent workspaces persist across launches.
+- **BYOK AI.** Users paste their own API keys for Anthropic (Claude), OpenAI, or Google (Gemini). Keys live in `localStorage`, never on a server. No Keepance-managed AI, no usage metering.
 - **Local-first data.** No cloud sync, no accounts, no telemetry. If a user wants sync, they put their workspace in Dropbox, iCloud, or Syncthing. This is the differentiator.
 - **File as first-class citizen.** Chats save as `.aichat`, workflow runs as `.workflow`, whiteboards as `.whiteboard`, research sources as `.source`. Everything is a real file the user can open, rename, move, version, or delete.
 
@@ -154,7 +154,7 @@ Schema-driven. Every setting lives in `src/settings/schema.ts`. Adding a setting
 | Updates | Update Channel | select | `stable` | stable (beta reserved) |
 | Updates | Check for updates now (action) | link | - | Forces update check |
 | About | What's new | action | - | Opens changelog modal |
-| About | Website | action | - | Opens projelli.com |
+| About | Website | action | - | Opens keepance.com |
 | About | GitHub | action | - | Opens repo |
 
 - **Export / Import** as JSON.
@@ -187,7 +187,7 @@ Additional shortcuts are contextual (per-editor). CodeMirror provides its own st
 
 - **Light / Dark / System** modes (`system` follows OS `prefers-color-scheme` and re-syncs live).
 - **Accent colors per file type** via `fileIcons.ts` for scannable tree and tabs.
-- **Branded welcome screen.** Coral Projelli logo (`brand/ProjelliLogo.tsx`), white full-viewport layout, gradient glow decoration (`brand/GradientGlow.tsx`).
+- **Branded welcome screen.** Coral Keepance logo (`brand/KeepanceLogo.tsx`), white full-viewport layout, gradient glow decoration (`brand/GradientGlow.tsx`).
 - **Gradient glow.** CSS-only radial blur, brand gradient (blue, purple, pink) at 6% opacity.
 - **Sidebar icons** show tooltips with labels and shortcuts when collapsed.
 - **Empty states** with icon, explanation, and CTA on every sidebar panel (`common/EmptyState.tsx`).
@@ -198,7 +198,7 @@ Additional shortcuts are contextual (per-editor). CodeMirror provides its own st
 `tauri-plugin-updater` wired end-to-end. Flow: idle, checking, available, downloading, ready-to-restart.
 
 - **Schedule:** 30 seconds after mount, then every 24 hours (`UpdateManager.tsx`).
-- **Endpoint:** `https://github.com/projelli/projelli/releases/latest/download/latest.json`.
+- **Endpoint:** `https://github.com/keepance/keepance/releases/latest/download/latest.json`.
 - **Signed artifacts** via minisign; pubkey embedded in `tauri.conf.json` at build time.
 - **Settings integration:** toggle auto-check, view channel, manual "Check for updates now" button, release-notes modal.
 - **Desktop-only target filter** keeps iOS/Android out of the crate graph.
@@ -220,8 +220,8 @@ Platform behavior:
 - **First-edit backup** for binary round-trip files (`.xlsx`, `.docx`, `.rtf`). `fileBackupStore.ts` writes one backup per session the first time a user edits, as a safety net against serializer loss.
 - **Trash retention.** Configurable, auto-cleanup via `TrashService.ts`.
 - **Persistence via localStorage** (Zustand persist middleware):
-  - `projelli:settings`, all user settings
-  - `projelli_onboarding_complete`, first-run wizard state
+  - `keepance:settings`, all user settings
+  - `keepance_onboarding_complete`, first-run wizard state
   - `workspace_expanded_*`, tree expansion per workspace
   - `workspace_versions`, version metadata
   - `audit_log_*`, audit entries per workspace
@@ -232,7 +232,7 @@ Platform behavior:
 
 ### 10. Platform distribution
 
-- **Windows.** NSIS (`.exe` installer) plus MSI. Signed by Microsoft Azure Trusted Signing cert `projelli-public-trust` (no SmartScreen warning). NSIS uses `installMode: currentUser`, custom installer hooks at `src-tauri/windows/installer-hooks.nsh`, branded sidebar and header BMPs.
+- **Windows.** NSIS (`.exe` installer) plus MSI. Signed by Microsoft Azure Trusted Signing cert `keepance-public-trust` (no SmartScreen warning). NSIS uses `installMode: currentUser`, custom installer hooks at `src-tauri/windows/installer-hooks.nsh`, branded sidebar and header BMPs.
 - **macOS.** ARM plus Intel universal. Signed by Apple Developer ID. Currently unnotarized (Apple outage), so right-click, Open on first launch.
 - **Linux.** AppImage plus deb.
 - **CI pipeline.** `.github/workflows/release.yml` builds 9 signed artifacts on every `git tag v*` push.
@@ -290,7 +290,7 @@ Honest limitations:
   - First-edit backup pattern: `onFirstEdit` prop on binary editors, `fileBackupStore` tracks per-session state.
 - **UX polish tracker:** `docs/quality/UX_POLISH_BACKLOG.md`, 30+ tickets from the Phase 7 audit, most closed.
 - **Implementation plans** live in `docs/features/` (marketing docs as of 2026-04-15; product feature plans live in `BACKLOG.md` by week).
-- **Memory file** for AI assistants: `~/.claude/projects/-home-jameson/memory/project_projelli.md`.
+- **Memory file** for AI assistants: `~/.claude/projects/-home-jameson/memory/project_keepance.md`.
 
 ## References
 

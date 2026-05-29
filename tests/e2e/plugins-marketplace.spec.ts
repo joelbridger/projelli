@@ -64,7 +64,7 @@ async function exposePluginsMarketplaceTestKit(page: Page) {
         const svc = new m.MarketplaceService({
           repoUrl: 'https://example.test',
           catalogPath: 'catalog.json',
-          cachePath: '/test-workspace/.projelli/cache/plugins.json',
+          cachePath: '/test-workspace/.keepance/cache/plugins.json',
           installRoot,
           fs,
           provenance: 'community',
@@ -158,12 +158,12 @@ async function seedMarketplaceForTest(page: Page) {
         name: pluginName,
         description: 'Counts words and characters in the active editor.',
         version: '1.0.0',
-        author: { name: 'Projelli Examples' },
+        author: { name: 'Keepance Examples' },
         category: 'writing',
         tags: ['editor', 'writing', 'stats'],
         installUrl: 'https://example.test/word-counter-1.0.0.tar.gz',
         manifestUrl: 'https://example.test/word-counter-1.0.0/manifest.json',
-        minProjelliVersion: '2.0.0',
+        minKeepanceVersion: '2.0.0',
         publishedAt: '2026-04-28T00:00:00.000Z',
         updatedAt: '2026-04-28T00:00:00.000Z',
         checksum: 'fakehash',
@@ -179,17 +179,17 @@ async function seedMarketplaceForTest(page: Page) {
         name: pluginName,
         version: '1.0.0',
         apiVersion: '2.0.0',
-        author: { name: 'Projelli Examples' },
+        author: { name: 'Keepance Examples' },
         description: 'Counts words and characters in the active editor.',
         main: 'index.js',
         permissions: ['editor:selection'],
-        minProjelliVersion: '2.0.0',
+        minKeepanceVersion: '2.0.0',
         category: 'writing',
         tags: ['editor', 'writing', 'stats'],
         license: 'MIT',
       };
 
-      const installRoot = '/test-workspace/.projelli/plugins';
+      const installRoot = '/test-workspace/.keepance/plugins';
       const installDir = `${installRoot}/${pluginId}`;
       files.set(`${installDir}/manifest.json`, JSON.stringify(manifest));
       files.set(`${installDir}/index.js`, '// noop in e2e');
@@ -305,12 +305,12 @@ test.describe('Plugins Marketplace E2E', () => {
               name: PLUGIN_NAME,
               version: '1.0.0',
               apiVersion: '2.0.0',
-              author: { name: 'Projelli Examples' },
+              author: { name: 'Keepance Examples' },
               description:
                 'Counts words and characters in the active editor.',
               main: 'index.js',
               permissions: ['editor:selection'],
-              minProjelliVersion: '2.0.0',
+              minKeepanceVersion: '2.0.0',
               category: 'writing',
               tags: ['editor', 'writing', 'stats'],
               license: 'MIT',

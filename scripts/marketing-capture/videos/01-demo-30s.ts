@@ -70,7 +70,7 @@ export async function video01() {
   // Override file tree to not show Brand Voice.md yet
   await page.evaluate(
     ({ rootPath, files }) => {
-      (window as any).__projelli_seed!({ workspace: { rootPath, fileTree: files } });
+      (window as any).__keepance_seed!({ workspace: { rootPath, fileTree: files } });
     },
     { rootPath, files: filesWithoutBrandVoice },
   );
@@ -79,7 +79,7 @@ export async function video01() {
   // ── t=1-2s: open the AI assistant tab (shows empty chat, input at bottom) ──
   await page.evaluate(
     ({ chatId, rootPath, chatFileContent, chatTitle }) => {
-      (window as any).__projelli_seed!({
+      (window as any).__keepance_seed!({
         editor: {
           openTabs: [
             {
@@ -141,7 +141,7 @@ export async function video01() {
   // ── t=4s: "send" — seed the streaming state (user message + empty assistant + isLoading: true) ──
   await page.evaluate(
     ({ chatId, userPrompt, chatTitle, chatFileContent, rootPath }) => {
-      const seed = (window as any).__projelli_seed!;
+      const seed = (window as any).__keepance_seed!;
       const ts = new Date(2026, 3, 27, 14, 22).toISOString();
       // Update the chat file content to reflect the updated state
       const updatedChatContent = JSON.stringify({
@@ -218,7 +218,7 @@ export async function video01() {
     // Progressive update of the streaming message content
     await page.evaluate(
       ({ chatId, content, userPrompt }) => {
-        (window as any).__projelli_seed!({
+        (window as any).__keepance_seed!({
           aiChat: {
             sessions: {
               [chatId]: {
@@ -251,7 +251,7 @@ export async function video01() {
       beats.fileAppeared = elapsedSec();
       await page.evaluate(
         ({ rootPath, files }) => {
-          (window as any).__projelli_seed!({ workspace: { rootPath, fileTree: files } });
+          (window as any).__keepance_seed!({ workspace: { rootPath, fileTree: files } });
         },
         { rootPath, files: [...filesWithoutBrandVoice, brandVoiceFile] },
       );
@@ -261,7 +261,7 @@ export async function video01() {
   // Mark streaming done
   await page.evaluate(
     ({ chatId, content, userPrompt }) => {
-      (window as any).__projelli_seed!({
+      (window as any).__keepance_seed!({
         aiChat: {
           sessions: {
             [chatId]: {
@@ -293,7 +293,7 @@ export async function video01() {
     beats.fileAppeared = elapsedSec();
     await page.evaluate(
       ({ rootPath, files }) => {
-        (window as any).__projelli_seed!({ workspace: { rootPath, fileTree: files } });
+        (window as any).__keepance_seed!({ workspace: { rootPath, fileTree: files } });
       },
       { rootPath, files: [...filesWithoutBrandVoice, brandVoiceFile] },
     );
@@ -317,7 +317,7 @@ export async function video01() {
     // Fallback: seed Brand Voice.md as the active editor tab
     await page.evaluate(
       ({ chatId, rootPath, brandVoiceContent, brandVoicePath, chatTitle, chatFileContent }) => {
-        (window as any).__projelli_seed!({
+        (window as any).__keepance_seed!({
           editor: {
             openTabs: [
               {

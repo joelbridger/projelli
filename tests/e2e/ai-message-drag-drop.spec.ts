@@ -3,7 +3,7 @@
  *
  * AIChatViewer renders a small drag handle next to every assistant bubble
  * whose dragstart handler stuffs the message content into a custom MIME
- * (`application/x-projelli-chat-message`) plus text/plain.
+ * (`application/x-keepance-chat-message`) plus text/plain.
  *
  * The FileTree's drop handler intercepts that MIME and invokes
  * `onDropAIMessage`. Folder drops call `targetFolder = node.path`; file
@@ -69,7 +69,7 @@ test.describe('FileTree AI-message drop (UX-28)', () => {
     const result = await folderRow.evaluate((el: HTMLElement) => {
       const payload = '# Test message\n\nBody here.';
       const dt = new DataTransfer();
-      dt.setData('application/x-projelli-chat-message', payload);
+      dt.setData('application/x-keepance-chat-message', payload);
       dt.setData('text/plain', payload);
 
       // dragover is what lights up the drop target; drop is what fires.
@@ -121,7 +121,7 @@ test.describe('FileTree AI-message drop (UX-28)', () => {
     await fileRow.evaluate((el: HTMLElement) => {
       const payload = '# New section';
       const dt = new DataTransfer();
-      dt.setData('application/x-projelli-chat-message', payload);
+      dt.setData('application/x-keepance-chat-message', payload);
       dt.setData('text/plain', payload);
       el.dispatchEvent(new DragEvent('dragover', { bubbles: true, dataTransfer: dt, cancelable: true }));
       el.dispatchEvent(new DragEvent('drop', { bubbles: true, dataTransfer: dt, cancelable: true }));

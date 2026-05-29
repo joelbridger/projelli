@@ -10,7 +10,7 @@
  *   - All four tab triggers render with stable testids.
  *   - Default tab (iCloud) shows its content and the documented Files deep link.
  *   - Switching tabs swaps the visible panel.
- *   - The "Full guide" link points at /docs/mobile-access/<provider> on projelli.com.
+ *   - The "Full guide" link points at /docs/mobile-access/<provider> on keepance.com.
  *   - The Dropbox tab exposes the documented dbapi-2 deep link.
  *   - Syncthing has no deep link (intentional — no stable iOS scheme).
  */
@@ -41,7 +41,7 @@ describe('MobileSettingsPage', () => {
     const fullGuide = screen.getByTestId('mobile-docs-icloud');
     expect(fullGuide).toHaveAttribute(
       'href',
-      'https://projelli.com/docs/mobile-access/icloud',
+      'https://keepance.com/docs/mobile-access/icloud',
     );
   });
 
@@ -53,7 +53,7 @@ describe('MobileSettingsPage', () => {
     expect(deepLink).toHaveAttribute('href', 'dbapi-2://1/connect');
     expect(screen.getByTestId('mobile-docs-dropbox')).toHaveAttribute(
       'href',
-      'https://projelli.com/docs/mobile-access/dropbox',
+      'https://keepance.com/docs/mobile-access/dropbox',
     );
   });
 
@@ -63,7 +63,7 @@ describe('MobileSettingsPage', () => {
     expect(screen.getByTestId('mobile-panel-gdrive')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-docs-gdrive')).toHaveAttribute(
       'href',
-      'https://projelli.com/docs/mobile-access/google-drive',
+      'https://keepance.com/docs/mobile-access/google-drive',
     );
   });
 
@@ -74,7 +74,7 @@ describe('MobileSettingsPage', () => {
     expect(screen.queryByTestId('mobile-deeplink-syncthing')).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-docs-syncthing')).toHaveAttribute(
       'href',
-      'https://projelli.com/docs/mobile-access/syncthing',
+      'https://keepance.com/docs/mobile-access/syncthing',
     );
   });
 });

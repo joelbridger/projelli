@@ -18,7 +18,7 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'intro',
     title: "Let's take a 2-minute tour",
-    body: 'Projelli has ten things worth knowing on day one. Skip any time with Esc, step back with the left arrow key. You can restart this tour later from Settings, Onboarding.',
+    body: 'Keepance has ten things worth knowing on day one. Skip any time with Esc, step back with the left arrow key. You can restart this tour later from Settings, Onboarding.',
     targetSelector: null,
     placement: 'center',
   },
@@ -32,14 +32,14 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'ai-chat',
     title: 'Talk to Claude, GPT, Gemini, or Ollama',
-    body: 'Press Ctrl+Shift+A to open the AI pane. Bring your own API key; your messages go direct from your machine to the provider, Projelli never proxies them. Type @workspace for memory recall over your files. Hold Ctrl+Shift+Space to dictate with a bundled speech model.',
+    body: 'Press Ctrl+Shift+A to open the AI pane. Bring your own API key; your messages go direct from your machine to the provider, Keepance never proxies them. Type @workspace for memory recall over your files. Hold Ctrl+Shift+Space to dictate with a bundled speech model.',
     targetSelector: '[data-testid="sidebar-tab-ai-assistant"]',
     placement: 'right',
   },
   {
     id: 'workflows',
-    title: '15 founder workflows',
-    body: 'Pricing Strategy, Pitch Deck, Weekly Review, Competitor Analysis. Each template asks a few questions then produces a polished Markdown artifact you can edit. Try the Weekly Review template this Friday.',
+    title: 'Workflow templates',
+    body: 'Pricing Strategy, Competitor Analysis, Weekly Review, and more. Each template asks a few questions then produces a polished Markdown artifact you can edit. Try the Weekly Review template this Friday.',
     targetSelector: '[data-testid="sidebar-tab-workflows"]',
     placement: 'right',
   },

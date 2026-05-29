@@ -2,7 +2,7 @@
  * Stream D-web Group IV · Task 4.3
  *
  * Full-screen modal shown when the demo session reaches its limit (5 messages,
- * 10 minutes elapsed, or a `projelli:demo-limit-hit` event from the proxy).
+ * 10 minutes elapsed, or a `keepance:demo-limit-hit` event from the proxy).
  *
  * The modal frames the moment as success, not failure: the user has explored
  * the product. Three OS-specific download buttons make conversion obvious.
@@ -31,12 +31,12 @@ const UTM_SUFFIX =
   '?utm_source=demo&utm_campaign=v2-launch&utm_content=exit_modal';
 
 export const DEMO_EXIT_DOWNLOAD_URLS = {
-  mac: `https://projelli.com/#download${UTM_SUFFIX}&os=mac`,
-  windows: `https://projelli.com/#download${UTM_SUFFIX}&os=windows`,
-  linux: `https://projelli.com/#download${UTM_SUFFIX}&os=linux`,
+  mac: `https://keepance.com/#download${UTM_SUFFIX}&os=mac`,
+  windows: `https://keepance.com/#download${UTM_SUFFIX}&os=windows`,
+  linux: `https://keepance.com/#download${UTM_SUFFIX}&os=linux`,
 } as const;
 
-export const DEMO_MESSAGE_COUNT_STORAGE_KEY = 'projelli:demo:messageCount';
+export const DEMO_MESSAGE_COUNT_STORAGE_KEY = 'keepance:demo:messageCount';
 
 interface DemoExitModalProps {
   open: boolean;
@@ -77,7 +77,7 @@ export function DemoExitModal({
         }}
       >
         <DialogHeader>
-          <DialogTitle>You have explored Projelli.</DialogTitle>
+          <DialogTitle>You have explored Keepance.</DialogTitle>
           <DialogDescription>
             The demo gives you a taste. The desktop app gives you the full
             tool: unlimited AI with your own key, every chat saved as real

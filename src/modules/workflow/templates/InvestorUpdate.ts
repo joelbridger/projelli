@@ -1,6 +1,7 @@
 // Investor Update Workflow Template
 // Generates a monthly investor update doc for founders running a periodic
 // communication cadence with investors, advisors, or interested parties.
+// @deprecated — Retiring in v2.1. Founder-ICP template not relevant to legal/tax/consulting audience.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 

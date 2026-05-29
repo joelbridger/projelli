@@ -2,7 +2,7 @@
  * V05 — Document suite (15s)
  *
  * Shows three tabs (.md, .xlsx, .pptx) and switches between them, highlighting
- * the v1.0.8 differentiation: Projelli opens office formats, not just markdown.
+ * the v1.0.8 differentiation: Keepance opens office formats, not just markdown.
  *
  * Timing:
  *   t=0-2s:  Pricing.md active (documentSuite seed)
@@ -50,7 +50,7 @@ async function switchTab(page: Page, activePath: string) {
     // Seed fallback: swap activeTabPath without re-seeding the full workspace
     await page.evaluate(
       ({ tabs, activePath }) => {
-        (window as any).__projelli_seed!({ editor: { openTabs: tabs, activeTabPath: activePath } });
+        (window as any).__keepance_seed!({ editor: { openTabs: tabs, activeTabPath: activePath } });
       },
       { tabs: THREE_TABS, activePath },
     );

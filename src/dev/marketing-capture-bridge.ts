@@ -27,29 +27,29 @@ export interface SeedPayload {
 
 declare global {
   interface Window {
-    __projelli_seed?: (payload: SeedPayload) => void;
-    __projelli_signal?: (name: string, data?: unknown) => void;
-    __projelli_signals?: Array<{ name: string; data?: unknown; ts: number }>;
+    __keepance_seed?: (payload: SeedPayload) => void;
+    __keepance_signal?: (name: string, data?: unknown) => void;
+    __keepance_signals?: Array<{ name: string; data?: unknown; ts: number }>;
   }
 }
 
 export function mountMarketingCaptureBridge(): void {
-  window.__projelli_seed = (payload: SeedPayload) => {
+  window.__keepance_seed = (payload: SeedPayload) => {
     if (payload.workspace) useWorkspaceStore.setState(payload.workspace);
     if (payload.editor) useEditorStore.setState(payload.editor);
     if (payload.aiChat) useAIChatStore.setState(payload.aiChat);
     if (payload.settings) useSettingsStore.setState(payload.settings);
     if (payload.workflow) useWorkflowStore.setState(payload.workflow);
     if (payload.skipOnboarding) {
-      // Key matches FirstRunWizard.tsx STORAGE_KEY = 'projelli_onboarding_complete'
-      localStorage.setItem('projelli_onboarding_complete', 'true');
+      // Key matches FirstRunWizard.tsx STORAGE_KEY = 'keepance_onboarding_complete'
+      localStorage.setItem('keepance_onboarding_complete', 'true');
     }
   };
 
-  window.__projelli_signals = [];
-  window.__projelli_signal = (name: string, data?: unknown) => {
-    window.__projelli_signals!.push({ name, data, ts: Date.now() });
+  window.__keepance_signals = [];
+  window.__keepance_signal = (name: string, data?: unknown) => {
+    window.__keepance_signals!.push({ name, data, ts: Date.now() });
   };
 
-  console.info('[projelli] marketing-capture bridge mounted');
+  console.info('[keepance] marketing-capture bridge mounted');
 }

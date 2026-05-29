@@ -9,7 +9,7 @@ These are the 5 remaining v2.0 tour videos that need a real Mac screen recording
 - Real screen recording with the **app window cropped tight**, no Mac menu bar, no Dock, no other windows. The existing v3 tour videos run at **1808 by 1032** but anything in the **1280 by 800 to 1920 by 1200** range works. Final ffmpeg pass will resize.
 - Move the cursor deliberately. Pause for half a second on each thing you click so the viewer's eye can keep up.
 - Use the **real Anthropic key** that lives in the local Settings, not BYOK or demo. Real responses are short and reproducible.
-- Drop the resulting `.mov` or `.mp4` in `~/projelli/website/press-kit/assets/`. I'll convert to web-friendly H.264 and generate a poster the same way the existing v3 videos were post-processed.
+- Drop the resulting `.mov` or `.mp4` in `~/keepance/website/press-kit/assets/`. I'll convert to web-friendly H.264 and generate a poster the same way the existing v3 videos were post-processed.
 - Filename pattern: `<feature>-v1.mp4` plus `<feature>-v1-poster.jpg`. Same as the two videos I just shipped.
 
 ## Voice rules for any captions or on-screen text
@@ -34,7 +34,7 @@ These are the 5 remaining v2.0 tour videos that need a real Mac screen recording
 **Setup checklist before clicking record:**
 - [ ] Real Anthropic key already pasted in Settings, API Keys
 - [ ] Pick an image with obvious content. Suggestion: a screenshot of a dashboard mockup or a real product label. PNG, around 800 by 600. Save to `~/Desktop/demo-image.png`.
-- [ ] Open Projelli with a clean workspace (or `test-workspace`) and AI Assistant pane visible on the left
+- [ ] Open Keepance with a clean workspace (or `test-workspace`) and AI Assistant pane visible on the left
 - [ ] Start a new Claude chat (Sonnet 4.6 model). Empty messages.
 - [ ] Welcome onboarding dialogs dismissed
 
@@ -193,13 +193,13 @@ These are the 5 remaining v2.0 tour videos that need a real Mac screen recording
 
 ## After you film all five
 
-Drop the raw `.mov` or `.mp4` files in `~/projelli/website/press-kit/assets/` and ping me. I'll:
+Drop the raw `.mov` or `.mp4` files in `~/keepance/website/press-kit/assets/` and ping me. I'll:
 
 1. Convert to web-friendly H.264 with the same ffmpeg flags I used for the first two: `ffmpeg -i raw.mov -c:v libx264 -preset slow -crf 23 -pix_fmt yuv420p -movflags +faststart -an out.mp4` (drop `-an` for the read-aloud video so audio is preserved)
 2. Generate a poster JPG from the most representative frame
 3. Insert each new video card into the tour page with the right number badge, caption, and meta
 4. Update the v2.0 callout grid to remove the cards that now have videos
 5. Update header copy and meta description for the new total
-6. Deploy to projelli.com
+6. Deploy to keepance.com
 
 If you want to film in a different order, no problem; I'll wire them in as they arrive.

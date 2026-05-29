@@ -134,7 +134,7 @@ export async function extractForAI(
       rawText = await extractRtfText(content);
       sourceKind = 'rtf';
     } else if (ext === 'rt') {
-      // Projelli's internal `.rt` format — HTML-serialized TipTap state.
+      // Keepance's internal `.rt` format — HTML-serialized TipTap state.
       // Strip tags with a minimal regex so we don't pull in a DOM parser.
       rawText = content
         .replace(/<[^>]*>/g, ' ')

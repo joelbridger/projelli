@@ -33,7 +33,7 @@ async function clickFile(page: Page, fileName: string) {
   } else {
     await page.evaluate(
       ({ rootPath, fileName, content }) => {
-        (window as any).__projelli_seed!({
+        (window as any).__keepance_seed!({
           editor: {
             openTabs: [{ path: `${rootPath}/${fileName}`, name: fileName, content, isDirty: false, type: 'file' }],
             activeTabPath: `${rootPath}/${fileName}`,
@@ -145,7 +145,7 @@ export async function video02() {
   });
   await page.evaluate(
     ({ rootPath, content }) => {
-      (window as any).__projelli_seed!({
+      (window as any).__keepance_seed!({
         editor: {
           openTabs: [{ path: `${rootPath}/Pricing.md`, name: 'Pricing.md', content, isDirty: false, type: 'file' }],
           activeTabPath: `${rootPath}/Pricing.md`,

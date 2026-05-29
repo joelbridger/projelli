@@ -103,7 +103,7 @@ describe('FirstRunWizard sample population (Q11)', () => {
     fireEvent.click(screen.getByRole('button', { name: /open my workspace/i }));
 
     await waitFor(() =>
-      expect(localStorage.getItem('projelli_onboarding_complete')).toBe('true')
+      expect(localStorage.getItem('keepance_onboarding_complete')).toBe('true')
     );
   });
 });

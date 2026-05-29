@@ -1,4 +1,4 @@
-# Projelli v1.5 launch-day reply bank
+# Keepance v1.5 launch-day reply bank
 
 > Pre-drafted answers to the 30 most predictable questions and objections from Product Hunt, Show HN, IndieHackers, Reddit, and X. Paste, tweak one detail for context, send.
 >
@@ -14,27 +14,27 @@
 
 ### Q1. "How is this different from Notion AI?"
 
-Notion AI lives inside Notion's cloud database. Your notes are in their cloud, your AI context is their cloud, your billing's a subscription. Projelli is the opposite: every chat I have produces a real Markdown file in a folder on my hard drive. I bring my own Claude / OpenAI / Gemini key, nothing routes through a Projelli server, and the workspace works offline except for the AI call itself. If I delete Projelli tomorrow, my files are still there. One-time $49 instead of Notion's $20/mo + Notion AI $10/mo.
+Notion AI lives inside Notion's cloud database. Your notes are in their cloud, your AI context is their cloud, your billing's a subscription. Keepance is the opposite: every chat I have produces a real Markdown file in a folder on my hard drive. I bring my own Claude / OpenAI / Gemini key, nothing routes through a Keepance server, and the workspace works offline except for the AI call itself. If I delete Keepance tomorrow, my files are still there. One-time $49 instead of Notion's $20/mo + Notion AI $10/mo.
 
 ### Q2. "How is this different from Obsidian + Smart Connections?"
 
-I like Obsidian, I used it for two years. Smart Connections is the closest thing in spirit to Projelli's memory flag, which is why I name it explicitly. The difference: Obsidian's AI story is a plugin ecosystem you assemble yourself, and the UX is inconsistent between plugins (Smart Connections + Copilot + Text Generator all have different cursor/selection models). Projelli ships the AI workspace as one integrated thing. Also: Obsidian is free, Projelli is $49 one-time. If you're already deep in Obsidian and happy, stay. If you're evaluating an AI-native workspace fresh, I want you to try Projelli.
+I like Obsidian, I used it for two years. Smart Connections is the closest thing in spirit to Keepance's memory flag, which is why I name it explicitly. The difference: Obsidian's AI story is a plugin ecosystem you assemble yourself, and the UX is inconsistent between plugins (Smart Connections + Copilot + Text Generator all have different cursor/selection models). Keepance ships the AI workspace as one integrated thing. Also: Obsidian is free, Keepance is $49 one-time. If you're already deep in Obsidian and happy, stay. If you're evaluating an AI-native workspace fresh, I want you to try Keepance.
 
 ### Q3. "How is this different from Claude Desktop / Cursor?"
 
-Claude Desktop + Cursor are chat-first. Your conversation is the artifact. Projelli is file-first. Every chat I have produces a real Markdown file I can open in any other editor, search with grep, back up with git. And Projelli's new MCP server means Claude Desktop can read my Projelli workspace as context, so they stack: Projelli owns the files, Claude Desktop can use them. They're not really competitors, more like Projelli is "Claude Desktop's workspace."
+Claude Desktop + Cursor are chat-first. Your conversation is the artifact. Keepance is file-first. Every chat I have produces a real Markdown file I can open in any other editor, search with grep, back up with git. And Keepance's new MCP server means Claude Desktop can read my Keepance workspace as context, so they stack: Keepance owns the files, Claude Desktop can use them. They're not really competitors, more like Keepance is "Claude Desktop's workspace."
 
 ### Q4. "How is this different from ChatGPT?"
 
-ChatGPT is a chat. Projelli is a workspace. Your ChatGPT history lives in OpenAI's cloud, billed monthly, searchable only via their UI, lost if you cancel. Projelli's chats are Markdown files on your disk, searchable via any tool, yours forever, billed once. Also: Projelli uses Claude / Gemini / Ollama too, not just OpenAI. BYOK means you pick the best model for the task, not whoever OpenAI priced into the current plan.
+ChatGPT is a chat. Keepance is a workspace. Your ChatGPT history lives in OpenAI's cloud, billed monthly, searchable only via their UI, lost if you cancel. Keepance's chats are Markdown files on your disk, searchable via any tool, yours forever, billed once. Also: Keepance uses Claude / Gemini / Ollama too, not just OpenAI. BYOK means you pick the best model for the task, not whoever OpenAI priced into the current plan.
 
 ### Q5. "How is this different from [some other local-first tool]?"
 
-Short answer: I probably don't know the specific one. Happy to pull up its feature page and give you an honest side-by-side in a reply. Projelli's positioning is the combination: local files + BYOK across all 4 providers + founder-focused workflow templates + one-time pricing + MCP server. Few tools hit all five. The product that's closest in spirit is probably Heptabase, but Heptabase is Notion-style cards where Projelli is Obsidian-style files.
+Short answer: I probably don't know the specific one. Happy to pull up its feature page and give you an honest side-by-side in a reply. Keepance's positioning is the combination: local files + BYOK across all 4 providers + founder-focused workflow templates + one-time pricing + MCP server. Few tools hit all five. The product that's closest in spirit is probably Heptabase, but Heptabase is Notion-style cards where Keepance is Obsidian-style files.
 
 ### Q6. "Notion just launched Custom Agents, aren't you late?"
 
-Notion's agents are cloud agents on Notion's cloud DB, $20/mo and metered credits. Projelli is the local-first / BYOK / one-time counter. Different architecture, different buyer. If your data is already in Notion you probably don't want Projelli. If subscription fatigue and data privacy are why you're reading this comment, Projelli is for you.
+Notion's agents are cloud agents on Notion's cloud DB, $20/mo and metered credits. Keepance is the local-first / BYOK / one-time counter. Different architecture, different buyer. If your data is already in Notion you probably don't want Keepance. If subscription fatigue and data privacy are why you're reading this comment, Keepance is for you.
 
 ---
 
@@ -52,9 +52,9 @@ Three reasons. (1) Cost: AI is priced per token. If I bundle it, I either charge
 
 Pro includes one year of updates. Lifetime includes updates forever. Both tiers get every feature. If I keep shipping for five years, Lifetime saves you the next four $49 renewals. If I disappear in six months, Pro was the safer bet. Your call. I price Lifetime at 2x Pro on purpose so it's a clear "I believe in this" signal rather than a 30% upsell.
 
-### Q10. "What happens if Projelli shuts down?"
+### Q10. "What happens if Keepance shuts down?"
 
-Your files keep working. Every chat in Projelli is a real Markdown file on your disk. Open it in any text editor, any other Markdown app, any other AI tool. The memory index is a LanceDB table in `.projelli/vectors/`, which any other LanceDB-compatible tool can read. Your API keys live in your OS keychain, which Projelli just reads from. I wrote the app so that if I disappeared tomorrow, the only thing you'd lose is updates.
+Your files keep working. Every chat in Keepance is a real Markdown file on your disk. Open it in any text editor, any other Markdown app, any other AI tool. The memory index is a LanceDB table in `.keepance/vectors/`, which any other LanceDB-compatible tool can read. Your API keys live in your OS keychain, which Keepance just reads from. I wrote the app so that if I disappeared tomorrow, the only thing you'd lose is updates.
 
 ### Q11. "Is there a trial?"
 
@@ -78,11 +78,11 @@ LanceDB runs in-process, zero ops, disk-based, and it's built on Apache Arrow so
 
 ### Q15. "How does the MCP server work?"
 
-Projelli ships a `projelli-mcp` binary inside a `.mcpb` Desktop Extension bundle. Double-click it in Claude Desktop (or Cursor, or Zed, any MCP-compatible client) and the client gets five tools: `list_workspace_files`, `read_workspace_file`, `search_workspace` (uses the same RAG index as Projelli's own chat), `write_workspace_file` (with user approval), `get_memory_facts`. The write-approval flow goes through a filesystem rendezvous channel so no MCP client can write to your disk without you seeing a modal.
+Keepance ships a `keepance-mcp` binary inside a `.mcpb` Desktop Extension bundle. Double-click it in Claude Desktop (or Cursor, or Zed, any MCP-compatible client) and the client gets five tools: `list_workspace_files`, `read_workspace_file`, `search_workspace` (uses the same RAG index as Keepance's own chat), `write_workspace_file` (with user approval), `get_memory_facts`. The write-approval flow goes through a filesystem rendezvous channel so no MCP client can write to your disk without you seeing a modal.
 
 ### Q16. "Is the source available?"
 
-Yes, github.com/projelli/projelli. MIT-licensed for the app code. The installer is the only thing you pay for, and even then you can build from source yourself if you want. I don't open-source the MCP registry submission or the DKIM keys, but everything in the app binary is there.
+Yes, github.com/keepance/keepance. MIT-licensed for the app code. The installer is the only thing you pay for, and even then you can build from source yourself if you want. I don't open-source the MCP registry submission or the DKIM keys, but everything in the app binary is there.
 
 ### Q17. "What's the footprint / install size?"
 
@@ -94,7 +94,7 @@ I use both. FTS5 (via MiniSearch on the frontend) handles keyword search, fast, 
 
 ### Q19. "Does it hit Anthropic's rate limits?"
 
-Yes, and that's a you-problem more than a me-problem since the keys are yours. Projelli honors the `Retry-After` header and surfaces "rate limit, retry in N seconds" to the UI. If you're hitting limits consistently, upgrade your Anthropic tier or switch to Gemini Flash for cheap bulk work.
+Yes, and that's a you-problem more than a me-problem since the keys are yours. Keepance honors the `Retry-After` header and surfaces "rate limit, retry in N seconds" to the UI. If you're hitting limits consistently, upgrade your Anthropic tier or switch to Gemini Flash for cheap bulk work.
 
 ### Q20. "Is the Windows installer signed?"
 
@@ -106,7 +106,7 @@ Yes, via Azure Trusted Signing with a Public Trust cert. Publisher reads "Jameso
 
 ### Q20a. "I saw a Windows SmartScreen warning, is it safe?"
 
-Yes. SmartScreen is saying "unrecognized" not "unsafe". The installer is signed by Azure Trusted Signing with my verified publisher identity (check the publisher line: "Jameson Daines, Provo, Utah"). SmartScreen reputation for new publishers builds up over the first few hundred installs, 2 to 4 weeks. I'm the first paying customer you're watching go through this. If you want extra assurance, build from source: github.com/projelli/projelli.
+Yes. SmartScreen is saying "unrecognized" not "unsafe". The installer is signed by Azure Trusted Signing with my verified publisher identity (check the publisher line: "Jameson Daines, Provo, Utah"). SmartScreen reputation for new publishers builds up over the first few hundred installs, 2 to 4 weeks. I'm the first paying customer you're watching go through this. If you want extra assurance, build from source: github.com/keepance/keepance.
 
 ---
 
@@ -114,11 +114,11 @@ Yes. SmartScreen is saying "unrecognized" not "unsafe". The installer is signed 
 
 ### Q21. "Who are you / why should I trust this?"
 
-I'm Jameson Daines. I'm a Senior Product Designer at a health-tech company (day job), and I build Projelli nights and weekends. Eighteen months of evenings to get the product to v1.0, eight weeks to get it commercially shippable. I don't have a startup cofounder, I don't have VC money, I don't have a team. Just me, Claude (I use it to help me manage the business side), and a few hundred hours of build time.
+I'm Jameson Daines. I'm a Senior Product Designer at a health-tech company (day job), and I build Keepance nights and weekends. Eighteen months of evenings to get the product to v1.0, eight weeks to get it commercially shippable. I don't have a startup cofounder, I don't have VC money, I don't have a team. Just me, Claude (I use it to help me manage the business side), and a few hundred hours of build time.
 
 ### Q22. "Solo founder? What if you get hit by a bus?"
 
-Files are on your disk in plain Markdown. Memory index is a LanceDB dataset any other tool can read. API keys are in your OS keychain, not Projelli. The source is on GitHub under MIT, so if I disappear, someone could fork it or you could build from source. The only thing you lose is updates.
+Files are on your disk in plain Markdown. Memory index is a LanceDB dataset any other tool can read. API keys are in your OS keychain, not Keepance. The source is on GitHub under MIT, so if I disappear, someone could fork it or you could build from source. The only thing you lose is updates.
 
 ### Q23. "How do I know my API keys are safe?"
 
@@ -130,7 +130,7 @@ Target: 5,000 paying customers in year 1 at $49-99 one-time, for $250-500K ARR-e
 
 ### Q25. "Why are you telling us all this? Sales should be mysterious."
 
-Because I'm not a big cloud company and my moat isn't NDA-able tech, it's that I'm honest about trade-offs. If you're deciding between Projelli and something with a $100M Series B, my story is "I'll still be here in three years whether I have 500 customers or 5000." That's worth more to me in indie-founder circles than any pitch-deck magic.
+Because I'm not a big cloud company and my moat isn't NDA-able tech, it's that I'm honest about trade-offs. If you're deciding between Keepance and something with a $100M Series B, my story is "I'll still be here in three years whether I have 500 customers or 5000." That's worth more to me in indie-founder circles than any pitch-deck magic.
 
 ---
 
@@ -142,7 +142,7 @@ No. Single-user by design. If multiple people need to edit, put your workspace i
 
 ### Q27. "Mobile?"
 
-No. Desktop only. Mobile is a different product for a different buyer; I'm not building it. Your files are Markdown, so read them on mobile with any Markdown app (Working Copy, Obsidian Mobile, plain Files.app), Projelli just doesn't have a mobile client.
+No. Desktop only. Mobile is a different product for a different buyer; I'm not building it. Your files are Markdown, so read them on mobile with any Markdown app (Working Copy, Obsidian Mobile, plain Files.app), Keepance just doesn't have a mobile client.
 
 ### Q28. "Plugin ecosystem?"
 
@@ -181,7 +181,7 @@ The worst reply is a promise. The best reply is a ranked trade-off.
 
 ## Meta-reply templates (for situations)
 
-### Someone offers to buy Projelli (M&A feeler)
+### Someone offers to buy Keepance (M&A feeler)
 > Not for sale. I'm building this because I use it every day, not because I want to exit. Happy to keep the door open if that changes, but today the answer's no.
 
 ### Someone says it's vaporware / too good to be true
@@ -194,7 +194,7 @@ The worst reply is a promise. The best reply is a ranked trade-off.
 > Yes and no. I write drafts, Claude helps me edit for voice. Every published word I read and approve. If you spot a sentence that sounds like AI wrote it, call it out, I'll fix it.
 
 ### Someone asks what I think about [incumbent competitor]
-> [Competitor] is good at [actual strength]. Projelli's different at [actual difference]. The two can coexist. I'm not here to kill [competitor].
+> [Competitor] is good at [actual strength]. Keepance's different at [actual difference]. The two can coexist. I'm not here to kill [competitor].
 
 ---
 

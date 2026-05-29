@@ -1,6 +1,6 @@
 # Translator
 
-A Projelli plugin that translates the selected text into a target language using your configured AI provider.
+A Keepance plugin that translates the selected text into a target language using your configured AI provider.
 
 ## What it does
 
@@ -28,13 +28,13 @@ Output: `dist/index.js` (single-file IIFE bundle).
 
 ## Sideload
 
-Copy `manifest.json` and `dist/index.js` into your local Projelli plugins folder, then enable under Settings -> Plugins:
+Copy `manifest.json` and `dist/index.js` into your local Keepance plugins folder, then enable under Settings -> Plugins:
 
 | OS | Path |
 |---|---|
-| Windows | `%APPDATA%/Projelli/plugins/translator/` |
-| macOS | `~/Library/Application Support/Projelli/plugins/translator/` |
-| Linux | `~/.local/share/Projelli/plugins/translator/` |
+| Windows | `%APPDATA%/Keepance/plugins/translator/` |
+| macOS | `~/Library/Application Support/Keepance/plugins/translator/` |
+| Linux | `~/.local/share/Keepance/plugins/translator/` |
 
 ## Settings
 

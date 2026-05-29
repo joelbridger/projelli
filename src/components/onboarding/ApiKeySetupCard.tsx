@@ -2,7 +2,7 @@
 //
 // Displayed in the MainPanel's "no file open" slot immediately after a user
 // picks a workspace folder when they still don't have an AI key saved.
-// Projelli's core value prop is AI + local files, and without a key the AI
+// Keepance's core value prop is AI + local files, and without a key the AI
 // side is dead. Silent dead-ends are the #1 first-run complaint, so this
 // card tells users exactly what's missing and gives them one click to fix it.
 //
@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { ApiKeyWizard, type WizardProvider } from './ApiKeyWizard';
 import type { KeyProvider } from '@/modules/models/KeychainService';
 
-const DISMISS_STORAGE_KEY = 'projelli:apiKeyCardDismissed';
+const DISMISS_STORAGE_KEY = 'keepance:apiKeyCardDismissed';
 
 export function hasDismissedApiKeyCard(): boolean {
   try {

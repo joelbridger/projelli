@@ -22,7 +22,7 @@ const ENTRY_A: CatalogEntry = {
   tags: ['editor', 'word-count'],
   installUrl: 'https://example.test/wc.tar.gz',
   manifestUrl: 'https://example.test/wc.json',
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
 };
@@ -37,7 +37,7 @@ const ENTRY_B: CatalogEntry = {
   tags: ['mermaid', 'export'],
   installUrl: 'https://example.test/mx.tar.gz',
   manifestUrl: 'https://example.test/mx.json',
-  minProjelliVersion: '2.0.0',
+  minKeepanceVersion: '2.0.0',
   publishedAt: '2026-04-28T00:00:00.000Z',
   updatedAt: '2026-04-28T00:00:00.000Z',
 };
@@ -220,7 +220,7 @@ describe('PluginsTab', () => {
     const installed: InstalledEntry = {
       ...ENTRY_A,
       installedAt: '2026-04-28T00:00:00.000Z',
-      installedPath: '/ws/.projelli/plugins/word-counter',
+      installedPath: '/ws/.keepance/plugins/word-counter',
       provenance: 'community',
       manifestVersion: '1',
     };

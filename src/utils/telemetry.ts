@@ -5,7 +5,7 @@
  * sendEvent is a no-op and no network request is made.
  *
  * Events POST to the form-handler service at:
- *   https://projelli.com/api/forms/projelli/app-event
+ *   https://keepance.com/api/forms/keepance/app-event
  *
  * Payload (whitelisted by the server; extra fields are dropped):
  *   { install_id, app_version, platform, event, license_tier?, days_since_install? }
@@ -22,8 +22,8 @@
 import { getInstallId } from './installId';
 import { getTelemetryConsent } from '@/hooks/useTelemetryConsent';
 
-const ENDPOINT = 'https://projelli.com/api/forms/projelli/app-event';
-const SENT_KEY = 'projelli_telemetry_sent_events';
+const ENDPOINT = 'https://keepance.com/api/forms/keepance/app-event';
+const SENT_KEY = 'keepance_telemetry_sent_events';
 
 interface EventFields {
   /** e.g. 'pro' | 'lifetime' | 'trial' | 'expired'. */

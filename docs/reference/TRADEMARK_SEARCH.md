@@ -1,4 +1,4 @@
-# Trademark Search: "Projelli"
+# Trademark Search: "Keepance"
 
 > **Status:** Initial clearance search complete. **No conflicts found.**
 > **Date:** 2026-04-08
@@ -6,7 +6,7 @@
 
 ## TL;DR
 
-The "Projelli" name appears to be **clean** for software/SaaS use. No matching trademarks found in the USPTO database, no commercial uses on Google, no conflicting domains. **Safe to launch under this name.**
+The "Keepance" name appears to be **clean** for software/SaaS use. No matching trademarks found in the USPTO database, no commercial uses on Google, no conflicting domains. **Safe to launch under this name.**
 
 A formal trademark application should be filed with USPTO once revenue clears $1K/mo (per the business plan, deferred to Month 2). At that point, hire a trademark attorney for a rigorous full search before filing — this informal clearance is sufficient for soft launch but not for the formal filing.
 
@@ -14,18 +14,18 @@ A formal trademark application should be filed with USPTO once revenue clears $1
 
 ### 1. USPTO TESS database
 - **URL:** https://tmsearch.uspto.gov/search/
-- **Method:** WebSearch query for `"projelli" trademark USPTO software`
-- **Result:** No trademark records returned. The search engine returned only general USPTO documentation pages, with no specific "projelli" matches in any class.
+- **Method:** WebSearch query for `"keepance" trademark USPTO software`
+- **Result:** No trademark records returned. The search engine returned only general USPTO documentation pages, with no specific "keepance" matches in any class.
 - **Conclusion:** No conflict in USPTO database.
 
 ### 2. Google search for commercial use
-- **Query:** `"projelli" trademark`
+- **Query:** `"keepance" trademark`
 - **Result:** No commercial uses, products, or trademark filings found.
 - **Conclusion:** No prior commercial use of the name.
 
 ### 3. Domain availability (already established)
-- **projelli.com** — registered by Jameson via Cloudflare Registrar (zone ID `15eed43c0a43012ff214f1290b1bc5cf`)
-- **GitHub username `projelli`** — was available as of 2026-04-08; Jameson registered it as a GitHub Organization on 2026-04-08
+- **keepance.com** — registered by Jameson via Cloudflare Registrar (zone ID `15eed43c0a43012ff214f1290b1bc5cf`)
+- **GitHub username `keepance`** — was available as of 2026-04-08; Jameson registered it as a GitHub Organization on 2026-04-08
 
 ## Recommended classes for filing (Month 2 of revenue)
 

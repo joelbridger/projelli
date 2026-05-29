@@ -469,7 +469,7 @@ function AboutHeader() {
       className="mb-4 pb-4 border-b border-border/50"
     >
       <div className="flex items-baseline gap-2">
-        <h3 className="text-base font-semibold">Projelli</h3>
+        <h3 className="text-base font-semibold">Keepance</h3>
         <span className="text-sm text-muted-foreground" data-testid="settings-about-version">
           v{version}
         </span>
@@ -598,7 +598,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'projelli-settings.json';
+    a.download = 'keepance-settings.json';
     a.click();
     URL.revokeObjectURL(url);
   }, [exportSettings]);

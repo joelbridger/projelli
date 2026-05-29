@@ -471,7 +471,7 @@ export async function video09() {
     mainPath,
     outPath,
     videoTitle: 'Start here: the first launch tour',
-    endTagline: 'projelli.com',
+    endTagline: 'keepance.com',
     cardDir,
   });
 

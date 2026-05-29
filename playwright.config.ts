@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Playwright configuration for Projelli UI tests
+ * Playwright configuration for Keepance UI tests
  *
  * Key principles:
  * - Use data-testid selectors (page.getByTestId()) - never CSS selectors

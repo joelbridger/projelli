@@ -9,12 +9,12 @@
  *      key never leaves the browser; requests go straight to api.anthropic.com.
  *   2. Shared — no BYOK key. We instantiate a thin DemoProxyProvider that
  *      POSTs to `/api/demo-chat`, routed by Caddy to the on-server Bun proxy
- *      (`~/services/projelli-demo-proxy`). The proxy enforces rate limits,
- *      monthly spend caps, and uses Projelli's shared Anthropic key.
+ *      (`~/services/keepance-demo-proxy`). The proxy enforces rate limits,
+ *      monthly spend caps, and uses Keepance's shared Anthropic key.
  *
  * Limit-hit detection: when the proxy returns 429 (rate-limited) or 503/502
  * (budget exhausted / upstream failure), the provider dispatches a
- * `projelli:demo-limit-hit` window event with `{ reason }`. Group IV's
+ * `keepance:demo-limit-hit` window event with `{ reason }`. Group IV's
  * DemoLimitGate listens for this event and opens the DemoExitModal.
  *
  * No toasts are imported from the rest of the app: the demo bundle is the
@@ -36,8 +36,8 @@ import { getDemoSessionToken, resetDemoSessionToken } from './demoSessionToken';
 
 const BYOK_STORAGE_KEY = 'byokKey';
 const DEMO_PROXY_PATH = '/api/demo-chat';
-const DEMO_LIMIT_EVENT = 'projelli:demo-limit-hit';
-const DEMO_MESSAGE_SENT_EVENT = 'projelli:demo-message-sent';
+const DEMO_LIMIT_EVENT = 'keepance:demo-limit-hit';
+const DEMO_MESSAGE_SENT_EVENT = 'keepance:demo-message-sent';
 
 /** Reasons surfaced to Group IV's DemoLimitGate via the window event. */
 export type DemoLimitReason =
@@ -89,7 +89,7 @@ function emitMessageSent(): void {
 }
 
 /**
- * Provider that forwards calls to the projelli-demo-proxy. Implements only
+ * Provider that forwards calls to the keepance-demo-proxy. Implements only
  * the methods AIChatViewer actually calls in the demo context: sendMessage,
  * a non-streaming structuredOutput, and the attachment shims.
  *
@@ -109,8 +109,8 @@ class DemoProxyProvider implements Provider {
 
   getMetadata(): ProviderMetadata {
     return {
-      name: 'Projelli Demo (shared key)',
-      providerId: 'projelli-demo-proxy',
+      name: 'Keepance Demo (shared key)',
+      providerId: 'keepance-demo-proxy',
       model: this.modelHint,
       capabilities: { streaming: false, vision: false, functionCalling: false },
     };

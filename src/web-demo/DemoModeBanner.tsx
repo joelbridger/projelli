@@ -17,7 +17,7 @@ import { BYOKKeyInput } from './BYOKKeyInput';
 import { trackDemoDownloadClicked } from './demoPlausible';
 
 const DOWNLOAD_URL =
-  'https://projelli.com/#download?utm_source=demo&utm_campaign=v2-launch&utm_content=banner';
+  'https://keepance.com/#download?utm_source=demo&utm_campaign=v2-launch&utm_content=banner';
 
 export function DemoModeBanner() {
   return (
@@ -43,7 +43,7 @@ export function DemoModeBanner() {
       }}
     >
       <span>
-        You are using the Projelli demo. Files live in your browser only and
+        You are using the Keepance demo. Files live in your browser only and
         are not synced anywhere.
       </span>
       <BYOKKeyInput />

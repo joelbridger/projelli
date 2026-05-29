@@ -1,6 +1,6 @@
 # Word Counter
 
-A Projelli plugin that shows live word and character counts for the active document in a sidebar panel.
+A Keepance plugin that shows live word and character counts for the active document in a sidebar panel.
 
 ## What it does
 
@@ -28,13 +28,13 @@ Output: `dist/index.js` (single-file IIFE bundle).
 
 ## Sideload
 
-Copy `manifest.json` and `dist/index.js` into your local Projelli plugins folder, then enable under Settings -> Plugins:
+Copy `manifest.json` and `dist/index.js` into your local Keepance plugins folder, then enable under Settings -> Plugins:
 
 | OS | Path |
 |---|---|
-| Windows | `%APPDATA%/Projelli/plugins/word-counter/` |
-| macOS | `~/Library/Application Support/Projelli/plugins/word-counter/` |
-| Linux | `~/.local/share/Projelli/plugins/word-counter/` |
+| Windows | `%APPDATA%/Keepance/plugins/word-counter/` |
+| macOS | `~/Library/Application Support/Keepance/plugins/word-counter/` |
+| Linux | `~/.local/share/Keepance/plugins/word-counter/` |
 
 ## Screenshot
 

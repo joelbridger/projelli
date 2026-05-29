@@ -10,7 +10,7 @@
 //   1. A single `delegate` callback the PluginManager / app shell can wire
 //      to whatever toast / outcome system is current. Keeping the host
 //      decoupled from a specific UI primitive matches how the rest of
-//      Projelli handles notifications today (per-component `OutcomeBanner`
+//      Keepance handles notifications today (per-component `OutcomeBanner`
 //      state in the marketplace; see TemplateDetailView.tsx). When the
 //      app grows a global toast store this delegate is the only call site
 //      that needs to change.

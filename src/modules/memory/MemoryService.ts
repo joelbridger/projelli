@@ -12,7 +12,7 @@
  * M3 facts) can be disabled with a single toggle without each call site
  * having to know about the setting. Importantly the toggle controls the
  * RUNTIME behaviour only — there is no persistent disabling that orphans
- * data in `<workspace>/.projelli/vectors/`. Re-enabling the toggle
+ * data in `<workspace>/.keepance/vectors/`. Re-enabling the toggle
  * re-uses whatever has already been indexed.
  */
 
