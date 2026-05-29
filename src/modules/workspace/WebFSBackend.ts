@@ -203,8 +203,16 @@ export class WebFSBackend implements FSBackend {
     const dir = await this.getDirectoryHandle(segments);
     const nodes: FileNode[] = [];
 
+    // Emit workspace-root-prefixed paths (matching TauriFSBackend), so the
+    // path validator accepts them on read. The WorkspaceService lists the
+    // root with path='' — treat that (and any path not already under the
+    // root) as the root so children come back as `${rootPath}/name`, not the
+    // bare `/name` that the validator rejects as outside the workspace.
+    const base = path && path.startsWith(this.rootPath) ? path : this.rootPath;
+    const prefix = base.endsWith('/') ? base.slice(0, -1) : base;
+
     for await (const [name, handle] of dir.entries()) {
-      const nodePath = path + '/' + name;
+      const nodePath = prefix + '/' + name;
       const node: FileNode = {
         id: nodePath,
         name,
