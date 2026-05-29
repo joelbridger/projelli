@@ -67,3 +67,5 @@ Assets/
 
 # Local Claude Code config
 .claude/
+
+scripts/recordings/

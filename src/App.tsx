@@ -49,6 +49,7 @@ import { useFileBackupStore } from '@/stores/fileBackupStore';
 import { useWorkflowStore } from '@/stores/workflowStore';
 import { createWorkspaceService, type WorkspaceService } from '@/modules/workspace/WorkspaceService';
 import { createFSBackend } from '@/modules/workspace/BackendFactory';
+import { createWebFSBackend } from '@/modules/workspace/WebFSBackend';
 import type { WorkflowTemplate, WorkflowExecution, InterviewQuestion } from '@/types/workflow';
 import type { TrashedItem } from '@/modules/history/TrashService';
 import type { SourceCard } from '@/types/research';
@@ -124,8 +125,13 @@ function App() {
   // Test mode: bypass workspace selector for E2E tests
   const IS_TEST_MODE = typeof window !== 'undefined' &&
                        window.location.search.includes('testMode=true');
+  // Demo build (keepance.com/try): main.tsx sets __keepanceDemo so we
+  // auto-open the pre-seeded OPFS workspace instead of the folder picker.
+  const IS_DEMO_MODE = typeof window !== 'undefined' &&
+                       (window as unknown as { __keepanceDemo?: boolean }).__keepanceDemo === true;
 
-  const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE);
+  const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE && !IS_DEMO_MODE);
+  const [demoOpenFailed, setDemoOpenFailed] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showShortcutsOverlay, setShowShortcutsOverlay] = useState(false);
   const [showQuickOpen, setShowQuickOpen] = useState(false);
@@ -162,7 +168,7 @@ function App() {
       typeof window !== 'undefined' &&
       window.location.search.includes('forceOnboarding=true');
     const shouldShow =
-      (!onboarding.completed && !IS_TEST_MODE) || forceOnboarding;
+      (!onboarding.completed && !IS_TEST_MODE && !IS_DEMO_MODE) || forceOnboarding;
     if (shouldShow) {
       const id = setTimeout(() => setShowOnboarding(true), 1200);
       return () => clearTimeout(id);
@@ -179,7 +185,7 @@ function App() {
   const FORCE_TOUR = typeof window !== 'undefined' &&
                      window.location.search.includes('forceTour=true');
   useEffect(() => {
-    if (IS_TEST_MODE && !FORCE_TOUR) return;
+    if ((IS_TEST_MODE || IS_DEMO_MODE) && !FORCE_TOUR) return;
     if (!FORCE_TOUR && !featureTour.shouldAutoShow) return;
     const timeoutId = setTimeout(() => setTourOpen(true), 800);
     return () => clearTimeout(timeoutId);
@@ -456,9 +462,16 @@ function App() {
       const demoTab2Path = '/test-workspace/docs/test2.txt';
       const demoTab2Content = 'This is a plain text document for testing the formatting toolbar.';
 
-      // Open both tabs
-      openFile(demoTab1Path, 'test1.md', demoTab1Content);
-      openFile(demoTab2Path, 'test2.txt', demoTab2Content);
+      // Normal E2E opens the two demo tabs. Recording mode
+      // (?testMode=true&recordMatter=1) opens a seeded legal matter instead,
+      // set up at the end of this block. The two paths never overlap, so the
+      // existing E2E specs are untouched.
+      const RECORD_MATTER = typeof window !== 'undefined' &&
+        window.location.search.includes('recordMatter');
+      if (!RECORD_MATTER) {
+        openFile(demoTab1Path, 'test1.md', demoTab1Content);
+        openFile(demoTab2Path, 'test2.txt', demoTab2Content);
+      }
 
       // Expose openFile for Playwright tests so specs can inject fixture
       // files (e.g. binary data URLs) directly into the editor store without
@@ -639,6 +652,68 @@ function App() {
       }).__pluginsMarketplaceStore = usePluginsMarketplaceStore;
 
       console.log('Test mode enabled: Mock workspace initialized with 2 demo tabs + mock FS');
+
+      // Recording mode: seed a realistic legal matter (Halvorsen Estate),
+      // populate the tree, and open the deposition notes so the app can be
+      // screen-recorded for the marketing site. Recording-only; gated by
+      // ?recordMatter so the normal E2E path is unchanged.
+      if (RECORD_MATTER) {
+        const DIR = '/test-workspace/Halvorsen Estate';
+        const depoNotes = [
+          '# Deposition Notes: Markus Halvorsen',
+          '',
+          '**Matter:** Halvorsen Estate v. Cedar Point Holdings, LLC',
+          '**Deponent:** Markus Halvorsen (defendant, managing member)',
+          '**Date:** April 14, 2026',
+          '',
+          '## Testimony to remember',
+          '',
+          '- **p. 12** Did he see the second appraisal before closing? "No. I never saw a second appraisal. The first one was the only number I had."',
+          '- **p. 31** Sale closed "sometime in November, I think the 20th or so."',
+          '- **p. 47** What did he review before closing? "I reviewed all the paperwork the accountant sent over. The appraisals, the title work, the closing statement. All of it."',
+          '- **p. 52** He and the accountant "talked every week without fail" during the sale.',
+          '- **p. 68** He was "traveling most of October and November" and "hard to reach."',
+          '',
+          '## My flags',
+          '',
+          '- p. 12 vs p. 47 looks like a straight contradiction on the second appraisal. Pull Exhibit 9.',
+          '- p. 52 vs p. 68 is softer. Worth a follow-up.',
+          '',
+        ].join('\n');
+        const depoChat = JSON.stringify({
+          version: 1, id: 'demo-depo', title: 'Deposition contradictions',
+          created: '2026-04-15T09:12:00.000Z', updated: '2026-04-15T09:14:00.000Z',
+          provider: 'anthropic', model: 'claude-sonnet-4-6',
+          messages: [
+            { role: 'user', content: 'Read my Deposition Notes for the Halvorsen matter. Find any places where his testimony contradicts itself, with page cites.', timestamp: '2026-04-15T09:12:00.000Z' },
+            { role: 'assistant', content: 'Here is what stands out.\n\n**The clear one: the second appraisal.** On page 12 he says "No. I never saw a second appraisal." On page 47 he says he reviewed "all the paperwork the accountant sent over. The appraisals, the title work, the closing statement. All of it." Those two cannot both be true if the second appraisal was in that batch. Your note points at Exhibit 9, the appraisal transmittal. If that shows the appraisal going to him before closing, page 12 is the problem.\n\n**The softer one: availability.** Page 52 has him talking to the accountant "every week without fail" during the sale. Page 68 has him "traveling most of October and November" and "hard to reach." Worth a follow-up to pin down which it was.\n\nI am not drawing a legal conclusion, just showing you where the record disagrees with itself. Confirm each cite against the certified transcript.', timestamp: '2026-04-15T09:14:00.000Z' },
+          ],
+        }, null, 2);
+        const matterFiles = [
+          { path: `${DIR}/Deposition Notes.md`, name: 'Deposition Notes.md', content: depoNotes },
+          { path: `${DIR}/Deposition contradictions.aichat`, name: 'Deposition contradictions.aichat', content: depoChat },
+          { path: `${DIR}/Privilege Log.md`, name: 'Privilege Log.md', content: '# Privilege Log\n\n| Date | Author | Recipient | Privilege | Description |\n|---|---|---|---|---|\n| 2024-09-02 | Client | Me | Attorney-Client | Client request for advice re appraisal discrepancy |\n| 2024-10-11 | Me | (file) | Work Product | Internal analysis in anticipation of litigation |\n' },
+          { path: `${DIR}/Case Timeline.md`, name: 'Case Timeline.md', content: '# Case Timeline\n\n- 2024-08-15 First appraisal delivered ($4.2M).\n- [2024-09-01] Second appraisal commissioned. Halvorsen denies seeing it (Depo p. 12).\n- [2024-11-20] Sale closes. Confirm against the recorded deed.\n- 2025-02 Estate files suit.\n' },
+          { path: `${DIR}/Client Intake Summary.md`, name: 'Client Intake Summary.md', content: '# Client Intake Summary\n\n**Client:** Estate of Anders Halvorsen\n**Matter:** Below-value sale; concealed second appraisal.\n\nFlag: confirm the limitations period and calendar it.\n' },
+        ];
+        const svc = workspaceServiceRef.current;
+        if (svc) {
+          void Promise.all(matterFiles.map((f) => svc.writeFile(f.path, f.content))).then(() => {
+            setFileTree([
+              {
+                id: DIR, name: 'Halvorsen Estate', path: DIR, type: 'folder',
+                children: matterFiles.map((f) => ({
+                  id: f.path, name: f.name, path: f.path, type: 'file',
+                  extension: f.name.split('.').pop(),
+                })),
+              },
+            ] as Parameters<typeof setFileTree>[0]);
+            expandAllFolders();
+            const depo = matterFiles[0]!;
+            openFile(depo.path, depo.name, depo.content);
+          });
+        }
+      }
     }
   }, [IS_TEST_MODE, rootPath, setRootPath, openFile]);
 
@@ -1208,6 +1283,32 @@ function App() {
       console.error('[App] Failed to open recent project:', err);
     }
   }, [handleWorkspaceSelected]);
+
+  // Demo build (keepance.com/try): auto-open the OPFS workspace that
+  // WebDemoSeeder pre-populated, so the visitor lands inside the seeded
+  // matter instead of the "pick a folder" screen. Mirrors the browser
+  // open path in WorkspaceSelector, but sources the directory handle from
+  // OPFS rather than a user folder picker.
+  useEffect(() => {
+    if (!IS_DEMO_MODE || rootPath) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const opfsRoot = await navigator.storage.getDirectory();
+        const demoDir = await opfsRoot.getDirectoryHandle('keepance-demo', { create: true });
+        const backend = createWebFSBackend();
+        backend.setRootHandle(demoDir);
+        const service = createWorkspaceService();
+        await service.initialize(backend, '/keepance-demo');
+        if (cancelled) return;
+        await handleWorkspaceSelected(service);
+      } catch (err) {
+        console.error('[App] demo workspace auto-open failed:', err);
+        if (!cancelled) setDemoOpenFailed(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [IS_DEMO_MODE, rootPath, handleWorkspaceSelected]);
 
   // Handle revealing a folder in the Files tab
   const handleRevealInFolder = useCallback((_path: string) => {
@@ -2801,7 +2902,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
   // Show workspace selector if no workspace is open (unless in test mode).
   // The WorkspaceSelector is now a full-viewport branded page — no wrapper needed.
-  if (!IS_TEST_MODE && (showWorkspaceSelector || !rootPath)) {
+  if (!IS_TEST_MODE && (showWorkspaceSelector || !rootPath) && !(IS_DEMO_MODE && !demoOpenFailed)) {
     const canDismiss = Boolean(rootPath);
     return (
       <WorkspaceSelector

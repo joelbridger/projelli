@@ -17,9 +17,14 @@ import { BYOKKeyInput } from './BYOKKeyInput';
 import { trackDemoDownloadClicked } from './demoPlausible';
 
 const DOWNLOAD_URL =
-  'https://keepance.com/#download?utm_source=demo&utm_campaign=v2-launch&utm_content=banner';
+  'https://keepance.com/#pricing?utm_source=demo&utm_campaign=v2-launch&utm_content=banner';
 
 export function DemoModeBanner() {
+  // `?clean` hides the demo chrome so the app can be screen-recorded for the
+  // marketing site without the banner in frame.
+  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('clean')) {
+    return null;
+  }
   return (
     <div
       data-testid="demo-mode-banner"

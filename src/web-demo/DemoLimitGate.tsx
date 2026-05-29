@@ -171,6 +171,12 @@ export function DemoLimitGate() {
     setDismissed(false);
   }
 
+  // `?clean` disables the exit gate so the app can be screen-recorded for the
+  // marketing site without the conversion modal interrupting.
+  if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('clean')) {
+    return null;
+  }
+
   return (
     <DemoExitModal
       open={open}

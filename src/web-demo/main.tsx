@@ -35,6 +35,10 @@ if (!rootElement) {
   throw new Error('Failed to find root element');
 }
 
+// Demo build: tell App to auto-open the pre-seeded OPFS workspace instead of
+// showing the folder picker. App reads this flag on mount.
+(window as unknown as { __keepanceDemo?: boolean }).__keepanceDemo = true;
+
 async function bootstrapLocale(): Promise<void> {
   const userLang = useSettingsStore.getState().language;
   const lang = userLang ?? (await detectLocale());

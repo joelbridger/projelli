@@ -42,7 +42,15 @@
 
   <!-- Plausible Analytics (self-hosted) -->
   <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
-  <script defer src="/scripts/hero-animation.js"></script>
+  <script>
+    // Respect reduced-motion: pause the hero video, leave its poster showing.
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      document.addEventListener('DOMContentLoaded', function () {
+        var v = document.querySelector('.hero-video');
+        if (v) { v.removeAttribute('autoplay'); if (v.pause) v.pause(); }
+      });
+    }
+  </script>
 
   <style>
     :root {
@@ -179,6 +187,7 @@
     @keyframes mockup-pulse { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
     [data-anim="ai-text"] { white-space: pre-line; }
     .hero-mockup { position: relative; }
+    .hero-video { width: 100%; height: auto; display: block; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04); background: #131518; }
     .mockup-cursor { position: absolute; pointer-events: none; z-index: 20; opacity: 0; left: 50%; top: 60%; transition: opacity 0.3s, left 0.35s ease, top 0.35s ease; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.6)); }
     .mockup-cursor.visible { opacity: 1; }
     .mockup-cursor.clicking { animation: mockup-cursor-click 0.25s ease; }
@@ -359,78 +368,13 @@
           <p class="email-signup-note" id="email-signup-note">Founding-practitioner pricing: the first 100 buyers of each practice pack get Professional at $89 instead of $129. The 30-day trial is available right now. Join the list to lock in the lowest price the packs will ever be.</p>
         </div>
 
-        <!-- App mockup -->
-        <div class="hero-mockup" id="hero-anim" aria-label="Animation showing Keepance finding contradictions in a deposition" role="img">
-          <div class="mockup-window">
-            <div class="mockup-chrome">
-              <span class="mockup-dot red"></span>
-              <span class="mockup-dot yellow"></span>
-              <span class="mockup-dot green"></span>
-              <span class="mockup-title">Halvorsen Estate · Keepance</span>
-            </div>
-            <div class="mockup-body">
-              <div class="mockup-sidebar">
-                <div class="mockup-ws-label">Halvorsen Estate</div>
-                <div class="mockup-file">
-                  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                  Engagement Letters
-                </div>
-                <div class="mockup-file">
-                  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                  Discovery Docs
-                </div>
-                <div class="mockup-file active" data-anim="new-file" style="opacity:0;transition:opacity 0.4s">
-                  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  Deposition Notes.md
-                </div>
-                <div class="mockup-file">
-                  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  Case Timeline.md
-                </div>
-                <div class="mockup-file">
-                  <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  Privilege Log.md
-                </div>
-              </div>
-              <div class="mockup-main">
-                <div class="mockup-tabbar">
-                  <div class="mockup-tab active">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="12" height="12"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                    Deposition Notes
-                  </div>
-                </div>
-                <div class="mockup-content" data-anim="content">
-                  <div class="mockup-chat-msg" data-anim="msg-user" style="opacity:0;transition:opacity 0.3s">
-                    <div class="mockup-chat-label user">You</div>
-                    <div class="mockup-chat-bubble user" data-anim="user-text"></div>
-                  </div>
-                  <div class="mockup-chat-msg" data-anim="msg-ai" style="opacity:0;transition:opacity 0.3s">
-                    <div class="mockup-chat-label ai">Keepance · claude-opus-4-7 · your files only</div>
-                    <div class="mockup-chat-bubble" data-anim="ai-text"></div>
-                  </div>
-                  <div class="mockup-thinking" data-anim="thinking" style="opacity:0;transition:opacity 0.2s">
-                    <span class="mockup-dot-pulse"></span>
-                    <span class="mockup-dot-pulse" style="animation-delay:0.2s"></span>
-                    <span class="mockup-dot-pulse" style="animation-delay:0.4s"></span>
-                  </div>
-                  <div class="mockup-file-created" data-anim="saved" style="opacity:0;transition:opacity 0.4s">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
-                    Saved to Deposition Notes.md
-                  </div>
-                </div>
-                <div class="mockup-input-row">
-                  <div class="mockup-input" data-anim="input"><span data-anim="input-text"></span><span class="mockup-caret" data-anim="caret"></span></div>
-                  <button class="mockup-send" data-anim="send" aria-label="Send">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" width="14" height="14"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <!-- animated cursor -->
-          <div class="mockup-cursor" data-anim="cursor" aria-hidden="true">
-            <svg width="16" height="20" viewBox="0 0 16 20" fill="none"><path d="M0 0L0 16L4.5 12L7.5 19L9.5 18L6.5 11L12 11Z" fill="white" stroke="rgba(0,0,0,0.5)" stroke-width="0.5"/></svg>
-          </div>
+        <!-- Real footage of the app: opening the Halvorsen matter, finding the contradiction -->
+        <div class="hero-mockup">
+          <video class="hero-video" autoplay muted loop playsinline preload="metadata"
+                 poster="/videos/keepance-hero-poster.jpg"
+                 aria-label="Keepance opening a deposition and finding where the witness contradicted himself">
+            <source src="/videos/keepance-hero.mp4" type="video/mp4">
+          </video>
         </div>
 
       </div>
