@@ -16,8 +16,6 @@ const WEBSITE_ROOT = resolve(__dirname, '../../website');
 
 const TARGETS = [
   'index.html',
-  'templates/index.html',
-  'templates/_detail_template.html',
   'vs/index.html',
   'vs/obsidian.html',
   'vs/notion.html',
@@ -31,9 +29,9 @@ const TARGETS = [
   'docs/getting-started.html',
   'docs/api-keys.html',
   'docs/faq.html',
-  'legal/privacy.html',
-  'legal/terms.html',
-  'legal/eula.html',
+  'legal/privacy/index.html',
+  'legal/terms/index.html',
+  'legal/eula/index.html',
   // Stream D1 (v2.0) — mobile access docs.
   'docs/mobile-access/index.html',
   'docs/mobile-access/icloud.html',
@@ -73,7 +71,15 @@ const BANNED_WORDS = [
 function collectTemplateDetailPages(): string[] {
   const templatesDir = join(WEBSITE_ROOT, 'templates');
   const out: string[] = [];
-  for (const entry of readdirSync(templatesDir)) {
+  // The /templates/ founder pages were decommissioned and deleted; tolerate a
+  // missing dir so the lint still runs.
+  let entries: string[] = [];
+  try {
+    entries = readdirSync(templatesDir);
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
     const abs = join(templatesDir, entry);
     try {
       if (statSync(abs).isDirectory() && entry !== 'examples') {
