@@ -5,10 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.0] — pending release (rebranded app + profession packs)
+## [2.1.0] - 2026-05-29 (rebranded app + profession packs)
 
-> Version bumped to 2.1.0 and production build verified. Release tag is held for
-> explicit go (and pairs with the LemonSqueezy product setup).
+> Rebranded app (Projelli to Keepance), Personal/Professional/Practice licensing,
+> and legal/tax packs marked Preview pending professional review. Tagged 2026-05-29.
 
 ### Added
 - **ICP Pivot (2026-05-27): Repositioned from indie-founder to confidential-client-work professionals.**
