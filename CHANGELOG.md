@@ -5,12 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.1.0] — pending release (rebranded app + profession packs)
+
+> Version bumped to 2.1.0 and production build verified. Release tag is held for
+> explicit go (and pairs with the LemonSqueezy product setup).
 
 ### Added
 - **ICP Pivot (2026-05-27): Repositioned from indie-founder to confidential-client-work professionals.**
   Lead vertical: solo + small-firm attorneys. Fast-follow: tax preparers/CPAs/EAs. Consulting pack third.
   Pricing restructured: $49 Personal / $129 Professional (+ profession pack) / $399 Practice (5 seats).
+- **In-app licensing rewritten for the real tiers:** Personal / Professional / Practice with
+  profession-pack entitlement + seats, replacing the old free/pro/lifetime model (`useLicense`,
+  `tierHasFeature`, `hasPack`). All paid tiers get the full app; the pack and seats are the
+  differentiators. The 30-day trial is unchanged. App rebranded Projelli -> Keepance throughout.
+- **Legal and tax packs ship marked "Preview, pending review"** until a practicing attorney / CPA
+  signs off; consulting and general templates ship un-marked.
 - **Legal Practice Pack (v2.1 draft — 7 templates):** Deposition Contradiction Finder, Evidence Gap
   Analyzer, Case Timeline Builder, Privilege Log Drafter, Discovery Document Triage, Patent Disclosure
   Draft, Client Intake Synthesizer. Files: `src/modules/workflow/templates/legal/`.
