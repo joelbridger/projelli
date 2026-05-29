@@ -171,6 +171,13 @@ export interface WorkflowTemplate {
    * Only set on community-installed templates.
    */
   sourceId?: string;
+  /**
+   * Marks a profession-pack template that ships but has not yet been reviewed
+   * by a practicing professional (the legal and tax packs). The UI surfaces it
+   * as "Preview"; the description is also prefixed with a pending-review note.
+   * Dropped per-pack once an advisor signs off.
+   */
+  preview?: boolean;
 }
 
 /**
