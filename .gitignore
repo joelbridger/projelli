@@ -59,6 +59,9 @@ Thumbs.db
 yarn-debug.log*
 yarn-error.log*
 
+# Advisor review packets (generated HTML for attorney/CPA review — regenerate via scripts/export-advisor-packet.ts)
+advisor-packet/
+
 # Local screenshots/assets (not for public repo)
 Assets/
 

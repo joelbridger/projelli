@@ -3,25 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Keepance — The AI workspace for confidential client work</title>
+  <title>The AI workspace for confidential client work | Keepance</title>
   <meta name="description" content="Keepance is a local-first AI workspace for attorneys, CPAs, and consultants. Your documents never leave your machine. Bring your own API key. Buy once, own forever.">
   <link rel="canonical" href="https://keepance.com/">
   <meta name="robots" content="index, follow">
   <meta name="author" content="Jameson Daines">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" href="/favicon.ico">
+  <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
 
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://keepance.com/">
-  <meta property="og:title" content="Keepance — The AI workspace for confidential client work">
+  <meta property="og:title" content="The AI workspace for confidential client work | Keepance">
   <meta property="og:description" content="Your documents never leave your machine. Local-first AI for attorneys, CPAs, and consultants. Buy once.">
   <meta property="og:site_name" content="Keepance">
   <meta property="og:image" content="https://keepance.com/og-image.png">
   <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="627">
+  <meta property="og:image:height" content="630">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Keepance — AI that works with your client files. Not on them.">
+  <meta name="twitter:title" content="Keepance: AI that works with your client files, never on a server">
   <meta name="twitter:description" content="Local-first AI workspace for attorneys, CPAs, and consultants. Files stay on your machine. Buy once.">
   <meta name="twitter:image" content="https://keepance.com/og-image.png">
 
@@ -346,11 +351,12 @@
           </div>
           <p class="hero-note">No credit card. 30-day free trial on all platforms.</p>
 
-          <form id="email-signup-form" class="email-signup" action="/api/forms/keepance-waitlist" method="POST">
+          <form id="email-signup-form" class="email-signup" action="/api/forms/keepance/email-list" method="POST">
+            <input type="hidden" name="source" value="homepage-hero">
             <input type="email" name="email" placeholder="your@email.com" required class="email-signup-input" aria-label="Email address">
-            <button type="submit" class="email-signup-btn">Notify me when charter opens</button>
+            <button type="submit" class="email-signup-btn">Reserve founding pricing</button>
           </form>
-          <p class="email-signup-note" id="email-signup-note">Charter pricing — the first 100 buyers per practice pack get Professional at $89 instead of $129. The trial is available right now — the email list is for when charter pricing opens.</p>
+          <p class="email-signup-note" id="email-signup-note">Founding-practitioner pricing: the first 100 buyers of each practice pack get Professional at $89 instead of $129. The 30-day trial is available right now. Join the list to lock in the lowest price the packs will ever be.</p>
         </div>
 
         <!-- App mockup -->
@@ -360,7 +366,7 @@
               <span class="mockup-dot red"></span>
               <span class="mockup-dot yellow"></span>
               <span class="mockup-dot green"></span>
-              <span class="mockup-title">Halvorsen Estate — Keepance</span>
+              <span class="mockup-title">Halvorsen Estate · Keepance</span>
             </div>
             <div class="mockup-body">
               <div class="mockup-sidebar">
@@ -435,7 +441,7 @@
       <div class="container trust-bar-inner">
         <div class="trust-item"><span class="trust-item-dot"></span>Your files never leave your machine</div>
         <div class="trust-sep"></div>
-        <div class="trust-item"><span class="trust-item-dot"></span>ABA Formal Opinion 512 compliant</div>
+        <div class="trust-item"><span class="trust-item-dot"></span>Built for ABA Opinion 512 duties</div>
         <div class="trust-sep"></div>
         <div class="trust-item"><span class="trust-item-dot"></span>§6713/§7216-aware for tax preparers</div>
         <div class="trust-sep"></div>
@@ -454,7 +460,7 @@
             <p>Every conversation saves as a plain Markdown file in a folder you choose. Case notes. Research memos. Client intake summaries. Edit them in any text editor, back them up however you want, open them five years from now. They're yours.</p>
             <ul class="feature-list">
               <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Files live on your machine in any folder you pick</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Your API key goes directly to Claude, GPT, or Gemini — not through us</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Your API key goes directly to Claude, GPT, or Gemini, not through us</li>
               <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Works fully offline except for the AI calls themselves</li>
               <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>No account, no sign-up, no telemetry by default</li>
             </ul>
@@ -463,7 +469,7 @@
             <div class="feature-visual-box">
               <div class="feature-visual-header">
                 <span class="feature-visual-dot r"></span><span class="feature-visual-dot y"></span><span class="feature-visual-dot g"></span>
-                <span class="feature-visual-title">Finder — Documents/Keepance/Chen v. Merritt/</span>
+                <span class="feature-visual-title">Finder · Documents/Keepance/Chen v. Merritt/</span>
               </div>
               <div class="feature-visual-body">
                 <div class="finder-row active"><span class="finder-icon">📄</span> Deposition Notes.md</div>
@@ -483,7 +489,7 @@
             <h2>Drop in a PDF and ask it questions. Every answer cites the source.</h2>
             <p>Keepance indexes the PDFs in your workspace using embeddings that run locally on your machine. Ask it to find contradictions, summarize a 200-page discovery file, or pull relevant precedent from a folder of case law. Every answer cites the document and page it came from.</p>
             <ul class="feature-list">
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>PDF indexing runs locally — no data leaves</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>PDF indexing runs locally, no data leaves</li>
               <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Every AI answer cites the exact document and section</li>
               <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Ask across multiple files in the same conversation</li>
               <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Results save back to Markdown automatically</li>
@@ -493,14 +499,14 @@
             <div class="feature-visual-box">
               <div class="feature-visual-header">
                 <span class="feature-visual-dot r"></span><span class="feature-visual-dot y"></span><span class="feature-visual-dot g"></span>
-                <span class="feature-visual-title">Keepance — Document Q&amp;A</span>
+                <span class="feature-visual-title">Keepance · Document Q&amp;A</span>
               </div>
               <div class="feature-visual-body">
                 <div class="rag-query-box">
                   <div class="rag-query-label">Your question</div>
                   <div class="rag-query-text">"What does the purchase agreement say about the indemnification cap?"</div>
                 </div>
-                <div class="rag-result">The indemnification cap is $2.5M — 12 months of contract value — per Section 14.3(b). <span class="rag-citation">Purchase_Agreement_Final.pdf · p. 47</span> The carve-out for fraud and gross negligence is unlimited, per Section 14.3(c). <span class="rag-citation">p. 47</span></div>
+                <div class="rag-result">The indemnification cap is $2.5M (12 months of contract value) per Section 14.3(b). <span class="rag-citation">Purchase_Agreement_Final.pdf · p. 47</span> The carve-out for fraud and gross negligence is unlimited, per Section 14.3(c). <span class="rag-citation">p. 47</span></div>
               </div>
             </div>
           </div>
@@ -512,9 +518,9 @@
             <h2>$129 once. Not $129 a month.</h2>
             <p>Most AI tools charge monthly and hold your data as leverage. Keepance is a one-time purchase. The license is perpetual. Your files stay on your machine. If you stop using it tomorrow, every document is still exactly where you left it, in plain text, readable forever.</p>
             <ul class="feature-list">
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Perpetual license — one payment, owned forever</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Perpetual license, one payment, owned forever</li>
               <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>No per-query or per-token fees from Keepance</li>
-              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Free updates included; plain Markdown files readable without the app</li>
+              <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>Updates and security patches included for the life of the product</li>
               <li><span class="feature-list-check"><svg viewBox="0 0 12 12"><polyline points="2 6 5 9 10 3"/></svg></span>No one can raise your rate or turn off your access</li>
             </ul>
           </div>
@@ -553,21 +559,21 @@
           <a href="/legal/" class="for-card">
             <div class="for-card-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
             <h3>Solo &amp; small-firm attorneys</h3>
-            <p>Case files, deposition notes, discovery documents, privilege logs, client intake summaries — all on your machine. Keepance finds contradictions across depositions, drafts privilege log entries, and builds case timelines without touching a cloud server.</p>
-            <div class="for-card-hook">ABA Formal Opinion 512 (2024) is favorable to local-first AI approaches. A February 2026 S.D.N.Y. ruling (<em>United States v. Heppner</em>) found that consumer AI use without attorney direction offers no privilege protection — counsel-directed, local-first workflows address that risk directly. For patent work: the EU's absolute-novelty rule means cloud AI use before filing carries patentability implications worth discussing with IP counsel. Verify all of this with your bar counsel.</div>
+            <p>Case files, deposition notes, discovery documents, privilege logs, client intake summaries, all on your machine. Keepance finds contradictions across depositions, drafts privilege log entries, and builds case timelines without touching a cloud server.</p>
+            <div class="for-card-hook">ABA Formal Opinion 512 (2024) is favorable to local-first AI approaches. A February 2026 S.D.N.Y. ruling (<em>United States v. Heppner</em>) found that consumer AI use without attorney direction offers no privilege protection. Counsel-directed, local-first workflows address that risk directly. For patent work, the EU's absolute-novelty rule means cloud AI use before filing carries patentability implications worth discussing with IP counsel. Verify all of this with your bar counsel.</div>
             <span class="for-card-cta">See the Legal Practice Pack →</span>
           </a>
           <a href="/tax/" class="for-card">
             <div class="for-card-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
             <h3>Tax preparers &amp; CPAs</h3>
-            <p>Your clients' SSNs, returns, and financial statements never leave your machine. Keepance handles engagement letter drafting, return pre-review, research memos, and audit defense prep — all offline, all yours.</p>
-            <div class="for-card-hook">IRC §6713 imposes strict-liability civil penalties of $250 per unauthorized disclosure of tax return information — no intent required. IRC §7216 makes knowing or reckless disclosure a federal criminal misdemeanor. The FTC Safeguards Rule (16 CFR Part 314) requires a Written Information Security Program for every covered practitioner, with no small-practitioner exemption. Local-first AI simplifies all three. Confirm your specific situation with a tax attorney.</div>
+            <p>Your clients' SSNs, returns, and financial statements never leave your machine. Keepance handles engagement letter drafting, return pre-review, research memos, and audit defense prep, all offline, all yours.</p>
+            <div class="for-card-hook">IRC §6713 imposes strict-liability civil penalties of $250 per unauthorized disclosure of tax return information, with no intent required. IRC §7216 makes knowing or reckless disclosure a federal criminal misdemeanor. The FTC Safeguards Rule (16 CFR Part 314) requires a Written Information Security Program for every covered practitioner, with no small-practitioner exemption. Local-first AI simplifies all three. Confirm your specific situation with a tax attorney.</div>
             <span class="for-card-cta">See the Tax Practice Pack →</span>
           </a>
           <a href="/consulting/" class="for-card">
             <div class="for-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
             <h3>Independent consultants &amp; agencies</h3>
-            <p>Your NDAs say client data stays confidential. Your workflow depends on AI. Keepance is where those two facts coexist — synthesize client discovery, draft confidential memos, and prepare presentations without uploading a single line to someone else's server.</p>
+            <p>Your NDAs say client data stays confidential. Your workflow depends on AI. Keepance is where those two facts coexist: synthesize client discovery, draft confidential memos, and prepare presentations without uploading a single line to someone else's server.</p>
             <div class="for-card-hook">Many client contracts now explicitly prohibit uploading work product to AI services. Keepance sidesteps the clause entirely.</div>
             <span class="for-card-cta">See the Consulting Practice Pack →</span>
           </a>
@@ -612,12 +618,14 @@
             <ul class="pricing-features">
               <li class="strong">Everything in Personal</li>
               <li class="strong">One profession practice pack</li>
-              <li>Legal Practice pack — 7 templates</li>
-              <li>Tax Practice pack — 7 templates</li>
-              <li>Consulting Practice pack — 5 templates</li>
+              <li>Legal Practice pack: 7 templates</li>
+              <li>Tax Practice pack: 7 templates</li>
+              <li>Consulting Practice pack: 5 templates</li>
               <li>Charter price: $89 for first 100 per pack</li>
             </ul>
-            <a href="https://keepance.lemonsqueezy.com/checkout/buy/33cd497b-bffd-404c-910e-f8dd1f4453bd" class="btn btn-copper btn-full">Buy Professional — $129</a>
+            <a href="https://github.com/keepance/keepance/releases/latest" class="btn btn-copper btn-full">Download free for 30 days</a>
+            <p style="font-size:12px;color:var(--text-muted-dark);margin-top:10px;text-align:center;">Purchase opens when checkout launches. <a href="#email-signup-form" style="color:var(--grad-blue);font-weight:600;">Reserve the $89 founding price &rarr;</a></p>
+            <!-- TODO restore when LemonSqueezy Professional product is live: <a href="https://keepance.lemonsqueezy.com/checkout/buy/PROFESSIONAL_VARIANT_ID" class="btn btn-copper btn-full">Buy Professional ($129)</a> -->
           </div>
           <div class="pricing-card">
             <div class="pricing-tier">Practice</div>
@@ -632,10 +640,12 @@
               <li>Email support</li>
               <li>Priority access to new packs</li>
             </ul>
-            <a href="https://keepance.lemonsqueezy.com/checkout/buy/9a5a7f48-0ffe-448a-a1af-889af99a0f47" class="btn btn-outline-copper btn-full">Buy Practice — $399</a>
+            <a href="https://github.com/keepance/keepance/releases/latest" class="btn btn-outline-copper btn-full">Download free for 30 days</a>
+            <p style="font-size:12px;color:var(--text-muted-dark);margin-top:10px;text-align:center;">Purchase opens when checkout launches. <a href="#email-signup-form" style="color:var(--grad-blue);font-weight:600;">Join the founding list &rarr;</a></p>
+            <!-- TODO restore when LemonSqueezy Practice product is live: <a href="https://keepance.lemonsqueezy.com/checkout/buy/PRACTICE_VARIANT_ID" class="btn btn-outline-copper btn-full">Buy Practice ($399)</a> -->
           </div>
         </div>
-        <p class="pricing-note">All plans include a 30-day free trial. No credit card required to download.<br>Practice packs are in development — charter buyers get them the day they ship.</p>
+        <p class="pricing-note">All plans include a 30-day free trial. No credit card required to download.<br>The practice packs ship after review by practicing attorneys and CPAs. Founding-list members get them first, at $89 charter pricing.</p>
       </div>
     </section>
 
@@ -644,11 +654,11 @@
       <div class="container legal-note-inner">
         <div class="legal-note">
           <h4>A note on compliance claims</h4>
-          <p>The ABA and IRC §7216 references on this page are informational, not legal advice. Keepance's local-first architecture is designed to reduce your compliance surface — but it doesn't eliminate your professional obligations. Verify how Keepance fits your specific practice with your bar counsel or tax advisor.</p>
+          <p>The ABA and IRC §7216 references on this page are informational, not legal advice. Keepance's local-first architecture is designed to reduce your compliance surface, but it doesn't eliminate your professional obligations. Verify how Keepance fits your specific practice with your bar counsel or tax advisor.</p>
         </div>
         <div class="legal-note">
           <h4>What "local-first" actually means</h4>
-          <p>When you use Keepance, your documents and API key stay on your machine. Your prompts go directly to Anthropic, OpenAI, or Google — Keepance never sees them. If that's also a concern, Keepance supports local models via Ollama, which is fully offline.</p>
+          <p>When you use Keepance, your documents and API key stay on your machine. Your prompts go directly to Anthropic, OpenAI, or Google, and Keepance never sees them. Want to confirm it yourself? <a href="/ai-workspace-privacy/" style="color:var(--navy);font-weight:600;">See exactly where your data goes</a>. For zero network at all, point Keepance at a local Ollama model and nothing leaves your machine.</p>
         </div>
       </div>
     </div>
@@ -662,7 +672,7 @@
       <h2 style="font-size:1.6rem;font-weight:800;color:var(--text-heading);margin-bottom:14px;letter-spacing:-0.02em;">Jameson Daines</h2>
       <p style="font-size:1rem;line-height:1.7;color:var(--text-body);margin-bottom:24px;">
         Senior Product Designer. Eight years designing health and enterprise products at Samsung, AstraZeneca, and Tesla.
-        I built Keepance because I kept running into the same problem — AI tools that required uploading sensitive work to someone else's server.
+        I built Keepance because I kept running into the same problem: AI tools that required uploading sensitive work to someone else's server.
         <a href="https://jamesondaines.com" target="_blank" rel="noopener" style="color:var(--navy);font-weight:600;">jamesondaines.com</a>
       </p>
       <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;">
@@ -708,20 +718,20 @@
       const note = document.getElementById('email-signup-note');
       const email = this.querySelector('input[type=email]').value;
       try {
-        const res = await fetch('/api/forms/keepance-waitlist', {
+        const res = await fetch('/api/forms/keepance/email-list', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, source: 'hero-form' })
         });
         if (res.ok) {
-          note.textContent = "You're on the list. We'll email you when charter pricing opens.";
+          note.textContent = "You're on the founding list. You'll be first to hear when the packs ship.";
           note.style.color = '#A8EFC0';
           this.style.display = 'none';
         } else {
-          note.textContent = 'Something went wrong — email jamesondaines@outlook.com directly.';
+          note.textContent = 'Something went wrong. Email jamesondaines@outlook.com directly.';
         }
       } catch {
-        note.textContent = 'Something went wrong — email jamesondaines@outlook.com directly.';
+        note.textContent = 'Something went wrong. Email jamesondaines@outlook.com directly.';
       }
     });
 
@@ -760,14 +770,14 @@
       var isLinux = /Linux/i.test(p) && !/Android/i.test(ua);
       if (isWin) {
         btn.href = RELEASES; // GitHub releases page; JS can be extended with direct .exe URL once known
-        btn.textContent = 'Download for Windows — free for 30 days';
+        btn.textContent = 'Download for Windows, free for 30 days';
       } else if (isMac) {
         var isArm = /arm/i.test(p) || ua.indexOf('Mac') !== -1; // ARM detection is best-effort
         btn.href = RELEASES;
-        btn.textContent = 'Download for Mac — free for 30 days';
+        btn.textContent = 'Download for Mac, free for 30 days';
       } else if (isLinux) {
         btn.href = RELEASES;
-        btn.textContent = 'Download for Linux — free for 30 days';
+        btn.textContent = 'Download for Linux, free for 30 days';
       }
       // If no match, keep default href and text (GitHub releases page).
     })();

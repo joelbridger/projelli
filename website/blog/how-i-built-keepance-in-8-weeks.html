@@ -130,7 +130,7 @@
 
     <h2>The shape of the problem</h2>
 
-    <p>By month 16 of building Keepance, I had a 25,000-line TypeScript codebase, 64 React components, three streaming AI providers wired up, version history, an audit log, undo/redo, wiki-links, backlinks, split panes, an entire workflow engine, and 12 founder-focused templates. The app worked. I was using it daily for my own side projects.</p>
+    <p>By month 16 of building Keepance, I had a 25,000-line TypeScript codebase, 64 React components, three streaming AI providers wired up, version history, an audit log, undo/redo, wiki-links, backlinks, split panes, an entire workflow engine, and 12 profession-specific templates. The app worked. I was using it daily for my own side projects.</p>
 
     <p>I had also managed to ship exactly nothing publicly except a single Windows v1.0.0 release that had been live since February with 5 .exe and 2 .msi downloads. Five downloads. After 16 months.</p>
 
@@ -188,7 +188,7 @@
     <p>The specific structure I use:</p>
 
     <ul>
-      <li>A <code>PROJELLI_BUSINESS_PLAN.md</code> file in the repo root that documents every CEO-level decision (audience, pricing, channel, tech, legal) with the reasoning. Claude reads this at the start of every session.</li>
+      <li>A <code>KEEPANCE_BUSINESS_PLAN.md</code> file in the repo root that documents every CEO-level decision (audience, pricing, channel, tech, legal) with the reasoning. Claude reads this at the start of every session.</li>
       <li>A <code>BACKLOG.md</code> file with week-by-week tickets and statuses, updated as work progresses.</li>
       <li>A persistent memory file at <code>~/.claude/projects/-home-jameson/memory/project_keepance.md</code> that Claude automatically loads in every session.</li>
       <li>A clear list of what Claude can decide autonomously and what needs to escalate to me (anything touching my identity, my employer, legal exposure, or spend over the approved ceiling).</li>
@@ -206,7 +206,7 @@
 
     <h3>4. LemonSqueezy as merchant of record</h3>
 
-    <p>I went in assuming I'd use Stripe + Quaderno + Postmark + a custom license stack. Then I read four blog posts from indie founders who'd done that exact build and burned out maintaining it.</p>
+    <p>I went in assuming I'd use Stripe + Quaderno + Postmark + a custom license stack. Then I read four blog posts from solo developers who'd done that exact build and burned out maintaining it.</p>
 
     <p>LemonSqueezy charges ~5% per sale, which is higher than Stripe's 2.9% + $0.30. In exchange they handle:</p>
     <ul>
@@ -234,7 +234,7 @@
 
     <h3>2. No build-in-public presence before launch day</h3>
 
-    <p>I had a clean idea ("indie founder local-first AI workspace, BYOK, one-time pricing") and zero audience to tell it to. My X account had ~100 followers, none of whom were indie founders. My LinkedIn was professional design content with no Keepance mentions.</p>
+    <p>I had a clean idea ("local-first AI workspace for confidential client work, BYOK, one-time pricing") and zero audience to tell it to. My X account had ~100 followers, none of whom were attorneys, CPAs, or consultants. My LinkedIn was professional design content with no Keepance mentions.</p>
 
     <p>The fix is simple but it requires biting the bullet on something I'd been avoiding: tweeting publicly about the build, week by week, for the entire 8-week ramp. Cringy at first. Valuable by week 3. By week 6 it was doing more for reach than any single marketing doc I'd written. I'm starting that arc now, after launch, and it's already paying off, but it would have been worth 10x more before.</p>
 
@@ -242,9 +242,9 @@
 
     <p>One of my side projects is called "Healthful", an AI design copilot for healthcare designers. I'd been mentioning it in passing in the Keepance bio block. On launch day, three different journalists asked me about Healthful instead of Keepance, because Healthful sounded more "venture-shaped" to them. Lesson: be ruthless about what you put in your founder bio. Every side project you name competes for attention with the thing you're actually launching.</p>
 
-    <h3>4. The Pro vs Lifetime split was different than I projected</h3>
+    <h3>4. The Personal vs Professional split was different than I projected</h3>
 
-    <p>I'd assumed 60% of paying buyers would pick Pro ($49) and 30% would pick Lifetime ($99). The actual launch-week split was [TBD, fill in after launch]. That suggests the value perception of "lifetime updates" is either much stronger or much weaker than I assumed. I'll know more after a month of real data.</p>
+    <p>I'd assumed most paying buyers would pick Personal ($49) and a minority would step up to Professional ($129) for the practice pack. The actual launch-week split was [TBD, fill in after launch]. That suggests the value perception of the practice packs is either much stronger or much weaker than I assumed. I'll know more after a month of real data.</p>
 
     <h3>5. SmartScreen warnings before signing was live</h3>
 
@@ -265,7 +265,7 @@
       <tr><td>Email signups (launch week)</td><td>__</td></tr>
       <tr><td>Free downloads (launch week)</td><td>__</td></tr>
       <tr><td>Paying customers (launch week)</td><td>__</td></tr>
-      <tr><td>Founder's Launch tier sales (of 100)</td><td>__</td></tr>
+      <tr><td>Professional tier sales (launch week)</td><td>__</td></tr>
       <tr><td>Total revenue (launch week)</td><td>$__</td></tr>
     </table>
 
@@ -277,7 +277,7 @@
       <li><strong>Set up code signing in week 1, not week 2.</strong> Every day you ship without it is a day you're handing buyers a SmartScreen warning that breaks trust.</li>
       <li><strong>Pre-stage every reply you can imagine before launch day.</strong> The competitive analysis matrix was the single most useful hour I spent. I wish I'd done it 3 weeks earlier and used the paragraphs for blog posts and X threads.</li>
       <li><strong>Recruit beta testers in week 1, not week 5.</strong> A single ticket called "Recruit 20 beta testers" should have been a 4-week effort, not a 1-week effort. The day-1 social proof of "I've been using this for two weeks" comments is worth more than any marketing copy.</li>
-      <li><strong>Stop hedging on positioning.</strong> I spent a long time waffling between "founder tool" and "general AI workspace." The day I committed to "indie founder, full stop" was the day the marketing started writing itself.</li>
+      <li><strong>Stop hedging on positioning.</strong> I spent a long time waffling between a broad audience and a "general AI workspace." The day I committed to "the AI workspace for confidential client work, full stop" was the day the marketing started writing itself.</li>
     </ol>
 
     <h2>Should you do this?</h2>
@@ -286,9 +286,9 @@
 
     <p>If you're at the start of building the product itself, this isn't the post you need yet. Come back when the product works and you're staring at the commercial wall.</p>
 
-    <p>And if Keepance looks useful to you, there's a free tier, a 14-day refund, and the Founder's Launch $29 lifetime is live until I sell 100 of them.</p>
+    <p>And if Keepance looks useful to you, there's a 30-day free trial with no card required, and one-time pricing after that: Personal at $49, Professional at $129 with a practice pack, and Practice at $399 for up to 5 seats.</p>
 
-    <a href="https://keepance.com/#pricing" class="cta">Get Keepance, free or Founder's Launch ($29 lifetime)</a>
+    <a href="https://keepance.com/#pricing" class="cta">Get Keepance, free for 30 days</a>
 
     <p style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-gray); color: var(--text-muted); font-size: 0.9375rem;">
       Found this useful? <a href="https://twitter.com/intent/tweet?text=How%20a%20solo%20dev%20shipped%20a%20paid%20local-first%20AI%20workspace%20in%208%20weeks%20at%205-10%20hrs%2Fweek&url=https%3A%2F%2Fkeepance.com%2Fblog%2Fhow-i-built-keepance-in-8-weeks">Share on X</a> · <a href="mailto:support@keepance.com">Email me feedback</a>

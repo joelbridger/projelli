@@ -72,7 +72,7 @@
 
     <p>Big release. Keepance now reads images and PDFs straight from the chat input. It can index your PDF library and pull from it the same way <code>@workspace</code> already pulls from your Markdown notes. It reads AI replies out loud through a local Piper sidecar. It runs sandboxed third-party plugins from a marketplace, with four working examples shipping on day one. There's a community templates marketplace pointing at a real GitHub repo. The whole app speaks Spanish and German now. And you can try Keepance in your browser at <a href="/try/">keepance.com/try</a> without downloading anything.</p>
 
-    <p>That's eleven new things across one release. I've been calling it v2.0 internally, but the thing that actually matters to a founder opening Keepance for the first time is the headline: <strong>your AI can finally see what you see, and other people can build for the app you use every day</strong>.</p>
+    <p>That's eleven new things across one release. I've been calling it v2.0 internally, but the thing that actually matters to someone opening Keepance for the first time is the headline: <strong>your AI can finally see what you see, and other people can build for the app you use every day</strong>.</p>
 
     <p>Let me walk through each one.</p>
 
@@ -100,7 +100,7 @@
 
     <p>Open Settings, go to the Memory pane, flip "Include PDFs in workspace index" on. Keepance walks your workspace, extracts text from every PDF, embeds it via <a href="https://github.com/Anush008/fastembed-rs" target="_blank" rel="noopener">fastembed-rs</a> using <a href="https://huggingface.co/intfloat/multilingual-e5-small" target="_blank" rel="noopener">MultilingualE5Small</a> (384-dim, multilingual on purpose, since the app is now in three languages), and stores the vectors in <a href="https://lancedb.github.io/lancedb/" target="_blank" rel="noopener">LanceDB</a> in the same hidden <code>.keepance/vectors/</code> folder it already uses for Markdown.</p>
 
-    <p>Now type <code>@workspace</code> and the AI retrieves from your PDFs alongside your notes. The retrieval shows you which file each chunk came from, and clicking a citation opens the PDF at the right page. It is the same pattern <a href="/blog/keepance-1-5-announce">v1.5 shipped for Markdown</a>, just extended to the document type founders actually receive most often: contracts, term sheets, white papers, board decks, the supplier agreement somebody emailed you on a Tuesday.</p>
+    <p>Now type <code>@workspace</code> and the AI retrieves from your PDFs alongside your notes. The retrieval shows you which file each chunk came from, and clicking a citation opens the PDF at the right page. It is the same pattern <a href="/blog/keepance-1-5-announce">v1.5 shipped for Markdown</a>, just extended to the document type professionals actually receive most often: contracts, term sheets, engagement letters, white papers, the supplier agreement somebody emailed you on a Tuesday.</p>
 
     <p>Embeddings stay on your machine. Nothing about your PDF library leaves your computer. <a href="https://github.com/keepance/keepance/pull/20">PR #20 Stream A</a>.</p>
 
@@ -145,7 +145,7 @@
 
     <h2>Feature 7: a templates marketplace, with real community templates</h2>
 
-    <p>Keepance already shipped 15 founder workflow templates baked in. Now there's a separate community marketplace at <a href="https://github.com/keepance/community-templates" target="_blank" rel="noopener">github.com/keepance/community-templates</a> for templates the community contributes.</p>
+    <p>Keepance already shipped 15 profession-specific workflow templates baked in. Now there's a separate community marketplace at <a href="https://github.com/keepance/community-templates" target="_blank" rel="noopener">github.com/keepance/community-templates</a> for templates the community contributes.</p>
 
     <p>Six day-one templates are seeded into the live catalog: a beta-user survey, a cold email sequence, a customer discovery interview, a community version of the investor update email, a launch announcement tweet thread, and a press release. The catalog refreshes every 24 hours, with an offline banner if you're not online when it tries. Updates show up as a badge on the Settings nav.</p>
 
@@ -155,7 +155,7 @@
 
     <p>This is the biggest funnel change since launch.</p>
 
-    <p>Go to <a href="/try/">keepance.com/try</a>. The web demo loads with a pre-seeded sample workspace (12 founder templates, sample notes, a chat history). Type a message. The AI responds. You get 5 free messages or 10 minutes through a shared Anthropic key I'm paying for, whichever expires first. After that, an exit modal pops up with download CTAs for Mac, Windows, and Linux.</p>
+    <p>Go to <a href="/try/">keepance.com/try</a>. The web demo loads with a pre-seeded sample workspace (12 workflow templates, sample notes, a chat history). Type a message. The AI responds. You get 5 free messages or 10 minutes through a shared Anthropic key I'm paying for, whichever expires first. After that, an exit modal pops up with download CTAs for Mac, Windows, and Linux.</p>
 
     <p>If you've got your own Anthropic key, paste it in. The demo runs unlimited from your key. Nothing of yours is stored on my server.</p>
 
@@ -200,7 +200,7 @@
       <li><strong>No real-time collaboration.</strong> Notion is still the right answer for two cursors in one document.</li>
       <li><strong>No autonomous agents.</strong> The plugin system can do interesting things, but the principle is unchanged: AI proposes, you decide. Even <code>api.editor.replaceSelection</code> requires the user to have selected the text first.</li>
       <li><strong>No subscription tier.</strong> Keepance is one-time pricing forever. v2.0 is a free upgrade for every existing license holder.</li>
-      <li><strong>No mass-market repositioning.</strong> Keepance is for indie founders. The four example plugins, the templates marketplace, and the demo workspace are all founder-shaped on purpose.</li>
+      <li><strong>No mass-market repositioning.</strong> Keepance is for professionals doing confidential client work: attorneys, tax pros, consultants. The four example plugins, the templates marketplace, and the demo workspace are all shaped around that work on purpose.</li>
     </ul>
 
     <p>If you've been waiting for one of these, I'm sorry, you'll keep waiting. None of them are on the 2026 roadmap.</p>
@@ -211,13 +211,13 @@
 
     <p>If you're on something older than 1.0.8, the auto-updater can't migrate you cleanly. Grab the installer from the <a href="https://github.com/keepance/keepance/releases/latest" target="_blank" rel="noopener">releases page</a> and install over the top. Same workspace, same settings.</p>
 
-    <p>If you've never installed Keepance, two paths. Try it free in your browser at <a href="/try/">keepance.com/try</a>, no signup, 5 messages on me. Or grab the desktop installer from the <a href="/#pricing">download page</a> for Mac (Apple Silicon and Intel), Windows, or Linux. The free tier is real, not a trial. Pro stays at $49 one-time. The first-100 Founder's Launch Lifetime tier at $29 is still being honored for the buyers who haven't claimed yet.</p>
+    <p>If you've never installed Keepance, two paths. Try it free in your browser at <a href="/try/">keepance.com/try</a>, no signup, 5 messages on me. Or grab the desktop installer from the <a href="/#pricing">download page</a> for Mac (Apple Silicon and Intel), Windows, or Linux. Every download starts a 30-day free trial, no card required. Pricing is one-time: Personal is $49, Professional is $129 and includes one practice pack, and Practice is $399 for up to 5 seats.</p>
 
     <h2>Credit</h2>
 
-    <p>Keepance is built by me, <a href="https://jamesondaines.com">Jameson Daines</a>, around a full-time day job as a Senior Product Designer at Wheel Health. Eleven PRs, roughly 1900 unit and integration tests passing on master, six implementation plans, one spike memo, two live community repos. Not a funded startup. Not a team. One person, weekends and evenings, shipping a local-first AI workspace because the cloud tools kept losing my business plans and because I wanted my AI to be able to read the contract somebody just emailed me without me copy-pasting it into a different app.</p>
+    <p>Keepance is built by me, <a href="https://jamesondaines.com">Jameson Daines</a>, around a full-time day job as a Senior Product Designer at a health-tech company. Eleven PRs, roughly 1900 unit and integration tests passing on master, six implementation plans, one spike memo, two live community repos. Not a funded startup. Not a team. One person, weekends and evenings, shipping a local-first AI workspace because the cloud tools kept losing my business plans and because I wanted my AI to be able to read the contract somebody just emailed me without me copy-pasting it into a different app.</p>
 
-    <p>If this post is useful, share it. Tell one founder you know who's been wanting an AI tool that respects their files, their keys, and their privacy. That's how Keepance grows.</p>
+    <p>If this post is useful, share it. Tell one attorney, CPA, or consultant you know who's been wanting an AI tool that respects their files, their keys, and their privacy. That's how Keepance grows.</p>
 
     <a href="/#pricing" class="cta">Download Keepance v2.0</a>
 
