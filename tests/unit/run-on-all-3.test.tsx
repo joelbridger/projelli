@@ -57,7 +57,7 @@ describe('RunOnAllButton (Q15)', () => {
   it('disables when fewer than 2 distinct providers are configured', () => {
     render(
       <RunOnAllButton
-        tier="pro"
+        tier="professional"
         providers={[
           { id: 'claude', label: 'Claude', provider: makeProvider('claude', {}) },
         ]}
@@ -74,7 +74,7 @@ describe('RunOnAllButton (Q15)', () => {
 
     render(
       <RunOnAllButton
-        tier="pro"
+        tier="professional"
         providers={[
           { id: 'claude', label: 'Claude', provider: claude },
           { id: 'openai', label: 'OpenAI', provider: openai },
@@ -109,7 +109,7 @@ describe('RunOnAllButton (Q15)', () => {
 
     render(
       <RunOnAllButton
-        tier="pro"
+        tier="professional"
         providers={[
           { id: 'claude', label: 'Claude', provider: claude },
           { id: 'openai', label: 'OpenAI', provider: openai },
@@ -133,7 +133,7 @@ describe('RunOnAllButton (Q15)', () => {
 
     render(
       <RunOnAllButton
-        tier="pro"
+        tier="professional"
         providers={[
           { id: 'claude', label: 'Claude', provider: claude },
           { id: 'openai', label: 'OpenAI', provider: openai },
@@ -158,7 +158,7 @@ describe('RunOnAllButton (Q15)', () => {
 
     render(
       <RunOnAllButton
-        tier="pro"
+        tier="professional"
         providers={[
           { id: 'claude', label: 'Claude', provider: claude },
           { id: 'openai', label: 'OpenAI', provider: openai },

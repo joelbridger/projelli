@@ -1,6 +1,6 @@
 // Q15 — "Run on all" button + comparison panel orchestration.
 //
-// A Pro-tier-only control that fires the same user prompt to every
+// A paid-tier-only control that fires the same user prompt to every
 // configured provider in parallel, streams each result into a
 // ComparisonView, computes agreement score + contradiction count via
 // ContradictionDetector, and lets the user promote one output back into
@@ -65,11 +65,11 @@ export function RunOnAllButton({
   const [analysis, setAnalysis] = useState<ContradictionAnalysis | null>(null);
   const [isRunning, setIsRunning] = useState(false);
 
-  const proTier = tierHasFeature(tier, 'multi-model-comparison');
+  const hasComparison = tierHasFeature(tier, 'multi-model-comparison');
   const distinctProviderIds = new Set(
     providers.map((p) => p.id).filter((id) => id !== 'ollama')
   );
-  const canRun = proTier && distinctProviderIds.size >= 2 && prompt.trim().length > 0;
+  const canRun = hasComparison && distinctProviderIds.size >= 2 && prompt.trim().length > 0;
 
   const runAll = useCallback(async () => {
     setIsRunning(true);
@@ -141,8 +141,8 @@ export function RunOnAllButton({
         onClick={runAll}
         disabled={!canRun || isRunning}
         title={
-          !proTier
-            ? 'Run on all 3 providers (Pro only)'
+          !hasComparison
+            ? 'Run on all 3 providers (paid license)'
             : distinctProviderIds.size < 2
               ? 'Requires 2+ providers configured'
               : 'Run this prompt on every configured provider'

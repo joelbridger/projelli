@@ -60,7 +60,7 @@ describe('en.json structure snapshot', () => {
         "quick-open": 1,
         "research": 11,
         "search": 6,
-        "settings": 137,
+        "settings": 145,
         "shortcuts-overlay": 2,
         "tts": 1,
         "updater": 2,
@@ -75,7 +75,7 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    expect(flat.length).toBe(421);
+    expect(flat.length).toBe(429);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

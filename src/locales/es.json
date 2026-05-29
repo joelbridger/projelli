@@ -210,17 +210,23 @@
         "trial__sourceHash": "02af1180fe7197c1f48654f1eef29208e079d14732f21bb0a1d3249136cd0264"
       },
       "tier": {
-        "lifetime": "Vitalicia",
-        "lifetime__sourceHash": "bdcd897ab8ed585981ac297f3df0ee185c82a7a65c39ef3af8f863354086ef21",
-        "pro": "Pro",
-        "pro__sourceHash": "957b0b874524d09a5d035007f821a094a22b678fb157991e28bba1fe21d4e6b9",
+        "personal": "Personal",
+        "professional": "Profesional",
+        "practice": "Despacho",
         "free": "Gratuita",
         "free__sourceHash": "f411a1fb62758b4c54690d0a702b4955b54dd22115416fa7b1ce51b4a084818d"
       },
+      "packs": {
+        "legal": "Pack Jurídico",
+        "tax": "Pack Fiscal",
+        "consulting": "Pack de Consultoría"
+      },
+      "active-pack": "Pack de profesión: {{pack}}",
+      "all-packs": "Todos los packs de profesión incluidos",
+      "seats": "Hasta {{count}} licencias",
       "valid-until": "Válida hasta: {{date}}",
       "valid-until__sourceHash": "372882d81d7a610854bb9f16fb7b3107228616db853ef184e951479a52727321",
-      "lifetime-tagline": "Licencia vitalicia, actualizaciones para siempre.",
-      "lifetime-tagline__sourceHash": "03de8873e4dae7bd4e060424bb8b6ee7b846716c3c5eebb0f680b6ee55f0e98e",
+      "perpetual-tagline": "Licencia perpetua. Actualizaciones y parches de seguridad durante toda la vida del producto.",
       "refresh": "Actualizar",
       "refresh__sourceHash": "0e91610117029a62a478b7fa7df0b8598bebe3ab1e192d4b1882e310719c9671",
       "deactivate": "Desactivar",
@@ -260,10 +266,9 @@
         "multi-model__sourceHash": "e9c951eacf063a2f76aba16af00b2367401bfcd67bd426ab8f75753c01590aae",
         "commercial": "Licencia de uso comercial",
         "commercial__sourceHash": "6036e2da06ac9254f00480222a4781664ae8a5e3e2c0cc4ff089f851f637398e",
-        "updates-forever": "Actualizaciones de por vida",
-        "updates-forever__sourceHash": "5d55de6cce8ec4d18ffef213fa217dc9c24b5313cb95feb29c1a82525fcc97a6",
-        "lifetime-extras": "Comparación multimodelo y uso comercial en Lifetime",
-        "lifetime-extras__sourceHash": "30d9d565a7a43bd469aa8ac65866ba8cff8226a6e6df8d85bd9db0298e18e7bc"
+        "updates": "Actualizaciones y parches de seguridad durante toda la vida del producto",
+        "one-pack": "Un pack de profesión (Profesional)",
+        "all-packs": "Todos los packs de profesión, más hasta 5 licencias (Despacho)"
       }
     },
     "privacy": {
@@ -288,7 +293,7 @@
         "field-app-version__sourceHash": "b0b94f12279049a2778750da65c5896f08060d173c5dc6a9d5df9e394ac6eb86",
         "field-event": "<c>event</c>: uno de <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
         "field-event__sourceHash": "bc1f75f1e8aca06d01bb82dfcc2fdd8763fa6bb049773ee3e3bc4567a8c5d6af",
-        "field-license-tier": "<c>license_tier</c> (cuando corresponda): trial, pro, lifetime.",
+        "field-license-tier": "<c>license_tier</c> (cuando corresponda): trial, personal, professional, practice.",
         "field-license-tier__sourceHash": "f7d152bd910804c89a34c457ce6be8502aa36e700605e229bf85904ae9dc2890",
         "endpoint-note": "Endpoint: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL almacenado en el servidor de Jameson. Se usa únicamente para métricas de embudo y decisiones de hoja de ruta.",
         "endpoint-note__sourceHash": "db930261bf43f001c34e4e42013d35c2e5151ba931b8d208f3a0368e29fba6e9",

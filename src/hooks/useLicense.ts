@@ -9,9 +9,13 @@
  *   const { tier, isLoading, isActivated, activate, deactivate, refresh } = useLicense();
  *
  * tier values:
- *   - 'free' — default; no paid features unlocked
- *   - 'pro' — Pro tier (1 year of updates from purchase date)
- *   - 'lifetime' — Lifetime tier (everything forever)
+ *   - 'free' — unactivated / post-trial; no paid features unlocked
+ *   - 'personal' — $49 perpetual; full app, no profession pack
+ *   - 'professional' — $129 perpetual; full app + ONE profession pack
+ *   - 'practice' — $399 perpetual; full app + ALL packs + up to 5 seats
+ *
+ * profession packs (separate entitlement, not a feature flag):
+ *   - 'legal' | 'tax' | 'consulting'
  *
  * Activation flow (from the user's perspective):
  *   1. User pastes their license key into Settings → License
@@ -32,10 +36,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { sendEvent } from '@/utils/telemetry';
 
-export type LicenseTier = 'free' | 'pro' | 'lifetime';
+export type LicenseTier = 'free' | 'personal' | 'professional' | 'practice';
+export type ProfessionPack = 'legal' | 'tax' | 'consulting';
 
 export interface LicenseState {
   tier: LicenseTier;
+  packs: ProfessionPack[];
+  seats: number;
   isLoading: boolean;
   isActivated: boolean;
   expiresAt: Date | null;
@@ -45,6 +52,7 @@ export interface LicenseState {
 const STORAGE_KEY = 'keepance_license_token';
 const MACHINE_ID_KEY = 'keepance_machine_id';
 const LICENSE_API_BASE = 'https://licenses.keepance.com';
+const APP_VERSION = '2.1.0';
 
 /**
  * Generate or retrieve a stable machine ID. Stored in localStorage.
@@ -64,7 +72,7 @@ function getMachineId(): string {
  * Decode a JWT payload without signature verification.
  * (Real verification happens server-side via /validate.)
  */
-function decodeJwtPayload(token: string): { tier?: LicenseTier; exp?: number; sub?: string } | null {
+function decodeJwtPayload(token: string): { tier?: LicenseTier; packs?: ProfessionPack[]; seats?: number; exp?: number; sub?: string } | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
@@ -79,41 +87,51 @@ function decodeJwtPayload(token: string): { tier?: LicenseTier; exp?: number; su
 }
 
 /**
- * QA bypass: when the URL contains `?fakeLicense=lifetime` or
- * `?fakeLicense=pro`, treat the user as activated without ever hitting
- * the validator service. Lets us visually verify the activated-state UI
- * (green chip, etc.) without minting a real license. No-op in production
- * URLs because the param is never set there.
+ * QA bypass: when the URL contains `?fakeLicense=personal`,
+ * `?fakeLicense=professional`, or `?fakeLicense=practice`, treat the user
+ * as activated without ever hitting the validator service. An optional
+ * `&fakePacks=legal,tax,consulting` seeds the active profession pack(s).
+ * Lets us visually verify the activated-state UI (green chip, pack labels,
+ * etc.) without minting a real license. No-op in production URLs because
+ * the params are never set there.
  */
-function readFakeLicense(): { tier: LicenseTier } | null {
+function readFakeLicense(): { tier: LicenseTier; packs: ProfessionPack[] } | null {
   if (typeof window === 'undefined') return null;
-  const m = window.location.search.match(/[?&]fakeLicense=(lifetime|pro)\b/);
+  const m = window.location.search.match(/[?&]fakeLicense=(personal|professional|practice)\b/);
   if (!m) return null;
-  return { tier: m[1] as LicenseTier };
+  const packsMatch = window.location.search.match(/[?&]fakePacks=([a-z,]+)/);
+  const packs = packsMatch
+    ? (packsMatch[1]!
+        .split(',')
+        .filter((p): p is ProfessionPack => p === 'legal' || p === 'tax' || p === 'consulting'))
+    : [];
+  return { tier: m[1] as LicenseTier, packs };
 }
 
 export function useLicense() {
   const [state, setState] = useState<LicenseState>(() => {
     const fake = readFakeLicense();
     if (fake) {
-      return { tier: fake.tier, isLoading: false, isActivated: true, expiresAt: null, error: null };
+      return { tier: fake.tier, packs: fake.packs, seats: 1, isLoading: false, isActivated: true, expiresAt: null, error: null };
     }
     const token = localStorage.getItem(STORAGE_KEY);
     if (!token) {
-      return { tier: 'free', isLoading: false, isActivated: false, expiresAt: null, error: null };
+      return { tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: null };
     }
     const payload = decodeJwtPayload(token);
     if (!payload || !payload.exp) {
-      return { tier: 'free', isLoading: false, isActivated: false, expiresAt: null, error: null };
+      return { tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: null };
     }
     const expiresAt = new Date(payload.exp * 1000);
     if (expiresAt < new Date()) {
       // Token expired — clear it and fall back to free tier
       localStorage.removeItem(STORAGE_KEY);
-      return { tier: 'free', isLoading: false, isActivated: false, expiresAt: null, error: 'Token expired. Please re-activate.' };
+      return { tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: 'Token expired. Please re-activate.' };
     }
     return {
       tier: payload.tier ?? 'free',
+      packs: payload.packs ?? [],
+      seats: payload.seats ?? 1,
       isLoading: false,
       isActivated: true,
       expiresAt,
@@ -133,7 +151,7 @@ export function useLicense() {
         body: JSON.stringify({
           license_key: licenseKey.trim(),
           machine_id: getMachineId(),
-          app_version: '1.0.0', // TODO: read from package.json or Tauri
+          app_version: APP_VERSION,
         }),
       });
       const data = await res.json();
@@ -145,6 +163,8 @@ export function useLicense() {
       localStorage.setItem(STORAGE_KEY, data.token);
       setState({
         tier: data.tier as LicenseTier,
+        packs: (data.packs ?? []) as ProfessionPack[],
+        seats: data.seats ?? 1,
         isLoading: false,
         isActivated: true,
         expiresAt: new Date(data.expires_at),
@@ -166,7 +186,7 @@ export function useLicense() {
    */
   const deactivate = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
-    setState({ tier: 'free', isLoading: false, isActivated: false, expiresAt: null, error: null });
+    setState({ tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: null });
     void sendEvent('license_deactivated');
   }, []);
 
@@ -187,12 +207,14 @@ export function useLicense() {
       if (!data.valid) {
         // Token rejected by server — likely revoked
         localStorage.removeItem(STORAGE_KEY);
-        setState({ tier: 'free', isLoading: false, isActivated: false, expiresAt: null, error: `License invalid: ${data.reason}` });
+        setState({ tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: `License invalid: ${data.reason}` });
         return { valid: false, reason: data.reason };
       }
       // Token still valid; refresh the local state to mirror server's view
       setState({
         tier: data.tier as LicenseTier,
+        packs: (data.packs ?? []) as ProfessionPack[],
+        seats: data.seats ?? 1,
         isLoading: false,
         isActivated: true,
         expiresAt: data.expires_at ? new Date(data.expires_at) : null,
@@ -234,10 +256,17 @@ export function useLicense() {
 /**
  * Tier-gating helper. Returns true if the current tier has access to the
  * specified feature.
+ *
+ * New pricing model: every paid tier (personal / professional / practice)
+ * gets the FULL app — editor, all providers, whiteboard, audio, research,
+ * multi-model comparison, and commercial use. The only paid differentiators
+ * are which profession PACK you get (see `hasPack`) and seat count, neither
+ * of which is a per-feature flag. So every feature simply reduces to
+ * `tier !== 'free'`. (Trial users have tier 'free' but get full access via
+ * the separate `useTrial` gate, which is checked at the call site.)
  */
 export function tierHasFeature(tier: LicenseTier, feature: 'multi-provider' | 'all-templates' | 'unlimited-workspaces' | 'whiteboard' | 'audio' | 'research-citations' | 'multi-model-comparison' | 'commercial-use'): boolean {
   switch (feature) {
-    // Free tier (everyone)
     case 'multi-provider':
     case 'all-templates':
     case 'unlimited-workspaces':
@@ -245,10 +274,17 @@ export function tierHasFeature(tier: LicenseTier, feature: 'multi-provider' | 'a
     case 'audio':
     case 'research-citations':
     case 'multi-model-comparison':
-      return tier === 'pro' || tier === 'lifetime';
     case 'commercial-use':
-      return tier === 'lifetime';
+      return tier !== 'free';
     default:
       return false;
   }
+}
+
+/**
+ * Profession-pack entitlement check. Practice unlocks every pack; the other
+ * tiers only have the packs explicitly granted on the license.
+ */
+export function hasPack(state: { tier: LicenseTier; packs: ProfessionPack[] }, pack: ProfessionPack): boolean {
+  return state.tier === 'practice' || state.packs.includes(pack);
 }

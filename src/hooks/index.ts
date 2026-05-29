@@ -20,8 +20,10 @@ export {
 export {
   useLicense,
   tierHasFeature,
+  hasPack,
   type LicenseTier,
   type LicenseState,
+  type ProfessionPack,
 } from './useLicense';
 
 export {

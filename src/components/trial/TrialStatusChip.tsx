@@ -2,7 +2,7 @@
  * TrialStatusChip — persistent status-bar license/trial indicator.
  *
  * Three states:
- *   - Activated license → green "Pro / Lifetime active" chip (reassurance)
+ *   - Activated license → green "Personal / Professional / Practice active" chip (reassurance)
  *   - Trial, 5+ days    → amber "Free trial · N days left · Upgrade"
  *   - Trial, 1-4 days   → red "N days left · Upgrade"
  *   - Expired           → red "Trial ended · Activate"
@@ -29,8 +29,9 @@ export function TrialStatusChip({ onClick }: TrialStatusChipProps) {
 
   if (isActivated) {
     const tierLabel =
-      tier === 'lifetime' ? 'Lifetime' :
-      tier === 'pro' ? 'Pro' :
+      tier === 'practice' ? 'Practice' :
+      tier === 'professional' ? 'Professional' :
+      tier === 'personal' ? 'Personal' :
       'Activated';
     label = `${tierLabel} license · Active`;
     tone = 'green';

@@ -26,7 +26,7 @@ const ENDPOINT = 'https://keepance.com/api/forms/keepance/app-event';
 const SENT_KEY = 'keepance_telemetry_sent_events';
 
 interface EventFields {
-  /** e.g. 'pro' | 'lifetime' | 'trial' | 'expired'. */
+  /** e.g. 'personal' | 'professional' | 'practice' | 'trial' | 'expired'. */
   license_tier?: string;
   /** Integer days since first launch. Sent as string by the server schema. */
   days_since_install?: number;

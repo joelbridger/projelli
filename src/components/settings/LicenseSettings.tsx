@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label';
 
 export function LicenseSettings() {
   const { t } = useTranslation();
-  const { tier, isLoading, isActivated, expiresAt, error, activate, deactivate, refresh } = useLicense();
+  const { tier, packs, seats, isLoading, isActivated, expiresAt, error, activate, deactivate, refresh } = useLicense();
   const trial = useTrial();
   const [licenseKeyInput, setLicenseKeyInput] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
@@ -71,23 +71,43 @@ export function LicenseSettings() {
                   {t('settings.license.badge.activated')}
                 </span>
                 <span className="text-lg font-medium capitalize">
-                  {tier === 'lifetime'
-                    ? t('settings.license.tier.lifetime')
-                    : tier === 'pro'
-                      ? t('settings.license.tier.pro')
-                      : t('settings.license.tier.free')}
+                  {tier === 'practice'
+                    ? t('settings.license.tier.practice')
+                    : tier === 'professional'
+                      ? t('settings.license.tier.professional')
+                      : tier === 'personal'
+                        ? t('settings.license.tier.personal')
+                        : t('settings.license.tier.free')}
                 </span>
               </div>
-              {expiresAt && tier !== 'lifetime' && (
+              {/* Profession pack(s): Practice gets all packs; Professional shows its one pack. */}
+              {tier === 'practice' ? (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {t('settings.license.all-packs')}
+                </p>
+              ) : (
+                packs.length > 0 && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {t('settings.license.active-pack', {
+                      pack: packs.map((p) => t(`settings.license.packs.${p}`)).join(', '),
+                    })}
+                  </p>
+                )
+              )}
+              {/* Seat count, only meaningful when more than one. */}
+              {seats > 1 && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {t('settings.license.seats', { count: seats })}
+                </p>
+              )}
+              {expiresAt && (
                 <p className="text-sm text-muted-foreground mt-1">
                   {t('settings.license.valid-until', { date: expiresAt.toLocaleDateString() })}
                 </p>
               )}
-              {tier === 'lifetime' && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  {t('settings.license.lifetime-tagline')}
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground mt-1">
+                {t('settings.license.perpetual-tagline')}
+              </p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={refresh} disabled={isLoading}>
@@ -101,14 +121,17 @@ export function LicenseSettings() {
           <div className="border-t pt-4 text-sm text-muted-foreground">
             <p className="font-medium text-foreground mb-2">{t('settings.license.unlocks-heading')}</p>
             <ul className="space-y-1 text-xs">
+              {/* All paid tiers get the full app. */}
               <li>{t('settings.license.unlocks.ai-chat')}</li>
               <li>{t('settings.license.unlocks.workflows')}</li>
               <li>{t('settings.license.unlocks.workspaces')}</li>
               <li>{t('settings.license.unlocks.whiteboard-audio-research')}</li>
-              {tier === 'lifetime' && <li>{t('settings.license.unlocks.multi-model')}</li>}
-              {tier === 'lifetime' && <li>{t('settings.license.unlocks.commercial')}</li>}
-              {tier === 'lifetime' && <li>{t('settings.license.unlocks.updates-forever')}</li>}
-              {tier !== 'lifetime' && <li className="opacity-60">{t('settings.license.unlocks.lifetime-extras')}</li>}
+              <li>{t('settings.license.unlocks.multi-model')}</li>
+              <li>{t('settings.license.unlocks.commercial')}</li>
+              <li>{t('settings.license.unlocks.updates')}</li>
+              {/* Pack / seat differentiators. */}
+              {tier === 'professional' && <li>{t('settings.license.unlocks.one-pack')}</li>}
+              {tier === 'practice' && <li>{t('settings.license.unlocks.all-packs')}</li>}
             </ul>
           </div>
         </div>

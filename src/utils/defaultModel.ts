@@ -1,11 +1,11 @@
 /**
  * Default-model resolution helper (Q9 — Wave 1.5).
  *
- * Keepance ships as "bring your own key" + free tier. Free-tier founders
+ * Keepance ships as "bring your own key" + free tier. Free-tier users
  * almost always want the cheapest capable model on Anthropic, which is Claude
- * Haiku 4.5. Pro / Lifetime users have made a deliberate commercial decision
- * to pay for Keepance and they're allowed to pick whichever model they want
- * on a per-provider basis.
+ * Haiku 4.5. Paid users (personal / professional / practice) have made a
+ * deliberate commercial decision to pay for Keepance and they're allowed to
+ * pick whichever model they want on a per-provider basis.
  *
  * This helper centralizes the decision so any surface that needs to
  * pick a default (the AI pane's model dropdown, the provider constructor,
@@ -16,7 +16,7 @@
  *  - Only supplies a fallback when no model has been selected.
  *  - For free-tier users, defaults to the cheapest capable model on each
  *    provider.
- *  - For pro / lifetime, defaults to the same model they were defaulting to
+ *  - For paid tiers, defaults to the same model they were defaulting to
  *    before Q9 (Claude Sonnet 4.6 on Anthropic), since these users already
  *    pay for the app and are more likely to want a higher-capability default.
  */
@@ -46,7 +46,7 @@ export function getDefaultModelForTier(
   provider: Provider,
   tier: LicenseTier = 'free'
 ): string {
-  const isPaid = tier === 'pro' || tier === 'lifetime';
+  const isPaid = tier !== 'free';
   switch (provider) {
     case 'anthropic':
       return isPaid ? DEFAULT_ANTHROPIC_PAID : DEFAULT_ANTHROPIC_FREE;

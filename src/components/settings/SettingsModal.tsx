@@ -552,7 +552,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
         (k) => lowerQ.includes(k)
       );
       if (integrationsMatch) cats.add('integrations');
-      const licenseMatch = ['license', 'activate', 'lifetime', 'pro tier', 'paid'].some(
+      const licenseMatch = ['license', 'activate', 'personal', 'professional', 'practice', 'paid'].some(
         (k) => lowerQ.includes(k)
       );
       if (licenseMatch) cats.add('license');

@@ -123,12 +123,21 @@
         "trial": "TRIAL"
       },
       "tier": {
-        "lifetime": "Lifetime",
-        "pro": "Pro",
+        "personal": "Personal",
+        "professional": "Professional",
+        "practice": "Practice",
         "free": "Free"
       },
+      "packs": {
+        "legal": "Legal Practice",
+        "tax": "Tax Practice",
+        "consulting": "Consulting Practice"
+      },
+      "active-pack": "Profession pack: {{pack}}",
+      "all-packs": "All profession packs included",
+      "seats": "Up to {{count}} seats",
       "valid-until": "Valid until: {{date}}",
-      "lifetime-tagline": "Lifetime license, updates forever.",
+      "perpetual-tagline": "Perpetual license. Updates and security patches for the life of the product.",
       "refresh": "Refresh",
       "deactivate": "Deactivate",
       "activate": "Activate",
@@ -149,8 +158,9 @@
         "whiteboard-audio-research": "Whiteboard, audio recording, research citations",
         "multi-model": "Multi-model comparison",
         "commercial": "Commercial use license",
-        "updates-forever": "Updates forever",
-        "lifetime-extras": "Multi-model comparison & commercial use on Lifetime"
+        "updates": "Updates and security patches for the life of the product",
+        "one-pack": "One profession pack (Professional)",
+        "all-packs": "Every profession pack, plus up to 5 seats (Practice)"
       }
     },
     "privacy": {
@@ -165,7 +175,7 @@
         "field-install-id": "<c>install_id</c>: a random UUID generated on this machine (visible below). Not tied to your email or license.",
         "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of Keepance, and macOS / Windows / Linux.",
         "field-event": "<c>event</c>: one of <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
-        "field-license-tier": "<c>license_tier</c> (when relevant): trial, pro, lifetime.",
+        "field-license-tier": "<c>license_tier</c> (when relevant): trial, personal, professional, practice.",
         "endpoint-note": "Endpoint: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL stored on Jameson's server. Used only for funnel metrics and roadmap decisions.",
         "install-id-display": "Your install ID: <c>{{id}}</c>"
       },
