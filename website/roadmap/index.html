@@ -3,23 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Roadmap | Projelli</title>
-  <meta name="description" content="What I'm building next on Projelli, in the open. See what's shipped, what's in flight, and vote on what's next.">
-  <link rel="canonical" href="https://projelli.com/roadmap/">
+  <title>Roadmap | Keepance</title>
+  <meta name="description" content="What I'm building next on Keepance, in the open. See what's shipped, what's in flight, and vote on what's next.">
+  <link rel="canonical" href="https://keepance.com/roadmap/">
   <meta name="robots" content="index, follow">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://projelli.com/roadmap/">
-  <meta property="og:title" content="Projelli Roadmap">
+  <meta property="og:url" content="https://keepance.com/roadmap/">
+  <meta property="og:title" content="Keepance Roadmap">
   <meta property="og:description" content="See what's shipped, what's in flight, and vote on what's next.">
-  <meta property="og:image" content="https://projelli.com/press-kit/assets/og-linkedin-card.png">
+  <meta property="og:image" content="https://keepance.com/press-kit/assets/og-linkedin-card.png">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Projelli Roadmap">
+  <meta name="twitter:title" content="Keepance Roadmap">
   <meta name="twitter:description" content="See what's shipped, what's in flight, and vote on what's next.">
-  <meta name="twitter:image" content="https://projelli.com/press-kit/assets/og-twitter-card.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <meta name="twitter:image" content="https://keepance.com/press-kit/assets/og-twitter-card.png">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -30,11 +28,11 @@
       --text-body: #475569;
       --text-muted: #94A3B8;
       --accent-blue: #3B82F6;
-      --accent-coral: #FF7C6E;
+      --grad-pink: #FF3CE8;
       --accent-green: #10B981;
     }
     html { scroll-behavior: smooth; }
-    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.65; -webkit-font-smoothing: antialiased; }
+    body { font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.65; -webkit-font-smoothing: antialiased; }
 
     .hero { padding: 80px 24px 32px; text-align: center; max-width: 880px; margin: 0 auto; }
     .hero h1 { font-size: 2.75rem; color: var(--text-heading); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; line-height: 1.15; }
@@ -47,7 +45,7 @@
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--accent-coral);
+      color: var(--grad-pink);
       margin-bottom: 8px;
     }
     .section-title {
@@ -121,9 +119,9 @@
     }
     .tl-stop.done .tl-dot { background: var(--accent-green); border-color: var(--accent-green); }
     .tl-stop.now .tl-dot {
-      background: var(--accent-coral);
-      border-color: var(--accent-coral);
-      box-shadow: 0 0 0 6px rgba(255, 124, 110, 0.18);
+      background: var(--grad-pink);
+      border-color: var(--grad-pink);
+      box-shadow: 0 0 0 6px rgba(255, 60, 232, 0.18);
     }
     .tl-stop.next .tl-dot { background: #FFFFFF; border-color: var(--accent-blue); }
     .tl-stop .tl-title {
@@ -155,7 +153,7 @@
       display: inline-block;
     }
     .tl-legend .li-done { background: var(--accent-green); }
-    .tl-legend .li-now { background: var(--accent-coral); }
+    .tl-legend .li-now { background: var(--grad-pink); }
     .tl-legend .li-next { background: #FFFFFF; border: 2px solid var(--accent-blue); }
 
     @media (max-width: 720px) {
@@ -183,7 +181,7 @@
       margin-top: 2px;
     }
     .item-status.shipped { background: rgba(16, 185, 129, 0.12); color: var(--accent-green); }
-    .item-status.flight  { background: rgba(255, 124, 110, 0.14); color: var(--accent-coral); }
+    .item-status.flight  { background: rgba(255, 60, 232, 0.14); color: var(--grad-pink); }
     .item-status.next    { background: rgba(59, 130, 246, 0.12); color: var(--accent-blue); }
     .item-status.nogo    { background: rgba(100, 116, 139, 0.12); color: #475569; }
     .item-body h3 { color: var(--text-heading); font-size: 1.0625rem; font-weight: 600; line-height: 1.4; margin-bottom: 4px; }
@@ -225,12 +223,12 @@
       overflow: hidden;
       transition: border-color 0.15s, transform 0.05s;
     }
-    .poll-option:hover { border-color: var(--accent-coral); }
+    .poll-option:hover { border-color: var(--grad-pink); }
     .poll-option:active { transform: scale(0.998); }
     .poll-option .fill {
       position: absolute;
       inset: 0;
-      background: rgba(255, 124, 110, 0.10);
+      background: rgba(255, 60, 232, 0.10);
       width: 0%;
       transition: width 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
       pointer-events: none;
@@ -252,10 +250,10 @@
       transition: opacity 0.3s;
     }
     .poll.results-shown .poll-option .pct { opacity: 1; }
-    .poll-option.you-voted { border-color: var(--accent-coral); }
+    .poll-option.you-voted { border-color: var(--grad-pink); }
     .poll-option.you-voted .label::after {
       content: ' · your pick';
-      color: var(--accent-coral);
+      color: var(--grad-pink);
       font-size: 0.8125rem;
       font-weight: 500;
     }
@@ -285,7 +283,7 @@
     .suggest-box h3 { color: white; font-size: 1.125rem; font-weight: 700; margin-bottom: 6px; }
     .suggest-box p { color: rgba(255,255,255,0.85); font-size: 0.9375rem; margin-bottom: 14px; }
     .suggest-box a {
-      color: white; background: var(--accent-coral);
+      color: white; background: var(--grad-pink);
       display: inline-block; padding: 10px 20px;
       border-radius: 999px; text-decoration: none; font-weight: 600;
     }
@@ -303,8 +301,8 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 
 <body>
   <section class="hero">
@@ -367,7 +365,7 @@
             <span class="tl-quarter">May 2026</span>
             <span class="tl-dot"></span>
             <div class="tl-title">Try in browser + Spanish + German</div>
-            <div class="tl-sub">projelli.com/try sandbox, full UI translation across 421 strings</div>
+            <div class="tl-sub">keepance.com/try sandbox, full UI translation across 421 strings</div>
           </div>
           <div class="tl-stop now">
             <span class="tl-quarter">Next</span>
@@ -394,7 +392,7 @@
           <span class="item-status shipped">Live</span>
           <div class="item-body">
             <h3>Multimodal AI input (images in chat)</h3>
-            <p>Send screenshots, charts, UI mockups, photos to the AI for visual analysis. Drag-drop, paste from clipboard, or click to upload. Routed to native multimodal APIs for Claude, OpenAI, and Gemini, plus vision-enabled Ollama models. Token-cost preview before send. Try it at <a href="/try">projelli.com/try</a>.</p>
+            <p>Send screenshots, charts, UI mockups, photos to the AI for visual analysis. Drag-drop, paste from clipboard, or click to upload. Routed to native multimodal APIs for Claude, OpenAI, and Gemini, plus vision-enabled Ollama models. Token-cost preview before send. Try it at <a href="/try">keepance.com/try</a>.</p>
             <p class="when">Shipped May 2026</p>
           </div>
         </div>
@@ -434,7 +432,7 @@
           <span class="item-status shipped">Live</span>
           <div class="item-body">
             <h3>Plugin system (sandboxed runtime + marketplace)</h3>
-            <p>Plugins run in a sandboxed Web Worker with a manifest-declared permission model (workspace read/write, editor selection, AI invoke, network). Plugin contributions appear in the toolbar, sidebar, command palette, and settings. Crash-isolated, with [Restart] when something goes sideways. Four day-one plugins live in the marketplace: <strong>Word Counter</strong>, <strong>Translator</strong>, <strong>Pomodoro</strong>, <strong>Mermaid Preview</strong>. <a href="/docs/plugins/">Developer docs</a>, scaffolder (<code>npx create-projelli-plugin</code>), and a typed <a href="https://www.npmjs.com/package/@projelli/plugin-api">@projelli/plugin-api</a> are live.</p>
+            <p>Plugins run in a sandboxed Web Worker with a manifest-declared permission model (workspace read/write, editor selection, AI invoke, network). Plugin contributions appear in the toolbar, sidebar, command palette, and settings. Crash-isolated, with [Restart] when something goes sideways. Four day-one plugins live in the marketplace: <strong>Word Counter</strong>, <strong>Translator</strong>, <strong>Pomodoro</strong>, <strong>Mermaid Preview</strong>. <a href="/docs/plugins/">Developer docs</a>, scaffolder (<code>npx create-keepance-plugin</code>), and a typed <a href="https://www.npmjs.com/package/@keepance/plugin-api">@keepance/plugin-api</a> are live.</p>
             <p class="when">Shipped May 2026</p>
           </div>
         </div>
@@ -442,14 +440,14 @@
           <span class="item-status shipped">Live</span>
           <div class="item-body">
             <h3>Templates marketplace (community workflows)</h3>
-            <p>Settings, Marketplace, Templates browses, installs, updates, and uninstalls community workflow templates. Catalog at <a href="https://github.com/projelli/community-templates">github.com/projelli/community-templates</a> with six day-one entries, GitHub Action auto-rebuilds <code>catalog.json</code> on PR merge. The 15 founder templates baked into the app stay where they are.</p>
+            <p>Settings, Marketplace, Templates browses, installs, updates, and uninstalls community workflow templates. Catalog at <a href="https://github.com/keepance/community-templates">github.com/keepance/community-templates</a> with six day-one entries, GitHub Action auto-rebuilds <code>catalog.json</code> on PR merge. The 15 founder templates baked into the app stay where they are.</p>
             <p class="when">Shipped May 2026</p>
           </div>
         </div>
         <div class="item">
           <span class="item-status shipped">Live</span>
           <div class="item-body">
-            <h3>Try in browser at projelli.com/try</h3>
+            <h3>Try in browser at keepance.com/try</h3>
             <p>Pre-seeded sample workspace, working AI chat. 5 messages or 10 minutes on the shared key, then a download nudge. Paste your own Claude key for unlimited use. <a href="/try">Take it for a spin.</a></p>
             <p class="when">Shipped May 2026</p>
           </div>
@@ -474,7 +472,7 @@
           <span class="item-status shipped">Live</span>
           <div class="item-body">
             <h3>30-day full-feature trial + license activation</h3>
-            <p>Every Projelli feature unlocked for 30 days, no card required. After 30 days, AI sends and workflow runs pause until license activation; existing files stay readable forever.</p>
+            <p>Every Keepance feature unlocked for 30 days, no card required. After 30 days, AI sends and workflow runs pause until license activation; existing files stay readable forever.</p>
             <p class="when">Shipped v1.7.0 + v1.6.0 · April 2026</p>
           </div>
         </div>
@@ -490,7 +488,7 @@
           <span class="item-status shipped">Live</span>
           <div class="item-body">
             <h3>Memory: local RAG over your workspace</h3>
-            <p>The AI remembers what you wrote weeks ago. Local vector store under <code>.projelli/vectors/</code>, embeddings via fastembed-rs (384-dim e5-small ONNX model). Nothing leaves your device. Use <code>@workspace</code> in chat or toggle "Ask my workspace" per chat.</p>
+            <p>The AI remembers what you wrote weeks ago. Local vector store under <code>.keepance/vectors/</code>, embeddings via fastembed-rs (384-dim e5-small ONNX model). Nothing leaves your device. Use <code>@workspace</code> in chat or toggle "Ask my workspace" per chat.</p>
             <p class="when">Shipped v1.5 · April 16, 2026</p>
           </div>
         </div>
@@ -498,7 +496,7 @@
           <span class="item-status shipped">Live</span>
           <div class="item-body">
             <h3>MCP server: your workspace in Claude Desktop / Cursor / Zed</h3>
-            <p>Projelli ships its own Model Context Protocol server as a one-click <code>.mcpb</code> Desktop Extension. Five tools exposed (list / read / search / write / facts) over stdio. Your workspace becomes a queryable tool inside any MCP-compatible client.</p>
+            <p>Keepance ships its own Model Context Protocol server as a one-click <code>.mcpb</code> Desktop Extension. Five tools exposed (list / read / search / write / facts) over stdio. Your workspace becomes a queryable tool inside any MCP-compatible client.</p>
             <p class="when">Shipped v1.5 · April 16, 2026</p>
           </div>
         </div>
@@ -555,7 +553,7 @@
           <span class="item-status flight">Building</span>
           <div class="item-body">
             <h3>Mobile reader (iOS, then Android)</h3>
-            <p>A dedicated <a href="https://v2.tauri.app/start/prerequisites/#mobile-targets">Tauri 2</a> mobile reader for browsing your Projelli workspace from iPhone, iPad, and Android. Read-only first (browse, search, tap through wiki-links), edit later. The desktop app stays where the AI work happens.</p>
+            <p>A dedicated <a href="https://v2.tauri.app/start/prerequisites/#mobile-targets">Tauri 2</a> mobile reader for browsing your Keepance workspace from iPhone, iPad, and Android. Read-only first (browse, search, tap through wiki-links), edit later. The desktop app stays where the AI work happens.</p>
             <p>Currently blocked on Apple Developer signup. The reading workflow already works today via <a href="/docs/mobile-access/">iCloud Drive, Dropbox, Syncthing, or Google Drive</a>, the dedicated app is a polish layer on top.</p>
             <p class="when">Blocked on Apple Developer signup, then TestFlight beta</p>
           </div>
@@ -567,34 +565,34 @@
     <section class="section">
       <div class="section-eyebrow">Deliberate non-goals</div>
       <h2 class="section-title">Won't build (and why)</h2>
-      <p class="section-intro">Honest about what Projelli is NOT going to be. Each of these would compromise a core differentiator.</p>
+      <p class="section-intro">Honest about what Keepance is NOT going to be. Each of these would compromise a core differentiator.</p>
       <div class="item-list">
         <div class="item">
           <span class="item-status nogo">Won't build</span>
           <div class="item-body">
             <h3>Real-time collaboration (multi-user editing)</h3>
-            <p>Local-first means single-user. If you want real-time collab, Notion does this well. If you want your data on YOUR machine, Projelli.</p>
+            <p>Local-first means single-user. If you want real-time collab, Notion does this well. If you want your data on YOUR machine, Keepance.</p>
           </div>
         </div>
         <div class="item">
           <span class="item-status nogo">Won't build</span>
           <div class="item-body">
             <h3>Cloud sync (built-in)</h3>
-            <p>"No Projelli server in the data path" is a core promise. Sync via Dropbox, iCloud, or Syncthing on your own terms. The workspace folder works the same way against any synced folder, and the <a href="/docs/mobile-access/">mobile access guide</a> walks through every option.</p>
+            <p>"No Keepance server in the data path" is a core promise. Sync via Dropbox, iCloud, or Syncthing on your own terms. The workspace folder works the same way against any synced folder, and the <a href="/docs/mobile-access/">mobile access guide</a> walks through every option.</p>
           </div>
         </div>
         <div class="item">
           <span class="item-status nogo">Won't build</span>
           <div class="item-body">
             <h3>Autonomous / agentic AI workflows</h3>
-            <p>"AI proposes, user decides" is a core principle. If you want autonomous multi-step AI, use Cursor (for code) or Claude Code (for code) or ChatGPT Operator (for browsing). Projelli is for workspaces where every change is reviewed before it lands.</p>
+            <p>"AI proposes, user decides" is a core principle. If you want autonomous multi-step AI, use Cursor (for code) or Claude Code (for code) or ChatGPT Operator (for browsing). Keepance is for workspaces where every change is reviewed before it lands.</p>
           </div>
         </div>
         <div class="item">
           <span class="item-status nogo">Won't build</span>
           <div class="item-body">
             <h3>Subscription tier ($X/month)</h3>
-            <p>Pricing is locked at $0 trial, $49 Pro, $99 Lifetime, $29 Founder's Launch (first 100 buyers). One-time pricing is a pillar. Adding a subscription tier dilutes the message and creates pricing complexity. Re-evaluable in year 2 if the math forces it, but the default is no.</p>
+            <p>Pricing is locked at $0 trial (30 days), $49 Personal, $129 Professional (includes one practice pack), $399 Practice (up to 5 seats). One-time pricing is a pillar. Adding a subscription tier dilutes the message and creates pricing complexity. Re-evaluable in year 2 if the math forces it, but the default is no.</p>
           </div>
         </div>
         <div class="item">
@@ -685,8 +683,8 @@
 
       <div class="suggest-box">
         <h3>Don't see what you need?</h3>
-        <p>Email me a one-liner about what'd make Projelli a daily-driver for you. I read every one.</p>
-        <a href="mailto:hello@projelli.com?subject=Roadmap%20idea">hello@projelli.com</a>
+        <p>Email me a one-liner about what'd make Keepance a daily-driver for you. I read every one.</p>
+        <a href="mailto:hello@keepance.com?subject=Roadmap%20idea">hello@keepance.com</a>
       </div>
     </section>
 
@@ -694,9 +692,9 @@
 
   <div class="feature-banner">
     <div class="feature-banner-card">
-      <h2>Try Projelli yourself</h2>
+      <h2>Try Keepance yourself</h2>
       <p>Free download. Pro is $49 one-time, Lifetime $99. The first 100 buyers get Lifetime at $29.</p>
-      <a href="/#download" class="cta-btn">Get Projelli</a>
+      <a href="/#download" class="cta-btn">Get Keepance</a>
     </div>
   </div>
 
@@ -706,8 +704,8 @@
 
   <script>
     (function () {
-      var POLL_API = '/api/forms/projelli/poll-vote';
-      var STORAGE_KEY = 'projelli_poll_votes_v1';
+      var POLL_API = '/api/forms/keepance/poll-vote';
+      var STORAGE_KEY = 'keepance_poll_votes_v1';
 
       function getStoredVotes() {
         try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
@@ -754,7 +752,7 @@
           })
           .catch(function () {
             document.querySelectorAll('.poll-count').forEach(function (el) {
-              el.textContent = 'Couldn’t load votes, refresh to retry.';
+              el.textContent = "Couldn't load votes, refresh to retry.";
             });
           });
       }
@@ -787,6 +785,36 @@
       loadAllResults();
     })();
   </script>
+
+
+  <footer class="kp-footer">
+    <div class="kp-footer-inner">
+      <a href="/" class="kp-footer-brand">Keepance</a>
+      <nav class="kp-footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="kp-footer-copy">Built by <a href="https://jamesondaines.com">Jameson Daines</a></span>
+    </div>
+  </footer>
+  <style>
+    .kp-footer { background: #0A2540; padding: 36px 24px; margin-top: 64px; }
+    .kp-footer-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; font-family: 'Satoshi', system-ui, sans-serif; }
+    .kp-footer-brand { color: rgba(255,255,255,0.85); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    .kp-footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
+    .kp-footer-links a { color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+    .kp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+    .kp-footer-copy { color: rgba(255,255,255,0.35); font-size: 12px; }
+    .kp-footer-copy a { color: inherit; }
+  </style>
 
 </body>
 </html>

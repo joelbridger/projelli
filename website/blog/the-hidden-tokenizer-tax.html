@@ -3,20 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>The hidden tokenizer tax, and why BYOK is the only honest AI pricing model | Projelli</title>
+  <title>The hidden tokenizer tax, and why BYOK is the only honest AI pricing model | Keepance</title>
   <meta name="description" content="Claude Opus 4.7 shipped with the same sticker price and a new tokenizer that can emit 35% more tokens for the same text. If you're on a fixed subscription, you just ate the increase. If you're on BYOK, you at least saw the bill.">
-  <link rel="canonical" href="https://projelli.com/blog/the-hidden-tokenizer-tax">
+  <link rel="canonical" href="https://keepance.com/blog/the-hidden-tokenizer-tax">
   <meta name="author" content="Jameson Daines">
   <meta property="og:type" content="article">
-  <meta property="og:url" content="https://projelli.com/blog/the-hidden-tokenizer-tax">
+  <meta property="og:url" content="https://keepance.com/blog/the-hidden-tokenizer-tax">
   <meta property="og:title" content="The hidden tokenizer tax, and why BYOK is the only honest AI pricing model">
   <meta property="og:description" content="Claude Opus 4.7 shipped with the same sticker price and a new tokenizer that can emit 35% more tokens for the same text. If you're on a subscription, you just ate the increase.">
-  <meta property="og:image" content="https://projelli.com/og-image.png">
-  <meta name="twitter:image" content="https://projelli.com/og-image.png">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -60,8 +60,8 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 
 <body>
   <div class="container">
@@ -106,7 +106,7 @@
 
     <p>BYOK (bring your own key) means you have your own account with <a href="https://www.anthropic.com/api" target="_blank" rel="noopener">Anthropic</a> or <a href="https://platform.openai.com/" target="_blank" rel="noopener">OpenAI</a> or <a href="https://aistudio.google.com/" target="_blank" rel="noopener">Google</a>, and you paste your API key into whatever tool you're using. The tool makes requests against your key, and the bill from the AI provider comes directly to you.</p>
 
-    <p>People usually argue for BYOK on privacy grounds, and that argument is real. The tool vendor can't see your prompts because they never touch them. I wrote <a href="/blog/why-local-first-ai-for-founders">a whole essay on that angle</a>. But the pricing argument is just as strong.</p>
+    <p>People usually argue for BYOK on privacy grounds, and that argument is real. The tool vendor can't see your prompts because they never touch them. I wrote <a href="/blog/why-local-first-ai-for-founders">a whole essay on that angle</a>, specifically for professionals with confidentiality obligations. But the pricing argument is just as strong.</p>
 
     <p>When you're on BYOK, the tokenizer tax shows up in your invoice. Your Anthropic bill at the end of the month says "you used 12.3M input tokens and 4.1M output tokens, here's the line item." If last month's same work used 9M input tokens and the tokenizer changed under you, you see the delta in plain text. You can measure it. You can switch models if the new tokenizer is bad for your workflow. You can complain on <a href="https://twitter.com" target="_blank" rel="noopener">Twitter</a> with actual numbers.</p>
 
@@ -116,19 +116,19 @@
       <p>BYOK doesn't eliminate pricing changes. It just makes them impossible to hide. Every cost increase shows up on a line item you're looking at, in a currency you're paying.</p>
     </blockquote>
 
-    <h2>The founder-specific case</h2>
+    <h2>The professional's case</h2>
 
     <p>If you're a salaried employee whose company pays for Claude Team, none of this matters to you. Your employer eats the tax. Fine.</p>
 
-    <p>If you're an indie founder paying for your own tools, this matters a lot. I spent 2025 keeping a spreadsheet of my AI spend, and the thing I kept running into was that I couldn't forecast it on subscription tools. I'd pay $20 for ChatGPT Plus in January, hit the rate limit in February because they changed the model under me, upgrade to Plus Pro at $200, realize I didn't need Plus Pro, downgrade, start the cycle over in April.</p>
+    <p>If you're an independent professional paying for your own tools, this matters a lot. I spent 2025 keeping a spreadsheet of my AI spend, and the thing I kept running into was that I couldn't forecast it on subscription tools. I'd pay $20 for ChatGPT Plus in January, hit the rate limit in February because they changed the model under me, upgrade to Plus Pro at $200, realize I didn't need Plus Pro, downgrade, start the cycle over in April.</p>
 
-    <p>When I switched my strategic-planning work to Projelli (the local-first AI workspace I built, BYOK to Anthropic directly) my actual AI spend for that workflow dropped to about $6 a month. Not because the AI got cheaper. Because I was now paying for exactly what I used, which turned out to be less than the flat fee assumed.</p>
+    <p>When I switched my strategic-planning work to Keepance (the local-first AI workspace I built, BYOK to Anthropic directly) my actual AI spend for that workflow dropped to about $6 a month. Not because the AI got cheaper. Because I was now paying for exactly what I used, which turned out to be less than the flat fee assumed.</p>
 
     <p>The other direction is also true. If you use AI heavily, a subscription can be a better deal than BYOK for a while. Then the vendor tightens the rate limits and it isn't. BYOK is stable in a way subscriptions aren't. Stable meaning: the incentive alignment between you and the provider doesn't flip overnight because the provider changed a tokenizer.</p>
 
     <h2>What a tool vendor owes you</h2>
 
-    <p>I'm a tool vendor. Projelli sells for $49 one-time, and I don't charge anything on top for AI usage because I never touch the AI request. You bring your own key, your key pays your provider, I'm not in the request path. That's a deliberate decision and it cost me revenue. I could easily have built Projelli with a $15 a month "AI credits" layer that marked up the inference by 40%. Every other workspace tool does. I chose not to, because I think the founder-vendor contract around AI pricing should be honest.</p>
+    <p>I'm a tool vendor. Keepance sells for $49 one-time, and I don't charge anything on top for AI usage because I never touch the AI request. You bring your own key, your key pays your provider, I'm not in the request path. That's a deliberate decision and it cost me revenue. I could easily have built Keepance with a $15 a month "AI credits" layer that marked up the inference by 40%. Every other workspace tool does. I chose not to, because I think the vendor contract around AI pricing should be honest.</p>
 
     <p>Here's what I think a tool vendor owes you on AI pricing, in order of importance:</p>
 
@@ -144,22 +144,22 @@
 
     <h2>What you can do today</h2>
 
-    <p>Three concrete moves if you're a founder and you care about not getting tokenizer-taxed into confusion:</p>
+    <p>Three concrete moves if you're an independent professional and you care about not getting tokenizer-taxed into confusion:</p>
 
     <p><strong>Open an API account with at least one provider directly.</strong> Takes 5 minutes at <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> or <a href="https://platform.openai.com/" target="_blank" rel="noopener">platform.openai.com</a>. Load $10. Now you have a billing relationship with the primary source, not a reseller.</p>
 
-    <p><strong>Audit your AI subscriptions.</strong> How much are you paying across ChatGPT Plus, <a href="https://www.notion.com/product/ai" target="_blank" rel="noopener">Notion AI</a>, <a href="https://github.com/features/copilot" target="_blank" rel="noopener">GitHub Copilot</a>, <a href="https://cursor.sh" target="_blank" rel="noopener">Cursor</a>, whatever else? For how much actual usage? If the aggregate is over $80 a month, BYOK is probably cheaper for you even if your usage is heavy.</p>
+    <p><strong>Audit your AI subscriptions.</strong> How much are you paying across ChatGPT Plus, <a href="https://www.notion.com/product/ai" target="_blank" rel="noopener">Notion AI</a>, whatever else you've signed up for? For how much actual usage? If the aggregate is over $80 a month, BYOK is probably cheaper for you even if your usage is heavy.</p>
 
     <p><strong>Pick one workflow to move to BYOK as a test.</strong> Not everything at once. One workflow. See how the bill looks after a month. If the math works, move the next one.</p>
 
-    <p>This isn't about the $6 a month I'm saving on Projelli versus Notion AI. It's about owning the math. The specific thing that made me start Projelli was noticing that every time a vendor changed a tokenizer or a tier or a rate limit, I was buying a product I hadn't agreed to buy. BYOK is the only pricing model where that can't happen to you, because the provider is billing you directly, and the line item is in your own account, in dollars you chose to spend.</p>
+    <p>This isn't about the $6 a month I'm saving on Keepance versus Notion AI. It's about owning the math. The specific thing that made me start Keepance was noticing that every time a vendor changed a tokenizer or a tier or a rate limit, I was buying a product I hadn't agreed to buy. BYOK is the only pricing model where that can't happen to you, because the provider is billing you directly, and the line item is in your own account, in dollars you chose to spend.</p>
 
     <p>The tokenizer tax doesn't go away. The visibility does.</p>
 
-    <a href="https://projelli.com/#pricing" class="cta">See Projelli, local-first AI workspace for indie founders</a>
+    <a href="https://keepance.com/#pricing" class="cta">See Keepance, local-first AI workspace for confidential client work</a>
 
     <p style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-gray); color: var(--text-muted); font-size: 0.9375rem;">
-      <em>Jameson Daines builds Projelli on weekends and evenings around a Senior Product Designer day job. <a href="/blog/why-local-first-ai-for-founders">Read the local-first argument</a> or get Projelli at <a href="https://projelli.com">projelli.com</a>.</em>
+      <em>Jameson Daines builds Keepance on weekends and evenings around a Senior Product Designer day job. <a href="/blog/why-local-first-ai-for-founders">Read the local-first argument for confidential work</a> or get Keepance at <a href="https://keepance.com">keepance.com</a>.</em>
     </p>
   </div>
 </body>

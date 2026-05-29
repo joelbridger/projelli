@@ -3,23 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Changelog | Projelli</title>
-  <meta name="description" content="What's shipped in Projelli, version by version. v2.0.0 (multimodal chat, PDF chat + RAG, long-context Compress, read aloud, plugins, templates marketplace, web demo, Spanish + German), v1.7.2 (telemetry consent), v1.7.1 (trial visibility), v1.7.0 (30-day trial), v1.6.0 (Mac notarized + license activation), v1.5.0 (Memory, MCP, side-by-side editing, voice + Ollama), v1.0.8 (auto-updater, document suite).">
-  <link rel="canonical" href="https://projelli.com/changelog/">
+  <title>Changelog | Keepance</title>
+  <meta name="description" content="What's shipped in Keepance, version by version. v2.0.0 (multimodal chat, PDF chat + RAG, long-context Compress, read aloud, plugins, templates marketplace, web demo, Spanish + German), v1.7.2 (telemetry consent), v1.7.1 (trial visibility), v1.7.0 (30-day trial), v1.6.0 (Mac notarized + license activation), v1.5.0 (Memory, MCP, side-by-side editing, voice + Ollama), v1.0.8 (auto-updater, document suite).">
+  <link rel="canonical" href="https://keepance.com/changelog/">
   <meta name="robots" content="index, follow">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://projelli.com/changelog/">
-  <meta property="og:title" content="Projelli Changelog">
-  <meta property="og:description" content="What's shipped in Projelli, version by version.">
-  <meta property="og:image" content="https://projelli.com/press-kit/assets/og-linkedin-card.png">
+  <meta property="og:url" content="https://keepance.com/changelog/">
+  <meta property="og:title" content="Keepance Changelog">
+  <meta property="og:description" content="What's shipped in Keepance, version by version.">
+  <meta property="og:image" content="https://keepance.com/press-kit/assets/og-linkedin-card.png">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Projelli Changelog">
-  <meta name="twitter:description" content="What's shipped in Projelli, version by version.">
-  <meta name="twitter:image" content="https://projelli.com/press-kit/assets/og-twitter-card.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <meta name="twitter:title" content="Keepance Changelog">
+  <meta name="twitter:description" content="What's shipped in Keepance, version by version.">
+  <meta name="twitter:image" content="https://keepance.com/press-kit/assets/og-twitter-card.png">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -30,8 +28,7 @@
       --text-heading: #111F35;
       --text-body: #475569;
       --text-muted: #64748B;
-      --accent-coral: #FF7C6E;
-      --accent-coral-deep: #FF6554;
+      --grad-pink: #FF3CE8;
       --accent-blue: #3B82F6;
       --pill-shipped: #DCFCE7;
       --pill-shipped-text: #166534;
@@ -41,12 +38,13 @@
       --pill-soon-text: #1E40AF;
     }
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg-white);
       color: var(--text-body);
       line-height: 1.65;
       font-size: 16px;
       -webkit-font-smoothing: antialiased;
+      padding-top: 68px;
     }
     a { color: var(--accent-blue); text-decoration: none; }
     a:hover { text-decoration: underline; }
@@ -120,7 +118,7 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
-    .release-pill.latest { background: var(--accent-coral); color: white; }
+    .release-pill.latest { background: linear-gradient(135deg, #FF3CE8, #5DC6FF); color: white; }
     .release-pill.shipped { background: var(--pill-shipped); color: var(--pill-shipped-text); }
 
     .release-tagline {
@@ -169,7 +167,7 @@
       border-radius: 4px;
       font-family: ui-monospace, 'SF Mono', Menlo, monospace;
       font-size: 0.875em;
-      color: var(--accent-coral-deep);
+      color: #0A2540;
     }
 
     .footer-cta {
@@ -195,14 +193,20 @@
       font-size: 14px;
     }
   </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 </head>
 <body>
   <main class="container">
-    <a href="/" class="back">← Back to Projelli</a>
+    <a href="/" class="back">← Back to Keepance</a>
 
     <h1>Changelog</h1>
-    <p class="lede">What's shipped in Projelli, version by version. The honest list, not just the highlights.</p>
-    <p class="meta">Last updated 2026-05-04 · For the full developer changelog, see <a href="https://github.com/projelli/projelli/blob/master/CHANGELOG.md" target="_blank" rel="noopener">CHANGELOG.md</a> in the repo.</p>
+    <p class="lede">What's shipped in Keepance, version by version. The honest list, not just the highlights.</p>
+    <p class="meta">Last updated 2026-05-04 · For the full developer changelog, see <a href="https://github.com/keepance/keepance/blob/master/CHANGELOG.md" target="_blank" rel="noopener">CHANGELOG.md</a> in the repo.</p>
 
     <!-- v2.0.0 -->
     <section class="release">
@@ -216,7 +220,7 @@
       <h2 class="section">Added: Multimodal AI input</h2>
       <ul>
         <li><strong>Image attachments in chat.</strong> Paperclip button, paste, or drag-and-drop. Works with Claude, GPT, Gemini, and Ollama vision models. Per-provider format handling.</li>
-        <li><strong>Vision-model warning.</strong> If the selected model can't process images, Projelli says so before you spend tokens on it.</li>
+        <li><strong>Vision-model warning.</strong> If the selected model can't process images, Keepance says so before you spend tokens on it.</li>
         <li><strong>Token cost meter accounts for images.</strong> The chat-pane cost chip now factors image input into the running spend.</li>
       </ul>
 
@@ -232,7 +236,7 @@
 
       <h2 class="section">Added: Long-context [Compress]</h2>
       <ul>
-        <li><strong>Auto-trigger modal + manual button on long chats.</strong> When a conversation gets near the model's context limit, Projelli offers to compress earlier turns. Batched via fast-model routing. Expand or clear from the same control. Audit-event logged.</li>
+        <li><strong>Auto-trigger modal + manual button on long chats.</strong> When a conversation gets near the model's context limit, Keepance offers to compress earlier turns. Batched via fast-model routing. Expand or clear from the same control. Audit-event logged.</li>
       </ul>
 
       <h2 class="section">Added: Read aloud (TTS)</h2>
@@ -242,7 +246,7 @@
 
       <h2 class="section">Added: Templates marketplace</h2>
       <ul>
-        <li><strong>Settings → Marketplace → Templates.</strong> Browse, install, update, and uninstall community workflow templates. Catalog at <a href="https://github.com/projelli/community-templates" target="_blank" rel="noopener">github.com/projelli/community-templates</a> with a GitHub Action that auto-rebuilds <code>catalog.json</code> on PR merge.</li>
+        <li><strong>Settings → Marketplace → Templates.</strong> Browse, install, update, and uninstall community workflow templates. Catalog at <a href="https://github.com/keepance/community-templates" target="_blank" rel="noopener">github.com/keepance/community-templates</a> with a GitHub Action that auto-rebuilds <code>catalog.json</code> on PR merge.</li>
         <li><strong>Six day-one entries.</strong> Provenance badges in WorkflowPanel, 24-hour cache, offline banner, update count nav badge.</li>
       </ul>
 
@@ -256,32 +260,32 @@
       <h2 class="section">Added: Plugin marketplace</h2>
       <ul>
         <li><strong>Settings → Marketplace → Plugins.</strong> Permission-consent dialog before install with plain-language risk labels. Installed list shows status (enabled / disabled / crashed) with per-status actions.</li>
-        <li><strong>Catalog at <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener">github.com/projelli/community-plugins</a>.</strong> Four day-one plugins: Word Counter, Translator, Pomodoro, Mermaid Preview.</li>
+        <li><strong>Catalog at <a href="https://github.com/keepance/community-plugins" target="_blank" rel="noopener">github.com/keepance/community-plugins</a>.</strong> Four day-one plugins: Word Counter, Translator, Pomodoro, Mermaid Preview.</li>
       </ul>
 
       <h2 class="section">Added: Plugin developer ecosystem</h2>
       <ul>
-        <li><code>npx create-projelli-plugin &lt;name&gt;</code> scaffolder.</li>
-        <li><code>@projelli/plugin-api</code> types package.</li>
-        <li>Seven docs pages at <a href="/docs/plugins/">projelli.com/docs/plugins/</a> (getting started, manifest reference, permissions, API reference, publishing, examples, hub).</li>
+        <li><code>npx create-keepance-plugin &lt;name&gt;</code> scaffolder.</li>
+        <li><code>@keepance/plugin-api</code> types package.</li>
+        <li>Seven docs pages at <a href="/docs/plugins/">keepance.com/docs/plugins/</a> (getting started, manifest reference, permissions, API reference, publishing, examples, hub).</li>
       </ul>
 
       <h2 class="section">Added: Try in browser</h2>
       <ul>
-        <li><strong><a href="/try/">projelli.com/try</a>.</strong> Pre-seeded sample workspace, 5-message demo limit via shared-key Bun proxy, BYOK input for unlimited use, exit modal with download CTAs, Plausible-instrumented funnel events.</li>
+        <li><strong><a href="/try/">keepance.com/try</a>.</strong> Pre-seeded sample workspace, 5-message demo limit via shared-key Bun proxy, BYOK input for unlimited use, exit modal with download CTAs, Plausible-instrumented funnel events.</li>
       </ul>
 
       <h2 class="section">Added: Spanish + German</h2>
       <ul>
-        <li><strong>Full UI translation.</strong> 421 keys translated by <code>claude-sonnet-4-6</code> for ~$0.65 (idempotent re-run via <code>npm run translate-i18n</code>). OS locale auto-detect on first launch with a manual switch in Settings → General → Language. ESLint rule <code>projelli-i18n/no-hardcoded-string</code> blocks new hardcoded strings in CI.</li>
+        <li><strong>Full UI translation.</strong> 421 keys translated by <code>claude-sonnet-4-6</code> for ~$0.65 (idempotent re-run via <code>npm run translate-i18n</code>). OS locale auto-detect on first launch with a manual switch in Settings → General → Language. ESLint rule <code>keepance-i18n/no-hardcoded-string</code> blocks new hardcoded strings in CI.</li>
       </ul>
 
       <h2 class="section">Added: Mobile access docs</h2>
       <ul>
-        <li><strong>New <a href="/docs/mobile-access/">projelli.com/docs/mobile-access/</a></strong> covering iCloud Drive, Dropbox, Syncthing, and Google Drive setups, plus an in-app Settings → Mobile mirror with iOS deep links.</li>
+        <li><strong>New <a href="/docs/mobile-access/">keepance.com/docs/mobile-access/</a></strong> covering iCloud Drive, Dropbox, Syncthing, and Google Drive setups, plus an in-app Settings → Mobile mirror with iOS deep links.</li>
       </ul>
 
-      <p style="margin-top: 24px;">The full announcement post: <a href="/blog/projelli-v2-announce">Projelli reads images, PDFs, and runs plugins now</a>.</p>
+      <p style="margin-top: 24px;">The full announcement post: <a href="/blog/keepance-v2-announce">Keepance reads images, PDFs, and runs plugins now</a>.</p>
     </section>
 
     <!-- v1.7.2 -->
@@ -296,7 +300,7 @@
       <h2 class="section">Added</h2>
       <ul>
         <li><strong>First-launch onboarding dialog.</strong> Asks once whether you want email updates and/or anonymous telemetry. Both default OFF; "Skip" is first-class. Once dismissed any way, never re-prompts.</li>
-        <li><strong>Anonymous lifecycle telemetry.</strong> Sends <code>app_launch</code>, <code>trial_start</code>, <code>trial_end</code>, <code>license_activated</code>, <code>license_deactivated</code> to projelli.com. Payload: random install ID, app version, platform, event name. <strong>No content, no files, no AI prompts, no email.</strong> Gated on explicit opt-in.</li>
+        <li><strong>Anonymous lifecycle telemetry.</strong> Sends <code>app_launch</code>, <code>trial_start</code>, <code>trial_end</code>, <code>license_activated</code>, <code>license_deactivated</code> to keepance.com. Payload: random install ID, app version, platform, event name. <strong>No content, no files, no AI prompts, no email.</strong> Gated on explicit opt-in.</li>
         <li><strong>Privacy settings panel.</strong> Settings → Privacy. Shows the exact list of fields sent, the install ID, the endpoint, and a one-click toggle to enable/disable telemetry at any time.</li>
         <li><strong>Status-bar trial chip polish.</strong> Amber across the whole trial (5-30 days remaining), red below 5 days, green when license is activated.</li>
       </ul>
@@ -322,7 +326,7 @@
 
       <h2 class="section">Changed</h2>
       <ul>
-        <li><strong>License section: prominent buy CTA.</strong> The "Get a license at projelli.com" link is now a full-width primary button at the top of the activation panel, with the license-key input demoted to "Already have a license key?" beneath it. Conversion-first.</li>
+        <li><strong>License section: prominent buy CTA.</strong> The "Get a license at keepance.com" link is now a full-width primary button at the top of the activation panel, with the license-key input demoted to "Already have a license key?" beneath it. Conversion-first.</li>
       </ul>
     </section>
 
@@ -337,7 +341,7 @@
 
       <h2 class="section">Added</h2>
       <ul>
-        <li><strong>30-day full-feature trial.</strong> First launch records a timestamp. For 30 days every Projelli feature is on: AI chat with your own keys, all 15 workflow templates, all workspaces, all panels, RAG, MCP, side-by-side editing, voice input. After 30 days, AI chat sends and workflow runs pause until a license is activated; existing files stay fully readable.</li>
+        <li><strong>30-day full-feature trial.</strong> First launch records a timestamp. For 30 days every Keepance feature is on: AI chat with your own keys, all 15 workflow templates, all workspaces, all panels, RAG, MCP, side-by-side editing, voice input. After 30 days, AI chat sends and workflow runs pause until a license is activated; existing files stay fully readable.</li>
       </ul>
 
       <h2 class="section">Changed</h2>
@@ -357,15 +361,15 @@
 
       <h2 class="section">Added</h2>
       <ul>
-        <li><strong>macOS support as a first-class platform.</strong> Apple Silicon (aarch64) AND Intel builds. Both are signed with the Projelli Developer ID cert AND notarized by Apple. First launch goes through the standard "downloaded from the Internet" prompt with the green "Apple checked it" line, no right-click → Open dance.</li>
-        <li><strong>License activation panel.</strong> Settings → License. Paste the license key from the LemonSqueezy purchase email, click Activate, and the app talks to <code>licenses.projelli.com</code> to verify and turn on all paid features.</li>
+        <li><strong>macOS support as a first-class platform.</strong> Apple Silicon (aarch64) AND Intel builds. Both are signed with the Keepance Developer ID cert AND notarized by Apple. First launch goes through the standard "downloaded from the Internet" prompt with the green "Apple checked it" line, no right-click → Open dance.</li>
+        <li><strong>License activation panel.</strong> Settings → License. Paste the license key from the LemonSqueezy purchase email, click Activate, and the app talks to <code>licenses.keepance.com</code> to verify and turn on all paid features.</li>
         <li><strong>Windows silent install auto-launches the app</strong> after a fresh double-click install (skipped on in-place updates).</li>
       </ul>
 
       <h2 class="section">Tab + group UX overhaul</h2>
       <ul>
         <li>Unified zone-based drop, inline rename at every scale, drag inside TabGroupManager, editor title strip pencil, "Name your group" dialog, merge groups, reorder groups.</li>
-        <li>Coral <code>#FF7C6E</code> primary accent.</li>
+        <li>Pink/blue gradient primary accent (<code>#FF3CE8</code> → <code>#5DC6FF</code>).</li>
       </ul>
 
       <h2 class="section">Onboarding polish</h2>
@@ -389,12 +393,12 @@
         <span class="release-date">April 16, 2026</span>
         <span class="release-pill shipped">Shipped</span>
       </div>
-      <p class="release-tagline">The biggest Projelli release yet. Four headline capabilities + 18 quality-of-life extras + 2 multi-model mediums.</p>
+      <p class="release-tagline">The biggest Keepance release yet. Four headline capabilities + 18 quality-of-life extras + 2 multi-model mediums.</p>
 
       <h2 class="section">Four flags</h2>
 
       <h3>1. Memory: the AI workspace that remembers your stuff</h3>
-      <p>Local RAG over your notes via LanceDB + fastembed-rs (M1), an <code>@workspace</code> chat command + per-chat "Ask my workspace" toggle (M2), and a user-approved memory facts file always in the system prompt (M3). Embeddings run on-device with a 384-dim ONNX model (intfloat/multilingual-e5-small). Per-workspace vector store under <code>.projelli/vectors/</code>. Nothing sent off-device.</p>
+      <p>Local RAG over your notes via LanceDB + fastembed-rs (M1), an <code>@workspace</code> chat command + per-chat "Ask my workspace" toggle (M2), and a user-approved memory facts file always in the system prompt (M3). Embeddings run on-device with a 384-dim ONNX model (intfloat/multilingual-e5-small). Per-workspace vector store under <code>.keepance/vectors/</code>. Nothing sent off-device.</p>
 
       <h3>2. MCP server: your workspace, available in every AI tool you use</h3>
       <p>A real JSON-RPC 2.0 MCP server binary exposing five tools (list / read / search / write-with-approval / facts) over stdio. Shipped as a per-platform <code>.mcpb</code> Desktop Extension bundle for Claude Desktop, Cursor, Zed, and any other MCP-compatible client. One-click install from Settings → Integrations.</p>
@@ -423,7 +427,7 @@
         <li><strong>Template fork / remix</strong></li>
         <li><strong>API-key onboarding wizard</strong></li>
         <li><strong>Template preview gallery</strong></li>
-        <li><code>/vs/</code> <strong>comparison pages</strong> on projelli.com (vs Notion, Obsidian, ChatGPT, etc.)</li>
+        <li><code>/vs/</code> <strong>comparison pages</strong> on keepance.com (vs Notion, Obsidian, ChatGPT, etc.)</li>
         <li><strong>Mock workspace dev mode</strong> (full-feature in-browser preview for development)</li>
       </ul>
 
@@ -445,7 +449,7 @@
 
       <h2 class="section">Added</h2>
       <ul>
-        <li><strong>Auto-updater</strong> (Tauri-plugin-updater + minisign signatures). Check + prompt UX (banner + modal). Manifest at <code>github.com/projelli/projelli/releases/latest/download/latest.json</code>.</li>
+        <li><strong>Auto-updater</strong> (Tauri-plugin-updater + minisign signatures). Check + prompt UX (banner + modal). Manifest at <code>github.com/keepance/keepance/releases/latest/download/latest.json</code>.</li>
         <li><strong>Document suite.</strong> <code>.xlsx</code>, <code>.csv</code>, <code>.docx</code>, <code>.pptx</code>, <code>.ppt</code>, <code>.rtf</code> preview + edit + create with round-trip preservation. Live formula engine (20 Excel functions, in-house because HyperFormula is GPL-3).</li>
         <li><strong>Schema-driven Settings modal</strong> (Ctrl+, or gear icon). 16 settings across General / Editor / AI / Files / Keyboard Shortcuts. Export/Import/Reset.</li>
         <li><strong>Branded start screen.</strong> White full-viewport, coral logo, blue → purple → pink gradient glow.</li>
@@ -475,9 +479,39 @@
 
     <div class="footer-cta">
       <p>What's coming next is on the <a href="/roadmap/">public roadmap</a>.</p>
-      <p>For the full developer-level changelog, see <a href="https://github.com/projelli/projelli/blob/master/CHANGELOG.md" target="_blank" rel="noopener">CHANGELOG.md on GitHub</a>.</p>
-      <a href="/" class="nav-back">← Back to Projelli</a>
+      <p>For the full developer-level changelog, see <a href="https://github.com/keepance/keepance/blob/master/CHANGELOG.md" target="_blank" rel="noopener">CHANGELOG.md on GitHub</a>.</p>
+      <a href="/" class="nav-back">← Back to Keepance</a>
     </div>
   </main>
+
+  <footer class="kp-footer">
+    <div class="kp-footer-inner">
+      <a href="/" class="kp-footer-brand">Keepance</a>
+      <nav class="kp-footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="kp-footer-copy">Built by <a href="https://jamesondaines.com">Jameson Daines</a></span>
+    </div>
+  </footer>
+  <style>
+    .kp-footer { background: #0A2540; padding: 36px 24px; margin-top: 64px; }
+    .kp-footer-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; font-family: 'Satoshi', system-ui, sans-serif; }
+    .kp-footer-brand { color: rgba(255,255,255,0.85); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    .kp-footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
+    .kp-footer-links a { color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+    .kp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+    .kp-footer-copy { color: rgba(255,255,255,0.35); font-size: 12px; }
+    .kp-footer-copy a { color: inherit; }
+  </style>
+
 </body>
 </html>

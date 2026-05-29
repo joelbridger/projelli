@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keepance for Consultants — AI Workspace That Respects Your NDAs</title>
+  <meta name="description" content="The AI workspace for independent consultants and boutique agencies. Client work never leaves your machine. No cloud uploads. NDA-safe by design.">
+  <link rel="canonical" href="https://keepance.com/consulting/">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="Jameson Daines">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://keepance.com/consulting/">
+  <meta property="og:title" content="Keepance for Consultants — AI Workspace That Respects Your NDAs">
+  <meta property="og:description" content="The AI workspace for independent consultants and boutique agencies. Client work never leaves your machine. No cloud uploads. NDA-safe by design.">
+  <meta property="og:site_name" content="Keepance">
+  <meta property="og:image" content="https://keepance.com/press-kit/assets/og-linkedin-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="627">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Keepance for Consultants — AI Workspace That Respects Your NDAs">
+  <meta name="twitter:description" content="The AI workspace for independent consultants and boutique agencies. Client work never leaves your machine. NDA-safe by design.">
+  <meta name="twitter:image" content="https://keepance.com/press-kit/assets/og-twitter-card.png">
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Keepance","operatingSystem":"Windows, macOS, Linux","applicationCategory":"ProductivityApplication","url":"https://keepance.com","description":"Keepance is a local-first AI workspace for professionals who legally or practically cannot pipe their work into the cloud. Files stay on your machine. Bring your own API key.","creator":{"@type":"Person","name":"Jameson Daines","url":"https://jamesondaines.com"},"offers":{"@type":"Offer","price":"129","priceCurrency":"USD","availability":"https://schema.org/InStock"}}
+  </script>
+
+  <!-- Plausible Analytics (self-hosted) -->
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+  <style>
+    :root {
+      --navy: #0A2540;
+      --navy-mid: #12345A;
+      --grad-pink: #FF3CE8;
+      --grad-blue: #5DC6FF;
+      --bone: #F5F5F0;
+      --bone-dark: #EEEEE8;
+      --white: #FFFFFF;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --border: #E2E8F0;
+      --text-on-dark: rgba(255,255,255,0.85);
+      --text-muted-dark: rgba(255,255,255,0.5);
+      --container: 1100px;
+      --section: 88px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
+    body {
+      font-family: 'Satoshi', system-ui, sans-serif;
+      background: var(--bone);
+      color: var(--text-body);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .container {
+      width: 100%;
+      max-width: var(--container);
+      margin: 0 auto;
+      padding: 0 28px;
+    }
+
+    /* ============================================================
+       BUTTONS
+    ============================================================ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'Satoshi', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 6px;
+      padding: 12px 28px;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--grad-pink) 0%, var(--grad-blue) 100%);
+      color: var(--white);
+    }
+    .btn-primary:hover { filter: brightness(1.08); }
+    .btn-outline-light {
+      background: transparent;
+      color: var(--text-on-dark);
+      border: 1.5px solid rgba(255,255,255,0.22);
+    }
+    .btn-outline-light:hover {
+      border-color: rgba(255,255,255,0.45);
+      color: var(--white);
+    }
+    .btn-outline {
+      background: transparent;
+      color: var(--text-heading);
+      border: 1.5px solid var(--border);
+    }
+    .btn-outline:hover { border-color: var(--navy); }
+    .btn-full { width: 100%; justify-content: center; }
+
+    /* ============================================================
+       HERO
+    ============================================================ */
+    .hero {
+      background: var(--navy);
+      padding: 130px 0 96px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 60% 55% at 80% 30%, rgba(255,60,232,0.08) 0%, transparent 70%),
+        radial-gradient(ellipse 45% 50% at 10% 80%, rgba(93,198,255,0.06) 0%, transparent 65%);
+    }
+    .hero-inner {
+      position: relative;
+      z-index: 1;
+      max-width: 740px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .hero-eyebrow {
+      display: inline-block;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--grad-pink);
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: clamp(2.1rem, 4.2vw, 3rem);
+      font-weight: 800;
+      color: var(--white);
+      line-height: 1.13;
+      letter-spacing: -0.025em;
+      margin-bottom: 22px;
+    }
+    .hero-sub {
+      font-size: 1.0625rem;
+      color: rgba(255,255,255,0.62);
+      line-height: 1.75;
+      margin-bottom: 38px;
+      max-width: 580px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .hero-ctas {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .hero-note {
+      font-size: 13px;
+      color: rgba(255,255,255,0.35);
+    }
+
+    /* ============================================================
+       COMPLIANCE BAR
+    ============================================================ */
+    .compliance-section {
+      background: var(--bone);
+      border-bottom: 1px solid var(--border);
+      padding: 72px 0 80px;
+    }
+    .compliance-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 48px;
+    }
+    @media (max-width: 768px) {
+      .compliance-grid { grid-template-columns: 1fr; gap: 40px; }
+    }
+    .compliance-item {
+      padding-top: 20px;
+      border-top: 2px solid var(--border);
+    }
+    .compliance-item h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 10px;
+      line-height: 1.35;
+      letter-spacing: -0.01em;
+    }
+    .compliance-item p {
+      font-size: 14px;
+      color: var(--text-body);
+      line-height: 1.7;
+    }
+
+    /* ============================================================
+       SECTION PRIMITIVES
+    ============================================================ */
+    section { padding: var(--section) 0; }
+    .section-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--grad-pink);
+      margin-bottom: 12px;
+    }
+    h2 {
+      font-size: clamp(1.75rem, 2.8vw, 2.2rem);
+      font-weight: 700;
+      color: var(--text-heading);
+      line-height: 1.22;
+      letter-spacing: -0.02em;
+    }
+    .section-header {
+      text-align: center;
+      max-width: 620px;
+      margin: 0 auto 56px;
+    }
+    .section-header h2 { margin-bottom: 14px; }
+    .section-header p {
+      font-size: 1.0625rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* ============================================================
+       TEMPLATE CARDS
+    ============================================================ */
+    .templates-section { background: var(--white); }
+    .template-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 768px) {
+      .template-grid { grid-template-columns: 1fr; }
+    }
+    .template-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 26px 24px 22px;
+      border-top: 3px solid transparent;
+      border-image: linear-gradient(135deg, var(--grad-pink), var(--grad-blue)) 1;
+      transition: box-shadow 0.2s, border-color 0.2s;
+      /* reset border-image for rounded corners approach */
+      border-image: none;
+      position: relative;
+      overflow: hidden;
+    }
+    .template-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(135deg, var(--grad-pink) 0%, var(--grad-blue) 100%);
+    }
+    .template-card:hover {
+      box-shadow: 0 6px 22px rgba(10,37,64,0.08);
+    }
+    .template-card h3 {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 9px;
+      line-height: 1.3;
+    }
+    .template-card p {
+      font-size: 13.5px;
+      color: var(--text-body);
+      line-height: 1.65;
+    }
+
+    /* ============================================================
+       HOW IT WORKS (dark)
+    ============================================================ */
+    .how-section { background: var(--navy); padding: var(--section) 0; }
+    .how-section .section-label { color: var(--grad-pink); }
+    .how-section h2 { color: var(--white); }
+    .how-section .section-header p { color: rgba(255,255,255,0.5); }
+    .how-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-top: 48px;
+    }
+    @media (max-width: 768px) { .how-grid { grid-template-columns: 1fr; } }
+    .how-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 32px 28px;
+    }
+    .how-card-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    .how-card-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--white);
+      stroke-width: 2;
+      fill: none;
+    }
+    .how-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 12px;
+      line-height: 1.3;
+    }
+    .how-card p {
+      font-size: 14px;
+      color: rgba(255,255,255,0.5);
+      line-height: 1.7;
+    }
+
+    /* ============================================================
+       PRICING
+    ============================================================ */
+    .pricing-section { background: var(--bone); padding: var(--section) 0; }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      max-width: 800px;
+      margin: 0 auto 28px;
+    }
+    @media (max-width: 768px) {
+      .pricing-grid { grid-template-columns: 1fr; max-width: 440px; }
+    }
+    .pricing-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 28px;
+      position: relative;
+    }
+    .pricing-card.featured { border-color: rgba(255,60,232,0.3); }
+    .pricing-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue));
+      color: var(--white);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      padding: 3px 14px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .pricing-tier {
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--grad-pink);
+      margin-bottom: 6px;
+    }
+    .pricing-price {
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: var(--text-heading);
+      line-height: 1;
+      letter-spacing: -0.03em;
+      margin-bottom: 4px;
+    }
+    .pricing-price-note {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 22px;
+    }
+    .pricing-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 18px 0;
+    }
+    .pricing-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      margin-bottom: 26px;
+    }
+    .pricing-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13.5px;
+      color: var(--text-body);
+      line-height: 1.5;
+    }
+    .pricing-features li::before {
+      content: '→';
+      color: var(--grad-blue);
+      font-size: 12px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .pricing-charter {
+      font-size: 12.5px;
+      color: var(--grad-pink);
+      font-weight: 600;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: rgba(255,60,232,0.05);
+      border-radius: 6px;
+      border: 1px solid rgba(255,60,232,0.12);
+    }
+    .pricing-free-note {
+      text-align: center;
+      font-size: 13.5px;
+      color: var(--text-muted);
+    }
+    .pricing-free-note a {
+      color: var(--text-heading);
+      font-weight: 600;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .pricing-free-note a:hover { color: var(--navy); }
+
+    /* ============================================================
+       FOOTER
+    ============================================================ */
+    .footer {
+      background: var(--navy);
+      padding: 48px 0;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .footer-links a {
+      color: rgba(255,255,255,0.35);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: rgba(255,255,255,0.65); }
+    .footer-copy {
+      color: rgba(255,255,255,0.2);
+      font-size: 12px;
+    }
+
+    /* ============================================================
+       SCROLL ANIMATION
+    ============================================================ */
+    .anim {
+      
+      
+      transition: opacity 0.42s ease, transform 0.42s ease;
+    }
+    .anim.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .anim { opacity: 1; transform: none; transition: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <main>
+
+    <!-- HERO -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero-inner">
+          <span class="hero-eyebrow">Consulting Practice Pack</span>
+          <h1>The AI workspace your NDA actually allows.</h1>
+          <p class="hero-sub">
+            Client NDAs increasingly prohibit uploading work product to cloud AI tools. Keepance runs entirely on your machine. Your strategy documents, research, and client data never leave your control.
+          </p>
+          <div class="hero-ctas">
+            <a href="https://keepance.lemonsqueezy.com/checkout/buy/33cd497b-bffd-404c-910e-f8dd1f4453bd" class="btn btn-primary">Buy Professional &mdash; $129</a>
+            <a href="https://github.com/keepance/keepance/releases/latest" class="btn btn-outline-light">Download free for 30 days</a>
+          </div>
+          <p class="hero-note">One-time purchase. Perpetual license. No subscription.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMPLIANCE / TRUST HOOKS -->
+    <section class="compliance-section">
+      <div class="container">
+        <div class="compliance-grid">
+
+          <div class="compliance-item anim">
+            <h3>NDA AI Clauses Are Real</h3>
+            <p>A growing share of enterprise client contracts now explicitly prohibit uploading work product to cloud AI tools. Keepance sidesteps the issue: there's no upload.</p>
+          </div>
+
+          <div class="compliance-item anim">
+            <h3>Client Trust Is the Business</h3>
+            <p>A consulting practice runs on the expectation that what a client tells you stays with you. Cloud AI training policies are a hard conversation to have.</p>
+          </div>
+
+          <div class="compliance-item anim">
+            <h3>M&amp;A and Strategy Work Especially</h3>
+            <p>Deal memos, competitive analyses, board materials. This is exactly the category of content that shows up in data breach disclosures. Keep it local.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- CONSULTING PRACTICE PACK / TEMPLATES -->
+    <section class="templates-section">
+      <div class="container">
+        <div class="section-header anim">
+          <span class="section-label">What's included</span>
+          <h2>The Consulting Practice Pack</h2>
+          <p>5 workflow templates built around the deliverables independent consultants actually produce. Included with Professional.</p>
+        </div>
+
+        <div class="template-grid">
+
+          <div class="template-card anim">
+            <h3>Client Discovery Synthesizer</h3>
+            <p>Turns your intake call notes and background research into a structured discovery report. Sets up the engagement workspace with named folders and open questions.</p>
+          </div>
+
+          <div class="template-card anim">
+            <h3>Confidential Research Memo</h3>
+            <p>Formats your research and analysis for client delivery. Properly structured, clearly sourced, ready to attach to the engagement file.</p>
+          </div>
+
+          <div class="template-card anim">
+            <h3>Stakeholder Map Generator</h3>
+            <p>Maps key players, interests, influence levels, and likely objections from your interview notes. Surfaces the political terrain before you walk in.</p>
+          </div>
+
+          <div class="template-card anim">
+            <h3>NDA-Safe Slide Outliner</h3>
+            <p>Structures a presentation outline from your notes without requiring you to paste sensitive data anywhere. The full content stays in your workspace files.</p>
+          </div>
+
+          <div class="template-card anim">
+            <h3>Engagement Retrospective Builder</h3>
+            <p>Captures lessons learned, results delivered, and reusable frameworks at engagement close. Builds your internal knowledge base over time.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW IT WORKS / LOCAL-FIRST -->
+    <section class="how-section">
+      <div class="container">
+        <div class="section-header anim">
+          <h2 style="color:var(--white);">Your client work stays where your NDA says it should.</h2>
+        </div>
+        <div class="how-grid">
+
+          <div class="how-card anim">
+            <div class="how-card-icon">
+              <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h3>No upload, no exposure</h3>
+            <p>When you run a workflow, the request goes from your machine directly to your AI provider. No Keepance server is involved. Nothing is uploaded to a third party.</p>
+          </div>
+
+          <div class="how-card anim">
+            <div class="how-card-icon">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <h3>Files on your terms</h3>
+            <p>Every deliverable draft and research note saves as a plain Markdown file in a folder you control. Your engagement archive lives on your machine, not in someone's cloud.</p>
+          </div>
+
+          <div class="how-card anim">
+            <div class="how-card-icon">
+              <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <h3>Your keys, your costs</h3>
+            <p>Bring your own Claude, OpenAI, or Gemini key. You control what you spend. Keepance charges once at purchase, not monthly.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- PRICING -->
+    <section class="pricing-section" id="pricing">
+      <div class="container">
+        <div class="section-header anim">
+          <span class="section-label">Pricing</span>
+          <h2>Simple, one-time pricing.</h2>
+        </div>
+
+        <div class="pricing-grid">
+
+          <div class="pricing-card featured anim">
+            <div class="pricing-badge">Most popular</div>
+            <div class="pricing-tier">Professional</div>
+            <div class="pricing-price">$129</div>
+            <div class="pricing-price-note">one-time purchase</div>
+            <hr class="pricing-divider">
+            <ul class="pricing-features">
+              <li>Single seat</li>
+              <li>All v2.0 features</li>
+              <li>Consulting Practice Pack included</li>
+              <li>Bring your own API key</li>
+              <li>Files stay on your machine</li>
+              <li>Perpetual license</li>
+              <li>Windows, Mac, Linux</li>
+            </ul>
+            <a href="https://keepance.lemonsqueezy.com/checkout/buy/33cd497b-bffd-404c-910e-f8dd1f4453bd" class="btn btn-primary btn-full">Buy Professional &mdash; $129</a>
+            <div class="pricing-charter">Charter pricing: first 100 buyers get in at $89 instead of $129.</div>
+          </div>
+
+          <div class="pricing-card anim">
+            <div class="pricing-tier">Practice</div>
+            <div class="pricing-price">$399</div>
+            <div class="pricing-price-note">one-time purchase</div>
+            <hr class="pricing-divider">
+            <ul class="pricing-features">
+              <li>Up to 5 seats</li>
+              <li>Everything in Professional</li>
+              <li>White-label templates for your firm</li>
+              <li>Email support priority</li>
+            </ul>
+            <a href="https://keepance.lemonsqueezy.com/checkout/buy/9a5a7f48-0ffe-448a-a1af-889af99a0f47" class="btn btn-outline btn-full">Buy Practice &mdash; $399</a>
+          </div>
+
+        </div>
+
+        <p class="pricing-free-note anim">Or <a href="https://github.com/keepance/keepance/releases/latest">download free for 30 days</a> &mdash; no card, no account required.</p>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <nav class="footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="footer-copy">Built by Jameson Daines.</span>
+    </div>
+  </footer>
+
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
+
+  <script>
+    // Scroll-triggered animations
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
+    document.querySelectorAll('.anim').forEach((el) => observer.observe(el));
+  </script>
+
+</body>
+</html>

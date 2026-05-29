@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>iCloud Drive setup, Projelli</title>
-  <meta name="description" content="Step-by-step: read your Projelli workspace on iPhone using iCloud Drive. Five minutes, zero new accounts.">
-  <link rel="canonical" href="https://projelli.com/docs/mobile-access/icloud">
+  <title>iCloud Drive setup, Keepance</title>
+  <meta name="description" content="Step-by-step: read your Keepance workspace on iPhone using iCloud Drive. Five minutes, zero new accounts.">
+  <link rel="canonical" href="https://keepance.com/docs/mobile-access/icloud">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
@@ -40,8 +40,8 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 
 <body>
   <div class="container">
@@ -49,7 +49,7 @@
     <h1>iCloud Drive setup</h1>
     <p class="meta">For Apple users. About 5 minutes start to finish.</p>
 
-    <p>If you have an iPhone (or iPad) and a Mac signed into the same Apple ID, you already have everything you need. iCloud Drive is built into both. You just need to point Projelli at the right folder.</p>
+    <p>If you have an iPhone (or iPad) and a Mac signed into the same Apple ID, you already have everything you need. iCloud Drive is built into both. You just need to point Keepance at the right folder.</p>
 
     <h2>Step 1: Make sure iCloud Drive is on</h2>
 
@@ -69,24 +69,24 @@
       </ol>
     </div>
 
-    <h2>Step 2: Point Projelli at iCloud Drive</h2>
+    <h2>Step 2: Point Keepance at iCloud Drive</h2>
 
     <div class="step">
-      <h3>In Projelli on your Mac</h3>
+      <h3>In Keepance on your Mac</h3>
       <ol>
-        <li>Open Projelli. From the menu, choose <strong>File → Open Workspace</strong> (or click the workspace name in the sidebar to switch).</li>
+        <li>Open Keepance. From the menu, choose <strong>File → Open Workspace</strong> (or click the workspace name in the sidebar to switch).</li>
         <li>In the folder picker, navigate to your iCloud Drive folder. The full path is:<br>
           <code>~/Library/Mobile Documents/com~apple~CloudDocs/</code>
         </li>
-        <li>Create a new folder called <strong>Projelli</strong> inside iCloud Drive (or pick an existing folder if you already have one).</li>
+        <li>Create a new folder called <strong>Keepance</strong> inside iCloud Drive (or pick an existing folder if you already have one).</li>
         <li>Select that folder as your workspace and click <strong>Open</strong>.</li>
       </ol>
-      <p>From this moment on, every file Projelli writes lives inside iCloud Drive and syncs automatically.</p>
+      <p>From this moment on, every file Keepance writes lives inside iCloud Drive and syncs automatically.</p>
     </div>
 
     <figure>
-      <div class="placeholder">[Screenshot: Mac Projelli with workspace pointing at iCloud Drive folder]</div>
-      <figcaption>TODO: real screenshot of Projelli's workspace selector pointing at iCloud Drive.</figcaption>
+      <div class="placeholder">[Screenshot: Mac Keepance with workspace pointing at iCloud Drive folder]</div>
+      <figcaption>TODO: real screenshot of Keepance's workspace selector pointing at iCloud Drive.</figcaption>
     </figure>
 
     <h2>Step 3: Wait for sync</h2>
@@ -100,14 +100,14 @@
     <div class="step">
       <ol>
         <li>On your iPhone, open the <strong>Files</strong> app.</li>
-        <li>Tap <strong>Browse</strong>, then <strong>iCloud Drive</strong>, then your <strong>Projelli</strong> folder.</li>
+        <li>Tap <strong>Browse</strong>, then <strong>iCloud Drive</strong>, then your <strong>Keepance</strong> folder.</li>
         <li>You'll see your workspace exactly as it is on your Mac. Tap any <code>.md</code> file to read it.</li>
       </ol>
     </div>
 
     <figure>
-      <div class="placeholder">[Screenshot: iPhone Files app showing the synced Projelli workspace]</div>
-      <figcaption>TODO: real screenshot of iPhone Files browsing the Projelli folder in iCloud Drive.</figcaption>
+      <div class="placeholder">[Screenshot: iPhone Files app showing the synced Keepance workspace]</div>
+      <figcaption>TODO: real screenshot of iPhone Files browsing the Keepance folder in iCloud Drive.</figcaption>
     </figure>
 
     <p>iOS Files renders Markdown as plain text. If you want pretty rendering on the phone, install a free Markdown reader from the App Store (Taio, 1Writer, and iA Writer all work well) and point it at the same iCloud Drive folder.</p>
@@ -119,9 +119,9 @@
     </div>
 
     <ul>
-      <li><strong>iCloud free tier is 5 GB.</strong> A typical Projelli workspace is far under that. If you hit the limit, you can either delete other iCloud content or pay for iCloud+ (starts at 99 cents per month for 50 GB).</li>
+      <li><strong>iCloud free tier is 5 GB.</strong> A typical Keepance workspace is far under that. If you hit the limit, you can either delete other iCloud content or pay for iCloud+ (starts at 99 cents per month for 50 GB).</li>
       <li><strong>Sync delay is normally a few seconds, sometimes longer.</strong> If you edit on the desktop and immediately open the phone, you might see the previous version for a moment. Pull down on the Files screen to force-refresh.</li>
-      <li><strong>Wiki-link navigation doesn't work in Files.</strong> The phone shows file contents as plain text. Wiki-links and backlinks are a Projelli feature; they round-trip to the Mac when you tap a file there.</li>
+      <li><strong>Wiki-link navigation doesn't work in Files.</strong> The phone shows file contents as plain text. Wiki-links and backlinks are a Keepance feature; they round-trip to the Mac when you tap a file there.</li>
     </ul>
 
     <h2>What's next</h2>
@@ -130,5 +130,35 @@
 
     <a href="/docs/mobile-access/" class="next-link">Back to Mobile access overview →</a>
   </div>
+
+  <footer class="kp-footer">
+    <div class="kp-footer-inner">
+      <a href="/" class="kp-footer-brand">Keepance</a>
+      <nav class="kp-footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="kp-footer-copy">Built by <a href="https://jamesondaines.com">Jameson Daines</a></span>
+    </div>
+  </footer>
+  <style>
+    .kp-footer { background: #0A2540; padding: 36px 24px; margin-top: 64px; }
+    .kp-footer-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; font-family: 'Satoshi', system-ui, sans-serif; }
+    .kp-footer-brand { color: rgba(255,255,255,0.85); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    .kp-footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
+    .kp-footer-links a { color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+    .kp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+    .kp-footer-copy { color: rgba(255,255,255,0.35); font-size: 12px; }
+    .kp-footer-copy a { color: inherit; }
+  </style>
+
 </body>
 </html>

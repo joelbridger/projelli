@@ -3,20 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Projelli vs ChatGPT | Projelli</title>
-  <meta name="description" content="ChatGPT is a brilliant chat tool. The problem is the chat IS the artifact. Projelli keeps every conversation as a file on your hard drive.">
-  <link rel="canonical" href="https://projelli.com/vs/chatgpt">
+  <title>Keepance vs ChatGPT | Keepance</title>
+  <meta name="description" content="ChatGPT is a brilliant chat tool. The problem is the chat IS the artifact. Keepance keeps every conversation as a file on your hard drive.">
+  <link rel="canonical" href="https://keepance.com/vs/chatgpt">
   <meta name="robots" content="index, follow">
   <meta property="og:type" content="article">
-  <meta property="og:url" content="https://projelli.com/vs/chatgpt">
-  <meta property="og:title" content="Projelli vs ChatGPT">
-  <meta property="og:description" content="ChatGPT is great at chat. Projelli is what chat turns into when the answers become files.">
-  <meta property="og:image" content="https://projelli.com/og-image.png">
-  <meta name="twitter:image" content="https://projelli.com/og-image.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <meta property="og:url" content="https://keepance.com/vs/chatgpt">
+  <meta property="og:title" content="Keepance vs ChatGPT">
+  <meta property="og:description" content="ChatGPT is great at chat. Keepance is what chat turns into when the answers become files.">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -30,23 +28,12 @@
     }
     html { scroll-behavior: smooth; }
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif;
       background: var(--bg-white);
       color: var(--text-body);
       line-height: 1.75;
       -webkit-font-smoothing: antialiased;
     }
-    .nav {
-      position: sticky; top: 0; z-index: 50;
-      background: rgba(255,255,255,0.94);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid var(--border-gray);
-    }
-    .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; max-width: 900px; margin: 0 auto; }
-    .nav a.brand { font-weight: 700; color: var(--text-heading); text-decoration: none; font-size: 18px; }
-    .nav-links { display: flex; gap: 24px; font-size: 14px; }
-    .nav-links a { color: var(--text-body); text-decoration: none; font-weight: 500; }
-    .nav-links a:hover { color: var(--accent-blue); }
     .container { max-width: 800px; margin: 0 auto; padding: 56px 24px 80px; }
     .back { display: inline-block; margin-bottom: 24px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
     .back:hover { text-decoration: underline; }
@@ -92,35 +79,23 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
-
-<body>
-  <nav class="nav">
-    <div class="nav-inner">
-      <a href="/" class="brand">Projelli</a>
-      <div class="nav-links">
-        <a href="/">Home</a>
-        <a href="/templates/">Templates</a>
-        <a href="/vs/">vs Others</a>
-        <a href="/blog/">Blog</a>
-      </div>
-    </div>
-  </nav>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 
+<body>
   <div class="container">
     <a href="/vs/" class="back">&larr; All comparisons</a>
 
-    <h1>Projelli vs ChatGPT</h1>
+    <h1>Keepance vs ChatGPT</h1>
 
     <div class="verdict">
-      <strong>One-line verdict.</strong> <a href="https://chat.openai.com" target="_blank" rel="noopener">ChatGPT</a> is the best general-purpose chat tool on the internet. Projelli is what ChatGPT's conversations turn into when you want them to be files you own, search, and edit later.
+      <strong>One-line verdict.</strong> <a href="https://chat.openai.com" target="_blank" rel="noopener">ChatGPT</a> is the best general-purpose chat tool on the internet. Keepance is what ChatGPT's conversations turn into when you want them to be files you own, search, and edit later — without piping confidential client information through OpenAI's infrastructure.
     </div>
 
     <h2>Side-by-side</h2>
 
     <table>
-      <thead><tr><th>Capability</th><th>Projelli</th><th>ChatGPT</th></tr></thead>
+      <thead><tr><th>Capability</th><th>Keepance</th><th>ChatGPT</th></tr></thead>
       <tbody>
         <tr><td>Chat becomes a file on your disk</td><td><span class="pill yes">Automatic</span></td><td><span class="pill no">No</span></td></tr>
         <tr><td>Works offline</td><td><span class="pill yes">Yes (Ollama for inference too)</span></td><td><span class="pill no">No</span></td></tr>
@@ -135,8 +110,7 @@
         <tr><td>Read aloud (TTS)</td><td>Local <a href="https://github.com/rhasspy/piper" target="_blank" rel="noopener">Piper</a>, no cloud</td><td>Cloud-only</td></tr>
         <tr><td>Long-context handling</td><td>[Compress] passes summarize batches when you blow the window</td><td>Hard fail at the model limit</td></tr>
         <tr><td>UI languages</td><td>English, Espanol, Deutsch</td><td>OpenAI ships many; the chat content matches your prompt</td></tr>
-        <tr><td>Try before you install</td><td><a href="https://projelli.com/try/" target="_blank" rel="noopener">Free web demo</a> (no account, BYOK optional)</td><td>chat.openai.com</td></tr>
-        <tr><td>Founder workflow templates</td><td>15 built in + <a href="https://github.com/projelli/community-templates" target="_blank" rel="noopener">community marketplace</a></td><td>GPT Store, variable quality</td></tr>
+        <tr><td>Profession-specific practice packs</td><td>15 built in + <a href="https://github.com/keepance/community-templates" target="_blank" rel="noopener">community marketplace</a></td><td>GPT Store, variable quality</td></tr>
         <tr><td>Pricing</td><td>$0, $49 one-time, $99 lifetime</td><td>$20/mo Plus, $200/mo Pro</td></tr>
         <tr><td>Image generation</td><td><span class="pill no">No</span></td><td><span class="pill yes">DALL-E + Sora built in</span></td></tr>
         <tr><td>Voice mode</td><td>Local Parakeet.cpp input, local Piper output</td><td>ChatGPT Voice Mode, cloud</td></tr>
@@ -148,26 +122,26 @@
 
     <p>ChatGPT is shaped around a conversation being the unit of work. You ask, it answers, maybe you iterate, and eventually you close the tab. The answer lives in the conversation thread, and the conversation lives in OpenAI's cloud. If you come back three weeks later wanting the answer, you have to remember which conversation it was in.</p>
 
-    <p>Projelli is shaped around a file being the unit of work. You ask, the AI answers, but the answer ends up as a Markdown file in a folder on your hard drive. The next time you come back you open the file, not a conversation log. You can edit the file by hand, link it to other files, search across every file you've ever created, and back it up the way you back up any folder.</p>
+    <p>Keepance is shaped around a file being the unit of work. You ask, the AI answers, but the answer ends up as a Markdown file in a folder on your hard drive. The next time you come back you open the file, not a conversation log. You can edit the file by hand, link it to other files, search across every file you've ever created, and back it up the way you back up any folder.</p>
 
-    <p>For one-off answers, ChatGPT is faster because there's no file system, no editor, no workspace. For the kind of work where you come back to the same topic across weeks or months (a pitch deck that evolves, a financial model that you iterate, a customer interview synthesis that grows), Projelli is better because the document exists independently of any single conversation.</p>
+    <p>For one-off answers, ChatGPT is faster because there's no file system, no editor, no workspace. For the kind of work where you come back to the same client matter or strategic question across weeks or months, Keepance is better because the document exists independently of any single conversation.</p>
 
-    <p>The second distinction is privacy. ChatGPT stores every conversation on OpenAI's servers, eligible to be used for model improvement unless you opt out in settings. Projelli never sees your conversations. The app talks directly from your machine to your chosen AI provider using your own API key. The Projelli binary is never in the data path.</p>
+    <p>The second distinction is privacy. ChatGPT stores every conversation on OpenAI's servers, eligible to be used for model improvement unless you opt out in settings. For attorneys, CPAs, and consultants handling confidential client information, this is a structural problem — not just a preference. Keepance never sees your conversations. The app talks directly from your machine to your chosen AI provider using your own API key. The Keepance binary is never in the data path.</p>
 
-    <h2>When to pick Projelli</h2>
+    <h2>When to pick Keepance</h2>
 
     <ul>
-      <li>You keep asking the same AI tool about the same business, and the conversation history is becoming unfindable.</li>
-      <li>You want multiple models side by side (Claude for writing, OpenAI for code, Gemini for long context).</li>
-      <li>You're working on long-lived documents (pitch deck, GTM plan, customer research) that evolve across weeks.</li>
+      <li>You handle confidential client information that cannot be stored on a cloud vendor's servers.</li>
+      <li>You want multiple models side by side (Claude for writing, OpenAI for analysis, Gemini for long context).</li>
+      <li>You're working on long-lived client documents that evolve across weeks or months.</li>
       <li>You want your conversations to be files, not ephemeral UI state.</li>
-      <li>You work offline often and have <a href="https://ollama.com/" target="_blank" rel="noopener">Ollama</a> installed.</li>
+      <li>You work offline often and have <a href="https://ollama.com/" target="_blank" rel="noopener">Ollama</a> installed for fully local inference.</li>
     </ul>
 
     <h2>When to pick ChatGPT</h2>
 
     <ul>
-      <li>You're asking one-off questions and don't need persistent artifacts.</li>
+      <li>You're asking one-off questions on non-sensitive topics and don't need persistent artifacts.</li>
       <li>You want image generation and DALL-E in the same product.</li>
       <li>You don't have an AI API account and don't want to set one up.</li>
       <li>You use ChatGPT primarily for coding and have a workflow that depends on its code interpreter.</li>
@@ -176,18 +150,18 @@
 
     <h2>The honest caveat</h2>
 
-    <p>Most founders end up using both. ChatGPT for quick answers and exploration, Projelli for the long-lived documents that define the business. The specific moment Projelli wins is when you realize you've had the same pricing conversation with ChatGPT four times across three months and can't find any of them. That's the workflow Projelli fixes.</p>
+    <p>Many professionals end up using both. ChatGPT for quick answers on general topics, Keepance for client work and long-lived practice documents. The specific moment Keepance wins is when you realize the information in that chat belongs in a file you control, under the same security model as the rest of your client records. That's the workflow Keepance fixes.</p>
 
     <div class="cta-row">
       <p><strong>Want your chats as files, not tabs?</strong></p>
-      <p>Projelli is free to download. Windows, Mac, Linux.</p>
-      <a class="cta" href="/#pricing">Download Projelli</a>
+      <p>Keepance is free to download. Windows, Mac, Linux.</p>
+      <a class="cta" href="/#pricing">Download Keepance</a>
     </div>
   </div>
 
   <footer>
-    <div><a href="/">Home</a> &middot; <a href="/templates/">Templates</a> &middot; <a href="/vs/">vs Others</a> &middot; <a href="/blog/">Blog</a> &middot; <a href="/#pricing">Pricing</a></div>
-    <div style="margin-top: 12px;">&copy; 2026 Projelli by Jameson Daines.</div>
+    <div><a href="/">Home</a> &middot; <a href="/vs/">vs Others</a> &middot; <a href="/blog/">Blog</a> &middot; <a href="/#pricing">Pricing</a></div>
+    <div style="margin-top: 12px;">&copy; 2026 Keepance by Jameson Daines.</div>
   </footer>
 </body>
 </html>

@@ -1,490 +1,151 @@
-/* Hero animation — vanilla JS state machine driving a faithful Projelli
- * replica. RAF tick + precomputed timing schedule.
+/* Hero animation for Keepance new design — RAF state machine.
  *
- * All DOM is built via createElement / textContent (no innerHTML), so
- * there's no XSS surface even though every input is a trusted constant.
- *
- * Story (~22s, then loops):
- *   t=0    — workspace settled, Launch Plan tab active
- *   t=1.4  — cursor moves to chat input
- *   t=2.1  — types prompt char-by-char
- *   t=6.5  — cursor moves to coral send button + clicks
- *   t=7.0  — user message bubble appears (with You · time meta)
- *           thinking dots + Stop button appear
- *   t=8.0  — AI assistant streams response in chunks
- *   t=12.5 — Brand Voice.md pops into the file tree
- *   t=15.0 — cursor moves to Brand Voice.md
- *   t=15.5 — clicks; new tab "Drafting brand voic..." opens; editor view
- *   t=20.0 — hold final state
- *   t=22.0 — reset and loop
+ * Story (~15s loop):
+ *   t=0    — reset all animated elements to hidden
+ *   t=1.2  — cursor appears near the chat input
+ *   t=1.7  — text caret blinks in input
+ *   t=2.1  — types the prompt char-by-char
+ *   t=5.6  — cursor moves to send button
+ *   t=6.3  — clicks; user message appears, thinking dots appear
+ *   t=7.8  — thinking ends; AI response streams in
+ *   t=10.5 — saved confirmation fades in
+ *   t=11.1 — Deposition Notes.md fades in on the sidebar
+ *   t=14.9 — loop resets
  */
 (function () {
   var root = document.getElementById('hero-anim');
   if (!root) return;
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    return;
-  }
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-  var inputText  = root.querySelector('[data-anim="input-text"]');
-  var inputCaret = root.querySelector('[data-anim="input-caret"]');
-  var messages   = root.querySelector('[data-anim="messages"]');
-  var fileTree   = root.querySelector('[data-anim="file-tree"]');
-  var tabsEl     = root.querySelector('[data-anim="tabs"]');
-  var chatPane   = root.querySelector('[data-anim="pane-chat"]');
-  var gridPane   = root.querySelector('[data-anim="pane-grid"]');
-  var wbPane     = root.querySelector('[data-anim="pane-whiteboard"]');
-  var wbPath     = root.querySelector('[data-anim="wb-path"]');
-  var dragGhost  = root.querySelector('[data-anim="drag-ghost"]');
-  var cursor     = root.querySelector('[data-anim="cursor"]');
-  var statusFile  = root.querySelector('[data-anim="status-file"]');
-  var statusFile2 = root.querySelector('[data-anim="status-file2"]');
-  var statusFiles = root.querySelector('[data-anim="status-files-open"]');
+  function q(name) { return root.querySelector('[data-anim="' + name + '"]'); }
 
-  if (!inputText || !messages || !fileTree || !tabsEl || !chatPane || !gridPane || !wbPane || !cursor) return;
+  var newFile   = q('new-file');
+  var msgUser   = q('msg-user');
+  var userText  = q('user-text');
+  var msgAi     = q('msg-ai');
+  var aiText    = q('ai-text');
+  var thinking  = q('thinking');
+  var saved     = q('saved');
+  var inputEl   = q('input');
+  var inputText = q('input-text');
+  var caret     = q('caret');
+  var sendBtn   = q('send');
+  var cursor    = q('cursor');
 
-  var PROMPT = 'Write a brand voice guide for Linterly and save it to Brand Voice.md';
+  if (!inputText || !cursor || !msgUser || !msgAi) return;
 
-  // Each block is one paragraph in the assistant card, rendered as its
-  // own <div>. parts may be { text } or { bold }.
-  var ASSISTANT_BLOCKS = [
-    { parts: [{ text: "Here's a brand-voice draft for Linterly:" }] },
-    { parts: [{ bold: 'Voice principles' }] },
-    { parts: [{ text: 'Linterly writes the way a senior PM Slacks: short, specific, contraction-heavy, never breathless.' }] },
-    { parts: [{ bold: 'Banned words:' }, { text: ' leverage, delve, seamless, transform, empower' }] },
-  ];
+  var PROMPT = 'Find contradictions in Halvorsen’s deposition vs. her March 14 statement.';
 
-  var NEW_TAB_LABEL = 'Drafting brand voic…';
+  var AI_RESPONSE = [
+    'Found 3 contradictions.',
+    '',
+    '→ p.47: “Not present at March 14.”',
+    '→ Exhibit C: signed attendance record, her signature.',
+    '',
+    'Saved → Deposition Notes.md'
+  ].join('\n');
 
-  // ── tiny DOM helpers ───────────────────────────────────────────────
-  function el(tag, props, children) {
-    var node = document.createElement(tag);
-    if (props) {
-      Object.keys(props).forEach(function (k) {
-        if (k === 'class') node.className = props[k];
-        else if (k === 'dataset') Object.assign(node.dataset, props[k]);
-        else if (k.indexOf('data-') === 0) node.setAttribute(k, props[k]);
-        else if (k === 'text') node.textContent = props[k];
-        else node.setAttribute(k, props[k]);
-      });
-    }
-    if (children) {
-      (Array.isArray(children) ? children : [children]).forEach(function (c) {
-        if (c == null) return;
-        node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
-      });
-    }
-    return node;
-  }
-  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+  function show(el) { if (el) el.style.opacity = '1'; }
+  function hide(el) { if (el) el.style.opacity = '0'; }
 
-  function svg(markup) {
-    var doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
-    var n = doc.documentElement;
-    return n && n.tagName.toLowerCase() === 'svg' ? document.importNode(n, true) : null;
-  }
-  var FILE_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" xmlns="http://www.w3.org/2000/svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
-  function fileIcon() { return svg(FILE_ICON_SVG); }
-
-  function setCursor(targetSelector, opts) {
-    opts = opts || {};
-    var rect = root.getBoundingClientRect();
-    var target = root.querySelector(targetSelector);
+  function moveCursor(target, offX, offY) {
     if (!target) return;
-    var tRect = target.getBoundingClientRect();
-    var x = tRect.left - rect.left + (opts.offsetX != null ? opts.offsetX : tRect.width / 2);
-    var y = tRect.top - rect.top + (opts.offsetY != null ? opts.offsetY : tRect.height / 2);
-    cursor.style.left = x + 'px';
-    cursor.style.top  = y + 'px';
-    cursor.classList.add('hero-anim__cursor--visible');
+    var rr = root.getBoundingClientRect();
+    var tr = target.getBoundingClientRect();
+    cursor.style.left = (tr.left - rr.left + (offX != null ? offX : tr.width / 2)) + 'px';
+    cursor.style.top  = (tr.top  - rr.top  + (offY != null ? offY : tr.height / 2)) + 'px';
   }
-  function pulseClick() {
-    cursor.classList.remove('hero-anim__cursor--clicking');
+
+  function click() {
+    cursor.classList.remove('clicking');
     void cursor.offsetWidth;
-    cursor.classList.add('hero-anim__cursor--clicking');
-  }
-
-  function setActivePane(which) {
-    [chatPane, gridPane, wbPane].forEach(function (p) {
-      p.classList.remove('hero-anim__pane--active');
-    });
-    var target = which === 'grid' ? gridPane
-              : which === 'wb'   ? wbPane
-              : chatPane;
-    target.classList.add('hero-anim__pane--active');
-  }
-
-  // Place the drag ghost at the cursor's current position
-  function placeGhostAtCursor() {
-    if (!dragGhost) return;
-    dragGhost.style.left = cursor.style.left;
-    dragGhost.style.top  = cursor.style.top;
-  }
-  function showGhost() { if (dragGhost) dragGhost.classList.add('hero-anim__drag-ghost--visible'); }
-  function hideGhost() { if (dragGhost) dragGhost.classList.remove('hero-anim__drag-ghost--visible'); }
-
-  // Highlight a grid folder cell as a drag target
-  function highlightFolder(name, on) {
-    var cell = root.querySelector('[data-grid="' + name + '"]');
-    if (!cell) return;
-    if (on) cell.classList.add('hero-anim__grid-cell--target');
-    else    cell.classList.remove('hero-anim__grid-cell--target');
-  }
-
-  function vanishGridCell(name) {
-    var cell = root.querySelector('[data-grid="' + name + '"]');
-    if (cell) cell.classList.add('hero-anim__grid-cell--vanish');
-  }
-  function restoreGridCell(name) {
-    var cell = root.querySelector('[data-grid="' + name + '"]');
-    if (cell) cell.classList.remove('hero-anim__grid-cell--vanish');
-  }
-
-  // Switch nav-item active state by label
-  function activateNavItem(label) {
-    root.querySelectorAll('.hero-anim__nav-item').forEach(function (n) {
-      var span = n.querySelector('span');
-      var match = span && span.textContent === label;
-      n.classList.toggle('hero-anim__nav-item--active', match);
-    });
-  }
-
-  // ── Whiteboard draw control ──────────────────────────────────────
-  // Reset the path to invisible (full dashoffset = full path length).
-  function wbReset() {
-    if (!wbPath) return;
-    var len = wbPath.getTotalLength();
-    wbPath.style.transition = 'none';
-    wbPath.style.strokeDasharray = len + ' ' + len;
-    wbPath.style.strokeDashoffset = len;
-    // Force reflow so the next transition takes effect.
-    void wbPath.getBoundingClientRect();
-    wbPath.style.transition = 'stroke-dashoffset 2.4s linear';
-  }
-  // Start the draw animation: dashoffset → 0 over 2.4s.
-  function wbDraw() {
-    if (!wbPath) return;
-    wbPath.style.strokeDashoffset = '0';
-  }
-  // Walk the cursor along the path while it draws so the cursor "is"
-  // the pencil. Returns an array of [time, fn] schedule entries.
-  function wbCursorTrail(startTime, durationS, samples) {
-    var entries = [];
-    if (!wbPath) return entries;
-    var len = wbPath.getTotalLength();
-    var canvasRect = function () {
-      var rect = root.getBoundingClientRect();
-      var svgRect = wbPath.ownerSVGElement.getBoundingClientRect();
-      return { offX: svgRect.left - rect.left, offY: svgRect.top - rect.top, sw: svgRect.width, sh: svgRect.height };
-    };
-    var vb = wbPath.ownerSVGElement.viewBox.baseVal;
-    for (var i = 0; i <= samples; i++) {
-      (function (i) {
-        var t = i / samples;
-        entries.push([startTime + t * durationS, function () {
-          var pt = wbPath.getPointAtLength(t * len);
-          var c = canvasRect();
-          var x = c.offX + (pt.x / vb.width) * c.sw;
-          var y = c.offY + (pt.y / vb.height) * c.sh;
-          // Move cursor without easing transition by overriding briefly
-          cursor.style.transition = 'none';
-          cursor.style.left = x + 'px';
-          cursor.style.top  = y + 'px';
-          // Restore default transition for any future setCursor calls
-          requestAnimationFrame(function () {
-            cursor.style.transition = '';
-          });
-        }]);
-      })(i);
-    }
-    return entries;
-  }
-
-  // ── builders ───────────────────────────────────────────────────────
-  function makeTab(name, active, animate) {
-    var icon = fileIcon();
-    var label = el('span', { text: name });
-    var pencil = el('span', { 'class': 'hero-anim__pencil', 'aria-hidden': 'true', text: '✎' });
-    var classes = 'hero-anim__tab';
-    if (active) classes += ' hero-anim__tab--active';
-    if (animate) classes += ' hero-anim__tab--enter';
-    return el('div', { 'class': classes, 'data-tab': name }, [icon, label, pencil]);
-  }
-
-  function makeFile(name) {
-    return el('div', {
-      'class': 'hero-anim__file hero-anim__file--new',
-      'data-file': name,
-    }, [fileIcon(), el('span', { text: name })]);
-  }
-
-  function activateOnlyTab(name) {
-    Array.prototype.forEach.call(tabsEl.children, function (t) {
-      if (t.getAttribute('data-tab') === name) {
-        t.classList.add('hero-anim__tab--active');
-      } else {
-        t.classList.remove('hero-anim__tab--active');
-      }
-    });
-  }
-
-  function setStatusFile(name, count) {
-    if (statusFile)  statusFile.textContent  = name;
-    if (statusFile2) statusFile2.textContent = name;
-    if (statusFiles) statusFiles.textContent = count + (count === 1 ? ' file open' : ' files open');
+    cursor.classList.add('clicking');
   }
 
   function reset() {
-    inputText.textContent = '';
-    if (inputCaret) inputCaret.style.display = 'none';
-    clear(messages);
-    setActivePane('chat');
-    cursor.classList.remove('hero-anim__cursor--visible');
-    cursor.classList.remove('hero-anim__cursor--clicking');
-    cursor.style.transition = '';
-    cursor.style.left = '40%';
+    hide(newFile); hide(msgUser); hide(msgAi); hide(thinking); hide(saved);
+    cursor.classList.remove('visible', 'clicking');
+    cursor.style.transition = 'none';
+    cursor.style.left = '50%';
     cursor.style.top  = '60%';
-
-    hideGhost();
-    activateNavItem('Files');
-
-    var brandVoiceLi = fileTree.querySelector('[data-file="Brand Voice.md"]');
-    if (brandVoiceLi) brandVoiceLi.remove();
-    fileTree.querySelectorAll('.hero-anim__file').forEach(function (e) {
-      e.classList.remove('hero-anim__file--active');
-    });
-    var launchPlan = fileTree.querySelector('[data-file="Launch Plan.md"]');
-    if (launchPlan) launchPlan.classList.add('hero-anim__file--active');
-
-    clear(tabsEl);
-    tabsEl.appendChild(makeTab('Launch Plan', true, false));
-    setStatusFile('Drafting brand voice for Linterly', 1);
-
-    // Restore grid Brand Voice.md cell + clear any folder highlight
-    restoreGridCell('Brand Voice.md');
-    highlightFolder('Brand', false);
-
-    // Reset the whiteboard path so it can re-draw cleanly each loop
-    wbReset();
+    if (inputText) inputText.textContent = '';
+    if (userText)  userText.textContent  = '';
+    if (aiText)    aiText.textContent    = '';
+    if (caret)     caret.style.display   = 'none';
+    requestAnimationFrame(function () { cursor.style.transition = ''; });
   }
 
-  function timeNow() {
-    var d = new Date();
-    var h = d.getHours();
-    var m = d.getMinutes();
-    var ampm = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    return h + ':' + (m < 10 ? '0' + m : m) + ' ' + ampm;
-  }
-
-  function addUserMessage(text) {
-    var t = timeNow();
-    messages.appendChild(el('div', { 'class': 'hero-anim__msg-meta hero-anim__msg-meta--right' }, [
-      el('span', { text: 'You' }),
-      el('span', { text: t }),
-    ]));
-    messages.appendChild(el('div', { 'class': 'hero-anim__msg hero-anim__msg--user', text: text }));
-  }
-
-  function showThinking() {
-    var dots = el('div', { 'class': 'hero-anim__thinking' }, [el('span'), el('span'), el('span')]);
-    var stop = el('span', { 'class': 'hero-anim__stop-btn', text: 'Stop' });
-    messages.appendChild(el('div', { 'class': 'hero-anim__thinking-row', 'data-anim-thinking': '1' }, [dots, stop]));
-  }
-  function removeThinking() {
-    var t = messages.querySelector('[data-anim-thinking]');
-    if (t) t.remove();
-  }
-
-  function startAssistantStream() {
-    messages.appendChild(el('div', { 'class': 'hero-anim__msg-meta' }, [
-      el('span', { text: 'Assistant' }),
-      el('span', { text: timeNow() }),
-    ]));
-    var m = el('div', { 'class': 'hero-anim__msg hero-anim__msg--assistant', 'data-anim-stream': '1' });
-    messages.appendChild(m);
-  }
-
-  function appendAssistantBlock(block, isLast) {
-    var m = messages.querySelector('[data-anim-stream]');
-    if (!m) return;
-    var trailingCaret = m.querySelector('.hero-anim__caret');
-    if (trailingCaret) trailingCaret.remove();
-
-    var line = el('div');
-    block.parts.forEach(function (p) {
-      if (p.text != null) line.appendChild(document.createTextNode(p.text));
-      else if (p.bold != null) line.appendChild(el('strong', { text: p.bold }));
-    });
-    m.appendChild(line);
-    if (!isLast) m.appendChild(el('span', { 'class': 'hero-anim__caret' }));
-  }
-
-  function finishAssistantStream() {
-    var m = messages.querySelector('[data-anim-stream]');
-    if (m) {
-      var caret = m.querySelector('.hero-anim__caret');
-      if (caret) caret.remove();
-      m.removeAttribute('data-anim-stream');
-    }
-  }
-
-  function appearBrandVoiceFile() {
-    if (fileTree.querySelector('[data-file="Brand Voice.md"]')) return;
-    fileTree.appendChild(makeFile('Brand Voice.md'));
-  }
-
-  // Switch the main panel to the Files grid view.
-  function openGridView() {
-    activateNavItem('Files');
-    setActivePane('grid');
-    setStatusFile('Files', 1);
-  }
-
-  // Switch the main panel to the Whiteboard.
-  function openWhiteboard() {
-    activateNavItem('Whiteboard');
-    setActivePane('wb');
-    setStatusFile('Untitled whiteboard', 1);
-  }
-
-  // ── timing schedule ────────────────────────────────────────────────
   function buildSchedule() {
     var s = [];
-    s.push([0.0, reset]);
-    s.push([1.4, function () { setCursor('[data-anim="input"]', { offsetX: 30, offsetY: 14 }); }]);
-    s.push([1.9, function () { if (inputCaret) inputCaret.style.display = ''; }]);
 
-    var typeStart = 2.1;
-    var perChar = 0.055;
+    s.push([0.0, reset]);
+
+    s.push([1.2, function () {
+      cursor.classList.add('visible');
+      moveCursor(inputEl, 18, 16);
+    }]);
+
+    s.push([1.7, function () { if (caret) caret.style.display = ''; }]);
+
+    var typeStart = 2.1, perChar = 0.048;
     for (var i = 1; i <= PROMPT.length; i++) {
       (function (n) {
         s.push([typeStart + (n - 1) * perChar, function () {
-          inputText.textContent = PROMPT.slice(0, n);
+          if (inputText) inputText.textContent = PROMPT.slice(0, n);
         }]);
       })(i);
     }
+    var doneTyping = typeStart + PROMPT.length * perChar;
 
-    var sendT = typeStart + PROMPT.length * perChar + 0.3;
-    s.push([sendT, function () { setCursor('[data-anim="send-btn"]'); }]);
-    s.push([sendT + 0.4, function () {
-      pulseClick();
-      addUserMessage(PROMPT);
-      inputText.textContent = '';
-      if (inputCaret) inputCaret.style.display = 'none';
-      showThinking();
+    s.push([doneTyping + 0.2, function () { moveCursor(sendBtn); }]);
+
+    var sendT = doneTyping + 0.65;
+    s.push([sendT, function () {
+      click();
+      if (inputText) inputText.textContent = '';
+      if (caret)     caret.style.display   = 'none';
+      if (userText)  userText.textContent  = PROMPT;
+      show(msgUser);
+      show(thinking);
     }]);
 
-    var streamStart = sendT + 1.2;
-    s.push([streamStart, function () {
-      removeThinking();
-      startAssistantStream();
-    }]);
+    s.push([sendT + 0.35, function () { cursor.classList.remove('visible'); }]);
 
-    var t = streamStart + 0.05;
-    var perBlock = 0.7;
-    for (var c = 0; c < ASSISTANT_BLOCKS.length; c++) {
-      (function (idx) {
-        s.push([t, function () {
-          appendAssistantBlock(ASSISTANT_BLOCKS[idx], idx === ASSISTANT_BLOCKS.length - 1);
+    var streamStart = sendT + 1.5;
+    s.push([streamStart, function () { hide(thinking); show(msgAi); }]);
+
+    var perAiChar = 0.02;
+    for (var j = 1; j <= AI_RESPONSE.length; j++) {
+      (function (n) {
+        s.push([streamStart + 0.05 + (n - 1) * perAiChar, function () {
+          if (aiText) aiText.textContent = AI_RESPONSE.slice(0, n);
         }]);
-      })(c);
-      t += perBlock;
+      })(j);
     }
-    s.push([t + 0.1, finishAssistantStream]);
+    var doneStream = streamStart + 0.05 + AI_RESPONSE.length * perAiChar;
 
-    var fileAppearT = t + 0.4;
-    s.push([fileAppearT, appearBrandVoiceFile]);
+    s.push([doneStream + 0.3,  function () { show(saved); }]);
+    s.push([doneStream + 0.85, function () { show(newFile); }]);
 
-    // Scene 2: switch to Files grid view
-    var gridT = fileAppearT + 1.4;
-    s.push([gridT, function () { setCursor('.hero-anim__nav-item--active'); }]);
-    s.push([gridT + 0.55, function () { pulseClick(); openGridView(); }]);
-
-    // Scene 3: drag Brand Voice.md into the Brand folder
-    var dragStartT = gridT + 1.6;
-    s.push([dragStartT, function () { setCursor('[data-grid="Brand Voice.md"]'); }]);
-    s.push([dragStartT + 0.7, function () {
-      pulseClick();
-      placeGhostAtCursor();
-      showGhost();
-    }]);
-    s.push([dragStartT + 0.9, function () {
-      // Move cursor (and ghost) toward the Brand folder
-      setCursor('[data-grid="Brand"]');
-      // Re-place the ghost at the new cursor target after the transition
-      // (use a one-shot RAF so the ghost transition tracks the cursor)
-      requestAnimationFrame(function () { placeGhostAtCursor(); });
-      highlightFolder('Brand', true);
-    }]);
-    s.push([dragStartT + 1.7, function () {
-      // Drop animation: file vanishes into the folder
-      hideGhost();
-      vanishGridCell('Brand Voice.md');
-      pulseClick();
-    }]);
-    s.push([dragStartT + 2.3, function () { highlightFolder('Brand', false); }]);
-
-    // Scene 4: switch to Whiteboard
-    var wbT = dragStartT + 2.8;
-    s.push([wbT, function () {
-      // Move cursor to the Whiteboard nav item (4th from bottom of nav)
-      var wbNav = root.querySelectorAll('.hero-anim__nav-item')[5];
-      if (wbNav) {
-        var rect = root.getBoundingClientRect();
-        var r = wbNav.getBoundingClientRect();
-        cursor.style.left = (r.left - rect.left + r.width / 2) + 'px';
-        cursor.style.top  = (r.top  - rect.top  + r.height / 2) + 'px';
-      }
-    }]);
-    s.push([wbT + 0.55, function () { pulseClick(); openWhiteboard(); }]);
-
-    // Scene 5: draw on the whiteboard. Use a small delay so the canvas
-    // renders + transitions in before drawing starts.
-    var drawT = wbT + 1.2;
-    s.push([drawT, function () {
-      // Move cursor to the start of the path
-      if (wbPath) {
-        var pt = wbPath.getPointAtLength(0);
-        var rect = root.getBoundingClientRect();
-        var svgRect = wbPath.ownerSVGElement.getBoundingClientRect();
-        var vb = wbPath.ownerSVGElement.viewBox.baseVal;
-        var x = (svgRect.left - rect.left) + (pt.x / vb.width) * svgRect.width;
-        var y = (svgRect.top  - rect.top)  + (pt.y / vb.height) * svgRect.height;
-        cursor.style.left = x + 'px';
-        cursor.style.top  = y + 'px';
-      }
-    }]);
-    s.push([drawT + 0.5, function () {
-      wbReset();
-      wbDraw();
-    }]);
-    // Cursor follows the pencil along the path while it draws
-    var trail = wbCursorTrail(drawT + 0.5, 2.4, 30);
-    trail.forEach(function (entry) { s.push(entry); });
-
-    return { schedule: s, total: drawT + 4.5 };
+    return { schedule: s, total: doneStream + 4.5 };
   }
 
-  var built = buildSchedule();
+  var built    = buildSchedule();
   var schedule = built.schedule;
-  var TOTAL = built.total;
+  var TOTAL    = built.total;
 
-  // ── RAF loop ───────────────────────────────────────────────────────
   var startedAt = null;
-  var firedThisCycle = new Set();
+  var fired     = [];
+
   function tick(ts) {
-    if (startedAt == null) startedAt = ts;
+    if (startedAt === null) { startedAt = ts; fired = []; }
     var elapsed = (ts - startedAt) / 1000;
-    if (elapsed >= TOTAL) {
-      startedAt = ts;
-      firedThisCycle = new Set();
-      elapsed = 0;
-    }
+    if (elapsed >= TOTAL) { startedAt = ts; fired = []; elapsed = 0; }
     for (var i = 0; i < schedule.length; i++) {
-      if (firedThisCycle.has(i)) continue;
+      if (fired[i]) continue;
       if (elapsed >= schedule[i][0]) {
-        try { schedule[i][1](); } catch (e) { /* keep the loop alive */ }
-        firedThisCycle.add(i);
+        try { schedule[i][1](); } catch (e) { /* keep loop alive */ }
+        fired[i] = true;
       }
     }
     requestAnimationFrame(tick);
@@ -493,10 +154,7 @@
   if ('IntersectionObserver' in window) {
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) {
-        if (e.isIntersecting) {
-          requestAnimationFrame(tick);
-          io.disconnect();
-        }
+        if (e.isIntersecting) { requestAnimationFrame(tick); io.disconnect(); }
       });
     }, { threshold: 0.15 });
     io.observe(root);

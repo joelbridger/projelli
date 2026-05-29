@@ -1,0 +1,113 @@
+/* Keepance shared site navigation — dark navy design (2026-05-28 redesign).
+ * Loaded by every secondary page (blog, press kit, legal, changelog, docs).
+ * Homepage uses its own inline nav; this serves everything else.
+ */
+.keepance-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #0A2540;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.keepance-nav-inner {
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+  max-width: 1160px;
+  margin: 0 auto;
+  gap: 24px;
+  height: 64px;
+}
+.keepance-nav-logo {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.keepance-nav-logo svg {
+  height: 26px;
+  width: auto;
+  display: block;
+}
+.keepance-nav-links {
+  display: flex;
+  gap: 22px;
+  font-size: 14px;
+  margin-left: auto;
+  align-items: center;
+}
+.keepance-nav-links a { white-space: nowrap; }
+.keepance-nav-links a {
+  color: rgba(255, 255, 255, 0.5);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+.keepance-nav-links a:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+.keepance-nav-cta {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
+  background: linear-gradient(135deg, #FF3CE8 0%, #5DC6FF 100%);
+  color: white;
+  border-radius: 6px;
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 13.5px;
+  transition: filter 0.2s;
+  flex-shrink: 0;
+  letter-spacing: 0.01em;
+}
+.keepance-nav-cta:hover {
+  filter: brightness(1.1);
+}
+/* Mobile menu */
+.keepance-nav-burger {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  color: rgba(255, 255, 255, 0.7);
+  flex-shrink: 0;
+}
+.keepance-nav-burger svg { display: block; width: 22px; height: 22px; }
+.keepance-nav-mobile {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #0A2540;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 18px 28px 24px;
+  flex-direction: column;
+  gap: 14px;
+}
+.keepance-nav-mobile.is-open { display: flex; }
+.keepance-nav-mobile a {
+  color: rgba(255, 255, 255, 0.65);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 15px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.keepance-nav-mobile a:last-child { border-bottom: none; }
+.keepance-nav-mobile .keepance-nav-cta {
+  align-self: flex-start;
+  margin-top: 6px;
+  border-bottom: none;
+}
+
+@media (max-width: 860px) {
+  .keepance-nav-links { display: none; }
+  .keepance-nav-inner > .keepance-nav-cta { display: none; }
+  .keepance-nav-burger { display: flex; }
+}
+@media (min-width: 861px) {
+  .keepance-nav-mobile { display: none !important; }
+}

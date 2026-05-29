@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plugin Examples, Projelli</title>
-  <meta name="description" content="Annotated walkthrough of 4 working Projelli plugins: word counter, translator, pomodoro, mermaid preview.">
-  <link rel="canonical" href="https://projelli.com/docs/plugins/examples">
+  <title>Plugin Examples, Keepance</title>
+  <meta name="description" content="Annotated walkthrough of 4 working Keepance plugins: word counter, translator, pomodoro, mermaid preview.">
+  <link rel="canonical" href="https://keepance.com/docs/plugins/examples">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
@@ -41,8 +41,8 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 </head>
 <body>
   <div class="container">
@@ -50,7 +50,7 @@
     <h1>Examples</h1>
     <p class="meta">Four working plugins, each demonstrating a different slice of the API.</p>
 
-    <p>Every example below is a real, working plugin shipped in <code>plugin-examples/</code> in the <a href="https://github.com/projelli/projelli" target="_blank" rel="noopener">main Projelli repo</a>. They're MIT-licensed; fork freely.</p>
+    <p>Every example below is a real, working plugin shipped in <code>plugin-examples/</code> in the <a href="https://github.com/keepance/keepance" target="_blank" rel="noopener">main Keepance repo</a>. They're MIT-licensed; fork freely.</p>
 
     <p>Read them in order. They get progressively more involved.</p>
 
@@ -100,7 +100,7 @@ setInterval(() =&gt; { void refresh(); }, 500);</code></pre>
 
     <p>Note: <code>addPanel</code> with an existing id replaces the panel content. That's how the sidebar updates without flicker.</p>
 
-    <a class="source-link" href="https://github.com/projelli/projelli/tree/master/plugin-examples/word-counter" target="_blank" rel="noopener">Source: plugin-examples/word-counter/ &rarr;</a>
+    <a class="source-link" href="https://github.com/keepance/keepance/tree/master/plugin-examples/word-counter" target="_blank" rel="noopener">Source: plugin-examples/word-counter/ &rarr;</a>
 
     <h2>2. Translator</h2>
 
@@ -156,7 +156,7 @@ api.commands.register('translator.translate', async () =&gt; {
 
     <p>Note the system prompt: precise instructions matter. Without "Output only the translation," models often add commentary or quotation marks that end up replacing the user's selection with junk.</p>
 
-    <a class="source-link" href="https://github.com/projelli/projelli/tree/master/plugin-examples/translator" target="_blank" rel="noopener">Source: plugin-examples/translator/ &rarr;</a>
+    <a class="source-link" href="https://github.com/keepance/keepance/tree/master/plugin-examples/translator" target="_blank" rel="noopener">Source: plugin-examples/translator/ &rarr;</a>
 
     <h2>3. Pomodoro</h2>
 
@@ -207,7 +207,7 @@ api.toolbar.addButton({
   command: 'pomodoro.start',
 });</code></pre>
 
-    <a class="source-link" href="https://github.com/projelli/projelli/tree/master/plugin-examples/pomodoro" target="_blank" rel="noopener">Source: plugin-examples/pomodoro/ &rarr;</a>
+    <a class="source-link" href="https://github.com/keepance/keepance/tree/master/plugin-examples/pomodoro" target="_blank" rel="noopener">Source: plugin-examples/pomodoro/ &rarr;</a>
 
     <h2>4. Mermaid Preview</h2>
 
@@ -253,7 +253,7 @@ api.sidebar.addPanel({ id: 'mermaid-panel', title: 'Mermaid Preview', html });</
 
     <p>Loading dependencies from a CDN inside the iframe keeps the plugin bundle tiny (the worker doesn't ship mermaid at all) and keeps the worker CPU free. v2.1 may add a worker-side rendering API; until then, this is the cleanest pattern for any plugin that needs a DOM-heavy library.</p>
 
-    <a class="source-link" href="https://github.com/projelli/projelli/tree/master/plugin-examples/mermaid-preview" target="_blank" rel="noopener">Source: plugin-examples/mermaid-preview/ &rarr;</a>
+    <a class="source-link" href="https://github.com/keepance/keepance/tree/master/plugin-examples/mermaid-preview" target="_blank" rel="noopener">Source: plugin-examples/mermaid-preview/ &rarr;</a>
 
     <h2>What's next</h2>
 
@@ -263,5 +263,35 @@ api.sidebar.addPanel({ id: 'mermaid-panel', title: 'Mermaid Preview', html });</
       <li>When you're ready, follow the <a href="/docs/plugins/publishing">publishing guide</a> to ship to the marketplace.</li>
     </ul>
   </div>
+
+  <footer class="kp-footer">
+    <div class="kp-footer-inner">
+      <a href="/" class="kp-footer-brand">Keepance</a>
+      <nav class="kp-footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="kp-footer-copy">Built by <a href="https://jamesondaines.com">Jameson Daines</a></span>
+    </div>
+  </footer>
+  <style>
+    .kp-footer { background: #0A2540; padding: 36px 24px; margin-top: 64px; }
+    .kp-footer-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; font-family: 'Satoshi', system-ui, sans-serif; }
+    .kp-footer-brand { color: rgba(255,255,255,0.85); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    .kp-footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
+    .kp-footer-links a { color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+    .kp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+    .kp-footer-copy { color: rgba(255,255,255,0.35); font-size: 12px; }
+    .kp-footer-copy a { color: inherit; }
+  </style>
+
 </body>
 </html>

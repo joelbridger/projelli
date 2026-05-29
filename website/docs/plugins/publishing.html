@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Publishing a Plugin, Projelli</title>
-  <meta name="description" content="How to submit your Projelli plugin to the in-app marketplace via pull request.">
-  <link rel="canonical" href="https://projelli.com/docs/plugins/publishing">
+  <title>Publishing a Plugin, Keepance</title>
+  <meta name="description" content="How to submit your Keepance plugin to the in-app marketplace via pull request.">
+  <link rel="canonical" href="https://keepance.com/docs/plugins/publishing">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
@@ -42,8 +42,8 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 </head>
 <body>
   <div class="container">
@@ -51,10 +51,10 @@
     <h1>Publishing</h1>
     <p class="meta">How to submit your plugin to the in-app marketplace.</p>
 
-    <p>The Projelli marketplace is a public GitHub repository, <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener"><code>projelli/community-plugins</code></a>. Each plugin is one folder under <code>entries/</code>, containing the manifest, the built bundle, and screenshots. To publish, fork the repo, add your entry, and open a pull request. After review, your plugin appears in the in-app marketplace and users can install it with one click.</p>
+    <p>The Keepance marketplace is a public GitHub repository, <a href="https://github.com/keepance/community-plugins" target="_blank" rel="noopener"><code>keepance/community-plugins</code></a>. Each plugin is one folder under <code>entries/</code>, containing the manifest, the built bundle, and screenshots. To publish, fork the repo, add your entry, and open a pull request. After review, your plugin appears in the in-app marketplace and users can install it with one click.</p>
 
     <div class="repo-cta">
-      <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener">Fork projelli/community-plugins on GitHub</a>
+      <a href="https://github.com/keepance/community-plugins" target="_blank" rel="noopener">Fork keepance/community-plugins on GitHub</a>
       <a href="/docs/marketplace-submissions">General submission guide</a>
     </div>
 
@@ -74,7 +74,7 @@
 
     <h2>Step 1: Fork the repo</h2>
 
-    <p>Go to <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener">github.com/projelli/community-plugins</a> and click Fork. Clone your fork locally.</p>
+    <p>Go to <a href="https://github.com/keepance/community-plugins" target="_blank" rel="noopener">github.com/keepance/community-plugins</a> and click Fork. Clone your fork locally.</p>
 
     <pre><code>git clone https://github.com/&lt;your-username&gt;/community-plugins.git
 cd community-plugins</code></pre>
@@ -116,7 +116,7 @@ git add entries/my-plugin/
 git commit -m "Add my-plugin v1.0.0"
 git push origin add-my-plugin</code></pre>
 
-    <p>Open a PR against <code>main</code> on <code>projelli/community-plugins</code>. Use this title format: <code>Add &lt;plugin-name&gt; v&lt;version&gt;</code>.</p>
+    <p>Open a PR against <code>main</code> on <code>keepance/community-plugins</code>. Use this title format: <code>Add &lt;plugin-name&gt; v&lt;version&gt;</code>.</p>
 
     <p>In the PR description, include:</p>
 
@@ -143,7 +143,7 @@ git push origin add-my-plugin</code></pre>
 
     <h2>Updating an existing plugin</h2>
 
-    <p>To ship a new version: bump <code>version</code> in your manifest, build a new tarball with the new version in the filename (<code>my-plugin-1.1.0.tgz</code>), drop both into your existing <code>entries/my-plugin/</code> folder, and open a PR. Old versions stay in the folder so users on older Projelli builds can still install compatible releases.</p>
+    <p>To ship a new version: bump <code>version</code> in your manifest, build a new tarball with the new version in the filename (<code>my-plugin-1.1.0.tgz</code>), drop both into your existing <code>entries/my-plugin/</code> folder, and open a PR. Old versions stay in the folder so users on older Keepance builds can still install compatible releases.</p>
 
     <h2>Removing a plugin</h2>
 
@@ -151,9 +151,39 @@ git push origin add-my-plugin</code></pre>
 
     <h2>Reporting a malicious plugin</h2>
 
-    <p>If you find a plugin in the marketplace that's doing something it shouldn't (asking for permissions it doesn't need, exfiltrating data, hiding behavior), open an issue on <code>projelli/community-plugins</code> with the plugin id and details. We take takedowns seriously.</p>
+    <p>If you find a plugin in the marketplace that's doing something it shouldn't (asking for permissions it doesn't need, exfiltrating data, hiding behavior), open an issue on <code>keepance/community-plugins</code> with the plugin id and details. We take takedowns seriously.</p>
 
     <a href="/docs/plugins/examples" class="next-link">Next: Examples &rarr;</a>
   </div>
+
+  <footer class="kp-footer">
+    <div class="kp-footer-inner">
+      <a href="/" class="kp-footer-brand">Keepance</a>
+      <nav class="kp-footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="kp-footer-copy">Built by <a href="https://jamesondaines.com">Jameson Daines</a></span>
+    </div>
+  </footer>
+  <style>
+    .kp-footer { background: #0A2540; padding: 36px 24px; margin-top: 64px; }
+    .kp-footer-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; font-family: 'Satoshi', system-ui, sans-serif; }
+    .kp-footer-brand { color: rgba(255,255,255,0.85); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    .kp-footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
+    .kp-footer-links a { color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+    .kp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+    .kp-footer-copy { color: rgba(255,255,255,0.35); font-size: 12px; }
+    .kp-footer-copy a { color: inherit; }
+  </style>
+
 </body>
 </html>

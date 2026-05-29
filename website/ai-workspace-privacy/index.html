@@ -3,40 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AI workspace privacy: a founder's data flow guide | Projelli</title>
-  <meta name="description" content="Where do your AI conversations actually go? A practical privacy guide for founders, with the data flows and policies to read before you trust an AI tool.">
-  <link rel="canonical" href="https://projelli.com/ai-workspace-privacy">
+  <title>AI workspace privacy: a data flow guide for attorneys, CPAs, and consultants | Keepance</title>
+  <meta name="description" content="Where do your AI conversations actually go? A practical privacy guide for attorneys, CPAs, and consultants, with the data flows and policies to read before you trust an AI tool with client files.">
+  <link rel="canonical" href="https://keepance.com/ai-workspace-privacy">
   <meta name="robots" content="index, follow">
   <meta property="og:type" content="article">
-  <meta property="og:url" content="https://projelli.com/ai-workspace-privacy">
-  <meta property="og:title" content="AI workspace privacy: a founder's data flow guide">
-  <meta property="og:description" content="Where do your AI conversations actually go? A practical privacy guide for founders, with the data flows and policies to read before you trust an AI tool.">
-  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <meta property="og:url" content="https://keepance.com/ai-workspace-privacy">
+  <meta property="og:title" content="AI workspace privacy: a data flow guide for attorneys, CPAs, and consultants">
+  <meta property="og:description" content="Where do your AI conversations actually go? A practical privacy guide for attorneys, CPAs, and consultants, with the data flows and policies to read before you trust an AI tool with client files.">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="AI workspace privacy: a founder's guide">
-  <meta name="twitter:description" content="Where do your AI conversations actually go? A practical privacy guide for founders, with the data flows and policies to read before you trust an AI tool.">
-  <meta name="twitter:image" content="https://projelli.com/og-image.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <meta name="twitter:title" content="AI workspace privacy: a guide for attorneys, CPAs, and consultants">
+  <meta name="twitter:description" content="Where do your AI conversations actually go? A practical privacy guide for professionals with confidentiality obligations, with the data flows and policies to read before you trust an AI tool.">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "Article",
-    "headline": "AI workspace privacy: a founder's data flow guide",
-    "description": "Where do your AI conversations actually go? A practical privacy guide for founders using AI tools, with threat models, data flows, and specific terms-of-service to read before you put a strategic doc in front of any AI.",
-    "url": "https://projelli.com/ai-workspace-privacy",
+    "headline": "AI workspace privacy: a data flow guide for attorneys, CPAs, and consultants",
+    "description": "Where do your AI conversations actually go? A practical privacy guide for professionals with confidentiality obligations, with threat models, data flows, and specific terms-of-service to read before you put client files in front of any AI.",
+    "url": "https://keepance.com/ai-workspace-privacy",
     "datePublished": "2026-04-27",
     "dateModified": "2026-04-27",
-    "image": "https://projelli.com/og-image.png",
+    "image": "https://keepance.com/og-image.png",
     "publisher": {
       "@type": "Organization",
-      "name": "Projelli",
-      "url": "https://projelli.com",
-      "logo": "https://projelli.com/og-image.png"
+      "name": "Keepance",
+      "url": "https://keepance.com",
+      "logo": "https://keepance.com/og-image.png"
     },
-    "mainEntityOfPage": "https://projelli.com/ai-workspace-privacy"
+    "mainEntityOfPage": "https://keepance.com/ai-workspace-privacy"
   }
   </script>
   <script type="application/ld+json">
@@ -49,7 +47,7 @@
         "name": "Does ChatGPT train on my conversations?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Consumer ChatGPT (chatgpt.com) trains on conversations by default for free and Plus users; you can opt out in Settings → Data Controls. The OpenAI API (which powers BYOK tools like Projelli) does not train on inputs by default. Source: OpenAI's API data usage policy."
+          "text": "Consumer ChatGPT (chatgpt.com) trains on conversations by default for free and Plus users; you can opt out in Settings → Data Controls. The OpenAI API (which powers BYOK tools like Keepance) does not train on inputs by default. Source: OpenAI's API data usage policy."
         }
       },
       {
@@ -81,7 +79,7 @@
         "name": "What about local models like Ollama? Are they fully private?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Yes. With Ollama or LM Studio running open-weight models, the AI itself runs on your machine. Nothing leaves your device. The trade-off is quality: open-weight models lag behind Claude / GPT / Gemini on long-form strategic work. Most founders use a hybrid: BYOK Claude for high-stakes tasks, local Ollama for volume tasks where 90% quality is fine."
+          "text": "Yes. With Ollama or LM Studio running open-weight models, the AI itself runs on your machine. Nothing leaves your device. The trade-off is quality: open-weight models lag behind Claude / GPT / Gemini on long-form analytical and legal work. Most attorneys and CPAs use a hybrid: BYOK Claude for high-stakes tasks, local Ollama for volume tasks where 90% quality is fine."
         }
       },
       {
@@ -108,7 +106,7 @@
       --accent-coral: #FF7C6E;
     }
     html { scroll-behavior: smooth; }
-    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.75; -webkit-font-smoothing: antialiased; }
+    body { font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.75; -webkit-font-smoothing: antialiased; }
     .nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-gray); }
     .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; max-width: 900px; margin: 0 auto; }
     .nav a.brand { font-weight: 700; color: var(--text-heading); text-decoration: none; font-size: 18px; }
@@ -156,50 +154,38 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 
+</head>
 <body>
-  <nav class="nav">
-    <div class="nav-inner">
-      <a href="/" class="brand">Projelli</a>
-      <div class="nav-links">
-        <a href="/">Home</a>
-        <a href="/templates/">Templates</a>
-        <a href="/vs/">vs Others</a>
-        <a href="/blog/">Blog</a>
-      </div>
-    </div>
-  </nav>
-
-  <div class="container">
-    <h1>AI workspace privacy: a founder's data flow guide.</h1>
+<div class="container">
+    <h1>AI workspace privacy: a data flow guide for attorneys, CPAs, and consultants.</h1>
     <p class="meta">Updated 2026-04-27 · 12 min read</p>
 
     <div class="summary">
-      <p><strong>The short version.</strong> Most AI workspace tools fall into one of three privacy postures. Cloud workspaces (Notion AI, ChatGPT Plus, Reflect) store your data on their servers and route AI through their pipeline. BYOK desktop tools (Projelli, Cursor, Continue.dev) keep your data on your machine and route AI calls directly to your chosen provider with your key. Fully local AI (Ollama, LM Studio) keeps everything on your machine, including the model. The right posture depends on the threat you actually care about. This page maps each.</p>
+      <p><strong>The short version.</strong> Most AI workspace tools fall into one of three privacy postures. Cloud workspaces (Notion AI, ChatGPT Plus, Reflect) store your data on their servers and route AI through their pipeline. BYOK desktop tools (Keepance, Cursor, Continue.dev) keep your data on your machine and route AI calls directly to your chosen provider with your key. Fully local AI (Ollama, LM Studio) keeps everything on your machine, including the model. The right posture depends on the threat you actually care about. This page maps each.</p>
     </div>
 
     <p>I'm going to walk through where your data actually goes when you use an AI workspace tool. Not the marketing version. The technical version, with the specific terms of service that govern each path.</p>
 
-    <p>Most founders I talk to are vaguely uncomfortable with putting their pitch decks and customer interview notes into ChatGPT, but haven't read the terms closely enough to know what's actually true. So they either trust the marketing language ("we don't sell your data") or they don't use AI on the sensitive work at all, which means they leave a lot of value on the table. There's a better posture, and it starts with knowing the actual data flow.</p>
+    <p>Most attorneys, CPAs, and consultants I talk to are vaguely uncomfortable with putting client files and confidential work product into ChatGPT, but haven't read the terms closely enough to know what's actually true. So they either trust the marketing language ("we don't sell your data") or they don't use AI on the sensitive work at all, which means they leave a lot of value on the table. There's a better posture, and it starts with knowing the actual data flow. For attorneys, the stakes are especially concrete: ABA Formal Opinion 512 addresses competent use of AI, and U.S. v. Heppner established that using consumer AI can constitute a waiver of privilege.</p>
 
-    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-01-workspace.png" alt="Projelli workspace: file tree, editor, and AI chat with all data on the user's hard drive" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
+    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-01-workspace.png" alt="Keepance workspace: file tree, editor, and AI chat with all data on the user's hard drive" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
 
     <h2>What's in your AI workspace, really</h2>
 
-    <p>Before talking about where the data goes, take stock of what's actually in there. For an indie founder, an AI workspace typically holds:</p>
+    <p>Before talking about where the data goes, take stock of what's actually in there. For an attorney, CPA, or consultant, an AI workspace typically holds:</p>
 
     <ul>
-      <li><strong>Strategic documents.</strong> Pitch deck drafts, business plan, lean canvas, vision and mission statements.</li>
-      <li><strong>Financial models.</strong> Revenue projections, burn rate, pricing experiments, scenario plans.</li>
-      <li><strong>Customer data.</strong> Interview transcripts, persona docs, support tickets, win/loss notes. This often contains real names, emails, and quotes from people who didn't consent to having them processed by an AI.</li>
-      <li><strong>Hiring and team material.</strong> Job descriptions, interview rubrics, candidate notes, performance review drafts.</li>
-      <li><strong>Investor material.</strong> Updates, board prep, cap table thinking, fundraising correspondence.</li>
-      <li><strong>Personal reflection.</strong> Weekly review notes, hard-month emails to mentors, drafts of difficult conversations.</li>
+      <li><strong>Client files and case notes.</strong> Matter summaries, case strategy, client communications, privileged research. For attorneys this is attorney-client privileged material. For tax professionals, this is IRC §7216-protected client data.</li>
+      <li><strong>Confidential work product.</strong> Draft memos, contract markups, tax work papers, due diligence notes. Work protected by professional privilege or NDA obligations.</li>
+      <li><strong>Client financial data.</strong> Tax returns, financial statements, audit findings, compensation details. Third-party information clients expect you to protect.</li>
+      <li><strong>Engagement materials.</strong> Engagement letters, billing notes, matter management, deadline tracking. Contains client names, matter descriptions, and fee arrangements.</li>
+      <li><strong>Internal professional materials.</strong> Practice development notes, peer reviews, sensitive operational content you wouldn't want appearing in a vendor's database.</li>
     </ul>
 
-    <p>Most of this is more sensitive than the email you're encrypting and the password manager you're paying for. Yet the privacy posture for AI workspaces is often weaker than either. Closing that gap is what this page is about.</p>
+    <p>Most of this is subject to professional confidentiality obligations, privilege protections, or explicit regulatory requirements. The privacy posture for AI workspaces is often far weaker than what these obligations demand. Closing that gap is what this page is about.</p>
 
     <h2>The three postures</h2>
 
@@ -227,7 +213,7 @@
 
     <h3>Posture 2: Local-first desktop tool with BYOK</h3>
 
-    <p>Examples: Projelli, Cursor (with BYOK), Continue.dev, Obsidian + AI plugins.</p>
+    <p>Examples: Keepance, Cursor (with BYOK), Continue.dev, Obsidian + AI plugins.</p>
 
     <p>Data flow:</p>
     <ol>
@@ -247,7 +233,7 @@
 
     <h3>Posture 3: Fully local AI</h3>
 
-    <p>Examples: Ollama running Llama 3 or Mistral; LM Studio with any open-weight model; Projelli with the Ollama provider configured.</p>
+    <p>Examples: Ollama running Llama 3 or Mistral; LM Studio with any open-weight model; Keepance with the Ollama provider configured.</p>
 
     <p>Data flow:</p>
     <ol>
@@ -302,7 +288,7 @@
 
     <h2>Threat models: what are you protecting against?</h2>
 
-    <p>Privacy talk gets vague when there's no specific threat in mind. Three concrete ones for an indie founder, ranked by likelihood:</p>
+    <p>Privacy talk gets vague when there's no specific threat in mind. Three concrete ones for attorneys, CPAs, and consultants, ranked by likelihood:</p>
 
     <h3>Threat 1: Vendor terms-of-service drift</h3>
 
@@ -318,7 +304,7 @@
 
     <h3>Threat 3: Subpoena / legal process</h3>
 
-    <p>Less likely for most founders but real. A regulator, opposing counsel, or law enforcement requests records. Whatever the workspace company holds is potentially producible. Whatever you hold on your machine is also potentially producible, but the path is different and the protections (attorney-client privilege, fifth amendment for self-incrimination) are stronger.</p>
+    <p>Less likely for most professionals but real. A regulator, opposing counsel, or law enforcement requests records. Whatever the workspace company holds is potentially producible. Whatever you hold on your machine is also potentially producible, but the path is different and the protections (attorney-client privilege, fifth amendment for self-incrimination) are stronger.</p>
 
     <p>Mitigation: keep workspace data local; AI provider sees only the specific text you sent for inference, not the whole archive.</p>
 
@@ -328,26 +314,26 @@
 
     <h2>Practical privacy checklist</h2>
 
-    <p>For a founder doing strategic work with AI in 2026, here's the working checklist:</p>
+    <p>For an attorney, CPA, or consultant using AI in 2026, here's the working checklist:</p>
 
     <ol>
-      <li><strong>Pick your AI provider's API tier (BYOK), not their consumer chatbot.</strong> Better default privacy posture.</li>
-      <li><strong>Use a local-first desktop tool</strong> that keeps your conversation history on your machine. Projelli, Cursor with BYOK, Obsidian with an AI plugin. Avoid putting the working files in a cloud workspace's database.</li>
+      <li><strong>Pick your AI provider's API tier (BYOK), not their consumer chatbot.</strong> Better default privacy posture, no training on your data by default.</li>
+      <li><strong>Use a local-first desktop tool</strong> that keeps your conversation history on your machine. Keepance, Cursor with BYOK, Obsidian with an AI plugin. Avoid putting client files in a cloud workspace's database.</li>
       <li><strong>Set a hard monthly cap</strong> on each AI provider's billing. Limits damage if a key leaks.</li>
       <li><strong>Encrypt the disk.</strong> Both macOS (FileVault) and Windows (BitLocker) make this trivial. If your laptop is stolen, the workspace folder is unreadable.</li>
       <li><strong>Don't store API keys in plaintext.</strong> Use the OS keychain (macOS) or an encrypted file (Windows / Linux) inside the desktop app.</li>
-      <li><strong>For very sensitive content, use local Ollama.</strong> Anything that touches a draft of a thing you genuinely don't want shown later. Customer interview transcripts with names, performance review notes, fundraising correspondence.</li>
-      <li><strong>Don't send PII you collected from third parties without consent.</strong> If a customer interviewee didn't agree to having their name go through an AI, redact before sending.</li>
+      <li><strong>For very sensitive content, use local Ollama.</strong> Anything you genuinely can't risk touching any server: draft client filings, privileged strategy notes, tax return data with client names.</li>
+      <li><strong>Don't send client PII without redacting first.</strong> If the client didn't consent to having their name processed by an AI provider, redact before sending. This matters especially for attorneys under Model Rule 1.6 and CPAs under IRC §7216.</li>
       <li><strong>Read each provider's TOS once a year.</strong> They change. Calendar reminder, 15 minutes, done.</li>
     </ol>
 
-    <h2>How Projelli implements the local-first BYOK posture</h2>
+    <h2>How Keepance implements the local-first BYOK posture</h2>
 
-    <p>Specifically, here's what Projelli does:</p>
+    <p>Specifically, here's what Keepance does:</p>
 
     <ul>
-      <li><strong>No Projelli account.</strong> No signup. No password.</li>
-      <li><strong>No Projelli servers in the data path.</strong> The desktop app talks directly to Anthropic / OpenAI / Google / your local Ollama. Projelli's server-side infrastructure (the marketing site, the license validator, the form handler) never sees your prompts or your files.</li>
+      <li><strong>No Keepance account.</strong> No signup. No password.</li>
+      <li><strong>No Keepance servers in the data path.</strong> The desktop app talks directly to Anthropic / OpenAI / Google / your local Ollama. Keepance's server-side infrastructure (the marketing site, the license validator, the form handler) never sees your prompts or your files.</li>
       <li><strong>API keys in OS keychain.</strong> macOS Keychain, Windows Credential Manager equivalent, Linux libsecret. Never plaintext, never in localStorage where they'd be readable by stray scripts.</li>
       <li><strong>Conversations as files in your folder.</strong> Every chat saves as a `.aichat` file in the workspace folder you chose. Open with any text editor.</li>
       <li><strong>Audit log on your machine.</strong> Every AI action, every file change, every workflow run is logged to an append-only file you can read or grep.</li>
@@ -355,17 +341,17 @@
       <li><strong>Update checks.</strong> The app does check for updates from GitHub Releases (signed via minisign). This is one network call to GitHub and contains no user data, only a request for the latest version manifest.</li>
       <li><strong>Plugins are sandboxed.</strong> The v2.0 plugin runtime is a Web Worker with a manifest-declared permission model. Six permissions: <code>workspace:read</code>, <code>workspace:write</code>, <code>editor:selection</code>, <code>editor:write</code>, <code>ai:invoke</code>, and <code>network</code>. You see the requested permissions in plain language before you install. Every plugin action lands in the audit log. <code>ai:invoke</code> uses your BYOK key, so a plugin can't route your prompts somewhere other than your chosen provider. Full reference at <a href="/docs/plugins/permissions">/docs/plugins/permissions</a>.</li>
       <li><strong>Multilingual UI is local.</strong> Spanish and German interface translations ship inside the app bundle. No network calls to fetch a locale.</li>
-      <li><strong>The web demo at <a href="/try/">projelli.com/try</a> is the one exception</strong> and is clearly labeled as such. It's a five-message trial running on a Projelli-managed Bun proxy that holds a shared Anthropic key. Anything you type into the demo goes through Projelli's server, which exists only so people can try the chat without grabbing an API key first. The desktop app does none of this; nothing in <code>/try</code> applies once you've installed the real app and pasted your own key.</li>
+      <li><strong>The homepage web demo is the one exception</strong> and is clearly labeled as such. It's a five-message trial running on a Keepance-managed Bun proxy that holds a shared Anthropic key. Anything you type into the demo goes through Keepance's server, which exists only so people can try the chat without grabbing an API key first. Do not put client data into the demo. The desktop app does none of this; once you've installed the real app and pasted your own key, the local-first promise applies fully.</li>
     </ul>
 
-    <p>Source code is open at <a href="https://github.com/projelli/projelli" target="_blank" rel="noopener">github.com/projelli/projelli</a>. The full privacy policy is at <a href="/legal/privacy">/legal/privacy</a>.</p>
+    <p>Source code is open at <a href="https://github.com/keepance/keepance" target="_blank" rel="noopener">github.com/keepance/keepance</a>. The full privacy policy is at <a href="/legal/privacy">/legal/privacy</a>.</p>
 
     <h2>Frequently asked questions</h2>
 
     <div class="faq">
       <details>
         <summary>Does ChatGPT train on my conversations?</summary>
-        <p>Consumer ChatGPT (chatgpt.com) trains on conversations by default for free and Plus users; you can opt out in Settings → Data Controls. The OpenAI API (which powers BYOK tools like Projelli) does not train on inputs by default. Source: OpenAI's API data usage policy.</p>
+        <p>Consumer ChatGPT (chatgpt.com) trains on conversations by default for free and Plus users; you can opt out in Settings → Data Controls. The OpenAI API (which powers BYOK tools like Keepance) does not train on inputs by default. Source: OpenAI's API data usage policy.</p>
       </details>
       <details>
         <summary>Does Claude train on my conversations?</summary>
@@ -381,7 +367,7 @@
       </details>
       <details>
         <summary>What about local models like Ollama? Are they fully private?</summary>
-        <p>Yes. With Ollama or LM Studio running open-weight models, the AI itself runs on your machine. Nothing leaves your device. The trade-off is quality: open-weight models lag behind Claude / GPT / Gemini on long-form strategic work. Most founders use a hybrid: BYOK Claude for high-stakes tasks, local Ollama for volume tasks where 90% quality is fine.</p>
+        <p>Yes. With Ollama or LM Studio running open-weight models, the AI itself runs on your machine. Nothing leaves your device. The trade-off is quality: open-weight models lag behind Claude / GPT / Gemini on long-form analytical and legal work. Most attorneys and CPAs use a hybrid: BYOK Claude for high-stakes tasks, local Ollama for volume tasks where 90% quality is fine.</p>
       </details>
       <details>
         <summary>Should I worry about the AI provider being subpoenaed?</summary>
@@ -398,15 +384,15 @@
       <ul>
         <li><a href="/byok-ai">BYOK AI explained: what bring-your-own-key means in practice</a></li>
         <li><a href="/local-first-ai-workspace">What is a local-first AI workspace?</a></li>
-        <li><a href="/legal/privacy">Projelli's full Privacy Policy</a></li>
-        <li><a href="/blog/why-local-first-ai-for-founders">Why local-first AI matters for indie founders</a></li>
+        <li><a href="/legal/privacy">Keepance's full Privacy Policy</a></li>
+        <li><a href="/blog/why-local-first-ai-for-founders">Why local-first AI matters for attorneys, CPAs, and consultants</a></li>
       </ul>
     </div>
 
     <div class="cta-card">
       <h3>An AI workspace where the data stays yours</h3>
-      <p>Projelli is local-first. Your files are on your machine. Your API keys are in your OS keychain. Your AI conversations never touch our servers.</p>
-      <a href="/#download" class="cta-btn">Get Projelli</a>
+      <p>Keepance is local-first. Your files are on your machine. Your API keys are in your OS keychain. Your AI conversations never touch our servers.</p>
+      <a href="/#pricing" class="cta-btn">Get Keepance</a>
     </div>
   </div>
 

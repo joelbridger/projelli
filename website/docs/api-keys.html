@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>API Keys Guide, Projelli</title>
-  <meta name="description" content="How to get and use Claude, OpenAI, and Gemini API keys with Projelli.">
-  <link rel="canonical" href="https://projelli.com/docs/api-keys">
+  <title>API Keys Guide, Keepance</title>
+  <meta name="description" content="How to get and use Claude, OpenAI, and Gemini API keys with Keepance.">
+  <link rel="canonical" href="https://keepance.com/docs/api-keys">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
@@ -37,30 +37,30 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 
 <body>
   <div class="container">
-    <a href="/" class="back">← Back to Projelli</a>
+    <a href="/" class="back">← Back to Keepance</a>
     <h1>API Keys Guide</h1>
     <p class="meta">How to get API keys for Claude, OpenAI, and Gemini, and what they cost.</p>
 
-    <p>Projelli is a "bring your own key" (BYOK) tool. You sign up for an account directly with one or more AI providers, get an API key, and paste it into Projelli. This means:</p>
+    <p>Keepance is a "bring your own key" (BYOK) tool. You sign up for an account directly with one or more AI providers, get an API key, and paste it into Keepance. This means:</p>
     <ul>
-      <li><strong>Your data stays private.</strong> AI requests go from your computer directly to the provider, Projelli is never in the loop.</li>
-      <li><strong>You pay the provider directly.</strong> Projelli doesn't mark up AI usage. You pay whatever the provider charges, no middleman.</li>
+      <li><strong>Your data stays private.</strong> AI requests go from your computer directly to the provider, Keepance is never in the loop.</li>
+      <li><strong>You pay the provider directly.</strong> Keepance doesn't mark up AI usage. You pay whatever the provider charges, no middleman.</li>
       <li><strong>You control your usage.</strong> Set spending limits at the provider level. Switch providers or models any time.</li>
     </ul>
 
-    <p>You only need ONE provider to use Projelli. Most people start with Claude. You can add others later. Or skip the cloud providers entirely and run <a href="#ollama">Ollama</a> locally for free.</p>
+    <p>You only need ONE provider to use Keepance. Most people start with Claude. You can add others later. Or skip the cloud providers entirely and run <a href="#ollama">Ollama</a> locally for free.</p>
 
     <div class="highlight">
-      <strong>Don't have a key yet?</strong> Try the in-browser demo at <a href="/try/"><strong>projelli.com/try</strong></a> first. It runs a real Projelli session against a sample workspace with a shared key, no signup, no credit card. Get a feel for the product before you sign up for any provider account.
+      <strong>Don't have a key yet?</strong> Try the in-browser demo at <a href="/try/"><strong>keepance.com/try</strong></a> first. It runs a real Keepance session against a sample workspace with a shared key, no signup, no credit card. Get a feel for the product before you sign up for any provider account.
     </div>
 
     <div class="highlight">
-      <strong>Where keys are stored:</strong> Projelli stores your API keys in your operating system's secure keychain, Keychain on Mac, Credential Manager on Windows, Secret Service on Linux. They're never written to a plain file, never logged, never sent anywhere except directly to the provider when you make a request. If you uninstall Projelli, your keys are removed from the keychain along with the app.
+      <strong>Where keys are stored:</strong> Keepance stores your API keys in your operating system's secure keychain, Keychain on Mac, Credential Manager on Windows, Secret Service on Linux. They're never written to a plain file, never logged, never sent anywhere except directly to the provider when you make a request. If you uninstall Keepance, your keys are removed from the keychain along with the app.
     </div>
 
     <h2>Anthropic (Claude)</h2>
@@ -71,8 +71,8 @@
         <li>Go to <a href="https://console.anthropic.com/">console.anthropic.com</a> and sign up (free)</li>
         <li>Add a payment method (you'll be billed only for actual usage)</li>
         <li>Click <strong>API Keys</strong> in the sidebar</li>
-        <li>Click <strong>Create Key</strong>, give it a name like "Projelli", and copy the key (it starts with <code>sk-ant-</code>)</li>
-        <li>In Projelli, go to <strong>Settings → API Keys → Anthropic</strong>, paste the key, and click Save</li>
+        <li>Click <strong>Create Key</strong>, give it a name like "Keepance", and copy the key (it starts with <code>sk-ant-</code>)</li>
+        <li>In Keepance, go to <strong>Settings → API Keys → Anthropic</strong>, paste the key, and click Save</li>
       </ol>
       <p><strong>Cost:</strong> Claude Sonnet (the default model) costs about $3 per million input tokens and $15 per million output tokens. A typical New Business Kickoff workflow run costs around $0.05-$0.20. Heavy daily use is usually $5-$15/month.</p>
       <p><strong>Free credits:</strong> Anthropic gives new accounts $5 in free credits. That's enough for ~50 workflow runs.</p>
@@ -86,8 +86,8 @@
         <li>Go to <a href="https://platform.openai.com/">platform.openai.com</a> and sign up (free)</li>
         <li>Add a payment method</li>
         <li>Click <strong>API Keys</strong> in the sidebar (or go to <a href="https://platform.openai.com/api-keys">platform.openai.com/api-keys</a>)</li>
-        <li>Click <strong>Create new secret key</strong>, give it a name like "Projelli", copy the key (it starts with <code>sk-</code>)</li>
-        <li>In Projelli, go to <strong>Settings → API Keys → OpenAI</strong>, paste the key, and click Save</li>
+        <li>Click <strong>Create new secret key</strong>, give it a name like "Keepance", copy the key (it starts with <code>sk-</code>)</li>
+        <li>In Keepance, go to <strong>Settings → API Keys → OpenAI</strong>, paste the key, and click Save</li>
       </ol>
       <p><strong>Cost:</strong> GPT-4o costs about $2.50 per million input tokens and $10 per million output tokens. Comparable to Claude Sonnet for typical workflows. GPT-4o-mini is much cheaper (~$0.15 / $0.60) and fine for less demanding tasks.</p>
       <p><strong>Note:</strong> An OpenAI <em>API</em> account is separate from a ChatGPT <em>Plus</em> subscription. If you pay $20/mo for ChatGPT Plus, that does NOT give you API access, you need to set up billing separately on platform.openai.com.</p>
@@ -101,7 +101,7 @@
         <li>Go to <a href="https://aistudio.google.com/app/apikey">aistudio.google.com/app/apikey</a> (sign in with a Google account)</li>
         <li>Click <strong>Create API key</strong></li>
         <li>Copy the key</li>
-        <li>In Projelli, go to <strong>Settings → API Keys → Google</strong>, paste the key, and click Save</li>
+        <li>In Keepance, go to <strong>Settings → API Keys → Google</strong>, paste the key, and click Save</li>
       </ol>
       <p><strong>Cost:</strong> Gemini 2.0 Flash has a generous free tier (up to 15 requests/minute and 1500 requests/day at no charge). Beyond that, paid usage is roughly $0.075 per million input tokens, the cheapest of the three. Worth using as a "draft" model and switching to Claude or GPT for the final pass.</p>
     </div>
@@ -115,7 +115,7 @@
         <li>Install Ollama from <a href="https://ollama.com/">ollama.com</a> (Mac, Windows, and Linux supported)</li>
         <li>Pull a model from your terminal: <code>ollama pull llama3.2</code> (or <code>qwen2.5</code>, <code>mistral</code>, etc.)</li>
         <li>Make sure Ollama is running. By default it serves on <code>http://localhost:11434</code></li>
-        <li>In Projelli, go to <strong>Settings &rarr; API Keys &rarr; Ollama</strong>. The "key" field is optional, leave it blank for the default localhost server, or paste a custom URL if Ollama runs on another machine on your network</li>
+        <li>In Keepance, go to <strong>Settings &rarr; API Keys &rarr; Ollama</strong>. The "key" field is optional, leave it blank for the default localhost server, or paste a custom URL if Ollama runs on another machine on your network</li>
       </ol>
       <p><strong>Cost:</strong> Free. Your electric bill, basically.</p>
       <p><strong>Tradeoff:</strong> Local models are honestly really impressive in 2026, but they're still a notch below Claude Sonnet for long-form writing and complex instruction-following. Great for drafts, summaries, and anything you'd rather not send to a third party.</p>
@@ -142,7 +142,7 @@
       </tr>
       <tr>
         <td>Multiple perspectives on the same prompt</td>
-        <td>All four (Projelli supports multi-model comparison)</td>
+        <td>All four (Keepance supports multi-model comparison)</td>
       </tr>
       <tr>
         <td>Total privacy, offline use, no per-request cost</td>
@@ -162,9 +162,9 @@
 
     <h2>Plugins and your API key</h2>
 
-    <p>Plugins (the ones you install from <strong>Settings &rarr; Marketplace &rarr; Plugins</strong>) that ask for the <code>ai:invoke</code> permission use the same API key you already configured. There's one budget, not one per plugin. Every AI call a plugin makes is recorded in Projelli's audit log, tagged with the plugin's ID, so you can see exactly which plugin spent what.</p>
+    <p>Plugins (the ones you install from <strong>Settings &rarr; Marketplace &rarr; Plugins</strong>) that ask for the <code>ai:invoke</code> permission use the same API key you already configured. There's one budget, not one per plugin. Every AI call a plugin makes is recorded in Keepance's audit log, tagged with the plugin's ID, so you can see exactly which plugin spent what.</p>
 
-    <p>Before a plugin installs, Projelli shows you a permission consent dialog with plain-language risk labels. If a plugin asks for <code>ai:invoke</code>, you'll see that listed. If you deny it, the plugin can still install but the AI features won't work. Read the <a href="/docs/plugins/permissions">plugin permissions doc</a> for the full picture.</p>
+    <p>Before a plugin installs, Keepance shows you a permission consent dialog with plain-language risk labels. If a plugin asks for <code>ai:invoke</code>, you'll see that listed. If you deny it, the plugin can still install but the AI features won't work. Read the <a href="/docs/plugins/permissions">plugin permissions doc</a> for the full picture.</p>
 
     <h2>What if my key gets compromised?</h2>
 
@@ -173,11 +173,11 @@
       <li>Go to your provider's API keys page</li>
       <li>Revoke the compromised key</li>
       <li>Create a new key</li>
-      <li>Update Projelli with the new key (Settings → API Keys)</li>
+      <li>Update Keepance with the new key (Settings → API Keys)</li>
     </ol>
     <p>Compromised keys can be used to run up charges on your account, so revoke immediately if there's any doubt.</p>
 
-    <h2>Why bring your own key instead of paying Projelli?</h2>
+    <h2>Why bring your own key instead of paying Keepance?</h2>
 
     <p>This is a deliberate design choice. By having you bring your own key:</p>
     <ul>
@@ -188,5 +188,35 @@
     </ul>
     <p>The downside is the small setup hurdle. Once it's done, it's done, you don't think about it again.</p>
   </div>
+
+  <footer class="kp-footer">
+    <div class="kp-footer-inner">
+      <a href="/" class="kp-footer-brand">Keepance</a>
+      <nav class="kp-footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="kp-footer-copy">Built by <a href="https://jamesondaines.com">Jameson Daines</a></span>
+    </div>
+  </footer>
+  <style>
+    .kp-footer { background: #0A2540; padding: 36px 24px; margin-top: 64px; }
+    .kp-footer-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; font-family: 'Satoshi', system-ui, sans-serif; }
+    .kp-footer-brand { color: rgba(255,255,255,0.85); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    .kp-footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
+    .kp-footer-links a { color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+    .kp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+    .kp-footer-copy { color: rgba(255,255,255,0.35); font-size: 12px; }
+    .kp-footer-copy a { color: inherit; }
+  </style>
+
 </body>
 </html>

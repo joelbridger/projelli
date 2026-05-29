@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plugin Manifest Reference, Projelli</title>
-  <meta name="description" content="Every field in a Projelli plugin manifest.json: types, defaults, validation, and a complete example.">
-  <link rel="canonical" href="https://projelli.com/docs/plugins/manifest-reference">
+  <title>Plugin Manifest Reference, Keepance</title>
+  <meta name="description" content="Every field in a Keepance plugin manifest.json: types, defaults, validation, and a complete example.">
+  <link rel="canonical" href="https://keepance.com/docs/plugins/manifest-reference">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
@@ -44,8 +44,8 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 </head>
 <body>
   <div class="container">
@@ -53,7 +53,7 @@
     <h1>Manifest Reference</h1>
     <p class="meta">Every field in <code>manifest.json</code>, with types and validation rules.</p>
 
-    <p>Every plugin has a <code>manifest.json</code> file at the root of its install folder. Projelli reads this file on install and on every load. If validation fails, the plugin won't load and the error appears in the Plugins panel.</p>
+    <p>Every plugin has a <code>manifest.json</code> file at the root of its install folder. Keepance reads this file on install and on every load. If validation fails, the plugin won't load and the error appears in the Plugins panel.</p>
 
     <h2>Complete example</h2>
 
@@ -63,13 +63,13 @@
   "version": "1.0.0",
   "apiVersion": "1.0.0",
   "author": {
-    "name": "Projelli Examples",
-    "url": "https://projelli.com"
+    "name": "Keepance Examples",
+    "url": "https://keepance.com"
   },
   "description": "Live word and character count for the active document.",
   "main": "dist/index.js",
   "permissions": ["editor:selection"],
-  "minProjelliVersion": "2.0.0",
+  "minKeepanceVersion": "2.0.0",
   "category": "writing",
   "tags": ["editor", "writing", "stats"],
   "license": "MIT"
@@ -101,7 +101,7 @@
     <div class="field">
       <h3>apiVersion</h3>
       <div class="field-meta"><span class="badge">string</span><span class="badge required">required</span></div>
-      <p>Which version of the Projelli plugin API your plugin targets. Currently <code>1.0.0</code>. Projelli will refuse to load plugins whose <code>apiVersion</code> is incompatible with the host.</p>
+      <p>Which version of the Keepance plugin API your plugin targets. Currently <code>1.0.0</code>. Keepance will refuse to load plugins whose <code>apiVersion</code> is incompatible with the host.</p>
       <pre><code>"apiVersion": "1.0.0"</code></pre>
     </div>
 
@@ -138,10 +138,10 @@
     </div>
 
     <div class="field">
-      <h3>minProjelliVersion</h3>
+      <h3>minKeepanceVersion</h3>
       <div class="field-meta"><span class="badge">string</span><span class="badge required">required</span></div>
-      <p>Minimum version of Projelli your plugin requires. If the user's Projelli is older, the plugin won't load.</p>
-      <pre><code>"minProjelliVersion": "2.0.0"</code></pre>
+      <p>Minimum version of Keepance your plugin requires. If the user's Keepance is older, the plugin won't load.</p>
+      <pre><code>"minKeepanceVersion": "2.0.0"</code></pre>
     </div>
 
     <div class="field">
@@ -161,10 +161,10 @@
     <h2>Optional fields</h2>
 
     <div class="field">
-      <h3>maxProjelliVersion</h3>
+      <h3>maxKeepanceVersion</h3>
       <div class="field-meta"><span class="badge">string</span><span class="badge optional">optional</span></div>
-      <p>Maximum Projelli version your plugin works with. Leave unset unless you know your plugin won't survive a future major version. If the user's Projelli is newer than this, the plugin won't load.</p>
-      <pre><code>"maxProjelliVersion": "2.99.99"</code></pre>
+      <p>Maximum Keepance version your plugin works with. Leave unset unless you know your plugin won't survive a future major version. If the user's Keepance is newer than this, the plugin won't load.</p>
+      <pre><code>"maxKeepanceVersion": "2.99.99"</code></pre>
     </div>
 
     <div class="field">
@@ -178,7 +178,7 @@
       <h3>homepage</h3>
       <div class="field-meta"><span class="badge">string</span><span class="badge optional">optional</span></div>
       <p>URL of the plugin's homepage or GitHub repo. Linked from the marketplace listing.</p>
-      <pre><code>"homepage": "https://github.com/janedoe/projelli-word-counter"</code></pre>
+      <pre><code>"homepage": "https://github.com/janedoe/keepance-word-counter"</code></pre>
     </div>
 
     <div class="field">
@@ -196,5 +196,35 @@
 
     <a href="/docs/plugins/permissions" class="next-link">Next: Permissions &rarr;</a>
   </div>
+
+  <footer class="kp-footer">
+    <div class="kp-footer-inner">
+      <a href="/" class="kp-footer-brand">Keepance</a>
+      <nav class="kp-footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="kp-footer-copy">Built by <a href="https://jamesondaines.com">Jameson Daines</a></span>
+    </div>
+  </footer>
+  <style>
+    .kp-footer { background: #0A2540; padding: 36px 24px; margin-top: 64px; }
+    .kp-footer-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; font-family: 'Satoshi', system-ui, sans-serif; }
+    .kp-footer-brand { color: rgba(255,255,255,0.85); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    .kp-footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
+    .kp-footer-links a { color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+    .kp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+    .kp-footer-copy { color: rgba(255,255,255,0.35); font-size: 12px; }
+    .kp-footer-copy a { color: inherit; }
+  </style>
+
 </body>
 </html>

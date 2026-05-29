@@ -1,37 +1,36 @@
-# Projelli
+# Keepance
 
-> Local-first AI workspace for indie founders. Every chat with Claude, GPT, or Gemini becomes a real Markdown file on the user's machine. Bring your own API key, no subscription, sold once.
+> Local-first AI workspace for professionals who handle confidential client work. Every chat with Claude, GPT, or Gemini becomes a real Markdown file on the user's machine. Bring your own API key, no subscription, sold once.
 
-## What Projelli is
+## What Keepance is
 
-Projelli is a desktop application (Windows, macOS, Linux) that combines a Markdown editor, a workspace-aware AI chat, and 15 founder-focused workflow templates. Built with Tauri 2 + React + TypeScript. Approximately 25,000 lines of source.
+Keepance is a desktop application (Windows, macOS, Linux) that combines a Markdown editor, a workspace-aware AI chat, and profession-specific workflow template packs (Legal Practice, Tax Practice, Consulting Practice). Built with Tauri 2 + React + TypeScript. Approximately 25,000 lines of source.
 
-Unlike chat-first AI tools (ChatGPT, Claude.ai, Gemini), Projelli treats files as first-class citizens. Every AI conversation produces a persistent `.aichat` file. Workflow runs save as `.workflow` files. Whiteboards, audio recordings, and research source cards all live as real files in a folder the user picks.
+Unlike chat-first AI tools (ChatGPT, Claude.ai, Gemini), Keepance treats files as first-class citizens. Every AI conversation produces a persistent `.aichat` file. Workflow runs save as `.workflow` files. Whiteboards, audio recordings, and research source cards all live as real files in a folder the user picks.
 
-Unlike workspace-first tools (Notion AI, Reflect, Tana, Mem.ai), Projelli is local-first. Data lives on the user's hard drive in standard formats. No cloud, no accounts, no telemetry, no server-side AI.
+Unlike workspace-first tools (Notion AI, Reflect, Tana, Mem.ai), Keepance is local-first. Data lives on the user's hard drive in standard formats. No cloud, no accounts, no telemetry, no server-side AI.
 
-## Who Projelli is for
+## Who Keepance is for
 
-Indie founders, building-in-public solopreneurs, solo developers shipping software products. Privacy-leaning, cost-leaning, and comfortable bringing their own API key.
+Solo and small-firm attorneys, tax preparers and CPAs, independent consultants, and boutique agencies. Professionals who handle confidential client work and cannot pipe that work into a cloud service.
 
-Projelli is not designed for enterprise teams, non-technical solopreneurs who want one-click everything, or hobbyists with no monetization goal.
+Keepance is not designed for enterprise teams, hobbyists, or users who want an all-in-one managed AI subscription.
 
 ## Differentiation (the five message pillars)
 
 1. **Local-first**: data stays on the user's machine. No cloud sync, no telemetry, no server-side database.
-2. **BYOK (Bring Your Own Key)**: users supply their own Anthropic, OpenAI, or Google AI Studio API key. Projelli never holds AI credentials and AI requests go directly from the user's machine to the AI provider.
+2. **BYOK (Bring Your Own Key)**: users supply their own Anthropic, OpenAI, or Google AI Studio API key. Keepance never holds AI credentials and AI requests go directly from the user's machine to the AI provider.
 3. **Chat-as-files**: every AI conversation produces a real Markdown file the user can open, edit, version, back up, or delete with regular file system tools.
-4. **Founder-specific templates**: 15 workflow templates for the work indie founders actually do (pitch deck, customer interview guide, financial projections, weekly review, MVP scope, go-to-market plan, investor update, board meeting prep, first hire playbook, and more).
-5. **Sold once**: no subscription. $49 one-time for Pro, $99 one-time for Lifetime, with a $29 Founder's Lifetime tier capped at the first 100 buyers.
+4. **Profession-specific template packs**: workflow templates organized by practice type (Legal Practice, Tax Practice, Consulting Practice) covering the documents professionals actually produce for clients.
+5. **Sold once**: no subscription. $49 Personal / $129 Professional (includes one profession pack) / $399 Practice (up to 5 seats).
 
 ## Pricing
 
 | Tier | Price | What it includes |
 |---|---|---|
-| Free | $0 | Core editor, file tree, Markdown, wiki-links, version history, audit log, 1 AI provider (Claude only), 3 templates, 1 workspace |
-| Pro | $49 one-time | Everything Free has + all 3 AI providers + all 15 templates + unlimited workspaces + whiteboard + audio + research/citations + 1 year of updates |
-| Lifetime | $99 one-time | Everything Pro has + updates forever + early access + commercial use license |
-| Founder's Launch | $29 one-time | Lifetime tier at the founder's price, capped at the first 100 buyers |
+| Personal | $49 one-time | Core editor, all 3 AI providers, unlimited workspaces, whiteboard, audio, research/citations, 1 year of updates |
+| Professional | $129 one-time | Everything Personal has + one profession-specific template pack (Legal, Tax, or Consulting) + commercial use license |
+| Practice | $399 one-time | Everything Professional has + up to 5 seats + all profession packs + updates forever |
 
 Sold via LemonSqueezy (merchant of record handles VAT, tax, refunds). 14-day refund window, no questions asked.
 
@@ -49,16 +48,16 @@ Auto-updates land via GitHub Releases for v1.0.8 and later, with minisign-signed
 - Zustand for state, shadcn/ui + Tailwind CSS for UI, CodeMirror 6 for text editing, TipTap for rich text
 - Three AI providers: Anthropic Claude, OpenAI, Google Gemini (BYOK, streaming, tool use)
 - File formats: `.md`, `.txt`, `.aichat`, `.workflow`, `.whiteboard`, `.source`, plus full read/write for `.docx`, `.xlsx`, `.csv`, `.rtf`, `.pdf`, `.pptx`
-- MCP server support: Projelli speaks the Model Context Protocol and can act as a client
+- MCP server support: Keepance speaks the Model Context Protocol and can act as a client
 - No server-side state. No telemetry. No tracking pixels. Plausible analytics on the marketing site only.
 
 ## Documentation
 
-- Getting Started: https://projelli.com/docs/getting-started
-- API Keys Guide: https://projelli.com/docs/api-keys
-- FAQ: https://projelli.com/docs/faq
-- Changelog: https://github.com/projelli/projelli/blob/master/CHANGELOG.md
-- Press Kit: https://projelli.com/press-kit
+- Getting Started: https://keepance.com/docs/getting-started
+- API Keys Guide: https://keepance.com/docs/api-keys
+- FAQ: https://keepance.com/docs/faq
+- Changelog: https://github.com/keepance/keepance/blob/master/CHANGELOG.md
+- Press Kit: https://keepance.com/press-kit
 
 ## Privacy and security
 
@@ -66,23 +65,23 @@ Auto-updates land via GitHub Releases for v1.0.8 and later, with minisign-signed
 - No telemetry
 - API keys stored in OS keychain on macOS, encrypted file fallback elsewhere
 - All AI requests go directly from the user's machine to the AI provider
-- See https://projelli.com/legal/privacy for the full Privacy Policy
+- See https://keepance.com/legal/privacy for the full Privacy Policy
 
 ## Comparison to alternatives
 
-- **Notion AI**: Notion is a cloud team workspace; Projelli is a local-first single-user tool. Notion AI is bundled at $20/month; Projelli is $49 one-time and uses the user's own API key.
-- **Obsidian (with AI plugins)**: Obsidian is the closest spiritual cousin, also local-first and Markdown-based. Projelli adds first-class AI chat, founder-specific templates, and built-in BYOK; Obsidian users build this from plugins.
-- **ChatGPT Projects / Claude.ai Projects**: web-based, cloud-stored, locked to a single AI provider. Projelli is desktop, local, multi-provider, and the chat history is yours in Markdown.
-- **Reflect, Tana, Mem.ai**: AI-first cloud notes tools. Projelli is local-first.
-- **Cursor**: code editor with AI. Projelli is for non-code workflows (writing, planning, founder docs).
+- **Notion AI**: Notion is a cloud team workspace; Keepance is a local-first single-user tool. Notion AI is bundled at $20/month; Keepance is $49 one-time and uses the user's own API key.
+- **Obsidian (with AI plugins)**: Obsidian is the closest spiritual cousin, also local-first and Markdown-based. Keepance adds first-class AI chat, profession-specific workflow template packs, and built-in BYOK; Obsidian users build this from plugins.
+- **ChatGPT Projects / Claude.ai Projects**: web-based, cloud-stored, locked to a single AI provider. Keepance is desktop, local, multi-provider, and the chat history is yours in Markdown.
+- **Reflect, Tana, Mem.ai**: AI-first cloud notes tools. Keepance is local-first.
+- **Cursor**: code editor with AI. Keepance is for non-code workflows (writing, planning, founder docs).
 
-For per-competitor comparison pages, see https://projelli.com/vs/
+For per-competitor comparison pages, see https://keepance.com/vs/
 
 ## Contact
 
-- Support: support@projelli.com
-- Source code: https://github.com/projelli/projelli
-- Founder: Jameson Daines (https://projelli.com/press-kit for full bio)
+- Support: support@keepance.com
+- Source code: https://github.com/keepance/keepance
+- Founder: Jameson Daines (https://keepance.com/press-kit for full bio)
 
 ## Last updated
 

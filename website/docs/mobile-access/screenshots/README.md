@@ -9,20 +9,20 @@ on capturing imagery.
 When real screenshots are captured, drop them here using these filenames so
 the docs pages can swap `[placeholder box]` for an `<img>` tag in one edit:
 
-- `icloud-mac-projelli.png` — Projelli on Mac with workspace pointing at
-  `~/Library/Mobile Documents/com~apple~CloudDocs/Projelli/`.
-- `icloud-iphone-files.png` — iPhone Files app showing the synced Projelli
+- `icloud-mac-keepance.png` — Keepance on Mac with workspace pointing at
+  `~/Library/Mobile Documents/com~apple~CloudDocs/Keepance/`.
+- `icloud-iphone-files.png` — iPhone Files app showing the synced Keepance
   folder under iCloud Drive.
-- `dropbox-mac-projelli.png` — Projelli on Mac with workspace pointing at
+- `dropbox-mac-keepance.png` — Keepance on Mac with workspace pointing at
   the Dropbox folder.
-- `dropbox-ios-app.png` — Dropbox iOS app browsing the Projelli folder.
-- `syncthing-admin.png` — Syncthing web admin with the Projelli folder
+- `dropbox-ios-app.png` — Dropbox iOS app browsing the Keepance folder.
+- `syncthing-admin.png` — Syncthing web admin with the Keepance folder
   configured.
 - `syncthing-android.png` — Syncthing-Fork on Android showing the paired
-  Projelli folder.
-- `gdrive-mac-projelli.png` — Projelli on Mac with workspace pointing at
+  Keepance folder.
+- `gdrive-mac-keepance.png` — Keepance on Mac with workspace pointing at
   the mirrored Google Drive folder.
-- `gdrive-android.png` — Google Drive Android app browsing the Projelli
+- `gdrive-android.png` — Google Drive Android app browsing the Keepance
   folder.
 
 ## Format

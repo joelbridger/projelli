@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /launch-hq-jdc-2026/
 
-Sitemap: https://projelli.com/sitemap.xml
+Sitemap: https://keepance.com/sitemap.xml

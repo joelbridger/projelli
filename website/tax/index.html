@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keepance for Tax Professionals — IRC §7216 Compliant AI Workspace</title>
+  <meta name="description" content="The AI workspace for CPAs, EAs, and tax preparers. Client SSNs and returns never leave your machine. IRC §7216 and FTC Safeguards Rule compliant by design.">
+  <link rel="canonical" href="https://keepance.com/tax/">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="Jameson Daines">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://keepance.com/tax/">
+  <meta property="og:title" content="Keepance for Tax Professionals — IRC §7216 Compliant AI Workspace">
+  <meta property="og:description" content="The AI workspace for CPAs, EAs, and tax preparers. Client SSNs and returns never leave your machine. IRC §7216 and FTC Safeguards Rule compliant by design.">
+  <meta property="og:site_name" content="Keepance">
+  <meta property="og:image" content="https://keepance.com/press-kit/assets/og-linkedin-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="627">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Keepance for Tax Professionals — IRC §7216 Compliant AI Workspace">
+  <meta name="twitter:description" content="The AI workspace for CPAs, EAs, and tax preparers. Client SSNs and returns never leave your machine. IRC §7216 and FTC Safeguards Rule compliant by design.">
+  <meta name="twitter:image" content="https://keepance.com/press-kit/assets/og-twitter-card.png">
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Keepance","operatingSystem":"Windows, macOS, Linux","applicationCategory":"ProductivityApplication","url":"https://keepance.com","description":"Local-first AI workspace for CPAs, EAs, and tax preparers. Client SSNs and returns never leave your machine. IRC §7216 and FTC Safeguards Rule compliant by design.","creator":{"@type":"Person","name":"Jameson Daines","url":"https://jamesondaines.com"},"offers":{"@type":"Offer","price":"129","priceCurrency":"USD","availability":"https://schema.org/InStock"}}
+  </script>
+
+  <!-- Plausible Analytics (self-hosted) -->
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+
+  <style>
+    :root {
+      --navy: #0A2540;
+      --navy-mid: #12345A;
+      --grad-pink: #FF3CE8;
+      --grad-blue: #5DC6FF;
+      --bone: #F5F5F0;
+      --white: #FFFFFF;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --border: #E2E8F0;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
+    body {
+      font-family: 'Satoshi', system-ui, sans-serif;
+      background: var(--bone);
+      color: var(--text-body);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 28px;
+    }
+
+    /* BUTTONS */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      font-family: 'Satoshi', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 6px;
+      padding: 12px 28px;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+      line-height: 1;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #FF3CE8 0%, #5DC6FF 100%);
+      color: var(--white);
+    }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-outline-light {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.85);
+      border: 1.5px solid rgba(255, 255, 255, 0.22);
+    }
+    .btn-outline-light:hover {
+      border-color: rgba(255, 255, 255, 0.45);
+      color: var(--white);
+    }
+    .btn-outline-blue {
+      background: transparent;
+      color: var(--grad-blue);
+      border: 1.5px solid rgba(93, 198, 255, 0.4);
+    }
+    .btn-outline-blue:hover {
+      border-color: var(--grad-blue);
+      color: var(--white);
+    }
+    .btn-full { width: 100%; justify-content: center; }
+
+    /* HERO */
+    .hero {
+      background: var(--navy);
+      padding: 120px 0 96px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 60% 50% at 80% 30%, rgba(255, 60, 232, 0.08) 0%, transparent 70%),
+        radial-gradient(ellipse 45% 60% at 10% 80%, rgba(93, 198, 255, 0.06) 0%, transparent 60%);
+    }
+    .hero-inner {
+      position: relative;
+      z-index: 1;
+      max-width: 780px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .hero-eyebrow {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 4.2vw, 3rem);
+      font-weight: 800;
+      color: var(--white);
+      line-height: 1.15;
+      letter-spacing: -0.025em;
+      margin-bottom: 24px;
+    }
+    .hero-sub {
+      font-size: 1.0625rem;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.7;
+      margin-bottom: 40px;
+      max-width: 620px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .hero-ctas {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .hero-note {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.35);
+    }
+
+    /* COMPLIANCE HOOKS BAR */
+    .compliance-bar {
+      background: var(--bone);
+      border-bottom: 1px solid var(--border);
+      padding: 64px 0;
+    }
+    .compliance-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 40px;
+    }
+    @media (max-width: 768px) {
+      .compliance-grid { grid-template-columns: 1fr; gap: 32px; }
+    }
+    .compliance-item {
+      padding-left: 20px;
+      border-left: 3px solid transparent;
+      border-image: linear-gradient(180deg, var(--grad-pink), var(--grad-blue)) 1;
+    }
+    .compliance-hook {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 8px;
+      line-height: 1.35;
+    }
+    .compliance-desc {
+      font-size: 13.5px;
+      color: var(--text-body);
+      line-height: 1.65;
+    }
+
+    /* SECTIONS */
+    section { padding: 96px 0; }
+    .section-header {
+      text-align: center;
+      max-width: 640px;
+      margin: 0 auto 64px;
+    }
+    .section-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--grad-pink);
+      margin-bottom: 14px;
+    }
+    h2 {
+      font-size: clamp(1.75rem, 2.8vw, 2.25rem);
+      font-weight: 700;
+      color: var(--text-heading);
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+    }
+    .section-header p {
+      font-size: 1.0625rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* TEMPLATE PACK */
+    .pack-section { background: var(--white); }
+    .template-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 768px) {
+      .template-grid { grid-template-columns: 1fr; }
+    }
+    .template-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px 24px 22px;
+      position: relative;
+      overflow: hidden;
+      transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .template-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--grad-pink), var(--grad-blue));
+    }
+    .template-card:hover {
+      box-shadow: 0 6px 24px rgba(10, 37, 64, 0.08);
+      border-color: rgba(93, 198, 255, 0.3);
+    }
+    .template-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue));
+      color: var(--white);
+      font-size: 11px;
+      font-weight: 800;
+      margin-bottom: 14px;
+    }
+    .template-card h3 {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 8px;
+    }
+    .template-card p {
+      font-size: 13.5px;
+      color: var(--text-body);
+      line-height: 1.65;
+    }
+
+    /* HOW IT WORKS */
+    .how-section { background: var(--navy); }
+    .how-section h2 { color: var(--white); }
+    .how-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    @media (max-width: 768px) {
+      .how-grid { grid-template-columns: 1fr; }
+    }
+    .how-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 32px 28px;
+    }
+    .how-card-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue));
+      color: var(--white);
+      font-size: 13px;
+      font-weight: 800;
+      margin-bottom: 20px;
+    }
+    .how-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 12px;
+      line-height: 1.3;
+    }
+    .how-card p {
+      font-size: 14px;
+      color: rgba(148, 163, 184, 0.9);
+      line-height: 1.7;
+    }
+
+    /* PRICING */
+    .pricing-section { background: var(--bone); }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+    @media (max-width: 768px) {
+      .pricing-grid { grid-template-columns: 1fr; }
+    }
+    .pricing-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 28px;
+      position: relative;
+    }
+    .pricing-card.featured {
+      border-color: rgba(255, 60, 232, 0.35);
+      background: rgba(255, 255, 255, 1);
+      box-shadow: 0 4px 24px rgba(255, 60, 232, 0.08);
+    }
+    .pricing-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue));
+      color: var(--white);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 3px 14px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .pricing-tier {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .pricing-price {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: var(--text-heading);
+      line-height: 1;
+      letter-spacing: -0.03em;
+      margin-bottom: 4px;
+    }
+    .pricing-price-note {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+    .pricing-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+    .pricing-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+    .pricing-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13.5px;
+      color: var(--text-body);
+      line-height: 1.5;
+    }
+    .pricing-features li::before {
+      content: '→';
+      color: var(--grad-blue);
+      font-size: 12px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .pricing-features li.strong {
+      color: var(--text-heading);
+      font-weight: 600;
+    }
+    .pricing-charter {
+      margin-top: 12px;
+      font-size: 12.5px;
+      color: var(--grad-pink);
+      font-weight: 600;
+    }
+    .pricing-free-note {
+      text-align: center;
+      margin-top: 36px;
+      font-size: 14px;
+      color: var(--text-muted);
+    }
+    .pricing-free-note a {
+      color: var(--text-body);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .pricing-free-note a:hover { color: var(--text-heading); }
+
+    /* FOOTER */
+    .footer {
+      background: var(--navy);
+      padding: 48px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .footer-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+    .footer-name {
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .footer-links a {
+      color: rgba(255, 255, 255, 0.3);
+      text-decoration: none;
+      font-size: 13px;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: rgba(255, 255, 255, 0.6); }
+    .footer-copy {
+      color: rgba(255, 255, 255, 0.2);
+      font-size: 12px;
+    }
+
+    /* SCROLL ANIMATION */
+    .anim {
+      
+      transform: translateY(18px);
+      transition: opacity 0.45s ease, transform 0.45s ease;
+    }
+    .anim.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .anim { opacity: 1; transform: none; transition: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <main>
+
+    <!-- HERO -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero-inner">
+          <span class="hero-eyebrow">Tax Practice Pack</span>
+          <h1>For tax professionals who take IRC §7216 seriously.</h1>
+          <p class="hero-sub">
+            Unauthorized disclosure of client tax information is a federal criminal misdemeanor. Your clients' SSNs, returns, and financial records never leave your machine with Keepance.
+          </p>
+          <div class="hero-ctas">
+            <a href="https://keepance.lemonsqueezy.com/checkout/buy/33cd497b-bffd-404c-910e-f8dd1f4453bd" class="btn btn-primary">Buy Professional — $129</a>
+            <a href="https://github.com/keepance/keepance/releases/latest" class="btn btn-outline-light">Download free for 30 days</a>
+          </div>
+          <p class="hero-note">One-time purchase. Perpetual license. No subscription.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMPLIANCE HOOKS BAR -->
+    <div class="compliance-bar">
+      <div class="container">
+        <div class="compliance-grid">
+
+          <div class="compliance-item anim">
+            <div class="compliance-hook">IRC §7216 — Federal Criminal Statute</div>
+            <div class="compliance-desc">Unauthorized disclosure of client tax information. Up to one year in prison and a $1,000 fine per violation. Cloud AI with training opt-outs is not a safe harbor.</div>
+          </div>
+
+          <div class="compliance-item anim">
+            <div class="compliance-hook">IRC §6713 — Civil Penalty</div>
+            <div class="compliance-desc">$250 per unauthorized disclosure, up to $10,000 per calendar year. Applies to returns preparers regardless of intent.</div>
+          </div>
+
+          <div class="compliance-item anim">
+            <div class="compliance-hook">FTC Safeguards Rule</div>
+            <div class="compliance-desc">Tax preparers covered as "financial institutions." Requires a written information security program. Local-first tools make compliance straightforward.</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- TAX PRACTICE PACK -->
+    <section class="pack-section" id="templates">
+      <div class="container">
+        <div class="section-header anim">
+          <span class="section-label">What's included</span>
+          <h2>The Tax Practice Pack</h2>
+          <p>5 workflow templates built for the documents tax professionals actually produce. Included with Professional.</p>
+        </div>
+
+        <div class="template-grid">
+
+          <div class="template-card anim">
+            <div class="template-num">1</div>
+            <h3>§7216 Disclosure Consent Template</h3>
+            <p>A properly worded consent form for any situation where you need to share client tax information with a third party. Covers the specific statutory requirements.</p>
+          </div>
+
+          <div class="template-card anim">
+            <div class="template-num">2</div>
+            <h3>1040 Pre-Review Checklist</h3>
+            <p>Flags common preparation errors before you sign. Runs your return notes against IRS audit triggers and consistency checks.</p>
+          </div>
+
+          <div class="template-card anim">
+            <div class="template-num">3</div>
+            <h3>Engagement Letter Builder</h3>
+            <p>Generates a complete engagement letter from client name and scope of services. Addresses limitations of liability, fee structure, and document retention.</p>
+          </div>
+
+          <div class="template-card anim">
+            <div class="template-num">4</div>
+            <h3>Tax Research Memo Drafter</h3>
+            <p>Documents your position on a gray-area issue in a format that demonstrates reasonable cause. Citable, defensible, ready to attach to the file.</p>
+          </div>
+
+          <div class="template-card anim">
+            <div class="template-num">5</div>
+            <h3>Client Document Inventory</h3>
+            <p>Tracks what you've received vs. what's outstanding for each return. Sends a structured follow-up request with a list of missing items.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section class="how-section" id="how-it-works">
+      <div class="container">
+        <div class="section-header anim">
+          <span class="section-label" style="color: var(--grad-pink);">How it works</span>
+          <h2>Your clients' financial data stays on your machine.</h2>
+        </div>
+        <div class="how-grid">
+
+          <div class="how-card anim">
+            <div class="how-card-num">1</div>
+            <h3>Direct connection</h3>
+            <p>When you run a workflow, the request goes from your machine to your AI provider. Keepance is never in the middle. No third-party server sees the data.</p>
+          </div>
+
+          <div class="how-card anim">
+            <div class="how-card-num">2</div>
+            <h3>Files on disk</h3>
+            <p>Every analysis saves as a plain Markdown file in a folder you control. Auditable, searchable, portable. Standard format that survives any software change.</p>
+          </div>
+
+          <div class="how-card anim">
+            <div class="how-card-num">3</div>
+            <h3>Your keys, your costs</h3>
+            <p>Bring your own Claude, OpenAI, or Gemini key. You control the API spend. Keepance charges once at purchase, never again.</p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- PRICING -->
+    <section class="pricing-section" id="pricing">
+      <div class="container">
+        <div class="section-header anim">
+          <span class="section-label">Pricing</span>
+          <h2>Simple, one-time pricing.</h2>
+        </div>
+
+        <div class="pricing-grid">
+
+          <div class="pricing-card featured anim">
+            <div class="pricing-badge">Most popular</div>
+            <div class="pricing-tier">Professional</div>
+            <div class="pricing-price">$129</div>
+            <div class="pricing-price-note">one-time purchase</div>
+            <hr class="pricing-divider">
+            <ul class="pricing-features">
+              <li class="strong">Single seat</li>
+              <li class="strong">Tax Practice Pack included</li>
+              <li>All v2.0 features</li>
+              <li>BYOK (Claude, OpenAI, Gemini)</li>
+              <li>Files stay on your machine</li>
+              <li>Perpetual license</li>
+              <li>Windows, Mac, Linux</li>
+            </ul>
+            <a href="https://keepance.lemonsqueezy.com/checkout/buy/33cd497b-bffd-404c-910e-f8dd1f4453bd" class="btn btn-primary btn-full">Buy Professional — $129</a>
+            <p class="pricing-charter">Charter pricing: first 100 buyers pay $89 instead of $129.</p>
+          </div>
+
+          <div class="pricing-card anim">
+            <div class="pricing-tier">Practice</div>
+            <div class="pricing-price">$399</div>
+            <div class="pricing-price-note">one-time purchase</div>
+            <hr class="pricing-divider">
+            <ul class="pricing-features">
+              <li class="strong">Up to 5 seats</li>
+              <li class="strong">Everything in Professional</li>
+              <li>White-label templates for your firm</li>
+              <li>Email support priority</li>
+              <li>All practice packs included</li>
+              <li>Perpetual license</li>
+              <li>Windows, Mac, Linux</li>
+            </ul>
+            <a href="https://keepance.lemonsqueezy.com/checkout/buy/9a5a7f48-0ffe-448a-a1af-889af99a0f47" class="btn btn-outline-blue btn-full">Buy Practice — $399</a>
+          </div>
+
+        </div>
+
+        <p class="pricing-free-note anim">
+          Or <a href="https://github.com/keepance/keepance/releases/latest">download free for 30 days</a> — no card, no account required.
+        </p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <a href="/" class="footer-logo" aria-label="Keepance home">
+        <svg height="22" width="22" viewBox="0 99 651 652" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs><linearGradient id="kpFtG" x1="384.994" y1="476.943" x2="447.494" y2="408.443" gradientUnits="userSpaceOnUse"><stop stop-color="#FF3CE8"/><stop offset="1" stop-color="#5DC6FF"/></linearGradient></defs>
+          <path fill="rgba(255,255,255,0.5)" d="M612.169 350.339V313.508C612.169 275.857 612.169 248.386 611.033 228.706C610.754 221.189 609.929 213.699 608.564 206.289C608.021 203.699 607.503 201.765 607.009 200.486C606.808 199.885 606.543 199.305 606.219 198.754C606.169 198.707 605.799 198.286 604.861 197.584C603.807 196.726 602.096 195.642 599.726 194.332C594.862 191.664 587.949 188.575 578.395 184.878C559.286 177.53 532.055 168.685 494.701 156.564L480.579 151.978C440.708 139.061 424.734 134.1 408.489 134.1C392.244 134.1 376.271 139.061 336.399 151.978L322.278 156.587C284.924 168.685 257.693 177.53 238.584 184.901C229.03 188.575 222.117 191.641 217.253 194.308C214.883 195.634 213.171 196.726 212.118 197.584C211.628 197.933 211.173 198.325 210.76 198.754C210.711 198.848 210.414 199.316 209.97 200.486C209.46 201.765 208.941 203.699 208.415 206.289C207.05 213.699 206.225 221.189 205.946 228.706C205.477 236.839 205.201 246.302 205.04 257.264L168.201 246.84C168.374 239.501 168.619 232.83 168.963 226.811C169.58 216.351 170.493 207.248 172.049 199.667C173.53 192.343 175.9 184.761 180.467 178.607C185.084 172.359 191.874 167.702 198.663 163.958C205.699 160.097 214.463 156.283 224.635 152.375C244.83 144.607 273.074 135.434 309.637 123.593L327.586 117.743L327.743 117.692C363.301 106.163 385.391 99 408.489 99C431.588 99 453.678 106.163 489.236 117.692L489.393 117.743L507.342 123.593C543.905 135.434 572.149 144.607 592.344 152.375C601.256 155.702 609.931 159.571 618.316 163.958C625.105 167.702 631.895 172.359 636.536 178.583C641.079 184.761 643.449 192.343 644.93 199.643C646.577 208.619 647.608 217.686 648.016 226.787C649.201 247.543 649.201 275.998 649.201 312.876V350.339C649.201 453.132 590.223 517.396 531.946 555.787V511.74C575.209 477.203 612.169 425.67 612.169 350.339Z"/>
+          <path fill="rgba(255,255,255,0.5)" d="M141.242 244.267C149.877 244.267 155.45 244.252 160.709 244.65L161.758 244.735L161.779 244.737L161.802 244.739C163.751 244.913 165.693 245.133 167.626 245.4C167.169 263.635 167.167 286.075 167.167 312.991V350.55C167.167 493.679 280.946 562.3 348.601 590.405L349.268 590.662C357.663 594.158 365.564 597.419 374.626 599.624C384.182 601.97 394.355 602.955 407.91 602.955C421.49 602.955 431.614 601.97 441.194 599.624C450.256 597.419 458.158 594.158 466.528 590.662L467.219 590.405C486.156 582.538 508.706 571.495 531.364 556.535C531.34 594.529 531.047 625.297 527.569 649.866C523.636 677.652 515.313 700.214 496.662 717.919C478.153 735.491 454.809 743.225 426.029 746.907C397.689 750.532 361.378 750.502 315.317 750.502H216.552C170.494 750.502 134.175 750.538 105.832 746.916C77.0504 743.238 53.6984 735.503 35.1963 717.909C16.5689 700.195 8.24639 677.642 4.30958 649.859C0.46262 622.709 0.500014 587.99 0.500014 544.304V371.805C0.512451 355.959 0.681877 345.108 2.58888 335.582C7.04192 313.207 18.4606 292.765 35.1904 276.865C51.9138 260.97 73.1754 250.335 96.1543 246.203V246.202C107.305 244.193 120.267 244.267 141.242 244.267ZM204.444 256.632C211.863 260.276 218.9 264.69 225.42 269.827L226.242 270.48C230.341 273.779 234.309 277.573 240.418 283.377L253.998 296.28C274.879 316.119 282.889 323.509 292.156 328.399L292.182 328.412C297.583 331.273 303.328 333.54 309.306 335.163C319.658 337.957 331.01 338.107 360.454 338.107H369.688C401.72 338.107 427.402 338.076 447.649 340.495C468.212 342.953 485.73 348.177 500.203 360.497H500.204C502.701 362.59 505.059 364.827 507.277 367.204C520.505 381.16 526.185 398.237 528.832 418.231C531.407 437.678 531.369 462.283 531.369 492.646V512.372C505.073 533.413 476.45 548.162 452.38 558.147C443.219 561.947 437.91 564.106 432.009 565.537C426.379 566.922 419.515 567.766 407.91 567.766C396.305 567.766 389.44 566.922 383.811 565.537C377.885 564.13 372.601 561.947 363.44 558.147C299.736 531.731 204.204 471.955 204.204 350.55V313.624C204.204 291.189 204.206 272.36 204.444 256.632Z"/>
+          <path fill="url(#kpFtG)" d="M401.124 390.027C401.997 387.79 403.524 385.868 405.507 384.513C407.489 383.158 409.834 382.434 412.236 382.434C414.637 382.434 416.982 383.158 418.965 384.513C420.947 385.868 422.475 387.79 423.347 390.027L433.964 417.064C434.554 418.596 435.456 419.988 436.612 421.152C437.768 422.317 439.154 423.229 440.68 423.83L467.619 434.497C469.85 435.385 471.763 436.923 473.11 438.91C474.458 440.898 475.178 443.244 475.178 445.645C475.178 448.046 474.458 450.392 473.11 452.38C471.763 454.367 469.85 455.905 467.619 456.793L440.705 467.46C439.191 468.081 437.815 468.996 436.658 470.153C435.501 471.311 434.585 472.686 433.964 474.201L423.347 501.213C422.475 503.45 420.947 505.372 418.965 506.727C416.982 508.082 414.637 508.807 412.236 508.807C409.834 508.807 407.489 508.082 405.507 506.727C403.524 505.372 401.997 503.45 401.124 501.213L390.507 474.176C389.886 472.662 388.971 471.286 387.814 470.129C386.656 468.971 385.281 468.056 383.766 467.435L356.852 456.768C354.622 455.88 352.709 454.342 351.361 452.355C350.013 450.368 349.293 448.021 349.293 445.62C349.293 443.219 350.013 440.873 351.361 438.885C352.709 436.898 354.622 435.36 356.852 434.472L383.766 423.805C385.283 423.182 386.66 422.262 387.817 421.101C388.975 419.939 389.889 418.558 390.507 417.04L401.124 390.027Z"/>
+        </svg>
+        <span class="footer-name">Keepance</span>
+      </a>
+      <div class="footer-links">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </div>
+      <span class="footer-copy">Built by Jameson Daines.</span>
+    </div>
+  </footer>
+
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
+
+  <script>
+    // Scroll animations
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.06 });
+
+    document.querySelectorAll('.anim').forEach((el) => {
+      const siblings = el.parentElement.querySelectorAll(':scope > .anim');
+      if (siblings.length > 1) {
+        const idx = Array.prototype.indexOf.call(siblings, el);
+        el.style.transitionDelay = (idx * 0.07) + 's';
+      }
+      observer.observe(el);
+    });
+
+    // Plausible buy click tracking
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a');
+      if (!link) return;
+      if ((link.href || '').indexOf('lemonsqueezy.com/checkout') !== -1) {
+        if (typeof plausible === 'function') plausible('Buy click');
+      }
+    });
+  </script>
+
+</body>
+</html>

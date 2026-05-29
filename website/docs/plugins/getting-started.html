@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plugins, Getting Started, Projelli</title>
-  <meta name="description" content="Build your first Projelli plugin. Scaffold a project, edit, build, sideload, and see it run.">
-  <link rel="canonical" href="https://projelli.com/docs/plugins/getting-started">
+  <title>Plugins, Getting Started, Keepance</title>
+  <meta name="description" content="Build your first Keepance plugin. Scaffold a project, edit, build, sideload, and see it run.">
+  <link rel="canonical" href="https://keepance.com/docs/plugins/getting-started">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
@@ -42,8 +42,8 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 </head>
 <body>
   <div class="container">
@@ -51,7 +51,7 @@
     <h1>Getting Started</h1>
     <p class="meta">From zero to a working plugin in 5 minutes.</p>
 
-    <p>This guide walks through building a hello-world plugin: install Node, scaffold a project, edit one file, build it, drop it into your local Projelli plugins folder, and see it appear in the app.</p>
+    <p>This guide walks through building a hello-world plugin: install Node, scaffold a project, edit one file, build it, drop it into your local Keepance plugins folder, and see it appear in the app.</p>
 
     <h2>Step 1: Install Node</h2>
 
@@ -65,7 +65,7 @@
 
     <p>Pick a folder where you keep code projects, then run:</p>
 
-    <pre><code>npx create-projelli-plugin my-plugin</code></pre>
+    <pre><code>npx create-keepance-plugin my-plugin</code></pre>
 
     <p>The CLI asks a couple of quick questions (display name, which permissions to declare), then creates a folder called <code>my-plugin/</code> with a complete TypeScript project. It runs <code>npm install</code> for you.</p>
 
@@ -75,7 +75,7 @@
       <tr><th>File</th><th>What it is</th></tr>
       <tr><td><code>manifest.json</code></td><td>Plugin metadata: id, name, version, permissions.</td></tr>
       <tr><td><code>src/index.ts</code></td><td>Your plugin code. Exports a default <code>{ activate }</code> object.</td></tr>
-      <tr><td><code>package.json</code></td><td>npm dependencies and scripts. Includes <code>@projelli/plugin-api</code>.</td></tr>
+      <tr><td><code>package.json</code></td><td>npm dependencies and scripts. Includes <code>@keepance/plugin-api</code>.</td></tr>
       <tr><td><code>vite.config.ts</code></td><td>Bundles <code>src/index.ts</code> into a single ES module file at <code>dist/index.js</code>.</td></tr>
       <tr><td><code>tsconfig.json</code></td><td>Strict TypeScript settings.</td></tr>
       <tr><td><code>README.md</code></td><td>Notes for whoever installs your plugin.</td></tr>
@@ -86,7 +86,7 @@
 
     <p>Open <code>src/index.ts</code> in your editor. The starter looks like this:</p>
 
-    <pre><code>import type { PluginAPI, PluginModule } from '@projelli/plugin-api';
+    <pre><code>import type { PluginAPI, PluginModule } from '@keepance/plugin-api';
 
 const plugin: PluginModule = {
   async activate(api: PluginAPI) {
@@ -110,24 +110,24 @@ export default plugin;</code></pre>
     <p>Try changing the message to whatever you want.</p>
 
     <div class="callout">
-      <strong>Why TypeScript?</strong> The <code>@projelli/plugin-api</code> package is types-only. It gives you full autocomplete on <code>api.editor</code>, <code>api.workspace</code>, <code>api.ai</code>, and so on. You'll catch typos at build time instead of at runtime.
+      <strong>Why TypeScript?</strong> The <code>@keepance/plugin-api</code> package is types-only. It gives you full autocomplete on <code>api.editor</code>, <code>api.workspace</code>, <code>api.ai</code>, and so on. You'll catch typos at build time instead of at runtime.
     </div>
 
     <h2>Step 4: Build</h2>
 
     <pre><code>npm run build</code></pre>
 
-    <p>Vite bundles your plugin into a single ES module file at <code>dist/index.js</code>. That's the file Projelli loads.</p>
+    <p>Vite bundles your plugin into a single ES module file at <code>dist/index.js</code>. That's the file Keepance loads.</p>
 
     <h2>Step 5: Sideload</h2>
 
-    <p>Copy <code>manifest.json</code> and the <code>dist/</code> folder into Projelli's plugins directory:</p>
+    <p>Copy <code>manifest.json</code> and the <code>dist/</code> folder into Keepance's plugins directory:</p>
 
     <table>
       <tr><th>OS</th><th>Plugins folder</th></tr>
-      <tr><td>Windows</td><td><code>%APPDATA%\Projelli\plugins\my-plugin\</code></td></tr>
-      <tr><td>macOS</td><td><code>~/Library/Application Support/Projelli/plugins/my-plugin/</code></td></tr>
-      <tr><td>Linux</td><td><code>~/.local/share/Projelli/plugins/my-plugin/</code></td></tr>
+      <tr><td>Windows</td><td><code>%APPDATA%\Keepance\plugins\my-plugin\</code></td></tr>
+      <tr><td>macOS</td><td><code>~/Library/Application Support/Keepance/plugins/my-plugin/</code></td></tr>
+      <tr><td>Linux</td><td><code>~/.local/share/Keepance/plugins/my-plugin/</code></td></tr>
     </table>
 
     <p>The folder name must match the <code>id</code> field in your manifest. After copying, the layout should look like:</p>
@@ -137,9 +137,9 @@ export default plugin;</code></pre>
   dist/
     index.js</code></pre>
 
-    <h2>Step 6: Enable in Projelli</h2>
+    <h2>Step 6: Enable in Keepance</h2>
 
-    <p>Open Projelli, then go to Settings, then Plugins. Your plugin appears in the Installed list. Toggle it on. Projelli reads the manifest, asks you to approve any permissions, then loads the plugin.</p>
+    <p>Open Keepance, then go to Settings, then Plugins. Your plugin appears in the Installed list. Toggle it on. Keepance reads the manifest, asks you to approve any permissions, then loads the plugin.</p>
 
     <p>Look at the toolbar. You should see a sparkles icon. Click it. You'll see your notification.</p>
 
@@ -154,5 +154,35 @@ export default plugin;</code></pre>
 
     <a href="/docs/plugins/manifest-reference" class="next-link">Next: Manifest reference &rarr;</a>
   </div>
+
+  <footer class="kp-footer">
+    <div class="kp-footer-inner">
+      <a href="/" class="kp-footer-brand">Keepance</a>
+      <nav class="kp-footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="kp-footer-copy">Built by <a href="https://jamesondaines.com">Jameson Daines</a></span>
+    </div>
+  </footer>
+  <style>
+    .kp-footer { background: #0A2540; padding: 36px 24px; margin-top: 64px; }
+    .kp-footer-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; font-family: 'Satoshi', system-ui, sans-serif; }
+    .kp-footer-brand { color: rgba(255,255,255,0.85); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    .kp-footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
+    .kp-footer-links a { color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+    .kp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+    .kp-footer-copy { color: rgba(255,255,255,0.35); font-size: 12px; }
+    .kp-footer-copy a { color: inherit; }
+  </style>
+
 </body>
 </html>

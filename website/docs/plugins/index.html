@@ -3,16 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Plugin Developer Docs, Projelli</title>
-  <meta name="description" content="Build and ship plugins for Projelli. Scaffolder CLI, typed API, manifest reference, permissions guide, marketplace publishing.">
-  <link rel="canonical" href="https://projelli.com/docs/plugins/">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <title>Plugin Developer Docs, Keepance</title>
+  <meta name="description" content="Build and ship plugins for Keepance. Scaffolder CLI, typed API, manifest reference, permissions guide, marketplace publishing.">
+  <link rel="canonical" href="https://keepance.com/docs/plugins/">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
+    body { font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
     .container { max-width: 720px; margin: 0 auto; }
     h1 { font-size: 2.25rem; color: #111F35; margin-bottom: 8px; font-weight: 800; }
     h2 { font-size: 1.5rem; color: #111F35; margin-top: 48px; margin-bottom: 16px; font-weight: 700; }
@@ -43,18 +41,18 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 </head>
 <body>
   <div class="container">
     <a href="/docs/getting-started" class="back">&larr; Back to docs</a>
     <h1>Plugin Developer Docs</h1>
-    <p class="meta">Build extensions for Projelli. Ship them via npm or the in-app marketplace.</p>
+    <p class="meta">Build extensions for Keepance. Ship them via npm or the in-app marketplace.</p>
 
-    <p>Projelli has a real plugin system. You can add commands, toolbar buttons, sidebar panels, and settings pages. You can read and write workspace files, talk to the user's configured AI provider, and call out to the network. Plugins run in a sandboxed Web Worker, so a misbehaving plugin can't crash the app or read data it didn't ask permission for.</p>
+    <p>Keepance has a real plugin system. You can add commands, toolbar buttons, sidebar panels, and settings pages. You can read and write workspace files, talk to the user's configured AI provider, and call out to the network. Plugins run in a sandboxed Web Worker, so a misbehaving plugin can't crash the app or read data it didn't ask permission for.</p>
 
-    <p>This docs hub is for plugin authors. If you just want to install plugins, open Settings, then Plugins, inside Projelli.</p>
+    <p>This docs hub is for plugin authors. If you just want to install plugins, open Settings, then Plugins, inside Keepance.</p>
 
     <a href="/docs/plugins/getting-started" class="cta">Get started in 5 minutes &rarr;</a>
 
@@ -63,7 +61,7 @@
     <div class="doc-grid">
       <a class="doc-card" href="/docs/plugins/getting-started">
         <h3>Getting Started</h3>
-        <p>Install Node, scaffold a project with <code>create-projelli-plugin</code>, build, and sideload. End to end in 5 minutes.</p>
+        <p>Install Node, scaffold a project with <code>create-keepance-plugin</code>, build, and sideload. End to end in 5 minutes.</p>
       </a>
       <a class="doc-card" href="/docs/plugins/manifest-reference">
         <h3>Manifest Reference</h3>
@@ -99,17 +97,47 @@
     <h2>What's in the box</h2>
 
     <ul>
-      <li><strong><code>@projelli/plugin-api</code></strong>, a tiny types-only npm package. Install it as a dev dependency and you get full IntelliSense.</li>
-      <li><strong><code>create-projelli-plugin</code></strong>, an <code>npx</code>-runnable scaffolder. One command and you have a working TypeScript project with manifest, sample plugin, build script, and README.</li>
+      <li><strong><code>@keepance/plugin-api</code></strong>, a tiny types-only npm package. Install it as a dev dependency and you get full IntelliSense.</li>
+      <li><strong><code>create-keepance-plugin</code></strong>, an <code>npx</code>-runnable scaffolder. One command and you have a working TypeScript project with manifest, sample plugin, build script, and README.</li>
       <li><strong>Four reference plugins</strong>, each open source under MIT. Read them, fork them, ship your own.</li>
       <li><strong>An in-app marketplace</strong>, served from a public GitHub repo. Submit your plugin via PR and users can install it with one click.</li>
     </ul>
 
     <h2>Status</h2>
 
-    <p>Plugin API v1.0.0 ships with Projelli v2.0. The shape is stable for the v1.x line. Breaking changes will bump to v2.0 of the API and earlier plugins keep working until you update them.</p>
+    <p>Plugin API v1.0.0 ships with Keepance v2.0. The shape is stable for the v1.x line. Breaking changes will bump to v2.0 of the API and earlier plugins keep working until you update them.</p>
 
     <a href="/docs/plugins/getting-started" class="next-link">Next: Getting started &rarr;</a>
   </div>
+
+  <footer class="kp-footer">
+    <div class="kp-footer-inner">
+      <a href="/" class="kp-footer-brand">Keepance</a>
+      <nav class="kp-footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="kp-footer-copy">Built by <a href="https://jamesondaines.com">Jameson Daines</a></span>
+    </div>
+  </footer>
+  <style>
+    .kp-footer { background: #0A2540; padding: 36px 24px; margin-top: 64px; }
+    .kp-footer-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; font-family: 'Satoshi', system-ui, sans-serif; }
+    .kp-footer-brand { color: rgba(255,255,255,0.85); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    .kp-footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
+    .kp-footer-links a { color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+    .kp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+    .kp-footer-copy { color: rgba(255,255,255,0.35); font-size: 12px; }
+    .kp-footer-copy a { color: inherit; }
+  </style>
+
 </body>
 </html>

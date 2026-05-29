@@ -3,40 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MCP explained: the Model Context Protocol for AI workspaces | Projelli</title>
+  <title>MCP explained: the Model Context Protocol for AI workspaces | Keepance</title>
   <meta name="description" content="MCP (Model Context Protocol) is an open standard that lets AI tools talk to data sources, files, and other apps in a consistent way. Here's what MCP is, what problem it actually solves, how it works, and which tools support it.">
-  <link rel="canonical" href="https://projelli.com/mcp-explained">
+  <link rel="canonical" href="https://keepance.com/mcp-explained">
   <meta name="robots" content="index, follow">
   <meta property="og:type" content="article">
-  <meta property="og:url" content="https://projelli.com/mcp-explained">
+  <meta property="og:url" content="https://keepance.com/mcp-explained">
   <meta property="og:title" content="MCP explained: the Model Context Protocol for AI workspaces">
   <meta property="og:description" content="MCP is an open standard that lets AI tools talk to your data sources, files, and other apps. Here's what it is and why it matters.">
-  <meta property="og:image" content="https://projelli.com/og-image.png">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="MCP explained">
   <meta name="twitter:description" content="What MCP is, what problem it solves, which tools support it.">
-  <meta name="twitter:image" content="https://projelli.com/og-image.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "Article",
     "headline": "MCP explained: the Model Context Protocol for AI workspaces",
     "description": "MCP (Model Context Protocol) is an open standard that lets AI tools talk to data sources, files, and other apps in a consistent way. Here's what MCP is, what problem it actually solves, how it works, and which tools support it.",
-    "url": "https://projelli.com/mcp-explained",
+    "url": "https://keepance.com/mcp-explained",
     "datePublished": "2026-04-27",
     "dateModified": "2026-04-27",
-    "image": "https://projelli.com/og-image.png",
+    "image": "https://keepance.com/og-image.png",
     "publisher": {
       "@type": "Organization",
-      "name": "Projelli",
-      "url": "https://projelli.com",
-      "logo": "https://projelli.com/og-image.png"
+      "name": "Keepance",
+      "url": "https://keepance.com",
+      "logo": "https://keepance.com/og-image.png"
     },
-    "mainEntityOfPage": "https://projelli.com/mcp-explained"
+    "mainEntityOfPage": "https://keepance.com/mcp-explained"
   }
   </script>
   <script type="application/ld+json">
@@ -65,7 +63,7 @@
         "name": "What's the difference between an MCP client and an MCP server?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "An MCP client is the AI tool the user interacts with (Claude Desktop, Projelli, Cursor, Continue.dev). An MCP server is a small program that exposes a specific data source or capability (a file system, a database, a SaaS API) over the MCP protocol. Clients connect to servers; the AI in the client uses the server's capabilities."
+          "text": "An MCP client is the AI tool the user interacts with (Claude Desktop, Keepance, Cursor, Continue.dev). An MCP server is a small program that exposes a specific data source or capability (a file system, a database, a SaaS API) over the MCP protocol. Clients connect to servers; the AI in the client uses the server's capabilities."
         }
       },
       {
@@ -81,7 +79,7 @@
         "name": "Which AI tools currently support MCP?",
         "acceptedAnswer": {
           "@type": "Answer",
-          "text": "Claude Desktop is the canonical MCP client. Other supporting clients include Cursor, Continue.dev, Cody, and Projelli. The MCP server registry at github.com/modelcontextprotocol/servers lists hundreds of community-built servers covering filesystems, databases, GitHub, Slack, Google Drive, Notion, and more."
+          "text": "Claude Desktop is the canonical MCP client. Other supporting clients include Cursor, Continue.dev, Cody, and Keepance. The MCP server registry at github.com/modelcontextprotocol/servers lists hundreds of community-built servers covering filesystems, databases, GitHub, Slack, Google Drive, Notion, and more."
         }
       },
       {
@@ -108,7 +106,7 @@
       --accent-coral: #FF7C6E;
     }
     html { scroll-behavior: smooth; }
-    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.75; -webkit-font-smoothing: antialiased; }
+    body { font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.75; -webkit-font-smoothing: antialiased; }
     .nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-gray); }
     .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; max-width: 900px; margin: 0 auto; }
     .nav a.brand { font-weight: 700; color: var(--text-heading); text-decoration: none; font-size: 18px; }
@@ -154,33 +152,22 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 
+</head>
 <body>
-  <nav class="nav">
-    <div class="nav-inner">
-      <a href="/" class="brand">Projelli</a>
-      <div class="nav-links">
-        <a href="/">Home</a>
-        <a href="/templates/">Templates</a>
-        <a href="/vs/">vs Others</a>
-        <a href="/blog/">Blog</a>
-      </div>
-    </div>
-  </nav>
-
-  <div class="container">
+<div class="container">
     <h1>MCP explained: the Model Context Protocol for AI workspaces.</h1>
     <p class="meta">Updated 2026-04-27 · 10 min read</p>
 
     <div class="summary">
-      <p><strong>The short version.</strong> MCP (Model Context Protocol) is an open standard that lets AI tools talk to your files, databases, and other apps in a consistent way. Anthropic introduced it in November 2024. Think of it as a USB-C connector for AI: a single spec, so any compatible client can work with any compatible server. Today there are MCP servers for filesystems, GitHub, Slack, Notion, Google Drive, Postgres, and hundreds more. Projelli speaks MCP, so do Claude Desktop, Cursor, Continue.dev, and a growing list of clients.</p>
+      <p><strong>The short version.</strong> MCP (Model Context Protocol) is an open standard that lets AI tools talk to your files, databases, and other apps in a consistent way. Anthropic introduced it in November 2024. Think of it as a USB-C connector for AI: a single spec, so any compatible client can work with any compatible server. Today there are MCP servers for filesystems, GitHub, Slack, Notion, Google Drive, Postgres, and hundreds more. Keepance speaks MCP, so do Claude Desktop, Cursor, Continue.dev, and a growing list of clients.</p>
     </div>
 
-    <p>If you've heard MCP referenced and wondered whether it matters or if it's just another acronym, this is the page. I'll cover what problem MCP actually solves, how it works mechanically, what you can do with it today, and how Projelli uses it.</p>
+    <p>If you've heard MCP referenced and wondered whether it matters or if it's just another acronym, this is the page. I'll cover what problem MCP actually solves, how it works mechanically, what you can do with it today, and how Keepance uses it.</p>
 
-    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-01-workspace.png" alt="Projelli workspace where MCP servers extend the AI's reach into external data sources" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
+    <p style="margin: 32px 0;"><img src="/press-kit/assets/screenshot-01-workspace.png" alt="Keepance workspace where MCP servers extend the AI's reach into external data sources" style="width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(15,23,42,0.08); display:block;"></p>
 
     <h2>The problem MCP solves</h2>
 
@@ -193,7 +180,7 @@
     <p>Concretely:</p>
     <ul>
       <li><strong>Before MCP.</strong> Your AI tool can read files in its own special way. To add it to a different tool, you start over.</li>
-      <li><strong>With MCP.</strong> Your filesystem MCP server works for any MCP client: Claude Desktop, Cursor, Projelli, the next tool that comes along.</li>
+      <li><strong>With MCP.</strong> Your filesystem MCP server works for any MCP client: Claude Desktop, Cursor, Keepance, the next tool that comes along.</li>
     </ul>
 
     <p>That's it. The acronym is intimidating; the underlying idea is the kind of plumbing the web has been doing for decades.</p>
@@ -203,7 +190,7 @@
     <p>MCP defines three roles:</p>
 
     <ul>
-      <li><strong>Host.</strong> The desktop app the user actually interacts with (Claude Desktop, Projelli). The host runs the AI conversation and manages connections to MCP servers.</li>
+      <li><strong>Host.</strong> The desktop app the user actually interacts with (Claude Desktop, Keepance). The host runs the AI conversation and manages connections to MCP servers.</li>
       <li><strong>Client.</strong> The bit of the host that speaks the MCP protocol to a specific server. A host can run many clients, one per connected server.</li>
       <li><strong>Server.</strong> A small program that exposes a capability (read files, query a DB, fetch from an API). Servers can run as a local subprocess, an HTTP service, or any transport that supports JSON-RPC.</li>
     </ul>
@@ -292,37 +279,37 @@
 
     <p>Most are 50-300 lines of TypeScript or Python and run locally as a subprocess of the host app. Setup is typically: install the server (npm install or pip install), add a snippet to the host's MCP config file, restart the host.</p>
 
-    <h2>How Projelli uses MCP</h2>
+    <h2>How Keepance uses MCP</h2>
 
-    <p>Projelli is both an MCP client and exposes itself as an MCP-compatible workspace.</p>
+    <p>Keepance is both an MCP client and exposes itself as an MCP-compatible workspace.</p>
 
-    <p>As a client: Projelli can connect to any MCP server you configure. That means you can wire your Projelli workspace to your GitHub account (via the GitHub server), your Slack (via the Slack server), your Postgres (via the database server), or any custom internal data source you build a server for. The AI conversations in Projelli can then read from and write to those external sources, with Projelli's standard "ask before destructive operations" approval flow.</p>
+    <p>As a client: Keepance can connect to any MCP server you configure. That means you can wire your Keepance workspace to your GitHub account (via the GitHub server), your Slack (via the Slack server), your Postgres (via the database server), or any custom internal data source you build a server for. The AI conversations in Keepance can then read from and write to those external sources, with Keepance's standard "ask before destructive operations" approval flow.</p>
 
-    <p>As a workspace: every Projelli workspace is already a folder of Markdown files. Tools that can read files (any MCP filesystem server, any other text-aware tool) can access your Projelli workspace without any special integration. Your data in, data out.</p>
+    <p>As a workspace: every Keepance workspace is already a folder of Markdown files. Tools that can read files (any MCP filesystem server, any other text-aware tool) can access your Keepance workspace without any special integration. Your data in, data out.</p>
 
-    <p>For the technically-minded: Projelli uses the official Anthropic MCP SDK. Server config is exposed in Settings → AI → MCP Servers. Each server runs as a separate subprocess that Projelli manages.</p>
+    <p>For the technically-minded: Keepance uses the official Anthropic MCP SDK. Server config is exposed in Settings → AI → MCP Servers. Each server runs as a separate subprocess that Keepance manages.</p>
 
-    <h2>MCP and Projelli's plugin system are complementary</h2>
+    <h2>MCP and Keepance's plugin system are complementary</h2>
 
-    <p>One question that comes up a lot, especially after the v2.0 release: doesn't Projelli's new plugin system compete with MCP? Honestly no, they solve different problems and we shipped both on purpose.</p>
+    <p>One question that comes up a lot, especially after the v2.0 release: doesn't Keepance's new plugin system compete with MCP? Honestly no, they solve different problems and we shipped both on purpose.</p>
 
-    <p>MCP exposes external data sources <em>to</em> AI agents. Your filesystem, your GitHub, your Postgres become AI-readable surfaces, and any compatible client (Claude Desktop, Cursor, Projelli) can connect. The protocol is the bridge from outside-data to inside-AI.</p>
+    <p>MCP exposes external data sources <em>to</em> AI agents. Your filesystem, your GitHub, your Postgres become AI-readable surfaces, and any compatible client (Claude Desktop, Cursor, Keepance) can connect. The protocol is the bridge from outside-data to inside-AI.</p>
 
-    <p>Projelli's plugin system goes the other direction. Plugins extend Projelli itself: a Word Counter sidebar, a Translator that runs on the current selection, a Mermaid Preview pane, a Pomodoro timer, anything else community devs ship. They live in a Web Worker sandbox with a manifest-declared permission model and run in your app, not in a separate AI agent.</p>
+    <p>Keepance's plugin system goes the other direction. Plugins extend Keepance itself: a Word Counter sidebar, a Translator that runs on the current selection, a Mermaid Preview pane, a Pomodoro timer, anything else community devs ship. They live in a Web Worker sandbox with a manifest-declared permission model and run in your app, not in a separate AI agent.</p>
 
-    <p>So a typical v2.0 setup uses both. MCP servers connect Claude / OpenAI / Gemini to your data when chatting. Plugins shape the editor surface around how you actually work. The plugin developer docs are at <a href="/docs/plugins/">projelli.com/docs/plugins/</a>, with a manifest reference, permission catalog, full PluginAPI types, and a publishing guide.</p>
+    <p>So a typical v2.0 setup uses both. MCP servers connect Claude / OpenAI / Gemini to your data when chatting. Plugins shape the editor surface around how you actually work. The plugin developer docs are at <a href="/docs/plugins/">keepance.com/docs/plugins/</a>, with a manifest reference, permission catalog, full PluginAPI types, and a publishing guide.</p>
 
     <h2>Should you care about MCP?</h2>
 
-    <p>If you're an indie founder using AI for general workspace work (writing, planning, drafting), the answer depends on what data sources you want the AI to access:</p>
+    <p>If you're an attorney, CPA, or consultant using AI for professional work (drafting, research, analysis), the answer depends on what data sources you want the AI to access:</p>
 
     <ul>
-      <li><strong>If you want the AI to read your project files</strong>, every modern AI workspace tool already does this via its built-in filesystem awareness, with or without MCP. You probably don't notice the difference.</li>
-      <li><strong>If you want the AI to read your GitHub, Slack, Notion, or another SaaS service</strong>, MCP is the cleanest way. Pick a tool that supports MCP, install the relevant server, done.</li>
-      <li><strong>If you have a private data source you want the AI to access</strong> (your customer database, a legacy system, a homegrown CRM), MCP is the standard way to expose it. Build one server, every MCP-compliant tool can use it.</li>
+      <li><strong>If you want the AI to read your client files and case notes</strong>, every modern AI workspace tool already does this via its built-in filesystem awareness, with or without MCP. You probably don't notice the difference.</li>
+      <li><strong>If you want the AI to read your practice management system, Slack, or another professional SaaS</strong>, MCP is the cleanest way. Pick a tool that supports MCP, install the relevant server, done.</li>
+      <li><strong>If you have a private data source you want the AI to access</strong> (your client database, a matter management system, a document repository), MCP is the standard way to expose it. Build one server, every MCP-compliant tool can use it.</li>
     </ul>
 
-    <p>For founders specifically, the most common useful MCP integrations are GitHub (for code-adjacent work), Notion (for migrating away from cloud workspaces), Postgres or SQLite (for any database-backed product where you want the AI to do analysis), and a custom server for whatever your particular product touches.</p>
+    <p>For attorneys, CPAs, and consultants specifically, the most common useful MCP integrations are filesystem servers (to access local client folders), Postgres or SQLite (for any database-backed work where you want the AI to do analysis), and custom servers for practice-specific tools.</p>
 
     <h2>Building your own MCP server (briefly)</h2>
 
@@ -359,7 +346,7 @@ await server.connect(transport);</code></pre>
       </details>
       <details>
         <summary>What's the difference between an MCP client and an MCP server?</summary>
-        <p>An MCP client is the AI tool the user interacts with (Claude Desktop, Projelli, Cursor, Continue.dev). An MCP server is a small program that exposes a specific data source or capability (a file system, a database, a SaaS API) over the MCP protocol. Clients connect to servers; the AI in the client uses the server's capabilities.</p>
+        <p>An MCP client is the AI tool the user interacts with (Claude Desktop, Keepance, Cursor, Continue.dev). An MCP server is a small program that exposes a specific data source or capability (a file system, a database, a SaaS API) over the MCP protocol. Clients connect to servers; the AI in the client uses the server's capabilities.</p>
       </details>
       <details>
         <summary>Does MCP support require an internet connection?</summary>
@@ -367,7 +354,7 @@ await server.connect(transport);</code></pre>
       </details>
       <details>
         <summary>Which AI tools currently support MCP?</summary>
-        <p>Claude Desktop is the canonical MCP client. Other supporting clients include Cursor, Continue.dev, Cody, and Projelli. The MCP server registry at <a href="https://github.com/modelcontextprotocol/servers" target="_blank" rel="noopener">github.com/modelcontextprotocol/servers</a> lists hundreds of community-built servers covering filesystems, databases, GitHub, Slack, Google Drive, Notion, and more.</p>
+        <p>Claude Desktop is the canonical MCP client. Other supporting clients include Cursor, Continue.dev, Cody, and Keepance. The MCP server registry at <a href="https://github.com/modelcontextprotocol/servers" target="_blank" rel="noopener">github.com/modelcontextprotocol/servers</a> lists hundreds of community-built servers covering filesystems, databases, GitHub, Slack, Google Drive, Notion, and more.</p>
       </details>
       <details>
         <summary>Should I build my own MCP server?</summary>
@@ -375,7 +362,7 @@ await server.connect(transport);</code></pre>
       </details>
       <details>
         <summary>Is MCP a security risk?</summary>
-        <p>MCP itself is just a protocol; the security depends on how the host handles tool approvals. Good clients (Claude Desktop, Projelli) ask the user before allowing destructive operations and clearly show which servers are connected. Read operations are typically auto-approved. The risk surface is similar to any other AI tool that can take actions, with the standard mitigation: don't connect servers you don't trust, and review tool call prompts before approving.</p>
+        <p>MCP itself is just a protocol; the security depends on how the host handles tool approvals. Good clients (Claude Desktop, Keepance) ask the user before allowing destructive operations and clearly show which servers are connected. Read operations are typically auto-approved. The risk surface is similar to any other AI tool that can take actions, with the standard mitigation: don't connect servers you don't trust, and review tool call prompts before approving.</p>
       </details>
     </div>
 
@@ -391,8 +378,8 @@ await server.connect(transport);</code></pre>
 
     <div class="cta-card">
       <h3>An MCP-aware local-first AI workspace</h3>
-      <p>Projelli speaks MCP. Connect filesystem, GitHub, Slack, Notion, Postgres, or any custom MCP server you build. Local data, your API keys, sold once.</p>
-      <a href="/#download" class="cta-btn">Get Projelli</a>
+      <p>Keepance speaks MCP. Connect filesystem, GitHub, Slack, Notion, Postgres, or any custom MCP server you build. Local data, your API keys, sold once.</p>
+      <a href="/#pricing" class="cta-btn">Get Keepance</a>
     </div>
   </div>
 

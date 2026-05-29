@@ -56,7 +56,7 @@ If the next 6 interviews corroborate these three themes, I have product-market-c
 
 ## After the call
 
-Within 24 hours, I write a one-page memo per interview: top three quotes, the biggest surprise, the contradiction with my hypothesis, the concrete feature implication. All ten go into one synthesis document in Projelli via the [multi-interview synthesis](/blog/how-i-built-projelli-in-8-weeks) workflow.
+Within 24 hours, I write a one-page memo per interview: top three quotes, the biggest surprise, the contradiction with my hypothesis, the concrete feature implication. All ten go into one synthesis document in Keepance via the [multi-interview synthesis](/blog/how-i-built-keepance-in-8-weeks) workflow.
 
 ## Incentive budget
 

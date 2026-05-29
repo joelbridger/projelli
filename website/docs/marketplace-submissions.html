@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Marketplace Submissions, Projelli</title>
-  <meta name="description" content="How to submit a template or plugin to the Projelli in-app marketplace via pull request.">
-  <link rel="canonical" href="https://projelli.com/docs/marketplace-submissions">
+  <title>Marketplace Submissions, Keepance</title>
+  <meta name="description" content="How to submit a template or plugin to the Keepance in-app marketplace via pull request.">
+  <link rel="canonical" href="https://keepance.com/docs/marketplace-submissions">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #fff; color: #475569; line-height: 1.7; padding: 60px 24px; }
@@ -45,30 +45,30 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 </head>
 <body>
   <div class="container">
-    <a href="/" class="back">&larr; Back to Projelli</a>
+    <a href="/" class="back">&larr; Back to Keepance</a>
     <h1>Marketplace Submissions</h1>
     <p class="meta">How to publish a template or plugin to the in-app marketplace.</p>
 
-    <p>The Projelli marketplace is two public GitHub repos. Templates live at <a href="https://github.com/projelli/community-templates" target="_blank" rel="noopener"><code>projelli/community-templates</code></a>, plugins at <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener"><code>projelli/community-plugins</code></a>. Each entry is one folder under <code>entries/</code> with a manifest, the entry's files, and screenshots. To publish, you fork the relevant repo, add your folder, and open a pull request.</p>
+    <p>The Keepance marketplace is two public GitHub repos. Templates live at <a href="https://github.com/keepance/community-templates" target="_blank" rel="noopener"><code>keepance/community-templates</code></a>, plugins at <a href="https://github.com/keepance/community-plugins" target="_blank" rel="noopener"><code>keepance/community-plugins</code></a>. Each entry is one folder under <code>entries/</code> with a manifest, the entry's files, and screenshots. To publish, you fork the relevant repo, add your folder, and open a pull request.</p>
 
     <div class="callout">
       <strong>Why publish-via-PR?</strong> The repo is the source of truth. There's no signup, no API key, no separate dashboard. Every catalog entry has a public commit history and a maintainer who reviewed it. If you can write a manifest and open a PR, you can ship to the marketplace.
     </div>
 
     <div class="repo-cta">
-      <a href="https://github.com/projelli/community-templates" target="_blank" rel="noopener">community-templates repo</a>
-      <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener">community-plugins repo</a>
+      <a href="https://github.com/keepance/community-templates" target="_blank" rel="noopener">community-templates repo</a>
+      <a href="https://github.com/keepance/community-plugins" target="_blank" rel="noopener">community-plugins repo</a>
     </div>
 
     <h2>Prerequisites</h2>
 
     <ul>
-      <li>A working template or plugin tested locally inside Projelli.</li>
+      <li>A working template or plugin tested locally inside Keepance.</li>
       <li>A unique <code>id</code> in your manifest that doesn't collide with any existing entry.</li>
       <li>An open-source license (MIT, Apache-2.0, BSD-3-Clause, or similar). Closed-source entries aren't accepted.</li>
       <li>At least one screenshot.</li>
@@ -80,13 +80,13 @@
     <p>Templates and plugins live in different repos because they have different schemas and different review criteria.</p>
 
     <ul>
-      <li><strong>Template:</strong> a workflow definition plus a markdown body that produces one or more files when run. No code. Use <a href="https://github.com/projelli/community-templates" target="_blank" rel="noopener">community-templates</a>.</li>
-      <li><strong>Plugin:</strong> a JavaScript bundle that runs inside Projelli's sandboxed worker and contributes commands, toolbar buttons, sidebar panels, or settings. Use <a href="https://github.com/projelli/community-plugins" target="_blank" rel="noopener">community-plugins</a>.</li>
+      <li><strong>Template:</strong> a workflow definition plus a markdown body that produces one or more files when run. No code. Use <a href="https://github.com/keepance/community-templates" target="_blank" rel="noopener">community-templates</a>.</li>
+      <li><strong>Plugin:</strong> a JavaScript bundle that runs inside Keepance's sandboxed worker and contributes commands, toolbar buttons, sidebar panels, or settings. Use <a href="https://github.com/keepance/community-plugins" target="_blank" rel="noopener">community-plugins</a>.</li>
     </ul>
 
     <h2>Step 2: Fork the repo and add your entry</h2>
 
-    <pre><code>gh repo fork projelli/community-templates  # or community-plugins
+    <pre><code>gh repo fork keepance/community-templates  # or community-plugins
 cd community-templates
 git checkout -b add-my-entry</code></pre>
 
@@ -116,9 +116,9 @@ git checkout -b add-my-entry</code></pre>
 
     <h2>Step 3: Author the manifest</h2>
 
-    <p>Templates use the <a href="https://github.com/projelli/projelli/blob/master/src/types/templateManifest.ts" target="_blank" rel="noopener">TemplateManifest schema</a>; plugins use the <a href="https://github.com/projelli/projelli/blob/master/src/types/plugin.ts" target="_blank" rel="noopener">PluginManifest schema</a>. Both repos' READMEs show a complete example.</p>
+    <p>Templates use the <a href="https://github.com/keepance/keepance/blob/master/src/types/templateManifest.ts" target="_blank" rel="noopener">TemplateManifest schema</a>; plugins use the <a href="https://github.com/keepance/keepance/blob/master/src/types/plugin.ts" target="_blank" rel="noopener">PluginManifest schema</a>. Both repos' READMEs show a complete example.</p>
 
-    <p>Fields you'll always need: <code>id</code>, <code>name</code>, <code>version</code> (semver), <code>apiVersion</code>, <code>author</code>, <code>description</code>, <code>category</code>, <code>tags</code>, and <code>minProjelliVersion</code>.</p>
+    <p>Fields you'll always need: <code>id</code>, <code>name</code>, <code>version</code> (semver), <code>apiVersion</code>, <code>author</code>, <code>description</code>, <code>category</code>, <code>tags</code>, and <code>minKeepanceVersion</code>.</p>
 
     <p>Plugins additionally declare <code>main</code> (the JS entry path) and <code>permissions</code> (what host capabilities the plugin needs). See the <a href="/docs/plugins/permissions">permissions reference</a> for details on which permissions are surfaced to the user at install time and how to keep that list short.</p>
 
@@ -178,7 +178,7 @@ gh pr create --base main</code></pre>
 
     <h2>Removing an entry</h2>
 
-    <p>Open a PR that deletes the entry folder. Existing installs in user copies of Projelli keep working; the entry just disappears from the marketplace.</p>
+    <p>Open a PR that deletes the entry folder. Existing installs in user copies of Keepance keep working; the entry just disappears from the marketplace.</p>
 
     <h2>Reporting a problem</h2>
 
@@ -186,5 +186,35 @@ gh pr create --base main</code></pre>
 
     <a href="/docs/plugins/publishing" class="next-link">Plugin-specific publishing guide &rarr;</a>
   </div>
+
+  <footer class="kp-footer">
+    <div class="kp-footer-inner">
+      <a href="/" class="kp-footer-brand">Keepance</a>
+      <nav class="kp-footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="kp-footer-copy">Built by <a href="https://jamesondaines.com">Jameson Daines</a></span>
+    </div>
+  </footer>
+  <style>
+    .kp-footer { background: #0A2540; padding: 36px 24px; margin-top: 64px; }
+    .kp-footer-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; font-family: 'Satoshi', system-ui, sans-serif; }
+    .kp-footer-brand { color: rgba(255,255,255,0.85); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    .kp-footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
+    .kp-footer-links a { color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+    .kp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+    .kp-footer-copy { color: rgba(255,255,255,0.35); font-size: 12px; }
+    .kp-footer-copy a { color: inherit; }
+  </style>
+
 </body>
 </html>

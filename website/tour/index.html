@@ -3,445 +3,342 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tour: see Projelli in action | Projelli</title>
-  <meta name="description" content="Eleven short videos walking through what Projelli actually does: try it in your browser, the plugin sandbox, the workspace, AI chat as files, wiki-links, founder workflow templates, document suite, BYOK setup, local-first storage, version history.">
-  <link rel="canonical" href="https://projelli.com/tour">
+  <title>See Keepance in action | Keepance</title>
+  <meta name="description" content="A walkthrough of Keepance — the local-first AI workspace for attorneys, CPAs, and consultants. See how confidential work stays on your machine.">
+  <link rel="canonical" href="https://keepance.com/tour">
   <meta name="robots" content="index, follow">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://projelli.com/tour">
-  <meta property="og:title" content="Tour: see Projelli in action">
-  <meta property="og:description" content="Eleven short videos walking through what Projelli does.">
-  <meta property="og:image" content="https://projelli.com/press-kit/assets/og-linkedin-card.png">
+  <meta property="og:url" content="https://keepance.com/tour">
+  <meta property="og:title" content="See Keepance in action">
+  <meta property="og:description" content="A walkthrough of Keepance — the local-first AI workspace for attorneys, CPAs, and consultants.">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Tour: see Projelli in action">
-  <meta name="twitter:description" content="Eleven short videos walking through what Projelli does.">
-  <meta name="twitter:image" content="https://projelli.com/press-kit/assets/og-twitter-card.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <meta name="twitter:title" content="See Keepance in action">
+  <meta name="twitter:description" content="A walkthrough of Keepance — the local-first AI workspace for attorneys, CPAs, and consultants.">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg-white: #FFFFFF;
-      --bg-surface: #F8FAFC;
-      --border-gray: #E2E8F0;
-      --text-heading: #111F35;
-      --text-body: #475569;
-      --text-muted: #94A3B8;
-      --accent-blue: #3B82F6;
-      --accent-coral: #FF7C6E;
+      --navy: #0A2540;
+      --grad-pink: #FF3CE8;
+      --grad-blue: #5DC6FF;
+      --bone: #F5F5F0;
+      --text-heading: #0A2540;
+      --text-body: #3A3A38;
+      --text-muted: #6B6B65;
+      --border: #E0E0D8;
     }
     html { scroll-behavior: smooth; }
-    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.65; -webkit-font-smoothing: antialiased; }
-    .nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-gray); }
-    .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; max-width: 1200px; margin: 0 auto; }
-    .nav a.brand { font-weight: 700; color: var(--text-heading); text-decoration: none; font-size: 18px; }
-    .nav-links { display: flex; gap: 24px; font-size: 14px; }
-    .nav-links a { color: var(--text-body); text-decoration: none; font-weight: 500; }
-    .nav-links a:hover { color: var(--accent-blue); }
-
-    .hero { padding: 80px 24px 48px; text-align: center; max-width: 880px; margin: 0 auto; }
-    .hero h1 { font-size: 2.75rem; color: var(--text-heading); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; line-height: 1.15; }
-    .hero p { font-size: 1.125rem; max-width: 640px; margin: 0 auto; color: var(--text-body); }
-
-    /* One video per row, full column width. Single source of truth, no media-query split. */
-    .videos { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; display: grid; grid-template-columns: 1fr; gap: 80px; }
-
-    .video-card { display: flex; flex-direction: column; }
-    .video-card .video-wrap {
-      position: relative;
-      border-radius: 14px;
-      overflow: hidden;
-      filter: drop-shadow(0 12px 24px rgba(15, 23, 42, 0.12));
-      background: #0f0f17;
+    body {
+      font-family: 'Satoshi', system-ui, sans-serif;
+      background: var(--bone);
+      color: var(--text-body);
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
     }
-    .video-card video {
-      width: 100%;
-      height: auto;
-      display: block;
+
+    .hero {
+      padding: 80px 24px 48px;
+      text-align: center;
+      max-width: 880px;
+      margin: 0 auto;
     }
-    /* "Enlarge" button. Its own clickable target so it doesn't fight
-       the native video controls (play / scrub / volume). */
-    .video-card .enlarge-btn {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      background: rgba(15, 23, 42, 0.78);
-      color: #FFFFFF;
-      font-size: 0.8125rem;
+    .hero h1 {
+      font-size: 2.75rem;
+      color: var(--text-heading);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      line-height: 1.15;
+    }
+    .hero p {
+      font-size: 1.125rem;
+      max-width: 640px;
+      margin: 0 auto;
+      color: var(--text-body);
+    }
+
+    .section {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 64px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .section:last-of-type {
+      border-bottom: none;
+    }
+
+    .section h2 {
+      font-size: 1.875rem;
+      color: var(--text-heading);
+      font-weight: 700;
+      margin-bottom: 24px;
+      letter-spacing: -0.01em;
+    }
+
+    .section p {
+      font-size: 1.0625rem;
+      margin-bottom: 16px;
+      color: var(--text-body);
+      line-height: 1.65;
+    }
+
+    .section a {
+      color: var(--grad-blue);
+      text-decoration: none;
       font-weight: 500;
-      padding: 8px 14px;
-      border-radius: 999px;
-      border: none;
-      cursor: pointer;
-      backdrop-filter: blur(8px);
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: background 0.15s, transform 0.15s;
     }
-    .video-card .enlarge-btn:hover {
-      background: rgba(15, 23, 42, 0.92);
-      transform: scale(1.04);
+    .section a:hover {
+      text-decoration: underline;
     }
-    .video-card .enlarge-btn svg { width: 14px; height: 14px; }
-    /* "VIDEO N OF 9" pill overlaid on the video itself, mirroring the
-       home-page tour cards so the navigation feels consistent. */
-    .video-card .video-wrap .number-badge {
-      position: absolute;
-      top: 14px;
-      left: 14px;
-      background: rgba(15, 23, 42, 0.88);
-      color: white;
-      font-size: 0.75rem;
+
+    .core-loop {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 24px;
+      margin-top: 32px;
+    }
+    .loop-step {
+      background: white;
+      padding: 28px 24px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+    .loop-step-num {
+      font-size: 0.875rem;
       font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
-      padding: 5px 12px;
-      border-radius: 999px;
-      backdrop-filter: blur(6px);
-      pointer-events: none;
-      z-index: 2;
+      color: var(--text-muted);
+      margin-bottom: 8px;
     }
-    .video-card .meta { display: flex; align-items: center; gap: 10px; margin-top: 22px; margin-bottom: 10px; }
-    .video-card .meta .badge {
-      font-size: 0.8125rem;
-      color: var(--accent-coral);
-      background: rgba(255, 124, 110, 0.14);
-      padding: 4px 12px;
-      border-radius: 999px;
+    .loop-step h3 {
+      font-size: 1.25rem;
+      color: var(--text-heading);
       font-weight: 700;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
+      margin-bottom: 12px;
     }
-    .video-card .meta .badge::before {
-      content: '▶';
-      font-size: 0.625rem;
+    .loop-step p {
+      font-size: 0.9375rem;
+      color: var(--text-body);
     }
-    .video-card h2 { font-size: 1.5rem; color: var(--text-heading); font-weight: 700; line-height: 1.3; }
-    .video-card p { font-size: 1rem; margin-top: 6px; }
-    .video-card .related { margin-top: 12px; font-size: 0.9375rem; }
-    .video-card .related a { color: var(--accent-blue); text-decoration: none; }
-    .video-card .related a:hover { text-decoration: underline; }
 
-    /* ── Lightbox modal: click-to-enlarge that's bigger than the card
-       but smaller than full-screen, so the surrounding context (and
-       browser chrome) stays visible. ── */
-    .lightbox {
-      position: fixed; inset: 0; z-index: 1000;
-      background: rgba(15, 23, 42, 0.82);
-      backdrop-filter: blur(12px);
-      display: none;
-      align-items: center; justify-content: center;
-      padding: 5vh 5vw;
-      opacity: 0;
-      transition: opacity 0.2s ease;
+    .practice-section {
+      background: white;
+      padding: 28px 24px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
     }
-    .lightbox.is-open {
+    .practice-section h3 {
+      font-size: 1.25rem;
+      color: var(--text-heading);
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .practice-section p {
+      font-size: 0.9375rem;
+      margin-bottom: 12px;
+    }
+    .practice-section a {
+      display: inline-block;
+      font-size: 0.9375rem;
+      margin-top: 8px;
+    }
+
+    .byok-section {
+      background: white;
+      padding: 32px 28px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+
+    .cta-section {
       display: flex;
+      gap: 16px;
+      margin-top: 40px;
+      flex-wrap: wrap;
+    }
+    .cta-btn {
+      display: inline-block;
+      padding: 14px 32px;
+      background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue));
+      color: white;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.95rem;
+      transition: opacity 0.15s;
+    }
+    .cta-btn:hover {
+      opacity: 0.9;
+    }
+    .cta-btn-secondary {
+      background: white;
+      color: var(--text-heading);
+      border: 1px solid var(--border);
+    }
+    .cta-btn-secondary:hover {
+      background: #FAFAF8;
       opacity: 1;
     }
-    .lightbox-inner {
-      position: relative;
-      width: min(85vw, 1500px);
-      max-height: 85vh;
-      border-radius: 14px;
-      overflow: hidden;
-      background: #000;
-      box-shadow: 0 30px 80px rgba(0,0,0,0.5);
-    }
-    .lightbox-inner video {
-      display: block;
-      width: 100%;
-      height: auto;
-      max-height: 85vh;
-    }
-    .lightbox-close {
-      position: absolute;
-      top: -56px; right: -8px;
-      width: 44px; height: 44px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.18);
-      color: #FFFFFF;
-      border: none;
-      font-size: 24px;
-      line-height: 1;
-      cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-      transition: background 0.15s;
-    }
-    .lightbox-close:hover { background: rgba(255,255,255,0.30); }
 
-    .feature-banner { max-width: 880px; margin: 64px auto 0; padding: 32px 24px; }
-    .feature-banner-card { background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white; padding: 48px 40px; border-radius: 20px; text-align: center; }
-    .feature-banner-card h2 { color: white; font-size: 1.625rem; font-weight: 700; margin-bottom: 12px; letter-spacing: -0.01em; }
-    .feature-banner-card p { color: rgba(255,255,255,0.92); margin-bottom: 24px; max-width: 600px; margin-left: auto; margin-right: auto; }
-    .cta-btn { display: inline-block; padding: 14px 36px; background: white; color: var(--text-heading); border-radius: 999px; text-decoration: none; font-weight: 600; }
-    .cta-btn:hover { opacity: 0.94; }
-
-    footer { text-align: center; padding: 32px 24px; color: var(--text-muted); font-size: 0.875rem; border-top: 1px solid var(--border-gray); margin-top: 32px; }
-    footer a { color: var(--text-body); text-decoration: none; margin: 0 8px; }
+    .back-link {
+      max-width: 880px;
+      margin: 48px auto 0;
+      padding: 0 24px 32px;
+      font-size: 0.875rem;
+    }
+    .back-link a {
+      color: var(--grad-blue);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .back-link a:hover {
+      text-decoration: underline;
+    }
   </style>
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
-
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
+</head>
 <body>
-  <nav class="nav">
-    <div class="nav-inner">
-      <a href="/" class="brand">Projelli</a>
-      <div class="nav-links">
-        <a href="/">Home</a>
-        <a href="/tour">Tour</a>
-        <a href="/templates/">Templates</a>
-        <a href="/vs/">vs Others</a>
-        <a href="/blog/">Blog</a>
-      </div>
-    </div>
-  </nav>
 
   <section class="hero">
-    <h1>See Projelli in action.</h1>
-    <p>Eleven short videos. Start with the full tutorial walkthrough, the same 10-step tour that opens on first launch. The rest drill into specific features and the AI streaming "magic moment". No audio; tap to play with sound off, or hover for autoplay.</p>
-    <p style="margin-top: 18px; font-size: 0.95rem; color: var(--text-muted);">Two of these are new in v2.0: trying Projelli in your browser, and the plugin runner sandbox tests. <a href="/blog/projelli-v2-announce" style="color: var(--accent-blue); text-decoration: none; font-weight: 500;">Read the v2.0 announcement</a> or jump straight to <a href="/try/" style="color: var(--accent-blue); text-decoration: none; font-weight: 500;">projelli.com/try</a> to use it in your browser without downloading anything.</p>
+    <h1>See Keepance in action.</h1>
+    <p>Every feature, shown plainly. No cloud required.</p>
   </section>
 
-  <section class="videos">
+  <section class="section">
+    <h2>The core loop</h2>
+    <p>Keepance works in three steps: you ask a question, the AI responds, and a real Markdown file appears on your hard drive.</p>
 
-    <div class="video-card">
-      <div class="video-wrap">
-        <video poster="/press-kit/assets/tutorial-walkthrough-v4-poster.jpg" src="/press-kit/assets/tutorial-walkthrough-v4.mp4" muted playsinline preload="metadata" controls></video>
-        <span class="number-badge">Video 1 of 11</span>
-        <button class="enlarge-btn" data-src="/press-kit/assets/tutorial-walkthrough-v4.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
+    <div class="core-loop">
+      <div class="loop-step">
+        <div class="loop-step-num">Step 1</div>
+        <h3>You ask</h3>
+        <p>Type your question into the chat panel. Paste documents, images, PDFs. The AI has full context of your workspace.</p>
       </div>
-      <div class="meta"><span class="badge">51 sec</span></div>
-      <h2>Start here: the first launch tour</h2>
-      <p>The exact tour that opens the first time you launch Projelli. Files on your disk, AI chat with your own keys, 15 founder workflows, full-text search, research mode, whiteboard, audit log, command palette, and settings. The whole product in under a minute.</p>
-      <p class="related"><a href="/local-first-ai-workspace">What is a local-first AI workspace? →</a></p>
-    </div>
-
-    <div class="video-card">
-      <div class="video-wrap">
-        <video poster="/press-kit/assets/try-in-browser-v1-poster.jpg" src="/press-kit/assets/try-in-browser-v1.mp4" muted playsinline preload="metadata" controls></video>
-        <span class="number-badge">Video 2 of 11</span>
-        <button class="enlarge-btn" data-src="/press-kit/assets/try-in-browser-v1.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
+      <div class="loop-step">
+        <div class="loop-step-num">Step 2</div>
+        <h3>AI responds</h3>
+        <p>Watch the response stream in real-time. Stop at any point, edit the message, rerun with different parameters.</p>
       </div>
-      <div class="meta"><span class="badge">24 sec</span></div>
-      <h2>Try it in your browser</h2>
-      <p>No download. Sample workspace, real AI chat, your own key when you want unlimited. Open <a href="/try/">projelli.com/try</a> and you're inside the same workspace, editor, and chat panel as the desktop app.</p>
-    </div>
-
-    <div class="video-card">
-      <div class="video-wrap">
-        <video poster="/press-kit/assets/plugin-spike-harness-v1-poster.jpg" src="/press-kit/assets/plugin-spike-harness-v1.mp4" muted playsinline preload="metadata" controls></video>
-        <span class="number-badge">Video 3 of 11</span>
-        <button class="enlarge-btn" data-src="/press-kit/assets/plugin-spike-harness-v1.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
+      <div class="loop-step">
+        <div class="loop-step-num">Step 3</div>
+        <h3>File appears</h3>
+        <p>Save the conversation as a permanent Markdown file in your workspace. Edit, link to other files, version-track changes.</p>
       </div>
-      <div class="meta"><span class="badge">11 sec</span></div>
-      <h2>How the plugin sandbox actually works</h2>
-      <p>Eight pass-or-fail tests of the plugin runner. Worker isolation, round-trip command, permission denial, sidebar render, hot-load, cross-plugin permissions, crash isolation, and round-trip latency. Every one passes in real Chromium.</p>
     </div>
-
-    <div class="video-card">
-      <div class="video-wrap">
-        <video poster="/press-kit/assets/demo-30s-v5-poster.jpg" src="/press-kit/assets/demo-30s-v5.mp4" muted playsinline preload="metadata" controls></video>
-        <span class="number-badge">Video 4 of 11</span>
-        <button class="enlarge-btn" data-src="/press-kit/assets/demo-30s-v5.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
-      </div>
-      <div class="meta"><span class="badge">30 sec</span></div>
-      <h2>Watch an AI chat become a real file</h2>
-      <p>Type into AI chat, watch it stream a response, and see a real Markdown file appear in your workspace. The "magic moment" of Projelli, in one continuous take.</p>
-      <p class="related"><a href="/markdown-for-ai">Why Markdown beats database notes →</a></p>
-    </div>
-
-    <div class="video-card">
-      <div class="video-wrap">
-        <video poster="/press-kit/assets/workspace-tour-v3-poster.jpg" src="/press-kit/assets/workspace-tour-v3.mp4" muted playsinline preload="metadata" controls></video>
-        <span class="number-badge">Video 5 of 11</span>
-        <button class="enlarge-btn" data-src="/press-kit/assets/workspace-tour-v3.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
-      </div>
-      <div class="meta"><span class="badge">25 sec</span></div>
-      <h2>Open files and split panes</h2>
-      <p>The three-pane layout: file tree, editor, AI chat. Switching tabs, opening split panes, and how the workspace handles dozens of files at once.</p>
-      <p class="related"><a href="/founder-workflow-templates">Why 15 founder templates →</a></p>
-    </div>
-
-    <div class="video-card">
-      <div class="video-wrap">
-        <video poster="/press-kit/assets/wiki-links-v3-poster.jpg" src="/press-kit/assets/wiki-links-v3.mp4" muted playsinline preload="metadata" controls></video>
-        <span class="number-badge">Video 6 of 11</span>
-        <button class="enlarge-btn" data-src="/press-kit/assets/wiki-links-v3.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
-      </div>
-      <div class="meta"><span class="badge">15 sec</span></div>
-      <h2>Link any note in two keystrokes</h2>
-      <p>Type <code style="background:#F1F5F9;padding:2px 5px;border-radius:3px;font-size:0.875em;">[[</code> and the autocomplete shows every file in your workspace. Backlinks panel surfaces every doc that references this one.</p>
-      <p class="related"><a href="/markdown-for-ai">Why Markdown beats database notes →</a></p>
-    </div>
-
-    <div class="video-card">
-      <div class="video-wrap">
-        <video poster="/press-kit/assets/workflow-templates-v3-poster.jpg" src="/press-kit/assets/workflow-templates-v3.mp4" muted playsinline preload="metadata" controls></video>
-        <span class="number-badge">Video 7 of 11</span>
-        <button class="enlarge-btn" data-src="/press-kit/assets/workflow-templates-v3.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
-      </div>
-      <div class="meta"><span class="badge">30 sec</span></div>
-      <h2>Run a workflow, get a finished doc</h2>
-      <p>Pick a template (pitch deck, customer interviews, financial projections), answer the structured AI interview, and watch a finished Markdown document assemble.</p>
-      <p class="related"><a href="/founder-workflow-templates">All 15 templates →</a></p>
-    </div>
-
-    <div class="video-card">
-      <div class="video-wrap">
-        <video poster="/press-kit/assets/feature-document-suite-15s-v3-poster.jpg" src="/press-kit/assets/feature-document-suite-15s-v3.mp4" muted playsinline preload="metadata" controls></video>
-        <span class="number-badge">Video 8 of 11</span>
-        <button class="enlarge-btn" data-src="/press-kit/assets/feature-document-suite-15s-v3.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
-      </div>
-      <div class="meta"><span class="badge">15 sec</span></div>
-      <h2>Edit Excel, Word, and PowerPoint here too</h2>
-      <p>Switching between Markdown, Excel, Word, and PowerPoint files in a single workspace. Native editing for each format with round-trip preservation.</p>
-    </div>
-
-    <div class="video-card">
-      <div class="video-wrap">
-        <video poster="/press-kit/assets/byok-setup-v3-poster.jpg" src="/press-kit/assets/byok-setup-v3.mp4" muted playsinline preload="metadata" controls></video>
-        <span class="number-badge">Video 9 of 11</span>
-        <button class="enlarge-btn" data-src="/press-kit/assets/byok-setup-v3.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
-      </div>
-      <div class="meta"><span class="badge">15 sec</span></div>
-      <h2>Bring your own AI key in 30 seconds</h2>
-      <p>Settings → API Keys. Paste your Anthropic, OpenAI, or Gemini key. Stored in your OS keychain. AI requests go directly to the provider; Projelli's servers are not in the path.</p>
-      <p class="related"><a href="/api-key-setup-guide">Full API key setup guide →</a></p>
-    </div>
-
-    <div class="video-card">
-      <div class="video-wrap">
-        <video poster="/press-kit/assets/local-first-v3-poster.jpg" src="/press-kit/assets/local-first-v3.mp4" muted playsinline preload="metadata" controls></video>
-        <span class="number-badge">Video 10 of 11</span>
-        <button class="enlarge-btn" data-src="/press-kit/assets/local-first-v3.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
-      </div>
-      <div class="meta"><span class="badge">12 sec</span></div>
-      <h2>See your AI files on your own disk</h2>
-      <p>A file appears in Projelli, and then reveals as a real Markdown file in the system Finder. Your archive lives on your hard drive in a format any text editor can read.</p>
-      <p class="related"><a href="/byok-ai">BYOK AI explained →</a></p>
-    </div>
-
-    <div class="video-card">
-      <div class="video-wrap">
-        <video poster="/press-kit/assets/version-history-v3-poster.jpg" src="/press-kit/assets/version-history-v3.mp4" muted playsinline preload="metadata" controls></video>
-        <span class="number-badge">Video 11 of 11</span>
-        <button class="enlarge-btn" data-src="/press-kit/assets/version-history-v3.mp4" aria-label="Open larger view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg><span>Enlarge</span></button>
-      </div>
-      <div class="meta"><span class="badge">18 sec</span></div>
-      <h2>Roll back to any older version</h2>
-      <p>Every save is snapshotted. The version-history panel shows every revision of a document, with one-click restore and diff view between any two versions.</p>
-    </div>
-
   </section>
 
-  <section style="max-width: 880px; margin: 24px auto 0; padding: 32px 24px;">
-    <h2 style="font-size: 1.5rem; color: var(--text-heading); font-weight: 700; margin-bottom: 8px; letter-spacing: -0.01em;">More v2.0 features (videos coming)</h2>
-    <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px;">Videos 2 and 3 above cover the browser demo and the plugin sandbox. Here's the rest of v2.0 that doesn't have a clip yet.</p>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
-      <div style="background: var(--bg-surface); border-radius: 12px; padding: 20px;">
-        <h3 style="font-size: 1rem; color: var(--text-heading); font-weight: 700; margin-bottom: 6px;">Images in chat</h3>
-        <p style="font-size: 0.9375rem; margin: 0;">Paperclip, paste, or drag-drop an image into chat. Claude, GPT, Gemini, and Ollama vision models all handle it.</p>
-      </div>
-      <div style="background: var(--bg-surface); border-radius: 12px; padding: 20px;">
-        <h3 style="font-size: 1rem; color: var(--text-heading); font-weight: 700; margin-bottom: 6px;">PDF chat + RAG</h3>
-        <p style="font-size: 0.9375rem; margin: 0;">Drop a PDF into chat or toggle "Include PDFs in workspace index" so every PDF in your folder becomes searchable AI context.</p>
-      </div>
-      <div style="background: var(--bg-surface); border-radius: 12px; padding: 20px;">
-        <h3 style="font-size: 1rem; color: var(--text-heading); font-weight: 700; margin-bottom: 6px;">Plugin marketplace</h3>
-        <p style="font-size: 0.9375rem; margin: 0;">Settings, Marketplace, Plugins. Sandboxed Web Worker runtime, six-permission consent dialog, four day-one plugins.</p>
-      </div>
-      <div style="background: var(--bg-surface); border-radius: 12px; padding: 20px;">
-        <h3 style="font-size: 1rem; color: var(--text-heading); font-weight: 700; margin-bottom: 6px;">Templates marketplace</h3>
-        <p style="font-size: 0.9375rem; margin: 0;">Browse, install, update, and uninstall community templates from <a href="https://github.com/projelli/community-templates" target="_blank" rel="noopener">github.com/projelli/community-templates</a>.</p>
-      </div>
-      <div style="background: var(--bg-surface); border-radius: 12px; padding: 20px;">
-        <h3 style="font-size: 1rem; color: var(--text-heading); font-weight: 700; margin-bottom: 6px;">Read aloud</h3>
-        <p style="font-size: 0.9375rem; margin: 0;">Click "Read aloud" on any AI message. Local Piper sidecar, no cloud.</p>
-      </div>
-      <div style="background: var(--bg-surface); border-radius: 12px; padding: 20px;">
-        <h3 style="font-size: 1rem; color: var(--text-heading); font-weight: 700; margin-bottom: 6px;">Long-context Compress</h3>
-        <p style="font-size: 0.9375rem; margin: 0;">Long chats now offer a one-click compress that batches earlier turns through a fast model. Expand or clear from the same control.</p>
-      </div>
-      <div style="background: var(--bg-surface); border-radius: 12px; padding: 20px;">
-        <h3 style="font-size: 1rem; color: var(--text-heading); font-weight: 700; margin-bottom: 6px;">Spanish + German</h3>
-        <p style="font-size: 0.9375rem; margin: 0;">Full UI translation. Auto-detects on first launch. Switch any time in Settings, General, Language.</p>
-      </div>
+  <section class="section">
+    <h2>For attorneys</h2>
+    <p>Keepance comes with three legal-practice templates designed for confidential case work.</p>
+
+    <div class="practice-section">
+      <h3>Deposition Contradiction Finder</h3>
+      <p>Upload deposition transcripts. Keepance finds internal contradictions, compares across depositions, flags timeline inconsistencies. All analysis stays on your machine.</p>
+      <a href="/legal-practice/">See legal templates →</a>
     </div>
-    <p style="margin-top: 24px; text-align: center;"><a href="/changelog/" style="color: var(--accent-blue); font-weight: 500;">See the full v2.0 changelog →</a></p>
+    <div class="practice-section">
+      <h3>Evidence Gap Analyzer</h3>
+      <p>Document what evidence you have, where it came from, and what you still need. Track chain of custody and relevance to key claims.</p>
+      <a href="/legal-practice/">See legal templates →</a>
+    </div>
+    <div class="practice-section">
+      <h3>Privilege Log Drafter</h3>
+      <p>Structured interview that produces a privilege log entry for each document. Description, basis for privilege, participants, communication date.</p>
+      <a href="/legal-practice/">See legal templates →</a>
+    </div>
   </section>
 
-  <div class="feature-banner">
-    <div class="feature-banner-card">
-      <h2>Try Projelli yourself</h2>
-      <p>Free download. Pro is $49 one-time, Lifetime $99. The first 100 buyers get Lifetime at $29.</p>
-      <a href="/#download" class="cta-btn">Get Projelli</a>
+  <section class="section">
+    <h2>For tax preparers and CPAs</h2>
+    <p>Two templates for compliance-critical work that cannot leave the office.</p>
+
+    <div class="practice-section">
+      <h3>1040 Pre-Review Checklist</h3>
+      <p>Structured walkthrough of common omissions: primary residence exclusion, education credits, dependent documentation, state tax nexus issues, backup withholding triggers.</p>
+      <a href="/tax-practice/">See tax templates →</a>
     </div>
+    <div class="practice-section">
+      <h3>§7216 Consent Template</h3>
+      <p>Generate compliant IRC §7216 tax return preparer consent forms. Keepance ensures you capture each client's disclosure and consent before any use of their information.</p>
+      <a href="/tax-practice/">See tax templates →</a>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>For consultants</h2>
+    <p>Templates that turn client conversations into client-safe analysis.</p>
+
+    <div class="practice-section">
+      <h3>Client Discovery Synthesizer</h3>
+      <p>Transcribe or paste notes from discovery calls. Keepance synthesizes them into a structured account: goals, constraints, success metrics, decision timeline, stakeholders, red flags.</p>
+      <a href="/consulting-practice/">See consulting templates →</a>
+    </div>
+    <div class="practice-section">
+      <h3>NDA-Safe Slide Outliner</h3>
+      <p>Outline client work without including confidential details. Keepance produces a slide-deck structure you can safely show your design team or other consultants without exposing client data.</p>
+      <a href="/consulting-practice/">See consulting templates →</a>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>The BYOK difference</h2>
+    <div class="byok-section">
+      <p>Your API key goes directly to Anthropic, OpenAI, or Google. It never passes through Keepance's servers. That means your prompts, your documents, your entire workspace—all stay on your machine. Keepance never sees it, never stores it, never logs it. You control the API call. You control the cost. And if you pause your subscription, your work doesn't disappear: it's already on your hard drive as plain Markdown files.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Get started</h2>
+
+    <div class="cta-section">
+      <a href="/#pricing" class="cta-btn">Download the free 30-day trial</a>
+      <a href="/changelog/" class="cta-btn cta-btn-secondary">Read the full changelog</a>
+    </div>
+  </section>
+
+  <div class="back-link">
+    <a href="/">← Back to homepage</a>
   </div>
 
-  <footer>
-    <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/eula">EULA</a> · <a href="/press-kit/">Press kit</a> · <a href="/blog/">Blog</a> · <a href="/tour">Tour</a>
+
+  <footer class="kp-footer">
+    <div class="kp-footer-inner">
+      <a href="/" class="kp-footer-brand">Keepance</a>
+      <nav class="kp-footer-links" aria-label="Footer navigation">
+        <a href="/tour/">Tour</a>
+        <a href="/blog/">Blog</a>
+        <a href="/changelog/">Changelog</a>
+        <a href="/roadmap/">Roadmap</a>
+        <a href="/vs/">Compare</a>
+        <a href="/docs/getting-started.html">Docs</a>
+        <a href="/press-kit/">Press kit</a>
+        <a href="/legal/privacy/">Privacy</a>
+        <a href="/legal/terms/">Terms</a>
+        <a href="/legal/eula/">EULA</a>
+      </nav>
+      <span class="kp-footer-copy">Built by <a href="https://jamesondaines.com">Jameson Daines</a></span>
+    </div>
   </footer>
-
-  <!-- Click-to-enlarge lightbox. One <video> element reused for whatever
-       card was clicked. Closes on backdrop click, X button, or Escape. -->
-  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-hidden="true">
-    <div class="lightbox-inner">
-      <button class="lightbox-close" id="lightbox-close" aria-label="Close">×</button>
-      <video id="lightbox-video" autoplay muted playsinline controls></video>
-    </div>
-  </div>
-
-  <script>
-    (function () {
-      var lightbox = document.getElementById('lightbox');
-      var video = document.getElementById('lightbox-video');
-      var closeBtn = document.getElementById('lightbox-close');
-
-      function open(src) {
-        video.src = src;
-        video.currentTime = 0;
-        lightbox.classList.add('is-open');
-        lightbox.setAttribute('aria-hidden', 'false');
-        document.body.style.overflow = 'hidden';
-        // Browsers may block autoplay until interaction; this click is the interaction.
-        var p = video.play();
-        if (p && p.catch) p.catch(function () { /* autoplay blocked, controls handle it */ });
-      }
-      function close() {
-        lightbox.classList.remove('is-open');
-        lightbox.setAttribute('aria-hidden', 'true');
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-        document.body.style.overflow = '';
-      }
-
-      document.querySelectorAll('.enlarge-btn').forEach(function (btn) {
-        btn.addEventListener('click', function (e) {
-          e.preventDefault();
-          var src = btn.getAttribute('data-src');
-          if (src) open(src);
-        });
-      });
-      closeBtn.addEventListener('click', close);
-      lightbox.addEventListener('click', function (e) {
-        // Close when clicking the dim backdrop, but not when clicking inside the video frame.
-        if (e.target === lightbox) close();
-      });
-      document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && lightbox.classList.contains('is-open')) close();
-      });
-    })();
-  </script>
+  <style>
+    .kp-footer { background: #0A2540; padding: 36px 24px; margin-top: 64px; }
+    .kp-footer-inner { max-width: 1160px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px; font-family: 'Satoshi', system-ui, sans-serif; }
+    .kp-footer-brand { color: rgba(255,255,255,0.85); font-weight: 700; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    .kp-footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
+    .kp-footer-links a { color: rgba(255,255,255,0.45); text-decoration: none; font-size: 13px; transition: color 0.2s; }
+    .kp-footer-links a:hover { color: rgba(255,255,255,0.85); }
+    .kp-footer-copy { color: rgba(255,255,255,0.35); font-size: 12px; }
+    .kp-footer-copy a { color: inherit; }
+  </style>
 
 </body>
 </html>

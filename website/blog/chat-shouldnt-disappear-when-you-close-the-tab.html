@@ -3,20 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat shouldn't disappear when you close the tab | Projelli</title>
-  <meta name="description" content="I kept having great AI conversations about my business and losing them a week later. I designed Projelli around fixing that. Here's the mechanics and the reasoning behind it.">
-  <link rel="canonical" href="https://projelli.com/blog/chat-shouldnt-disappear-when-you-close-the-tab">
+  <title>Chat shouldn't disappear when you close the tab | Keepance</title>
+  <meta name="description" content="I kept having great AI conversations about my business and losing them a week later. I designed Keepance around fixing that. Here's the mechanics and the reasoning behind it.">
+  <link rel="canonical" href="https://keepance.com/blog/chat-shouldnt-disappear-when-you-close-the-tab">
   <meta name="author" content="Jameson Daines">
   <meta property="og:type" content="article">
-  <meta property="og:url" content="https://projelli.com/blog/chat-shouldnt-disappear-when-you-close-the-tab">
+  <meta property="og:url" content="https://keepance.com/blog/chat-shouldnt-disappear-when-you-close-the-tab">
   <meta property="og:title" content="Chat shouldn't disappear when you close the tab">
   <meta property="og:description" content="I kept having great AI conversations about my business and losing them a week later. Here's how I fixed it.">
-  <meta property="og:image" content="https://projelli.com/og-image.png">
-  <meta name="twitter:image" content="https://projelli.com/og-image.png">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <script defer data-domain="projelli.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -60,8 +60,8 @@
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="icon" type="image/x-icon" href="/favicon.ico">
-  <link rel="stylesheet" href="/styles/projelli-nav.css">
-  <script src="/scripts/projelli-nav.v2.js" defer></script>
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 
 <body>
   <div class="container">
@@ -108,7 +108,7 @@
 
     <h2>What persistence actually needs to mean</h2>
 
-    <p>When I started designing Projelli I had a list of requirements for what "chat persistence" had to mean before it counted. These are the ones that ended up as non-negotiable:</p>
+    <p>When I started designing Keepance I had a list of requirements for what "chat persistence" had to mean before it counted. These are the ones that ended up as non-negotiable:</p>
 
     <blockquote>
       <p><strong>1. The chat is a real file.</strong> Not a database row. Not a cached session. A file on your hard drive with a name you picked, in a format (Markdown) you can read in any other tool.</p>
@@ -119,15 +119,15 @@
 
     <p>These sound obvious when I list them out. None of the AI tools I was using in early 2025 did all four. Most did zero.</p>
 
-    <h2>How Projelli does this</h2>
+    <h2>How Keepance does this</h2>
 
-    <p>In Projelli, every AI chat is a <code>.aichat</code> file in your workspace. It's just a Markdown file with a small amount of metadata at the top (which provider, which model, the chat history as a structured list). You can open it in any text editor. If Projelli goes away tomorrow, the files stay on your disk and you can still read them.</p>
+    <p>In Keepance, every AI chat is a <code>.aichat</code> file in your workspace. It's just a Markdown file with a small amount of metadata at the top (which provider, which model, the chat history as a structured list). You can open it in any text editor. If Keepance goes away tomorrow, the files stay on your disk and you can still read them.</p>
 
     <p>When the chat produces something worth saving as its own document, say a pricing model or a roadmap, that document is also a real file. It lives next to the chat file. You can link between them with wiki-links: writing <code>[[pricing-v2]]</code> in any file creates a clickable link to <code>pricing-v2.md</code>, and the editor tracks backlinks automatically, so you can always see which chats or documents reference a given file.</p>
 
     <p>Version history is on by default for every Markdown file. Every meaningful edit creates a new version. Open the version history panel and you can see the document as it was 3 days ago, 3 weeks ago, 3 months ago. Roll back if you want. Diff against the current version if you want.</p>
 
-    <p>The whole thing is a folder. If you want to back it up, you put the folder in Dropbox or iCloud or on a USB stick. If you want to stop using Projelli, you still have every conversation and every document in plain Markdown, and every other note-taking app on earth knows how to read that.</p>
+    <p>The whole thing is a folder. If you want to back it up, you put the folder in Dropbox or iCloud or on a USB stick. If you want to stop using Keepance, you still have every conversation and every document in plain Markdown, and every other note-taking app on earth knows how to read that.</p>
 
     <h2>The philosophical part, briefly</h2>
 
@@ -139,12 +139,12 @@
 
     <p>The conversations you have with an AI about your business are some of the most valuable writing you'll ever do. They deserve to be saved in the same kind of place you save everything else you care about: a folder on your hard drive that's been there for years and will be there for years to come.</p>
 
-    <p>If you want to see the shape of this in practice, grab Projelli at <a href="https://projelli.com">projelli.com</a>. The free tier includes unlimited chats with full persistence. The Pro tier at $49 adds the founder templates and workflow features, but the core "your chats are real files" part is free forever.</p>
+    <p>If you want to see the shape of this in practice, grab Keepance at <a href="https://keepance.com">keepance.com</a>. The free tier includes unlimited chats with full persistence. The Pro tier at $49 adds the workflow template packs, but the core "your chats are real files" part is free forever.</p>
 
-    <a href="https://projelli.com/#pricing" class="cta">See Projelli, the local-first AI workspace for indie founders</a>
+    <a href="https://keepance.com/#pricing" class="cta">See Keepance, the local-first AI workspace for confidential client work</a>
 
     <p style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-gray); color: var(--text-muted); font-size: 0.9375rem;">
-      <em>Jameson Daines builds Projelli on weekends and evenings around a Senior Product Designer day job. <a href="/blog/why-local-first-ai-for-founders">Read about why local-first matters for founders</a> or get Projelli at <a href="https://projelli.com">projelli.com</a>.</em>
+      <em>Jameson Daines builds Keepance on weekends and evenings around a Senior Product Designer day job. <a href="/blog/why-local-first-ai-for-founders">Read about why local-first matters if your work is confidential</a> or get Keepance at <a href="https://keepance.com">keepance.com</a>.</em>
     </p>
   </div>
 </body>
