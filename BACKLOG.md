@@ -3,6 +3,14 @@
 
 ---
 
+> **CURRENT STATE (2026-05-29): read `docs/operations/SESSION_HANDOFF_2026-05-29.md` first.**
+> Storefront + real videos + `/try/` demo are LIVE; v2.1 app (rebrand + Personal/Professional/Practice
+> licensing + Preview packs) is build-verified and one `git tag v2.1.0` from release. Critical path is now
+> Jameson's: LemonSqueezy products, recruit attorney+CPA advisors (emails+packets ready), confirm bio,
+> give the release go. The handoff doc has the exact "when X, do Y" playbook.
+
+---
+
 ## Pivot — 2026-05-27
 
 ### PIVOT-01 — Name and domain — DONE
