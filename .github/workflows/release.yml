@@ -529,6 +529,26 @@ jobs:
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
           timestamp-digest: SHA256
 
+      # Auto-update fix: the updater `.sig` produced during `tauri build` signs the
+      # UNSIGNED installer. Azure Trusted Signing then rewrites the .exe bytes, so
+      # that .sig no longer matches what users download and the Tauri updater would
+      # reject the update as tampered. Re-generate the updater signature over the
+      # FINAL (Azure-signed) installer so latest.json carries a valid signature.
+      # tauri signer sign reads the key from TAURI_PRIVATE_KEY / *_PASSWORD env.
+      - name: Regenerate updater signature on the signed installer
+        shell: pwsh
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $exe = Get-ChildItem -Path src-tauri/target/release/bundle/nsis -Filter *-setup.exe -Recurse | Select-Object -First 1
+          if (-not $exe) { throw "No NSIS -setup.exe found to re-sign" }
+          Write-Host "Re-signing updater artifact for $($exe.FullName)"
+          npx tauri signer sign "$($exe.FullName)"
+          if (-not (Test-Path "$($exe.FullName).sig")) { throw "Updater .sig was not produced next to the installer" }
+          Write-Host "Regenerated updater signature:"
+          Get-Content "$($exe.FullName).sig"
+
       - name: Wait for tauri-action to create the draft release
         shell: pwsh
         env:
@@ -565,6 +585,9 @@ jobs:
           $files += Get-ChildItem -Path src-tauri/target/release/bundle/msi -Filter *.msi -Recurse -ErrorAction SilentlyContinue
           # v1.6 W-PX: include the signed portable .exe in the upload list.
           $files += Get-ChildItem -Path src-tauri/target/release/portable -Filter *.exe -ErrorAction SilentlyContinue
+          # Auto-update: include the regenerated NSIS updater signature so the
+          # finalize-updater-manifest job can publish it in latest.json.
+          $files += Get-ChildItem -Path src-tauri/target/release/bundle/nsis -Filter *-setup.exe.sig -Recurse -ErrorAction SilentlyContinue
           if ($files.Count -eq 0) {
             Write-Error "No signed artifacts found to upload"
             exit 1
@@ -589,3 +612,35 @@ jobs:
           }
           Write-Host "Uploading $mcpb to release $tag"
           gh release upload $tag $mcpb --clobber --repo keepance/keepance
+
+  # Auto-update: the Mac/Linux `build` job writes latest.json but only for its own
+  # platforms; build-windows uploads the Azure-signed installer plus its
+  # regenerated updater `.sig`. This job runs AFTER both complete and merges a
+  # windows-x86_64 entry into latest.json so existing Windows users auto-update.
+  finalize-updater-manifest:
+    needs: [build, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Merge Windows into latest.json
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p manifest && cd manifest
+          gh release download "$TAG" --repo keepance/keepance \
+            --pattern 'latest.json' --pattern '*-setup.exe.sig' --clobber
+          SIGFILE="$(ls *-setup.exe.sig)"
+          EXE="${SIGFILE%.sig}"
+          SIG="$(cat "$SIGFILE")"
+          URL="https://github.com/keepance/keepance/releases/download/${TAG}/${EXE}"
+          echo "Windows installer asset: $EXE"
+          jq --arg sig "$SIG" --arg url "$URL" \
+            '.platforms["windows-x86_64"] = {signature: $sig, url: $url}' \
+            latest.json > latest.merged.json
+          mv latest.merged.json latest.json
+          echo "Merged platform keys:"; jq -r '.platforms | keys[]' latest.json
+          gh release upload "$TAG" latest.json --clobber --repo keepance/keepance

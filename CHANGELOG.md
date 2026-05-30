@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-05-30 (packaging: Windows installer + auto-update)
+
+> Packaging-only patch, no app changes. Restores the signed Windows installer to the
+> release and adds Windows in-app auto-update for the first time.
+
+### Fixed
+- **Windows code signing restored.** The v2.1.0 release shipped with no Windows installer because Azure Trusted Signing returned 403: the Azure subscription's free trial had expired. Billing was reactivated, so the Windows installer is signed and published again.
+
+### Added
+- **Windows auto-update.** `release.yml` now regenerates the Tauri updater signature over the Azure-signed installer and merges a `windows-x86_64` entry into `latest.json`, so Windows users receive in-app updates. The manifest previously listed only macOS and Linux.
+
 ## [2.1.0] - 2026-05-29 (rebranded app + profession packs)
 
 > Rebranded app (Projelli to Keepance), Personal/Professional/Practice licensing,
