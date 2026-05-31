@@ -1,6 +1,6 @@
 # Keepance
 
-> Local-first AI workspace for professionals who handle confidential client work. Every chat with Claude, GPT, or Gemini becomes a real Markdown file on the user's machine. Bring your own API key, no subscription, sold once.
+> Local-first AI workspace for professionals who handle confidential client work. Every chat with Claude, GPT, or Gemini becomes a real Markdown file on the user's machine. Documents and API keys stay on the user's machine; prompts go straight to the AI provider.
 
 ## What Keepance is
 
@@ -22,15 +22,15 @@ Keepance is not designed for enterprise teams, hobbyists, or users who want an a
 2. **BYOK (Bring Your Own Key)**: users supply their own Anthropic, OpenAI, or Google AI Studio API key. Keepance never holds AI credentials and AI requests go directly from the user's machine to the AI provider.
 3. **Chat-as-files**: every AI conversation produces a real Markdown file the user can open, edit, version, back up, or delete with regular file system tools.
 4. **Profession-specific template packs**: workflow templates organized by practice type (Legal Practice, Tax Practice, Consulting Practice) covering the documents professionals actually produce for clients.
-5. **Sold once**: no subscription. $49 Personal / $129 Professional (includes one profession pack) / $399 Practice (up to 5 seats).
+5. **Confidential by architecture**: documents and API keys stay on the user's machine; prompts go straight to the AI provider, never through Keepance servers. $49 Personal (one-time) / $149/yr Professional (includes one profession pack) / $499 Practice one-time (up to 5 seats).
 
 ## Pricing
 
 | Tier | Price | What it includes |
 |---|---|---|
 | Personal | $49 one-time | Core editor, all 3 AI providers, unlimited workspaces, whiteboard, audio, research/citations, 1 year of updates |
-| Professional | $129 one-time | Everything Personal has + one profession-specific template pack (Legal, Tax, or Consulting) + commercial use license |
-| Practice | $399 one-time | Everything Professional has + up to 5 seats + all profession packs + updates forever |
+| Professional | $149/yr | Everything Personal has + one profession-specific template pack (Legal, Tax, or Consulting) + commercial use license |
+| Practice | $499 one-time | Everything Professional has + up to 5 seats + all profession packs + updates forever |
 
 Sold via LemonSqueezy (merchant of record handles VAT, tax, refunds). 14-day refund window, no questions asked.
 
@@ -69,7 +69,7 @@ Auto-updates land via GitHub Releases for v1.0.8 and later, with minisign-signed
 
 ## Comparison to alternatives
 
-- **Notion AI**: Notion is a cloud team workspace; Keepance is a local-first single-user tool. Notion AI is bundled at $20/month; Keepance is $49 one-time and uses the user's own API key.
+- **Notion AI**: Notion is a cloud team workspace; Keepance is a local-first single-user tool. Notion AI is bundled at $20/month; Keepance uses the user's own API key and documents never leave the user's machine.
 - **Obsidian (with AI plugins)**: Obsidian is the closest spiritual cousin, also local-first and Markdown-based. Keepance adds first-class AI chat, profession-specific workflow template packs, and built-in BYOK; Obsidian users build this from plugins.
 - **ChatGPT Projects / Claude.ai Projects**: web-based, cloud-stored, locked to a single AI provider. Keepance is desktop, local, multi-provider, and the chat history is yours in Markdown.
 - **Reflect, Tana, Mem.ai**: AI-first cloud notes tools. Keepance is local-first.

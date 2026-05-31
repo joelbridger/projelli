@@ -22,7 +22,7 @@
     { "@type": "Question", "name": "Is Reflect a good Notion alternative?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect is closer to Roam Research or Logseq in shape, with strong networked-thinking features. It's not really a Notion alternative; Notion is a team workspace, Reflect is single-user notes with AI." } },
     { "@type": "Question", "name": "Does Reflect work offline?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect has cached offline access for reading existing notes, but it's a cloud-first app. Editing while offline syncs once you reconnect, and the cloud is the source of truth." } },
     { "@type": "Question", "name": "Can I migrate from Reflect to Keepance?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Reflect supports Markdown export. Drop the exported folder into a Keepance workspace and you're done. Wiki-links convert mostly cleanly, since Reflect uses [[link]] syntax similar to Keepance's." } },
-    { "@type": "Question", "name": "What does Reflect cost?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect is $15/month or $144/year. AI is bundled into the subscription. Keepance is a one-time purchase ($49 Personal, $129 Professional, $399 Practice) plus your own AI provider's API costs (typically $5-15/month)." } }
+    { "@type": "Question", "name": "What does Reflect cost?", "acceptedAnswer": { "@type": "Answer", "text": "Reflect is $15/month or $144/year. AI is bundled into the subscription. Keepance is $49 Personal (one-time), $149/yr Professional (includes one practice pack), or $499 Practice (one-time, up to 5 seats), plus your own AI provider's API costs (typically $5-15/month)." } }
   ] }
   </script>
   <style>
@@ -80,8 +80,8 @@
       <thead><tr><th>Feature</th><th>Reflect</th><th>Keepance</th></tr></thead>
       <tbody>
         <tr><td>Where data lives</td><td>Reflect's cloud (encrypted at rest)</td><td>Your hard drive (Markdown files)</td></tr>
-        <tr><td>Pricing</td><td>$15/mo or $144/yr</td><td>$129 once (Professional) + your AI provider's API costs</td></tr>
-        <tr><td>3-year total cost (typical)</td><td>~$432</td><td>~$489 ($129 + ~$120/yr BYOK)</td></tr>
+        <tr><td>Pricing</td><td>$15/mo or $144/yr</td><td>$149/yr (Professional) + your AI provider's API costs</td></tr>
+        <tr><td>3-year total cost (typical)</td><td>~$432</td><td>~$627 ($447 Professional + ~$60/yr BYOK)</td></tr>
         <tr><td>AI model</td><td>Whatever Reflect provides (currently Claude + others)</td><td>Bring your own Claude / OpenAI / Gemini key</td></tr>
         <tr><td>Wiki-links / backlinks</td><td><span class="pill yes">Yes (excellent)</span></td><td><span class="pill yes">Yes</span></td></tr>
         <tr><td>Daily notes</td><td><span class="pill yes">Yes (default flow)</span></td><td><span class="pill yes">Yes (template)</span></td></tr>
@@ -116,9 +116,9 @@
 
     <p>Reflect leans toward a "blank canvas" notes paradigm with daily-notes as the spine. Keepance ships with 15 structured practice packs designed specifically for professional work: client intake, engagement letter, matter strategy, financial projections, weekly review, and more. Each is a guided interview that produces a finished doc.</p>
 
-    <h3>4. One-time cost instead of a forever subscription</h3>
+    <h3>4. Local-first confidentiality by architecture</h3>
 
-    <p>Reflect on the annual plan is $144/yr, so $432 over 3 years (a bit more if you pay monthly at $15). Keepance Professional is $129 once, which includes one practice pack, plus ~$5-15/mo in BYOK API costs, so roughly $309-669 over 3 years depending on how much you run the AI. At light usage Keepance comes in lower; at heavy usage the BYOK tokens can push it past Reflect. The dollar gap is small either way. What you actually get from Keepance is a one-time purchase with no subscription, plus files that live on your machine instead of a vendor's cloud.</p>
+    <p>Reflect on the annual plan is $144/yr, so $432 over 3 years (a bit more if you pay monthly at $15). Keepance Professional is $149/yr, which includes one practice pack, plus ~$5-15/mo in BYOK API costs. The costs are comparable. What you get from Keepance is a different architecture: documents stay on your machine, your API key lives in your OS keychain, and prompts go straight from your machine to the AI provider. Reflect's notes live on their servers (encrypted). For attorneys and CPAs with confidentiality obligations, the architecture difference is not a matter of taste.</p>
 
     <h3>5. Privacy posture for confidential client information</h3>
 
@@ -147,10 +147,10 @@
     <table>
       <thead><tr><th></th><th>Reflect</th><th>Keepance + BYOK</th></tr></thead>
       <tbody>
-        <tr><td>Year 1</td><td>$144 ($12 effective monthly)</td><td>$129 once + $60-180 BYOK</td></tr>
-        <tr><td>Year 2</td><td>$144</td><td>$60-180 BYOK</td></tr>
-        <tr><td>Year 3</td><td>$144</td><td>$60-180 BYOK</td></tr>
-        <tr><td><strong>3-year total</strong></td><td><strong>$432</strong></td><td><strong>$309-669</strong></td></tr>
+        <tr><td>Year 1</td><td>$144 ($12 effective monthly)</td><td>$149/yr Professional + $60-180 BYOK</td></tr>
+        <tr><td>Year 2</td><td>$144</td><td>$149 + $60-180 BYOK</td></tr>
+        <tr><td>Year 3</td><td>$144</td><td>$149 + $60-180 BYOK</td></tr>
+        <tr><td><strong>3-year total</strong></td><td><strong>$432</strong></td><td><strong>$627-987</strong></td></tr>
       </tbody>
     </table>
 
@@ -183,7 +183,7 @@
       </details>
       <details>
         <summary>What does Reflect cost?</summary>
-        <p>Reflect is $15/month or $144/year. AI is bundled into the subscription. Keepance is a one-time purchase ($49 Personal, $129 Professional, $399 Practice) plus your own AI provider's API costs (typically $5-15/month).</p>
+        <p>Reflect is $15/month or $144/year. AI is bundled into the subscription. Keepance is $49 Personal (one-time), $149/yr Professional (includes one practice pack), or $499 Practice (one-time, up to 5 seats), plus your own AI provider's API costs (typically $5-15/month).</p>
       </details>
       <details>
         <summary>Which has better AI quality?</summary>
@@ -196,9 +196,9 @@
     </div>
 
     <div class="cta-row">
-      <p>Download free for 30 days, no credit card. Personal $49, Professional $129 (includes one practice pack), Practice $399 (up to 5 seats). One-time purchase, no subscription.</p>
+      <p>Download free for 30 days, no credit card. Personal $49 one-time, Professional $149/yr (includes one practice pack), Practice $499 one-time (up to 5 seats). Documents and API key stay on your machine.</p>
       <a href="/#pricing" class="cta">Download free for 30 days</a>
-      <p style="margin-top: 16px; font-size: 0.9375rem;">Founding offer: the first 100 buyers of each practice pack get Professional at $89 instead of $129. <a href="/#pricing">Reserve the founding price</a> while checkout opens.</p>
+      <p style="margin-top: 16px; font-size: 0.9375rem;">Founding offer: the first 100 buyers of each practice pack get Professional at $99/yr instead of $149/yr. <a href="/#pricing">Reserve the founding price</a> while checkout opens.</p>
       <p style="margin-top: 12px; font-size: 0.9375rem;">Built for your field: <a href="/legal/">attorneys</a> and <a href="/consulting/">consultants</a>. See all: <a href="/">keepance.com</a> for attorneys, tax pros, and consultants.</p>
     </div>
   </div>
