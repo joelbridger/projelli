@@ -3,11 +3,12 @@
 
 ---
 
-> **CURRENT STATE (2026-05-29): read `docs/operations/SESSION_HANDOFF_2026-05-29.md` first.**
-> Storefront + real videos + `/try/` demo are LIVE; v2.1 app (rebrand + Personal/Professional/Practice
-> licensing + Preview packs) is build-verified and one `git tag v2.1.0` from release. Critical path is now
-> Jameson's: LemonSqueezy products, recruit attorney+CPA advisors (emails+packets ready), confirm bio,
-> give the release go. The handoff doc has the exact "when X, do Y" playbook.
+> **CURRENT STATE (2026-05-31): read `docs/operations/SESSION_HANDOFF_2026-05-31.md` first.**
+> **v2.1.1 is LIVE** (signed Windows installer + Windows auto-update restored; the Azure free-trial -> Pay-As-You-Go
+> upgrade fixed the signing 403). **All 4 LemonSqueezy products are created + published** with checkout URLs.
+> Revenue loop NOT closed yet: remaining is the license-server tier mapping (#2), the site subscription pricing +
+> checkout wiring (#3, deploy-gated), and on Jameson the LemonSqueezy API key/webhook secret + the Founding
+> 100-seat cap. Advisors + bio still open. The handoff doc has the exact next steps.
 
 ---
 
@@ -57,10 +58,13 @@ Wired into `allWorkflows` registry. Landing page at `website/consulting-practice
 5 templates: Client Discovery Synthesizer, Confidential Research Memo, Stakeholder Map Generator, NDA-Safe Slide Outliner, Engagement Retrospective Builder.
 Campaign folder at `docs/marketing/campaigns/2026-consulting/`.
 
-### PIVOT-11 — LemonSqueezy pricing updated — TODO (Jameson's hands)
-Retire $29 Founder's Launch. Add: Personal $49, Professional $129 (charter $89/first 100), Practice $399.
-Wire checkout URLs into `/legal-practice/`, `/tax-practice/`, `/consulting-practice/` CTA buttons (currently `href="#"` placeholders).
-Browser-only task in LemonSqueezy dashboard.
+### PIVOT-11 — LemonSqueezy products — DONE (2026-05-31, store #340394)
+Created + published under the ratified subscription model (supersedes the old all-one-time line):
+**Personal $49 one-time**, **Professional $149/yr subscription**, **Professional (Founding) $99/yr subscription**,
+**Practice $499 one-time**. Checkout URLs captured in `docs/operations/SESSION_HANDOFF_2026-05-31.md`.
+REMAINING: (a) set the Founding **100-seat inventory cap** on its variant before that URL goes live; (b) Jameson
+provides the **API key + webhook secret** for the license-validator; (c) wire the 4 URLs into the site (#3, deploy-gated).
+Store also hosts Guesslet Pro, so the validator must filter to Keepance products.
 
 ### PIVOT-12 — Citation verification — PARTIALLY DONE (2026-05-28)
 - [x] **Heppner** — VERIFIED: *United States v. Heppner*, No. 1:25-cr-00503-JSR (S.D.N.Y. Feb. 17, 2026). All campaign docs and landing pages updated. Cleared for marketing copy.
