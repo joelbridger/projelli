@@ -34,7 +34,20 @@ Store **#340394** (`projelli` slug). Note: this store also hosts **Guesslet Pro 
 1. **Set the 100-seat inventory cap on the Professional (Founding) variant.** It is not settable in the create form; set it on the variant's Inventory setting. **Do this BEFORE the Founding URL goes live**, or unlimited buyers get $99/yr instead of $149.
 2. **Provide the LemonSqueezy API key + webhook signing secret** (Settings, then API). Put them in the license-validator env on the server (NOT in chat): `~/services/license-validator/`.
 
-### Claude #2: license-validator tier mapping
+### Claude #2: license-validator tier mapping — DONE IN CODE 2026-05-31 (staged, not yet live)
+> Tier mapping + webhook classification extracted to `~/services/license-validator/tiers.ts`
+> (pure, unit-tested: `tiers.test.ts`, 31 passing). `server.ts` now imports them. New behavior:
+> Personal→personal, Professional/(Founding)→professional, Practice→practice; **legacy Pro/Lifetime/
+> Founder's still map to a working tier** (no lockout on reinstall); **Guesslet orders resolve to null
+> and are rejected** at /activate and dropped at the webhook; subscription lifecycle handled
+> (cancelled/expired/paused→revoke, payment_success/resumed/unpaused & license_key active→reactivate),
+> with a persistent **unrevoke** tombstone so a renewed sub regains access across a restart.
+> **NOT yet live** — the running service still has the old code. Intentionally coupled with Jameson's
+> item (b): once the LS API key + webhook secret are in the env, restart the service once and it all
+> goes live together (restart was held — revenue infra, no autonomous deploy). App-side graceful-degrade
+> for a lapsed Professional (read-only + renew prompt in `useLicense`) is a separate v2.1.x app change, deferred.
+>
+> Original spec (for reference):
 - `~/services/license-validator/server.ts`: `tierFromVariantName()` still returns the old `free | pro | lifetime`. Update to map by product/variant NAME:
   - Personal -> `personal`
   - Professional AND Professional (Founding) -> `professional`
