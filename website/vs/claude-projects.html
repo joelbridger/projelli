@@ -84,7 +84,7 @@
       <tbody>
         <tr><td>Where conversations live</td><td>Anthropic's servers</td><td>Your hard drive (Markdown files)</td></tr>
         <tr><td>AI provider</td><td>Claude only</td><td>Claude + OpenAI + Gemini + local Ollama</td></tr>
-        <tr><td>Pricing</td><td>$20/mo Claude.ai Pro subscription</td><td>$149/yr (Professional) + your Anthropic API costs (~$5-15/mo)</td></tr>
+        <tr><td>Pricing</td><td>$20/mo Claude.ai Pro</td><td>$49 one-time (Personal) / $149/yr (Professional) / $499 one-time (Practice) + direct API costs (~$5-15/mo typical)</td></tr>
         <tr><td>Custom instructions per project</td><td><span class="pill yes">Yes</span></td><td><span class="pill yes">Yes (per workspace + per chat)</span></td></tr>
         <tr><td>Project knowledge (file uploads)</td><td><span class="pill yes">Yes</span></td><td><span class="pill yes">Yes (any folder, any size)</span></td></tr>
         <tr><td>Image attachments in chat</td><td><span class="pill yes">Yes, native</span></td><td><span class="pill yes">Paste, drag, paperclip per provider</span></td></tr>
@@ -108,21 +108,21 @@
 
     <h2>Where Keepance wins</h2>
 
-    <h3>1. Multi-provider, not just Claude</h3>
+    <h3>1. Confidentiality: your files never touch a vendor's servers</h3>
+
+    <p>Claude Projects keeps your conversation history on Anthropic's servers, in their cloud, under their retention and data handling policies. That's fine for general-purpose AI work. It's a structural problem for an attorney working under attorney-client privilege, a CPA bound by IRC Section 7216, or a consultant with NDA obligations. The question isn't whether Anthropic is trustworthy. The question is whether your professional obligations permit you to put that client content on any third-party server at all. Keepance answers that question by not being in the data path. Your API key goes straight to Anthropic's inference endpoint. Keepance never sees the request, never logs it, never stores it. The conversation becomes a Markdown file on your machine, where your other client files live, under your own access controls.</p>
+
+    <h3>2. Multi-provider, not just Claude</h3>
 
     <p>Claude Projects only works with Claude. Keepance supports Claude, OpenAI, and Gemini side-by-side, plus local Ollama for the most sensitive content. You pick the model per conversation. If Claude is having an outage, you switch to GPT in one click without losing your workspace.</p>
-
-    <h3>2. Local-first ownership and confidentiality</h3>
-
-    <p>Every conversation in Keepance is a real Markdown file on your hard drive. For attorneys and CPAs, that goes past preference and into compliance posture. Your client matter files live where your other confidential records live, under your own access controls. With Claude Projects, that history is in Anthropic's database, exportable as a JSON dump but hosted on their infrastructure.</p>
 
     <h3>3. Profession-specific workflow packs</h3>
 
     <p>Keepance ships with 15 practice workflow packs designed specifically for professional work: client intake, engagement letter, matter strategy, weekly review, financial projections, and more. Each runs as a structured interview that produces a real document. Claude Projects has custom instructions but no templated workflows.</p>
 
-    <h3>4. Cost flexibility</h3>
+    <h3>4. Document retention and portability</h3>
 
-    <p>Claude.ai Pro is $20/mo flat. Keepance Professional is $149/yr plus typical $5-15/mo in API tokens via BYOK. Over 3 years that's roughly $627-987 vs $720. Heavy users will pay similar; light-to-moderate users pay less.</p>
+    <p>Every Keepance conversation is a real Markdown file in a real folder. Back it up with your other client files, include it in a litigation hold, or open it in any text editor five years from now. Claude Projects exports as a JSON dump tied to Anthropic's account. If the account closes or the product changes, the export path is your only lifeline. For professionals with document retention obligations, Keepance's format is already compliant with how you store everything else.</p>
 
     <h3>5. Wiki-links and backlinks across conversations</h3>
 
@@ -142,19 +142,21 @@
 
     <p>Claude.ai gets new Anthropic features (Artifacts, Computer Use, Skills, etc.) at the moment Anthropic ships them. Keepance supports Anthropic's API capabilities and adds support for new ones over time, but there's a small lag.</p>
 
-    <h2>Pricing comparison over 3 years</h2>
+    <h2>What each tool does with your data</h2>
 
     <table>
-      <thead><tr><th></th><th>Claude.ai Pro</th><th>Keepance + BYOK</th></tr></thead>
+      <thead><tr><th></th><th>Claude Projects (claude.ai Pro)</th><th>Keepance + BYOK</th></tr></thead>
       <tbody>
-        <tr><td>Year 1</td><td>$240</td><td>$149/yr + $60-180 BYOK = $209-329</td></tr>
-        <tr><td>Year 2</td><td>$240</td><td>$149/yr + $60-180 BYOK = $209-329</td></tr>
-        <tr><td>Year 3</td><td>$240</td><td>$149/yr + $60-180 BYOK = $209-329</td></tr>
-        <tr><td><strong>3-year total</strong></td><td><strong>$720</strong></td><td><strong>$627-987</strong></td></tr>
+        <tr><td>Where your conversation history lives</td><td>Anthropic's servers, tied to your claude.ai account</td><td>Your hard drive. Markdown files in a folder you own.</td></tr>
+        <tr><td>Who handles your AI request</td><td>Anthropic (via claude.ai, their consumer product)</td><td>Anthropic API directly, via your own API key</td></tr>
+        <tr><td>Does the vendor see your prompts?</td><td>Yes, through the claude.ai product layer</td><td>Your API key goes straight to Anthropic's inference endpoint. Keepance never sees the request.</td></tr>
+        <tr><td>Default training data policy</td><td>Claude.ai consumer product (check current Anthropic terms)</td><td>Anthropic API commercial tier: does not train on inputs by default</td></tr>
+        <tr><td>Export format</td><td>JSON dump, account-dependent</td><td>Already in plain Markdown. Open in any editor.</td></tr>
+        <tr><td>Pricing</td><td>$20/mo Claude.ai Pro (flat)</td><td>$49 one-time Personal / $149/yr Professional / $499 one-time Practice + your direct API costs ($5-15/mo typical)</td></tr>
       </tbody>
     </table>
 
-    <p>Note: All Keepance plans include updates and security patches. The Personal ($49) and Practice ($499) tiers are one-time purchases. Professional ($149/yr) is an annual subscription that includes one profession pack. BYOK API costs are the only additional variable expense.</p>
+    <p>Note: Anthropic's API commercial tier and the claude.ai consumer product have different data handling policies. If confidentiality matters for your use case, read <a href="https://www.anthropic.com/legal/privacy" target="_blank" rel="noopener">Anthropic's current privacy policy</a> and pay attention to which product tier applies. Keepance operates on the API tier because that's where BYOK lives.</p>
 
     <h2>Migrating from Claude.ai to Keepance</h2>
 

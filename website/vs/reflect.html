@@ -81,7 +81,8 @@
       <tbody>
         <tr><td>Where data lives</td><td>Reflect's cloud (encrypted at rest)</td><td>Your hard drive (Markdown files)</td></tr>
         <tr><td>Pricing</td><td>$15/mo or $144/yr</td><td>$149/yr (Professional) + your AI provider's API costs</td></tr>
-        <tr><td>3-year total cost (typical)</td><td>~$432</td><td>~$627 ($447 Professional + ~$60/yr BYOK)</td></tr>
+        <tr><td>Where your prompts go</td><td>Through Reflect's servers</td><td>Direct from your machine to the AI provider (Anthropic/OpenAI/Google)</td></tr>
+        <tr><td>What's stored on a vendor's server</td><td>Your notes (encrypted at rest on Reflect's infrastructure)</td><td>Nothing. No documents, no prompts, no API key on Keepance servers</td></tr>
         <tr><td>AI model</td><td>Whatever Reflect provides (currently Claude + others)</td><td>Bring your own Claude / OpenAI / Gemini key</td></tr>
         <tr><td>Wiki-links / backlinks</td><td><span class="pill yes">Yes (excellent)</span></td><td><span class="pill yes">Yes</span></td></tr>
         <tr><td>Daily notes</td><td><span class="pill yes">Yes (default flow)</span></td><td><span class="pill yes">Yes (template)</span></td></tr>
@@ -116,13 +117,13 @@
 
     <p>Reflect leans toward a "blank canvas" notes paradigm with daily-notes as the spine. Keepance ships with 15 structured practice packs designed specifically for professional work: client intake, engagement letter, matter strategy, financial projections, weekly review, and more. Each is a guided interview that produces a finished doc.</p>
 
-    <h3>4. Local-first confidentiality by architecture</h3>
+    <h3>4. Confidentiality by architecture, not by policy</h3>
 
-    <p>Reflect on the annual plan is $144/yr, so $432 over 3 years (a bit more if you pay monthly at $15). Keepance Professional is $149/yr, which includes one practice pack, plus ~$5-15/mo in BYOK API costs. The costs are comparable. What you get from Keepance is a different architecture: documents stay on your machine, your API key lives in your OS keychain, and prompts go straight from your machine to the AI provider. Reflect's notes live on their servers (encrypted). For attorneys and CPAs with confidentiality obligations, the architecture difference is not a matter of taste.</p>
+    <p>Reflect's notes live on their servers, encrypted at rest. That's a reasonable security posture for most users. For an attorney with a client matter under privilege, a CPA handling a return under IRC §7216, or a consultant bound by NDA, it's not a policy question. The question is whether you can legally or contractually paste that content into a tool that stores it on a vendor's infrastructure. With Reflect, the answer depends on Reflect's retention policy and your client's expectations. With Keepance, the answer is simple: your documents never leave your machine. Your API key lives in your OS keychain. Prompts go straight from your machine to Anthropic, OpenAI, or Google, with no Keepance server in the path. If you handle material you legally cannot put in someone else's database, that architecture difference is not optional.</p>
 
-    <h3>5. Privacy posture for confidential client information</h3>
+    <h3>5. Provider flexibility, per conversation</h3>
 
-    <p>Reflect stores your notes on their servers (encrypted). Keepance stores nothing on its servers; the only servers your data ever touches are the AI provider's, only for the specific text you send for inference. For attorneys and CPAs who must keep client information under strict access controls, the difference matters significantly.</p>
+    <p>Keepance lets you choose Claude, OpenAI, Gemini, or local Ollama per conversation. For the most sensitive client matters, you can route to a locally-running model and the content never touches any external server at all. Reflect uses whatever model their app currently provides; you don't select the provider and you can't route differently for different content.</p>
 
     <h2>Where Reflect wins</h2>
 
@@ -142,15 +143,17 @@
 
     <p>Reflect's audio capture + transcription flow is tight. Keepance has audio capture and a waveform editor, but the integration with note-taking is rougher than Reflect's "record a thought, get a transcript, get a summary" pipeline.</p>
 
-    <h2>Pricing comparison over 3 years</h2>
+    <h2>What each tool does with your data</h2>
 
     <table>
-      <thead><tr><th></th><th>Reflect</th><th>Keepance + BYOK</th></tr></thead>
+      <thead><tr><th></th><th>Reflect</th><th>Keepance</th></tr></thead>
       <tbody>
-        <tr><td>Year 1</td><td>$144 ($12 effective monthly)</td><td>$149/yr Professional + $60-180 BYOK</td></tr>
-        <tr><td>Year 2</td><td>$144</td><td>$149 + $60-180 BYOK</td></tr>
-        <tr><td>Year 3</td><td>$144</td><td>$149 + $60-180 BYOK</td></tr>
-        <tr><td><strong>3-year total</strong></td><td><strong>$432</strong></td><td><strong>$627-987</strong></td></tr>
+        <tr><td>Where your documents live</td><td>Reflect's servers (encrypted at rest)</td><td>Your hard drive. Markdown files in a folder you own.</td></tr>
+        <tr><td>Where your prompts go</td><td>Through Reflect's infrastructure to the AI model</td><td>Direct from your machine to the AI provider (Anthropic, OpenAI, or Google). Keepance is not in the path.</td></tr>
+        <tr><td>API key custody</td><td>Not applicable. Reflect's key, bundled into the subscription.</td><td>Your OS keychain. Keepance never sees it.</td></tr>
+        <tr><td>Vendor retention policy applies to your content</td><td>Yes, per Reflect's privacy policy</td><td>No. Nothing is stored on Keepance servers.</td></tr>
+        <tr><td>Can you use it for privileged client work?</td><td>Depends on your jurisdiction, firm policy, and Reflect's retention terms</td><td>Yes. Content stays on your machine.</td></tr>
+        <tr><td>Pricing</td><td>$144/yr (or $15/mo)</td><td>$49 one-time Personal, $149/yr Professional (includes one practice pack), $499 one-time Practice (up to 5 seats). Plus your own AI provider's API costs (typically $5-15/mo).</td></tr>
       </tbody>
     </table>
 

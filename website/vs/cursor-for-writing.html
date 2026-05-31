@@ -144,19 +144,20 @@
 
     <p>Both tools support BYOK with the same Anthropic / OpenAI / Google keys, so the API cost is shared across the two tools. Both keep data on your machine. They don't overlap; they live in different parts of your workflow.</p>
 
-    <h2>Pricing comparison over 3 years</h2>
+    <h2>Pricing and data posture</h2>
 
     <table>
-      <thead><tr><th></th><th>Cursor Pro</th><th>Keepance + BYOK</th><th>Cursor + Keepance</th></tr></thead>
+      <thead><tr><th></th><th>Cursor Pro</th><th>Keepance Professional + BYOK</th></tr></thead>
       <tbody>
-        <tr><td>Year 1</td><td>$240</td><td>$149/yr Professional + $60-180 BYOK</td><td>$240 + $209-329</td></tr>
-        <tr><td>Year 2</td><td>$240</td><td>$149 + $60-180 BYOK</td><td>$240 + $209-329</td></tr>
-        <tr><td>Year 3</td><td>$240</td><td>$149 + $60-180 BYOK</td><td>$240 + $209-329</td></tr>
-        <tr><td><strong>3-year total</strong></td><td><strong>$720</strong></td><td><strong>$627-987</strong></td><td><strong>$1,347-1,707</strong></td></tr>
+        <tr><td>Pricing</td><td>$20/mo ($240/yr)</td><td>$149/yr + typically $60-180/yr in AI provider API costs</td></tr>
+        <tr><td>Where your documents live</td><td>Your local codebase (files on disk)</td><td>Your local workspace folder (files on disk)</td></tr>
+        <tr><td>Where your prompts go</td><td>Cursor's servers, then to the AI provider (or directly with BYOK on Pro)</td><td>Direct from your machine to the AI provider. Keepance is not in the path.</td></tr>
+        <tr><td>BYOK available</td><td>Yes, on Pro tier</td><td>Yes, all tiers</td></tr>
+        <tr><td>Vendor in the AI data path</td><td>Cursor (unless you enable BYOK mode)</td><td>No. With BYOK, prompts go machine to provider directly.</td></tr>
       </tbody>
     </table>
 
-    <p>Many professionals end up running both. The combined cost is reasonable, and both tools keep data on your machine with BYOK, so there's no vendor in the middle of your documents or your AI requests.</p>
+    <p>Many professionals end up running both. Cursor handles the codebase; Keepance handles client memos, matter strategy, engagement letters, and the rest of the professional writing workload. Both support BYOK with the same Anthropic, OpenAI, or Google keys. With BYOK enabled in both tools, neither puts a vendor between your content and the AI provider.</p>
 
     <div class="cta-row">
       <p>Download free for 30 days, no credit card. Personal $49 one-time, Professional $149/yr (includes one practice pack), Practice $499 one-time (up to 5 seats). Documents and API key stay on your machine.</p>

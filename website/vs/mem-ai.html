@@ -81,7 +81,8 @@
       <tbody>
         <tr><td>Where data lives</td><td>Mem's cloud</td><td>Your hard drive (Markdown files)</td></tr>
         <tr><td>Pricing</td><td>$10/mo or $96/yr (Mem X)</td><td>$149/yr (Professional) + your AI provider's API costs</td></tr>
-        <tr><td>3-year total cost (typical)</td><td>~$288</td><td>~$627 ($447 Professional + ~$60/yr BYOK)</td></tr>
+        <tr><td>Where your prompts go</td><td>Through Mem's servers to the AI model</td><td>Direct from your machine to the AI provider (Anthropic/OpenAI/Google). Keepance is not in the path.</td></tr>
+        <tr><td>What's stored on a vendor's server</td><td>Your notes (Mem's core product is AI processing your archive)</td><td>Nothing. No documents, no prompts, no API key on Keepance servers.</td></tr>
         <tr><td>Automatic organization</td><td><span class="pill yes">Yes (the core feature)</span></td><td><span class="pill no">Manual (folders + wiki-links)</span></td></tr>
         <tr><td>AI chat with your notes</td><td><span class="pill yes">Yes</span></td><td><span class="pill yes">Yes (with ambient file context)</span></td></tr>
         <tr><td>BYOK</td><td><span class="pill no">No (bundled inference)</span></td><td><span class="pill yes">Claude / OpenAI / Gemini / Ollama</span></td></tr>
@@ -112,9 +113,9 @@
 
     <p>Mem's pitch is "AI organizes for you." That works well for general note-taking. Keepance's pitch is "structured workflows that produce professional documents." For client intake drafting, engagement letter synthesis, matter strategy, the structured approach with explicit practice packs is more useful than auto-organization.</p>
 
-    <h3>3. BYOK economics</h3>
+    <h3>3. Your key, your provider, nothing in the middle</h3>
 
-    <p>Mem's $10/mo bundles inference, so at ~$96/yr it's one of the cheaper options in raw dollars. Keepance Professional is $149/yr (it includes one practice pack) plus your own AI provider's API costs (typically $5-15/mo), which over 3 years lands around $627-987. You're paying that difference for a different architecture: you bring your own key, your documents stay on your machine, and prompts go straight from your machine to the AI provider, never through Keepance's servers. If the cheapest monthly bill is the goal, Mem wins. If local-first confidentiality and provider choice matter more, Keepance is worth it.</p>
+    <p>Mem bundles inference into the subscription. That means Mem's key, Mem's model selection, and your content going through Mem's infrastructure to reach the AI. With Keepance, you bring your own Claude, OpenAI, or Gemini key. It lives in your OS keychain. When you send a prompt, it goes from your machine straight to the provider. Keepance is not in the data path. For attorneys working under privilege, CPAs handling client returns under IRC §7216, or consultants with NDA-bound client work, that's not a preference. It's often the threshold question: can this content legally leave my machine and land in a vendor's database? With BYOK on a local-first tool, the answer is yes, because it doesn't.</p>
 
     <h3>4. Privacy posture for confidential client information</h3>
 
@@ -142,19 +143,21 @@
 
     <p>Mem's "today's relevant notes" surfacing is a polished experience. Keepance has search and backlinks but no AI-curated daily feed.</p>
 
-    <h2>Pricing comparison over 3 years</h2>
+    <h2>What each tool does with your data</h2>
 
     <table>
-      <thead><tr><th></th><th>Mem.ai (Mem X)</th><th>Keepance + BYOK</th></tr></thead>
+      <thead><tr><th></th><th>Mem.ai</th><th>Keepance</th></tr></thead>
       <tbody>
-        <tr><td>Year 1</td><td>$96 (annual) or $120 (monthly)</td><td>$149/yr Professional + $60-180 BYOK</td></tr>
-        <tr><td>Year 2</td><td>$96</td><td>$149 + $60-180 BYOK</td></tr>
-        <tr><td>Year 3</td><td>$96</td><td>$149 + $60-180 BYOK</td></tr>
-        <tr><td><strong>3-year total</strong></td><td><strong>$288</strong></td><td><strong>$627-987</strong></td></tr>
+        <tr><td>Where your documents live</td><td>Mem's cloud (AI processing across your full archive is the core feature)</td><td>Your hard drive. Markdown files in a folder you own.</td></tr>
+        <tr><td>Where your prompts go</td><td>Through Mem's infrastructure to the AI model</td><td>Direct from your machine to the AI provider. Keepance is not in the path.</td></tr>
+        <tr><td>API key custody</td><td>Mem's key, bundled into the subscription</td><td>Your OS keychain. Keepance never sees it.</td></tr>
+        <tr><td>Vendor retention policy applies to your content</td><td>Yes, per Mem's privacy policy</td><td>No. Nothing stored on Keepance servers.</td></tr>
+        <tr><td>Can you use it for privileged or NDA-bound client work?</td><td>Depends on your obligations and Mem's terms</td><td>Yes. Content stays on your machine.</td></tr>
+        <tr><td>Pricing</td><td>$96/yr annual ($10/mo if monthly)</td><td>$49 one-time Personal, $149/yr Professional (includes one practice pack), $499 one-time Practice (up to 5 seats). Plus your own AI provider's API costs (typically $5-15/mo).</td></tr>
       </tbody>
     </table>
 
-    <p>The total depends heavily on your AI usage; heavy users spend more on BYOK tokens, light users spend less. Mem will usually be the lower raw-dollar number here. What you get for the difference with Keepance is local-first architecture: your own provider key, documents that live on your machine, and prompts that go straight to the AI provider without Keepance in the data path.</p>
+    <p>Mem will be the lower raw-dollar figure for most users. Keepance Professional at $149/yr plus BYOK API costs runs higher. That gap reflects a different architecture: documents on your machine, API key in your keychain, and no Keepance server between your content and the AI provider. Whether that architecture matters is the real comparison, not the subscription price.</p>
 
     <h2>Migrating from Mem.ai to Keepance</h2>
 

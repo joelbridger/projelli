@@ -184,8 +184,8 @@
         </tr>
         <tr>
           <td>Pricing</td>
-          <td>$49 one-time / $149/yr / $499 one-time (30-day free trial)</td>
-          <td>$0 (Sync $4/mo, Publish $8/mo)</td>
+          <td>$49 one-time Personal / $149/yr Professional / $499 one-time Practice. AI via your own API key, paid direct to Anthropic/OpenAI/Google. No per-seat markup from Keepance. 30-day free trial.</td>
+          <td>$0 app (Sync $4/mo, Publish $8/mo). AI via third-party plugins; costs depend on the plugin and your key.</td>
         </tr>
         <tr>
           <td>Real-time collaboration</td>
@@ -205,6 +205,8 @@
     <p>Obsidian's core promise is that it ships an editor, and the community ships everything else. That's a genuinely good architecture for a personal knowledge base, and it's why Obsidian has grown for years without a single feature that the community couldn't build. But the cost of that architecture is consistency. <a href="https://github.com/brianpetro/obsidian-smart-connections" target="_blank" rel="noopener">Smart Connections</a> passed 786,000 community downloads by January 2026 and its stats are on <a href="https://www.moritzjung.dev/obsidian-stats/plugins/smart-connections/" target="_blank" rel="noopener">obsidian-stats</a>, which is impressive, but it's still a plugin maintained by one developer that can break with any Obsidian core update. The <a href="https://www.obsidiancopilot.com/en" target="_blank" rel="noopener">Copilot for Obsidian</a> plugin reaches 100,000+ users and ships weekly, which is also impressive, but it's a separate codebase with a separate release cycle.</p>
 
     <p>Keepance takes the opposite bet. One polished app, four providers built in, the AI is the primary input method, and every chat conversation produces a real Markdown file in your folder. Where Obsidian's AI plugins treat AI as an enhancement to writing, Keepance treats the conversation as the first draft. You can still edit the file by hand afterward, the same way you would in Obsidian. The difference is in what starts the document. As of v2.0 you can also paste an image into the chat, drop in a PDF for Claude to read natively, hit [Compress] when a long chat overflows the context window, and click "Read aloud" to hear an answer through a local <a href="https://github.com/rhasspy/piper" target="_blank" rel="noopener">Piper</a> sidecar. Each of those is a separate Obsidian plugin if you want them.</p>
+
+    <p>Both Keepance and Obsidian are local-first, which matters a lot for anyone with confidentiality obligations. The important distinction is in how AI is handled. Obsidian's AI plugins typically require you to enter your own API key, which is good, but the plugin routes your prompt to the AI provider through its own code and update cycle. Keepance routes your prompt directly from your machine to the provider endpoint. Nothing goes through Keepance's servers (there are none in this path). For attorneys working under privilege, CPAs bound by IRC Section 7216, and consultants under NDA, the local-first data posture is table stakes, and Keepance makes it explicit by design: documents on your disk, API key in your OS keychain, prompts going straight to the provider.</p>
 
     <p>The second distinction is profession-specific practice packs. Obsidian has a thriving community templates ecosystem, but the good ones (Linking Your Thinking, PARA, various zettelkasten kits) are for personal knowledge work. There is no "run a client intake, produce an engagement letter draft, save it as ENGAGEMENT_LETTER.md" flow anywhere in the Obsidian ecosystem. Keepance ships 15 of those, designed for the specific document types attorneys, CPAs, and consultants actually write. <a href="/blog/">See the blog</a> for what each one actually produces.</p>
 
