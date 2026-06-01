@@ -50,8 +50,8 @@ export interface PluginManifest {
   /** Path inside the plugin folder to the JS entry. Per spec §6.4: e.g. "index.js". */
   main: string;
   permissions: PluginPermission[];
-  minKeepcanceVersion: string;
-  maxKeepcanceVersion?: string;
+  minKeepanceVersion: string;
+  maxKeepanceVersion?: string;
   category: string;
   tags: string[];
   screenshots?: string[];

@@ -11,7 +11,7 @@ import { WorkspaceService, createWorkspaceService } from '@/modules/workspace/Wo
 import { createFSBackend, isTauriEnvironment } from '@/modules/workspace/BackendFactory';
 import { DEFAULT_WORKSPACE_FOLDERS } from '@/modules/workspace/types';
 import { openExternal } from '@/utils/openExternal';
-import { KeepcanceLogo } from '@/components/brand/KeepcanceLogo';
+import { KeepanceLogo } from '@/components/brand/KeepanceLogo';
 import { GradientGlow } from '@/components/brand/GradientGlow';
 import {
   FolderOpen,
@@ -348,7 +348,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         {/* Logo area with gradient glow */}
         <div className="relative flex flex-col items-center mb-8">
           <GradientGlow className="-translate-x-1/2 -translate-y-1/2 top-1/2 left-1/2" />
-          <KeepcanceLogo iconSize={64} wordmarkHeight={28} />
+          <KeepanceLogo iconSize={64} wordmarkHeight={28} />
         </div>
 
         {/* Tagline */}

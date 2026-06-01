@@ -45,10 +45,10 @@ export const pluginManifestSchema = z.object({
   description: z.string().min(1, 'description required'),
   main: z.string().min(1, 'main required'),
   permissions: z.array(pluginPermissionSchema),
-  minKeepcanceVersion: z.string().regex(semverRegex, 'minKeepcanceVersion must be semver'),
-  maxKeepcanceVersion: z
+  minKeepanceVersion: z.string().regex(semverRegex, 'minKeepanceVersion must be semver'),
+  maxKeepanceVersion: z
     .string()
-    .regex(semverRegex, 'maxKeepcanceVersion must be semver')
+    .regex(semverRegex, 'maxKeepanceVersion must be semver')
     .optional(),
   category: z.string().min(1, 'category required'),
   tags: z.array(z.string()),
@@ -96,32 +96,32 @@ export function compareSemver(a: string, b: string): number {
 }
 
 /**
- * Returns an error string if `manifest.minKeepcanceVersion` is newer than the
+ * Returns an error string if `manifest.minKeepanceVersion` is newer than the
  * current app version, otherwise null. Callers fail the install with the
  * returned message.
  */
-export function checkMinKeepcanceVersion(
+export function checkMinKeepanceVersion(
   manifest: PluginManifest,
   currentAppVersion: string,
 ): string | null {
-  if (compareSemver(manifest.minKeepcanceVersion, currentAppVersion) > 0) {
-    return `Plugin requires Keepance ${manifest.minKeepcanceVersion} or newer (you have ${currentAppVersion}).`;
+  if (compareSemver(manifest.minKeepanceVersion, currentAppVersion) > 0) {
+    return `Plugin requires Keepance ${manifest.minKeepanceVersion} or newer (you have ${currentAppVersion}).`;
   }
   return null;
 }
 
 /**
  * Returns an error string if the current app version is newer than the
- * declared `maxKeepcanceVersion`, otherwise null. The `maxKeepcanceVersion`
+ * declared `maxKeepanceVersion`, otherwise null. The `maxKeepanceVersion`
  * field is optional; an absent field never triggers an error.
  */
-export function checkMaxKeepcanceVersion(
+export function checkMaxKeepanceVersion(
   manifest: PluginManifest,
   currentAppVersion: string,
 ): string | null {
-  if (!manifest.maxKeepcanceVersion) return null;
-  if (compareSemver(currentAppVersion, manifest.maxKeepcanceVersion) > 0) {
-    return `Plugin supports Keepance up to ${manifest.maxKeepcanceVersion} (you have ${currentAppVersion}).`;
+  if (!manifest.maxKeepanceVersion) return null;
+  if (compareSemver(currentAppVersion, manifest.maxKeepanceVersion) > 0) {
+    return `Plugin supports Keepance up to ${manifest.maxKeepanceVersion} (you have ${currentAppVersion}).`;
   }
   return null;
 }

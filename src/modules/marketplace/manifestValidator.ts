@@ -42,10 +42,10 @@ export const templateManifestSchema = z.object({
   tags: z.array(z.string()),
   screenshots: z.array(z.string().min(1)).optional(),
   files: z.array(templateFileEntrySchema).min(1, 'files must contain at least one entry'),
-  minKeepcanceVersion: z.string().regex(semverRegex, 'minKeepcanceVersion must be semver'),
-  maxKeepcanceVersion: z
+  minKeepanceVersion: z.string().regex(semverRegex, 'minKeepanceVersion must be semver'),
+  maxKeepanceVersion: z
     .string()
-    .regex(semverRegex, 'maxKeepcanceVersion must be semver')
+    .regex(semverRegex, 'maxKeepanceVersion must be semver')
     .optional(),
 });
 
@@ -89,16 +89,16 @@ export function compareSemver(a: string, b: string): number {
 }
 
 /**
- * Returns an error string if `manifest.minKeepcanceVersion` is newer than the
+ * Returns an error string if `manifest.minKeepanceVersion` is newer than the
  * current app version, otherwise null. Callers fail the install with the
  * returned message.
  */
-export function checkMinKeepcanceVersion(
+export function checkMinKeepanceVersion(
   manifest: TemplateManifest,
   currentAppVersion: string,
 ): string | null {
-  if (compareSemver(manifest.minKeepcanceVersion, currentAppVersion) > 0) {
-    return `Template requires Keepance ${manifest.minKeepcanceVersion} or newer (you have ${currentAppVersion}).`;
+  if (compareSemver(manifest.minKeepanceVersion, currentAppVersion) > 0) {
+    return `Template requires Keepance ${manifest.minKeepanceVersion} or newer (you have ${currentAppVersion}).`;
   }
   return null;
 }

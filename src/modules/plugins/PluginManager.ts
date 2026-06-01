@@ -71,8 +71,8 @@ import { WorkspaceHost } from './hosts/WorkspaceHost';
 import type { PluginBridgeHooks, PluginWorkerFactory } from './PluginAPIBridge';
 import {
   validatePluginManifest,
-  checkMinKeepcanceVersion,
-  checkMaxKeepcanceVersion,
+  checkMinKeepanceVersion,
+  checkMaxKeepanceVersion,
 } from './PluginManifestSchema';
 import { PluginPermissions } from './PluginPermissions';
 import { PluginWorkerHost } from './PluginWorkerHost';
@@ -116,7 +116,7 @@ export interface PluginManagerOptions {
   workspaceService: WorkspaceService | null;
   /** Absolute path to `<workspace>/.keepance/plugins`. Manager treats this as authoritative. */
   installRoot: string;
-  /** Currently-running app version. Validated against `minKeepcanceVersion`. */
+  /** Currently-running app version. Validated against `minKeepanceVersion`. */
   appVersion: string;
   /** Production: Vite-bundled `?worker` import. Tests: paired-mock factory. */
   workerFactory: PluginWorkerFactory;
@@ -293,12 +293,12 @@ export class PluginManager {
       }
       manifest = result.manifest;
 
-      const minErr = checkMinKeepcanceVersion(manifest, this.appVersion);
+      const minErr = checkMinKeepanceVersion(manifest, this.appVersion);
       if (minErr) {
         await this.safeDelete(stagingPath);
         throw new Error(minErr);
       }
-      const maxErr = checkMaxKeepcanceVersion(manifest, this.appVersion);
+      const maxErr = checkMaxKeepanceVersion(manifest, this.appVersion);
       if (maxErr) {
         await this.safeDelete(stagingPath);
         throw new Error(maxErr);

@@ -28,6 +28,6 @@ export interface TemplateManifest {
   tags: string[];
   screenshots?: string[];
   files: TemplateFileEntry[];
-  minKeepcanceVersion: string;
-  maxKeepcanceVersion?: string;
+  minKeepanceVersion: string;
+  maxKeepanceVersion?: string;
 }
