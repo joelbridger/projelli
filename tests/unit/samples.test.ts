@@ -18,7 +18,7 @@ const SAMPLES_DIR = resolve(__dirname, '../../src/onboarding/samples');
 
 const SAMPLE_FILENAMES = [
   'Sample - Pricing Strategy.md',
-  'Sample - Pitch Deck.md',
+  'Sample - Client Intake.md',
   'Sample - Weekly Review.md',
 ] as const;
 

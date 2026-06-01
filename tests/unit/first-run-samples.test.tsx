@@ -20,16 +20,23 @@ function makeMockWorkspace() {
   };
 }
 
+// Several steps render a header "Skip for now" (which aborts the whole wizard)
+// alongside an in-step "Skip for now" (which advances). The in-step one is
+// rendered after the header in the DOM, so we always click the LAST match.
+function clickLastSkip() {
+  const skips = screen.getAllByRole('button', { name: /^Skip for now$/i });
+  fireEvent.click(skips[skips.length - 1]!);
+}
+
 function advanceToDemoStep() {
-  // welcome -> workspace
+  // welcome -> profession
   fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
+  // profession -> workspace (no profession picked, so the in-step CTA reads "Skip for now")
+  clickLastSkip();
   // workspace -> apikey
-  fireEvent.click(screen.getByRole('button', { name: /got it/i }));
-  // apikey step has two "Skip for now" buttons: one in the header (text-button)
-  // and one in the step actions row (Button). Grab them all and click the last
-  // one, which is the in-step action button.
-  const skipButtons = screen.getAllByRole('button', { name: /^Skip for now$/i });
-  fireEvent.click(skipButtons[skipButtons.length - 1]!);
+  fireEvent.click(screen.getByRole('button', { name: /^Got it$/i }));
+  // apikey -> demo (skip entering a key)
+  clickLastSkip();
 }
 
 describe('FirstRunWizard sample population (Q11)', () => {
@@ -70,7 +77,7 @@ describe('FirstRunWizard sample population (Q11)', () => {
     // Verify each written file is one of the expected samples.
     const writtenNames = workspace.writeFile.mock.calls.map((c) => c[0]).sort();
     expect(writtenNames).toEqual([
-      'Sample - Pitch Deck.md',
+      'Sample - Client Intake.md',
       'Sample - Pricing Strategy.md',
       'Sample - Weekly Review.md',
     ]);
