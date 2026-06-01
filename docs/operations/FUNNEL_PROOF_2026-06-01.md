@@ -18,7 +18,11 @@ End-to-end with a **real** LemonSqueezy license key (`BB18…A00A`), exercising 
 
 Also verified: validator healthy, tries both API keys, 31 tier/revocation unit tests green, HMAC signature verification works, and **cross-product isolation** holds (a Guesslet refund on the shared store is ignored and does not touch Keepance licenses, and vice versa).
 
-## The gap (red) — LS webhooks are not being delivered to the validator
+## ✅ RESOLVED (2026-06-01, same day): the webhook gap is fixed + verified live
+
+Root cause: webhook `89126` had **`test_mode: true`**, so it only fired for test-mode events and never for the real (live) order. It was also under-subscribed (missing `subscription_expired/paused` and the reactivate events). Fix: created a new **live** webhook (`106297`, `test_mode: false`) via the LS API pointing at `https://licenses.projelli.com/webhook` with the validator's signing secret and the full 9-event set the validator handles. **Verified with a real live delivery:** patched the test license's `activation_limit` via the LS API (a real `license_key_updated` event) and the validator logged `[webhook] revoked license BB18... (license_key_updated)` within 5s. Push-based revocation now works end-to-end for refunds and subscription cancellations. The old test-mode webhook `89126` was left in place (it still serves test-mode testing; it does not double-fire live events). Defense-in-depth (shorter token TTL) was deliberately NOT applied: the 30-day TTL exists for offline tolerance in a local-first app, and shortening it risks locking out offline paid users; revisit only if push revocation proves unreliable.
+
+## The gap (original finding, now resolved) — LS webhooks were not being delivered to the validator
 
 On refund, LS expired the license (so *new* activations are blocked), **but the validator never received any webhook** for the order. The already-minted token stayed valid until I manually fired the event LS should have sent.
 
