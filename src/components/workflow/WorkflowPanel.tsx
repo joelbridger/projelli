@@ -46,6 +46,8 @@ import {
   setSystemPrompt,
 } from '@/modules/workflow/userTemplates';
 import { ChainBuilderModal } from './ChainBuilderModal';
+import { prioritizeByProfession } from '@/modules/workflow/prioritizeByProfession';
+import { getOnboardingProfession } from '@/components/onboarding/FirstRunWizard';
 import { useTrialGate } from '@/hooks/useTrial';
 import { useTemplatesMarketplace } from '@/hooks/useTemplatesMarketplace';
 import {
@@ -125,10 +127,13 @@ export function WorkflowPanel({
     // template (rare, but possible after a remix workflow) lets the user
     // copy win, matching `loadAllTemplates`'s precedence rules.
     const seen = new Set(localWorkflows.map((t) => t.id));
-    return [
+    const merged = [
       ...localWorkflows,
       ...communityWorkflows.filter((t) => !seen.has(t.id)),
     ];
+    // PIVOT-16 — float the onboarding profession's pack to the top so a
+    // first-run attorney/CPA/consultant sees their templates first.
+    return prioritizeByProfession(merged, getOnboardingProfession());
   }, [localWorkflows, communityWorkflows]);
 
   const refreshTemplates = useCallback(
