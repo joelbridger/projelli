@@ -33,5 +33,11 @@ The one-time-vs-subscription split becomes *intentional and clear*: you pay **on
 2. **Making Practice recurring may deter firms** who prefer to "buy and be done." Mitigate with a premium one-time option or annual prepay; watch conversion.
 3. **Premature optimization.** Pre-launch with zero customers, the *exact* numbers are guesses. The pricing is "good enough" to launch; let real buying + churn data drive v2. Don't let pricing perfectionism delay getting the first dollar and the first testimonial.
 
+## DECISION (Jameson, 2026-06-01): ACCEPTED — execute all of it
+- Personal $49 one-time: keep.
+- Professional $149/yr: keep, sell as maintained/reviewed compliance content.
+- **Practice: move $499 one-time → $499/yr (subscription).**
+- **Operating directive: ASSUME THE PACKS WILL BE APPROVED. Stop gating anything on advisor review** — present packs as production/available (remove "preview / pending review / ships after review" hedges on the site + app registry `preview:true`→false on the next app release). Advisor recruiting still proceeds in parallel, but it no longer blocks shipping/messaging.
+
 ## Bottom line
 Keep Personal $49 one-time (it's the adoption/first-dollar engine, aimed at a different buyer). Keep Professional $149/yr but sell it as *maintained, reviewed compliance content*, not templates. Move Practice to $499/yr for coherence. Then **stop optimizing pricing and go validate the packs + get the first customers** — that's the real lever, and it's where the actual gap is.
