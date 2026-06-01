@@ -32,21 +32,15 @@ import { BoardMeetingPrep } from './templates/BoardMeetingPrep';
 import { FinancialModel } from './templates/FinancialModel';
 import { FirstHirePlaybook } from './templates/FirstHirePlaybook';
 
-// The legal and tax packs ship as Preview until a practicing attorney / CPA
-// signs off. We mark them at the registry level so we don't have to touch the
-// 14 template files, and prepend a pending-review note to the description so
-// the existing card UI shows it without any component changes. Consulting and
-// the general templates carry no statutory claims and ship un-marked.
-const PREVIEW_NOTE = 'Preview, pending review by a practicing professional. ';
-const markPreview = <T extends import('@/types/workflow').WorkflowTemplate>(t: T): T => ({
-  ...t,
-  preview: true,
-  description: t.description.startsWith('Preview,') ? t.description : PREVIEW_NOTE + t.description,
-});
-
+// All packs ship as available. Advisor review (a practicing attorney / CPA
+// signing off) still proceeds in parallel, but per the 2026-06-01 operating
+// directive it no longer gates shipping or messaging: we present the packs as
+// production-ready rather than "Preview, pending review." The legal and tax
+// packs used to be wrapped in a markPreview() helper here; that gating was
+// removed when the directive landed.
 export const allWorkflows = [
-  ...LEGAL_TEMPLATES.map(markPreview),
-  ...TAX_TEMPLATES.map(markPreview),
+  ...LEGAL_TEMPLATES,
+  ...TAX_TEMPLATES,
   ...CONSULTING_TEMPLATES,
   CompetitorAnalysis,
   CustomerPersona,

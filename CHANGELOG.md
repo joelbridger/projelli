@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026-06-01 (profession packs ship as available)
+
+> Per the 2026-06-01 operating directive, the legal and tax packs no longer ship as
+> "Preview, pending review." Advisor review still proceeds in parallel but no longer
+> gates shipping or messaging. No other app changes.
+
+### Changed
+- **Legal and tax packs are now presented as available, not Preview.** Removed the registry-level `markPreview()` gating in `src/modules/workflow/index.ts` that set `preview: true` and prepended a "pending review" note to every legal/tax template description. All packs now ship un-marked, matching consulting and the general templates.
+
 ## [2.1.1] - 2026-05-30 (packaging: Windows installer + auto-update)
 
 > Packaging-only patch, no app changes. Restores the signed Windows installer to the
