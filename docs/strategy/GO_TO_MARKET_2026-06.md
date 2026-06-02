@@ -32,6 +32,25 @@ Net effect on expectations: **the first dollar most likely comes from a stranger
 
 ---
 
+## 1.6 Recalibration (2026-06-02): reviewer-first, vertical channels, NOT public tech
+
+Jameson pushed back hard and correctly on the public-channel idea. Capturing it because it changes the strategy:
+
+**Show HN / r/LocalLLaMA are not our buyer.** They're developers and privacy enthusiasts. They'd hand us a few Personal-tier dollars and, at best, a testimonial from a developer, which does **not** unlock the law/tax/advisor launch (that needs a *named practitioner*). Chasing them is motion, not progress on the real thesis. That copy is a leftover from the earlier "first dollar at any cost" plan. **Demote public tech channels to an optional, minor Personal-tier side-channel. They are not the strategy.**
+
+**Advisor review is a prerequisite for the launch, not a parallel nice-to-have.** We should not market to attorneys / CPAs / advisors with packs no practitioner has reviewed and compliance framing no bar- or license-active professional has vetted. Getting a legal claim wrong *to a legal audience* is the one uniquely fatal mistake. This is consistent with the "stop gating shipping" directive: the app and site can stand honestly *today* (claim already softened to "maintained," packs available), while the **active push into a vertical is gated on a practicing reviewer in that vertical.**
+
+**The reviewer does triple duty,** which is why this is the whole game: they (1) make the pack genuinely trustworthy, (2) become the first **named reference/testimonial** for that vertical, and (3) often refer peers. Recruiting one practicing pro per vertical isn't a checkbox; it *is* the path to a credible launch.
+
+**Financial advisors are now a first-class vertical, and we don't have the pack yet.** We have legal/tax/consulting packs + landing pages; there is no advisor/CFP pack or `/advisors/` page. Don't build one speculatively. Run it **lean through Journey Beyond Wealth**: bring them in as a design partner on the general local-first app, let them tell us what an advisor pack needs, build it *with* them, and they become its reviewer + first reference. Same play we should run in every vertical, just with a warm intro.
+
+### The crystallized critical path
+**Recruit a practicing reviewer in each target vertical (attorney, CPA, financial advisor via JBW), have them review or co-shape the pack, convert them into the first named reference, then launch that vertical through its real channels.** Real channels are relationship + credibility + vertical-specific: legal-tech press (Ambrogi/LawSites, Above the Law), accounting/advisor press + communities (Going Concern, r/taxpros, r/accounting, Kitces/advisor media), LinkedIn (where professionals actually are), professional conferences (ABA TECHSHOW), and direct practitioner outreach. Not a tech-launch.
+
+So the order is **reviewers first, packs right, then vertical launch.** Everything below is read through that lens; where section 3 implied "public launch first," this section overrides it.
+
+---
+
 ## 2. The identity framework (personal vs @keepance.com)
 
 **The deciding question for any message: who does this specific recipient trust more right now, Jameson the person or Keepance the company?** Lead with that one.
