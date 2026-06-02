@@ -262,7 +262,7 @@
     }
     .template-grid {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 16px;
     }
     @media (min-width: 1000px) {
@@ -667,10 +667,27 @@
         <div class="section-header anim">
           <span class="section-label">Pricing</span>
           <h2>Simple pricing.</h2>
-          <p>Professional is billed yearly and keeps your pack current. Practice is a one-time purchase for up to five seats.</p>
+          <p>Personal is a one-time purchase. Professional and Practice are yearly plans that keep your packs maintained and current.</p>
         </div>
 
         <div class="pricing-grid">
+
+                    <div class="pricing-card anim">
+            <div class="pricing-tier">Personal</div>
+            <div class="pricing-price">$49</div>
+            <div class="pricing-price-note">one-time &middot; all platforms</div>
+            <hr class="pricing-divider">
+            <ul class="pricing-features">
+              <li class="strong">All core features</li>
+              <li>Local-first AI workspace</li>
+              <li>BYOK: Claude, OpenAI, Gemini, Ollama</li>
+              <li>Files stay on your machine</li>
+              <li>No practice pack</li>
+              <li>Mac, Windows, Linux</li>
+            </ul>
+            <a href="https://projelli.lemonsqueezy.com/checkout/buy/4df43939-9d7f-4acb-b289-1ab63a65532c" class="btn btn-outline-dark btn-full">Buy Personal ($49)</a>
+            <p style="font-size:12px;margin-top:10px;text-align:center;opacity:0.7;">or <a href="https://github.com/keepance/keepance/releases/latest">download the 30-day trial</a></p>
+          </div>
 
           <div class="pricing-card featured anim">
             <div class="pricing-badge">Most popular</div>
@@ -694,8 +711,8 @@
 
           <div class="pricing-card anim">
             <div class="pricing-tier">Practice</div>
-            <div class="pricing-price">$499</div>
-            <div class="pricing-price-note">one-time purchase</div>
+            <div class="pricing-price">$499/yr</div>
+            <div class="pricing-price-note">billed yearly &middot; up to 5 seats</div>
             <hr class="pricing-divider">
             <ul class="pricing-features">
               <li class="strong">Up to 5 seats</li>
@@ -703,7 +720,7 @@
               <li>White-label templates for your firm</li>
               <li>Email support priority</li>
             </ul>
-            <a href="https://projelli.lemonsqueezy.com/checkout/buy/b4c6865f-a435-43c9-82b1-14d6b4f18059" class="btn btn-outline-dark btn-full">Buy Practice ($499)</a>
+            <a href="https://projelli.lemonsqueezy.com/checkout/buy/b4c6865f-a435-43c9-82b1-14d6b4f18059" class="btn btn-outline-dark btn-full">Buy Practice ($499/yr)</a>
             <p style="font-size:12px;margin-top:10px;text-align:center;opacity:0.8;">or <a href="https://github.com/keepance/keepance/releases/latest">download the 30-day trial</a></p>
           </div>
 

@@ -8,6 +8,7 @@
   <link rel="canonical" href="https://keepance.com/">
   <meta name="robots" content="index, follow">
   <meta name="author" content="Jameson Daines">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -135,7 +136,7 @@
       background: radial-gradient(ellipse 60% 50% at 70% 40%, rgba(255,60,232,0.07) 0%, transparent 70%),
                   radial-gradient(ellipse 40% 60% at 10% 80%, rgba(93,198,255,0.05) 0%, transparent 60%);
     }
-    .hero-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+    .hero-inner { display: grid; grid-template-columns: 1fr 1.55fr; gap: 64px; align-items: center; max-width: 1440px; }
     @media (max-width: 900px) { .hero-inner { grid-template-columns: 1fr; gap: 56px; } .hero-mockup { display: none; } }
     .hero-eyebrow { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--grad-pink); margin-bottom: 20px; }
     .hero h1 { font-family: 'Satoshi', system-ui, sans-serif; font-size: clamp(2.2rem, 3.8vw, 3rem); font-weight: 700; color: var(--white); line-height: 1.2; margin-bottom: 24px; letter-spacing: -0.02em; }
@@ -233,8 +234,8 @@
 
     /* WHO IT'S FOR */
     .for-section { background: var(--white); border-top: 1px solid var(--border); }
-    .for-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
-    @media (max-width: 800px) { .for-grid { grid-template-columns: 1fr; } }
+    .for-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; }
+    @media (max-width: 700px) { .for-grid { grid-template-columns: 1fr; } }
     .for-card { background: var(--bone); border: 1px solid var(--border); border-radius: 12px; padding: 32px 28px; display: block; text-decoration: none; color: inherit; transition: border-color 0.2s, box-shadow 0.2s; }
     .for-card:hover { border-color: var(--navy); box-shadow: 0 4px 20px rgba(10,37,64,0.07); }
     .for-card-icon { width: 42px; height: 42px; border-radius: 8px; background: var(--navy); display: flex; align-items: center; justify-content: center; margin-bottom: 20px; }
@@ -541,7 +542,7 @@
               <li>Mac, Windows, Linux</li>
             </ul>
             <a href="https://projelli.lemonsqueezy.com/checkout/buy/4df43939-9d7f-4acb-b289-1ab63a65532c" class="btn btn-outline-copper btn-full">Buy Personal ($49)</a>
-            <p style="font-size:12px;color:var(--text-muted);margin-top:8px;text-align:center;">or <a id="primary-download" href="https://github.com/keepance/keepance/releases/latest" style="color:var(--grad-blue);font-weight:600;">download the 30-day trial</a> · all platforms</p>
+            <a id="primary-download" href="https://github.com/keepance/keepance/releases/latest" class="btn btn-outline btn-full" style="margin-top:10px;font-size:14px;opacity:0.85;">Download 30-day free trial</a>
           </div>
           <div class="pricing-card featured">
             <div class="pricing-badge">Most popular</div>
