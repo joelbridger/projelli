@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Local Client, Cloud Brain: What's Actually Open in AI Tools | Keepance</title>
+  <meta name="description" content="Warp open-sourced its terminal client but kept its cloud orchestration layer proprietary. This is a business model decision, not a technical one, and professionals with confidentiality obligations should understand exactly what it means for their client data.">
+  <link rel="canonical" href="https://keepance.com/blog/local-client-cloud-brain-whats-actually-open-in-ai-tools">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://keepance.com/blog/local-client-cloud-brain-whats-actually-open-in-ai-tools">
+  <meta property="og:title" content="Local Client, Cloud Brain: What's Actually Open in AI Tools">
+  <meta property="og:description" content="Warp open-sourced its terminal client but kept its cloud orchestration layer proprietary. This is a business model decision, not a technical one, and professionals with confidentiality obligations should understand exactly what it means for their client data.">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      padding: 0 24px 100px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #FF7C6E 0%, #FF6554 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">← All posts</a>
+
+    <h1>Local Client, Cloud Brain: What's Actually Open in AI Tools</h1>
+    <p class="meta">By Jameson Daines · 2026-05-16 · 8 min read</p>
+
+    <p>On May 7, 2026, <a href="https://www.warp.dev/blog/warp-is-now-open-source">Warp open-sourced its desktop terminal client</a> under AGPL-3.0. The repo hit 37,000 GitHub stars within days. <a href="https://openai.com">OpenAI</a> signed on as a founding sponsor. The announcement was broadly covered as Warp "going open source."</p>
+
+    <p>That framing is accurate but incomplete in a way that matters. What Warp open-sourced is the client. The part of the product where most of the interesting AI happens, the cloud agent orchestration layer called "Oz," remains proprietary. That's not a footnote. It's the thing attorneys, CPAs, and consultants should actually be thinking about when they evaluate any AI tool that touches client work.</p>
+
+    <h2>What Warp's announcement actually signals</h2>
+
+    <p>Warp is a good product. I've used it. The AI-assisted terminal experience is genuinely better than the alternatives for a lot of workflows. Open-sourcing the client gives the community the ability to audit the local code, contribute to the UI layer, and, in principle, run a self-hosted version of the terminal itself.</p>
+
+    <p>But the free plan gives you 75 AI credits per month after the first two months, with BYOK support available starting at $20/month. The AI capabilities that make Warp more than a pretty terminal, the agent that can understand your codebase context, plan and execute multi-step operations, persist memory across sessions, those run through Oz. Oz is not open-sourced.</p>
+
+    <p>From <a href="https://thenewstack.io/warp-open-source-client/">The New Stack's coverage of the announcement</a>: "Warp's 'Oz' cloud agent orchestration layer remains proprietary." The company is also introducing an "agent-first contribution model" where community contributors supervise AI agents rather than writing code directly. That's an interesting philosophy, but it also means more of the product's value flows through the proprietary layer, not less.</p>
+
+    <p>None of this makes Warp a bad choice for coding work. It makes it a specific architectural choice, one where the parts of the tool you can inspect and control are the rendering layer and the terminal behavior, while the parts that touch your commands, context, and workflow data live in a cloud orchestration system you can read about but not audit.</p>
+
+    <blockquote>
+      <p>Open-sourcing the client while keeping the orchestration layer closed is a coherent business model. It builds community, builds trust at the surface level, and protects the part of the product that's actually hard to replicate. Professionals evaluating AI tools should recognize the pattern for what it is, especially when the data passing through the orchestration layer belongs to clients.</p>
+    </blockquote>
+
+    <h2>The emerging category divide: local client open, cloud brain proprietary</h2>
+
+    <p>Warp isn't alone here. This architectural split is showing up across the category, and it's worth naming explicitly because the line between "open" and "closed" in AI tools is increasingly drawn at exactly this seam.</p>
+
+    <p>The local client is the part that handles input, rendering, and file management. It's relatively cheap to build, cheap to maintain, and cheap to give away. Open-sourcing it creates goodwill, reduces security concerns about what the app is doing locally, and drives adoption.</p>
+
+    <p>The cloud orchestration layer is where context is aggregated, where agent memory persists, where multi-step reasoning happens across sessions. It's expensive to build, expensive to run, and it's the part that makes the product genuinely useful beyond a basic interface. That's the part companies keep closed.</p>
+
+    <p>You see this pattern at different points on the spectrum. VSCode is open-source, but GitHub Copilot's backend is proprietary. <a href="https://www.cursor.com">Cursor</a> is a proprietary client layered on top of VSCode's open-source base, with proprietary AI orchestration. Warp open-sourced its client, kept its cloud brain. Even <a href="https://obsidian.md">Obsidian</a>, which is proprietary software, has a community plugin ecosystem where the local-computation plugins are open and the sync/publish services are paid cloud features.</p>
+
+    <p>The pattern isn't evidence of bad faith. It's a natural consequence of where the engineering investment concentrates. The cloud orchestration layer is hard to build. That's where companies defend their differentiation. But for professionals whose work is subject to attorney-client privilege, IRC §7216's restrictions on tax data, or NDA obligations with clients, the fact that the "interesting part" of a tool runs in a cloud you can't audit is not a minor footnote.</p>
+
+    <h2>What the Obsidian AI plugin ecosystem shows about demand</h2>
+
+    <p>The counter-experiment to all of this is what the <a href="https://obsidian.md">Obsidian</a> community has built on its own. Obsidian doesn't have a native AI layer. It has an open plugin API. And the community has used that API to build fully local AI setups that route directly to local models via <a href="https://ollama.com">Ollama</a>, with zero API keys and zero cloud dependency.</p>
+
+    <p>A <a href="https://medium.com/@code.afridi/i-built-a-fully-local-ai-assistant-for-obsidian-no-api-keys-no-cloud-no-credits-9d4397090270">documented example of a fully local Obsidian AI assistant</a> shows this working in practice: no API keys, no cloud, no credits, just a local model running on your machine. The <a href="https://github.com/khoj-ai/khoj">Khoj plugin</a> has taken this further with persistent memory, semantic search across your notes, and multi-modal input, all locally hosted.</p>
+
+    <p>This community work proves a real point: there is meaningful demand for fully on-device AI, and it's not purely a technical hobbyist niche. Professionals who care about where client data goes have been building workarounds because the mainstream tools don't offer the architecture they need.</p>
+
+    <p>The limitation is that this requires assembly. Getting Ollama running, configuring the right plugins, managing local model weights, dealing with the quality gap between frontier models and what you can run locally, that's real friction. Most attorneys and CPAs don't have the time or inclination for it. So they use the tools with cloud brains and accept the tradeoff, often without fully understanding what the tradeoff actually is.</p>
+
+    <h2>Why the distinction matters for client data specifically</h2>
+
+    <p>I want to be concrete about what "cloud orchestration layer" means and why it matters for professional work.</p>
+
+    <p>When you ask an AI agent to help you analyze a client's litigation exposure, draft a tax position memo, or work through a consulting engagement, the context of that conversation is substantive. It might include your client's name, their financial information, privileged legal strategy, unreleased business plans, or tax return data. That's real client information, subject to specific legal protections.</p>
+
+    <p>When that context passes through a cloud orchestration layer, it exists on infrastructure you don't own, subject to the data handling policies of a company whose terms you may not have read as a data processing agreement. For attorneys, <a href="https://www.americanbar.org/content/dam/aba/administrative/professional_responsibility/aba-formal-op-512.pdf">ABA Formal Opinion 512 (2024)</a> requires reasonable measures to understand and prevent disclosure of client confidences when using AI. The February 2026 decision in <em>United States v. Heppner</em> (S.D.N.Y.) found that routing privileged communications through a third-party AI intermediary can constitute a disclosure sufficient to waive privilege. For CPAs and EAs, IRC §7216 makes unauthorized disclosure of tax return information a criminal matter.</p>
+
+    <p>The question I'd encourage professionals to ask isn't "is this tool open source" or "does it have a privacy policy." It's "where does the AI reasoning about my client's matter actually happen, and whose infrastructure is it running on?"</p>
+
+    <h2>Where Keepance sits in this architecture</h2>
+
+    <p>I built <a href="https://keepance.com">Keepance</a> without a cloud agent layer. There isn't one. The AI request goes from your machine to Anthropic, OpenAI, or Google directly, using your API key. There's no Oz equivalent. No proprietary orchestration system sitting between your client's information and the underlying model.</p>
+
+    <p>This means some things Keepance can't do. There's no persistent memory that syncs across devices through a cloud service, because there's no cloud service. There's no agent that remembers context from a session last Tuesday unless you've saved that context yourself as a file. The tradeoff is real.</p>
+
+    <p>What you get in exchange is a data chain you can actually describe. Every piece of client context you bring into a Keepance session stays in the path between your device and Anthropic or OpenAI. Keepance is not running infrastructure that processes your client work. The Markdown files that contain your output live on your device. The data path is short, auditable, and defensible under ABA Op 512, IRC §7216, and standard NDA confidentiality obligations.</p>
+
+    <p>This isn't the right architecture for every use case. If you want an AI tool that learns your codebase deeply, maintains persistent context across weeks of work, and can execute multi-step operations autonomously, you probably want a product with a cloud brain, and you should pick one whose privacy practices you've actually read and evaluated as a data processing agreement.</p>
+
+    <p>But for the client-facing work Keepance is designed for, drafting memos, analyzing issues, synthesizing research, preparing deliverables, the local-direct-API architecture handles the job with a data footprint you can stand behind professionally.</p>
+
+    <h2>The right question isn't "which tool"</h2>
+
+    <p>Warp's open-source announcement is genuinely good for the community, even with Oz closed. More transparency in the local client is better. The conversation it's prompting about where the actual AI happens is valuable.</p>
+
+    <p>The interesting question for professionals isn't "which tool should I use" as if the answer is a single recommendation. The right question is "which parts of my work deserve which architecture."</p>
+
+    <p>Coding assistance or general research that doesn't involve client confidences: a cloud-brained product might be the right tradeoff, especially if you're on an enterprise plan with data processing agreements in place. Client matter analysis, privileged legal strategy, tax return work, confidential consulting engagements: you want the AI processing that work to have a shorter data chain, not a longer one.</p>
+
+    <p>The fact that the AI tools category is splitting along this seam, local client open, cloud brain proprietary, means the choice is becoming more visible. Professionals who understand it can make deliberate decisions about which work goes where, rather than inheriting someone else's data architecture by default.</p>
+
+    <a href="https://keepance.com/#pricing" class="cta">See Keepance, local-first AI workspace for confidential professional work</a>
+
+    <p style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-gray); color: var(--text-muted); font-size: 0.9375rem;">
+      <em>Jameson Daines builds Keepance for attorneys, CPAs, and independent consultants. <a href="/blog/byok-math-for-professionals-2026">Read about the BYOK math for professional users</a> or get Keepance at <a href="https://keepance.com">keepance.com</a>.</em>
+    </p>
+  </div>
+</body>
+</html>
