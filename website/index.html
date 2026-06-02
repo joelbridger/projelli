@@ -250,8 +250,12 @@
     .pricing-section .section-label { color: var(--grad-pink); }
     .pricing-section h2 { color: var(--white); }
     .pricing-section .section-header p { color: var(--text-muted-dark); }
-    .trial-banner { max-width: 760px; margin: 40px auto 0; padding: 14px 24px; background: rgba(93,198,255,0.08); border: 1px solid rgba(93,198,255,0.2); border-radius: 8px; text-align: center; color: rgba(255,255,255,0.85); font-size: 14px; line-height: 1.6; }
+    .trial-banner { max-width: 760px; margin: 40px auto 0; padding: 22px 28px; background: rgba(93,198,255,0.08); border: 1px solid rgba(93,198,255,0.2); border-radius: 8px; text-align: center; color: rgba(255,255,255,0.85); font-size: 14px; line-height: 1.6; }
     .trial-banner strong { color: var(--grad-blue); font-weight: 700; }
+    .download-pills { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
+    .download-pill { display: inline-flex; align-items: center; gap: 5px; font-family: 'Satoshi', sans-serif; font-size: 13px; font-weight: 600; text-decoration: none; border-radius: 6px; padding: 7px 14px; border: 1.5px solid rgba(93,198,255,0.35); color: rgba(93,198,255,0.9); background: transparent; transition: all 0.18s; white-space: nowrap; }
+    .download-pill:hover { border-color: var(--grad-blue); color: var(--white); background: rgba(93,198,255,0.1); }
+    .download-pill.current-os { border-color: var(--grad-blue); color: var(--white); background: rgba(93,198,255,0.14); }
     .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 32px; }
     @media (max-width: 860px) { .pricing-grid { grid-template-columns: 1fr; max-width: 480px; margin: 32px auto 0; } }
     .pricing-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 32px 28px; position: relative; }
@@ -525,7 +529,13 @@
           <p>Personal is a one-time purchase you own for good. Professional and Practice are yearly plans that keep your profession packs maintained and current as the law and the rules change.</p>
         </div>
         <div class="trial-banner">
-          <strong>Try it free for 30 days first.</strong> Every plan includes the full app on Mac, Windows, and Linux. No credit card. No account. Just download and go.
+          <strong>Try it free for 30 days.</strong> No credit card. No account. Just download and go.
+          <div class="download-pills">
+            <a class="download-pill" id="dl-windows" href="https://github.com/keepance/keepance/releases/download/v2.1.2/Keepance_2.1.2_x64-setup.exe">↓ Windows</a>
+            <a class="download-pill" id="dl-mac-arm" href="https://github.com/keepance/keepance/releases/download/v2.1.2/Keepance_2.1.2_aarch64.dmg">↓ macOS (Apple Silicon)</a>
+            <a class="download-pill" id="dl-mac-intel" href="https://github.com/keepance/keepance/releases/download/v2.1.2/Keepance_2.1.2_x64.dmg">↓ macOS (Intel)</a>
+            <a class="download-pill" id="dl-linux" href="https://github.com/keepance/keepance/releases/download/v2.1.2/Keepance_2.1.2_amd64.deb">↓ Linux</a>
+          </div>
         </div>
         <div class="pricing-grid">
           <div class="pricing-card">
@@ -542,7 +552,6 @@
               <li>Mac, Windows, Linux</li>
             </ul>
             <a href="https://projelli.lemonsqueezy.com/checkout/buy/4df43939-9d7f-4acb-b289-1ab63a65532c" class="btn btn-outline-copper btn-full">Buy Personal ($49)</a>
-            <a id="primary-download" href="https://github.com/keepance/keepance/releases/latest" class="btn btn-full" style="margin-top:10px;font-size:14px;border:1.5px solid rgba(255,255,255,0.55);color:rgba(255,255,255,0.92);background:rgba(255,255,255,0.06);">Download 30-day free trial</a>
           </div>
           <div class="pricing-card featured">
             <div class="pricing-badge">Most popular</div>
@@ -575,7 +584,7 @@
               <li>Priority access to new packs</li>
             </ul>
             <a href="https://projelli.lemonsqueezy.com/checkout/buy/b4c6865f-a435-43c9-82b1-14d6b4f18059" class="btn btn-outline-copper btn-full">Buy Practice ($499/yr)</a>
-            <p style="font-size:12px;color:var(--text-muted-dark);margin-top:10px;text-align:center;">All three packs, up to 5 seats. <a href="https://github.com/keepance/keepance/releases/latest" style="color:var(--grad-blue);font-weight:600;">Try free for 30 days &rarr;</a></p>
+            <p style="font-size:12px;color:var(--text-muted-dark);margin-top:10px;text-align:center;">All three packs, up to 5 seats. <a href="/download/" style="color:var(--grad-blue);font-weight:600;">Download free trial &rarr;</a></p>
           </div>
         </div>
         <p class="pricing-note">All plans include a 30-day free trial. No credit card required to download.<br>Professional and Practice are billed yearly and keep your profession packs maintained and current. Practice packs are kept current as the law and the rules change; founding-list members get them first.</p>
@@ -690,29 +699,16 @@
       });
     }
 
-    // OS-aware download: detect platform and point primary-download at the right installer.
-    // Falls back to GitHub releases page if OS can't be determined.
+    // Highlight the user's detected OS download pill
     (function () {
-      var btn = document.getElementById('primary-download');
-      if (!btn) return;
-      var RELEASES = 'https://github.com/keepance/keepance/releases/latest';
       var p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
       var ua = navigator.userAgent || '';
       var isWin = /Win/i.test(p) || /Windows/i.test(ua);
       var isMac = /Mac/i.test(p) || /Macintosh/i.test(ua);
       var isLinux = /Linux/i.test(p) && !/Android/i.test(ua);
-      if (isWin) {
-        btn.href = RELEASES; // GitHub releases page; JS can be extended with direct .exe URL once known
-        btn.textContent = 'Download for Windows, free for 30 days';
-      } else if (isMac) {
-        var isArm = /arm/i.test(p) || ua.indexOf('Mac') !== -1; // ARM detection is best-effort
-        btn.href = RELEASES;
-        btn.textContent = 'Download for Mac, free for 30 days';
-      } else if (isLinux) {
-        btn.href = RELEASES;
-        btn.textContent = 'Download for Linux, free for 30 days';
-      }
-      // If no match, keep default href and text (GitHub releases page).
+      var isArm = isMac && (/arm/i.test(p) || /arm64/i.test(ua));
+      var id = isWin ? 'dl-windows' : isMac ? (isArm ? 'dl-mac-arm' : 'dl-mac-intel') : isLinux ? 'dl-linux' : null;
+      if (id) { var el = document.getElementById(id); if (el) el.classList.add('current-os'); }
     })();
   </script>
 </body>

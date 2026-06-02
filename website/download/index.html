@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download Keepance | AI Workspace for Attorneys, CPAs &amp; Consultants</title>
+  <meta name="description" content="Download Keepance for Windows, macOS, or Linux. Free 30-day trial. No account required.">
+  <link rel="canonical" href="https://keepance.com/download/">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="Jameson Daines">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://keepance.com/download/">
+  <meta property="og:title" content="Download Keepance">
+  <meta property="og:description" content="Download Keepance for Windows, macOS, or Linux. Free 30-day trial. No account required.">
+  <meta property="og:site_name" content="Keepance">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+
+  <!-- Plausible Analytics (self-hosted) -->
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script>window.plausible = window.plausible || function () { (window.plausible.q = window.plausible.q || []).push(arguments) };</script>
+  <script>
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a');
+      if (!a) return;
+      var href = a.getAttribute('href') || '';
+      if (href.indexOf('releases/download') > -1 || href.indexOf('releases/latest') > -1) {
+        window.plausible('Download', { props: { platform: (a.dataset.platform || 'unknown') } });
+      }
+    }, true);
+  </script>
+
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="icon" href="/favicon.ico">
+
+  <style>
+    :root {
+      --navy: #0A2540;
+      --navy-mid: #12345A;
+      --grad-pink: #FF3CE8;
+      --grad-blue: #5DC6FF;
+      --bone: #F5F5F0;
+      --white: #FFFFFF;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --border: #E2E8F0;
+      --container: 1100px;
+      --text-on-dark: rgba(255,255,255,0.88);
+      --text-muted-dark: rgba(255,255,255,0.5);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; font-size: 16px; }
+    body {
+      font-family: 'Satoshi', system-ui, -apple-system, sans-serif;
+      background: var(--bone);
+      color: var(--text-body);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    .container {
+      width: 100%;
+      max-width: var(--container);
+      margin: 0 auto;
+      padding: 0 28px;
+    }
+
+    /* HERO */
+    .download-hero {
+      background: var(--navy);
+      padding: 80px 0 72px;
+      text-align: center;
+    }
+    .download-hero .eyebrow {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--grad-pink);
+      margin-bottom: 16px;
+    }
+    .download-hero h1 {
+      font-size: 2.75rem;
+      font-weight: 800;
+      color: var(--white);
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 16px;
+    }
+    .download-hero p {
+      font-size: 1.0625rem;
+      color: var(--text-muted-dark);
+      max-width: 520px;
+      margin: 0 auto 36px;
+      line-height: 1.65;
+    }
+
+    /* PLATFORM CARDS */
+    .platform-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    @media (max-width: 640px) {
+      .platform-grid { grid-template-columns: 1fr; max-width: 360px; }
+      .download-hero h1 { font-size: 2rem; }
+    }
+
+    .platform-card {
+      background: rgba(255,255,255,0.05);
+      border: 1.5px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 28px 24px;
+      text-align: center;
+      transition: border-color 0.18s, background 0.18s;
+    }
+    .platform-card.current-os {
+      border-color: var(--grad-blue);
+      background: rgba(93,198,255,0.07);
+    }
+    .platform-card .platform-icon {
+      width: 44px;
+      height: 44px;
+      margin: 0 auto 14px;
+      opacity: 0.85;
+    }
+    .platform-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 4px;
+    }
+    .platform-card .platform-version {
+      font-size: 12px;
+      color: var(--text-muted-dark);
+      margin-bottom: 20px;
+    }
+    .dl-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      font-family: 'Satoshi', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 7px;
+      padding: 10px 18px;
+      border: 1.5px solid rgba(93,198,255,0.45);
+      color: var(--grad-blue);
+      background: transparent;
+      transition: all 0.18s;
+      cursor: pointer;
+    }
+    .dl-btn:hover {
+      border-color: var(--grad-blue);
+      color: var(--white);
+      background: rgba(93,198,255,0.12);
+    }
+    .platform-card.current-os .dl-btn {
+      background: linear-gradient(135deg, var(--grad-pink), var(--grad-blue));
+      border-color: transparent;
+      color: var(--white);
+    }
+    .platform-card.current-os .dl-btn:hover {
+      filter: brightness(1.1);
+    }
+    .platform-alt {
+      margin-top: 10px;
+      font-size: 12px;
+    }
+    .platform-alt a {
+      color: var(--text-muted-dark);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .platform-alt a:hover { color: var(--grad-blue); }
+
+    /* AFTER DOWNLOAD */
+    .after-section {
+      padding: 72px 0 80px;
+    }
+    .after-inner {
+      max-width: 680px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .after-inner h2 {
+      font-size: 1.625rem;
+      font-weight: 800;
+      color: var(--text-heading);
+      margin-bottom: 12px;
+      letter-spacing: -0.02em;
+    }
+    .after-inner p {
+      font-size: 15px;
+      color: var(--text-body);
+      margin-bottom: 32px;
+      line-height: 1.7;
+    }
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      text-align: left;
+    }
+    .step {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      padding: 20px 24px;
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--navy);
+      color: var(--white);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step-body h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 3px;
+    }
+    .step-body p {
+      font-size: 13.5px;
+      color: var(--text-body);
+      margin: 0;
+      line-height: 1.55;
+    }
+
+    /* FOOTER */
+    .dl-footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 0;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .dl-footer a { color: var(--text-muted); text-decoration: none; }
+    .dl-footer a:hover { color: var(--navy); }
+  </style>
+</head>
+<body>
+
+  <!-- NAV (keepance-nav.v2.css handles this) -->
+  <nav class="kc-nav" role="navigation" aria-label="Main navigation">
+    <div class="kc-nav-inner">
+      <a href="/" class="kc-logo" aria-label="Keepance home">
+        <img src="/favicon.svg" alt="" width="28" height="28" style="display:block;">
+        <span>Keepance</span>
+      </a>
+      <div class="kc-nav-links" id="kc-nav-links">
+        <a href="/legal/">For Attorneys</a>
+        <a href="/tax/">For CPAs</a>
+        <a href="/consulting/">For Consultants</a>
+        <a href="/financial-advisors/">For Advisors</a>
+        <a href="/#pricing">Pricing</a>
+      </div>
+      <div class="kc-nav-ctas">
+        <a href="/#pricing" class="kc-btn-outline">See plans</a>
+        <a href="https://projelli.lemonsqueezy.com/checkout/buy/78ee592e-8f8a-4ce4-9ea4-68a84032d21a" class="kc-btn-primary">Buy now</a>
+      </div>
+      <button class="kc-burger" id="kc-burger" aria-label="Open menu" aria-expanded="false" aria-controls="kc-nav-links">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- DOWNLOAD HERO -->
+  <section class="download-hero">
+    <div class="container">
+      <p class="eyebrow">v2.1.2 — all platforms signed &amp; notarized</p>
+      <h1>Download Keepance</h1>
+      <p>30-day free trial on every plan. No credit card, no account. Install, open your workspace, and go.</p>
+
+      <div class="platform-grid">
+
+        <!-- Windows -->
+        <div class="platform-card" id="card-windows">
+          <svg class="platform-icon" viewBox="0 0 44 44" fill="none">
+            <rect x="2" y="2" width="18" height="18" rx="2" fill="rgba(255,255,255,0.7)"/>
+            <rect x="24" y="2" width="18" height="18" rx="2" fill="rgba(255,255,255,0.7)"/>
+            <rect x="2" y="24" width="18" height="18" rx="2" fill="rgba(255,255,255,0.7)"/>
+            <rect x="24" y="24" width="18" height="18" rx="2" fill="rgba(255,255,255,0.7)"/>
+          </svg>
+          <h3>Windows</h3>
+          <p class="platform-version">64-bit · signed installer</p>
+          <a id="dl-windows"
+             data-platform="windows"
+             href="https://github.com/keepance/keepance/releases/download/v2.1.2/Keepance_2.1.2_x64-setup.exe"
+             class="dl-btn">
+            ↓ Download .exe
+          </a>
+        </div>
+
+        <!-- macOS -->
+        <div class="platform-card" id="card-mac">
+          <svg class="platform-icon" viewBox="0 0 44 44" fill="none">
+            <path d="M30 8C30 8 32.5 5 36 5C36 9 33 12.5 30 12.5C30 12.5 27.5 12.5 26 11" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round"/>
+            <path d="M22 14C16 14 10 19.5 10 27C10 33 14 40 18 40C20 40 21 39 22 39C23 39 24 40 26 40C30 40 34 33 34 27C34 19.5 28 14 22 14Z" stroke="rgba(255,255,255,0.7)" stroke-width="2"/>
+          </svg>
+          <h3>macOS</h3>
+          <p class="platform-version" id="mac-version-note">Apple Silicon · signed &amp; notarized</p>
+          <a id="dl-mac"
+             data-platform="macos"
+             href="https://github.com/keepance/keepance/releases/download/v2.1.2/Keepance_2.1.2_aarch64.dmg"
+             class="dl-btn">
+            ↓ Download .dmg
+          </a>
+          <p class="platform-alt"><a id="dl-mac-alt" href="https://github.com/keepance/keepance/releases/download/v2.1.2/Keepance_2.1.2_x64.dmg">Intel Mac?</a></p>
+        </div>
+
+        <!-- Linux -->
+        <div class="platform-card" id="card-linux">
+          <svg class="platform-icon" viewBox="0 0 44 44" fill="none">
+            <ellipse cx="22" cy="14" rx="8" ry="10" stroke="rgba(255,255,255,0.7)" stroke-width="2"/>
+            <path d="M14 14C14 14 8 20 8 30L14 36L30 36L36 30C36 20 30 14 30 14" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linejoin="round"/>
+            <circle cx="18" cy="20" r="2" fill="rgba(255,255,255,0.7)"/>
+            <circle cx="26" cy="20" r="2" fill="rgba(255,255,255,0.7)"/>
+            <path d="M15 36L12 42M29 36L32 42" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <h3>Linux</h3>
+          <p class="platform-version">amd64 · .deb package</p>
+          <a id="dl-linux"
+             data-platform="linux"
+             href="https://github.com/keepance/keepance/releases/download/v2.1.2/Keepance_2.1.2_amd64.deb"
+             class="dl-btn">
+            ↓ Download .deb
+          </a>
+          <p class="platform-alt"><a href="https://github.com/keepance/keepance/releases/download/v2.1.2/Keepance-2.1.2-1.x86_64.rpm">rpm instead?</a></p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- AFTER DOWNLOAD STEPS -->
+  <section class="after-section">
+    <div class="container">
+      <div class="after-inner">
+        <h2>After you install</h2>
+        <p>The download is the same file whether you're trialing or licensed. Once you have a license key, enter it in the app to unlock your plan — your workspace and all your files stay exactly where they are.</p>
+        <div class="steps">
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <h4>Install and open Keepance</h4>
+              <p>Run the installer, open Keepance, and choose or create a workspace folder on your machine. Nothing is uploaded anywhere.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <h4>Add your AI provider key</h4>
+              <p>Go to Settings → API Keys and paste your key from Anthropic, OpenAI, or Google. Your key is stored in your OS keychain and never leaves your machine.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <h4>Enter your license key (if you've purchased)</h4>
+              <p>Go to Settings → License and paste the key from your purchase receipt. The trial continues without a key for 30 days — nothing changes until it expires.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="dl-footer">
+    <div class="container">
+      <a href="/">keepance.com</a> &nbsp;·&nbsp;
+      <a href="/#pricing">Pricing</a> &nbsp;·&nbsp;
+      <a href="/changelog/">Changelog</a> &nbsp;·&nbsp;
+      <a href="https://github.com/keepance/keepance/releases" target="_blank" rel="noopener">All releases &rarr;</a>
+    </div>
+  </footer>
+
+  <script>
+    // Highlight the user's current platform card
+    (function () {
+      var p = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
+      var ua = navigator.userAgent || '';
+      var isWin = /Win/i.test(p) || /Windows/i.test(ua);
+      var isMac = /Mac/i.test(p) || /Macintosh/i.test(ua);
+      var isLinux = /Linux/i.test(p) && !/Android/i.test(ua);
+      var isArm = isMac && (/arm/i.test(p) || /arm64/i.test(ua));
+
+      if (isWin) {
+        document.getElementById('card-windows') && document.getElementById('card-windows').classList.add('current-os');
+      } else if (isMac) {
+        var card = document.getElementById('card-mac');
+        if (card) card.classList.add('current-os');
+        if (!isArm) {
+          // Intel: swap primary link to Intel dmg, update note
+          var btn = document.getElementById('dl-mac');
+          var alt = document.getElementById('dl-mac-alt');
+          var note = document.getElementById('mac-version-note');
+          if (btn) btn.href = 'https://github.com/keepance/keepance/releases/download/v2.1.2/Keepance_2.1.2_x64.dmg';
+          if (note) note.textContent = 'Intel · signed & notarized';
+          if (alt) { alt.href = 'https://github.com/keepance/keepance/releases/download/v2.1.2/Keepance_2.1.2_aarch64.dmg'; alt.textContent = 'Apple Silicon instead?'; }
+        }
+      } else if (isLinux) {
+        document.getElementById('card-linux') && document.getElementById('card-linux').classList.add('current-os');
+      }
+    })();
+
+    // Mobile nav burger
+    var burger = document.getElementById('kc-burger');
+    var nav = document.getElementById('kc-nav-links');
+    if (burger && nav) {
+      burger.addEventListener('click', function () {
+        var open = nav.classList.toggle('is-open');
+        burger.setAttribute('aria-expanded', open);
+      });
+    }
+  </script>
+
+</body>
+</html>
