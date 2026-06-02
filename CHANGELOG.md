@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] - 2026-06-02 (brand polish: icons, accent color, onboarding copy)
+
+### Changed
+- **App icons updated to Keepance brand.** All Tauri icon assets (`icon.png`, `icon.ico`, `icon.icns`, and all size variants) are now the Keepance shield icon. Previous builds showed the legacy Projelli jellybean in the Windows taskbar, title bar, and installer.
+- **Primary accent color updated.** The coral/salmon `hsl(6 100% 72%)` inherited from Projelli is replaced with Keepance navy `hsl(210 73% 15%)` (`#0A2540`) for all primary buttons, focus rings, and interactive highlights in both light and dark mode.
+- **Tour step 4 copy updated.** Workflow template examples now reflect the actual ICP (attorneys, CPAs, consultants): "Client Intake, Matter Summary, Weekly Client Update" replaces the previous founder-focused "Pricing Strategy, Competitor Analysis, Weekly Review."
+
 ## [2.1.2] - 2026-06-01 (profession packs ship as available)
 
 > Per the 2026-06-01 operating directive, the legal and tax packs no longer ship as

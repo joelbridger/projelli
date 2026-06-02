@@ -39,7 +39,7 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'workflows',
     title: 'Workflow templates',
-    body: 'Pricing Strategy, Competitor Analysis, Weekly Review, and more. Each template asks a few questions then produces a polished Markdown artifact you can edit. Try the Weekly Review template this Friday.',
+    body: 'Client Intake, Matter Summary, Weekly Client Update, and more. Each template asks a few questions then produces a polished Markdown document you can edit, cite, and share. The practice packs for legal, tax, and consulting add profession-specific templates.',
     targetSelector: '[data-testid="sidebar-tab-workflows"]',
     placement: 'right',
   },
