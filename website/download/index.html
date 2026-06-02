@@ -129,12 +129,6 @@
       border-color: var(--grad-blue);
       background: rgba(93,198,255,0.07);
     }
-    .platform-card .platform-icon {
-      width: 44px;
-      height: 44px;
-      margin: 0 auto 14px;
-      opacity: 0.85;
-    }
     .platform-card h3 {
       font-size: 1rem;
       font-weight: 700;
@@ -266,30 +260,6 @@
 </head>
 <body>
 
-  <!-- NAV (keepance-nav.v2.css handles this) -->
-  <nav class="kc-nav" role="navigation" aria-label="Main navigation">
-    <div class="kc-nav-inner">
-      <a href="/" class="kc-logo" aria-label="Keepance home">
-        <img src="/favicon.svg" alt="" width="28" height="28" style="display:block;">
-        <span>Keepance</span>
-      </a>
-      <div class="kc-nav-links" id="kc-nav-links">
-        <a href="/legal/">For Attorneys</a>
-        <a href="/tax/">For CPAs</a>
-        <a href="/consulting/">For Consultants</a>
-        <a href="/financial-advisors/">For Advisors</a>
-        <a href="/#pricing">Pricing</a>
-      </div>
-      <div class="kc-nav-ctas">
-        <a href="/#pricing" class="kc-btn-outline">See plans</a>
-        <a href="https://projelli.lemonsqueezy.com/checkout/buy/78ee592e-8f8a-4ce4-9ea4-68a84032d21a" class="kc-btn-primary">Buy now</a>
-      </div>
-      <button class="kc-burger" id="kc-burger" aria-label="Open menu" aria-expanded="false" aria-controls="kc-nav-links">
-        <span></span><span></span><span></span>
-      </button>
-    </div>
-  </nav>
-
   <!-- DOWNLOAD HERO -->
   <section class="download-hero">
     <div class="container">
@@ -301,12 +271,6 @@
 
         <!-- Windows -->
         <div class="platform-card" id="card-windows">
-          <svg class="platform-icon" viewBox="0 0 44 44" fill="none">
-            <rect x="2" y="2" width="18" height="18" rx="2" fill="rgba(255,255,255,0.7)"/>
-            <rect x="24" y="2" width="18" height="18" rx="2" fill="rgba(255,255,255,0.7)"/>
-            <rect x="2" y="24" width="18" height="18" rx="2" fill="rgba(255,255,255,0.7)"/>
-            <rect x="24" y="24" width="18" height="18" rx="2" fill="rgba(255,255,255,0.7)"/>
-          </svg>
           <h3>Windows</h3>
           <p class="platform-version">64-bit · signed installer</p>
           <a id="dl-windows"
@@ -319,10 +283,6 @@
 
         <!-- macOS -->
         <div class="platform-card" id="card-mac">
-          <svg class="platform-icon" viewBox="0 0 44 44" fill="none">
-            <path d="M30 8C30 8 32.5 5 36 5C36 9 33 12.5 30 12.5C30 12.5 27.5 12.5 26 11" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round"/>
-            <path d="M22 14C16 14 10 19.5 10 27C10 33 14 40 18 40C20 40 21 39 22 39C23 39 24 40 26 40C30 40 34 33 34 27C34 19.5 28 14 22 14Z" stroke="rgba(255,255,255,0.7)" stroke-width="2"/>
-          </svg>
           <h3>macOS</h3>
           <p class="platform-version" id="mac-version-note">Apple Silicon · signed &amp; notarized</p>
           <a id="dl-mac"
@@ -336,13 +296,6 @@
 
         <!-- Linux -->
         <div class="platform-card" id="card-linux">
-          <svg class="platform-icon" viewBox="0 0 44 44" fill="none">
-            <ellipse cx="22" cy="14" rx="8" ry="10" stroke="rgba(255,255,255,0.7)" stroke-width="2"/>
-            <path d="M14 14C14 14 8 20 8 30L14 36L30 36L36 30C36 20 30 14 30 14" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linejoin="round"/>
-            <circle cx="18" cy="20" r="2" fill="rgba(255,255,255,0.7)"/>
-            <circle cx="26" cy="20" r="2" fill="rgba(255,255,255,0.7)"/>
-            <path d="M15 36L12 42M29 36L32 42" stroke="rgba(255,255,255,0.7)" stroke-width="2" stroke-linecap="round"/>
-          </svg>
           <h3>Linux</h3>
           <p class="platform-version">amd64 · .deb package</p>
           <a id="dl-linux"
@@ -430,16 +383,8 @@
       }
     })();
 
-    // Mobile nav burger
-    var burger = document.getElementById('kc-burger');
-    var nav = document.getElementById('kc-nav-links');
-    if (burger && nav) {
-      burger.addEventListener('click', function () {
-        var open = nav.classList.toggle('is-open');
-        burger.setAttribute('aria-expanded', open);
-      });
-    }
   </script>
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
 
 </body>
 </html>
