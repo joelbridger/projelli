@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>The AI workspace for confidential client work | Keepance</title>
-  <meta name="description" content="Keepance is a local-first AI workspace for attorneys, CPAs, and consultants. Your documents never leave your machine. Bring your own API key.">
+  <meta name="description" content="Keepance is a local-first AI workspace for attorneys, CPAs, and consultants. Your files stay on your machine and Keepance never sees your work. Bring your own API key.">
   <link rel="canonical" href="https://keepance.com/">
   <meta name="robots" content="index, follow">
   <meta name="author" content="Jameson Daines">
@@ -18,7 +18,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://keepance.com/">
   <meta property="og:title" content="The AI workspace for confidential client work | Keepance">
-  <meta property="og:description" content="Your documents never leave your machine. Local-first AI for attorneys, CPAs, and consultants.">
+  <meta property="og:description" content="Your files stay on your machine and Keepance never sees your work. Local-first AI for attorneys, CPAs, and consultants.">
   <meta property="og:site_name" content="Keepance">
   <meta property="og:image" content="https://keepance.com/og-image.png">
   <meta property="og:image:width" content="1200">
@@ -32,7 +32,7 @@
 
   <!-- JSON-LD -->
   <script type="application/ld+json">
-  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Keepance","operatingSystem":"Windows, macOS, Linux","applicationCategory":"ProductivityApplication","url":"https://keepance.com","description":"Keepance is a local-first AI workspace for attorneys, CPAs, and consultants. Your documents never leave your machine. Bring your own API key.","creator":{"@type":"Person","name":"Jameson Daines","url":"https://jamesondaines.com"},"offers":[{"@type":"Offer","name":"Personal","price":"49","priceCurrency":"USD"},{"@type":"Offer","name":"Professional","price":"149","priceCurrency":"USD"},{"@type":"Offer","name":"Practice","price":"499","priceCurrency":"USD"}]}
+  {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Keepance","operatingSystem":"Windows, macOS, Linux","applicationCategory":"ProductivityApplication","url":"https://keepance.com","description":"Keepance is a local-first AI workspace for attorneys, CPAs, and consultants. Your files stay on your machine and Keepance never sees your work. Bring your own API key.","creator":{"@type":"Person","name":"Jameson Daines","url":"https://jamesondaines.com"},"offers":[{"@type":"Offer","name":"Personal","price":"49","priceCurrency":"USD"},{"@type":"Offer","name":"Professional","price":"149","priceCurrency":"USD"},{"@type":"Offer","name":"Practice","price":"499","priceCurrency":"USD"}]}
   </script>
   <script type="application/ld+json">
   {"@context":"https://schema.org","@type":"Organization","name":"Keepance","url":"https://keepance.com","founder":{"@type":"Person","name":"Jameson Daines","url":"https://jamesondaines.com"}}
@@ -42,6 +42,21 @@
 
   <!-- Plausible Analytics (self-hosted) -->
   <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <!-- Plausible custom events: official shim queues calls until script.js loads -->
+  <script>window.plausible = window.plausible || function () { (window.plausible.q = window.plausible.q || []).push(arguments) };</script>
+  <!-- Conversion goals: one delegated handler covers every Buy/Download link, now and future -->
+  <script>
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a');
+      if (!a) return;
+      var href = a.getAttribute('href') || '';
+      if (href.indexOf('lemonsqueezy.com/checkout') > -1 || href.indexOf('checkout.keepance.com') > -1) {
+        window.plausible('Buy Click', { props: { tier: (a.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40) } });
+      } else if (href.indexOf('releases/latest') > -1 || href.indexOf('releases/download') > -1) {
+        window.plausible('Download');
+      }
+    }, true);
+  </script>
   <script>
     // Respect reduced-motion: pause the hero video, leave its poster showing.
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -349,7 +364,7 @@
     <!-- TRUST BAR -->
     <div class="trust-bar">
       <div class="container trust-bar-inner">
-        <div class="trust-item"><span class="trust-item-dot"></span>Your files never leave your machine</div>
+        <div class="trust-item"><span class="trust-item-dot"></span>Keepance never sees your work</div>
         <div class="trust-sep"></div>
         <div class="trust-item"><span class="trust-item-dot"></span>Built for ABA Opinion 512 duties</div>
         <div class="trust-sep"></div>
@@ -476,7 +491,7 @@
           <a href="/tax/" class="for-card">
             <div class="for-card-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
             <h3>Tax preparers &amp; CPAs</h3>
-            <p>Your clients' SSNs, returns, and financial statements never leave your machine. Keepance handles engagement letter drafting, return pre-review, research memos, and audit defense prep, all offline, all yours.</p>
+            <p>Keepance never sees your clients' SSNs, returns, or financial statements. They stay on your machine, and your AI requests go straight to the provider you chose, never through a server of ours. Keepance handles engagement letter drafting, return pre-review, research memos, and audit defense prep.</p>
             <div class="for-card-hook">IRC §6713 imposes strict-liability civil penalties of $250 per unauthorized disclosure of tax return information, with no intent required. IRC §7216 makes knowing or reckless disclosure a federal criminal misdemeanor. The FTC Safeguards Rule (16 CFR Part 314) requires a Written Information Security Program for every covered practitioner, with no small-practitioner exemption. Local-first AI simplifies all three. Confirm your specific situation with a tax attorney.</div>
             <span class="for-card-cta">See the Tax Practice Pack →</span>
           </a>
@@ -497,7 +512,7 @@
         <div class="section-header">
           <span class="section-label">Pricing</span>
           <h2>Own the app. Keep your pack current.</h2>
-          <p>Personal is a one-time purchase you own for good. Professional and Practice are yearly plans that keep your profession packs reviewed and current as the law and the rules change.</p>
+          <p>Personal is a one-time purchase you own for good. Professional and Practice are yearly plans that keep your profession packs maintained and current as the law and the rules change.</p>
         </div>
         <div class="trial-banner">
           <strong>Try it free for 30 days first.</strong> Every plan includes the full app on Mac, Windows, and Linux. No credit card. No account. Just download and go.
@@ -553,7 +568,7 @@
             <p style="font-size:12px;color:var(--text-muted-dark);margin-top:10px;text-align:center;">All three packs, up to 5 seats. <a href="https://github.com/keepance/keepance/releases/latest" style="color:var(--grad-blue);font-weight:600;">Try free for 30 days &rarr;</a></p>
           </div>
         </div>
-        <p class="pricing-note">All plans include a 30-day free trial. No credit card required to download.<br>Professional and Practice are billed yearly and keep your profession packs reviewed and current. Practice packs are reviewed by practicing attorneys and CPAs and kept current; founding-list members get them first.</p>
+        <p class="pricing-note">All plans include a 30-day free trial. No credit card required to download.<br>Professional and Practice are billed yearly and keep your profession packs maintained and current. Practice packs are kept current as the law and the rules change; founding-list members get them first.</p>
       </div>
     </section>
 

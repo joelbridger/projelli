@@ -18,7 +18,7 @@ Keepance is not designed for enterprise teams, hobbyists, or users who want an a
 
 ## Differentiation (the five message pillars)
 
-1. **Local-first**: data stays on the user's machine. No cloud sync, no telemetry, no server-side database.
+1. **Local-first**: files stay on the user's machine. No cloud sync, no telemetry, no server-side database. Keepance never sees the user's work; AI requests go straight to the provider the user chose.
 2. **BYOK (Bring Your Own Key)**: users supply their own Anthropic, OpenAI, or Google AI Studio API key. Keepance never holds AI credentials and AI requests go directly from the user's machine to the AI provider.
 3. **Chat-as-files**: every AI conversation produces a real Markdown file the user can open, edit, version, back up, or delete with regular file system tools.
 4. **Profession-specific template packs**: workflow templates organized by practice type (Legal Practice, Tax Practice, Consulting Practice) covering the documents professionals actually produce for clients.
@@ -69,7 +69,7 @@ Auto-updates land via GitHub Releases for v1.0.8 and later, with minisign-signed
 
 ## Comparison to alternatives
 
-- **Notion AI**: Notion is a cloud team workspace; Keepance is a local-first single-user tool. Notion AI is bundled at $20/month; Keepance uses the user's own API key and documents never leave the user's machine.
+- **Notion AI**: Notion is a cloud team workspace; Keepance is a local-first single-user tool. Notion AI is bundled at $20/month; Keepance uses the user's own API key; files stay on the user's machine and Keepance never sees them.
 - **Obsidian (with AI plugins)**: Obsidian is the closest spiritual cousin, also local-first and Markdown-based. Keepance adds first-class AI chat, profession-specific workflow template packs, and built-in BYOK; Obsidian users build this from plugins.
 - **ChatGPT Projects / Claude.ai Projects**: web-based, cloud-stored, locked to a single AI provider. Keepance is desktop, local, multi-provider, and the chat history is yours in Markdown.
 - **Reflect, Tana, Mem.ai**: AI-first cloud notes tools. Keepance is local-first.

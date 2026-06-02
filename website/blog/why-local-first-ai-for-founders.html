@@ -103,15 +103,15 @@
 
     <p>For tax preparers, CPAs, and enrolled agents, two statutes matter. <a href="https://www.irs.gov/tax-professionals/section-7216-information-center" target="_blank" rel="noopener">IRC §6713</a> imposes strict-liability civil penalties of $250 for each unauthorized disclosure of client tax information, with no intent required and a $10,000 annual cap. IRC §7216 makes knowing or reckless disclosure a criminal misdemeanor. Both create disclosure risk whenever client tax information reaches a third party without the client's explicit written consent.</p>
 
-    <p>The question most practitioners haven't asked yet is whether pasting client tax data into a cloud-based AI tool constitutes a disclosure under §7216. The answer is honestly unsettled right now. What is settled: a tool where client data never leaves your machine is the only architecture where the question doesn't arise.</p>
+    <p>The question most practitioners haven't asked yet is whether pasting client tax data into a cloud-based AI tool constitutes a disclosure under §7216. The answer is honestly unsettled right now. What is settled: an architecture where client data goes to no outside server at all, like a local model, is the one where the question doesn't even arise.</p>
 
-    <p>I'm not a lawyer. If you're a tax professional and you're using AI tools for client work, this is worth a conversation with your own counsel. But I built Keepance in a way where the answer to "did any client data touch a third party's server" is structurally no, for every user, by default.</p>
+    <p>I'm not a lawyer. If you're a tax professional and you're using AI tools for client work, this is worth a conversation with your own counsel. But I built Keepance in a way where your files never leave your machine, Keepance never sees them, and if you use Ollama locally, no client data touches any third-party server at all. With a cloud model (Claude, OpenAI, Gemini), your prompt goes to that provider under your own API key, not through Keepance. The question becomes narrower: what did <em>you</em> send, and to whom.</p>
 
     <h2>NDA clauses are catching up faster than anyone expected</h2>
 
     <p>Independent consultants and boutique agencies are running into this from a different direction. NDA language around AI has gotten more specific in the last 18 months. I've seen contracts from Fortune 500 procurement teams that now include explicit clauses prohibiting the use of AI tools that process or transmit confidential information, with "process or transmit" defined broadly enough to cover cloud-based AI inference.</p>
 
-    <p>The first time a consultant discovers that their standard engagement NDA covers this is usually not a great moment. Local-first plus BYOK is the only architecture where you can credibly say: the client's information never left my machine, and my AI provider never touched it.</p>
+    <p>The first time a consultant discovers that their standard engagement NDA covers this is usually not a great moment. Local-first plus BYOK is the architecture where you can credibly say: my client's files never left my machine, Keepance never saw them, and if I used a local model, nothing reached any outside server. If you used a cloud model with your own key, your prompts went to that provider under your account, not through a workspace vendor who also holds your client data.</p>
 
     <h2>What "local-first" plus BYOK actually means in practice</h2>
 

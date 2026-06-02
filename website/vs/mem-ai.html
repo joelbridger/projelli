@@ -115,7 +115,7 @@
 
     <h3>3. Your key, your provider, nothing in the middle</h3>
 
-    <p>Mem bundles inference into the subscription. That means Mem's key, Mem's model selection, and your content going through Mem's infrastructure to reach the AI. With Keepance, you bring your own Claude, OpenAI, or Gemini key. It lives in your OS keychain. When you send a prompt, it goes from your machine straight to the provider. Keepance is not in the data path. For attorneys working under privilege, CPAs handling client returns under IRC §7216, or consultants with NDA-bound client work, that's not a preference. It's often the threshold question: can this content legally leave my machine and land in a vendor's database? With BYOK on a local-first tool, the answer is yes, because it doesn't.</p>
+    <p>Mem bundles inference into the subscription. That means Mem's key, Mem's model selection, and your content going through Mem's infrastructure to reach the AI. With Keepance, you bring your own Claude, OpenAI, or Gemini key. It lives in your OS keychain. When you send a prompt, it goes from your machine straight to the provider. Keepance is not in the data path. For attorneys working under privilege, CPAs handling client returns under IRC §7216, or consultants with NDA-bound client work, that's not a preference. It's often the threshold question: can this content land in a vendor's database without your knowledge or consent? With Keepance, it can't. Your files stay on your machine. Keepance is not in the data path. Your prompts go straight to Anthropic, OpenAI, or Google via your own key, and for the most sensitive matters you can route to a local Ollama model where nothing touches any external server.</p>
 
     <h3>4. Privacy posture for confidential client information</h3>
 
@@ -152,7 +152,7 @@
         <tr><td>Where your prompts go</td><td>Through Mem's infrastructure to the AI model</td><td>Direct from your machine to the AI provider. Keepance is not in the path.</td></tr>
         <tr><td>API key custody</td><td>Mem's key, bundled into the subscription</td><td>Your OS keychain. Keepance never sees it.</td></tr>
         <tr><td>Vendor retention policy applies to your content</td><td>Yes, per Mem's privacy policy</td><td>No. Nothing stored on Keepance servers.</td></tr>
-        <tr><td>Can you use it for privileged or NDA-bound client work?</td><td>Depends on your obligations and Mem's terms</td><td>Yes. Content stays on your machine.</td></tr>
+        <tr><td>Can you use it for privileged or NDA-bound client work?</td><td>Depends on your obligations and Mem's terms</td><td>Files stay on your machine, Keepance never sees them. AI prompts go to the provider you chose; use Ollama for fully local inference.</td></tr>
         <tr><td>Pricing</td><td>$96/yr annual ($10/mo if monthly)</td><td>$49 one-time Personal, $149/yr Professional (includes one practice pack), $499 one-time Practice (up to 5 seats). Plus your own AI provider's API costs (typically $5-15/mo).</td></tr>
       </tbody>
     </table>

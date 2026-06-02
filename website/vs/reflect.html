@@ -119,7 +119,7 @@
 
     <h3>4. Confidentiality by architecture, not by policy</h3>
 
-    <p>Reflect's notes live on their servers, encrypted at rest. That's a reasonable security posture for most users. For an attorney with a client matter under privilege, a CPA handling a return under IRC §7216, or a consultant bound by NDA, it's not a policy question. The question is whether you can legally or contractually paste that content into a tool that stores it on a vendor's infrastructure. With Reflect, the answer depends on Reflect's retention policy and your client's expectations. With Keepance, the answer is simple: your documents never leave your machine. Your API key lives in your OS keychain. Prompts go straight from your machine to Anthropic, OpenAI, or Google, with no Keepance server in the path. If you handle material you legally cannot put in someone else's database, that architecture difference is not optional.</p>
+    <p>Reflect's notes live on their servers, encrypted at rest. That's a reasonable security posture for most users. For an attorney with a client matter under privilege, a CPA handling a return under IRC §7216, or a consultant bound by NDA, it's not a policy question. The question is whether you can legally or contractually paste that content into a tool that stores it on a vendor's infrastructure. With Reflect, the answer depends on Reflect's retention policy and your client's expectations. With Keepance, the answer is cleaner: your files stay on your machine, Keepance never sees your work, and your API key lives in your OS keychain. Prompts go straight from your machine to Anthropic, OpenAI, or Google, with no Keepance server in the path. For the most sensitive matters, route to a local Ollama model and nothing leaves your machine at all. If you handle material you legally cannot put in someone else's database, that architecture difference is not optional.</p>
 
     <h3>5. Provider flexibility, per conversation</h3>
 
@@ -152,7 +152,7 @@
         <tr><td>Where your prompts go</td><td>Through Reflect's infrastructure to the AI model</td><td>Direct from your machine to the AI provider (Anthropic, OpenAI, or Google). Keepance is not in the path.</td></tr>
         <tr><td>API key custody</td><td>Not applicable. Reflect's key, bundled into the subscription.</td><td>Your OS keychain. Keepance never sees it.</td></tr>
         <tr><td>Vendor retention policy applies to your content</td><td>Yes, per Reflect's privacy policy</td><td>No. Nothing is stored on Keepance servers.</td></tr>
-        <tr><td>Can you use it for privileged client work?</td><td>Depends on your jurisdiction, firm policy, and Reflect's retention terms</td><td>Yes. Content stays on your machine.</td></tr>
+        <tr><td>Can you use it for privileged client work?</td><td>Depends on your jurisdiction, firm policy, and Reflect's retention terms</td><td>Files stay on your machine, Keepance never sees them. AI prompts go to the provider you chose; use Ollama for fully local inference.</td></tr>
         <tr><td>Pricing</td><td>$144/yr (or $15/mo)</td><td>$49 one-time Personal, $149/yr Professional (includes one practice pack), $499 one-time Practice (up to 5 seats). Plus your own AI provider's API costs (typically $5-15/mo).</td></tr>
       </tbody>
     </table>
