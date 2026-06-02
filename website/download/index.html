@@ -181,6 +181,80 @@
       transition: color 0.15s;
     }
     .platform-alt a:hover { color: var(--grad-blue); }
+    .win-note {
+      margin-top: 12px;
+      font-size: 11.5px;
+      color: rgba(255,255,255,0.45);
+      line-height: 1.55;
+      text-align: center;
+    }
+    .win-note strong { color: rgba(255,255,255,0.7); }
+
+    /* SECURITY CALLOUT */
+    .security-callout {
+      background: #FFF9EC;
+      border: 1px solid #F0D070;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 28px;
+      text-align: left;
+    }
+    .security-callout-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .security-callout-title::before {
+      content: '⚠';
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .security-callout p {
+      font-size: 13px;
+      color: var(--text-body);
+      margin: 0 0 12px;
+      line-height: 1.6;
+    }
+    .security-callout p:last-child { margin-bottom: 0; }
+    .security-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .security-step {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-body);
+    }
+    .security-step-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--navy);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    code.inline {
+      background: rgba(10,37,64,0.08);
+      border: 1px solid rgba(10,37,64,0.12);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 12px;
+      font-family: 'Satoshi', system-ui, sans-serif;
+      font-weight: 600;
+      color: var(--text-heading);
+    }
 
     /* AFTER DOWNLOAD */
     .after-section {
@@ -279,6 +353,7 @@
              class="dl-btn">
             ↓ Download .exe
           </a>
+          <p class="win-note">Windows may show a security prompt.<br>Click <strong>More info</strong> → <strong>Run anyway</strong> to install.</p>
         </div>
 
         <!-- macOS -->
@@ -317,6 +392,17 @@
       <div class="after-inner">
         <h2>After you install</h2>
         <p>The download is the same file whether you're trialing or licensed. Once you have a license key, enter it in the app to unlock your plan — your workspace and all your files stay exactly where they are.</p>
+
+        <div class="security-callout">
+          <p class="security-callout-title">Windows security prompt — what to expect</p>
+          <p>Windows shows a "Windows protected your PC" warning for any newly released app that hasn't been downloaded by enough people yet. It's a reputation system, not a virus flag. Keepance is signed by the real developer (publisher: <em>Jameson Daines</em>) — you can verify this in the dialog itself.</p>
+          <div class="security-steps">
+            <div class="security-step"><span class="security-step-num">1</span><span>The installer opens to "Windows protected your PC" — click <code class="inline">More info</code></span></div>
+            <div class="security-step"><span class="security-step-num">2</span><span>Click <code class="inline">Run anyway</code> — no admin password required</span></div>
+            <div class="security-step"><span class="security-step-num">3</span><span>The installer proceeds normally. The warning disappears for everyone once enough people have downloaded the same version.</span></div>
+          </div>
+        </div>
+
         <div class="steps">
           <div class="step">
             <div class="step-num">1</div>
