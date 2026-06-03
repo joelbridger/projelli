@@ -6,7 +6,7 @@
 
 ## TL;DR
 
-The site and download flow are fully overhauled. v2.1.3 is built and almost published — Intel Mac had a transient network error on the first run; a rerun is in progress (CI run 26910191623, queued ~2026-06-03T21:27Z, ~60 min). **The product and infrastructure are ready. The only thing that moves the needle is Jameson approving the 7 reviewer drafts at `crm.jameworld.com`.** Nothing I can do unblocks that.
+v2.1.3 is shipped (all 4 platforms live; download flow + SmartScreen guidance done). **DIRECTIVE CHANGE 2026-06-03:** Jameson commissioned a full **V2 overhaul** of the website and software and ordered **no outreach of any kind until the entire overhaul is complete and verified to a "perfect" bar.** Reviewer drafts are paused; do not raise them as a priority. Governing docs: `docs/strategy/2026-06-03-vertical-persona-audit.md` and `docs/strategy/2026-06-03-keepance-v2-overhaul.md` (definition of done). Locked decisions: BYOK stays (no managed key); the advisor pack is a committed build (4th vertical); zero users today.
 
 **Operating directives (unchanged):**
 - **No autonomous public posting.** Jameson posts from his accounts.
@@ -55,8 +55,8 @@ The site and download flow are fully overhauled. v2.1.3 is built and almost publ
 
 ## PENDING — priority order
 
-### 1. Jameson: approve reviewer drafts at `crm.jameworld.com` (HIGHEST LEVERAGE)
-Drafts #8-14 have been queued since yesterday. 3 legal (Elefant, Jennifer Case, Sharon Nelson), 2 tax (Wells, Tankersley), 2 advisor (Derek Tharp/Kitces, Emma Foulkes). Domain warming: approve 2-3 per day, not all at once. **This is the only action that matters right now.** A single "yes" from one reviewer → named testimonial → social proof → every other channel opens.
+### 1. Build the V2 overhaul (the ONLY priority until done)
+All outreach is paused by Jameson's direction until the website and software are overhauled to a "perfect" bar. Work the 11 workstreams in `docs/strategy/2026-06-03-keepance-v2-overhaul.md` (Phase 0 first). **Do not raise reviewer-draft approval** (drafts #8-14 stay queued, untouched, at crm.jameworld.com) until the overhaul is complete and verified. Greenlit workstreams run subagent-driven; commercial deploy/release stays gated on Jameson's explicit go.
 
 ### 2. Jameson: founder bio verification
 "Eight years at Samsung, AstraZeneca, Tesla, University College London" is live on homepage + press kit, unverified. A lawyer reviewing the outreach will Google it before responding. Verify → update copy to match.
@@ -88,6 +88,14 @@ Any personal contacts Jameson can send — even non-ICP — I'll queue warm outr
 - v2.1.3 CI rerun: `gh run watch 26910191623 --repo keepance/keepance`
 
 ---
+
+## V2 Overhaul — audit + proposal written (awaiting greenlight)
+
+On 2026-06-03 a full vertical-persona audit and a systematic V2 overhaul proposal were written. Two docs, cross-linked:
+- `docs/strategy/2026-06-03-vertical-persona-audit.md` — site + app reviewed as 5 practitioner lenses (general attorney, patent attorney, CPA/EA, consultant, RIA). Core diagnosis: "a developer-grade tool wearing a professional's suit." Most issues are communication/unsurfaced capability, not missing capability.
+- `docs/strategy/2026-06-03-keepance-v2-overhaul.md` — 11 workstreams (A–K), phased roadmap (Phase 0 = pre-reviewer-scale, mostly cheap/high-trust copy + 2 existential surfacing fixes), traceability matrix proving every finding is covered.
+
+**Status:** proposal only, nothing built or deployed. Awaiting Jameson's direction on: (1) managed-key question [recommend keep BYOK], (2) advisor pack go/no-go [recommend message-only now], (3) whether to complete Phase 0 before scaling reviewer outreach [recommended]. Execution, when greenlit, defaults to subagent-driven; commercial deploy/release stays gated.
 
 ## Never
 - No autonomous app release or `infra/deploy.sh` without explicit go.
