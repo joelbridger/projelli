@@ -3,9 +3,8 @@
 
 ---
 
-> **CURRENT STATE (2026-06-01): read `docs/operations/SESSION_HANDOFF_2026-06-01.md` first.**
-> **v2.1.1 is LIVE** (signed Windows installer + Windows auto-update restored; the Azure free-trial -> Pay-As-You-Go
-> upgrade fixed the signing 403). **All 4 LemonSqueezy products are created + published** with checkout URLs.
+> **CURRENT STATE (2026-06-03): read `docs/operations/SESSION_HANDOFF_2026-06-03.md` first.**
+> **v2.1.3 CI in progress** (Windows/Linux/macOS ARM ✅; macOS Intel rerun queued — transient network error, not code). Download flow overhauled: all CTAs now route to `/download/` page. SmartScreen guidance live. App: icons (jellybean→Keepance shield), accent color (coral→navy), tour copy (founder→ICP examples). **Bottleneck: Jameson approve 7 reviewer drafts at crm.jameworld.com.**
 > Revenue loop NOT closed yet: license-server tier mapping (#2) is **code-complete + unit-tested (staged, not
 > yet live — goes live on the next restart once Jameson provides the LS creds)**; remaining is the site
 > subscription pricing + checkout wiring (#3, deploy-gated), and on Jameson the LemonSqueezy API key/webhook
