@@ -16,6 +16,7 @@ import { useTrial } from '@/hooks/useTrial';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CostDashboard } from '@/components/ai/CostDashboard';
 
 export function LicenseSettings() {
   const { t } = useTranslation();
@@ -217,6 +218,12 @@ export function LicenseSettings() {
           </div>
         </div>
       )}
+
+      {/* F1 — AI Usage summary */}
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight mb-2">AI Usage</h2>
+        <CostDashboard />
+      </div>
 
       {/* Error display */}
       {error && (

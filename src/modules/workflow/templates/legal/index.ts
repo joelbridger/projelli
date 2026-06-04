@@ -8,6 +8,9 @@ import { PrivilegeLogDrafter } from './PrivilegeLogDrafter';
 import { DiscoveryDocumentTriage } from './DiscoveryDocumentTriage';
 import { PatentDisclosureDraft } from './PatentDisclosureDraft';
 import { ClientIntakeSynthesizer } from './ClientIntakeSynthesizer';
+import { TransactionalMatterSummary } from './TransactionalMatterSummary';
+import { EstatePlanningClientSummary } from './EstatePlanningClientSummary';
+import { ContractReviewChecklist } from './ContractReviewChecklist';
 
 import type { WorkflowTemplate } from '@/types/workflow';
 
@@ -19,6 +22,9 @@ export const LEGAL_TEMPLATES: WorkflowTemplate[] = [
   DiscoveryDocumentTriage,
   PatentDisclosureDraft,
   ClientIntakeSynthesizer,
+  TransactionalMatterSummary,
+  EstatePlanningClientSummary,
+  ContractReviewChecklist,
 ];
 
 export {
@@ -29,4 +35,7 @@ export {
   DiscoveryDocumentTriage,
   PatentDisclosureDraft,
   ClientIntakeSynthesizer,
+  TransactionalMatterSummary,
+  EstatePlanningClientSummary,
+  ContractReviewChecklist,
 };

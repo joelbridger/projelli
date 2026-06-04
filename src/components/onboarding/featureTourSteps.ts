@@ -25,7 +25,7 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'file-tree',
     title: 'Your files, on your disk',
-    body: 'Every chat, workflow output, and note lives here as a real Markdown file. Every edit auto-saves in two seconds and auto-versions, so nothing is ever lost. Open a file with any editor, back up with git, take it with you anywhere.',
+    body: 'Every chat, workflow output, and note lives here as a real Markdown file. Every edit auto-saves in two seconds and auto-versions, so nothing is ever lost. Open a file with any editor, take it with you anywhere. Your Keepance files are ordinary files in the folder you chose. Back them up the same way you back up everything else: Time Machine on Mac, File History on Windows, or copy the folder to an external drive or cloud storage.',
     targetSelector: '[data-testid="sidebar-tab-files"]',
     placement: 'right',
   },
@@ -39,7 +39,7 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'workflows',
     title: 'Workflow templates',
-    body: 'Client Intake, Matter Summary, Weekly Client Update, and more. Each template asks a few questions then produces a polished Markdown document you can edit, cite, and share. The practice packs for legal, tax, and consulting add profession-specific templates.',
+    body: 'Client Intake, Matter Summary, Weekly Client Update, and more. Each template asks a few questions then produces a polished Markdown document you can edit, cite, and share. The practice packs for legal, tax, and consulting add profession-specific templates. Try it: click Workflows in the sidebar, pick any template, and answer the first question. A draft document appears in your workspace.',
     targetSelector: '[data-testid="sidebar-tab-workflows"]',
     placement: 'right',
   },

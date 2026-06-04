@@ -8,6 +8,7 @@ export * from './RunRecordService';
 export { LEGAL_TEMPLATES } from './templates/legal/index';
 export { TAX_TEMPLATES } from './templates/tax/index';
 export { CONSULTING_TEMPLATES } from './templates/consulting/index';
+export { ADVISOR_TEMPLATES } from './templates/advisors/index';
 
 // General templates (profession-neutral)
 export { CompetitorAnalysis } from './templates/CompetitorAnalysis';
@@ -23,6 +24,7 @@ export { FirstHirePlaybook } from './templates/FirstHirePlaybook';
 import { LEGAL_TEMPLATES } from './templates/legal/index';
 import { TAX_TEMPLATES } from './templates/tax/index';
 import { CONSULTING_TEMPLATES } from './templates/consulting/index';
+import { ADVISOR_TEMPLATES } from './templates/advisors/index';
 import { CompetitorAnalysis } from './templates/CompetitorAnalysis';
 import { CustomerPersona } from './templates/CustomerPersona';
 import { UserInterviews } from './templates/UserInterviews';
@@ -42,6 +44,7 @@ export const allWorkflows = [
   ...LEGAL_TEMPLATES,
   ...TAX_TEMPLATES,
   ...CONSULTING_TEMPLATES,
+  ...ADVISOR_TEMPLATES,
   CompetitorAnalysis,
   CustomerPersona,
   UserInterviews,

@@ -8,6 +8,9 @@
 //   - Added a "Open full view" button in the header that opens a Radix Dialog
 //     showing every workflow in a 3-column grid with a live search/filter.
 //     The modal has a real <DialogTitle> for a11y (no repeat of UX-02).
+//
+// F1 (Workstream F, Phase 1):
+//   - WorkflowEstimateModal: shows step count + cost estimate before Run.
 
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -81,6 +84,8 @@ export function WorkflowPanel({
   const [showFullView, setShowFullView] = useState(false);
   // M7 — chain builder open state
   const [showChainBuilder, setShowChainBuilder] = useState(false);
+  // F1 — pre-run estimate: template pending user confirmation
+  const [pendingTemplate, setPendingTemplate] = useState<WorkflowTemplate | null>(null);
   // Q19 — combined built-ins + user templates. `version` triggers re-read
   // after a save or delete so the picker reflects the change.
   const [templatesVersion, setTemplatesVersion] = useState(0);
@@ -144,16 +149,27 @@ export function WorkflowPanel({
   // Q19 — fork modal state.
   const [forkOriginal, setForkOriginal] = useState<WorkflowTemplate | null>(null);
 
+  // F1 — route start clicks through the estimate modal.
   const handleStartClick = (template: WorkflowTemplate) => {
     if (trialGate.isLocked) return;
-    onStartWorkflow(template);
+    setPendingTemplate(template);
   };
 
   const startFromModal = (template: WorkflowTemplate) => {
     if (trialGate.isLocked) return;
-    onStartWorkflow(template);
     setShowFullView(false);
+    setPendingTemplate(template);
   };
+
+  const handleEstimateConfirm = useCallback(() => {
+    if (!pendingTemplate) return;
+    onStartWorkflow(pendingTemplate);
+    setPendingTemplate(null);
+  }, [pendingTemplate, onStartWorkflow]);
+
+  const handleEstimateCancel = useCallback(() => {
+    setPendingTemplate(null);
+  }, []);
 
   const handleDuplicate = useCallback((template: WorkflowTemplate) => {
     setForkOriginal(template);
@@ -323,7 +339,108 @@ export function WorkflowPanel({
         templates={availableWorkflows}
         onRun={onRunChain}
       />
+
+      {/* F1 — pre-run cost estimate */}
+      <WorkflowEstimateModal
+        template={pendingTemplate}
+        onConfirm={handleEstimateConfirm}
+        onCancel={handleEstimateCancel}
+      />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// F1 — Pre-run cost estimate modal
+// ---------------------------------------------------------------------------
+
+/**
+ * Rough per-step cost estimate in USD. Assumes a typical generate step
+ * sends ~800 tokens in and receives ~500 tokens out at Claude Sonnet
+ * pricing (~$0.003 in / $0.015 out per 1K tokens). We round to the
+ * nearest cent to stay honest about the approximation.
+ */
+const ESTIMATE_COST_PER_STEP_USD = 0.012; // ~$0.012 per generate step
+
+function describeStepCost(stepCount: number): string {
+  const low = Math.max(1, stepCount - 1);
+  const high = stepCount + 1;
+  const lowCost = (low * ESTIMATE_COST_PER_STEP_USD).toFixed(3);
+  const highCost = (high * ESTIMATE_COST_PER_STEP_USD).toFixed(3);
+  return `$${lowCost} - $${highCost}`;
+}
+
+interface WorkflowEstimateModalProps {
+  template: WorkflowTemplate | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function WorkflowEstimateModal({ template, onConfirm, onCancel }: WorkflowEstimateModalProps) {
+  if (!template) return null;
+
+  const stepCount = template.steps.length;
+  const costRange = describeStepCost(stepCount);
+  // Count generate steps specifically since interview steps cost nothing.
+  const generateSteps = template.steps.filter((s) => s.type === 'generate' || s.type === 'review').length;
+
+  return (
+    <Dialog open={template !== null} onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <DialogContent
+        data-testid="workflow-estimate-modal"
+        className="max-w-sm"
+      >
+        <DialogHeader>
+          <DialogTitle>Start workflow</DialogTitle>
+          <DialogDescription>
+            {template.name}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-1">
+          <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Total steps</span>
+              <span className="font-medium tabular-nums">{stepCount}</span>
+            </div>
+            {generateSteps > 0 && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">AI calls</span>
+                <span className="font-medium tabular-nums">{generateSteps}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">Estimated cost</span>
+              <span className="font-medium tabular-nums font-mono">{costRange}</span>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            This is a rough estimate based on typical step sizes. Your actual cost
+            depends on the length of your inputs and the model you have selected.
+            Billed directly by your AI provider.
+          </p>
+        </div>
+
+        <DialogFooter>
+          <Button
+            data-testid="workflow-estimate-cancel"
+            variant="outline"
+            size="sm"
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            data-testid="workflow-estimate-confirm"
+            size="sm"
+            onClick={onConfirm}
+          >
+            <Play className="h-3.5 w-3.5 mr-1.5" />
+            Run workflow
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

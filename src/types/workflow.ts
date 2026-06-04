@@ -124,7 +124,7 @@ export interface WorkflowTemplate {
   name: string;
   description: string;
   version: string;
-  category: 'kickoff' | 'research' | 'analysis' | 'planning' | 'custom' | 'legal' | 'tax' | 'consulting';
+  category: 'kickoff' | 'research' | 'analysis' | 'planning' | 'custom' | 'legal' | 'tax' | 'consulting' | 'advisors';
   steps: WorkflowStep[];
   requiredInputs: string[];
   outputs: string[];

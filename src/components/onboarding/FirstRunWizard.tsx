@@ -23,7 +23,7 @@ import { useState, type ReactNode } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { writeSampleFiles, SAMPLE_FILES } from '@/onboarding/samples';
+import { writeSampleFiles, getSamplesForProfession } from '@/onboarding/samples';
 import { ApiKeyExplainer } from '@/components/onboarding/ApiKeyExplainer';
 import { ApiKeyTester } from '@/components/onboarding/ApiKeyTester';
 
@@ -103,7 +103,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
     if (populateSamples && workspace) {
       setIsFinishing(true);
       try {
-        await writeSampleFiles(workspace);
+        await writeSampleFiles(workspace, profession ?? 'other');
       } catch (err) {
         // Don't block onboarding completion on a failed sample copy — log the
         // error and let the user into the app. Samples are a nice-to-have.
@@ -391,7 +391,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
                     />
                     <div className="flex-1 text-xs">
                       <div className="font-medium text-foreground">
-                        {t('onboarding.first-run.demo.populate-toggle', { count: SAMPLE_FILES.length })}
+                        {t('onboarding.first-run.demo.populate-toggle', { count: getSamplesForProfession(profession ?? 'other').length })}
                       </div>
                       <p className="mt-1 text-muted-foreground">
                         {t('onboarding.first-run.demo.populate-help')}

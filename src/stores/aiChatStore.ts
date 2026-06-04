@@ -97,11 +97,10 @@ export function todayKey(now: Date = new Date()): string {
 
 /**
  * Q3 — Drop bucket entries older than this many days from the persisted
- * state. 7 days is plenty for the tooltip's "today" view; if a future
- * release wants a 30-day chart, the audit log is the source of truth
- * (see Q4 / CostMetrics.tsx).
+ * state. Extended to 31 days so the store can answer "this month" and
+ * "last 7 days" queries directly without touching the audit log.
  */
-const DAILY_COST_RETENTION_DAYS = 7;
+const DAILY_COST_RETENTION_DAYS = 31;
 
 function pruneOldDailyCosts(
   dailyCosts: Record<string, DailyCost>,
@@ -488,6 +487,75 @@ export function useTodayCost(): TodayCostSummary {
         outputTokens: bucket.outputTokens,
         byProvider: bucket.byProvider,
       };
+    }),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// F1 — week / month cost selectors (Workstream F, Phase 1)
+// ─────────────────────────────────────────────────────────────────────
+
+export interface PeriodCostSummary {
+  cost: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+/**
+ * Return the YYYY-MM-DD key for `daysAgo` days before `now`.
+ * Exported for test convenience.
+ */
+export function keyDaysAgo(daysAgo: number, now: Date = new Date()): string {
+  const d = new Date(now);
+  d.setDate(d.getDate() - daysAgo);
+  return todayKey(d);
+}
+
+/**
+ * F1 — Sum all daily buckets that fall within the current calendar month
+ * (local time). Returns zero when no data exists yet. Works from the
+ * in-memory store — no audit log required.
+ */
+export function useThisMonthCost(now?: Date): PeriodCostSummary {
+  return useAIChatStore(
+    useShallow((s) => {
+      const ref = now ?? new Date();
+      const monthPrefix = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}-`;
+      let cost = 0;
+      let inputTokens = 0;
+      let outputTokens = 0;
+      for (const [key, bucket] of Object.entries(s.dailyCosts)) {
+        if (key.startsWith(monthPrefix)) {
+          cost += bucket.total;
+          inputTokens += bucket.inputTokens;
+          outputTokens += bucket.outputTokens;
+        }
+      }
+      return { cost, inputTokens, outputTokens };
+    }),
+  );
+}
+
+/**
+ * F1 — Sum the rolling 7-day window (today minus 6 days through today,
+ * inclusive). Returns zero when no data exists yet.
+ */
+export function useLast7DaysCost(now?: Date): PeriodCostSummary {
+  return useAIChatStore(
+    useShallow((s) => {
+      const ref = now ?? new Date();
+      const cutoff = keyDaysAgo(6, ref); // 6 days ago = 7-day window inclusive
+      let cost = 0;
+      let inputTokens = 0;
+      let outputTokens = 0;
+      for (const [key, bucket] of Object.entries(s.dailyCosts)) {
+        if (key >= cutoff) {
+          cost += bucket.total;
+          inputTokens += bucket.inputTokens;
+          outputTokens += bucket.outputTokens;
+        }
+      }
+      return { cost, inputTokens, outputTokens };
     }),
   );
 }

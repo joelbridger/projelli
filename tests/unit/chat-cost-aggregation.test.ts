@@ -107,21 +107,22 @@ describe('aiChatStore — cost aggregation (Q3)', () => {
     expect(state.dailyCosts['2026-04-17']?.total).toBeCloseTo(0.05, 10);
   });
 
-  it('prunes buckets older than 7 days', () => {
+  it('prunes buckets older than 31 days', () => {
+    // Retention was extended from 7 to 31 days (F1 — Workstream F Phase 1)
+    // so that month and week summaries can be served from the store directly.
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-04-01T10:00:00'));
     const { recordCost } = useAIChatStore.getState();
     recordCost('chat-a', { cost: 0.01, inputTokens: 10, outputTokens: 5, provider: 'anthropic' });
     expect(useAIChatStore.getState().dailyCosts['2026-04-01']?.total).toBeCloseTo(0.01, 10);
 
-    // Advance 10 days; the 04-01 bucket should be pruned on the next
-    // write.
-    vi.setSystemTime(new Date('2026-04-11T10:00:00'));
+    // Advance 33 days; the 04-01 bucket should now be pruned on the next write.
+    vi.setSystemTime(new Date('2026-05-04T10:00:00'));
     recordCost('chat-a', { cost: 0.02, inputTokens: 20, outputTokens: 10, provider: 'anthropic' });
 
     const state = useAIChatStore.getState();
     expect(state.dailyCosts['2026-04-01']).toBeUndefined();
-    expect(state.dailyCosts['2026-04-11']?.total).toBeCloseTo(0.02, 10);
+    expect(state.dailyCosts['2026-05-04']?.total).toBeCloseTo(0.02, 10);
   });
 
   it('creates a session on the fly if cost arrives before initSession', () => {
