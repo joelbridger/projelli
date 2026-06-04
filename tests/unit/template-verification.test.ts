@@ -20,6 +20,13 @@ const MUST_VERIFY = [
   'src/modules/workflow/templates/legal/ContractReviewChecklist.ts',
   'src/modules/workflow/templates/legal/DiscoveryDocumentTriage.ts',
   'src/modules/workflow/templates/legal/LegalResearchMemo.ts',
+  'src/modules/workflow/templates/legal/DeadlineCalendar.ts',
+  'src/modules/workflow/templates/legal/EngagementLetterDrafter.ts',
+  'src/modules/workflow/templates/legal/DiscoveryDrafter.ts',
+  'src/modules/workflow/templates/legal/ParentingPlanDrafter.ts',
+  'src/modules/workflow/templates/legal/FinancialAffidavitOrganizer.ts',
+  'src/modules/workflow/templates/legal/RealEstateClosingChecklist.ts',
+  'src/modules/workflow/templates/legal/CitationFormatter.ts',
   // Tax (all 8)
   'src/modules/workflow/templates/tax/TaxResearchMemo.ts',
   'src/modules/workflow/templates/tax/NoticeResponseDrafter.ts',

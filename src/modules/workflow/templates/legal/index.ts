@@ -12,6 +12,13 @@ import { TransactionalMatterSummary } from './TransactionalMatterSummary';
 import { EstatePlanningClientSummary } from './EstatePlanningClientSummary';
 import { ContractReviewChecklist } from './ContractReviewChecklist';
 import { LegalResearchMemo } from './LegalResearchMemo';
+import { DeadlineCalendar } from './DeadlineCalendar';
+import { EngagementLetterDrafter } from './EngagementLetterDrafter';
+import { DiscoveryDrafter } from './DiscoveryDrafter';
+import { ParentingPlanDrafter } from './ParentingPlanDrafter';
+import { FinancialAffidavitOrganizer } from './FinancialAffidavitOrganizer';
+import { RealEstateClosingChecklist } from './RealEstateClosingChecklist';
+import { CitationFormatter } from './CitationFormatter';
 
 import type { WorkflowTemplate } from '@/types/workflow';
 
@@ -27,6 +34,13 @@ export const LEGAL_TEMPLATES: WorkflowTemplate[] = [
   EstatePlanningClientSummary,
   ContractReviewChecklist,
   LegalResearchMemo,
+  DeadlineCalendar,
+  EngagementLetterDrafter,
+  DiscoveryDrafter,
+  ParentingPlanDrafter,
+  FinancialAffidavitOrganizer,
+  RealEstateClosingChecklist,
+  CitationFormatter,
 ];
 
 export {
@@ -41,4 +55,11 @@ export {
   EstatePlanningClientSummary,
   ContractReviewChecklist,
   LegalResearchMemo,
+  DeadlineCalendar,
+  EngagementLetterDrafter,
+  DiscoveryDrafter,
+  ParentingPlanDrafter,
+  FinancialAffidavitOrganizer,
+  RealEstateClosingChecklist,
+  CitationFormatter,
 };
