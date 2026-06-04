@@ -330,6 +330,23 @@
     }
     .dl-footer a { color: var(--text-muted); text-decoration: none; }
     .dl-footer a:hover { color: var(--navy); }
+
+    /* ONBOARDING NOTES */
+    .onboarding-note {
+      background: #f0f7ff;
+      border-left: 3px solid #3B82F6;
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    .onboarding-note--ollama {
+      background: #f0fdf4;
+      border-left-color: #22c55e;
+    }
+    .onboarding-note a { color: var(--grad-blue); font-weight: 600; }
+    .onboarding-note a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -417,6 +434,12 @@
               <h4>Add your AI provider key</h4>
               <p>Go to Settings → API Keys and paste your key from Anthropic, OpenAI, or Google. Your key is stored in your OS keychain and never leaves your machine.</p>
             </div>
+          </div>
+          <div class="onboarding-note">
+            <strong>Never set up an API key before?</strong> It is a one-time, five-minute step. Create a free account with your AI provider (Anthropic, OpenAI, or Google), copy a key, and paste it into Keepance at Settings → API Keys. A built-in "Test this key" button confirms it works before you start. <a href="/api-key-setup-guide/">Full walkthrough with screenshots →</a>
+          </div>
+          <div class="onboarding-note onboarding-note--ollama">
+            <strong>Want to skip API keys entirely?</strong> Run Keepance with a local Ollama model — nothing leaves your machine, no account, no monthly cost. <a href="/local-model-setup/">Set up Ollama in 10 minutes →</a>
           </div>
           <div class="step">
             <div class="step-num">3</div>
