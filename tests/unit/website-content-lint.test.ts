@@ -233,6 +233,42 @@ describe('T1-D — homepage pricing card reflects actual template counts', () =>
 });
 
 /**
+ * T1-E — no absolute privacy/privilege overclaims on vertical or home pages.
+ *
+ * With a cloud API key, prompts go to the AI provider — a third-party
+ * transmission. Only a local Ollama model means nothing leaves the machine.
+ * Absolute claims ("sidesteps entirely," "privilege intact," "eliminates the
+ * risk") are only valid for the local path. This test locks in corrected copy.
+ */
+describe('T1-E — no absolute privacy/privilege overclaims', () => {
+  it('no absolute privacy/privilege overclaims on vertical or home pages', async () => {
+    const { promises: fs } = await import('node:fs');
+    const path = await import('node:path');
+    const websiteDir = WEBSITE_ROOT;
+    const pages = {
+      legal: await fs.readFile(path.join(websiteDir, 'legal/index.html'), 'utf-8'),
+      tax: await fs.readFile(path.join(websiteDir, 'tax/index.html'), 'utf-8'),
+      consulting: await fs.readFile(path.join(websiteDir, 'consulting/index.html'), 'utf-8'),
+      home: await fs.readFile(path.join(websiteDir, 'index.html'), 'utf-8'),
+    };
+    const forbidden = [
+      'keeps attorney-client privilege intact',
+      'Privilege-safe by design',
+      'eliminates the AI-transmission risk',
+      'sidesteps the clause entirely',
+      "there's no upload",
+      'built for ABA Opinion 512 duties',
+      'simplifies all three',
+    ];
+    for (const [page, html] of Object.entries(pages)) {
+      for (const phrase of forbidden) {
+        expect(html, `${page}: "${phrase}"`).not.toContain(phrase);
+      }
+    }
+  });
+});
+
+/**
  * Blog posts — em-dash sweep.
  *
  * Automatically covers every *.html file in website/blog/ via collectBlogPosts()
