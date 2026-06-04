@@ -68,6 +68,24 @@ const BANNED_WORDS = [
   'tapestry',
 ];
 
+/**
+ * Returns the relative path (from WEBSITE_ROOT) of every *.html file directly
+ * inside website/blog/. This is used by the blog em-dash sweep below so that
+ * any future blog post is automatically covered without editing TARGETS.
+ */
+function collectBlogPosts(): string[] {
+  const blogDir = join(WEBSITE_ROOT, 'blog');
+  let entries: string[] = [];
+  try {
+    entries = readdirSync(blogDir);
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((e) => e.endsWith('.html'))
+    .map((e) => relative(WEBSITE_ROOT, join(blogDir, e)));
+}
+
 function collectTemplateDetailPages(): string[] {
   const templatesDir = join(WEBSITE_ROOT, 'templates');
   const out: string[] = [];
@@ -123,6 +141,34 @@ describe('Phase 6 — website content lint', () => {
         for (const banned of BANNED_WORDS) {
           expect(content.includes(banned), `found banned word "${banned}" in ${rel}`).toBe(false);
         }
+      });
+    });
+  }
+});
+
+/**
+ * Blog posts — em-dash sweep.
+ *
+ * Automatically covers every *.html file in website/blog/ via collectBlogPosts()
+ * so any future blog post with an em dash fails CI without any changes to TARGETS.
+ * Only the em-dash rules are checked here; canonical and banned-word checks for
+ * previously-listed blog files are handled in the Phase 6 block above.
+ */
+describe('Blog posts — em-dash sweep (all blog/*.html)', () => {
+  const blogPosts = collectBlogPosts();
+
+  for (const rel of blogPosts) {
+    describe(rel, () => {
+      const filePath = join(WEBSITE_ROOT, rel);
+
+      it('contains no em dash characters (U+2014)', () => {
+        const content = readFileSync(filePath, 'utf-8');
+        expect(content.includes('—')).toBe(false);
+      });
+
+      it('contains no &mdash; HTML entities', () => {
+        const content = readFileSync(filePath, 'utf-8');
+        expect(content.includes('&mdash;')).toBe(false);
       });
     });
   }

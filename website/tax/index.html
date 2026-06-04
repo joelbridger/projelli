@@ -530,21 +530,22 @@
     <!-- COMPLIANCE HOOKS BAR -->
     <div class="compliance-bar">
       <div class="container">
+        <p style="font-size:12.5px;color:var(--text-muted);background:#FFF8E7;border:1px solid #F0E0B0;border-radius:6px;padding:12px 16px;margin-bottom:40px;line-height:1.6;"><strong>Confirm your specific situation with a tax attorney;</strong> the following is informational, not tax or legal advice.</p>
         <div class="compliance-grid">
 
           <div class="compliance-item anim">
             <div class="compliance-hook">IRC §6713: Strict-Liability Civil Penalty</div>
-            <div class="compliance-desc">A strict-liability civil penalty of $250 per unauthorized disclosure of tax return information, with no intent required, capped at $10,000 per calendar year. It applies to return preparers regardless of intent. Cloud AI with training opt-outs is not a safe harbor.</div>
+            <div class="compliance-desc">A strict-liability civil penalty of $250 per unauthorized disclosure of tax return information, with no intent required, capped at $10,000 per calendar year. It applies to return preparers regardless of intent. Cloud AI with training opt-outs is not a safe harbor. Local-first eliminates the AI-transmission risk: when AI requests go directly from your machine to your provider, Keepance is never in that path.</div>
           </div>
 
           <div class="compliance-item anim">
             <div class="compliance-hook">IRC §7216: Reinforcing Criminal Backstop</div>
-            <div class="compliance-desc">On top of the civil exposure, IRC §7216 makes knowing or reckless disclosure of client tax information a federal criminal misdemeanor.</div>
+            <div class="compliance-desc">On top of the civil exposure, IRC §7216 makes knowing or reckless disclosure of client tax information a federal criminal misdemeanor. The same transmission analysis applies: local-first removes the Keepance-as-intermediary risk, but your underlying disclosure practices still need to be sound.</div>
           </div>
 
           <div class="compliance-item anim">
             <div class="compliance-hook">FTC Safeguards Rule (16 CFR Part 314)</div>
-            <div class="compliance-desc">Tax preparers are covered as "financial institutions." The rule requires a Written Information Security Program, with no small-practitioner exemption. Local-first tools make that straightforward.</div>
+            <div class="compliance-desc">Tax preparers are covered as "financial institutions." The rule requires a Written Information Security Program, a risk assessment, vendor inventory, staff training, and an incident-response plan. Local-first removes one class of data exposure (AI-transmission risk), but it does not replace your WISP, your risk assessment, or the rest of your Safeguards compliance program.</div>
           </div>
 
         </div>
@@ -557,39 +558,51 @@
         <div class="section-header anim">
           <span class="section-label">Ships with Professional</span>
           <h2>The Tax Practice Pack</h2>
-          <p>5 workflow templates that produce drafts a licensed CPA or EA reviews, built for the documents tax professionals actually produce. Each pack is reviewed by practicing CPAs and kept current as the rules change. The app trial is available right now; founding-list members get the packs first, at $99/yr.</p>
+          <p>7 workflow templates built for the documents tax professionals actually produce. The pack is shaped with practicing CPAs and kept current as the rules change. All AI-generated output should be verified against primary authority before you rely on it. The app trial is available right now; founding-list members get the packs first, at $99/yr.</p>
         </div>
 
         <div class="template-grid">
 
           <div class="template-card anim">
             <div class="template-num">1</div>
-            <h3>§7216 Disclosure Consent Template</h3>
-            <p>A properly worded consent form for any situation where you need to share client tax information with a third party. Covers the specific statutory requirements.</p>
+            <h3>Section 7216 Consent Form</h3>
+            <p>Drafts a §7216 disclosure consent form for situations where client tax data may be shared with third parties such as cloud software providers or AI tools. Includes required statutory language and practitioner guidance.</p>
           </div>
 
           <div class="template-card anim">
             <div class="template-num">2</div>
-            <h3>1040 Pre-Review Checklist</h3>
-            <p>Flags common preparation errors before you sign. Runs your return notes against IRS audit triggers and consistency checks.</p>
+            <h3>Pre-Review Checklist</h3>
+            <p>Generates a pre-filing checklist organized by section: income, deductions, credits, carryovers, state items, signature requirements, with elevated-scrutiny flags based on the client's income mix and life events.</p>
           </div>
 
           <div class="template-card anim">
             <div class="template-num">3</div>
             <h3>Engagement Letter Builder</h3>
-            <p>Generates a complete engagement letter from client name and scope of services. Addresses limitations of liability, fee structure, and document retention.</p>
+            <p>Drafts a professional engagement letter for a new tax client, covering scope of services, client responsibilities, fees, document handling, and engagement limitations.</p>
           </div>
 
           <div class="template-card anim">
             <div class="template-num">4</div>
-            <h3>Tax Research Memo Drafter</h3>
-            <p>Documents your position on a gray-area issue in a format that demonstrates reasonable cause. Citable, defensible, ready to attach to the file.</p>
+            <h3>Tax Research Memo</h3>
+            <p>Drafts a research memo documenting a tax position for the file, with sections for Issue, Facts, Analysis (applicable law, application to facts, counterarguments), Conclusion, and Authorities Cited. Verify all cited authority against primary sources before filing.</p>
           </div>
 
           <div class="template-card anim">
             <div class="template-num">5</div>
             <h3>Client Document Inventory</h3>
-            <p>Tracks what you've received vs. what's outstanding for each return. Sends a structured follow-up request with a list of missing items.</p>
+            <p>Creates a two-part document: a client-facing document request list organized by category and an internal tracker table with columns for document, date requested, date received, and notes.</p>
+          </div>
+
+          <div class="template-card anim">
+            <div class="template-num">6</div>
+            <h3>Audit Defense File Builder</h3>
+            <p>Builds an organized audit response file from practitioner notes, with issue-by-issue defense analysis (position, legal basis, supporting documents, response strategy, open items) plus a cover letter template.</p>
+          </div>
+
+          <div class="template-card anim">
+            <div class="template-num">7</div>
+            <h3>Quarterly Estimate Reminder</h3>
+            <p>Generates a client-ready quarterly estimated tax reminder with the due date, safe harbor calculation, recommended payment amount, and payment instructions for the client's chosen method.</p>
           </div>
 
         </div>
@@ -621,7 +634,7 @@
           <div class="how-card anim">
             <div class="how-card-num">3</div>
             <h3>Your keys, your costs</h3>
-            <p>Bring your own Claude, OpenAI, or Gemini key. You control the API spend. Keepance charges once at purchase, never again.</p>
+            <p>Bring your own Claude, OpenAI, or Gemini key. You control the API spend. Keepance charges once at purchase, never again. For maximum confidentiality, point Keepance at a local Ollama model: nothing leaves your machine at all, not even AI requests.</p>
           </div>
 
         </div>
@@ -697,6 +710,9 @@
 
         <p class="pricing-free-note anim">
           Or <a href="https://github.com/keepance/keepance/releases/latest">download free for 30 days</a>, no card, no account required. The app trial is available now; practice packs are CPA-reviewed and kept current; founding-list members get them first at $99/yr.
+        </p>
+        <p class="pricing-free-note anim" style="margin-top:16px;">
+          <strong>Your actual AI cost:</strong> you bring your own API key, so the AI itself is billed directly by Anthropic, OpenAI, or Google, typically $5 to $15 a month for moderate use (and $0 if you run a local Ollama model). <a href="/ai-cost-calculator/">Estimate your cost</a>.
         </p>
       </div>
     </section>

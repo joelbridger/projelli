@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The hidden cost creep in Claude Opus 4.7 | Keepance</title>
+  <meta name="description" content="Anthropic didn't raise prices. But if you upgraded to Opus 4.7, your API bill probably went up anyway. Here's what changed and what to do about it if you're billing by the hour.">
+  <link rel="canonical" href="https://keepance.com/blog/claude-opus-47-tokenizer-cost-what-professionals-need-to-know">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://keepance.com/blog/claude-opus-47-tokenizer-cost-what-professionals-need-to-know">
+  <meta property="og:title" content="The hidden cost creep in Claude Opus 4.7">
+  <meta property="og:description" content="Anthropic didn't raise prices. But if you upgraded to Opus 4.7, your API bill probably went up anyway. Here's what changed and what to do about it if you're billing by the hour.">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      padding: 0 24px 100px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #FF7C6E 0%, #FF6554 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">← All posts</a>
+
+    <h1>The hidden cost creep in Claude Opus 4.7</h1>
+    <p class="meta">By Jameson Daines · 2026-05-23 · 6 min read</p>
+
+    <p>Anthropic released Claude Opus 4.7 on April 16, 2026. They didn't touch the per-token prices. And yet, if you swapped Opus 4.6 for Opus 4.7 in your workflow without changing anything else, your API bill probably went up by around 35%.</p>
+
+    <p>That's not a mistake. It's a consequence of a tokenizer change that most BYOK users won't notice until they look at a billing statement and do the math. I want to walk through exactly what happened, what it costs in real numbers, and what to do about it, particularly if you're an attorney, CPA, or consultant using AI daily for client work.</p>
+
+    <h2>What a tokenizer actually does</h2>
+
+    <p>Before getting into the numbers, a quick grounding on what we're talking about. A tokenizer is the piece of software that converts your text into the numerical units the model processes. "Hello, world!" is two tokens in some tokenizers, three in others. The split is arbitrary from your perspective as a user, but it's completely deterministic from the model's perspective.</p>
+
+    <p>Anthropic updated their tokenizer with Opus 4.7. The new tokenizer is more efficient in certain respects, particularly for code and structured data. But for the kind of prose-heavy, context-rich input that attorneys and CPAs send (a privileged memo draft, a client intake summary, a tax position analysis with supporting facts) it generates <strong>roughly 35% more tokens for the same text</strong>.</p>
+
+    <p>Per-token price: unchanged. Tokens per request: up 35%. Effective cost per request: up 35%.</p>
+
+    <p>That's the whole story. But it's worth running through a concrete example because the magnitude surprised me when I first did the arithmetic.</p>
+
+    <h2>A real example: client matter analysis at 5,000 input tokens</h2>
+
+    <p>Say you're running a client matter analysis. You've got a prompt that includes the client's background, the relevant facts, a summary of applicable authority, and a structured output request for a memo. Call it 5,000 tokens of input under the old Opus 4.6 tokenizer. The response is around 1,200 tokens. You run this a few times a week.</p>
+
+    <p>Under <strong>Opus 4.6</strong>, with <a href="https://www.anthropic.com/pricing">Anthropic's pricing</a> of $15 per million input tokens and $75 per million output tokens (Opus-tier pricing in effect at that time), that run cost roughly $0.075 for input and $0.090 for output, about <strong>$0.165 per run</strong>.</p>
+
+    <p>Under <strong>Opus 4.7</strong>, current pricing is $5 per million input tokens and $25 per million output tokens. But the new tokenizer now sees your 5,000-token input as approximately 6,750 tokens. At those rates, that's about $0.034 for input and $0.030 for output, roughly <strong>$0.064 per run</strong>.</p>
+
+    <p>Wait, that looks cheaper. And in this particular case it is, because Anthropic also restructured Opus pricing alongside the tokenizer change. The point isn't that Opus 4.7 is always more expensive in absolute terms. The point is that the tokenizer change means you're using more tokens than you think, and any cost model you built before April 16 is now wrong. Not because the per-token prices changed, but because the number of tokens your input generates changed.</p>
+
+    <blockquote>
+      <p>If you estimated your BYOK usage costs in early 2026, before April 16, that estimate is off. The per-token prices are the same. The token count for your typical prompt is not.</p>
+    </blockquote>
+
+    <p>Current Anthropic pricing as of this writing: <a href="https://www.anthropic.com/pricing">Haiku 4.5 at $1/$5 per million input/output tokens, Sonnet 4.6 at $3/$15, Opus 4.7 at $5/$25</a>. You can cross-reference these at <a href="https://www.aipricing.guru/anthropic-pricing/">aipricing.guru</a> which tracks changes as they happen.</p>
+
+    <h2>Haiku 3 is gone and it mattered</h2>
+
+    <p>Three days after Opus 4.7 launched, on April 19, Anthropic retired Claude Haiku 3. That model was priced at $0.25 per million input tokens and $1.25 per million output tokens. It was the cheapest available Claude model by a wide margin.</p>
+
+    <p>Haiku 3 was the model you used for high-volume, low-stakes tasks: summarizing long documents, classifying correspondence, reformatting content for templates. For a law firm or CPA practice with a lot of document intake, Haiku 3 was the sensible cost-control choice for the work that didn't need Sonnet-level reasoning. Haiku 4.5, its replacement, is priced at $1/$5 per million tokens. That's 4x the input cost and 4x the output cost for those high-volume steps.</p>
+
+    <p>For a solo attorney running a document classification step 500 times a month on 800-token documents, Haiku 3 cost about $0.10 per month. Haiku 4.5 costs about $0.40 per month. Not a crisis in isolation. But multiply that across several workflow steps, and it registers. The floor price for Claude API usage has moved up.</p>
+
+    <h2>Three levers that actually help</h2>
+
+    <p>None of this means you should stop using the API. It means you should be deliberate about which model you're reaching for and when. Here's how I think about it for professional work.</p>
+
+    <h3>1. Use Sonnet 4.6 for most client work</h3>
+
+    <p>Sonnet 4.6 at $3/$15 per million tokens handles the work that Opus used to handle at a fraction of the cost. The quality gap between Sonnet and Opus has narrowed with every model generation. For memo drafting, issue analysis, document summarization, client correspondence: Sonnet 4.6 gets you 90% of Opus quality at 60% of the input cost. Reserve Opus 4.7 for tasks where the quality difference demonstrably shows up: complex multi-document reasoning, nuanced strategic synthesis, anything where you're making a high-stakes decision based on the output.</p>
+
+    <h3>2. Prompt caching pays off on repeated client context</h3>
+
+    <p>Anthropic's prompt caching cuts cached input costs by 90%. If you have a large block of context that stays the same across many requests (your firm's standard matter intake template, a corpus of prior client communications, a regulatory framework that applies to multiple matters), you can cache that block and pay only 10% of the normal input cost on subsequent hits.</p>
+
+    <p>The break-even on prompt caching is roughly 2 requests. If you're running the same context-heavy prompt more than twice, caching is saving you money. With the tokenizer now generating 35% more tokens from the same input, the absolute dollar value of each cache hit has also gone up, which makes caching even more worth setting up than it was before.</p>
+
+    <p>Batch processing is the other lever. Anthropic offers 50% discounts on batch API requests for tasks that don't need real-time completion. If you're processing a backlog of intake documents or running overnight analysis, batch is straightforward money left on the table if you're not using it.</p>
+
+    <h3>3. Audit what you're actually sending</h3>
+
+    <p>This sounds obvious but most people haven't done it. The tokenizer change is a good forcing function to look at your longest prompts and ask: what's in here that doesn't need to be?</p>
+
+    <p>Every block of text you include in a prompt costs money at the current tokenizer rate. Conversation history, long system prompts, verbose context documents: all of these get tokenized at 35% higher density than a year ago. Trim what's not doing work. Restructure context to front-load the most relevant material. Keep system prompts as tight as you can make them.</p>
+
+    <p>With Keepance's BYOK setup, you see the token count on every request. That visibility is what makes it possible to catch this. When the token counter is buried in a SaaS provider's interface (or missing entirely), you don't know the cost until you get the bill.</p>
+
+    <h2>What this means for BYOK professionals specifically</h2>
+
+    <p>The whole premise of BYOK is that you're in control of your AI costs and your data path. You're not paying a SaaS markup, and your client information isn't touching an intermediary's servers. You pay for exactly what you use, at the provider's rates, with a direct connection between your machine and the model.</p>
+
+    <p>That's a genuinely better deal, for cost reasons and for confidentiality reasons. An attorney using BYOK can describe the data path to bar counsel: client data goes from my machine to Anthropic's API, full stop. No intermediary. That's the architecture <a href="https://www.americanbar.org/content/dam/aba/administrative/professional_responsibility/aba-formal-op-512.pdf">ABA Formal Opinion 512</a> asks you to understand and be able to account for.</p>
+
+    <p>But BYOK comes with a responsibility that managed-AI-tool users don't have: you need to understand what you're paying for and why. The tokenizer change is exactly the kind of thing that can silently inflate your bill if you're not paying attention.</p>
+
+    <p>The short version of what's changed since April 2026:</p>
+
+    <ul>
+      <li>Opus 4.7's tokenizer generates ~35% more tokens from the same input text compared to Opus 4.6</li>
+      <li>Per-token prices are unchanged, but your effective cost per request has risen accordingly for prose-heavy professional work</li>
+      <li>Haiku 3 is retired; the cheapest Claude model is now Haiku 4.5 at $1/$5 per million tokens (4x the floor price)</li>
+      <li>Batch processing and prompt caching are your two best cost levers and both are worth using</li>
+      <li>Sonnet 4.6 is the right default for most client work; Opus 4.7 is for the cases where the quality difference actually matters</li>
+    </ul>
+
+    <p>None of this is a reason to stop using Claude. It's a reason to be a deliberate buyer rather than a passive one. And that's exactly what BYOK makes possible.</p>
+
+    <a href="https://keepance.com/#pricing" class="cta">Try Keepance with your own API key</a>
+
+    <p style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-gray); color: var(--text-muted); font-size: 0.9375rem;">
+      <em>Jameson Daines builds Keepance for attorneys, CPAs, and independent consultants. <a href="/blog/byok-math-for-professionals-2026">Read about the BYOK math for professional users</a> or get Keepance at <a href="https://keepance.com">keepance.com</a>.</em>
+    </p>
+  </div>
+</body>
+</html>

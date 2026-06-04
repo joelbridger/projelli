@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>When Your AI Tool Stops Taking New Customers | Keepance</title>
+  <meta name="description" content="GitHub froze new Copilot signups and pulled Opus from the Pro plan. When a vendor owns your model access, they can pause it or yank a model overnight. Here's what that means for professionals with client confidentiality obligations.">
+  <link rel="canonical" href="https://keepance.com/blog/when-your-ai-tool-stops-taking-new-customers">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://keepance.com/blog/when-your-ai-tool-stops-taking-new-customers">
+  <meta property="og:title" content="When Your AI Tool Stops Taking New Customers">
+  <meta property="og:description" content="GitHub froze new Copilot signups and pulled Opus from the Pro plan. When a vendor owns your model access, they can pause it or yank a model overnight. Here's what that means for professionals with client confidentiality obligations.">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      padding: 0 24px 100px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #FF7C6E 0%, #FF6554 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">← All posts</a>
+
+    <h1>When Your AI Tool Stops Taking New Customers</h1>
+    <p class="meta">By Jameson Daines · May 30, 2026 · 7 min read</p>
+
+    <p>On April 20, GitHub did something I don't remember any major dev tool doing before. It <a href="https://github.blog/changelog/2026-04-20-changes-to-github-copilot-plans-for-individuals/">stopped letting new people sign up for Copilot</a>. Not a price hike. Not a quota change. A locked door. New signups for Copilot Pro, Pro+, and the Student plan were paused, and as of late May they're still paused with no restart date. The free tier stayed open, but if you wanted to pay GitHub for the good version of its product, you couldn't.</p>
+
+    <p>Read that again, because it's strange. A company turned away paying customers. That doesn't happen unless something underneath the business is genuinely broken.</p>
+
+    <p>And in the same announcement, GitHub <a href="https://thenextweb.com/news/github-copilot-signup-pause-agentic-ai-usage-limits">pulled Opus models off the Pro plan entirely</a>. If you were a Pro subscriber relying on Claude Opus for harder analytical work, that capability vanished. Opus 4.7 stayed on Pro+, the more expensive tier, and even there GitHub said Opus 4.5 and 4.6 were getting removed too. So the model you built a workflow around could just stop being an option, mid-subscription, with a changelog note.</p>
+
+    <p>I want to walk through why this happened, because the mechanics are the whole story. And for attorneys, CPAs, and consultants who rely on AI for client work, the mechanics apply to far more than Copilot.</p>
+
+    <h2>Why GitHub turned customers away</h2>
+
+    <p>The reason GitHub gave is honest, which I respect. Joe Binder, their VP of product, put it plainly: <a href="https://thenextweb.com/news/github-copilot-signup-pause-agentic-ai-usage-limits">"It's now common for a handful of requests to incur costs that exceed the plan price."</a></p>
+
+    <p>Think about what that sentence admits. Copilot's pricing was designed back when AI assistance meant short, stateless suggestions. Then agentic workflows showed up. Now a single user kicks off a long-running agent that grinds through a codebase for hours, spawns parallel sessions, and burns through tokens. The subscription was built for the old behavior. The new behavior costs GitHub more per user than the user pays.</p>
+
+    <p>When that's true, every new signup makes the math worse. So GitHub did the only rational thing a company in that spot can do: it stopped adding to the problem. <a href="https://www.theregister.com/software/2026/04/21/microsofts-github-suspends-copilot-account-sign-ups/5223353">The Register tied it to a broader datacenter capacity crunch</a> hitting all the big providers this spring, with Anthropic, Google, and OpenAI all tightening limits around the same time. Copilot wasn't an outlier. It was the most visible case of a structural problem.</p>
+
+    <blockquote>
+      <p>A flat monthly fee is a bet that the average user won't cost more than they pay. When the average user starts running autonomous agents, that bet stops being safe, and the tool has to claw something back.</p>
+    </blockquote>
+
+    <p>What gets clawed back is whatever the vendor controls. Your access. Your model choice. Your ability to upgrade. None of those were ever yours. They were terms, and terms change.</p>
+
+    <h2>The part that should bother professionals specifically</h2>
+
+    <p>I'm not writing this to criticize GitHub. They handled it about as cleanly as you can, including a <a href="https://github.blog/changelog/2026-04-20-changes-to-github-copilot-plans-for-individuals/">refund window that ran until May 20</a> for anyone who got stuck. The point isn't that GitHub behaved badly. The point is that even a well-run, deep-pocketed, Microsoft-owned company can be forced to yank features out from under you because the unit economics demand it.</p>
+
+    <p>If GitHub can be cornered like that, every smaller tool you depend on can be too. And smaller tools have less room to absorb the hit, so they'll move faster and apologize less.</p>
+
+    <p>For attorneys, CPAs, and consultants, there's an additional dimension that most general-audience AI coverage skips. When a vendor freezes your access or removes a model, your immediate problem is disrupted workflow. But if your client work was stored in that vendor's system (memos, analyses, tax positions, engagement notes), the access crisis also touches client records. That's a professional exposure, not just an inconvenience.</p>
+
+    <p>Here's the question I'd ask about any AI tool you're leaning on for client work: when the vendor's economics break, what can they take away from me? Run the list honestly.</p>
+
+    <ul>
+      <li><strong>Can they pause your access?</strong> If signups can freeze, renewals and seat expansions can freeze too. Plan for the day you can't add the thing you need.</li>
+      <li><strong>Can they remove your model?</strong> GitHub just proved the answer is yes. The model in your workflow today is a line item the vendor can delete tomorrow.</li>
+      <li><strong>Can they change the price after you're hooked?</strong> Almost always. Copilot's Pro+ tier is where the better models live now, and that's the tier they're steering heavy users toward.</li>
+      <li><strong>Can they hold your client work?</strong> This is the one professionals need to answer first. If your output lives inside the tool, losing the tool (if it freezes, pivots, or gets acquired) means losing access to client records. For attorneys, that has professional responsibility implications. For CPAs, it has recordkeeping implications under IRC §6001 and client file obligations.</li>
+    </ul>
+
+    <p>The first three are annoyances you can route around. The fourth can actually hurt a practice.</p>
+
+    <h2>Access is rented. Client work should not be.</h2>
+
+    <p>There's a useful split hiding in all of this. Two different things get bundled into one monthly charge, and they have completely different risk profiles.</p>
+
+    <p>The first is <strong>model access</strong>, which is rented by nature. You're paying for compute that someone else owns and runs. That's fine. But because it's rented, it's exposed to exactly the kind of disruption GitHub just had. The price moves, the model availability moves, sometimes the door closes. Rent accordingly. Don't build a practice workflow on a specific rented model staying cheap or staying available, because neither is promised.</p>
+
+    <p>The second is <strong>your client work output</strong>, the actual stuff you make. The strategy memos, the tax analyses, the privileged research, the engagement deliverables. That should never be rented. If it lives in a vendor's database and your only path to it is their interface, then a pricing crisis on their end becomes an access crisis on yours. For an attorney, client work product that's inaccessible because a vendor froze accounts is still a professional obligation. The vendor's business problems don't suspend your duty to the client.</p>
+
+    <p>The clean version: rent the brain, own the files. Use whatever model is good and appropriately priced this month, swap it when the deal changes, and make sure the deliverables you've produced for clients don't care which model made them. If your output is plain Markdown sitting on your own drive, a vendor freezing signups is news you read about, not a problem you have.</p>
+
+    <h2>What a BYOK desktop tool changes here</h2>
+
+    <p>This is the structural reason I built <a href="https://keepance.com">Keepance</a> the way I did, and the GitHub freeze is a clean example of it in action.</p>
+
+    <p>Keepance doesn't sell you model access. You bring your own API key, point it at whichever provider you want, and pay that provider directly at cost. So the failure mode that just hit Copilot can't hit you the same way. If Anthropic gets expensive, you switch your key to Gemini or OpenAI in a config field and keep working. There's no "Keepance paused new signups because agents got too expensive to run profitably," because Keepance is not running the inference. You are, through your own key, on your own dime.</p>
+
+    <p>For attorneys, that architecture also means client data doesn't pass through Keepance's servers on the way to the model. Your API key goes from your machine directly to Anthropic or OpenAI. That's the data chain <a href="https://www.americanbar.org/content/dam/aba/administrative/professional_responsibility/aba-formal-op-512.pdf">ABA Formal Opinion 512</a> asks you to understand and be able to account for. For CPAs handling tax data under IRC §7216, the same logic applies: a shorter, auditable data chain is a more defensible one.</p>
+
+    <p>And every document you produce lands as a Markdown file on your machine. No cloud database, no proprietary format, no export step that might break. If Keepance disappeared tomorrow, your client work is still right there in a folder you control. The Professional plan is $149/year. The Practice plan is $499 one-time for up to five seats. Neither is trying to monetize your token usage, so neither has a reason to ever meter it, gate it, or take a model away from you to protect a margin.</p>
+
+    <h2>The takeaway</h2>
+
+    <p>The Copilot freeze is going to look, in hindsight, like an early signal rather than a one-off. The economics of flat-rate AI got exposed the moment agents started doing hours of work for one monthly fee, and that pressure isn't going away. Expect more pauses, more model removals, more tiers reshuffled to push you upmarket.</p>
+
+    <p>So separate the two things. Treat model access as rented, cheap, and swappable. Keep your client work in formats and locations you own. And never let a vendor's pricing crisis become your data problem or your professional liability problem.</p>
+
+    <a href="https://keepance.com" class="cta">Download Keepance free →</a>
+  </div>
+</body>
+</html>

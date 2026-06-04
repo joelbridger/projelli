@@ -550,15 +550,15 @@
         <div class="compliance-grid">
           <div class="compliance-col anim">
             <h3>ABA Formal Opinion 512 (July 2024)</h3>
-            <p>The first formal ABA guidance on AI. Favorable to local-first tools like Keepance, which is built for ABA Opinion 512 duties.</p>
+            <p>Verify this with your bar counsel; the following is informational, not legal advice. ABA Formal Opinion 512 (July 2024) is the first formal ABA guidance on generative AI. It addresses competence, confidentiality, and supervisory duties. Local-first tools like Keepance align with its confidentiality analysis, but your jurisdiction's rules govern.</p>
           </div>
           <div class="compliance-col anim">
             <h3>U.S. v. Heppner (S.D.N.Y. Feb. 2026)</h3>
-            <p>A February 2026 S.D.N.Y. ruling (United States v. Heppner) found that consumer AI use without attorney direction offers no privilege protection. Local-first sidesteps the issue entirely.</p>
+            <p>Verify this with your bar counsel; the following is informational, not legal advice. A February 2026 S.D.N.Y. ruling found that consumer AI use without attorney direction may offer no privilege protection. Local-first keeps the AI interaction under your direction and within your control.</p>
           </div>
           <div class="compliance-col anim">
             <h3>EU Absolute-Novelty Rule</h3>
-            <p>Premature disclosure to cloud AI can destroy patent rights worldwide. Patent attorneys: this is catastrophic. Keepance prevents it.</p>
+            <p>Transmitting an invention disclosure to a cloud service before filing can bear on patentability under absolute-novelty regimes, including the EPO. Keepance keeps the disclosure on your machine so the question does not arise. For the most sensitive patent work, pair it with a local Ollama model and nothing leaves the machine at all. Worth discussing with IP counsel either way.</p>
           </div>
         </div>
       </div>
@@ -573,41 +573,48 @@
           <p>7 workflow templates that produce drafts a licensed attorney reviews, built for the documents attorneys actually produce. Each pack is reviewed by practicing attorneys and kept current as the law changes. The app trial is available right now; founding-list members get the packs first, at $99/yr.</p>
         </div>
 
+        <!-- LOCAL MODEL CALLOUT -->
+        <div class="anim" style="background:rgba(93,198,255,0.06);border:1px solid rgba(93,198,255,0.2);border-radius:10px;padding:24px 28px;margin-bottom:40px;">
+          <p style="font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--grad-blue);margin-bottom:8px;">For the most sensitive work</p>
+          <p style="font-size:0.9375rem;color:var(--text-heading);font-weight:700;margin-bottom:6px;">Run a local model and nothing leaves your machine at all.</p>
+          <p style="font-size:14px;color:var(--text-body);line-height:1.65;">Keepance supports <a href="https://ollama.com" target="_blank" rel="noopener" style="color:var(--grad-blue);font-weight:600;">Ollama</a>, which runs AI models on your computer without any network calls. Point Keepance at a local Ollama model and your files, your prompts, and your AI responses stay entirely on your machine. No API key, no provider billing, no outbound traffic. This is the right setup for patent prosecution and any matter where even encrypted transit is unacceptable. <a href="/api-key-setup-guide/" style="color:var(--grad-blue);font-weight:600;">See the setup guide</a>.</p>
+        </div>
+
         <div class="template-grid">
 
           <div class="template-card anim">
             <h3>Deposition Contradiction Finder</h3>
-            <p>Feed in deposition transcripts and prior statements. Keepance flags every inconsistency with page and line citations.</p>
+            <p>Analyzes deposition transcript excerpts for internal inconsistencies and contradictions with prior testimony, flagged with line and page references and organized by topic. Produces suggested follow-up questions.</p>
           </div>
 
           <div class="template-card anim">
             <h3>Evidence Gap Analyzer</h3>
-            <p>Maps your available evidence against each element of your claim. Shows exactly what you're missing before you go to trial.</p>
+            <p>Given your legal theory and the evidence currently in hand, identifies what is missing, what would strengthen the case, and where to look. Produces a gap analysis organized by evidence category with discovery priorities.</p>
           </div>
 
           <div class="template-card anim">
             <h3>Privilege Log Drafter</h3>
-            <p>Generates a properly formatted privilege log from your document descriptions. Fed. R. Civ. P. 26(b)(5) compliant.</p>
+            <p>Drafts a properly formatted privilege log with attorney-client and work product assertions for each entry. Produces a table formatted to common court standards with a cover note and attorney review flags.</p>
           </div>
 
           <div class="template-card anim">
             <h3>Case Timeline Builder</h3>
-            <p>Turns scattered dates, events, and sources into a structured chronological narrative. Cites your documents automatically.</p>
+            <p>Builds a chronological case timeline from events you provide, organized into phases (pre-incident, incident, post-incident, litigation) with statute of limitations flags and procedural deadline notes.</p>
           </div>
 
           <div class="template-card anim">
             <h3>Client Intake Synthesizer</h3>
-            <p>Structures a new matter from intake notes. Sets up the workspace folders, flags missing information, drafts the opening memo.</p>
+            <p>Turns intake call notes into three structured documents in one file: a Matter Summary, a Conflict Check Memo with parties to search, and a Preliminary Scope of Work with suggested next steps.</p>
           </div>
 
           <div class="template-card anim">
             <h3>Discovery Document Triage</h3>
-            <p>Prioritizes a document production by relevance to your theory. Flags potential privilege issues for your review.</p>
+            <p>Given a production set description or document index, builds a prioritized review plan: what to read immediately, what to review before depositions, what to spot-check, and targeted search terms organized by issue.</p>
           </div>
 
           <div class="template-card anim">
             <h3>Patent Disclosure Draft</h3>
-            <p>For IP attorneys: drafts a provisional application section from your inventor's description. Designed around the absolute-novelty timing rules.</p>
+            <p>Structures an invention disclosure from an inventor's description for use by patent counsel in drafting the application. Covers technical field, background, summary, detailed description, a claims sketch (starting point only), abstract, and a pre-filing checklist. Includes a local-first data notice. Pair with Ollama for zero-network-exposure drafting.</p>
           </div>
 
         </div>
@@ -668,6 +675,7 @@
           <span class="section-label">Pricing</span>
           <h2>Simple pricing.</h2>
           <p>Personal is a one-time purchase. Professional and Practice are yearly plans that keep your packs maintained and current.</p>
+          <p style="margin-top:14px;font-size:13.5px;color:var(--text-muted);line-height:1.65;">Keepance is bring-your-own-key: the AI is billed directly by your provider, not by us. Moderate solo use typically runs $5 to $15 a month. A local Ollama model costs $0. <a href="/ai-cost-calculator/" style="color:var(--grad-blue);font-weight:600;">Estimate your cost &rarr;</a></p>
         </div>
 
         <div class="pricing-grid">

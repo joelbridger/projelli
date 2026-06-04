@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub Copilot's Metered Billing Is What Flat-Rate AI Dying Looks Like | Keepance</title>
+  <meta name="description" content="GitHub Copilot moves to AI Credits billing on June 1, 2026. What the mechanics actually mean for professionals running document-heavy workflows, and why this is the third time this pattern has played out in 12 months.">
+  <link rel="canonical" href="https://keepance.com/blog/github-copilot-metered-billing-what-professionals-need-to-know">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://keepance.com/blog/github-copilot-metered-billing-what-professionals-need-to-know">
+  <meta property="og:title" content="GitHub Copilot's Metered Billing Is What Flat-Rate AI Dying Looks Like">
+  <meta property="og:description" content="GitHub Copilot moves to AI Credits billing on June 1, 2026. What the mechanics actually mean for professionals running document-heavy workflows, and why this is the third time this pattern has played out in 12 months.">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      padding: 0 24px 100px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #FF7C6E 0%, #FF6554 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">← All posts</a>
+
+    <h1>GitHub Copilot's Metered Billing Is What Flat-Rate AI Dying Looks Like</h1>
+    <p class="meta">By Jameson Daines · 2026-05-16 · 9 min read</p>
+
+    <p>On April 27, 2026, <a href="https://github.blog/news-insights/company-news/github-copilot-is-moving-to-usage-based-billing/">GitHub announced that Copilot is moving to usage-based billing</a> effective June 1. The plan prices aren't changing. Pro stays at $10/month. Pro+ stays at $39/month. But the included usage is shrinking, and the credit-burning mechanics of the new model are going to surprise a lot of people who aren't paying close attention.</p>
+
+    <p>Copilot is a coding tool and most attorneys, CPAs, and consultants don't use it for client work. But the pattern it illustrates is directly relevant to every AI tool subscription a professional runs. Here's why.</p>
+
+    <h2>What the change actually means (not the headline, the mechanics)</h2>
+
+    <p>The surface story is "GitHub is adding usage-based billing." The real story is more specific: <strong>GitHub is moving from a fixed-included model to a credit consumption model for everything except raw code completions.</strong></p>
+
+    <p>Under the new system, chat, agent runs, and code review all burn AI Credits at a rate of $0.04 per credit. GitHub defines credit packages in terms of interactions with different models, and the conversion rate depends on which model you're using. A single agentic task, where Copilot is reading a codebase, planning a change, writing code, and verifying it, burns substantially more credits than a simple chat message.</p>
+
+    <p>Code completions remain unlimited. But the moment you start running agents or using AI for anything beyond inline autocomplete, you're drawing down credits.</p>
+
+    <p>The community has been trying to price this out, and the numbers aren't comforting. One developer shared a preview in a <a href="https://visualstudiomagazine.com/articles/2026/04/27/devs-sound-off-on-usage-based-copilot-pricing-change-you-will-get-less-but-pay-the-same-price.aspx">Visual Studio Magazine report on the developer reaction</a>: their April usage, which would have been covered under the old included model, was previewed at $902.72 under the new structure. That's a single-user estimate from a community forum and heavy agentic usage in April may not be representative. But even if that number is off by 5x, it illustrates something real: heavy workflows that previously felt "included" are going to have a very different cost profile starting June 1.</p>
+
+    <p>The other change worth noting: automatic model fallback when limits are hit is going away. Under the old system, if you burned through your allocation of a premium model, Copilot would fall back to a cheaper model automatically. Under the new billing model, once you've burned your credits, usage stops. There's no graceful degradation, just a wall.</p>
+
+    <blockquote>
+      <p>Flat-rate AI was never a permanent condition. It was a market-building posture. The companies that offered it needed adoption before they needed margin, and that phase is ending.</p>
+    </blockquote>
+
+    <h2>This is the third time this pattern has played out</h2>
+
+    <p>I want to be direct about something: this is not a surprise, and it's not a one-off. It's the third significant pricing reversal of this type in roughly 12 months.</p>
+
+    <p>The first was Cursor. In late 2025, <a href="https://hypereal.tech/a/cursor-byok-ban-alternative">Cursor killed BYOK support</a>. If you were running your own Anthropic or OpenAI key inside the editor, that stopped working. Cursor's BYOK users were their heaviest users and were contributing zero subscription revenue. The feature was removed.</p>
+
+    <p>The second was Google. On April 1, 2026, <a href="https://help.apiyi.com/en/google-gemini-api-free-tier-changes-april-2026-guide-en.html">Google pulled Gemini Pro models off the free API tier entirely</a>. Gemini 3.1 Pro, 3 Pro, and 2.5 Pro all became paid-only. For anyone who had been running workflows on Gemini Pro at zero marginal cost, that option just stopped existing.</p>
+
+    <p>Now Copilot. Different mechanism, same underlying story: a major platform that had been offering flat-rate or free access to AI capabilities is tightening the economics in a way that will cost heavy users significantly more.</p>
+
+    <p>The pattern matters because professionals tend to build workflows around cost assumptions, the same way they budget software line items in their practice overhead. If you built an AI-assisted document workflow assuming a flat monthly fee covers everything, and that assumption is wrong, the surprise shows up in your P&amp;L, not just your Hacker News feed.</p>
+
+    <h2>Why this happens: the structural argument</h2>
+
+    <p>There's a simple reason this keeps happening. Any tool whose business model depends on monetizing token access will eventually meter that access more precisely.</p>
+
+    <p>The early, open phase of AI tools was about acquiring users. Flat-rate plans, BYOK support, free tiers on powerful models: all of these were designed to reduce friction for adoption. They worked. Once you have the users, the economics shift. If you're a subscription business reselling AI capabilities, your cost structure is directly tied to how much those capabilities are being used. Agentic workflows are substantially more expensive to serve than simple chat. The math that worked when agents were a niche feature doesn't work when they're the primary use case.</p>
+
+    <p>So the tools tighten. Sometimes it's removing BYOK. Sometimes it's moving free capabilities to paid tiers. Sometimes it's restructuring plan pricing so that the same nominal monthly fee covers less. The mechanism varies, but the direction is consistent.</p>
+
+    <p>The only tools where this dynamic doesn't apply are the ones that don't monetize token access at all. If a tool makes its money on the software itself, not on being an intermediary between you and the model, it has no financial reason to meter your usage more tightly over time. A one-time-purchase or annual-subscription desktop app like <a href="https://keepance.com">Keepance</a> is in that position. The fee is for the software. The API calls go from your machine directly to Anthropic or OpenAI, at cost, without passing through any system that needs to monetize your usage. And for an attorney or CPA, that data path also means client information isn't passing through an intermediary with its own privacy posture.</p>
+
+    <h2>What professionals running document-heavy AI workflows should actually do now</h2>
+
+    <p>If you're a professional who relies on any AI subscription tool for client work, the Copilot change is a useful forcing function to audit your assumptions. Here's what I'd actually do.</p>
+
+    <h3>1. Establish your current usage baseline, with specificity</h3>
+
+    <p>Don't guess based on how much you "feel like" you use your AI tools. Look at your actual usage patterns and run them through the current pricing structures. The delta between what you're paying now and what you'd pay under metered billing is what's at stake, and you should know that number before you find it on an invoice.</p>
+
+    <h3>2. Separate the document-drafting use case from everything else</h3>
+
+    <p>For attorneys, CPAs, and consultants, the highest-value AI use case is producing client deliverables: memos, analyses, tax positions, engagement summaries. That work runs on long context and detailed prompts. It's exactly the kind of usage that metered billing hits hardest. Being honest about whether your AI spend is concentrated there determines whether pricing changes are a minor irritant or a real budget impact.</p>
+
+    <h3>3. Consider where your client work actually needs to live</h3>
+
+    <p>If you've been using a bundled AI tool for client document work because it was convenient and felt included, it's worth asking whether that tool was the right choice or just the path of least resistance. For professional client work, the data architecture question (where does client information go when you use this tool) is at least as important as the cost question. Direct API access through a purpose-built professional tool is almost always both cheaper and more defensible on the data side.</p>
+
+    <h3>4. Recalibrate your overall AI budget with fresh numbers</h3>
+
+    <p>This is the right moment to do a full accounting. Total up what you're actually paying for AI across all your subscriptions. Separate the platform and workflow value from the underlying model access cost. Check your assumptions: how many of the pricing decisions you made in the last 12 months were based on conditions that no longer exist?</p>
+
+    <p>Cursor BYOK is gone. Gemini Pro free is gone. Copilot flat-rate for agentic work is going away on June 1. If your AI cost model was built on any of those assumptions, it needs updating.</p>
+
+    <h2>The deeper problem with platform dependency</h2>
+
+    <p>I keep coming back to the same observation when I watch these changes unfold. The professionals who get hurt most are the ones who built their workflows tightly coupled to a specific platform's economics, and who stored client work in that platform's database.</p>
+
+    <p>When you build inside a tool that bundles model access with workflow tooling and cloud storage, you're accepting that tool's pricing decisions for as long as you're inside it. When the pricing changes, you either adapt or you pay more. Adapting is harder than it sounds, especially when the work you've done is locked inside the tool's interface.</p>
+
+    <p>For professionals with formal confidentiality obligations, the dependency is sharper still. Client work that lives in a vendor's cloud is subject to that vendor's data breach risk, subpoena risk, and business continuity risk. A pricing crisis on the vendor's end doesn't have to become your data crisis, but only if the work was never in their hands to begin with.</p>
+
+    <p>The tools where you actually own your workflow are different. If your AI-assisted client work output lives as Markdown files on your device, you can swap the model behind it, change which tool you're using to produce it, or keep the same tool with a different API key, without losing anything. The work is yours regardless of what any platform decides to do next quarter.</p>
+
+    <p>That's the position <a href="https://keepance.com">Keepance</a> starts from: your API key connects directly to Anthropic, OpenAI, or Google, at cost, with no platform intermediary. Everything you produce lives as Markdown on your device. The Professional plan is $149/year, includes one profession pack, and if Anthropic changes their pricing, that's between you and Anthropic. Keepance is not in the middle of it, and has no financial reason to be.</p>
+
+    <p>The Copilot change is a useful prompt to audit your assumptions about AI tooling costs and data architecture. The professionals who do that audit now are going to be in a better position than the ones who find out what the new model costs on their first post-migration invoice.</p>
+
+    <a href="https://keepance.com/#pricing" class="cta">See Keepance, local-first AI workspace for confidential professional work</a>
+
+    <p style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-gray); color: var(--text-muted); font-size: 0.9375rem;">
+      <em>Jameson Daines builds Keepance for attorneys, CPAs, and independent consultants. <a href="/blog/byok-math-for-professionals-2026">Read about the BYOK math for professional users</a> or get Keepance at <a href="https://keepance.com">keepance.com</a>.</em>
+    </p>
+  </div>
+</body>
+</html>
