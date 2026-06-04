@@ -269,6 +269,19 @@ describe('T1-E — no absolute privacy/privilege overclaims', () => {
 });
 
 /**
+ * T1-G — /tour/ page stale content
+ */
+describe('/tour/ page stale content', () => {
+  it('does not contain stale content or forbidden words', () => {
+    const tourHtml = readFileSync(join(WEBSITE_ROOT, 'tour/index.html'), 'utf-8');
+    expect(tourHtml, 'tour: "compliant"').not.toContain('compliant');
+    expect(tourHtml, 'tour: "Keepance ensures"').not.toContain('Keepance ensures');
+    expect(tourHtml, 'tour: dead tax-practice link').not.toContain('href="/tax-practice/');
+    expect(tourHtml, 'tour: "two templates"').not.toContain('two templates');
+  });
+});
+
+/**
  * Blog posts — em-dash sweep.
  *
  * Automatically covers every *.html file in website/blog/ via collectBlogPosts()
