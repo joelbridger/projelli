@@ -17,11 +17,15 @@
  * the user gets the empty workspace and a Group IV notice).
  */
 
-import sampleWorkspace from './sample-workspace.json';
+import sampleWorkspaceLegal from './sample-workspace.json';
+import sampleWorkspaceTax from './sample-workspace-tax.json';
+import sampleWorkspaceConsulting from './sample-workspace-consulting.json';
 import { WebFSBackend } from '@/modules/workspace/WebFSBackend';
 
 const SEED_FLAG_KEY = '__keepance_demo_seeded';
 const SEED_VERSION_KEY = '__keepance_demo_seed_version';
+
+export type DemoProfession = 'legal' | 'tax' | 'consulting';
 
 interface SampleFile {
   path: string;
@@ -34,23 +38,47 @@ interface SampleWorkspace {
   files: SampleFile[];
 }
 
-const sample = sampleWorkspace as SampleWorkspace;
+/**
+ * Read the `profession` URL parameter to determine which demo workspace to
+ * seed. Accepts `legal` (default), `tax`, or `consulting`. Any unrecognised
+ * value falls back to `legal`.
+ */
+export function getDemoProfession(): DemoProfession {
+  if (typeof window === 'undefined') return 'legal';
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get('profession');
+  if (raw === 'tax') return 'tax';
+  if (raw === 'consulting') return 'consulting';
+  return 'legal';
+}
+
+function getSampleForProfession(profession: DemoProfession): SampleWorkspace {
+  if (profession === 'tax') return sampleWorkspaceTax as SampleWorkspace;
+  if (profession === 'consulting') return sampleWorkspaceConsulting as SampleWorkspace;
+  return sampleWorkspaceLegal as SampleWorkspace;
+}
 
 /**
  * Public seed entry point. Returns the WebFSBackend pointing at the seeded
  * OPFS workspace so the rest of the app can use it without re-resolving.
  *
- * Idempotent: if the seed flag is already set AND the version matches, we
- * skip the writes and just return the backend pointing at the existing
- * directory. Bumping `sample-workspace.json#version` re-seeds everyone.
+ * Idempotent: if the seed flag is already set AND the version + profession
+ * match what is already seeded, we skip the writes and return the backend
+ * pointing at the existing directory. Bumping a sample JSON's `version`
+ * field, or navigating to /try/ with a different `profession` parameter,
+ * triggers a fresh re-seed.
  */
 export async function seedWebDemoWorkspace(): Promise<{
   backend: WebFSBackend | null;
   seeded: boolean;
+  profession: DemoProfession;
   reason?: string;
 }> {
+  const profession = getDemoProfession();
+  const sample = getSampleForProfession(profession);
+
   if (typeof navigator === 'undefined' || typeof navigator.storage.getDirectory !== 'function') {
-    return { backend: null, seeded: false, reason: 'opfs-unsupported' };
+    return { backend: null, seeded: false, profession, reason: 'opfs-unsupported' };
   }
 
   let opfsRoot: FileSystemDirectoryHandle;
@@ -58,7 +86,7 @@ export async function seedWebDemoWorkspace(): Promise<{
     opfsRoot = await navigator.storage.getDirectory();
   } catch (err) {
     console.warn('[WebDemoSeeder] failed to open OPFS root', err);
-    return { backend: null, seeded: false, reason: 'opfs-open-failed' };
+    return { backend: null, seeded: false, profession, reason: 'opfs-open-failed' };
   }
 
   let demoDir: FileSystemDirectoryHandle;
@@ -66,7 +94,7 @@ export async function seedWebDemoWorkspace(): Promise<{
     demoDir = await opfsRoot.getDirectoryHandle('keepance-demo', { create: true });
   } catch (err) {
     console.warn('[WebDemoSeeder] failed to create demo directory', err);
-    return { backend: null, seeded: false, reason: 'opfs-mkdir-failed' };
+    return { backend: null, seeded: false, profession, reason: 'opfs-mkdir-failed' };
   }
 
   const backend = new WebFSBackend();
@@ -75,8 +103,9 @@ export async function seedWebDemoWorkspace(): Promise<{
 
   const alreadySeeded = readSeedFlag();
   const seededVersion = readSeedVersion();
-  if (alreadySeeded && seededVersion === sample.version) {
-    return { backend, seeded: false, reason: 'already-seeded' };
+  const seededProfession = readSeedProfession();
+  if (alreadySeeded && seededVersion === sample.version && seededProfession === profession) {
+    return { backend, seeded: false, profession, reason: 'already-seeded' };
   }
 
   for (const file of sample.files) {
@@ -90,8 +119,9 @@ export async function seedWebDemoWorkspace(): Promise<{
 
   writeSeedFlag();
   writeSeedVersion(sample.version);
+  writeSeedProfession(profession);
 
-  return { backend, seeded: true };
+  return { backend, seeded: true, profession };
 }
 
 /**
@@ -148,14 +178,35 @@ function writeSeedVersion(version: number): void {
   }
 }
 
+const SEED_PROFESSION_KEY = '__keepance_demo_seed_profession';
+
+function readSeedProfession(): DemoProfession | null {
+  try {
+    const raw = localStorage.getItem(SEED_PROFESSION_KEY);
+    if (raw === 'tax' || raw === 'consulting' || raw === 'legal') return raw;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSeedProfession(profession: DemoProfession): void {
+  try {
+    localStorage.setItem(SEED_PROFESSION_KEY, profession);
+  } catch {
+    // tolerate
+  }
+}
+
 /**
- * Test helper: clears both the flag and the version so the next seed call
- * runs from a clean slate. Not used by production code paths.
+ * Test helper: clears the seed flag, version, and profession so the next
+ * seed call runs from a clean slate. Not used by production code paths.
  */
 export function resetWebDemoSeedFlagForTests(): void {
   try {
     localStorage.removeItem(SEED_FLAG_KEY);
     localStorage.removeItem(SEED_VERSION_KEY);
+    localStorage.removeItem(SEED_PROFESSION_KEY);
   } catch {
     // tolerate
   }

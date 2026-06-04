@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Obsidian vs. Keepance: Two Different Theories of Confidential Work | Keepance</title>
+  <meta name="description" content="Obsidian crossed 1.5 million users in 2026. It's great software. But it's built for a fundamentally different job than what attorneys, CPAs, and consultants need from an AI workspace. Here's where they diverge.">
+  <link rel="canonical" href="https://keepance.com/blog/obsidian-vs-keepance">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://keepance.com/blog/obsidian-vs-keepance">
+  <meta property="og:title" content="Obsidian vs. Keepance: Two Different Theories of Confidential Work">
+  <meta property="og:description" content="Obsidian crossed 1.5 million users in 2026. It's great software. But it's built for a fundamentally different job than what attorneys, CPAs, and consultants need from an AI workspace. Here's where they diverge.">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      padding: 0 24px 100px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #FF7C6E 0%, #FF6554 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">← All posts</a>
+
+    <h1>Obsidian vs. Keepance: Two Different Theories of Confidential Work</h1>
+    <p class="meta">By Jameson Daines · May 15, 2026 · 9 min read</p>
+
+    <p><a href="https://obsidian.md">Obsidian</a> crossed 1.5 million users earlier this year, growing 22% year over year. That's a real number for a paid desktop app in a market full of free competitors. And the reason for it is clear: Obsidian is excellent. Local files, no lock-in, open plugin ecosystem, fast, reliable. If you want a personal knowledge management system, Obsidian is the most serious tool available.</p>
+
+    <p>I use it. I've recommended it. And I still built something completely different with <a href="https://keepance.com">Keepance</a>.</p>
+
+    <p>This isn't a "which is better" post, because that's the wrong frame. These tools are solving different problems. The confusion comes from the surface-level similarity: both are local-first, both work with Markdown files, both are single-person-focused desktop apps. Those overlaps make people think they're in the same category. They're not.</p>
+
+    <p>Here's where they actually diverge, and why it matters for attorneys, CPAs, and consultants doing confidential client work.</p>
+
+    <h2>Obsidian's theory of work: accumulate and connect</h2>
+
+    <p>Obsidian's fundamental model is the knowledge garden. You put things in over time, create links between them, let a second brain emerge from the accumulation. The value compounds with use. The longer you use Obsidian, the richer the vault, the better the graph view, the more powerful the retrieval.</p>
+
+    <p>That's a real and valuable thing. For researchers, writers, academics, and consultants building intellectual capital over years, Obsidian is genuinely powerful at exactly what it's designed for.</p>
+
+    <p>The AI layer that Obsidian's community has built on top of this is impressive. <a href="https://www.obsidianstats.com/tags/knowledge-management">Tools like Smart Connections</a> (853K downloads, 4,700 GitHub stars) add semantic search across your vault. <a href="https://github.com/logancyang/obsidian-copilot">Obsidian Copilot</a> (6,400 stars) lets you chat with your notes across multiple models. Newer entries like <a href="https://www.nxcode.io/resources/news/obsidian-ai-second-brain-complete-guide-2026">Obsilo Agent</a> are building 55+ tool agents that can work inside the vault. There's even an emerging pattern of connecting <a href="https://www.buildmvpfast.com/blog/obsidian-claude-ai-knowledge-management-system-2026">Claude via MCP</a> directly to your Obsidian vault so Claude can read, search, and write your notes.</p>
+
+    <p>This is sophisticated and getting more sophisticated fast. But it's all still pointing at the same underlying model: the vault is a knowledge store, and AI helps you query and extend it.</p>
+
+    <h2>What professionals doing client work actually need from AI</h2>
+
+    <p>Here's the thing I kept running into when I was building Keepance: most of what attorneys, CPAs, and consultants do day-to-day isn't knowledge management in the Obsidian sense. It's producing specific, structured deliverables for specific clients, under a professional duty to keep those matters confidential.</p>
+
+    <p>A memo analyzing a client's exposure under a new regulation. A tax position summary. A competitive landscape brief for a consulting engagement. An NDA review with redline recommendations. These aren't notes. They're client deliverables. Work products that need to exist in a usable form, produced efficiently, and kept off anyone else's servers.</p>
+
+    <p>The difference matters for how AI should be involved. In the Obsidian model, AI is a retrieval and synthesis layer over things you've already written. You ask it questions about your vault. You ask it to connect ideas across notes. The AI is working on content you created.</p>
+
+    <p>In the workflow execution model, AI is a collaborator in creating new artifacts from scratch, guided by structure. You open a template built for your profession, fill in your client context, and AI helps you build a real document that didn't exist before. A client memo. A tax analysis. A strategy brief. A thing with a specific format that does a specific job.</p>
+
+    <p>That's the difference between a knowledge management tool and a professional workflow tool. One helps you maintain and query your accumulated thinking. The other helps you produce structured client deliverables efficiently, with your API key going directly to the model provider and nothing landing in a third-party database.</p>
+
+    <h2>The plugin gap, and the compliance gap</h2>
+
+    <p>To be fair to Obsidian's AI ecosystem: you can get pretty far toward workflow execution with the right combination of plugins. Obsidian's Templater plugin lets you build complex templates with prompts. Community plugins like QuickAdd let you run commands that insert content. And connecting Claude via MCP to your vault enables genuinely sophisticated automation.</p>
+
+    <p>But notice what that requires: you're assembling a stack. You're choosing between <a href="https://www.getopenclaw.ai/tools/obsidian-ai">Smart Connections, Obsidian Copilot, Khoj, Smart Second Brain, Vision Recall, and AI Mentor</a>, evaluating which combination does what you need, managing plugin updates, and figuring out which plugins conflict with each other. Then you're configuring MCP servers, deciding which vault structure supports good AI retrieval, and debugging why your template isn't firing.</p>
+
+    <p>That's a real time investment. For some people, it's worth it. For a solo attorney billing 200 hours a month, it's not. Every hour configuring AI plugins is an hour not billing.</p>
+
+    <p>There's also a compliance dimension that the Obsidian plugin ecosystem largely ignores. When you connect a plugin to a cloud AI service, you're routing client information through whatever infrastructure that plugin uses. For attorneys, <a href="https://www.americanbar.org/content/dam/aba/administrative/professional_responsibility/aba-formal-op-512.pdf">ABA Formal Opinion 512 (2024)</a> requires reasonable measures to prevent disclosure of client information when using AI. For CPAs and EAs handling tax data, IRC §7216 makes unauthorized disclosure a criminal offense. The Obsidian plugin ecosystem doesn't know your bar obligations exist.</p>
+
+    <blockquote>
+      <p>Configuring the perfect AI-powered Obsidian setup is genuinely interesting. It's also not producing the client deliverable you're supposed to finish today. And it almost certainly doesn't satisfy your obligation to understand where client data goes when you use AI tools.</p>
+    </blockquote>
+
+    <p>Keepance skips that entirely. The profession-specific workflow templates are built in and immediately usable. You open a template, do the work, get a Markdown file. Your API key connects directly to Anthropic or OpenAI. Nothing routes through any infrastructure I control. That's the whole flow.</p>
+
+    <h2>The AI memory problem, and where local-first helps differently</h2>
+
+    <p>One argument you'll see in the Obsidian AI community right now is that local-first solves the "AI memory" problem. The idea: AI tools have terrible memory across sessions. They forget everything. But if you keep your notes locally in Obsidian and connect AI to your vault via MCP, the AI can search your actual history and context instead of starting from zero every conversation.</p>
+
+    <p>That's real and worth taking seriously. It's a genuine limitation of cloud AI tools: they don't know what you discussed last Tuesday, who your clients are, what a prior engagement covered, or what decisions you made in your last strategy session. Every conversation starts cold.</p>
+
+    <p>The Obsidian+MCP approach is a reasonable workaround. You push your vault to Claude's context, Claude can search it, and suddenly it has memory. It works.</p>
+
+    <p>But the premise assumes the right output of your AI work is notes in a vault. What if the right output is a client memo with a specific format, a tax analysis organized by issue, a strategy report structured for an executive audience? Then you need more than a note-store with AI retrieval. You need templates that know what a litigation risk memo should look like, what a year-end tax position summary should cover, what a competitive landscape brief should organize.</p>
+
+    <p>That's the memory model in Keepance. Not a vault of notes you ask questions about, but a library of structured client deliverables you've produced, each one the result of a real professional workflow. Your engagement summary from last quarter isn't a note. It's a formatted document. When you run a similar template for a new client, you're not searching for what you said before. You're doing the work properly, with structure guiding you and AI accelerating the production.</p>
+
+    <h2>Which one should you use?</h2>
+
+    <p>Honestly, the answer might be both, for different things.</p>
+
+    <p>If you're building a long-term knowledge base of your own research and thinking, Obsidian is excellent for that. It compounds over time. Use it for your own intellectual property: your research notes, your practice area reading, your methodology thinking.</p>
+
+    <p>If what you need is to produce client deliverables efficiently, with AI as a collaborator in the production, with a data path you can actually describe to a client or bar counsel when asked, Obsidian with a collection of plugins is the wrong tool. Not because it's bad, but because it wasn't built for that job.</p>
+
+    <p>Keepance is specifically for that second use case. Client memos. Tax analysis. Engagement summaries. Strategy briefs. All produced through structured AI-guided workflows, all saved as Markdown files you own, all created with your API key going directly to the model provider. No plugin configuration required. No vault architecture decisions. Just the client work.</p>
+
+    <h2>The local-first commitment they share</h2>
+
+    <p>The thing both tools do well, and both do for the same reason, is keep your files on your machine. Obsidian's files are plain Markdown. Keepance's output is plain Markdown. Both are readable in any text editor without the app installed. Both survive the app shutting down.</p>
+
+    <p>That matters more for professional users than for anyone else. For an attorney or CPA, the files your AI tool produces are client records. The idea that they'd live in a vendor's proprietary cloud database, accessible only through that vendor's interface, subject to that vendor's data handling policies, isn't just inconvenient. It's a potential ethics problem. ABA Op 512 calls for understanding what cloud AI services do with client data. IRC §7216 makes certain unauthorized disclosures criminal. The vendor's privacy policy is not a substitute for knowing where the data actually goes.</p>
+
+    <p>Local Markdown files you own don't have that problem. They're yours regardless of what any app does. That's true whether the app is Obsidian or Keepance, and it's a reason worth selecting for when you're evaluating any tool that's going to hold client work.</p>
+
+    <h2>The gap Obsidian's ecosystem hasn't closed</h2>
+
+    <p>Here's the specific thing I couldn't find in any Obsidian plugin: profession-specific workflow templates that know what the output should look like before you start, designed for the confidentiality obligations of legal or tax or consulting work.</p>
+
+    <p>Smart Connections will find related notes. Obsidian Copilot will answer questions about your vault. Khoj will do semantic search across your documents. None of them say "here's a structured framework for a litigation risk memo, with sections for issue identification, applicable authority, risk assessment, and recommended client communication -- let's work through it together with AI filling in what you tell it."</p>
+
+    <p>That specificity is what I built into Keepance's profession packs. Every template defines the output format before you start. You provide the client context. AI accelerates the production. The result is a real deliverable with a predictable structure, produced with a data path that keeps client information off third-party servers. That's a different product with a different theory of work.</p>
+
+    <p>If it's producing real client deliverables, efficiently, with full ownership of the files and a clear data path you can stand behind professionally, <a href="https://keepance.com">Keepance</a> is built for that. The Professional plan is $149/year and includes one profession pack. The Practice plan is $499 one-time for all three packs and up to five seats. Bring your own API key. Everything lives on your device.</p>
+
+    <a href="https://keepance.com" class="cta">Download Keepance free →</a>
+  </div>
+</body>
+</html>
