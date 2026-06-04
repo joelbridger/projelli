@@ -166,6 +166,8 @@ export const ClientDiscoverySynthesizer: WorkflowTemplate = {
   description: 'Turns raw discovery call notes into a structured client brief with Executive Summary, Situation as Understood, Stakeholder Map, Core Problem Statement, Constraints, Open Questions organized by who answers them, and 2–3 suggested scope options.',
   version: '1.0.0',
   category: 'consulting',
+  requiresVerification: true,
+  verificationNote: 'Verify all themes and quotes against the original interview notes before presenting to a client.',
   steps: [
     {
       id: 'interview',

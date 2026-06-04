@@ -135,6 +135,8 @@ export const ClientFinancialPlanSummary: WorkflowTemplate = {
   description: 'Produces a professional client-facing meeting summary covering objectives recap, current allocation snapshot, key recommendations, agreed next steps, and a compliance note, ready for the advisor to review and send.',
   version: '1.0.0',
   category: 'advisors',
+  requiresVerification: true,
+  verificationNote: 'This output is a draft summary. Verify all figures against source data and have a licensed advisor review before presenting to the client.',
   steps: [
     {
       id: 'interview',

@@ -134,6 +134,7 @@ export const TaxResearchMemo: WorkflowTemplate = {
   version: '1.0.0',
   category: 'tax',
   requiresVerification: true,
+  verificationNote: 'Verify all IRC section references, Revenue Procedure citations, and regulatory framing against primary authority (IRS.gov, Checkpoint, Bloomberg Tax) before relying on this memo in client advice.',
   steps: [
     {
       id: 'interview',

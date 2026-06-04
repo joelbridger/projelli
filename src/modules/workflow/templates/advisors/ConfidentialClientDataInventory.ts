@@ -169,6 +169,8 @@ export const ConfidentialClientDataInventory: WorkflowTemplate = {
   description: 'Produces a structured inventory of client data types the advisor holds (financial statements, account numbers, tax returns, insurance policies, estate documents, etc.), where each type is stored, and a plain-language risk note per item, useful for WISP development and Regulation S-P awareness.',
   version: '1.0.0',
   category: 'advisors',
+  requiresVerification: true,
+  verificationNote: 'This inventory is a documentation aid, not a WISP or Reg S-P compliance plan. Have your compliance consultant review it.',
   steps: [
     {
       id: 'interview',

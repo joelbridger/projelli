@@ -219,6 +219,8 @@ export const NoticeResponseDrafter: WorkflowTemplate = {
   description: 'Drafts a structured response letter to an IRS or state tax notice (CP2000, CP2501, Letter 525, audit letters, state equivalents). Produces a letter organized point-by-point around the notice\'s allegations, with a numbered exhibit list and a request for confirmation of receipt. Includes a practitioner checklist and compliance note. The draft must be reviewed by the practitioner before sending.',
   version: '1.0.0',
   category: 'tax',
+  requiresVerification: true,
+  verificationNote: 'Verify every factual assertion and deadline posture against the actual notice and primary IRC authority before sending to the IRS or sharing with your client.',
   steps: [
     {
       id: 'interview',

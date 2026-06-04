@@ -130,6 +130,8 @@ export const DepositionContradictionFinder: WorkflowTemplate = {
   description: 'Analyze deposition transcript excerpts for internal inconsistencies, contradictions with prior testimony, and flagged line/page references. Produces a topic-organized analysis with suggested follow-up questions.',
   version: '1.0.0',
   category: 'legal',
+  requiresVerification: true,
+  verificationNote: 'Verify every flagged contradiction against the original transcript before use. AI can misread nuance, context, or page breaks.',
   steps: [
     {
       id: 'interview',

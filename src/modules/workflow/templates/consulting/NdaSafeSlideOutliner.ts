@@ -135,6 +135,8 @@ export const NdaSafeSlideOutliner: WorkflowTemplate = {
   description: 'Outlines a slide deck that avoids disclosing confidential details. Produces a numbered slide outline with purpose, content bullets, speaker notes, and an NDA compliance checklist.',
   version: '1.0.0',
   category: 'consulting',
+  requiresVerification: true,
+  verificationNote: 'Review this outline for client-specific accuracy before building your final presentation.',
   steps: [
     {
       id: 'interview',

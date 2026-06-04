@@ -129,6 +129,8 @@ export const ClientDocumentInventory: WorkflowTemplate = {
   description: 'Creates a two-part document: a client-facing document request list organized by category (formatted for easy sharing) and an internal tracker table with columns for document, date requested, date received, and notes.',
   version: '1.0.0',
   category: 'tax',
+  requiresVerification: true,
+  verificationNote: 'Confirm all document items against the client\'s actual records before filing deadlines.',
   steps: [
     {
       id: 'interview',

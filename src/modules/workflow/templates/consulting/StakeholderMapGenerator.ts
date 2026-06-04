@@ -155,6 +155,8 @@ export const StakeholderMapGenerator: WorkflowTemplate = {
   description: 'Maps key client stakeholders with their formal authority, stance, influence, and recommended engagement approach. Surfaces political sensitivities and decision structures.',
   version: '1.0.0',
   category: 'consulting',
+  requiresVerification: true,
+  verificationNote: 'Review stakeholder characterizations for accuracy before using in a client engagement.',
   steps: [
     {
       id: 'interview',

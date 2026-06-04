@@ -251,6 +251,8 @@ export const Section7216ConsentTemplate: WorkflowTemplate = {
   description: 'Produces a complete three-document engagement packet: (1) a §7216 consent form meeting Rev. Proc. 2013-14 requirements, (2) a plain-language client cover memo explaining what the client is consenting to and why, and (3) an engagement scope summary. Useful even for practices that already have consent forms — the plain-language memo and scope summary add value on their own.',
   version: '2.0.0',
   category: 'tax',
+  requiresVerification: true,
+  verificationNote: 'Review the consent language against current Treasury Reg. §301.7216-3 requirements and confirm the 12-point-type and separate-document rules are met before presenting to the client.',
   steps: [
     {
       id: 'interview',

@@ -233,6 +233,7 @@ export const ContractReviewChecklist: WorkflowTemplate = {
   version: '1.0.0',
   category: 'legal',
   requiresVerification: true,
+  verificationNote: 'Verify this output against applicable law and professional standards before use in client matters.',
   steps: [
     {
       id: 'interview',

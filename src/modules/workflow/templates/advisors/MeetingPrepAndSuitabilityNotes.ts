@@ -148,6 +148,8 @@ export const MeetingPrepAndSuitabilityNotes: WorkflowTemplate = {
   description: 'Generates a complete pre-meeting briefing package: a client snapshot, last-meeting recap, current concerns summary, suitability checklist stub, and suggested talking points, all in one advisor working document.',
   version: '1.0.0',
   category: 'advisors',
+  requiresVerification: true,
+  verificationNote: 'Suitability determinations are advisor judgments. This output is a conversation framework, not a suitability analysis. Review every item before the client meeting.',
   steps: [
     {
       id: 'interview',

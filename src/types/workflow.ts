@@ -186,6 +186,11 @@ export interface WorkflowTemplate {
    * hallucination of citation details creates professional liability exposure.
    */
   requiresVerification?: boolean;
+  /**
+   * Optional banner text displayed when requiresVerification is true.
+   * If omitted, the UI falls back to a generic verification message.
+   */
+  verificationNote?: string;
 }
 
 /**

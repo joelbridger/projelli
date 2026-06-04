@@ -167,6 +167,8 @@ export const ConfidentialResearchMemo: WorkflowTemplate = {
   description: 'Structures research output for client delivery with a confidentiality header matching the selected level, Research Question, Methodology, Key Findings with evidence, Limitations, Recommended Actions, and Sources.',
   version: '1.0.0',
   category: 'consulting',
+  requiresVerification: true,
+  verificationNote: 'Verify all cited sources, statistics, and market-size figures against primary sources before presenting to a client.',
   steps: [
     {
       id: 'interview',

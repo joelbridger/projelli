@@ -163,6 +163,8 @@ export const AnnualReviewPacket: WorkflowTemplate = {
   description: 'Generates a complete annual review document set: a personalized cover letter recapping the year\'s events and plan changes, a comprehensive review checklist of items to cover, and a narrative plan changes summary for the client file.',
   version: '1.0.0',
   category: 'advisors',
+  requiresVerification: true,
+  verificationNote: 'Verify all performance figures and regulatory references against current account statements before the client meeting.',
   steps: [
     {
       id: 'interview',

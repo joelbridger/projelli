@@ -131,6 +131,8 @@ export const CaseTimelineBuilder: WorkflowTemplate = {
   description: 'Build a chronological case timeline from events the attorney provides, organized into phases (pre-incident, incident, post-incident, litigation), with statute of limitations flags and procedural deadline notes.',
   version: '1.0.0',
   category: 'legal',
+  requiresVerification: true,
+  verificationNote: 'Verify every deadline against applicable court rules and confirm SOL calculations independently before docketing.',
   steps: [
     {
       id: 'interview',

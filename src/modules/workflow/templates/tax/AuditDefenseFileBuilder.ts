@@ -209,6 +209,8 @@ export const AuditDefenseFileBuilder: WorkflowTemplate = {
   description: 'Builds an organized audit response file from practitioner notes, with issue-by-issue defense analysis (position, legal basis, supporting documents, response strategy, open items) plus a cover letter template.',
   version: '1.0.0',
   category: 'tax',
+  requiresVerification: true,
+  verificationNote: "Every 'substantial authority' position in this output is a proposed argument, not a legal determination. Verify citations before filing or communicating to the IRS.",
   steps: [
     {
       id: 'interview',

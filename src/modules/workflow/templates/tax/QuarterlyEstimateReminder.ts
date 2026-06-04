@@ -201,6 +201,8 @@ export const QuarterlyEstimateReminder: WorkflowTemplate = {
   description: 'Generates a personalized client letter explaining the recommended estimated tax payment, how it was calculated (safe-harbor vs actual method), which safe harbor applies based on prior year AGI, and the consequences of underpayment. Goes beyond a generic reminder by walking the client through the actual numbers and their specific situation.',
   version: '2.0.0',
   category: 'tax',
+  requiresVerification: true,
+  verificationNote: 'This output includes a Section 6621 interest rate that changes quarterly. Verify the current rate and confirm safe-harbor math against the client\'s prior-year liability before sending.',
   steps: [
     {
       id: 'interview',

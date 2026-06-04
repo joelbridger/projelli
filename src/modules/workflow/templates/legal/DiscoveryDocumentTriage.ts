@@ -170,6 +170,8 @@ export const DiscoveryDocumentTriage: WorkflowTemplate = {
   description: 'Given a production set description or document index, build a prioritized review plan: what to read immediately, what to review before depositions, what to spot-check, and targeted search terms organized by issue.',
   version: '1.0.0',
   category: 'legal',
+  requiresVerification: true,
+  verificationNote: 'Verify this output against applicable law and professional standards before use in client matters.',
   steps: [
     {
       id: 'interview',

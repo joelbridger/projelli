@@ -172,6 +172,8 @@ export const EngagementRetrospectiveBuilder: WorkflowTemplate = {
   description: 'Post-engagement retrospective capturing what went well, what was harder than expected, deliverables, client feedback, and whether to pursue similar work in future.',
   version: '1.0.0',
   category: 'consulting',
+  requiresVerification: true,
+  verificationNote: 'Review all retrospective findings for accuracy before sharing with the client.',
   steps: [
     {
       id: 'interview',

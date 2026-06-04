@@ -225,6 +225,8 @@ export const StatementOfWorkDrafter: WorkflowTemplate = {
   description: 'Produces a complete engagement statement of work covering scope, deliverables, timeline, fees, and mutual obligations. Built for the first conversation of every engagement.',
   version: '1.0.0',
   category: 'consulting',
+  requiresVerification: true,
+  verificationNote: 'The legal clause placeholders are placeholders only. Replace with your lawyer-approved confidentiality, IP, and liability language before presenting to a client.',
   steps: [
     {
       id: 'interview',

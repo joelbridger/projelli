@@ -5,8 +5,8 @@
  *   (a) TaxResearchMemo's systemPrompt contains the word "VERIFICATION"
  *   (b) requiresVerification is true on TaxResearchMemo, EvidenceGapAnalyzer,
  *       and PrivilegeLogDrafter
- *   (c) requiresVerification is NOT set on non-research templates like
- *       EngagementLetterBuilder
+ *   (c) requiresVerification is true on EngagementLetterBuilder (all regulated
+ *       templates carry the flag as of T2-1)
  */
 
 import { describe, it, expect } from 'vitest';
@@ -57,9 +57,9 @@ describe('Workstream G — research reliability', () => {
     });
   });
 
-  describe('EngagementLetterBuilder (non-research template)', () => {
-    it('requiresVerification is NOT set', () => {
-      expect(EngagementLetterBuilder.requiresVerification).toBeFalsy();
+  describe('EngagementLetterBuilder (regulated template — T2-1)', () => {
+    it('requiresVerification is true', () => {
+      expect(EngagementLetterBuilder.requiresVerification).toBe(true);
     });
   });
 });

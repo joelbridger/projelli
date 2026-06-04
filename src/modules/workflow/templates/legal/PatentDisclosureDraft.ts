@@ -235,6 +235,8 @@ export const PatentDisclosureDraft: WorkflowTemplate = {
   description: 'Structure an invention disclosure document from an inventor\'s description, for use by a patent attorney in drafting the application. Covers technical field, background, summary, detailed description, claims sketch (starting point only), abstract, and a pre-filing checklist. Includes a local-first data notice.',
   version: '1.0.0',
   category: 'legal',
+  requiresVerification: true,
+  verificationNote: 'Inventorship is a legal determination. Have a registered patent attorney review this disclosure before submission.',
   steps: [
     {
       id: 'interview',

@@ -128,6 +128,8 @@ export const PreReviewChecklist: WorkflowTemplate = {
   description: 'Generates a pre-filing checklist organized by section — income, deductions, credits, carryovers, state items, signature requirements — with elevated-scrutiny flags based on the client\'s income mix and life events.',
   version: '1.0.0',
   category: 'tax',
+  requiresVerification: true,
+  verificationNote: 'Verify all checklist items against the client\'s actual documents before finalizing the return.',
   steps: [
     {
       id: 'interview',

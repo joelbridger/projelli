@@ -194,6 +194,8 @@ export const ClientIntakeSynthesizer: WorkflowTemplate = {
   description: 'Synthesizes new client intake call notes into three structured documents in one file: a Matter Summary, a Conflict Check Memo with parties to search, and a Preliminary Scope of Work with next steps.',
   version: '1.0.0',
   category: 'legal',
+  requiresVerification: true,
+  verificationNote: 'This output is a structured intake record. Run the conflict check independently — this template does not perform or replace a conflict search.',
   steps: [
     {
       id: 'interview',

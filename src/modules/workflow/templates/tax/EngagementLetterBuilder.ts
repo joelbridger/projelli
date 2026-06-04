@@ -157,6 +157,8 @@ export const EngagementLetterBuilder: WorkflowTemplate = {
   description: 'Drafts a professional engagement letter for a new tax client, covering scope of services, client responsibilities, fees, document handling, and engagement limitations.',
   version: '1.0.0',
   category: 'tax',
+  requiresVerification: true,
+  verificationNote: 'Review all scope language and limitation-of-liability clauses against your firm\'s standard terms before sending.',
   steps: [
     {
       id: 'interview',
