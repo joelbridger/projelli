@@ -5,6 +5,9 @@ import { ClientFinancialPlanSummary } from './ClientFinancialPlanSummary';
 import { MeetingPrepAndSuitabilityNotes } from './MeetingPrepAndSuitabilityNotes';
 import { AnnualReviewPacket } from './AnnualReviewPacket';
 import { ConfidentialClientDataInventory } from './ConfidentialClientDataInventory';
+import { RegSPSafeguardsOutline } from './RegSPSafeguardsOutline';
+import { BooksRecordsRetentionNote } from './BooksRecordsRetentionNote';
+import { RegBIDocumentation } from './RegBIDocumentation';
 
 import type { WorkflowTemplate } from '@/types/workflow';
 
@@ -13,6 +16,9 @@ export const ADVISOR_TEMPLATES: WorkflowTemplate[] = [
   MeetingPrepAndSuitabilityNotes,
   AnnualReviewPacket,
   ConfidentialClientDataInventory,
+  RegSPSafeguardsOutline,
+  BooksRecordsRetentionNote,
+  RegBIDocumentation,
 ];
 
 export {
@@ -20,4 +26,7 @@ export {
   MeetingPrepAndSuitabilityNotes,
   AnnualReviewPacket,
   ConfidentialClientDataInventory,
+  RegSPSafeguardsOutline,
+  BooksRecordsRetentionNote,
+  RegBIDocumentation,
 };

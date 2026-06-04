@@ -7,6 +7,9 @@ import { StakeholderMapGenerator } from './StakeholderMapGenerator';
 import { NdaSafeSlideOutliner } from './NdaSafeSlideOutliner';
 import { EngagementRetrospectiveBuilder } from './EngagementRetrospectiveBuilder';
 import { StatementOfWorkDrafter } from './StatementOfWorkDrafter';
+import { CompetitiveLandscapeBuilder } from './CompetitiveLandscapeBuilder';
+import { FindingsSynthesizer } from './FindingsSynthesizer';
+import { WorkshopBoardPrep } from './WorkshopBoardPrep';
 
 import type { WorkflowTemplate } from '@/types/workflow';
 
@@ -17,6 +20,9 @@ export const CONSULTING_TEMPLATES: WorkflowTemplate[] = [
   StakeholderMapGenerator,
   NdaSafeSlideOutliner,
   EngagementRetrospectiveBuilder,
+  CompetitiveLandscapeBuilder,
+  FindingsSynthesizer,
+  WorkshopBoardPrep,
 ];
 
 export {
@@ -26,4 +32,7 @@ export {
   StakeholderMapGenerator,
   NdaSafeSlideOutliner,
   EngagementRetrospectiveBuilder,
+  CompetitiveLandscapeBuilder,
+  FindingsSynthesizer,
+  WorkshopBoardPrep,
 };

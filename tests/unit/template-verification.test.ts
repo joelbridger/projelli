@@ -41,13 +41,24 @@ const MUST_VERIFY = [
   'src/modules/workflow/templates/tax/SCorpReasonableCompMemo.ts',
   'src/modules/workflow/templates/tax/EntityElectionAnalysis.ts',
   'src/modules/workflow/templates/tax/WISPBuilder.ts',
-  // Consulting (all 6)
+  // Consulting (all 9)
   'src/modules/workflow/templates/consulting/ClientDiscoverySynthesizer.ts',
   'src/modules/workflow/templates/consulting/ConfidentialResearchMemo.ts',
   'src/modules/workflow/templates/consulting/NdaSafeSlideOutliner.ts',
   'src/modules/workflow/templates/consulting/StakeholderMapGenerator.ts',
   'src/modules/workflow/templates/consulting/StatementOfWorkDrafter.ts',
   'src/modules/workflow/templates/consulting/EngagementRetrospectiveBuilder.ts',
+  'src/modules/workflow/templates/consulting/CompetitiveLandscapeBuilder.ts',
+  'src/modules/workflow/templates/consulting/FindingsSynthesizer.ts',
+  'src/modules/workflow/templates/consulting/WorkshopBoardPrep.ts',
+  // Advisors (all 7)
+  'src/modules/workflow/templates/advisors/AnnualReviewPacket.ts',
+  'src/modules/workflow/templates/advisors/ClientFinancialPlanSummary.ts',
+  'src/modules/workflow/templates/advisors/MeetingPrepAndSuitabilityNotes.ts',
+  'src/modules/workflow/templates/advisors/ConfidentialClientDataInventory.ts',
+  'src/modules/workflow/templates/advisors/RegSPSafeguardsOutline.ts',
+  'src/modules/workflow/templates/advisors/BooksRecordsRetentionNote.ts',
+  'src/modules/workflow/templates/advisors/RegBIDocumentation.ts',
 ];
 
 describe('template verification banners', () => {
