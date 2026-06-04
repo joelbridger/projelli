@@ -523,6 +523,25 @@
     }
     .gatekeeper-callout a { display: block; font-weight: 600; margin: 6px 0; color: var(--grad-blue); }
     .gatekeeper-callout span { font-size: 0.85rem; color: #64748b; }
+    .season-callout {
+      background: #f0fdf4;
+      border-left: 4px solid #22c55e;
+      padding: 14px 18px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    .season-callout.in-season {
+      background: #fefce8;
+      border-left-color: #eab308;
+    }
+    .founding-rate-hold {
+      font-size: 0.88rem;
+      color: #64748b;
+      margin-top: 8px;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -543,6 +562,7 @@
             <a href="https://github.com/keepance/keepance/releases/latest" class="btn btn-primary">Download free for 30 days</a>
           </div>
           <p class="hero-note">$149/yr, includes one practice pack. 30-day free trial, no credit card. <a href="/try/?profession=tax" style="color:var(--grad-blue);font-weight:600;">Try it in your browser</a> first, or <a href="https://projelli.lemonsqueezy.com/checkout/buy/78ee592e-8f8a-4ce4-9ea4-68a84032d21a?checkout%5Bdiscount_code%5D=FOUNDING" style="color:var(--grad-blue);font-weight:600;">claim the $99/yr founding rate &rarr;</a></p>
+          <div id="season-callout" class="season-callout" style="display:none;"></div>
           <p class="onboarding-reassurance">Never set up an API key before? It is a one-time, five-minute step, and there is a built-in test button so you know it works before you start. Or <a href="/local-model-setup/">run with a local Ollama model</a> and nothing leaves your machine at all.</p>
         </div>
       </div>
@@ -749,6 +769,7 @@
         <p class="pricing-free-note anim">
           Or <a href="https://github.com/keepance/keepance/releases/latest">download free for 30 days</a>, no card, no account required. The app trial is available now; practice packs are built for CPAs and EAs to review and rely on; founding-list members get them first at $99/yr.
         </p>
+        <p id="founding-list" class="founding-rate-hold anim">Joining the founding list reserves your $99/yr rate through the off-season, even if tax season starts before you evaluate. The price holds until you are ready.</p>
         <p class="pricing-free-note anim" style="margin-top:16px;">
           <strong>Your actual AI cost:</strong> you bring your own API key, so the AI itself is billed directly by Anthropic, OpenAI, or Google, typically $5 to $15 a month for moderate use (and $0 if you run a local Ollama model). <a href="/ai-cost-calculator/">Estimate your cost</a>.
         </p>
@@ -815,6 +836,38 @@
         if (typeof plausible === 'function') plausible('Buy click');
       }
     });
+  </script>
+
+  <script>
+    (function() {
+      var month = new Date().getMonth(); // 0=Jan, 11=Dec
+      var el = document.getElementById('season-callout');
+      if (!el) return;
+
+      // Tax season: Jan (0) through mid-April (3)
+      var inSeason = month >= 0 && month <= 3;
+      // Off-season prime evaluation window: Oct (9), Nov (10), Dec (11)
+      var offSeasonPrime = month >= 9;
+      // December specifically: best onboarding month
+      var isDecember = month === 11;
+
+      var msg = '';
+      if (isDecember) {
+        el.className = 'season-callout';
+        msg = '<strong>December is the best month to set up Keepance.</strong> Tax season has not started, you have time to run it against a closed matter, and the WISP Builder is ready for your year-end Safeguards review. The founding rate ($99/yr) is available now and holds until you are ready. <a href="#pricing">See pricing</a>.';
+      } else if (offSeasonPrime) {
+        el.className = 'season-callout';
+        msg = '<strong>Off-season?</strong> This is the right window to evaluate. The founding rate ($99/yr for the first 100 Professional buyers) is open now. Founding-list members get pack updates first and the rate holds through tax season. <a href="#pricing">See pricing</a>.';
+      } else if (inSeason) {
+        el.className = 'season-callout in-season';
+        msg = '<strong>Deep in tax season?</strong> Bookmark this for May. The founding rate ($99/yr) is reserved for founding-list members even if you sign up after the season. <a href="#founding-list">Join the founding list</a> and come back when you have time to evaluate properly.';
+      }
+
+      if (msg) {
+        el.innerHTML = msg;
+        el.style.display = 'block';
+      }
+    })();
   </script>
 
 </body>
