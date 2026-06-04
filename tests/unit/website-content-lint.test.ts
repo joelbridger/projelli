@@ -214,6 +214,25 @@ describe('T1-B — EULA/Terms Practice annual subscription', () => {
 });
 
 /**
+ * T1-D — homepage pricing card reflects actual template counts.
+ *
+ * Counts must match the number of *.ts files (excluding index.ts) in each
+ * src/modules/workflow/templates/<pack>/ directory.
+ */
+describe('T1-D — homepage pricing card reflects actual template counts', () => {
+  it('homepage pricing card reflects actual template counts', async () => {
+    const { promises: fs } = await import('node:fs');
+    const path = await import('node:path');
+    const websiteDir = WEBSITE_ROOT;
+    const homeHtml = await fs.readFile(path.join(websiteDir, 'index.html'), 'utf-8');
+    // These must match actual shipped template counts — update if packs grow
+    expect(homeHtml).toContain('Legal Practice pack: 10 templates');
+    expect(homeHtml).toContain('Tax Practice pack: 8 templates');
+    expect(homeHtml).toContain('Consulting Practice pack: 6 templates');
+  });
+});
+
+/**
  * Blog posts — em-dash sweep.
  *
  * Automatically covers every *.html file in website/blog/ via collectBlogPosts()
