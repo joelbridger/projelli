@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run Keepance with a local Ollama model: zero network egress setup | Keepance</title>
+  <meta name="description" content="Step-by-step guide to running Keepance with a local Ollama model. No API key, no provider account, no outbound AI traffic. The right setup for patent prosecution and sensitive professional work.">
+  <link rel="canonical" href="https://keepance.com/local-model-setup">
+  <meta name="robots" content="index, follow">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://keepance.com/local-model-setup">
+  <meta property="og:title" content="Run Keepance with a local Ollama model: zero network egress setup">
+  <meta property="og:description" content="No API key, no provider account, no outbound AI traffic. Step-by-step setup for Ollama with Keepance.">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Local Ollama model setup for Keepance">
+  <meta name="twitter:description" content="Zero network egress. No API key. No provider. Your model runs on your hardware.">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,400&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    "name": "Run Keepance with a local Ollama model",
+    "description": "Install Ollama, pull a model, and point Keepance at it for fully local AI with zero outbound traffic.",
+    "totalTime": "PT15M",
+    "step": [
+      {
+        "@type": "HowToStep",
+        "name": "Download and install Ollama",
+        "text": "Download Ollama from ollama.com/download. One command installs on Mac and Linux. A Windows installer is available."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Pull a model",
+        "text": "Run: ollama pull llama3.1:8b for a capable 8B model, or ollama pull mistral for a lighter alternative."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Verify Ollama is running",
+        "text": "Ollama starts automatically on Mac. On Windows or Linux, run: ollama serve. The API listens at http://localhost:11434."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Add the provider in Keepance",
+        "text": "Open Settings, go to AI Models, click Add Provider, and select Local (Ollama). Enter http://localhost:11434 as the base URL. Select your model from the dropdown."
+      },
+      {
+        "@type": "HowToStep",
+        "name": "Test with a prompt",
+        "text": "Send a short message. If it responds, you are running fully local with no outbound AI traffic."
+      }
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Does Ollama send my prompts to the internet?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Ollama runs entirely on your machine. When you send a prompt, it goes from Keepance to Ollama's local API at 127.0.0.1:11434 — no outbound network traffic, no external server, no provider logging."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "What hardware do I need?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "An 8B model like Llama 3.1 needs roughly 8GB of RAM. It works on most modern laptops. 13B models need 16GB, 70B models need a GPU with 40GB+ VRAM. For professional writing and research tasks, an 8B model is sufficient."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Do I need an API key for Ollama?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "No. Ollama does not use API keys. There is no provider account, no billing, and no sign-up. You install the software, pull a model, and use it."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Can I use Ollama for patent prosecution work?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Yes. With Ollama, your invention disclosures, draft claims, and prior art notes never leave your machine. No API call means no outbound transmission, which sidesteps concerns about absolute-novelty regimes and confidentiality before filing. Discuss the specifics with IP counsel."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How does Ollama compare to Claude or GPT-4?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Cloud models are more capable for complex reasoning and broad knowledge tasks. An 8B local model is sufficient for drafting, structuring, editing, and synthesizing professional documents. If your work requires deep reasoning or highly specialized domain knowledge, consider pairing Ollama for sensitive drafts with a cloud model for research and analysis."
+        }
+      }
+    ]
+  }
+  </script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+      --accent-coral: #FF7C6E;
+    }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg-white); color: var(--text-body); line-height: 1.75; -webkit-font-smoothing: antialiased; }
+    .nav { position: sticky; top: 0; z-index: 50; background: rgba(255,255,255,0.94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-gray); }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; max-width: 900px; margin: 0 auto; }
+    .nav a.brand { font-weight: 700; color: var(--text-heading); text-decoration: none; font-size: 18px; }
+    .nav-links { display: flex; gap: 24px; font-size: 14px; }
+    .nav-links a { color: var(--text-body); text-decoration: none; font-weight: 500; }
+    .nav-links a:hover { color: var(--accent-blue); }
+    .container { max-width: 800px; margin: 0 auto; padding: 56px 24px 80px; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    h1 { font-size: 2.5rem; color: var(--text-heading); font-weight: 800; letter-spacing: -0.02em; margin-bottom: 16px; line-height: 1.15; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); font-weight: 700; margin-top: 48px; margin-bottom: 16px; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); font-weight: 600; margin-top: 36px; margin-bottom: 12px; }
+    p { margin-bottom: 18px; font-size: 1.0625rem; }
+    ul, ol { margin: 0 0 20px 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    code { background: #F1F5F9; padding: 2px 6px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; color: var(--text-heading); }
+    .code-block { background: #F1F5F9; border: 1px solid var(--border-gray); border-radius: 8px; padding: 16px 20px; margin: 16px 0 24px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.9em; color: var(--text-heading); overflow-x: auto; line-height: 1.6; }
+    .summary { background: var(--bg-surface); border-left: 4px solid var(--accent-blue); padding: 20px 24px; border-radius: 0 8px 8px 0; font-size: 1.0625rem; margin: 24px 0 40px; }
+    .summary strong { color: var(--text-heading); }
+    .step-card { background: var(--bg-surface); padding: 24px 28px; margin: 24px 0; border-radius: 12px; border: 1px solid var(--border-gray); }
+    .step-card h3 { margin-top: 0; display: flex; align-items: center; gap: 12px; }
+    .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; background: var(--accent-blue); color: white; border-radius: 50%; font-size: 0.875rem; font-weight: 700; flex-shrink: 0; }
+    .note { background: #EFF6FF; border-left: 3px solid var(--accent-blue); padding: 16px 20px; margin: 24px 0; border-radius: 4px; font-size: 0.9375rem; }
+    .note strong { color: var(--text-heading); }
+    .privacy-box { background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 12px; padding: 24px 28px; margin: 32px 0; }
+    .privacy-box h3 { color: #166534; margin-top: 0; }
+    .privacy-box p { color: #166534; margin-bottom: 10px; }
+    .privacy-box p:last-child { margin-bottom: 0; }
+    .hardware-table { border-collapse: collapse; margin: 24px 0; width: 100%; font-size: 0.9375rem; }
+    .hardware-table th, .hardware-table td { border: 1px solid var(--border-gray); padding: 12px 14px; text-align: left; vertical-align: top; }
+    .hardware-table th { background: var(--bg-surface); color: var(--text-heading); font-weight: 600; }
+    .faq details { border-bottom: 1px solid var(--border-gray); padding: 14px 0; }
+    .faq details summary { font-weight: 600; color: var(--text-heading); cursor: pointer; font-size: 1.0625rem; }
+    .faq details[open] summary { margin-bottom: 12px; }
+    .faq details p { margin-bottom: 12px; }
+    .faq details p:last-child { margin-bottom: 0; }
+    .next-read { background: var(--bg-surface); padding: 24px; border-radius: 12px; margin-top: 48px; }
+    .next-read h3 { margin-top: 0; }
+    .next-read ul { margin-bottom: 0; }
+    .cta-card { background: linear-gradient(135deg, #3B82F6 0%, #7C3AED 100%); color: white; padding: 32px; border-radius: 12px; margin-top: 48px; text-align: center; }
+    .cta-card h3 { color: white; font-size: 1.25rem; margin-bottom: 10px; }
+    .cta-card p { color: rgba(255,255,255,0.9); margin-bottom: 20px; }
+    .cta-btn { display: inline-block; padding: 14px 32px; background: white; color: var(--text-heading); border-radius: 999px; text-decoration: none; font-weight: 600; }
+    .cta-btn:hover { opacity: 0.92; text-decoration: none; }
+    footer { text-align: center; padding: 32px; color: var(--text-muted); font-size: 0.875rem; border-top: 1px solid var(--border-gray); margin-top: 32px; }
+    footer a { color: var(--text-body); text-decoration: none; margin: 0 8px; }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
+</head>
+<body>
+<div class="container">
+  <h1>Run Keepance with a local Ollama model.</h1>
+  <p class="meta">Updated 2026-06-04 · 10 min read</p>
+
+  <div class="summary">
+    <p><strong>The short version.</strong> Ollama runs an AI model directly on your computer. When you point Keepance at it, your files, your prompts, and your AI responses stay entirely on your machine. No API key. No provider account. No outbound network traffic. This is the setup for patent prosecution, matter-sensitive drafting, and any professional work where even encrypted transit to a cloud provider is not acceptable.</p>
+  </div>
+
+  <h2>Why this matters</h2>
+
+  <p>When you use a cloud AI provider, your prompt travels from your machine to a server, gets processed, and the response travels back. The connection is encrypted and reputable providers have strong terms, but the data did leave your machine. For most work, that is fine.</p>
+
+  <p>For some work, it is not. Patent prosecution is the clearest case: transmitting an invention disclosure to any external party before filing can raise questions under absolute-novelty regimes, including at the European Patent Office. An attorney or agent working on pre-filing prosecution wants the analysis to stay local. A local model means there is no API call, no outbound packet, no third-party server involved at any point.</p>
+
+  <p>That is what Ollama gives you. The model runs on your CPU or GPU. Keepance connects to it over localhost. Nothing leaves the machine.</p>
+
+  <h2>What you need before starting</h2>
+
+  <ul>
+    <li>A computer with at least 8GB of RAM (16GB recommended)</li>
+    <li>About 5GB of free disk space for the model files</li>
+    <li>Keepance installed and open</li>
+  </ul>
+
+  <p>The setup takes about 15 minutes, mostly spent waiting for the model to download. The commands below are the same on Mac, Windows, and Linux.</p>
+
+  <h2>Step 1: Install Ollama</h2>
+
+  <div class="step-card">
+    <h3><span class="step-num">1</span> Download and install Ollama</h3>
+    <p>Go to <a href="https://ollama.com/download" target="_blank" rel="noopener">ollama.com/download</a>.</p>
+    <p><strong>Mac:</strong> Download the Mac app and drag it to Applications. Or run this in Terminal:</p>
+    <div class="code-block">curl -fsSL https://ollama.com/install.sh | sh</div>
+    <p><strong>Linux:</strong> Same one-command install:</p>
+    <div class="code-block">curl -fsSL https://ollama.com/install.sh | sh</div>
+    <p><strong>Windows:</strong> Download the Windows installer from the download page and run it. Ollama installs as a system service.</p>
+  </div>
+
+  <h2>Step 2: Pull a model</h2>
+
+  <div class="step-card">
+    <h3><span class="step-num">2</span> Download a capable model</h3>
+    <p>Open Terminal (Mac/Linux) or PowerShell (Windows) and run one of these commands.</p>
+
+    <p><strong>Recommended for most professional work:</strong></p>
+    <div class="code-block">ollama pull llama3.1:8b</div>
+    <p>Llama 3.1 8B is a capable general-purpose model. It handles drafting, summarizing, structuring, and editing well. The download is about 4.7GB. It runs on most modern laptops without a dedicated GPU.</p>
+
+    <p><strong>Lighter alternative if RAM is limited:</strong></p>
+    <div class="code-block">ollama pull mistral</div>
+    <p>Mistral 7B is a smaller, faster model with lower RAM requirements. Good for editing and shorter drafts.</p>
+
+    <p>You can pull more than one model and switch between them inside Keepance. Models store in <code>~/.ollama/models</code> on Mac/Linux and in your user directory on Windows.</p>
+  </div>
+
+  <h2>Step 3: Verify Ollama is running</h2>
+
+  <div class="step-card">
+    <h3><span class="step-num">3</span> Confirm the local API is up</h3>
+    <p><strong>Mac:</strong> Ollama starts automatically when you open the app. You will see a llama icon in the menu bar when it is running.</p>
+    <p><strong>Linux and Windows:</strong> Run this in your terminal if Ollama did not start automatically:</p>
+    <div class="code-block">ollama serve</div>
+    <p>Ollama's API listens at <code>http://localhost:11434</code>. You can confirm it is up by opening that address in a browser. You should see a response from the Ollama API. If you do not, check that the Ollama process is running.</p>
+  </div>
+
+  <h2>Step 4: Connect Keepance to Ollama</h2>
+
+  <div class="step-card">
+    <h3><span class="step-num">4</span> Add the local provider in Keepance</h3>
+    <ol>
+      <li>Open Keepance</li>
+      <li>Go to <strong>Settings</strong> (gear icon or <code>Ctrl+,</code> on Windows/Linux, <code>Cmd+,</code> on Mac)</li>
+      <li>Click <strong>AI Models</strong></li>
+      <li>Click <strong>Add Provider</strong></li>
+      <li>Select <strong>Local (Ollama)</strong> from the provider list</li>
+      <li>Enter <code>http://localhost:11434</code> as the base URL</li>
+      <li>Click <strong>Fetch Models</strong> — Keepance will query Ollama and populate the model dropdown automatically</li>
+      <li>Select the model you pulled in Step 2</li>
+      <li>Click <strong>Save</strong></li>
+    </ol>
+    <p>No API key field will appear — Ollama does not use one.</p>
+  </div>
+
+  <h2>Step 5: Test with a prompt</h2>
+
+  <div class="step-card">
+    <h3><span class="step-num">5</span> Confirm it works</h3>
+    <p>Open any file in Keepance and start an AI chat. Send a short message like "Summarize this document in two sentences." If the model responds, you are running fully local.</p>
+    <p>Response time will be slower than a cloud model, especially the first prompt after startup. That is normal. The model loads into memory on the first call. Subsequent prompts in the same session are faster.</p>
+  </div>
+
+  <h2>Hardware notes</h2>
+
+  <p>The model size you can run depends on how much RAM your machine has. Here is a practical guide:</p>
+
+  <table class="hardware-table">
+    <thead>
+      <tr>
+        <th>Model size</th>
+        <th>RAM needed</th>
+        <th>GPU needed</th>
+        <th>Suitable for</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>7B or 8B (e.g., Llama 3.1 8B, Mistral 7B)</td>
+        <td>~8GB</td>
+        <td>No — runs on CPU</td>
+        <td>Drafting, editing, summarizing, structuring. Most professional writing tasks.</td>
+      </tr>
+      <tr>
+        <td>13B (e.g., Llama 2 13B)</td>
+        <td>~16GB</td>
+        <td>Helpful, not required</td>
+        <td>More nuanced reasoning. Still practical on a modern laptop with 16GB RAM.</td>
+      </tr>
+      <tr>
+        <td>70B (e.g., Llama 3.1 70B)</td>
+        <td>~40GB VRAM</td>
+        <td>Required (high-end GPU)</td>
+        <td>Near-cloud-quality output. Needs a workstation-class GPU.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>For most patent drafting, CPA work, and contract editing, an 8B model is sufficient. The tasks that benefit most from larger models are complex legal reasoning, multi-step analysis, and broad knowledge retrieval. Those are the tasks where a cloud model with a local Ollama session for sensitive drafts is a reasonable hybrid.</p>
+
+  <div class="note">
+    <strong>If responses are slow on CPU:</strong> Responses from an 8B model on CPU typically run at 5-20 tokens per second, meaning a 300-word response takes 15-60 seconds. That is workable for drafting. If you need faster responses, consider a machine with a GPU, or use Ollama for sensitive drafts and a cloud model for faster iteration on non-sensitive work.
+  </div>
+
+  <h2>Privacy summary</h2>
+
+  <div class="privacy-box">
+    <h3>What stays local with Ollama</h3>
+    <p><strong>No API key required.</strong> There is no account to create, no key to manage, no per-token billing.</p>
+    <p><strong>No outbound AI traffic.</strong> Every prompt and response stays on your machine. The model runs locally. No data leaves.</p>
+    <p><strong>No provider logging.</strong> There is no external server to log requests. Nothing is retained anywhere outside your machine.</p>
+    <p><strong>Works offline.</strong> Once the model is downloaded, Ollama works without any internet connection.</p>
+  </div>
+
+  <h2>Frequently asked questions</h2>
+
+  <div class="faq">
+    <details>
+      <summary>Does Ollama send my prompts to the internet?</summary>
+      <p>No. Ollama runs entirely on your machine. When you send a prompt, it goes from Keepance to Ollama's local API at <code>127.0.0.1:11434</code>. No outbound network traffic, no external server, no provider logging.</p>
+    </details>
+    <details>
+      <summary>Do I need an API key?</summary>
+      <p>No. Ollama does not use API keys. There is no provider account, no billing, and no sign-up required beyond installing the software and pulling a model.</p>
+    </details>
+    <details>
+      <summary>Can I use Ollama for patent prosecution work?</summary>
+      <p>Yes. With Ollama, your invention disclosures, draft claims, and prior art notes never leave your machine. No API call means no outbound transmission, which addresses concerns about pre-filing disclosure under absolute-novelty regimes. Worth discussing the specifics with IP counsel for your jurisdiction and client situation.</p>
+    </details>
+    <details>
+      <summary>How does an 8B local model compare to Claude or GPT-4?</summary>
+      <p>Cloud models are more capable for complex reasoning, broad knowledge retrieval, and tasks that require deep domain expertise. An 8B local model is sufficient for drafting, structuring, editing, and synthesizing documents where you are providing the substantive content and asking the model to organize or refine it. Many practitioners use Ollama for sensitive first drafts and a cloud model for research and analysis.</p>
+    </details>
+    <details>
+      <summary>What if Keepance can't connect to Ollama?</summary>
+      <p>Check that Ollama is running: look for the menu bar icon on Mac, or run <code>ollama serve</code> on Linux/Windows. Confirm the base URL in Keepance is exactly <code>http://localhost:11434</code> with no trailing slash. If you are on Windows and using Windows Subsystem for Linux, the localhost address may differ — check Ollama's documentation for the WSL networking note.</p>
+    </details>
+    <details>
+      <summary>Can I switch between Ollama and a cloud model in Keepance?</summary>
+      <p>Yes. Keepance lets you add multiple providers. You can have Claude, OpenAI, and Ollama all configured. Each AI chat session uses whichever provider and model you select when starting it. You can keep Ollama as your default for sensitive work and switch to a cloud model when you want faster or more capable responses on non-sensitive tasks.</p>
+    </details>
+  </div>
+
+  <div class="next-read">
+    <h3>What to read next</h3>
+    <ul>
+      <li><a href="/byok-ai">BYOK AI explained: bring your own key, the why and how</a></li>
+      <li><a href="/api-key-setup-guide/">Set up a cloud API key (Claude, OpenAI, Gemini)</a></li>
+      <li><a href="/legal/">Keepance for patent attorneys and legal professionals</a></li>
+      <li><a href="/local-first-ai-workspace/">What is a local-first AI workspace?</a></li>
+    </ul>
+  </div>
+
+  <div class="cta-card">
+    <h3>Try Keepance with your own model</h3>
+    <p>Personal is $49 one-time. Professional (with practice pack) is $129. Works with Ollama, Claude, OpenAI, and Gemini. Your data never touches our servers.</p>
+    <a href="/#pricing" class="cta-btn">Get Keepance</a>
+  </div>
+</div>
+
+<footer>
+  <a href="/legal/privacy">Privacy</a> · <a href="/legal/terms">Terms</a> · <a href="/legal/eula">EULA</a> · <a href="/press-kit/">Press kit</a> · <a href="/blog/">Blog</a>
+</footer>
+</body>
+</html>
