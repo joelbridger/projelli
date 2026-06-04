@@ -2517,11 +2517,46 @@ function App() {
   );
 
   // Workflow execution tab: export output as .pptx
+  // T3-4: When the output contains a ```json code fence with a valid SlideJSON
+  // array (produced by NDA-Safe Slide Outliner and other deck workflows), the
+  // structured path is used — themed slides, tables, and speaker notes. Falls
+  // back to the plain markdown-to-pptx path when no slide JSON is present.
   const handleWorkflowExportPptx = useCallback(
     async (content: string, suggestedName: string) => {
       try {
-        const { markdownToPptxBytes } = await import('@/utils/pptx-io');
-        const bytes = await markdownToPptxBytes(content);
+        const pptxIo = await import('@/utils/pptx-io');
+
+        // Try the structured path first
+        const slideJSON = (() => {
+          const match = content.match(/```json\s*(\[[\s\S]*?\])\s*```/);
+          if (!match) return null;
+          try {
+            const parsed = JSON.parse(match[1]!);
+            if (
+              Array.isArray(parsed) &&
+              parsed.length > 0 &&
+              typeof parsed[0]?.title === 'string' &&
+              typeof parsed[0]?.layout === 'string'
+            ) {
+              return parsed as import('@/utils/pptx-io').SlideJSON[];
+            }
+          } catch {
+            // malformed JSON — fall through to markdown path
+          }
+          return null;
+        })();
+
+        const firmNameRaw = (() => {
+          try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; }
+        })();
+        const pptxOptions: import('@/utils/pptx-io').PptxExportOptions = firmNameRaw
+          ? { firmName: firmNameRaw }
+          : {};
+
+        const bytes = slideJSON
+          ? await pptxIo.buildPptxFromSlideJSON(slideJSON, pptxOptions)
+          : await pptxIo.markdownToPptxBytes(content);
+
         await saveFile(bytes, {
           suggestedName,
           types: [

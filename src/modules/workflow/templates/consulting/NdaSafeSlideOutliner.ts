@@ -127,7 +127,32 @@ Every slide outline below is designed to convey the key messages without disclos
 
 ---
 
-*Before building the actual deck, confirm all restricted material remains off-limits. Test each slide against the NDA restrictions list.*`;
+*Before building the actual deck, confirm all restricted material remains off-limits. Test each slide against the NDA restrictions list.*
+
+---
+
+After the Markdown outline above, output a JSON code block with the following exact format. This powers the one-click "Download structured deck" export in Keepance.
+
+\`\`\`json
+[
+  {
+    "title": "Slide title",
+    "layout": "bullets",
+    "bullets": ["Bullet 1", "Bullet 2"],
+    "speakerNotes": "Speaker notes for this slide",
+    "tableData": null
+  }
+]
+\`\`\`
+
+Rules for the JSON block:
+- Include every content slide (not the cover or NDA checklist section).
+- Use \`"table"\` layout and populate \`tableData\` with \`headers\` + \`rows\` when a comparison, matrix, or structured data slide is appropriate.
+- Use \`"two-column"\` layout when side-by-side content is clearer than a single list.
+- Use \`"title-only"\` for transition or section-divider slides with no body content.
+- Default to \`"bullets"\` for all other slides.
+- Always include \`speakerNotes\` (even if brief). These should match the speaker notes in the Markdown outline above.
+- Set \`tableData\` to \`null\` for any non-table slide.`;
 
 export const NdaSafeSlideOutliner: WorkflowTemplate = {
   id: 'consulting-slide-outliner',

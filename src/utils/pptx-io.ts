@@ -351,6 +351,176 @@ export async function extractSlides(source: PptxSource): Promise<SlidePreview[]>
   return slides;
 }
 
+// ---------------------------------------------------------------------------
+// T3-4: Structured slide JSON → themed PPTX export
+// ---------------------------------------------------------------------------
+
+/**
+ * Describes a single slide's content for structured PPTX generation.
+ * Produced by the NDA-Safe Slide Outliner (and any future slide workflows)
+ * as a JSON code fence appended to the Markdown outline.
+ */
+export interface SlideJSON {
+  title: string;
+  layout: 'title-only' | 'bullets' | 'two-column' | 'table';
+  bullets: string[];
+  speakerNotes: string;
+  tableData: { headers: string[]; rows: string[][] } | null;
+}
+
+export interface PptxExportOptions {
+  firmName?: string;
+}
+
+/**
+ * Build a themed `.pptx` from a structured array of `SlideJSON` objects.
+ *
+ * Features vs the plain `markdownToPptxBytes` path:
+ *  - Navy (#0A2540) title bar on every content slide
+ *  - Optional dark title slide with firm name
+ *  - Table slides via `addTable()`
+ *  - Two-column bullet layout
+ *  - Speaker notes preserved via `addNotes()`
+ *
+ * Returns `Uint8Array` so the caller can feed it straight into `saveFile()`
+ * or `pptxBytesToDataUrl()` without further conversion.
+ */
+export async function buildPptxFromSlideJSON(
+  slides: SlideJSON[],
+  options: PptxExportOptions = {}
+): Promise<Uint8Array> {
+  const pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_WIDE';
+  pptx.theme = { headFontFace: 'Arial', bodyFontFace: 'Arial' };
+
+  // Optional dark title/cover slide
+  if (options.firmName) {
+    const titleSlide = pptx.addSlide();
+    titleSlide.background = { color: '0A2540' };
+    titleSlide.addText(options.firmName, {
+      x: 0.5,
+      y: 2.5,
+      w: 9,
+      h: 1,
+      fontSize: 28,
+      bold: true,
+      color: 'FFFFFF',
+      align: 'center',
+    });
+    titleSlide.addText('Prepared with Keepance', {
+      x: 0.5,
+      y: 3.5,
+      w: 9,
+      h: 0.5,
+      fontSize: 14,
+      color: '8A9BB0',
+      align: 'center',
+    });
+  }
+
+  // Content slides
+  for (const slide of slides) {
+    const s = pptx.addSlide();
+    s.background = { color: 'FFFFFF' };
+
+    // Navy title bar at top
+    s.addShape(pptx.ShapeType.rect, {
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 0.08,
+      fill: { color: '0A2540' },
+      line: { color: '0A2540' },
+    });
+
+    // Slide title
+    s.addText(slide.title, {
+      x: 0.4,
+      y: 0.2,
+      w: 9.2,
+      h: 0.7,
+      fontSize: 22,
+      bold: true,
+      color: '0A2540',
+    });
+
+    if (slide.layout === 'bullets' && slide.bullets.length > 0) {
+      const bulletItems = slide.bullets.map((b) => ({
+        text: b,
+        options: {
+          bullet: { type: 'bullet' as const },
+          fontSize: 16,
+          color: '3A3A38',
+          paraSpaceAfter: 4,
+        },
+      }));
+      s.addText(bulletItems, { x: 0.4, y: 1.1, w: 9.2, h: 4.5 });
+    }
+
+    if (slide.layout === 'table' && slide.tableData) {
+      const headerRow = slide.tableData.headers.map((h) => ({
+        text: h,
+        options: {
+          bold: true,
+          color: 'FFFFFF',
+          fill: { color: '0A2540' },
+        },
+      }));
+      const dataRows = slide.tableData.rows.map((row) =>
+        row.map((cell) => ({ text: cell, options: { color: '3A3A38' } }))
+      );
+      s.addTable([headerRow, ...dataRows], {
+        x: 0.4,
+        y: 1.1,
+        w: 9.2,
+        border: { type: 'solid', color: 'E0E0D8', pt: 1 },
+        rowH: 0.4,
+      });
+    }
+
+    if (slide.layout === 'two-column' && slide.bullets.length > 0) {
+      const half = Math.ceil(slide.bullets.length / 2);
+      const col1 = slide.bullets.slice(0, half).map((b) => ({
+        text: b,
+        options: {
+          bullet: { type: 'bullet' as const },
+          fontSize: 16,
+          color: '3A3A38',
+          paraSpaceAfter: 4,
+        },
+      }));
+      const col2 = slide.bullets.slice(half).map((b) => ({
+        text: b,
+        options: {
+          bullet: { type: 'bullet' as const },
+          fontSize: 16,
+          color: '3A3A38',
+          paraSpaceAfter: 4,
+        },
+      }));
+      s.addText(col1, { x: 0.4, y: 1.1, w: 4.5, h: 4.5 });
+      s.addText(col2, { x: 5.1, y: 1.1, w: 4.5, h: 4.5 });
+    }
+
+    if (slide.layout === 'title-only') {
+      // Title already rendered above; nothing more to add
+    }
+
+    if (slide.speakerNotes) {
+      s.addNotes(slide.speakerNotes);
+    }
+  }
+
+  const out = (await pptx.write({ outputType: 'arraybuffer' })) as unknown;
+  if (out instanceof Uint8Array) {
+    return out;
+  }
+  if (out instanceof ArrayBuffer) {
+    return new Uint8Array(out as ArrayBuffer);
+  }
+  throw new Error('Unexpected PptxGenJS output — expected Uint8Array/ArrayBuffer.');
+}
+
 /**
  * Bundle pptx bytes back into a data URL for the editor tab's `content`.
  * Mirrors `docxBytesToDataUrl` / `spreadsheetBytesToDataUrl`.
