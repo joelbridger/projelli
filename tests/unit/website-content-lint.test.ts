@@ -178,6 +178,42 @@ describe('T1-A — no false attorney/CPA/consultant-review claims', () => {
 });
 
 /**
+ * T1-B — pricing accuracy: EULA/Terms Practice annual, $129 sweep.
+ */
+describe('T1-B — EULA/Terms Practice annual subscription', () => {
+  const websiteDir = WEBSITE_ROOT;
+
+  it('EULA describes Practice as an annual subscription, not one-time perpetual', () => {
+    const eulaHtml = readFileSync(join(websiteDir, 'legal/eula/index.html'), 'utf-8');
+    const termsHtml = readFileSync(join(websiteDir, 'legal/terms/index.html'), 'utf-8');
+
+    expect(eulaHtml, 'EULA Practice should not say one-time').not.toMatch(/Practice[^<]{0,80}one-time/i);
+    expect(eulaHtml, 'EULA Practice should not say perpetual').not.toMatch(/Practice[^<]{0,80}perpetual/i);
+    expect(termsHtml, 'Terms Practice should not say one-time').not.toMatch(/Practice[^<]{0,80}one-time/i);
+    expect(eulaHtml, 'EULA Practice should say annual').toMatch(/Practice[^<]{0,120}annual/i);
+  });
+
+  it('no stale $129 Professional price in user-facing copy', () => {
+    const filesToCheck = [
+      'byok-ai/index.html',
+      'blog/byok-actual-cost-after-60-days.html',
+      'blog/keepance-1-5-announce.html',
+      'blog/chat-shouldnt-disappear-when-you-close-the-tab.html',
+      'blog/how-i-built-keepance-in-8-weeks.html',
+      'local-model-setup/index.html',
+      'markdown-for-ai/index.html',
+      'api-key-setup-guide/index.html',
+      'press-kit/index.html',
+      'changelog/index.html',
+    ];
+    for (const f of filesToCheck) {
+      const html = readFileSync(join(websiteDir, f), 'utf-8');
+      expect(html, `stale $129 in ${f}`).not.toMatch(/\$129\b/);
+    }
+  });
+});
+
+/**
  * Blog posts — em-dash sweep.
  *
  * Automatically covers every *.html file in website/blog/ via collectBlogPosts()
