@@ -14,6 +14,7 @@ import mammoth from 'mammoth';
 import { renderAsync } from 'docx-preview';
 import {
   AlignmentType,
+  BorderStyle,
   Document,
   ExternalHyperlink,
   HeadingLevel,
@@ -29,6 +30,15 @@ import { dataUrlToArrayBuffer } from './spreadsheet-io';
 
 /** Either a data URL (typical when read via FSBackend) or raw bytes. */
 type DocxSource = string | ArrayBuffer;
+
+/**
+ * Options for DOCX export. All fields are optional; omitting them produces
+ * the same output as the un-branded default.
+ */
+export interface DocxExportOptions {
+  /** Firm or organization name to display at the top of the exported document. */
+  firmName?: string;
+}
 
 /** Extracted text representations suitable for AI prompts. */
 export interface DocxTextExtraction {
@@ -122,19 +132,69 @@ export async function renderDocxPreview(
 // about text, headings, lists, and emphasis — not mail-merge features.
 
 /**
+ * Build the firm-name letterhead paragraphs that appear at the top of a
+ * branded export. Returns an empty array when firmName is blank.
+ */
+function buildBrandingHeader(firmName: string): Paragraph[] {
+  if (!firmName.trim()) return [];
+
+  const dateString = new Date().toLocaleDateString();
+
+  return [
+    // Firm name — bold, larger
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: firmName.trim(),
+          bold: true,
+          size: 32, // half-points → 16pt
+        }),
+      ],
+    }),
+    // Prepared-by line
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `Document prepared with Keepance — ${dateString}`,
+          size: 20, // 10pt
+          color: '555555',
+        }),
+      ],
+      border: {
+        bottom: {
+          color: 'CCCCCC',
+          space: 4,
+          style: BorderStyle.SINGLE,
+          size: 6,
+        },
+      },
+      spacing: { after: 240 }, // ~0.17 inches below divider
+    }),
+    // Blank line to give breathing room before document body
+    new Paragraph({}),
+  ];
+}
+
+/**
  * Serialize TipTap-produced HTML into a `.docx` byte stream.
  * `fileName` is currently unused but kept in the signature so future metadata
  * (e.g. document title) can be wired without changing callers.
+ *
+ * Pass `options.firmName` to prepend a branded letterhead header.
  */
 export async function serializeDocx(
   tiptapHtml: string,
-  _fileName: string
+  _fileName: string,
+  options: DocxExportOptions = {}
 ): Promise<Uint8Array> {
+  const brandingHeader = buildBrandingHeader(options.firmName ?? '');
   const sectionChildren = htmlToDocxChildren(tiptapHtml);
+
+  const bodyChildren = sectionChildren.length > 0 ? sectionChildren : [new Paragraph({})];
 
   const sectionOptions: ISectionOptions = {
     properties: {},
-    children: sectionChildren.length > 0 ? sectionChildren : [new Paragraph({})],
+    children: [...brandingHeader, ...bodyChildren],
   };
 
   const doc = new Document({
@@ -623,13 +683,16 @@ export function markdownToHtml(markdown: string): string {
 /**
  * One-step convenience: markdown string in, `.docx` bytes out. Used by the
  * "Save as Word" export from the markdown editor / workflow results.
+ *
+ * Pass `options.firmName` to prepend a branded letterhead header.
  */
 export async function markdownToDocxBytes(
   markdown: string,
-  fileName: string
+  fileName: string,
+  options: DocxExportOptions = {}
 ): Promise<Uint8Array> {
   const html = markdownToHtml(markdown);
-  return serializeDocx(html, fileName);
+  return serializeDocx(html, fileName, options);
 }
 
 /**

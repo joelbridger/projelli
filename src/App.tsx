@@ -2490,7 +2490,11 @@ function App() {
     async (content: string, suggestedName: string) => {
       try {
         const { markdownToDocxBytes } = await import('@/utils/docx-io');
-        const bytes = await markdownToDocxBytes(content, suggestedName);
+        // Read firm name from localStorage — the WorkflowExecutionTab input persists it there
+        const firmName = (() => {
+          try { return localStorage.getItem('keepance_firm_name') ?? ''; } catch { return ''; }
+        })();
+        const bytes = await markdownToDocxBytes(content, suggestedName, { firmName });
         await saveFile(bytes, {
           suggestedName,
           types: [

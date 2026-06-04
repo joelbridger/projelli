@@ -7,6 +7,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { InterviewForm } from './InterviewForm';
 import {
   CheckCircle,
@@ -133,6 +135,24 @@ export function WorkflowExecutionTab({
 }: WorkflowExecutionTabProps) {
   const { t } = useTranslation();
   const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  // Firm name persisted in localStorage — used to brand exported .docx files
+  const [firmName, setFirmName] = useState<string>(() => {
+    try {
+      return localStorage.getItem('keepance_firm_name') ?? '';
+    } catch {
+      return '';
+    }
+  });
+
+  const handleFirmNameChange = useCallback((value: string) => {
+    setFirmName(value);
+    try {
+      localStorage.setItem('keepance_firm_name', value);
+    } catch {
+      // localStorage may be unavailable (private browsing, quota exceeded)
+    }
+  }, []);
 
   // Completed step answers for display
   const [completedAnswers, setCompletedAnswers] = useState<
@@ -399,7 +419,21 @@ export function WorkflowExecutionTab({
               <pre className="text-xs whitespace-pre-wrap bg-muted/50 rounded p-3 max-h-[400px] overflow-y-auto">
                 {finalOutput}
               </pre>
-              <div className="flex items-center gap-2 mt-4">
+              {onExportDocx && (
+                <div className="mt-4 mb-3 flex items-center gap-2">
+                  <Label htmlFor="firm-name-input" className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                    Firm name (optional):
+                  </Label>
+                  <Input
+                    id="firm-name-input"
+                    value={firmName}
+                    onChange={(e) => handleFirmNameChange(e.target.value)}
+                    placeholder="e.g. Acme Law PLLC"
+                    className="h-7 text-xs max-w-xs"
+                  />
+                </div>
+              )}
+              <div className="flex items-center gap-2 mt-3">
                 {onSaveAsFile && (
                   <Button
                     size="sm"
