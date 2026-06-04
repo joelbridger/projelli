@@ -112,6 +112,7 @@ export const PrivilegeLogDrafter: WorkflowTemplate = {
   description: 'Given a list of documents, draft a properly formatted privilege log with attorney-client and/or work product assertions for each entry. Produces a table formatted to common court standards with a cover note and attorney review flags.',
   version: '1.0.0',
   category: 'legal',
+  requiresVerification: true,
   steps: [
     {
       id: 'interview',
@@ -130,7 +131,7 @@ export const PrivilegeLogDrafter: WorkflowTemplate = {
       config: {
         outputFile: 'PRIVILEGE_LOG.md',
         promptTemplate: privilegeLogPrompt,
-        systemPrompt: 'You are a legal research assistant helping a licensed attorney draft a privilege log for document production. You write neutral, non-revealing document descriptions that preserve privilege while satisfying discovery requirements. You flag entries that may be vulnerable to challenge so the attorney can make informed decisions. You never provide legal advice and never certify the correctness of privilege assertions — that is the attorney\'s job.',
+        systemPrompt: 'You are a legal research assistant helping a licensed attorney draft a privilege log for document production. You write neutral, non-revealing document descriptions that preserve privilege while satisfying discovery requirements. You flag entries that may be vulnerable to challenge so the attorney can make informed decisions. You never provide legal advice and never certify the correctness of privilege assertions — that is the attorney\'s job.\n\nPRIVILEGE CHARACTERIZATION DISCIPLINE: Flag any privilege characterization for attorney review; this draft is a starting point, not a legal determination. Privilege analysis is fact-specific and jurisdiction-dependent. Every assertion in this log that the attorney has not independently reviewed and approved should be treated as a working draft only. When jurisdictional privilege standards inform an entry, note that those standards must be verified against the applicable court rules and case law for the specific jurisdiction.',
       } as GenerateStepConfig,
     },
   ],

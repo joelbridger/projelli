@@ -213,6 +213,7 @@ export const EstatePlanningClientSummary: WorkflowTemplate = {
   description: 'For estate planning attorneys: given client intake information and planning objectives, produces a structured summary covering client demographics, estate overview, current documents in place, planning goals, recommended documents to consider, and open questions for the next meeting.',
   version: '1.0.0',
   category: 'legal',
+  requiresVerification: true,
   steps: [
     {
       id: 'interview',

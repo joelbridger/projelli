@@ -125,3 +125,53 @@ export function detectCrossClientContext(
     folders,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// D1 — folder scoping helpers
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Filter a list of file paths to only those within a specific top-level
+ * folder inside the workspace root.
+ *
+ * When `scopedFolder` is null/undefined (no scope set), returns all paths
+ * unchanged.
+ *
+ * When `workspaceRoot` is null/undefined, returns all paths unchanged since
+ * we cannot compute the prefix.
+ *
+ * Examples (workspaceRoot = "/ws", scopedFolder = "Acme Corp"):
+ *   ["/ws/Acme Corp/matter/doc.md", "/ws/Beta Inc/doc.md"]
+ *   => ["/ws/Acme Corp/matter/doc.md"]
+ */
+export function filterByScope(
+  filePaths: string[],
+  workspaceRoot: string | null | undefined,
+  scopedFolder: string | null | undefined,
+): string[] {
+  if (!scopedFolder || !workspaceRoot) return filePaths;
+  const normRoot = workspaceRoot.replace(/\/+$/, '');
+  const prefix = `${normRoot}/${scopedFolder}/`;
+  // Also match files that ARE the folder itself (edge case)
+  const exactFolder = `${normRoot}/${scopedFolder}`;
+  return filePaths.filter(
+    (p) => p.startsWith(prefix) || p === exactFolder,
+  );
+}
+
+/**
+ * Extract the distinct top-level folder names from a list of file paths
+ * for use in the folder scope picker. Returns an empty array when
+ * `workspaceRoot` is missing.
+ *
+ * The ROOT_LEVEL_SENTINEL is included when any file sits directly in the
+ * workspace root, so the picker can show it as an option.
+ */
+export function getTopLevelFolderNames(
+  filePaths: string[],
+  workspaceRoot: string | null | undefined,
+): string[] {
+  if (!workspaceRoot) return [];
+  const folderSet = getDistinctTopLevelFolders(filePaths, workspaceRoot);
+  return Array.from(folderSet).sort();
+}

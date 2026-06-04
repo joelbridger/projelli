@@ -47,6 +47,13 @@ export interface ChatSession {
   inputTokens?: number;
   /** Q3 — rolling total output tokens for this chat session. */
   outputTokens?: number;
+  /**
+   * D1 — optional folder scope for this chat. When set, the AI context is
+   * restricted to files whose path starts with this folder prefix. Also
+   * restricts workspace search retrieval to files within this folder.
+   * `null` (or absent) means "all open files — no scope".
+   */
+  scopedFolder?: string | null;
 }
 
 interface AIChatStore {
@@ -74,6 +81,14 @@ interface AIChatStore {
   clearDraftInput: (chatId: string) => void;
   /** M2 — set the Ask-my-workspace mode for a given chat. */
   setAskWorkspaceMode: (chatId: string, enabled: boolean) => void;
+  /**
+   * D1 — set the folder scope for a given chat. Pass `null` to clear the
+   * scope (revert to "all open files"). The value is the top-level folder
+   * name relative to the workspace root (e.g. "Acme Corp"), not the full
+   * absolute path. AIChatViewer resolves it to a full path prefix at call
+   * time using the current rootPath prop.
+   */
+  setScopedFolder: (chatId: string, folder: string | null) => void;
   /**
    * Q3 — Record the cost and token count of a single provider response.
    * Updates both the per-chat aggregate and today's daily bucket
@@ -252,6 +267,37 @@ export const useAIChatStore = create<AIChatStore>()(
         });
       },
 
+      setScopedFolder: (chatId, folder) => {
+        set((state) => {
+          const session = state.sessions[chatId];
+          if (!session) {
+            // Create a minimal session to hold the scope so it persists even
+            // before the first message is sent.
+            return {
+              sessions: {
+                ...state.sessions,
+                [chatId]: {
+                  chatId,
+                  messages: [],
+                  isLoading: false,
+                  lastUpdated: new Date().toISOString(),
+                  scopedFolder: folder,
+                },
+              },
+            };
+          }
+          return {
+            sessions: {
+              ...state.sessions,
+              [chatId]: {
+                ...session,
+                scopedFolder: folder,
+              },
+            },
+          };
+        });
+      },
+
       updateLastMessage: (chatId, content) => {
         set((state) => {
           const session = state.sessions[chatId];
@@ -385,7 +431,7 @@ export const useAIChatStore = create<AIChatStore>()(
     }),
     {
       name: 'ai-chat-storage', // localStorage key
-      version: 4, // Bumped for M2 askWorkspaceMode
+      version: 5, // Bumped for D1 scopedFolder per-session field
       migrate: (persisted: unknown, version: number) => {
         // Older versions lack `dailyCosts`; add an empty map so the
         // store shape stays consistent. We don't retroactively compute
@@ -409,6 +455,8 @@ export const useAIChatStore = create<AIChatStore>()(
             askWorkspaceMode: {},
           };
         }
+        // v4 -> v5: scopedFolder added to ChatSession — existing sessions simply
+        // won't have the field, which is fine (absent = no scope, same as null).
         return persisted as AIChatStore;
       },
     }
@@ -570,4 +618,20 @@ export function useLast7DaysCost(now?: Date): PeriodCostSummary {
  */
 export function useAskWorkspaceMode(chatId: string): boolean {
   return useAIChatStore((s) => Boolean(s.askWorkspaceMode[chatId]));
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// D1 — scoped folder selector
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * D1 — Subscribe to the active folder scope for a specific chat.
+ * Returns `null` when no scope is set (the default — all open files are
+ * included in context). Returns the top-level folder name string when the
+ * user has scoped the chat to a particular folder.
+ */
+export function useScopedFolder(chatId: string): string | null {
+  return useAIChatStore(
+    (s) => s.sessions[chatId]?.scopedFolder ?? null,
+  );
 }

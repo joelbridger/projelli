@@ -8,6 +8,7 @@ import { TaxResearchMemo } from './TaxResearchMemo';
 import { ClientDocumentInventory } from './ClientDocumentInventory';
 import { AuditDefenseFileBuilder } from './AuditDefenseFileBuilder';
 import { QuarterlyEstimateReminder } from './QuarterlyEstimateReminder';
+import { NoticeResponseDrafter } from './NoticeResponseDrafter';
 
 import type { WorkflowTemplate } from '@/types/workflow';
 
@@ -19,6 +20,7 @@ export const TAX_TEMPLATES: WorkflowTemplate[] = [
   ClientDocumentInventory,
   AuditDefenseFileBuilder,
   QuarterlyEstimateReminder,
+  NoticeResponseDrafter,
 ];
 
 export {
@@ -29,4 +31,5 @@ export {
   ClientDocumentInventory,
   AuditDefenseFileBuilder,
   QuarterlyEstimateReminder,
+  NoticeResponseDrafter,
 };

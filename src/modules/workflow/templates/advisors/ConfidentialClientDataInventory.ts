@@ -1,4 +1,4 @@
-// @draft — Advisor Practice Pack v1.0
+// @draft: Advisor Practice Pack v1.0
 // Requires advisor review before shipping. Do not expose to users without review.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
@@ -10,7 +10,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Your name and firm name for the document header. This appears as the owner of the inventory.',
     type: 'text',
     required: true,
-    placeholder: 'e.g., Patricia Nguyen, CFP — Clearwater Financial Advisors',
+    placeholder: 'e.g., Patricia Nguyen, CFP, Clearwater Financial Advisors',
   },
   {
     id: 'primaryCustodians',
@@ -27,27 +27,27 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     type: 'select',
     required: true,
     options: [
-      'Yes — on local hard drive',
-      'Yes — on encrypted external drive',
-      'Yes — on office server',
-      'Yes — in cloud storage (e.g., Dropbox, Google Drive)',
-      'No — statements live only at the custodian portal',
+      'Yes, on local hard drive',
+      'Yes, on encrypted external drive',
+      'Yes, on office server',
+      'Yes, in cloud storage (e.g., Dropbox, Google Drive)',
+      'No, statements live only at the custodian portal',
     ],
-    defaultValue: 'Yes — on local hard drive',
+    defaultValue: 'Yes, on local hard drive',
   },
   {
     id: 'hasPaperFiles',
     question: 'Do you maintain paper files for clients?',
-    description: 'Whether you keep physical paper files — intake forms, signed documents, correspondence, etc.',
+    description: 'Whether you keep physical paper files, intake forms, signed documents, correspondence, etc.',
     type: 'select',
     required: true,
     options: [
-      'Yes — locked file cabinet in office',
-      'Yes — not locked / general office storage',
-      'Minimal — some paper, mostly digital',
-      'No — fully digital',
+      'Yes, locked file cabinet in office',
+      'Yes, not locked / general office storage',
+      'Minimal, some paper, mostly digital',
+      'No, fully digital',
     ],
-    defaultValue: 'Yes — locked file cabinet in office',
+    defaultValue: 'Yes, locked file cabinet in office',
   },
   {
     id: 'crmOrPracticeManagement',
@@ -60,14 +60,14 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'additionalDataSystems',
     question: 'Other data systems or storage locations (optional)',
-    description: 'Any other places where client data lives — financial planning software, tax prep tools, email, video call recordings, etc.',
+    description: 'Any other places where client data lives, financial planning software, tax prep tools, email, video call recordings, etc.',
     type: 'textarea',
     required: false,
     placeholder: 'e.g., eMoney Advisor for financial plans, DocuSign for signed agreements, Zoom recordings (cloud), email on Microsoft 365',
   },
 ];
 
-const confidentialClientDataInventoryPrompt = `You are assisting a financial advisor in creating a structured inventory of the client data types they hold and where each type is stored. This document supports the advisor's information security planning, including their Written Information Security Program (WISP) and their understanding of data subject to Regulation S-P. You are not drafting a WISP or providing legal or compliance advice — you are helping the advisor organize their own knowledge of what data they hold and where.
+const confidentialClientDataInventoryPrompt = `You are assisting a financial advisor in creating a structured inventory of the client data types they hold and where each type is stored. This document supports the advisor's information security planning, including their Written Information Security Program (WISP) and their understanding of data subject to Regulation S-P. You are not drafting a WISP or providing legal or compliance advice, you are helping the advisor organize their own knowledge of what data they hold and where.
 
 Advisor / firm name: {{advisorName}}
 Primary custodian(s): {{primaryCustodians}}
@@ -78,7 +78,7 @@ Other data systems: {{additionalDataSystems}}
 
 Produce a structured client data inventory in Markdown. At the top, include the draft notice.
 
-> **Advisor working document** — Review for completeness and accuracy before filing or using in compliance work.
+> **Advisor working document**, Review for completeness and accuracy before filing or using in compliance work.
 
 ---
 
@@ -93,7 +93,7 @@ Produce a structured client data inventory in Markdown. At the top, include the 
 
 This inventory documents the types of client data held by {{advisorName}} and the primary storage location for each type. It is intended to support information security planning, including Written Information Security Program (WISP) development, and to help the advisor understand their data footprint.
 
-> **Important:** This document does not constitute a WISP or a compliance filing. Regulation S-P (the SEC's privacy rule for broker-dealers and investment advisers) and applicable state privacy laws impose specific obligations regarding the safeguarding and disposal of customer records and information. For full Regulation S-P compliance, consult your compliance consultant about your complete information-security program. This document is a starting point for that conversation — not a substitute for it.
+> **Important:** This document does not constitute a WISP or a compliance filing. Regulation S-P (the SEC's privacy rule for broker-dealers and investment advisers) and applicable state privacy laws impose specific obligations regarding the safeguarding and disposal of customer records and information. For full Regulation S-P compliance, consult your compliance consultant about your complete information-security program. This document is a starting point for that conversation, not a substitute for it.
 >
 > Keepance's local-first architecture keeps your client data on your machine. For full Regulation S-P compliance, consult your compliance consultant about your complete information-security program.
 
@@ -103,10 +103,10 @@ This inventory documents the types of client data held by {{advisorName}} and th
 
 | Data Type | Description | Primary Storage Location | Secondary / Backup Location | Risk Note |
 |---|---|---|---|---|
-| **Account statements** | Periodic statements from custodian(s) showing holdings and transactions | [Custodian portal / local copies per inputs] | [From inputs] | Statements contain account numbers, balances, and transaction history — high sensitivity. Local copies extend the attack surface beyond the custodian's systems. |
+| **Account statements** | Periodic statements from custodian(s) showing holdings and transactions | [Custodian portal / local copies per inputs] | [From inputs] | Statements contain account numbers, balances, and transaction history, high sensitivity. Local copies extend the attack surface beyond the custodian's systems. |
 | **Account numbers** | Client account numbers at custodian(s) | Custodian portal; may appear in statements, emails, or CRM | [CRM if applicable] | Account numbers are a primary target for fraud. Minimize local storage; avoid sending by unencrypted email. |
 | **Social Security numbers** | Client SSNs used for tax reporting, account opening, and identity verification | Custodian portal; may appear in paper intake forms | [Paper files per inputs] | SSNs are the highest-sensitivity identifier. Confirm where these live and whether paper copies are necessary. |
-| **Tax returns and tax documents** | Client-provided 1040s, W-2s, 1099s, K-1s used in financial planning | [From inputs — local, CRM, or planning software] | | Tax documents contain SSNs, income, and asset details. Retention period and disposal method should be defined in your WISP. |
+| **Tax returns and tax documents** | Client-provided 1040s, W-2s, 1099s, K-1s used in financial planning | [From inputs, local, CRM, or planning software] | | Tax documents contain SSNs, income, and asset details. Retention period and disposal method should be defined in your WISP. |
 | **Financial plans and projections** | Written financial plans, Monte Carlo outputs, retirement projections | [Financial planning software per inputs; local if downloaded] | | Plans contain comprehensive financial data. Access should be limited to the advisor and authorized staff. |
 | **Investment policy statements** | Client-signed IPS documents stating risk tolerance, objectives, and guidelines | [CRM, local files, or paper per inputs] | | Signed documents establish the advice relationship and must be retained per regulatory requirements. |
 | **Insurance policies** | Client insurance documents (life, disability, LTC, property) reviewed or referenced in planning | [Local or paper per inputs] | | Insurance policy documents may contain beneficiary names, coverage amounts, and health information. |
@@ -143,7 +143,7 @@ The following custodian(s) hold the majority of primary account data:
 
 | Storage Location | Data Types Stored There | Access Controls |
 |---|---|---|
-[Based on all inputs, generate a row for each distinct storage location: local hard drive, encrypted external drive, office server, CRM, financial planning software, email, custodian portal, cloud storage, paper files. For each, note the types of data stored there and what access controls are in place (or "unknown — review needed" if not clear from the inputs).]
+[Based on all inputs, generate a row for each distinct storage location: local hard drive, encrypted external drive, office server, CRM, financial planning software, email, custodian portal, cloud storage, paper files. For each, note the types of data stored there and what access controls are in place (or "unknown, review needed" if not clear from the inputs).]
 
 ---
 
@@ -151,7 +151,7 @@ The following custodian(s) hold the majority of primary account data:
 
 Based on the information provided, here are areas to review with your compliance consultant or IT security advisor:
 
-[Generate 4–7 specific, actionable items based on what the advisor has shared. For example: if they have local copies of statements, flag data encryption. If paper files are not locked, flag physical security. If email is used for client data, flag encryption. If no formal data destruction policy was mentioned, flag that. Be specific to what was described — don't generate generic boilerplate that doesn't apply to this advisor's actual situation.]
+[Generate 4–7 specific, actionable items based on what the advisor has shared. For example: if they have local copies of statements, flag data encryption. If paper files are not locked, flag physical security. If email is used for client data, flag encryption. If no formal data destruction policy was mentioned, flag that. Be specific to what was described, don't generate generic boilerplate that doesn't apply to this advisor's actual situation.]
 
 1. [Item 1]
 2. [Item 2]
@@ -161,12 +161,12 @@ Based on the information provided, here are areas to review with your compliance
 
 ---
 
-*This inventory is a starting point for information security planning. It is not a legal document, a WISP, or a compliance filing. Consult your compliance consultant about your specific obligations under Regulation S-P and applicable state privacy laws. This output is a draft for the advisor's review — verify all locations and data types against your actual systems before using this document in compliance planning.*`;
+*This inventory is a starting point for information security planning. It is not a legal document, a WISP, or a compliance filing. Consult your compliance consultant about your specific obligations under Regulation S-P and applicable state privacy laws. This output is a draft for the advisor's review, verify all locations and data types against your actual systems before using this document in compliance planning.*`;
 
 export const ConfidentialClientDataInventory: WorkflowTemplate = {
   id: 'advisors-confidential-client-data-inventory',
   name: 'Confidential Client Data Inventory',
-  description: 'Produces a structured inventory of client data types the advisor holds (financial statements, account numbers, tax returns, insurance policies, estate documents, etc.), where each type is stored, and a plain-language risk note per item — useful for WISP development and Regulation S-P awareness.',
+  description: 'Produces a structured inventory of client data types the advisor holds (financial statements, account numbers, tax returns, insurance policies, estate documents, etc.), where each type is stored, and a plain-language risk note per item, useful for WISP development and Regulation S-P awareness.',
   version: '1.0.0',
   category: 'advisors',
   steps: [
@@ -187,7 +187,7 @@ export const ConfidentialClientDataInventory: WorkflowTemplate = {
       config: {
         outputFile: 'CLIENT_DATA_INVENTORY.md',
         promptTemplate: confidentialClientDataInventoryPrompt,
-        systemPrompt: 'You are a financial advisory practice management assistant helping a licensed financial advisor create an inventory of the client data they hold. You are thorough and specific — you generate a complete inventory of realistic data types for an independent or small-firm financial advisor, not a generic checklist. You are careful to frame this as a starting point for compliance planning, not as a substitute for formal compliance work. You always include the Regulation S-P disclaimer and the recommendation to consult a compliance consultant. You flag concrete, specific security gaps based on what the advisor actually described — not generic boilerplate. You note that Keepance\'s local-first architecture keeps data on the advisor\'s machine, and you remind them to consult their compliance consultant for full Regulation S-P compliance.',
+        systemPrompt: 'You are a financial advisory practice management assistant helping a licensed financial advisor create an inventory of the client data they hold. You are thorough and specific, you generate a complete inventory of realistic data types for an independent or small-firm financial advisor, not a generic checklist. You are careful to frame this as a starting point for compliance planning, not as a substitute for formal compliance work. You always include the Regulation S-P disclaimer and the recommendation to consult a compliance consultant. You flag concrete, specific security gaps based on what the advisor actually described, not generic boilerplate. You note that Keepance\'s local-first architecture keeps data on the advisor\'s machine, and you remind them to consult their compliance consultant for full Regulation S-P compliance.',
       } as GenerateStepConfig,
     },
   ],

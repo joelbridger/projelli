@@ -1,4 +1,4 @@
-// @draft — Advisor Practice Pack v1.0
+// @draft: Advisor Practice Pack v1.0
 // Requires advisor review before shipping. Do not expose to users without review.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
@@ -23,7 +23,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'keyLifeEvents',
     question: 'Key life events this year',
-    description: 'Any significant life events that occurred during the review year — job changes, retirement, births, deaths, marriage, divorce, health events, home purchase, inheritance, etc. These anchor the cover letter.',
+    description: 'Any significant life events that occurred during the review year, job changes, retirement, births, deaths, marriage, divorce, health events, home purchase, inheritance, etc. These anchor the cover letter.',
     type: 'textarea',
     required: true,
     placeholder: 'e.g., David turned 65 and enrolled in Medicare. Erin received an inheritance of approximately $200,000 from her mother\'s estate. Paid off primary mortgage in March.',
@@ -42,19 +42,19 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Which checklist items are most important to flag for this client this year? The packet will generate a full standard checklist, but note any that need special emphasis.',
     type: 'textarea',
     required: false,
-    placeholder: 'e.g., Beneficiary designations on the inherited IRA must be confirmed. Long-term care insurance renewal due in February. Will not updated since 2018 — estate attorney referral recommended.',
+    placeholder: 'e.g., Beneficiary designations on the inherited IRA must be confirmed. Long-term care insurance renewal due in February. Will not updated since 2018, estate attorney referral recommended.',
   },
   {
     id: 'additionalContext',
     question: 'Additional context (optional)',
-    description: 'Anything else relevant to this annual review — goals for the coming year, concerns raised by the client, items deferred from prior year.',
+    description: 'Anything else relevant to this annual review, goals for the coming year, concerns raised by the client, items deferred from prior year.',
     type: 'textarea',
     required: false,
-    placeholder: 'e.g., Client expressed interest in charitable giving strategy for next year. Roth conversion analysis was deferred — revisit in Q1.',
+    placeholder: 'e.g., Client expressed interest in charitable giving strategy for next year. Roth conversion analysis was deferred, revisit in Q1.',
   },
 ];
 
-const annualReviewPacketPrompt = `You are assisting a financial advisor in generating an annual review document set for a client. You are not providing financial advice — you are helping the advisor produce professional draft documents they will review and use in the annual review meeting.
+const annualReviewPacketPrompt = `You are assisting a financial advisor in generating an annual review document set for a client. You are not providing financial advice, you are helping the advisor produce professional draft documents they will review and use in the annual review meeting.
 
 Client name: {{clientName}}
 Review year: {{reviewYear}}
@@ -65,7 +65,7 @@ Additional context: {{additionalContext}}
 
 Produce a complete annual review packet in Markdown. At the top, include the draft notice.
 
-> **Draft document** — Review and edit before use with the client.
+> **Draft document**, Review and edit before use with the client.
 
 ---
 
@@ -78,7 +78,7 @@ Produce a complete annual review packet in Markdown. At the top, include the dra
 
 ## Section 1: Annual Review Cover Letter
 
-[Advisor letterhead — name, firm, address, phone, email]
+[Advisor letterhead, name, firm, address, phone, email]
 
 [Date]
 
@@ -88,11 +88,11 @@ Dear {{clientName}},
 
 ### A Year in Review
 
-[2–3 paragraphs recapping the year's key events and plan highlights. Write factually — do not assert specific portfolio performance percentages or returns unless the advisor has provided exact figures. Instead, reference the types of events and changes: "We adjusted your allocation," "You reached the milestone of paying off your mortgage," "Following the inheritance, we established an inherited IRA and a withdrawal schedule." Keep the tone matter-of-fact and professional, not promotional.]
+[2–3 paragraphs recapping the year's key events and plan highlights. Write factually, do not assert specific portfolio performance percentages or returns unless the advisor has provided exact figures. Instead, reference the types of events and changes: "We adjusted your allocation," "You reached the milestone of paying off your mortgage," "Following the inheritance, we established an inherited IRA and a withdrawal schedule." Keep the tone matter-of-fact and professional, not promotional.]
 
 ### Changes to Your Plan This Year
 
-[Present the plan changes made this year in plain language — what changed and why it was the right move given the client's situation. Frame each change as a deliberate decision, not as reaction to markets. 3–6 bullet points.]
+[Present the plan changes made this year in plain language, what changed and why it was the right move given the client's situation. Frame each change as a deliberate decision, not as reaction to markets. 3–6 bullet points.]
 
 ### Looking Ahead
 
@@ -133,21 +133,21 @@ Sincerely,
 | **Goals** | Retirement timeline and savings rate on track | Review | |
 | **Goals** | College or major expenditure savings on track | Review | |
 
-[If checklist items to highlight were provided, add a note below the table flagging those specific items with additional emphasis — e.g., "Note for this review: [item] requires particular attention because [reason from the inputs]."]
+[If checklist items to highlight were provided, add a note below the table flagging those specific items with additional emphasis, e.g., "Note for this review: [item] requires particular attention because [reason from the inputs]."]
 
 ---
 
-## Section 3: Plan Changes Summary — {{reviewYear}}
+## Section 3: Plan Changes Summary, {{reviewYear}}
 
-[Write a 1–2 page narrative summary of the plan changes made this year. This is the advisor's internal record of what changed and why — more detailed than the cover letter. Structure it chronologically or by category (allocation, accounts, income planning, estate, etc.). For each change: what it was, when it was made, what prompted it, and how it connects to the client's goals. Write in a professional, matter-of-fact tone suitable for a client file or audit trail.]
+[Write a 1–2 page narrative summary of the plan changes made this year. This is the advisor's internal record of what changed and why, more detailed than the cover letter. Structure it chronologically or by category (allocation, accounts, income planning, estate, etc.). For each change: what it was, when it was made, what prompted it, and how it connects to the client's goals. Write in a professional, matter-of-fact tone suitable for a client file or audit trail.]
 
 ### Changes Made This Year
 
-[Narrative covering each plan change — organized by category or chronologically. Be specific about what changed, why, and how it connects to the client's plan.]
+[Narrative covering each plan change, organized by category or chronologically. Be specific about what changed, why, and how it connects to the client's plan.]
 
 ### Items Reviewed but Unchanged
 
-[List any areas that were reviewed this year and confirmed as appropriate — i.e., no change was made because the existing approach remained correct. This documents active review, not just inaction.]
+[List any areas that were reviewed this year and confirmed as appropriate, i.e., no change was made because the existing approach remained correct. This documents active review, not just inaction.]
 
 ### Deferred Items
 
@@ -181,7 +181,7 @@ export const AnnualReviewPacket: WorkflowTemplate = {
       config: {
         outputFile: 'ANNUAL_REVIEW_PACKET.md',
         promptTemplate: annualReviewPacketPrompt,
-        systemPrompt: 'You are a financial advisory practice management assistant helping a licensed financial advisor prepare an annual client review packet. You write the cover letter in a warm, professional, personal tone grounded in the client\'s actual events — not generic filler. You are careful never to state specific performance figures or returns unless the advisor has provided them. The checklist section is comprehensive and practical. The plan changes narrative is factual, organized, and suitable for a client file — it documents what changed and why, which is different from marketing the advisor\'s services. You always include a compliance note that all documents require advisor review before use with the client.',
+        systemPrompt: 'You are a financial advisory practice management assistant helping a licensed financial advisor prepare an annual client review packet. You write the cover letter in a warm, professional, personal tone grounded in the client\'s actual events, not generic filler. You are careful never to state specific performance figures or returns unless the advisor has provided them. The checklist section is comprehensive and practical. The plan changes narrative is factual, organized, and suitable for a client file, it documents what changed and why, which is different from marketing the advisor\'s services. You always include a compliance note that all documents require advisor review before use with the client.',
       } as GenerateStepConfig,
     },
   ],

@@ -374,6 +374,18 @@ export function WorkflowExecutionTab({
           </Card>
         )}
 
+        {/* G — Verification banner for research templates */}
+        {isCompleted && template.requiresVerification && (
+          <div
+            data-testid="workflow-verification-banner"
+            role="alert"
+            className="rounded-md border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+          >
+            <span className="font-semibold">Verification required.</span>{' '}
+            This is an AI-generated draft. Verify all citations and regulatory references against primary authority before relying on them.
+          </div>
+        )}
+
         {/* Final output */}
         {isCompleted && finalOutput && (
           <Card className="border-green-500/30">

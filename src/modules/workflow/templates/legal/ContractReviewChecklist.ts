@@ -232,6 +232,7 @@ export const ContractReviewChecklist: WorkflowTemplate = {
   description: 'For transactional and general practice attorneys reviewing an incoming contract: produces a structured review checklist covering standard risk areas including parties and authority, term and termination, payment and fees, IP and data ownership, indemnification and liability cap, governing law and dispute resolution, missing provisions, and recommended redlines.',
   version: '1.0.0',
   category: 'legal',
+  requiresVerification: true,
   steps: [
     {
       id: 'interview',

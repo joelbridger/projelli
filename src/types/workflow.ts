@@ -178,6 +178,14 @@ export interface WorkflowTemplate {
    * Dropped per-pack once an advisor signs off.
    */
   preview?: boolean;
+  /**
+   * Workstream G — Research reliability flag. When true, the workflow output
+   * display shows a non-dismissable verification banner reminding the user to
+   * verify all citations and regulatory references against primary authority.
+   * Set on templates that produce legal or tax research outputs where AI
+   * hallucination of citation details creates professional liability exposure.
+   */
+  requiresVerification?: boolean;
 }
 
 /**

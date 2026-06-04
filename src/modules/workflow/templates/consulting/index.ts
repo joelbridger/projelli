@@ -6,10 +6,12 @@ import { ConfidentialResearchMemo } from './ConfidentialResearchMemo';
 import { StakeholderMapGenerator } from './StakeholderMapGenerator';
 import { NdaSafeSlideOutliner } from './NdaSafeSlideOutliner';
 import { EngagementRetrospectiveBuilder } from './EngagementRetrospectiveBuilder';
+import { StatementOfWorkDrafter } from './StatementOfWorkDrafter';
 
 import type { WorkflowTemplate } from '@/types/workflow';
 
 export const CONSULTING_TEMPLATES: WorkflowTemplate[] = [
+  StatementOfWorkDrafter,
   ClientDiscoverySynthesizer,
   ConfidentialResearchMemo,
   StakeholderMapGenerator,
@@ -18,6 +20,7 @@ export const CONSULTING_TEMPLATES: WorkflowTemplate[] = [
 ];
 
 export {
+  StatementOfWorkDrafter,
   ClientDiscoverySynthesizer,
   ConfidentialResearchMemo,
   StakeholderMapGenerator,

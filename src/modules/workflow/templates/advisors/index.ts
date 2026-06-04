@@ -1,4 +1,4 @@
-// @draft — Advisor Practice Pack v1.0
+// @draft: Advisor Practice Pack v1.0
 // Requires advisor review before shipping. Do not expose to users without advisor sign-off.
 
 import { ClientFinancialPlanSummary } from './ClientFinancialPlanSummary';

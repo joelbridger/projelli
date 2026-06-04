@@ -31,9 +31,10 @@ import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { createDemoProvider } from '@/web-demo/demoAIProvider';
 import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/modules/models/fetchUtils';
 import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
-import { useAIChatStore, getDraftInput, useAskWorkspaceMode } from '@/stores/aiChatStore';
+import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } from '@/stores/aiChatStore';
 import { useFileContextStore } from '@/stores/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
+import { filterByScope } from '@/utils/client-boundary';
 import { ChatCostChip } from '@/components/ai/ChatCostChip';
 import { AIContextIndicator } from '@/components/ai/AIContextIndicator';
 import { ContextMeterBar } from '@/components/chat/ContextMeterBar';
@@ -537,10 +538,12 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // 30-day trial gate. Locks chat send + voice when expired and not paid.
   const trialGate = useTrialGate();
   // Use global store for chat state (persists across navigation)
-  const { sessions, initSession, addMessage, updateLastMessage, setLoading, setDraftInput, clearDraftInput, recordCost, setAskWorkspaceMode } = useAIChatStore();
+  const { sessions, initSession, addMessage, updateLastMessage, setLoading, setDraftInput, clearDraftInput, recordCost, setAskWorkspaceMode, setScopedFolder } = useAIChatStore();
   const chatId = chatData.id;
   const session = sessions[chatId];
   const askWorkspaceMode = useAskWorkspaceMode(chatId);
+  // D1 — the active folder scope for this chat, or null when unrestricted.
+  const scopedFolder = useScopedFolder(chatId);
   // M2 — surfaced inline beneath the input when a citation can't be
   // resolved. Cleared whenever the user interacts with the input again.
   const [missingSourceWarning, setMissingSourceWarning] = useState<string | null>(null);
@@ -569,6 +572,16 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     }
     return out;
   }, [contexts, disabledPaths]);
+
+  // D1 — files actually included in AI context, filtered by the active scope.
+  // When no scope is set, this is identical to openFiles.
+  const scopedOpenFiles = useMemo<ExtractedContext[]>(() => {
+    if (!scopedFolder || !rootPath) return openFiles;
+    const scopedPaths = new Set(
+      filterByScope(openFiles.map((f) => f.path), rootPath, scopedFolder),
+    );
+    return openFiles.filter((f) => scopedPaths.has(f.path));
+  }, [openFiles, scopedFolder, rootPath]);
 
   // Initialize input with saved draft (persists across navigation)
   const [inputValue, setInputValue] = useState(() => getDraftInput(chatId));
@@ -833,7 +846,16 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             retrievalQuery,
             DEFAULT_WORKSPACE_TOP_K,
           );
-          retrievedSources = hits.map((h) => ({
+          // D1 — filter workspace retrieval results to the active folder scope
+          // so @workspace searches don't surface documents from other client
+          // folders when the chat is scoped to a specific folder.
+          const filteredHits = scopedFolder && rootPath
+            ? hits.filter((h) => {
+                const scopedPaths = filterByScope([h.path], rootPath, scopedFolder);
+                return scopedPaths.length > 0;
+              })
+            : hits;
+          retrievedSources = filteredHits.map((h) => ({
             path: h.path,
             chunkText: h.chunkText,
             score: h.score,
@@ -1172,7 +1194,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         // Append any enabled open-file contexts BEFORE the conversation
         // history. This lets the AI treat the files as background material
         // that applies to every turn rather than a stale one-shot attachment.
-        const fileBlock = buildOpenFilesPromptBlock(openFiles);
+        // D1 — use scopedOpenFiles so the prompt only contains files within
+        // the active folder scope (identical to openFiles when no scope is set).
+        const fileBlock = buildOpenFilesPromptBlock(scopedOpenFiles);
 
         // M2 — workspace context block goes at the very top of the
         // system prompt so the retrieval sources are the first thing
@@ -1406,7 +1430,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         setLoading(chatId, false);
       }
     })();
-  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, recordCost, clearDraftInput, askWorkspaceMode]);
+  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode]);
 
   // Stream A2 — File selection handler (paperclip, paste, drag-drop).
   // Accepts images (A1) and PDFs (A2). For PDFs: runs extractPdfText to
@@ -2176,11 +2200,15 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         {/* Workstream D — "What the AI can see" indicator + cross-client warning.
              Always visible so the user knows exactly which files are in context
              for the next message. The cross-client warning appears when open
-             files span more than one top-level folder (different clients). */}
+             files span more than one top-level folder (different clients).
+             D1 — passes the active scopedFolder and change handler so the
+             picker and scope-active banner render correctly. */}
         {openFiles.length > 0 && (
           <AIContextIndicator
-            openFiles={openFiles}
+            openFiles={scopedOpenFiles}
             workspaceRoot={rootPath}
+            scopedFolder={scopedFolder}
+            onScopeChange={(folder) => setScopedFolder(chatId, folder)}
             className="mb-2"
           />
         )}

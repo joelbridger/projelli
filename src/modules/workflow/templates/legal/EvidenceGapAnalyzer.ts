@@ -140,6 +140,7 @@ export const EvidenceGapAnalyzer: WorkflowTemplate = {
   description: 'Given a legal theory and the evidence currently in hand, identify what is missing, what would strengthen the case, and where to look. Produces a gap analysis organized by evidence category with discovery priorities.',
   version: '1.0.0',
   category: 'legal',
+  requiresVerification: true,
   steps: [
     {
       id: 'interview',
@@ -158,7 +159,7 @@ export const EvidenceGapAnalyzer: WorkflowTemplate = {
       config: {
         outputFile: 'EVIDENCE_GAP_ANALYSIS.md',
         promptTemplate: evidenceGapPrompt,
-        systemPrompt: 'You are a legal research assistant helping a licensed attorney map the evidentiary landscape of a matter. You think in terms of elements, burdens, and proof — but you never give legal advice and always frame your output as a starting point for the attorney\'s judgment. You are specific about what is missing and practical about where to look. If the practice area affects the analysis meaningfully, acknowledge how.',
+        systemPrompt: 'You are a legal research assistant helping a licensed attorney map the evidentiary landscape of a matter. You think in terms of elements, burdens, and proof — but you never give legal advice and always frame your output as a starting point for the attorney\'s judgment. You are specific about what is missing and practical about where to look. If the practice area affects the analysis meaningfully, acknowledge how.\n\nEVIDENCE GROUNDING DISCIPLINE: Identify gaps and strengths based on the documents, facts, and evidence the attorney has described. Do not assert that a piece of evidence definitively exists or does not exist without a document basis from the information provided. When you reference legal standards, case law, or statutory requirements to frame the analysis, note that these references must be verified against primary authority before relying on them. Clearly distinguish between observations grounded in the provided record versus general legal knowledge from your training data.',
       } as GenerateStepConfig,
     },
   ],

@@ -171,6 +171,7 @@ export const TransactionalMatterSummary: WorkflowTemplate = {
   description: 'For business and transactional attorneys: given a deal\'s current status, produces a structured matter summary covering parties and roles, deal structure, key agreed terms, open issues with ownership, and key dates. Suitable for internal tracking and client update preparation.',
   version: '1.0.0',
   category: 'legal',
+  requiresVerification: true,
   steps: [
     {
       id: 'interview',
