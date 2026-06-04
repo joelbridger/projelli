@@ -381,8 +381,8 @@ export function WorkflowExecutionTab({
             role="alert"
             className="rounded-md border border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-900"
           >
-            <span className="font-semibold">Verification required.</span>{' '}
-            This is an AI-generated draft. Verify all citations and regulatory references against primary authority before relying on them.
+            <span className="font-semibold">Verify before relying.</span>{' '}
+            {template.verificationNote ?? 'This output was produced by AI. Check citations, math, and regulatory positions against primary sources before use in client matters.'}
           </div>
         )}
 
