@@ -147,6 +147,37 @@ describe('Phase 6 — website content lint', () => {
 });
 
 /**
+ * T1-A — professional-review claim accuracy.
+ *
+ * Asserts that no page claims attorney/CPA/consultant review has already
+ * happened, because every template still carries a @draft header and the
+ * review has not yet taken place. The correct framing is "built with X input".
+ */
+describe('T1-A — no false attorney/CPA/consultant-review claims', () => {
+  const PRACTICE_PAGES: Array<{ label: string; rel: string }> = [
+    { label: 'legal', rel: 'legal/index.html' },
+    { label: 'tax', rel: 'tax/index.html' },
+    { label: 'consulting', rel: 'consulting/index.html' },
+  ];
+
+  const FORBIDDEN_PHRASES = [
+    'attorney-reviewed and kept current',
+    'CPA-reviewed and kept current',
+    'reviewed by practicing attorneys',
+    'reviewed by practicing consultants',
+  ];
+
+  it('does not claim attorney/CPA/consultant review has happened', () => {
+    for (const { label, rel } of PRACTICE_PAGES) {
+      const content = readFileSync(join(WEBSITE_ROOT, rel), 'utf-8');
+      for (const phrase of FORBIDDEN_PHRASES) {
+        expect(content, `${label}: "${phrase}"`).not.toContain(phrase);
+      }
+    }
+  });
+});
+
+/**
  * Blog posts — em-dash sweep.
  *
  * Automatically covers every *.html file in website/blog/ via collectBlogPosts()
