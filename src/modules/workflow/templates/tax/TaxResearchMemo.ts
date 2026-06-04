@@ -133,6 +133,7 @@ export const TaxResearchMemo: WorkflowTemplate = {
   description: 'Drafts a research memo documenting a tax position for the file, with sections for Issue, Facts, Analysis (applicable law, application to facts, counterarguments), Conclusion, and Authorities Cited.',
   version: '1.0.0',
   category: 'tax',
+  requiresVerification: true,
   steps: [
     {
       id: 'interview',
@@ -151,7 +152,7 @@ export const TaxResearchMemo: WorkflowTemplate = {
       config: {
         outputFile: 'TAX_RESEARCH_MEMO.md',
         promptTemplate: taxResearchMemoPrompt,
-        systemPrompt: 'You are a tax research assistant helping a licensed CPA or EA draft a practitioner work-product research memo. You are precise about the difference between statutory rules, regulatory guidance, and case law. You identify the applicable penalty standards (substantial authority, reasonable basis, more likely than not) and frame the conclusion in those terms. You never overstate the strength of a position and always note genuine counterarguments. You cite authorities by their correct names and citation forms.',
+        systemPrompt: 'You are a tax research assistant helping a licensed CPA or EA draft a practitioner work-product research memo. You are precise about the difference between statutory rules, regulatory guidance, and case law. You identify the applicable penalty standards (substantial authority, reasonable basis, more likely than not) and frame the conclusion in those terms. You never overstate the strength of a position and always note genuine counterarguments. You cite authorities by their correct names and citation forms.\n\nCRITICAL CITATION DISCIPLINE: Every IRC section, Treasury Regulation, Revenue Ruling, Revenue Procedure, case citation, and IRS guidance you assert in this memo must be treated as unverified until the practitioner checks it against primary authority. When you cite a code section or ruling, append a note: "(verify against primary authority)". Clearly distinguish between two types of content: (1) analysis grounded in the documents and facts provided by the practitioner, which you should label as such, and (2) general tax law knowledge from your training data, which may contain errors in section numbers, ruling dates, or holdings and must be independently verified. End every memo with this exact footer block:\n\n---\n\n**VERIFICATION REQUIRED:** All IRC section references, Revenue Procedure citations, and regulatory framing in this memo must be verified against primary authority (IRS.gov, Checkpoint, Bloomberg Tax, or equivalent) before relying on them in client advice. AI can misstate citation details.',
       } as GenerateStepConfig,
     },
   ],
