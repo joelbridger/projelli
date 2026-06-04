@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How I Handle Client Return Data with AI</title>
+  <meta name="robots" content="noindex">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Georgia, 'Times New Roman', serif; max-width: 680px; margin: 60px auto; line-height: 1.75; color: #111; padding: 0 24px 60px; font-size: 15px; }
+    h1 { font-size: 1.35rem; border-bottom: 2px solid #0A2540; padding-bottom: 8px; margin-bottom: 20px; color: #0A2540; }
+    h2 { color: #0A2540; font-family: 'Arial', sans-serif; letter-spacing: 0.04em; text-transform: uppercase; font-size: 0.8rem; margin: 24px 0 8px; }
+    p { margin-bottom: 12px; }
+    strong { color: #0A2540; }
+    a { color: #3B82F6; }
+    .firm-field { border-bottom: 1px solid #aaa; min-width: 220px; display: inline-block; outline: none; padding: 2px 0; }
+    .meta { font-size: 0.85rem; color: #666; margin-top: 32px; border-top: 1px solid #ddd; padding-top: 12px; }
+    .usage-note { margin-top: 32px; padding: 16px 20px; background: #f5f5f5; border-radius: 6px; font-size: 0.88rem; font-family: Arial, sans-serif; }
+    @media print { .usage-note { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>How I Handle Client Return Data with AI</h1>
+
+  <p>
+    <strong>Firm:</strong>
+    <span contenteditable="true" class="firm-field" spellcheck="false">[Firm or preparer name]</span>
+    &nbsp;&nbsp;
+    <strong>PTIN:</strong>
+    <span contenteditable="true" class="firm-field" spellcheck="false">[PTIN]</span>
+    &nbsp;&nbsp;
+    <strong>Date:</strong>
+    <span contenteditable="true" class="firm-field" spellcheck="false">[Date]</span>
+  </p>
+
+  <h2>The tool</h2>
+  <p>I use <strong>Keepance</strong>, a local-first AI workspace. AI conversations and every output file are saved as plain text on my own machine in a folder I control. Keepance does not operate a cloud database. Your return information is never stored on Keepance's servers.</p>
+
+  <h2>Where client return data goes</h2>
+  <p><strong>Local model path (Ollama):</strong> When I use a local AI model such as Ollama, client return information never reaches any AI provider. The AI runs on local hardware. Nothing leaves my machine. This path eliminates any Section 7216 disclosure concern entirely, because no return information is "furnished" to a third party.</p>
+  <p><strong>Cloud API key path:</strong> When I use a cloud provider (Anthropic, OpenAI, or Google), my prompts travel directly from my machine to that provider under my personal API key. Keepance's servers are not in the path. Where return information is included in a prompt to a cloud provider, that transmission constitutes a use of return information under IRC Section 7216, and I obtain written client consent using a compliant Section 7216 consent form before any such session. I document each consent in the client file.</p>
+
+  <h2>Section 7216 analysis</h2>
+  <p>IRC Section 7216 prohibits the disclosure or use of tax return information without client consent, subject to defined exceptions. The two paths above map directly onto the analysis:</p>
+  <p><strong>Local Ollama model:</strong> No "disclosure" or "furnishing" to a third party occurs. Section 7216 consent is not required for this path.</p>
+  <p><strong>Cloud API key:</strong> Return information reaches the AI provider. I treat this as a disclosure to a service provider under Treas. Reg. Section 301.7216-2(d) and obtain a signed Section 7216 consent from each affected client before any session involving their data. The consent specifies the provider and the purpose.</p>
+
+  <h2>Client isolation</h2>
+  <p>Each client has their own folder on my machine. An AI session is scoped to that client's folder only. The AI cannot reach another client's files during a session. Keepance's audit log records which files were included in each session, providing a per-client record of AI use that I retain in the client file.</p>
+
+  <h2>Audit log</h2>
+  <p>Every AI action is logged automatically: timestamp, model, files included, and output produced. For any client whose return data was processed with AI assistance, I can produce a complete activity log on request. This log stays on my machine and is part of the permanent client file.</p>
+
+  <p class="meta">
+    Keepance v2.2 &nbsp;·&nbsp;
+    <a href="https://keepance.com/ai-workspace-privacy/">keepance.com/ai-workspace-privacy/</a>
+    &nbsp;·&nbsp; Prepared:
+    <span contenteditable="true" class="firm-field" spellcheck="false">[Date prepared]</span>
+  </p>
+
+  <div class="usage-note">
+    <strong>To use this document:</strong> Click any bracketed field above to fill in your firm name, PTIN, and date. Then print or save as PDF (File &rarr; Print &rarr; Save as PDF). Keep a copy in your engagement file, and provide a copy to clients who ask about your AI data-handling practices. Pair with a signed Section 7216 consent form for any engagement where you use a cloud AI provider.
+  </div>
+</body>
+</html>

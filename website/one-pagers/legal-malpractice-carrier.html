@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How I Use AI and How Client Data Is Protected</title>
+  <meta name="robots" content="noindex">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Georgia, 'Times New Roman', serif; max-width: 680px; margin: 60px auto; line-height: 1.75; color: #111; padding: 0 24px 60px; font-size: 15px; }
+    h1 { font-size: 1.35rem; border-bottom: 2px solid #0A2540; padding-bottom: 8px; margin-bottom: 20px; color: #0A2540; }
+    h2 { color: #0A2540; font-family: 'Arial', sans-serif; letter-spacing: 0.04em; text-transform: uppercase; font-size: 0.8rem; margin: 24px 0 8px; }
+    p { margin-bottom: 12px; }
+    strong { color: #0A2540; }
+    a { color: #3B82F6; }
+    .firm-field { border-bottom: 1px solid #aaa; min-width: 220px; display: inline-block; outline: none; padding: 2px 0; }
+    .meta { font-size: 0.85rem; color: #666; margin-top: 32px; border-top: 1px solid #ddd; padding-top: 12px; }
+    .usage-note { margin-top: 32px; padding: 16px 20px; background: #f5f5f5; border-radius: 6px; font-size: 0.88rem; font-family: Arial, sans-serif; }
+    @media print { .usage-note { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>How I Use AI and How Client Data Is Protected</h1>
+
+  <p>
+    <strong>Firm:</strong>
+    <span contenteditable="true" class="firm-field" spellcheck="false">[Firm name]</span>
+    &nbsp;&nbsp;
+    <strong>Attorney:</strong>
+    <span contenteditable="true" class="firm-field" spellcheck="false">[Name, Bar No.]</span>
+    &nbsp;&nbsp;
+    <strong>Date:</strong>
+    <span contenteditable="true" class="firm-field" spellcheck="false">[Date]</span>
+  </p>
+
+  <h2>The tool</h2>
+  <p>I use <strong>Keepance</strong>, a local-first AI workspace for professional client work. Conversations and outputs are saved as plain text files in a folder I control on my own machine. Keepance does not store work product on its own servers.</p>
+
+  <h2>Where client data goes</h2>
+  <p><strong>Local model path (Ollama):</strong> When I use a local AI model such as Ollama, my prompts never leave my machine. The AI runs on local hardware. No data reaches any external server. This is the path I use for matters where the client has requested no external transmission, or where my own professional judgment warrants it.</p>
+  <p><strong>Cloud API key path:</strong> When I use a cloud provider (Anthropic, OpenAI, or Google), my prompts go directly from my machine to that provider under my personal API key. Keepance's servers are not in the data path. Client data is processed under that provider's API data-processing terms, not under any consumer product terms.</p>
+
+  <h2>Client matter isolation</h2>
+  <p>Each matter has its own folder. When I open an AI session, it is scoped to that matter's folder only. The AI cannot see files from other matters. I do not use shared AI chat histories across matters. There is no cross-matter contamination.</p>
+
+  <h2>The audit log</h2>
+  <p>Keepance maintains an append-only log of every AI action: timestamp, model, files included, and output produced. The log is per-machine and per-matter. I can produce a complete AI activity record for any matter on request. This log is retained as part of the matter file.</p>
+
+  <h2>Attorney-client privilege considerations</h2>
+  <p><strong>Local model path:</strong> Because no data leaves my machine, there is no transmission to a third party. The privilege and confidentiality analysis under the local path is straightforward: the communication never left my possession.</p>
+  <p><strong>Cloud API key path:</strong> Prompts reach the cloud provider's API under my account. This is a third-party transmission. The current leading analysis holds that using a BYOK ("bring your own key") tool that routes directly to the provider does not waive privilege, provided the attorney exercises reasonable care and the provider's terms include appropriate data-handling commitments. The S.D.N.Y. in <em>United States v. Heppner</em> (Feb. 17, 2026) emphasized the importance of attorney control over the data path when evaluating privilege claims in AI-assisted work. The local path eliminates this analysis entirely.</p>
+
+  <h2>Malpractice carrier context</h2>
+  <p>This document describes my AI data-handling architecture. The key facts for carrier review: (1) client data is never stored by Keepance; (2) I control the entire data path; (3) AI outputs are reviewed and approved by me before any use; (4) all AI actions are logged at the matter level; and (5) a fully local path exists for matters requiring zero external transmission. I am happy to provide technical architecture documentation or answer questions on request.</p>
+
+  <p class="meta">
+    Keepance v2.2 &nbsp;·&nbsp;
+    <a href="https://keepance.com/ai-workspace-privacy/">keepance.com/ai-workspace-privacy/</a>
+    &nbsp;·&nbsp; Prepared:
+    <span contenteditable="true" class="firm-field" spellcheck="false">[Date prepared]</span>
+  </p>
+
+  <div class="usage-note">
+    <strong>To use this document:</strong> Click any bracketed field above to fill in your firm name, your name and bar number, and the date. Then print or save as PDF (File &rarr; Print &rarr; Save as PDF). Submit to your malpractice carrier alongside their standard AI-use questionnaire, or attach to a matter file as a disclosure record.
+  </div>
+</body>
+</html>

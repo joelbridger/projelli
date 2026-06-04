@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How I Handle Client Data with AI Tools</title>
+  <meta name="robots" content="noindex">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Georgia, 'Times New Roman', serif; max-width: 680px; margin: 60px auto; line-height: 1.75; color: #111; padding: 0 24px 60px; font-size: 15px; }
+    h1 { font-size: 1.35rem; border-bottom: 2px solid #0A2540; padding-bottom: 8px; margin-bottom: 20px; color: #0A2540; }
+    h2 { color: #0A2540; font-family: 'Arial', sans-serif; letter-spacing: 0.04em; text-transform: uppercase; font-size: 0.8rem; margin: 24px 0 8px; }
+    p { margin-bottom: 12px; }
+    strong { color: #0A2540; }
+    a { color: #3B82F6; }
+    .firm-field { border-bottom: 1px solid #aaa; min-width: 220px; display: inline-block; outline: none; padding: 2px 0; }
+    .meta { font-size: 0.85rem; color: #666; margin-top: 32px; border-top: 1px solid #ddd; padding-top: 12px; }
+    .usage-note { margin-top: 32px; padding: 16px 20px; background: #f5f5f5; border-radius: 6px; font-size: 0.88rem; font-family: Arial, sans-serif; }
+    @media print { .usage-note { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>How I Handle Your Data When I Use AI Tools</h1>
+
+  <p>
+    <strong>Prepared by:</strong>
+    <span contenteditable="true" class="firm-field" spellcheck="false">[Your firm or your name]</span>
+    &nbsp;&nbsp;
+    <strong>Date:</strong>
+    <span contenteditable="true" class="firm-field" spellcheck="false">[Date]</span>
+  </p>
+
+  <h2>The tool</h2>
+  <p>I use <strong>Keepance</strong>, a local-first AI workspace. Every conversation I have with an AI model saves as a plain text file in a folder on my computer. Your information is never stored in a cloud database and never passes through Keepance's servers.</p>
+
+  <h2>Where your data goes</h2>
+  <p><strong>Local model (preferred for sensitive work):</strong> When I use a local AI model such as Ollama, nothing leaves my machine. The AI runs on my hardware, and no data reaches any external server. This is the path I use for your most confidential materials.</p>
+  <p><strong>Cloud API key:</strong> When I use a cloud provider (Anthropic, OpenAI, or Google), my prompts travel directly from my machine to that provider under my own API key. Keepance's servers are never in the path. Your data is processed under that provider's enterprise API terms, not under any consumer product terms.</p>
+
+  <h2>Client isolation</h2>
+  <p>Each engagement has its own folder on my machine. When I start an AI session, it is scoped to that folder. The AI can only see files I have explicitly included for that matter. There is no cross-contamination between engagements. Your information does not appear in any other client's context.</p>
+
+  <h2>The audit log</h2>
+  <p>Every AI action I take in Keepance is logged automatically: which model I used, which files I included, what output was produced, and when. I can export a per-engagement AI activity log on request. This record stays on my machine and is part of my engagement file.</p>
+
+  <h2>What this means for your NDA</h2>
+  <p>If your agreement prohibits uploading work product to AI services: with a local Ollama model, nothing leaves my machine, and that path satisfies an explicit no-external-upload clause. With a cloud API key, prompts reach that provider's API under my account. I confirm which path I am using for any sensitive engagement at the outset, and I am happy to commit to the local-only path in writing if that is your requirement.</p>
+
+  <p class="meta">
+    Keepance v2.2 &nbsp;·&nbsp;
+    <a href="https://keepance.com/ai-workspace-privacy/">keepance.com/ai-workspace-privacy/</a>
+    &nbsp;·&nbsp; Prepared:
+    <span contenteditable="true" class="firm-field" spellcheck="false">[Date prepared]</span>
+  </p>
+
+  <div class="usage-note">
+    <strong>To use this document:</strong> Click any bracketed field above to fill in your name, firm, and date. Then print or save as PDF (File &rarr; Print &rarr; Save as PDF in your browser). Hand it to a client's GC, procurement contact, or privacy counsel at the start of an engagement.
+  </div>
+</body>
+</html>

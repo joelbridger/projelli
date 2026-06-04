@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How Keepance Fits Our Reg S-P Program</title>
+  <meta name="robots" content="noindex">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Georgia, 'Times New Roman', serif; max-width: 680px; margin: 60px auto; line-height: 1.75; color: #111; padding: 0 24px 60px; font-size: 15px; }
+    h1 { font-size: 1.35rem; border-bottom: 2px solid #0A2540; padding-bottom: 8px; margin-bottom: 20px; color: #0A2540; }
+    h2 { color: #0A2540; font-family: 'Arial', sans-serif; letter-spacing: 0.04em; text-transform: uppercase; font-size: 0.8rem; margin: 24px 0 8px; }
+    p { margin-bottom: 12px; }
+    strong { color: #0A2540; }
+    a { color: #3B82F6; }
+    .firm-field { border-bottom: 1px solid #aaa; min-width: 220px; display: inline-block; outline: none; padding: 2px 0; }
+    .meta { font-size: 0.85rem; color: #666; margin-top: 32px; border-top: 1px solid #ddd; padding-top: 12px; }
+    .usage-note { margin-top: 32px; padding: 16px 20px; background: #f5f5f5; border-radius: 6px; font-size: 0.88rem; font-family: Arial, sans-serif; }
+    @media print { .usage-note { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>How Keepance Fits Our Reg S-P Program</h1>
+
+  <p>
+    <strong>Firm:</strong>
+    <span contenteditable="true" class="firm-field" spellcheck="false">[RIA or BD firm name]</span>
+    &nbsp;&nbsp;
+    <strong>Prepared for:</strong>
+    <span contenteditable="true" class="firm-field" spellcheck="false">[CCO name]</span>
+    &nbsp;&nbsp;
+    <strong>Date:</strong>
+    <span contenteditable="true" class="firm-field" spellcheck="false">[Date]</span>
+  </p>
+
+  <h2>What the tool is</h2>
+  <p><strong>Keepance</strong> is a local-first AI workspace for professional client work. It is a desktop application. Every conversation and AI output is saved as a plain text file in a folder the advisor controls on their own machine. Keepance does not maintain a cloud database of client information. The tool's servers handle only licensing and product delivery, not client data.</p>
+
+  <h2>Data path</h2>
+  <p>Keepance supports two AI paths:</p>
+  <p><strong>Local model (Ollama):</strong> The AI model runs on the advisor's machine. Client information never leaves the machine. There is no network transmission of client data. This path has no service-provider footprint under Reg S-P.</p>
+  <p><strong>Cloud API key:</strong> The advisor's prompts go directly from their machine to the AI provider (Anthropic, OpenAI, or Google) under the advisor's own API key. Keepance's servers are not in the data path. The network call is from the advisor's machine to the AI provider, not through any Keepance intermediary.</p>
+
+  <h2>Service-provider analysis under Reg S-P</h2>
+  <p>Reg S-P Rule 30 (as amended 2024) requires firms to oversee service providers that handle customer information. Keepance itself is not a service provider in the data path for client information. It is local software running on the advisor's machine, comparable in structure to a word processor or spreadsheet application.</p>
+  <p><strong>Local model path:</strong> There is no service provider to diligence. Nothing leaves the machine.</p>
+  <p><strong>Cloud API key path:</strong> The AI provider (Anthropic, OpenAI, or Google) is the relevant service provider under Reg S-P, not Keepance. The firm should evaluate the chosen AI provider's API data-processing terms, incident notification commitments, and data-handling controls as part of its standard service-provider due-diligence process. Each of the major providers offers enterprise API agreements with appropriate data-handling terms for financial services firms.</p>
+
+  <h2>Books and records</h2>
+  <p>Every Keepance output is a plain file retained under the firm's existing file-retention schedule. The Keepance audit log records each AI action (timestamp, model, files included, output produced) at the per-client level and supports Rule 204-2 documentation requirements. The advisor can export a per-client AI activity log on request.</p>
+
+  <h2>What this document does not cover</h2>
+  <p>This document describes the data-path architecture of Keepance as used by an advisor at this firm. It does not constitute a Written Information Security Program (WISP), a Reg S-P risk assessment, or legal or compliance advice. Firms should have their compliance consultant review Keepance's role within the full Reg S-P program, including any required updates to the firm's service-provider due-diligence log and incident-response plan.</p>
+
+  <p class="meta">
+    Keepance v2.2 &nbsp;·&nbsp;
+    <a href="https://keepance.com/ai-workspace-privacy/">keepance.com/ai-workspace-privacy/</a>
+    &nbsp;·&nbsp; Prepared:
+    <span contenteditable="true" class="firm-field" spellcheck="false">[Date prepared]</span>
+  </p>
+
+  <div class="usage-note">
+    <strong>To use this document:</strong> Click any bracketed field above to fill in your firm name, CCO name, and date. Then print or save as PDF (File &rarr; Print &rarr; Save as PDF). Submit to your CCO or compliance consultant as a starting-point architecture memo. They will want to incorporate this into the firm's full Reg S-P service-provider inventory and risk assessment.
+  </div>
+</body>
+</html>
