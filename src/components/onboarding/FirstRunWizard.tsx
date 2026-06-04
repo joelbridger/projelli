@@ -56,7 +56,7 @@ export interface FirstRunWizardProps {
 
 type Step = 'welcome' | 'profession' | 'workspace' | 'apikey' | 'demo' | 'done';
 
-type Profession = 'legal' | 'tax' | 'consulting' | 'other';
+type Profession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 
 interface ProfessionOption {
   id: Profession;
@@ -469,6 +469,7 @@ export function getOnboardingProfession(): Profession {
     stored === 'legal' ||
     stored === 'tax' ||
     stored === 'consulting' ||
+    stored === 'advisor' ||
     stored === 'other'
   ) {
     return stored;

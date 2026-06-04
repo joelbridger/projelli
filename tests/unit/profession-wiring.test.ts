@@ -14,6 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { getSamplesForProfession } from '../../src/onboarding/samples/index';
 import { prioritizeByProfession } from '../../src/modules/workflow/prioritizeByProfession';
+import { ADVISOR_TEMPLATES } from '../../src/modules/workflow/templates/advisors/index';
 import type { WorkflowTemplate } from '../../src/types/workflow';
 
 // ---------------------------------------------------------------------------
@@ -234,6 +235,22 @@ describe('prioritizeByProfession', () => {
   it('consulting: consulting templates float to the top', () => {
     const result = prioritizeByProfession(allTemplates, 'consulting');
     expect(result[0]!.id).toBe('consulting-a');
+  });
+
+  it('advisor: advisor templates float to the top', () => {
+    const allWorkflows = ADVISOR_TEMPLATES.concat(allTemplates);
+    const result = prioritizeByProfession(allWorkflows, 'advisor');
+    const advisorIds = ADVISOR_TEMPLATES.map((t) => t.id);
+    const topIds = result.slice(0, ADVISOR_TEMPLATES.length).map((w) => w.id);
+    expect(topIds).toEqual(expect.arrayContaining(advisorIds));
+  });
+
+  it('advisor: non-advisor templates follow after reordering', () => {
+    const allWorkflows = ADVISOR_TEMPLATES.concat(allTemplates);
+    const result = prioritizeByProfession(allWorkflows, 'advisor');
+    const nonAdvisorResults = result.slice(ADVISOR_TEMPLATES.length);
+    const advisorIds = new Set(ADVISOR_TEMPLATES.map((t) => t.id));
+    expect(nonAdvisorResults.every((t) => !advisorIds.has(t.id))).toBe(true);
   });
 
   it("other: returns the list unchanged (same array reference when no reordering needed)", () => {
