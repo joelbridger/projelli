@@ -11,6 +11,7 @@ import { ClientIntakeSynthesizer } from './ClientIntakeSynthesizer';
 import { TransactionalMatterSummary } from './TransactionalMatterSummary';
 import { EstatePlanningClientSummary } from './EstatePlanningClientSummary';
 import { ContractReviewChecklist } from './ContractReviewChecklist';
+import { LegalResearchMemo } from './LegalResearchMemo';
 
 import type { WorkflowTemplate } from '@/types/workflow';
 
@@ -25,6 +26,7 @@ export const LEGAL_TEMPLATES: WorkflowTemplate[] = [
   TransactionalMatterSummary,
   EstatePlanningClientSummary,
   ContractReviewChecklist,
+  LegalResearchMemo,
 ];
 
 export {
@@ -38,4 +40,5 @@ export {
   TransactionalMatterSummary,
   EstatePlanningClientSummary,
   ContractReviewChecklist,
+  LegalResearchMemo,
 };

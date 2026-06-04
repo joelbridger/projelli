@@ -19,6 +19,7 @@ const MUST_VERIFY = [
   'src/modules/workflow/templates/legal/TransactionalMatterSummary.ts',
   'src/modules/workflow/templates/legal/ContractReviewChecklist.ts',
   'src/modules/workflow/templates/legal/DiscoveryDocumentTriage.ts',
+  'src/modules/workflow/templates/legal/LegalResearchMemo.ts',
   // Tax (all 8)
   'src/modules/workflow/templates/tax/TaxResearchMemo.ts',
   'src/modules/workflow/templates/tax/NoticeResponseDrafter.ts',
@@ -102,5 +103,14 @@ describe('template verification banners', () => {
         // directory doesn't exist, try the other
       }
     }
+  });
+
+  it('LegalResearchMemo prompt instructs AI to use UNVERIFIED citation table', async () => {
+    // Import the template
+    const { LegalResearchMemo } = await import('../../src/modules/workflow/templates/legal/LegalResearchMemo');
+    // The prompt text should contain the UNVERIFIED table pattern
+    const promptText = JSON.stringify(LegalResearchMemo);
+    expect(promptText).toContain('UNVERIFIED');
+    expect(promptText).toContain('Verified by');
   });
 });
