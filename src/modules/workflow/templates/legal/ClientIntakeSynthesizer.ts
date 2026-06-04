@@ -117,42 +117,49 @@ Synthesize the intake notes into a clear, organized narrative of the client's si
 
 ---
 
-## Document 2: Conflict Check Search Guide
+## Document 2: Conflict Check Memo
 
-> **IMPORTANT:** This document generates search parameters for running against your firm's conflict database or records. It does NOT perform a conflict check and does NOT determine whether a conflict exists. Do not proceed with engagement until you have run these searches against your actual conflict system and reviewed the results yourself.
+> **IMPORTANT:** This document generates search parameters and a fillable conflict-check record for use against your firm's conflict database or records. It does NOT perform a conflict check and does NOT determine whether a conflict exists. Do not proceed with engagement until you have run these searches against your actual conflict system and reviewed the results yourself.
 
-### Parties to Search
-Run your conflict database against each of the following. Search both full names and common variants/abbreviations.
+### Part A: Conflict Check Record
 
-| Name / Entity | Role | Search Notes |
-|--------------|------|--------------|
-| {{clientName}} | Prospective client | Also search former names if applicable |
-| [Opposing party from notes] | Adverse party | Search all corporate aliases and related entities |
-| [Other parties mentioned] | [Role] | |
-| [Referral source if named] | Referral source | Referral source conflict check |
+Use this table as your conflict-check record for the matter file. Fill in the "Result" column after running each search in your conflict system.
 
-### Boolean Search Strings to Run
+| Name to Check | Relationship to Matter | Why to Check | Result (fill in) |
+|---------------|----------------------|--------------|-----------------|
+| {{clientName}} | Prospective client | Direct representation conflict | |
+| [Opposing party from notes] | Adverse party | Adverse party conflict | |
+| [Any related entity (LLC, employer, etc.) from notes] | Related entity | Entity-level conflict; check all members/officers | |
+| [Any other individual named in the matter from notes] | Third party | Witness, co-claimant, or other involvement | |
+| [Referral source if named] | Referral source | Referral source may itself be a current or former client | |
+
+Populate additional rows for every party, entity, and individual mentioned during the intake call. When in doubt, add the row -- over-checking is always safer than under-checking.
+
+**Search date:** ___________________  **Searched by:** ___________________  **Result:** No conflicts identified / Conflict found (describe) ___________________
+
+### Part B: Boolean Search Strings
+
 Copy and adapt these for your conflict system (Clio, Lawmatics, manual index, or other):
 
-- \`"{{clientName}}"\` — exact name match
-- [Opposing party name] — exact name match
+- \`"{{clientName}}"\` -- exact name match
+- [Opposing party name] -- exact name match
 - [LLC/entity name] AND [any member names mentioned]
 - [Referral source name]
 
 Adjust terms to match how your system indexes names. Run each search separately; don't combine into one query.
 
-### Related Matter Types to Check
-[Based on the matter description, list practice areas or entity types that may surface related conflicts — e.g., if the matter involves an LLC, check all matters involving that LLC and its principals]
+### Part C: Related Matter Types to Check
+[Based on the matter description, list practice areas or entity types that may surface related conflicts -- e.g., if the matter involves an LLC, check all matters involving that LLC and its principals]
 
-### Checklist Before Engaging
+### Part D: Checklist Before Engaging
 - [ ] Searched conflict database for prospective client name and variants
 - [ ] Searched conflict database for all adverse parties named during intake
 - [ ] Searched conflict database for referral source (if named)
 - [ ] Reviewed results and identified no disqualifying conflicts
-- [ ] Documented search date and results in matter file
-- [ ] [Any specific flags that surfaced during intake — from potentialConflicts field]
+- [ ] Completed the conflict-check record table above and placed it in the matter file
+- [ ] [Any specific flags that surfaced during intake -- from potentialConflicts field]
 
-> This guide identifies parties and search terms — running the actual conflict check and reviewing results is your responsibility. Document your search and its outcome in the matter file before accepting the engagement.
+> Conflict checks must be run against your actual conflicts database. This output is a starting point for organizing the check, not a substitute for running it.
 
 ---
 
@@ -205,7 +212,7 @@ export const ClientIntakeSynthesizer: WorkflowTemplate = {
       config: {
         outputFile: 'CLIENT_INTAKE_PACKAGE.md',
         promptTemplate: intakeSynthesizerPrompt,
-        systemPrompt: 'You are a legal practice management assistant helping a licensed attorney process a new client intake. You synthesize rough notes into clear, organized documents the attorney can act on. You are careful to frame legal issues as "issues to research" rather than conclusions, and you never give legal advice. You think carefully about conflict check thoroughness — surfacing every party, entity, and relationship mentioned, not just the obvious ones. Your scope of work descriptions are realistic and calibrated to the complexity level provided.',
+        systemPrompt: 'You are a legal practice management assistant helping a licensed attorney process a new client intake. You synthesize rough notes into clear, organized documents the attorney can act on. You are careful to frame legal issues as "issues to research" rather than conclusions, and you never give legal advice. For the conflict check memo, you produce two things: (1) a structured conflict-check record table with columns for Name to Check, Relationship to Matter, Why to Check, and Result (fill in) -- pre-populated with every party, entity, and individual mentioned in the intake notes, not just the obvious ones; and (2) Boolean search strings the attorney can copy into their conflict system. You err on the side of over-populating the table -- it is better to check one extra name than to miss a real conflict. Your scope of work descriptions are realistic and calibrated to the complexity level provided.',
       } as GenerateStepConfig,
     },
   ],
