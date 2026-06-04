@@ -27,7 +27,7 @@ const MUST_VERIFY = [
   'src/modules/workflow/templates/legal/FinancialAffidavitOrganizer.ts',
   'src/modules/workflow/templates/legal/RealEstateClosingChecklist.ts',
   'src/modules/workflow/templates/legal/CitationFormatter.ts',
-  // Tax (all 8)
+  // Tax (all 13)
   'src/modules/workflow/templates/tax/TaxResearchMemo.ts',
   'src/modules/workflow/templates/tax/NoticeResponseDrafter.ts',
   'src/modules/workflow/templates/tax/AuditDefenseFileBuilder.ts',
@@ -36,6 +36,11 @@ const MUST_VERIFY = [
   'src/modules/workflow/templates/tax/EngagementLetterBuilder.ts',
   'src/modules/workflow/templates/tax/PreReviewChecklist.ts',
   'src/modules/workflow/templates/tax/ClientDocumentInventory.ts',
+  'src/modules/workflow/templates/tax/RepresentationKit.ts',
+  'src/modules/workflow/templates/tax/CollectionNoticeResponse.ts',
+  'src/modules/workflow/templates/tax/SCorpReasonableCompMemo.ts',
+  'src/modules/workflow/templates/tax/EntityElectionAnalysis.ts',
+  'src/modules/workflow/templates/tax/WISPBuilder.ts',
   // Consulting (all 6)
   'src/modules/workflow/templates/consulting/ClientDiscoverySynthesizer.ts',
   'src/modules/workflow/templates/consulting/ConfidentialResearchMemo.ts',
