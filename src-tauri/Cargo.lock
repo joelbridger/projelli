@@ -4279,6 +4279,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "keepance"
+version = "2.1.2"
+dependencies = [
+ "anyhow",
+ "arrow-array",
+ "arrow-schema",
+ "async-stream",
+ "dirs 5.0.1",
+ "fastembed",
+ "flate2",
+ "futures-util",
+ "hex",
+ "keyring",
+ "lancedb",
+ "log",
+ "notify",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tar",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-http",
+ "tauri-plugin-log",
+ "tauri-plugin-process",
+ "tauri-plugin-shell",
+ "tauri-plugin-updater",
+ "tempfile",
+ "tokio",
+ "walkdir",
+]
+
+[[package]]
 name = "keyboard-types"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6566,42 +6602,6 @@ checksum = "52717f9a02b6965224f95ca2a81e2e0c5c43baacd28ca057577988930b6c3d5b"
 dependencies = [
  "quote",
  "syn 2.0.114",
-]
-
-[[package]]
-name = "keepance"
-version = "2.1.2"
-dependencies = [
- "anyhow",
- "arrow-array",
- "arrow-schema",
- "async-stream",
- "dirs 5.0.1",
- "fastembed",
- "flate2",
- "futures-util",
- "hex",
- "keyring",
- "lancedb",
- "log",
- "notify",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "tar",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-http",
- "tauri-plugin-log",
- "tauri-plugin-process",
- "tauri-plugin-shell",
- "tauri-plugin-updater",
- "tempfile",
- "tokio",
- "walkdir",
 ]
 
 [[package]]
