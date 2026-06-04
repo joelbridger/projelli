@@ -18,6 +18,9 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import type { KeyProvider, StoredKey } from '@/modules/models/KeychainService';
+import { ApiKeyExplainer } from '@/components/onboarding/ApiKeyExplainer';
+import { ApiKeyTester } from '@/components/onboarding/ApiKeyTester';
+import type { ValidationProvider } from '@/modules/models/apiKeyValidation';
 
 interface ApiKeySettingsProps {
   keychainService: {
@@ -78,6 +81,10 @@ export function ApiKeySettings({
           {t('settings.api-keys.description')}
         </p>
       </div>
+
+      {/* Plain-English explainer — collapsible in settings since returning
+          users likely already know what an API key is. */}
+      <ApiKeyExplainer defaultOpen={false} />
 
       <div className="space-y-4">
         {PROVIDERS.map((provider) => (
@@ -231,6 +238,7 @@ function ProviderKeyCard({
                 onChange={(e) => setNewKey(e.target.value)}
                 placeholder={provider.placeholder}
                 className={cn('pr-10', error && 'border-destructive')}
+                data-testid={`api-key-settings-input-${provider.id}`}
               />
               <button
                 type="button"
@@ -249,6 +257,13 @@ function ProviderKeyCard({
                 <AlertCircle className="h-3 w-3" />
                 {error}
               </p>
+            )}
+            {/* Test-this-key button: only shown when the user has typed something */}
+            {newKey.trim() && (
+              <ApiKeyTester
+                provider={provider.id as ValidationProvider}
+                apiKey={newKey}
+              />
             )}
             <div className="flex gap-2">
               <Button size="sm" onClick={handleSave} disabled={isLoading}>

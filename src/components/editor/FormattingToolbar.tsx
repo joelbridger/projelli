@@ -4,6 +4,12 @@
 import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Bold,
   Italic,
   Strikethrough,
@@ -21,9 +27,15 @@ import {
   Eye,
   Edit3,
   Download,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/utils/saveFile';
+import { markdownToDocxBytes } from '@/utils/docx-io';
+import { markdownToPptxBytes } from '@/utils/pptx-io';
+import { exportMarkdownAsPdf } from '@/utils/pdf-export';
+import { availableExportFormats, replaceExtension } from '@/utils/export-formats';
+import type { ExportFormat } from '@/utils/export-formats';
 import type { MarkdownEditorRef } from './MarkdownEditor';
 
 interface FormattingToolbarProps {
@@ -167,11 +179,10 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
     range.commonAncestorContainer.dispatchEvent(event);
   };
 
-  const handleDownload = async () => {
+  // Fallback: save the file as-is (original single-button behavior).
+  const handleDownloadRaw = async () => {
     if (!fileContent || !fileName) return;
-
     try {
-      // Use cross-platform saveFile utility (browser & Tauri)
       await saveFile(fileContent, {
         suggestedName: fileName,
         types: [
@@ -184,9 +195,72 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
         ],
       });
     } catch (error) {
-      // User cancelled or error occurred
       if (error instanceof Error && error.name !== 'AbortError') {
         console.error('Failed to save file:', error);
+      }
+    }
+  };
+
+  const handleExport = async (format: ExportFormat) => {
+    if (!fileContent || !fileName) return;
+
+    try {
+      switch (format) {
+        case 'markdown': {
+          await saveFile(fileContent, {
+            suggestedName: fileName,
+            types: [
+              {
+                description: 'Markdown',
+                accept: { 'text/markdown': ['.md', '.markdown'] },
+              },
+            ],
+          });
+          break;
+        }
+
+        case 'docx': {
+          const bytes = await markdownToDocxBytes(fileContent, fileName);
+          await saveFile(bytes, {
+            suggestedName: replaceExtension(fileName, 'docx'),
+            types: [
+              {
+                description: 'Word Document',
+                accept: {
+                  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+                },
+              },
+            ],
+          });
+          break;
+        }
+
+        case 'pdf': {
+          // PDF uses the print-to-PDF path: no binary file is produced by
+          // Keepance; the OS print dialog handles writing the file.
+          await exportMarkdownAsPdf(fileContent, fileName);
+          break;
+        }
+
+        case 'pptx': {
+          const bytes = await markdownToPptxBytes(fileContent);
+          await saveFile(bytes, {
+            suggestedName: replaceExtension(fileName, 'pptx'),
+            types: [
+              {
+                description: 'PowerPoint Presentation',
+                accept: {
+                  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+                },
+              },
+            ],
+          });
+          break;
+        }
+      }
+    } catch (error) {
+      if (error instanceof Error && error.name !== 'AbortError') {
+        console.error(`Export as ${format} failed:`, error);
       }
     }
   };
@@ -290,19 +364,55 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Download button */}
-      {fileContent && fileName && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 gap-1"
-          onClick={handleDownload}
-          title="Download a copy of this file"
-        >
-          <Download className="h-4 w-4" />
-          <span className="text-xs">Download</span>
-        </Button>
-      )}
+      {/* Export menu — markdown files get format choices; other file types fall
+          back to the original single-button save. */}
+      {fileContent && fileName && (() => {
+        const exportOptions = availableExportFormats(fileName);
+
+        if (exportOptions.length === 0) {
+          // Non-markdown file: preserve original behavior.
+          return (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 gap-1"
+              onClick={handleDownloadRaw}
+              title="Download a copy of this file"
+            >
+              <Download className="h-4 w-4" />
+              <span className="text-xs">Download</span>
+            </Button>
+          );
+        }
+
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 gap-1"
+                title="Export this document"
+              >
+                <Download className="h-4 w-4" />
+                <span className="text-xs">Export as</span>
+                <ChevronDown className="h-3 w-3 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {exportOptions.map((option) => (
+                <DropdownMenuItem
+                  key={option.format}
+                  onClick={() => handleExport(option.format)}
+                  className="gap-2"
+                >
+                  {option.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      })()}
     </div>
   );
 }

@@ -35,6 +35,7 @@ import { useAIChatStore, getDraftInput, useAskWorkspaceMode } from '@/stores/aiC
 import { useFileContextStore } from '@/stores/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
 import { ChatCostChip } from '@/components/ai/ChatCostChip';
+import { AIContextIndicator } from '@/components/ai/AIContextIndicator';
 import { ContextMeterBar } from '@/components/chat/ContextMeterBar';
 import { CompressedSegmentMarker } from '@/components/chat/CompressedSegmentMarker';
 import { CompressionConfirmModal } from '@/components/chat/CompressionConfirmModal';
@@ -2172,6 +2173,17 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               />
             );
           })}
+        {/* Workstream D — "What the AI can see" indicator + cross-client warning.
+             Always visible so the user knows exactly which files are in context
+             for the next message. The cross-client warning appears when open
+             files span more than one top-level folder (different clients). */}
+        {openFiles.length > 0 && (
+          <AIContextIndicator
+            openFiles={openFiles}
+            workspaceRoot={rootPath}
+            className="mb-2"
+          />
+        )}
         {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
         <ChatInputToolbar
           provider={chatData.provider ?? 'anthropic'}

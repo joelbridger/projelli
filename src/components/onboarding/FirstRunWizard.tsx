@@ -24,6 +24,8 @@ import { useTranslation, Trans } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { writeSampleFiles, SAMPLE_FILES } from '@/onboarding/samples';
+import { ApiKeyExplainer } from '@/components/onboarding/ApiKeyExplainer';
+import { ApiKeyTester } from '@/components/onboarding/ApiKeyTester';
 
 const STORAGE_KEY = 'keepance_onboarding_complete';
 const PROFESSION_STORAGE_KEY = 'keepance_profession';
@@ -264,9 +266,9 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
               subtitle={t('onboarding.first-run.apikey.subtitle')}
               body={
                 <div className="space-y-4 text-sm text-muted-foreground">
-                  <p>
-                    {t('onboarding.first-run.apikey.body-1')}
-                  </p>
+                  {/* Plain-English explainer — shown by default in onboarding */}
+                  <ApiKeyExplainer defaultOpen={true} />
+
                   <p>
                     <Trans
                       i18nKey="onboarding.first-run.apikey.body-2"
@@ -298,15 +300,20 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
                       />
                     </li>
                   </ol>
-                  <div className="pt-2">
+                  <div className="pt-2 space-y-2">
                     <Input
                       type="password"
                       placeholder="sk-ant-api03-..."
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
                       className="font-mono"
+                      data-testid="first-run-apikey-input"
                     />
-                    <p className="text-xs text-muted-foreground mt-2">
+                    {/* Test-this-key button — only shown when the user has typed something */}
+                    {apiKey.trim() && (
+                      <ApiKeyTester provider="anthropic" apiKey={apiKey} />
+                    )}
+                    <p className="text-xs text-muted-foreground">
                       {t('onboarding.first-run.apikey.skip-hint')}
                     </p>
                   </div>
