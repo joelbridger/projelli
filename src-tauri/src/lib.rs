@@ -51,8 +51,8 @@ pub fn run() {
             commands::rag::rag_delete_path,
             // A3 — PDF RAG indexing bridge (JS extracts, Rust embeds+stores).
             commands::rag::rag_index_pdf_chunks,
-            // G4 — Mail RAG indexing (encrypted chunk text in LanceDB).
-            commands::rag::rag_index_mail_text,
+            // N2: rag_index_mail_text removed — latent plaintext-over-IPC surface.
+            // The real indexing path is index_mail_text_internal (mail/mod.rs).
             commands::watcher::watch_workspace,
             // Phase 4 M4 (v1.5 Flag 2) — MCP approval bridge + .mcpb path.
             commands::mcp::mcp_list_pending_approvals,

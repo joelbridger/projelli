@@ -238,14 +238,16 @@ pub fn build_batch_mail(rows: &[(Chunk, Vec<f32>)], key: &[u8; 32]) -> Result<Re
 
     // Encrypt each chunk's text; store as hex string in the text column.
     // The embedding was computed from plaintext (passed in `rows`) and is stored unencrypted.
-    let encrypted_texts: Vec<String> = rows
-        .iter()
-        .map(|(c, _)| {
-            encrypt_with_key(c.text.as_bytes(), key)
-                .map(|blob| hex::encode(&blob))
-                .unwrap_or_default()
-        })
-        .collect();
+    //
+    // S2: Propagate encrypt errors — an unwrap_or_default() here would silently
+    // store an empty string with encrypted=true, producing a permanently-
+    // unrecoverable chunk. Instead, return Err so the caller sees the failure.
+    let mut encrypted_texts: Vec<String> = Vec::with_capacity(rows.len());
+    for (c, _) in rows.iter() {
+        let blob = encrypt_with_key(c.text.as_bytes(), key)
+            .map_err(|e| anyhow::anyhow!("encrypt mail chunk {}: {e}", c.path))?;
+        encrypted_texts.push(hex::encode(&blob));
+    }
 
     let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
         rows.iter()
@@ -671,5 +673,79 @@ mod tests {
             plaintext,
             "decrypted ciphertext must equal original plaintext"
         );
+    }
+
+    // S2 tests ----------------------------------------------------------------
+
+    /// S2: build_batch_mail must never produce an empty text column for a
+    /// successfully-built batch. Previously the .unwrap_or_default() would
+    /// silently store "" with encrypted=true on encryption failure.
+    /// This test confirms the success path stores a non-empty hex ciphertext,
+    /// exercising the loop that replaced the map+unwrap_or_default.
+    #[test]
+    fn build_batch_mail_s2_no_empty_ciphertext_on_success() {
+        use arrow_array::cast::AsArray;
+        let key = [0xAAu8; 32];
+        let rows = vec![
+            (
+                Chunk {
+                    path: "mail:a1".into(),
+                    paragraph_index: 0,
+                    text: "First confidential paragraph.".into(),
+                    start_offset: 0,
+                    end_offset: 30,
+                },
+                vec![0.1f32; EMBEDDING_DIM],
+            ),
+            (
+                Chunk {
+                    path: "mail:a1".into(),
+                    paragraph_index: 1,
+                    text: "Second confidential paragraph.".into(),
+                    start_offset: 31,
+                    end_offset: 61,
+                },
+                vec![0.2f32; EMBEDDING_DIM],
+            ),
+        ];
+        let batch = build_batch_mail(&rows, &key).expect("build_batch_mail must succeed");
+        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        // Every row must have a non-empty hex ciphertext — the S2 fix removes the
+        // unwrap_or_default() that would silently store "" on failure.
+        for i in 0..batch.num_rows() {
+            let stored = text_col.value(i);
+            assert!(
+                !stored.is_empty(),
+                "S2: row {} text column must not be empty (was unwrap_or_default)",
+                i
+            );
+            // Must be valid hex (would decode and decrypt to the plaintext).
+            assert!(
+                hex::decode(stored).is_ok(),
+                "S2: row {} text column must be valid hex ciphertext",
+                i
+            );
+        }
+    }
+
+    /// S2: build_batch_mail called with a single-row batch must return Ok (not
+    /// silently swallow an encrypt error). Verifying the batch propagates
+    /// correctly through the row-by-row error path.
+    #[test]
+    fn build_batch_mail_s2_single_row_returns_ok_with_valid_key() {
+        let key = [0xBBu8; 32];
+        let rows = vec![(
+            Chunk {
+                path: "mail:singleton".into(),
+                paragraph_index: 0,
+                text: "One chunk.".into(),
+                start_offset: 0,
+                end_offset: 10,
+            },
+            vec![0.5f32; EMBEDDING_DIM],
+        )];
+        // Should succeed — verifies the for-loop path (not the old .map iterator).
+        let result = build_batch_mail(&rows, &key);
+        assert!(result.is_ok(), "S2: single-row build_batch_mail must return Ok; got {:?}", result.err());
     }
 }

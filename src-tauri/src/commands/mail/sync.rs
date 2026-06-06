@@ -58,21 +58,25 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
 ///     so the caller can feed the decrypted text to the RAG indexer and keyword
 ///     index in memory without the text ever touching disk.
 ///   - tombstone: removes the .enc blob from disk (via workspace_root join
-///     of relative_path) in addition to the store record.
+///     of relative_path) in addition to the store record, AND calls
+///     `tombstone_callback(id)` so the caller can delete the corresponding
+///     LanceDB RAG chunks (S3 fix — deleted mail must stop being searchable).
 ///
 /// `store` must be an `EncryptedMailStore` (or any MailStore impl that stores
 /// relative_path pointing to .enc files). The trait is used so tests can pass
 /// a FakeStore.
-pub fn apply_page_enc<F>(
+pub fn apply_page_enc<F, T>(
     store: &dyn MailStore,
     workspace_root: &Path,
     folder_id: &str,
     page: &serde_json::Value,
     key: &[u8; 32],
     index_callback: &F,
+    tombstone_callback: &T,
 ) -> anyhow::Result<PageStats>
 where
     F: Fn(&str, &str),
+    T: Fn(&str),
 {
     let mut stats = PageStats::default();
     let items = page
@@ -91,6 +95,10 @@ where
             if let Some(rel) = store.tombstone(id)? {
                 // Delete the encrypted blob (relative path points to .enc file).
                 let _ = std::fs::remove_file(workspace_root.join(&rel));
+                // S3: delete the RAG chunks for this mail id so deleted email
+                // stops surfacing in rag_retrieve. The callback is fire-and-forget
+                // (spawned as a tokio task by the caller).
+                tombstone_callback(id);
                 stats.removed += 1;
             }
             continue;
@@ -151,6 +159,12 @@ pub fn migrate_plaintext(workspace_root: &Path) {
         );
         let _ = std::fs::remove_dir_all(&mail_dir);
     }
+    // S1: Also remove the Phase-1 plaintext SQLite metadata DB.
+    // mail.db holds message ids, folder ids, relative paths, and timestamps —
+    // all metadata disclosure on a stolen laptop.  Best-effort: ignore errors
+    // (file may not exist, or may already be deleted).
+    let mail_db = workspace_root.join(".keepance").join("mail.db");
+    let _ = std::fs::remove_file(&mail_db);
 }
 
 /// Drive one folder to completion, persisting the cursor after each page.
@@ -191,7 +205,9 @@ pub async fn sync_folder<F: Fn(u32, u32) + Send>(
 /// Encrypted variant of sync_folder. Uses apply_page_enc instead of apply_page.
 /// `index_callback` receives (doc_id, plaintext_markdown) for each new message —
 /// the caller feeds this to the RAG indexer and MiniSearch without persisting it.
-pub async fn sync_folder_enc<F, I>(
+/// `tombstone_callback` receives (doc_id) for each tombstoned message — the
+/// caller spawns an async task to delete the corresponding LanceDB RAG chunks (S3).
+pub async fn sync_folder_enc<F, I, T>(
     client: &GraphClient,
     store: &(dyn MailStore + Sync),
     workspace_root: &Path,
@@ -199,10 +215,12 @@ pub async fn sync_folder_enc<F, I>(
     key: &[u8; 32],
     emit: &F,
     index_callback: &I,
+    tombstone_callback: &T,
 ) -> anyhow::Result<PageStats>
 where
     F: Fn(u32, u32) + Send,
     I: Fn(&str, &str) + Send + Sync,
+    T: Fn(&str) + Send + Sync,
 {
     let mut url = match store.get_cursor(folder_id)? {
         Some(saved) => saved,
@@ -219,7 +237,7 @@ where
             }
             Err(e) => return Err(e),
         };
-        let s = apply_page_enc(store, workspace_root, folder_id, &page, key, index_callback)?;
+        let s = apply_page_enc(store, workspace_root, folder_id, &page, key, index_callback, tombstone_callback)?;
         total.written += s.written;
         total.removed += s.removed;
         emit(total.written, total.removed);
@@ -308,6 +326,7 @@ mod tests {
             &page,
             &key,
             &|_id: &str, _text: &str| {}, // stub index callback
+            &|_id: &str| {},               // stub tombstone callback
         ).unwrap();
 
         assert_eq!(stats.written, 1);
@@ -355,14 +374,20 @@ mod tests {
         let page = serde_json::json!({ "value": [
             { "id":"m2", "@removed": { "reason":"deleted" } }
         ]});
+        let tombstoned_ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let tombstoned_ids2 = tombstoned_ids.clone();
         let stats = apply_page_enc(
             &store, dir.path(), "inbox", &page, &key,
             &|_id, _text| {},
+            &|id: &str| { tombstoned_ids2.lock().unwrap().push(id.to_string()); },
         ).unwrap();
 
         assert_eq!(stats.removed, 1);
         assert!(!dir.path().join(&blob_rel).exists(), ".enc blob must be deleted");
         assert!(!store.contains("m2").unwrap());
+        // S3: tombstone_callback must have been called with the deleted id.
+        let ids = tombstoned_ids.lock().unwrap();
+        assert_eq!(ids.as_slice(), &["m2"], "tombstone_callback must be called for deleted message");
     }
 
     #[test]
@@ -382,12 +407,88 @@ mod tests {
             &|id: &str, text: &str| {
                 cap2.lock().unwrap().push((id.to_string(), text.to_string()));
             },
+            &|_id: &str| {}, // stub tombstone callback
         ).unwrap();
 
         let pairs = captured.lock().unwrap();
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].0, "m3");
         assert!(pairs[0].1.contains("Index me!"), "callback receives plaintext");
+    }
+
+    // S3 tests ----------------------------------------------------------------
+
+    /// S3: tombstone_callback must be called for every tombstoned message so
+    /// the caller can delete the corresponding LanceDB RAG chunks.
+    #[test]
+    fn apply_page_enc_tombstone_calls_tombstone_callback() {
+        let store = FakeStore::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x42u8; 32];
+
+        // Pre-seed two messages.
+        for id in ["del1", "del2", "kept1"] {
+            let blob_dir = dir.path().join(".keepance/mail/blobs");
+            std::fs::create_dir_all(&blob_dir).unwrap();
+            let enc = crate::commands::mail::crypto::encrypt_with_key(b"body", &key).unwrap();
+            std::fs::write(blob_dir.join(format!("{}.enc", id)), &enc).unwrap();
+            store.upsert(&crate::commands::mail::store::MailRecord {
+                id: id.to_string(), folder_id: "inbox".into(),
+                internet_message_id: None,
+                relative_path: format!(".keepance/mail/blobs/{}.enc", id),
+                received_date_time: None,
+            }).unwrap();
+        }
+
+        let page = serde_json::json!({ "value": [
+            { "id":"del1", "@removed": { "reason":"deleted" } },
+            { "id":"del2", "@removed": { "reason":"deleted" } },
+            // kept1 is NOT deleted in this page
+        ]});
+
+        let tombstoned_ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let tombstoned_ids2 = tombstoned_ids.clone();
+        let stats = apply_page_enc(
+            &store, dir.path(), "inbox", &page, &key,
+            &|_id, _text| {},
+            &|id: &str| { tombstoned_ids2.lock().unwrap().push(id.to_string()); },
+        ).unwrap();
+
+        assert_eq!(stats.removed, 2);
+        let mut ids = tombstoned_ids.lock().unwrap().clone();
+        ids.sort();
+        assert_eq!(ids, vec!["del1", "del2"],
+            "tombstone_callback must be called exactly once per deleted message");
+        // kept1 was not in the page, so it must not be in the tombstoned set.
+        assert!(!ids.contains(&"kept1".to_string()));
+    }
+
+    /// S3: tombstone_callback is NOT called for tombstoned ids that were never
+    /// in the store (e.g. already-deleted messages re-delivered by Graph delta).
+    #[test]
+    fn apply_page_enc_tombstone_callback_only_for_known_ids() {
+        let store = FakeStore::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x55u8; 32];
+        // "unknown" is not in the store — tombstone returns None.
+        let page = serde_json::json!({ "value": [
+            { "id":"unknown", "@removed": { "reason":"deleted" } }
+        ]});
+
+        let tombstoned_ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let tombstoned_ids2 = tombstoned_ids.clone();
+        let stats = apply_page_enc(
+            &store, dir.path(), "inbox", &page, &key,
+            &|_id, _text| {},
+            &|id: &str| { tombstoned_ids2.lock().unwrap().push(id.to_string()); },
+        ).unwrap();
+
+        assert_eq!(stats.removed, 0,
+            "removed count must be 0 when the tombstoned id is not in the store");
+        assert!(
+            tombstoned_ids.lock().unwrap().is_empty(),
+            "tombstone_callback must NOT be called for ids not in the store"
+        );
     }
 
     #[test]
@@ -435,6 +536,114 @@ mod tests {
         assert!(
             dir.path().join(".keepance/mail/blobs/m1.enc").exists(),
             ".enc blob must not be deleted by migration"
+        );
+    }
+
+    // S1 tests ----------------------------------------------------------------
+
+    /// S1: migration must also delete the plaintext Phase-1 metadata DB (mail.db).
+    #[test]
+    fn migrate_plaintext_deletes_mail_db() {
+        let dir = tempfile::TempDir::new().unwrap();
+        // Simulate Phase-1 workspace: Mail/ dir + plaintext mail.db.
+        let mail_dir = dir.path().join("Mail").join("inbox");
+        std::fs::create_dir_all(&mail_dir).unwrap();
+        std::fs::write(mail_dir.join("m1.md"), "hello").unwrap();
+        let keepance_dir = dir.path().join(".keepance");
+        std::fs::create_dir_all(&keepance_dir).unwrap();
+        std::fs::write(keepance_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
+        assert!(dir.path().join(".keepance/mail.db").exists());
+
+        migrate_plaintext(dir.path());
+
+        // mail.db must be removed.
+        assert!(
+            !dir.path().join(".keepance/mail.db").exists(),
+            "mail.db must be deleted by migration"
+        );
+    }
+
+    /// S1: migration must remove mail.db even when Mail/ dir is absent.
+    #[test]
+    fn migrate_plaintext_deletes_mail_db_even_without_mail_dir() {
+        let dir = tempfile::TempDir::new().unwrap();
+        // No Mail/ dir, but mail.db exists (partial cleanup scenario).
+        let keepance_dir = dir.path().join(".keepance");
+        std::fs::create_dir_all(&keepance_dir).unwrap();
+        std::fs::write(keepance_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
+
+        migrate_plaintext(dir.path());
+
+        assert!(
+            !dir.path().join(".keepance/mail.db").exists(),
+            "mail.db must be deleted even when Mail/ is absent"
+        );
+    }
+
+    /// S1: migration must NOT touch the encrypted database (mail-enc.db) or
+    /// encrypted blobs (.keepance/mail/blobs/). Only Mail/ and mail.db are Phase-1
+    /// plaintext artifacts.
+    #[test]
+    fn migrate_plaintext_preserves_encrypted_db_and_blobs() {
+        let dir = tempfile::TempDir::new().unwrap();
+        // Simulate a fully-migrated workspace: mail-enc.db + blobs present, plus
+        // leftover plaintext Mail/ and mail.db from Phase 1.
+        let mail_dir = dir.path().join("Mail");
+        std::fs::create_dir_all(&mail_dir).unwrap();
+        std::fs::write(mail_dir.join("m1.md"), "hello").unwrap();
+        let keepance_dir = dir.path().join(".keepance");
+        std::fs::create_dir_all(&keepance_dir).unwrap();
+        std::fs::write(keepance_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
+        std::fs::write(keepance_dir.join("mail-enc.db"), b"SQLCipher DB").unwrap();
+        let blobs_dir = keepance_dir.join("mail").join("blobs");
+        std::fs::create_dir_all(&blobs_dir).unwrap();
+        std::fs::write(blobs_dir.join("m1.enc"), b"ciphertext").unwrap();
+
+        migrate_plaintext(dir.path());
+
+        // Plaintext artifacts removed.
+        assert!(!dir.path().join("Mail").exists(), "Mail/ must be deleted");
+        assert!(!dir.path().join(".keepance/mail.db").exists(), "mail.db must be deleted");
+        // Encrypted artifacts preserved.
+        assert!(
+            dir.path().join(".keepance/mail-enc.db").exists(),
+            "mail-enc.db must NOT be deleted"
+        );
+        assert!(
+            dir.path().join(".keepance/mail/blobs/m1.enc").exists(),
+            ".enc blobs must NOT be deleted"
+        );
+    }
+
+    /// S1: migration must NEVER touch anything outside the given workspace_root.
+    /// This is enforced by construction (only workspace-relative joins are used)
+    /// but we explicitly verify the outer tempdir sibling is untouched.
+    #[test]
+    fn migrate_plaintext_never_touches_outside_workspace() {
+        let outer = tempfile::TempDir::new().unwrap();
+        let workspace = outer.path().join("workspace");
+        let sibling = outer.path().join("sibling-data");
+        std::fs::create_dir_all(&workspace).unwrap();
+        std::fs::create_dir_all(&sibling).unwrap();
+        // Put a sentinel file in the sibling directory.
+        std::fs::write(sibling.join("secret.txt"), b"do not touch").unwrap();
+        // Also create the Phase-1 artifacts inside the workspace.
+        let mail_dir = workspace.join("Mail");
+        std::fs::create_dir_all(&mail_dir).unwrap();
+        std::fs::write(mail_dir.join("m1.md"), "hello").unwrap();
+        let keepance_dir = workspace.join(".keepance");
+        std::fs::create_dir_all(&keepance_dir).unwrap();
+        std::fs::write(keepance_dir.join("mail.db"), b"SQLite format 3\0...").unwrap();
+
+        migrate_plaintext(&workspace);
+
+        // Workspace plaintext must be gone.
+        assert!(!workspace.join("Mail").exists());
+        assert!(!workspace.join(".keepance/mail.db").exists());
+        // Sibling data must be completely untouched.
+        assert!(
+            sibling.join("secret.txt").exists(),
+            "migration must never delete files outside the workspace"
         );
     }
 

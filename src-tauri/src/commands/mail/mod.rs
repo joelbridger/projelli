@@ -148,8 +148,10 @@ pub async fn mail_cancel_sync(state: State<'_, MailState>) -> Result<(), String>
     Ok(())
 }
 
-/// G4: In-process equivalent of rag_index_mail_text — same logic but takes raw
-/// parameters instead of Tauri State, so it can be called from the sync callback.
+/// G4 / N2: Internal mail RAG indexer — takes raw parameters instead of Tauri
+/// State, called directly from the sync callback without going through IPC.
+/// The former rag_index_mail_text Tauri command (which shipped plaintext over
+/// IPC) has been removed (N2); this function is the sole indexing path.
 ///
 /// `path_key` is already formatted as "mail:<doc_id>" by the caller.
 /// Encrypts chunk text before storing in LanceDB. Idempotent (deletes stale
@@ -331,9 +333,39 @@ pub async fn mail_sync_all(
                 decrypted_text: text.to_string(),
             });
         };
+        // S3: tombstone_callback fires for each deleted message. It spawns a
+        // fire-and-forget async task to remove the LanceDB RAG chunks keyed
+        // "mail:<id>" so deleted email stops surfacing in rag_retrieve.
+        let workspace_for_tombstone = workspace.clone();
+        let tombstone_callback = move |id: &str| {
+            let path_key = format!("mail:{}", id);
+            let ws = workspace_for_tombstone.clone();
+            let _ = tokio::task::spawn(async move {
+                // Reuse the same store::delete_path helper used by rag_delete_path.
+                match crate::commands::rag::store::open_connection(&ws).await {
+                    Ok(conn) => {
+                        let names = conn.table_names().execute().await.unwrap_or_default();
+                        if names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
+                            if let Ok(table) = conn
+                                .open_table(crate::commands::rag::store::TABLE_NAME)
+                                .execute()
+                                .await
+                            {
+                                if let Err(e) = crate::commands::rag::store::delete_path(&table, &path_key).await {
+                                    log::warn!("S3 tombstone: delete RAG chunks for {} failed: {}", path_key, e);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("S3 tombstone: open lancedb for {} failed: {}", path_key, e);
+                    }
+                }
+            });
+        };
         sync::sync_folder_enc(
             &client, &store, &workspace, &fid, &enc_key, &emit,
-            &index_callback,
+            &index_callback, &tombstone_callback,
         )
         .await
         .map_err(|e| e.to_string())?;

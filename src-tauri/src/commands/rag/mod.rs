@@ -348,67 +348,18 @@ pub async fn rag_retrieve(
     Ok(hits)
 }
 
-/// Index pre-encrypted mail text into the RAG store.
-///
-/// G4: Called after `apply_page_enc` decrypts a blob in memory.
-/// `doc_id` is the mail message id (used as the `path` discriminator, prefixed
-/// with "mail:" to separate the namespace from workspace file paths).
-/// `plaintext` is the decrypted markdown. It is chunked + embedded in memory;
-/// the chunk `text` column is stored encrypted (hex-encoded AES-256-GCM).
-///
-/// Precedent: `rag_index_pdf_chunks` already takes text, not a file path.
-/// Idempotent — stale rows for the doc_id are deleted before inserting new ones.
-#[tauri::command]
-pub async fn rag_index_mail_text(
-    state: State<'_, RagState>,
-    doc_id: String,
-    plaintext: String,
-) -> Result<u32, String> {
-    if plaintext.trim().is_empty() {
-        return Ok(0);
-    }
-    let workspace = require_workspace(&state).await?;
-    let conn = store::open_connection(&workspace)
-        .await
-        .map_err(|e| format!("open lancedb: {e}"))?;
-    let table = store::open_or_create_table(&conn)
-        .await
-        .map_err(|e| format!("open table: {e}"))?;
-
-    // Use "mail:<id>" as the path key so tombstones can use rag_delete_path.
-    let path_key = format!("mail:{}", doc_id);
-    let chunks = chunker::chunk_text(&path_key, &plaintext);
-
-    // Delete stale rows for this mail id before upsert (idempotent).
-    store::delete_path(&table, &path_key)
-        .await
-        .map_err(|e| format!("delete stale: {e}"))?;
-
-    if chunks.is_empty() {
-        return Ok(0);
-    }
-
-    let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    let vectors = embedder::embed_documents(&texts)
-        .await
-        .map_err(|e| format!("embed mail: {e}"))?;
-    let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
-
-    let key = crate::commands::mail::crypto::get_or_create_master_key()
-        .map_err(|e| format!("get master key: {e}"))?;
-
-    let batch = store::build_batch_mail(&rows, &key)
-        .map_err(|e| format!("build mail batch: {e}"))?;
-    let schema = batch.schema();
-    use arrow_array::RecordBatchIterator;
-    table
-        .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
-        .execute()
-        .await
-        .map_err(|e| format!("add mail chunks: {e}"))?;
-
-    Ok(rows.len() as u32)
-}
+// N2: rag_index_mail_text was removed.
+// The Tauri command was never called from the frontend; the real indexing path
+// is index_mail_text_internal in commands/mail/mod.rs, which calls the rag
+// store helpers directly without going through IPC.  Keeping a public
+// #[tauri::command] that accepts plaintext over IPC was a latent plaintext-
+// over-IPC surface, so the command has been deleted entirely.
+//
+// If you need to restore it, the full implementation is in git history
+// (commit message: "fix(mail): encryption review — purge plaintext mail.db ...").
+// Before restoring, verify that the frontend does NOT call it — the IPC
+// surface ships plaintext message content from renderer to backend, bypassing
+// the encrypted-blob architecture.
 
 /// Set the cancellation flag. `rag_index_workspace` polls this between
 /// files and exits cleanly. Called by the frontend "Pause" / "Cancel"
