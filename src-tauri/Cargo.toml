@@ -93,6 +93,8 @@ hex = "0.4"
 # on-disk paths, and per-folder delta-sync cursors. `bundled` compiles SQLite
 # from source so there is no runtime dependency on a system libsqlite3.
 rusqlite = { version = "0.32", features = ["bundled"] }
+aes-gcm = "0.10"
+rand = "0.8"
 
 # Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
 # the cfg() filter keeps the iOS/Android crate graph slim.

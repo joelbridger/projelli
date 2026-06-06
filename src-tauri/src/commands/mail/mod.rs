@@ -4,6 +4,7 @@ pub mod store;
 pub mod graph;
 pub mod oauth;
 pub mod sync;
+pub mod crypto;
 
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
