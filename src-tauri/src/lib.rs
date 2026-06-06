@@ -68,6 +68,13 @@ pub fn run() {
             // Stream C1 (v2.0): Templates Marketplace install pipeline.
             commands::checksum::sha256_file,
             commands::tarball::extract_tarball,
+            // Phase 1 email — Microsoft 365 import.
+            commands::mail::mail_set_workspace,
+            commands::mail::mail_begin_login,
+            commands::mail::mail_poll_login,
+            commands::mail::mail_is_connected,
+            commands::mail::mail_sync_all,
+            commands::mail::mail_cancel_sync,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -81,6 +88,8 @@ pub fn run() {
             // cancellation flag for the workspace indexer). Required by all
             // `rag_*` commands.
             commands::rag::manage_state(app);
+            // Phase 1 email — manage mail state (active workspace + cancel flag).
+            commands::mail::manage_state(app);
             // Auto-updater stack. Desktop-only because the underlying
             // crates are gated to macOS / Windows / Linux in Cargo.toml.
             // The plugin reads endpoints + pubkey from tauri.conf.json so

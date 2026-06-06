@@ -46,8 +46,8 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
 /// Drive one folder to completion, persisting the cursor after each page.
 /// `emit` is a callback so the command layer can fire Tauri progress events
 /// and the test can pass a no-op.
-pub async fn sync_folder<F: Fn(u32, u32)>(
-    client: &GraphClient, store: &dyn MailStore, workspace_root: &Path,
+pub async fn sync_folder<F: Fn(u32, u32) + Send>(
+    client: &GraphClient, store: &(dyn MailStore + Sync), workspace_root: &Path,
     folder_id: &str, emit: &F,
 ) -> anyhow::Result<PageStats> {
     let mut url = match store.get_cursor(folder_id)? {

@@ -34,7 +34,7 @@ pub struct MailRecord {
 ///
 /// `SqliteMailStore` is the Phase 1 implementation.  An encrypted store can
 /// implement this trait later so the sync engine stays storage-agnostic.
-pub trait MailStore: Send {
+pub trait MailStore: Send + Sync {
     /// Insert or update a record keyed by `rec.id`.  Idempotent.
     fn upsert(&self, rec: &MailRecord) -> Result<()>;
     /// Remove a record by id.  Returns the `relative_path` if the record
