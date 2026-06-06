@@ -130,6 +130,29 @@ where
     Ok(stats)
 }
 
+/// G7: Migration — remove the plaintext `Mail/` directory written by Phase 1.
+///
+/// Called once at the start of `mail_sync_all`. If a plaintext `Mail/` directory
+/// from Phase 1 exists under `workspace_root`, it is deleted entirely. The next
+/// sync will re-download and import all messages as encrypted blobs under
+/// `.keepance/mail/blobs/*.enc`. This is safe because:
+///   - Phase 1 data was only used on test accounts (no production mail yet).
+///   - All data is re-downloadable from Microsoft Graph on the next sync.
+///   - `EncryptedMailStore` uses `mail-enc.db`; the old `mail.db` (SqliteMailStore)
+///     coexists without schema conflict and is simply ignored.
+///   - Only the workspace-relative `Mail/` directory is touched — never anything
+///     outside the workspace.
+pub fn migrate_plaintext(workspace_root: &Path) {
+    let mail_dir = workspace_root.join("Mail");
+    if mail_dir.exists() {
+        log::info!(
+            "G7 migration: removing Phase-1 plaintext Mail/ from {}",
+            workspace_root.display()
+        );
+        let _ = std::fs::remove_dir_all(&mail_dir);
+    }
+}
+
 /// Drive one folder to completion, persisting the cursor after each page.
 /// `emit` is a callback so the command layer can fire Tauri progress events
 /// and the test can pass a no-op.
@@ -365,6 +388,54 @@ mod tests {
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].0, "m3");
         assert!(pairs[0].1.contains("Index me!"), "callback receives plaintext");
+    }
+
+    #[test]
+    fn migrate_plaintext_mail_deletes_mail_directory() {
+        let dir = tempfile::TempDir::new().unwrap();
+        // Simulate a Phase-1 workspace with plaintext mail.
+        let mail_dir = dir.path().join("Mail").join("inbox");
+        std::fs::create_dir_all(&mail_dir).unwrap();
+        std::fs::write(mail_dir.join("m1.md"), "---\nmessage_id: m1\n---\n\nHello").unwrap();
+        assert!(dir.path().join("Mail").exists());
+
+        migrate_plaintext(dir.path());
+
+        assert!(
+            !dir.path().join("Mail").exists(),
+            "Mail/ directory must be deleted by migration"
+        );
+    }
+
+    #[test]
+    fn migrate_plaintext_is_noop_when_mail_dir_absent() {
+        let dir = tempfile::TempDir::new().unwrap();
+        // No Mail/ directory — should not panic or error.
+        assert!(!dir.path().join("Mail").exists());
+        migrate_plaintext(dir.path()); // must not panic
+        assert!(!dir.path().join("Mail").exists());
+    }
+
+    #[test]
+    fn migrate_plaintext_does_not_delete_encrypted_blobs() {
+        let dir = tempfile::TempDir::new().unwrap();
+        // Create Mail/ plaintext dir AND .keepance/mail/blobs/ encrypted dir.
+        let mail_dir = dir.path().join("Mail").join("inbox");
+        std::fs::create_dir_all(&mail_dir).unwrap();
+        std::fs::write(mail_dir.join("m1.md"), "hello").unwrap();
+        let enc_dir = dir.path().join(".keepance").join("mail").join("blobs");
+        std::fs::create_dir_all(&enc_dir).unwrap();
+        std::fs::write(enc_dir.join("m1.enc"), b"fake-encrypted-blob").unwrap();
+
+        migrate_plaintext(dir.path());
+
+        // Mail/ plaintext must be gone.
+        assert!(!dir.path().join("Mail").exists(), "Mail/ must be deleted");
+        // Encrypted blobs must remain untouched.
+        assert!(
+            dir.path().join(".keepance/mail/blobs/m1.enc").exists(),
+            ".enc blob must not be deleted by migration"
+        );
     }
 
     #[test]

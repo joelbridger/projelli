@@ -230,6 +230,11 @@ pub async fn mail_sync_all(
         .clone()
         .ok_or("workspace not set")?;
     let cancel = state.cancel.clone();
+
+    // G7: Remove any plaintext Phase-1 Mail/ directory before the encrypted sync begins.
+    // Idempotent: no-op if Mail/ does not exist.
+    sync::migrate_plaintext(&workspace);
+
     let store = EncryptedMailStore::open(&workspace).map_err(|e| e.to_string())?;
     let enc_key = crate::commands::mail::crypto::get_or_create_master_key()
         .map_err(|e| e.to_string())?;
