@@ -35,6 +35,8 @@ Why I'm confident: the performance fear turned out to be mostly unfounded. *Sear
 
 **The one unverified number, stated honestly:** nobody could give a confirmed figure for *how long it takes to embed 100,000 emails on an 8–16GB no-GPU laptop* (emails per second, total wall-clock, peak memory). Every claim that tried to was either absent or didn't survive fact-checking. This is the single most important thing we don't yet know, and I won't pretend otherwise.
 
+**Update: measured 2026-06-06 (Phase 0 gut-check).** I benchmarked a same-class proxy for our model (`paraphrase-multilingual-MiniLM-L12-v2`, identical 384-dim / ~118M-param / multilingual / 12-layer profile to our `multilingual-e5-small`, since Python fastembed doesn't ship our exact id, which independently re-confirms the research's refuted-claim finding) on a 12th-gen desktop i7, CPU-only. Result: **~48 emails/sec at 4 threads, ~57 at 8 threads**, which extrapolates to roughly **35 minutes to embed 100k emails, ~70 minutes for 200k** at the 4-thread setting. Honest adjustments: this desktop CPU is faster than a typical laptop (call it 2–4x slower in the field), and long emails chunk into more than one vector (add ~20–40% work). So a realistic field figure is **~1 to 3 hours of background CPU work to fully embed a very large (100k+) mailbox**, and well under an hour for the more typical 20k–40k mailbox. **The takeaway: the model is not a catastrophic bottleneck.** Full-mailbox embedding is a manageable background job measured in minutes-to-hours, not days, which is exactly what the tiered design is built to absorb invisibly. This substantially retires the #1 risk. (Still worth a confirming run on real modest hardware before we hardcode tier thresholds.)
+
 **How the design makes that gap safe:**
 - **Keyword index everything immediately.** Keyword search needs no AI and no embedding. So "all my mail, searchable" is true from the start regardless of the embedding speed.
 - **Embed lazily and by priority** on a background thread, off the UI: most recent mail first, then anything the user opens or searches, then the long tail backfills. The heavy work is an interruptible background job, never a blocking step.
@@ -151,7 +153,7 @@ Phases 1 and 2 are the product. 3 and 4 are expansion.
 - **Scope.** "Index everything, multiple providers, encrypted" is a real body of work. The phasing ships value at Phase 1 and protects us from a big-bang build.
 
 **Open questions the research explicitly could not close (so we shouldn't pretend they're closed):**
-1. The real embedding throughput / memory number on modest hardware (Phase 0 answers this).
+1. The real embedding throughput / memory number on modest hardware. **Substantially answered 2026-06-06** (proxy benchmark: ~1–3 hrs background work for a 100k+ mailbox on a field laptop, much less for typical sizes; model is not a blocker). Remaining: a confirming run on actual modest laptop hardware before hardcoding tier thresholds.
 2. The exact encryption approach for the vector index specifically (validate with a spike).
 3. The detailed auto-organization UX at scale (designed here, worth a dedicated pass before Phase 2).
 4. The normalized multi-provider schema specifics (designed here; firms up in Phase 3).
