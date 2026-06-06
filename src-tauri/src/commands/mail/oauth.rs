@@ -1,5 +1,45 @@
 pub const SCOPES: &str = "offline_access User.Read Mail.Read";
 
+pub struct OAuth { client_id: String, base: String, http: reqwest::Client }
+impl OAuth {
+    pub fn new(client_id: String) -> Self { Self::new_with_base(client_id, "https://login.microsoftonline.com".into()) }
+    pub fn new_with_base(client_id: String, base: String) -> Self {
+        Self { client_id, base, http: reqwest::Client::new() }
+    }
+    pub async fn request_device_code(&self) -> anyhow::Result<DeviceCode> {
+        let url = format!("{}/common/oauth2/v2.0/devicecode", self.base);
+        let v: serde_json::Value = self.http.post(&url)
+            .form(&[("client_id", self.client_id.as_str()), ("scope", SCOPES)])
+            .send().await?.json().await?;
+        DeviceCode::from_json(&v).ok_or_else(|| anyhow::anyhow!("bad devicecode response"))
+    }
+    /// Poll the token endpoint once. Caller loops on Pending/SlowDown.
+    pub async fn poll_token(&self, device_code: &str) -> anyhow::Result<TokenOutcome> {
+        let url = format!("{}/common/oauth2/v2.0/token", self.base);
+        let resp = self.http.post(&url).form(&[
+            ("grant_type","urn:ietf:params:oauth:grant-type:device_code"),
+            ("client_id", self.client_id.as_str()),
+            ("device_code", device_code),
+        ]).send().await?;
+        let status = resp.status().as_u16();
+        let v: serde_json::Value = resp.json().await?;
+        Ok(TokenOutcome::from_json(status, &v))
+    }
+    /// Exchange a stored refresh token for a fresh access token.
+    pub async fn refresh(&self, refresh_token: &str) -> anyhow::Result<TokenOutcome> {
+        let url = format!("{}/common/oauth2/v2.0/token", self.base);
+        let resp = self.http.post(&url).form(&[
+            ("grant_type","refresh_token"),
+            ("client_id", self.client_id.as_str()),
+            ("scope", SCOPES),
+            ("refresh_token", refresh_token),
+        ]).send().await?;
+        let status = resp.status().as_u16();
+        let v: serde_json::Value = resp.json().await?;
+        Ok(TokenOutcome::from_json(status, &v))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DeviceCode {
     pub device_code: String, pub user_code: String,
@@ -45,6 +85,21 @@ impl TokenOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn requests_device_code_from_endpoint() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+        let server = MockServer::start().await;
+        Mock::given(method("POST")).and(path("/common/oauth2/v2.0/devicecode"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "device_code":"DC","user_code":"WXYZ","verification_uri":"https://microsoft.com/devicelogin",
+                "expires_in":900,"interval":5 }))).mount(&server).await;
+        let auth = OAuth::new_with_base("client-123".into(), server.uri());
+        let dc = auth.request_device_code().await.expect("device code");
+        assert_eq!(dc.user_code, "WXYZ");
+    }
+
     #[test]
     fn parses_device_code_response() {
         let j = serde_json::json!({
