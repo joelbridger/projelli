@@ -92,7 +92,7 @@ hex = "0.4"
 # Mail import (M365 Phase 1) — SQLite metadata store tracking imported message ids,
 # on-disk paths, and per-folder delta-sync cursors. `bundled` compiles SQLite
 # from source so there is no runtime dependency on a system libsqlite3.
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }
 aes-gcm = "0.10"
 rand = "0.8"
 
