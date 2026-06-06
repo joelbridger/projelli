@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2026-06-06 (build fix: ship Tier 2 + Tier 3 installers)
+
+### Fixed
+- **Production `tsc -b` build errors that blocked the v2.3.0 and v2.4.0 installers.** Vitest passes via esbuild and does not type-check, so 21 errors shipped silently and CI failed at the Tauri build step, leaving v2.2.0 as the latest installable release. Fixed: template `options` written as `{value,label}` objects where the type is `string[]`; `OnboardingProfession` union missing `'advisor'`. CI now green; v2.4.1 published as the latest signed release for Win/Mac/Linux.
+
+## [2.4.0] - 2026-06-04 (Tier 3 — depth: 15 templates, verification-first research, real PPTX)
+
+### Added
+- **15 new templates (library now 43 across 4 packs).** Legal: deadline/SOL calendar, engagement letter, discovery request, family law intake, real estate closing checklist, Bluebook formatter. Tax: IRS representation kit, collection-notice responder, S-corp reasonable-comp memo, entity election worksheet, WISP builder. Consulting: competitive landscape, findings synthesizer, workshop prep. Advisor (RIA): Reg S-P outline, books-and-records checklist, Reg BI disclosure.
+- **Verification-first research templates.** `LegalResearchMemo` and the tax research memo quarantine every AI-produced citation into a separate "verify before relying" table with an explicit hallucination warning.
+- **Real structured PPTX export** with theme, tables, and speaker notes, replacing the flat text dump.
+- **Season-aware tax-page CTA.**
+
+## [2.3.0] - 2026-06-04 (Tier 2 — trust builds)
+
+### Added
+- **Verification banners wired into the in-app UI** for all regulated templates (`requiresVerification` + per-template `verificationNote`).
+- **Plain-English API-key reassurance + local-Ollama lead** on the download and vertical pages (BYOK stays in OS keychain, never touches a Keepance server; or run fully local, no cloud).
+- **Branded export** — firm-name header in DOCX/PPTX, persisted to `localStorage`.
+- **Four gatekeeper one-pagers** at `website/one-pagers/` (legal/malpractice, tax §7216, consulting client-GC, advisor CCO Reg S-P).
+- **Advisor pack wired into `prioritizeByProfession`.**
+
+## [2.2.0] - 2026-06-04 (Tier 1 integrity + export pipeline)
+
+### Changed
+- **Integrity overhaul from the independent four-vertical review.** Reviewed-by claims softened to "built with input"; pricing reconciled (Practice $499/yr; $129→$149/yr swept across 14 files); advisor pack flipped from "in development" to "available today"; template counts corrected; privacy overclaims replaced with honest local-vs-cloud framing; Heppner cited properly (Judge Rakoff, S.D.N.Y., Feb. 17 2026); stale `/tour/` rewritten.
+
+### Added
+- **Export pipeline** — Word (.docx), PDF, PowerPoint (.pptx) from the toolbar with a format picker.
+- **Client-data safeguard** — AI sessions scoped to the active matter folder, not the whole workspace.
+- **API-key test button** and **profession-aware onboarding** (auto-installs the relevant pack).
+
 ## [2.1.3] - 2026-06-02 (brand polish: icons, accent color, onboarding copy)
 
 ### Changed
