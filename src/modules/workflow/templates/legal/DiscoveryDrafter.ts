@@ -27,10 +27,10 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     type: 'select',
     required: true,
     options: [
-      { value: 'interrogatories', label: 'Interrogatories' },
-      { value: 'rfp', label: 'Requests for Production (RFP)' },
-      { value: 'rfa', label: 'Requests for Admission (RFA)' },
-      { value: 'all', label: 'All three types' },
+      'Interrogatories',
+      'Requests for Production (RFP)',
+      'Requests for Admission (RFA)',
+      'All three types',
     ],
   },
   {

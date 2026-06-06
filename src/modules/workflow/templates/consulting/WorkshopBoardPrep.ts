@@ -12,11 +12,11 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     type: 'select',
     required: true,
     options: [
-      { value: 'workshop', label: 'Working session / workshop' },
-      { value: 'board', label: 'Board meeting' },
-      { value: 'offsite', label: 'Leadership offsite' },
-      { value: 'steering', label: 'Steering committee' },
-      { value: 'other', label: 'Other' },
+      'Working session / workshop',
+      'Board meeting',
+      'Leadership offsite',
+      'Steering committee',
+      'Other',
     ],
   },
   {

@@ -24,7 +24,7 @@ import matterOverview from './Sample - Matter Overview.md?raw';
 import clientResearchNote from './Sample - Client Research Note.md?raw';
 import engagementSummary from './Sample - Engagement Summary.md?raw';
 
-export type OnboardingProfession = 'legal' | 'tax' | 'consulting' | 'other';
+export type OnboardingProfession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 
 export interface SampleFile {
   /** Filename as it will appear in the workspace root. */

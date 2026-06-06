@@ -19,10 +19,10 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     type: 'select',
     required: true,
     options: [
-      { value: 'purchase', label: 'Purchase (buyer-side)' },
-      { value: 'sale', label: 'Sale (seller-side)' },
-      { value: 'refinance', label: 'Refinance' },
-      { value: 'purchase_sale', label: 'Purchase and Sale (representing both sides)' },
+      'Purchase (buyer-side)',
+      'Sale (seller-side)',
+      'Refinance',
+      'Purchase and Sale (representing both sides)',
     ],
   },
   {
