@@ -12,7 +12,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 use crate::commands::mail::graph::GraphClient;
 use crate::commands::mail::oauth::{OAuth, TokenOutcome};
-use crate::commands::mail::store::SqliteMailStore;
+use crate::commands::mail::store::EncryptedMailStore;
 
 const KEYCHAIN_SERVICE: &str = "keepance-mail-ms";
 const KEYCHAIN_REFRESH_KEY: &str = "ms-refresh-token";
@@ -163,7 +163,9 @@ pub async fn mail_sync_all(
         .clone()
         .ok_or("workspace not set")?;
     let cancel = state.cancel.clone();
-    let store = SqliteMailStore::open(&workspace).map_err(|e| e.to_string())?;
+    let store = EncryptedMailStore::open(&workspace).map_err(|e| e.to_string())?;
+    let enc_key = crate::commands::mail::crypto::get_or_create_master_key()
+        .map_err(|e| e.to_string())?;
 
     // FIX C: paginate folder enumeration — follow @odata.nextLink until exhausted.
     let mut ids: Vec<String> = Vec::new();
@@ -224,9 +226,12 @@ pub async fn mail_sync_all(
                 },
             );
         };
-        sync::sync_folder(&client, &store, &workspace, &fid, &emit)
-            .await
-            .map_err(|e| e.to_string())?;
+        sync::sync_folder_enc(
+            &client, &store, &workspace, &fid, &enc_key, &emit,
+            &|_id, _text| {}, // TODO(G4): wire rag_index_mail_text
+        )
+        .await
+        .map_err(|e| e.to_string())?;
     }
     let _ = app.emit(
         SYNC_PROGRESS_EVENT,

@@ -1,3 +1,4 @@
+use crate::commands::mail::crypto::encrypt_with_key;
 use crate::commands::mail::graph::{page_continuation, Continuation, DeltaGone, GraphClient};
 use crate::commands::mail::model::MailMessage;
 use crate::commands::mail::normalize::to_markdown;
@@ -47,6 +48,88 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
     Ok(stats)
 }
 
+/// Encrypted variant of apply_page.
+///
+/// Differences from `apply_page`:
+///   - Does NOT write Mail/*.md plaintext files.
+///   - Writes each message body as an AES-256-GCM blob under
+///     `.keepance/mail/blobs/<safe-id>.enc` using `key`.
+///   - After writing the blob, calls `index_callback(id, markdown_plaintext)`
+///     so the caller can feed the decrypted text to the RAG indexer and keyword
+///     index in memory without the text ever touching disk.
+///   - tombstone: removes the .enc blob from disk (via workspace_root join
+///     of relative_path) in addition to the store record.
+///
+/// `store` must be an `EncryptedMailStore` (or any MailStore impl that stores
+/// relative_path pointing to .enc files). The trait is used so tests can pass
+/// a FakeStore.
+pub fn apply_page_enc<F>(
+    store: &dyn MailStore,
+    workspace_root: &Path,
+    folder_id: &str,
+    page: &serde_json::Value,
+    key: &[u8; 32],
+    index_callback: &F,
+) -> anyhow::Result<PageStats>
+where
+    F: Fn(&str, &str),
+{
+    let mut stats = PageStats::default();
+    let items = page
+        .get("value")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    for item in &items {
+        let id = item.get("id").and_then(|s| s.as_str()).unwrap_or("");
+        if id.is_empty() {
+            continue;
+        }
+
+        if MailMessage::is_removed(item) {
+            if let Some(rel) = store.tombstone(id)? {
+                // Delete the encrypted blob (relative path points to .enc file).
+                let _ = std::fs::remove_file(workspace_root.join(&rel));
+                stats.removed += 1;
+            }
+            continue;
+        }
+
+        if let Some(msg) = MailMessage::from_graph(item) {
+            let markdown = to_markdown(&msg);
+
+            // Encrypt the markdown and write the blob.
+            let blob_dir = workspace_root
+                .join(".keepance")
+                .join("mail")
+                .join("blobs");
+            std::fs::create_dir_all(&blob_dir)?;
+            let safe = safe_filename(&msg.id);
+            let blob_filename = format!("{}.enc", safe);
+            let blob_abs = blob_dir.join(&blob_filename);
+            let encrypted = encrypt_with_key(markdown.as_bytes(), key)?;
+            std::fs::write(&blob_abs, &encrypted)?;
+
+            let rel = format!(".keepance/mail/blobs/{}", blob_filename);
+            store.upsert(&MailRecord {
+                id: msg.id.clone(),
+                folder_id: folder_id.to_string(),
+                internet_message_id: msg.internet_message_id.clone(),
+                relative_path: rel,
+                received_date_time: msg.received_date_time.clone(),
+            })?;
+
+            // Feed decrypted text to the in-memory indexer (RAG + keyword).
+            // This is the ONLY place the plaintext exists — never written to disk.
+            index_callback(&msg.id, &markdown);
+
+            stats.written += 1;
+        }
+    }
+    Ok(stats)
+}
+
 /// Drive one folder to completion, persisting the cursor after each page.
 /// `emit` is a callback so the command layer can fire Tauri progress events
 /// and the test can pass a no-op.
@@ -76,6 +159,56 @@ pub async fn sync_folder<F: Fn(u32, u32) + Send>(
         match page_continuation(&page) {
             Continuation::Next(next) => { store.set_cursor(folder_id, &next)?; url = next; }
             Continuation::Delta(delta) => { store.set_cursor(folder_id, &delta)?; break; }
+            Continuation::End => break,
+        }
+    }
+    Ok(total)
+}
+
+/// Encrypted variant of sync_folder. Uses apply_page_enc instead of apply_page.
+/// `index_callback` receives (doc_id, plaintext_markdown) for each new message —
+/// the caller feeds this to the RAG indexer and MiniSearch without persisting it.
+pub async fn sync_folder_enc<F, I>(
+    client: &GraphClient,
+    store: &(dyn MailStore + Sync),
+    workspace_root: &Path,
+    folder_id: &str,
+    key: &[u8; 32],
+    emit: &F,
+    index_callback: &I,
+) -> anyhow::Result<PageStats>
+where
+    F: Fn(u32, u32) + Send,
+    I: Fn(&str, &str) + Send + Sync,
+{
+    let mut url = match store.get_cursor(folder_id)? {
+        Some(saved) => saved,
+        None => client.delta_start_url(folder_id),
+    };
+    let mut total = PageStats::default();
+    loop {
+        let page = match client.get_json(&url).await {
+            Ok(p) => p,
+            Err(e) if e.downcast_ref::<DeltaGone>().is_some() => {
+                store.set_cursor(folder_id, &client.delta_start_url(folder_id))?;
+                url = client.delta_start_url(folder_id);
+                continue;
+            }
+            Err(e) => return Err(e),
+        };
+        let s = apply_page_enc(store, workspace_root, folder_id, &page, key, index_callback)?;
+        total.written += s.written;
+        total.removed += s.removed;
+        emit(total.written, total.removed);
+        match page_continuation(&page) {
+            Continuation::Next(next) => {
+                store.set_cursor(folder_id, &next)?;
+                url = next;
+            }
+            Continuation::Delta(delta) => {
+                store.set_cursor(folder_id, &delta)?;
+                break;
+            }
             Continuation::End => break,
         }
     }
@@ -118,6 +251,120 @@ mod tests {
         assert!(!store.contains("m2").unwrap());
         // body file exists on disk
         assert!(dir.path().join("Mail/inbox/m1.md").exists());
+    }
+
+    #[test]
+    fn apply_page_plaintext_original_still_exists_for_sqlitestore() {
+        // The original Phase 1 behavior: SqliteMailStore + apply_page (not enc)
+        // still writes Mail/*.md plaintext. This test guards against accidentally
+        // removing the non-encrypted path. The encrypted path (apply_page_enc)
+        // is tested separately above.
+        let store = FakeStore::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let page = serde_json::json!({ "value": [
+            { "id":"m1","subject":"A","body":{"contentType":"text","content":"hello"} }
+        ]});
+        let stats = apply_page(&store, dir.path(), "inbox", &page).unwrap();
+        assert_eq!(stats.written, 1);
+        assert!(dir.path().join("Mail/inbox/m1.md").exists());
+    }
+
+    #[test]
+    fn apply_page_enc_writes_blob_not_plaintext_md() {
+        let store = FakeStore::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x42u8; 32];
+        let page = serde_json::json!({ "value": [
+            { "id":"m1","subject":"Closing","body":{"contentType":"text","content":"See you at 10am."} }
+        ]});
+
+        let stats = apply_page_enc(
+            &store,
+            dir.path(),
+            "inbox",
+            &page,
+            &key,
+            &|_id: &str, _text: &str| {}, // stub index callback
+        ).unwrap();
+
+        assert_eq!(stats.written, 1);
+        // NO plaintext .md anywhere under Mail/
+        assert!(!dir.path().join("Mail").exists(),
+            "plaintext Mail/ dir must NOT exist when apply_page_enc is used");
+        // An encrypted blob exists under .keepance/mail/blobs/
+        let blob_dir = dir.path().join(".keepance/mail/blobs");
+        let blobs: Vec<_> = std::fs::read_dir(&blob_dir)
+            .expect("blobs dir must exist")
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().map(|x| x == "enc").unwrap_or(false))
+            .collect();
+        assert_eq!(blobs.len(), 1, "exactly one .enc blob expected");
+
+        // The blob must decrypt to content that includes the email body.
+        let blob_path = blobs[0].path();
+        let raw = std::fs::read(&blob_path).unwrap();
+        let decrypted = crate::commands::mail::crypto::decrypt_with_key(&raw, &key).unwrap();
+        let text = String::from_utf8(decrypted).unwrap();
+        assert!(text.contains("See you at 10am."), "decrypted body must contain original text");
+    }
+
+    #[test]
+    fn apply_page_enc_tombstone_removes_blob() {
+        let store = FakeStore::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x42u8; 32];
+
+        // Pre-seed: write a blob and register it.
+        let blob_rel = {
+            let blob_dir = dir.path().join(".keepance/mail/blobs");
+            std::fs::create_dir_all(&blob_dir).unwrap();
+            let enc = crate::commands::mail::crypto::encrypt_with_key(b"old body", &key).unwrap();
+            std::fs::write(blob_dir.join("m2.enc"), &enc).unwrap();
+            ".keepance/mail/blobs/m2.enc".to_string()
+        };
+        store.upsert(&crate::commands::mail::store::MailRecord {
+            id: "m2".into(), folder_id: "inbox".into(),
+            internet_message_id: None,
+            relative_path: blob_rel.clone(),
+            received_date_time: None,
+        }).unwrap();
+
+        let page = serde_json::json!({ "value": [
+            { "id":"m2", "@removed": { "reason":"deleted" } }
+        ]});
+        let stats = apply_page_enc(
+            &store, dir.path(), "inbox", &page, &key,
+            &|_id, _text| {},
+        ).unwrap();
+
+        assert_eq!(stats.removed, 1);
+        assert!(!dir.path().join(&blob_rel).exists(), ".enc blob must be deleted");
+        assert!(!store.contains("m2").unwrap());
+    }
+
+    #[test]
+    fn apply_page_enc_calls_index_callback_with_decrypted_text() {
+        let store = FakeStore::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x42u8; 32];
+        let page = serde_json::json!({ "value": [
+            { "id":"m3","subject":"Test","body":{"contentType":"text","content":"Index me!"} }
+        ]});
+
+        // Use Arc<Mutex<Vec>> to collect from the closure.
+        let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::<(String, String)>::new()));
+        let cap2 = captured.clone();
+        apply_page_enc(
+            &store, dir.path(), "inbox", &page, &key,
+            &|id: &str, text: &str| {
+                cap2.lock().unwrap().push((id.to_string(), text.to_string()));
+            },
+        ).unwrap();
+
+        let pairs = captured.lock().unwrap();
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].0, "m3");
+        assert!(pairs[0].1.contains("Index me!"), "callback receives plaintext");
     }
 
     #[test]
