@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { mailIsConnected, mailBeginLogin, mailPollLogin, mailSyncAll, type DeviceCodePrompt } from '@/utils/mail-commands';
+import { mailIsConnected, mailBeginLogin, mailPollLogin, mailSyncAll, mailFdeStatus, type DeviceCodePrompt } from '@/utils/mail-commands';
 import { useMailSync } from '@/hooks/useMailSync';
 import { useMailStore } from '@/stores/mailStore';
 
@@ -10,8 +10,14 @@ export function MailConnect() {
   const [prompt, setPrompt] = useState<DeviceCodePrompt | null>(null);
   const [expired, setExpired] = useState(false);
   const [pollError, setPollError] = useState<string | null>(null);
+  const [fdeStatus, setFdeStatus] = useState<'on' | 'off' | 'unknown'>('unknown');
 
   useEffect(() => { mailIsConnected().then(setConnected); }, []);
+
+  // G6: check OS full-disk encryption status on mount. Best-effort; never blocks.
+  useEffect(() => {
+    mailFdeStatus().then((s) => setFdeStatus(s.status)).catch(() => {});
+  }, []);
 
   // FIX 1: interval owned by useEffect keyed on prompt — cleared on unmount or prompt change.
   // FIX 9: poll errors caught and surfaced; loop stops on error.
@@ -62,6 +68,12 @@ export function MailConnect() {
       <p className="mt-1 text-sm text-slate-600">
         Bring your Outlook mail into Keepance so you can actually find it. Your mail stays on this machine.
       </p>
+      {fdeStatus === 'off' && (
+        <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
+          Full-disk encryption is off on this machine. Keepance encrypts your mail, but enabling
+          FileVault (macOS) or BitLocker (Windows) adds a second layer of protection if your device is stolen.
+        </p>
+      )}
       {!connected && !prompt && !expired && !pollError && (
         <button onClick={connect}
           className="mt-3 rounded-md bg-[#0A2540] px-3 py-2 text-sm font-medium text-white hover:opacity-90">

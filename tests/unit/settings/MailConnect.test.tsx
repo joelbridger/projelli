@@ -5,12 +5,14 @@ const mockMailPollLogin = vi.fn();
 const mockMailBeginLogin = vi.fn();
 const mockMailSyncAll = vi.fn();
 const mockMailIsConnected = vi.fn();
+const mockMailFdeStatus = vi.fn();
 
 vi.mock('@/utils/mail-commands', () => ({
   get mailIsConnected() { return mockMailIsConnected; },
   get mailBeginLogin() { return mockMailBeginLogin; },
   get mailPollLogin() { return mockMailPollLogin; },
   get mailSyncAll() { return mockMailSyncAll; },
+  get mailFdeStatus() { return mockMailFdeStatus; },
   MAIL_SYNC_EVENT: 'mail-sync-progress',
 }));
 vi.mock('@/hooks/useMailSync', () => ({ useMailSync: () => {} }));
@@ -33,6 +35,8 @@ describe('MailConnect', () => {
     mockMailBeginLogin.mockResolvedValue({ ...DEFAULT_PROMPT });
     mockMailPollLogin.mockResolvedValue(false);
     mockMailSyncAll.mockResolvedValue(undefined);
+    // G6: default to 'unknown' so FDE nudge is hidden in existing tests.
+    mockMailFdeStatus.mockResolvedValue({ status: 'unknown', platform: 'Linux', detail: null });
   });
 
   afterEach(() => {
@@ -92,5 +96,27 @@ describe('MailConnect', () => {
 
     await waitFor(() => expect(screen.getByText(/something went wrong/i)).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+
+  // G6: FDE nudge tests
+  it('shows FDE nudge when status is off', async () => {
+    mockMailFdeStatus.mockResolvedValue({ status: 'off', platform: 'Windows', detail: null });
+    render(<MailConnect />);
+    expect(await screen.findByText(/full.disk encryption/i)).toBeInTheDocument();
+  });
+
+  it('does not show FDE nudge when status is on', async () => {
+    mockMailFdeStatus.mockResolvedValue({ status: 'on', platform: 'macOS', detail: null });
+    render(<MailConnect />);
+    // Give time for the effect to resolve.
+    await waitFor(() => expect(mockMailFdeStatus).toHaveBeenCalled());
+    expect(screen.queryByText(/full.disk encryption/i)).not.toBeInTheDocument();
+  });
+
+  it('does not show FDE nudge when status is unknown', async () => {
+    mockMailFdeStatus.mockResolvedValue({ status: 'unknown', platform: 'Linux', detail: 'lsblk unavailable' });
+    render(<MailConnect />);
+    await waitFor(() => expect(mockMailFdeStatus).toHaveBeenCalled());
+    expect(screen.queryByText(/full.disk encryption/i)).not.toBeInTheDocument();
   });
 });

@@ -77,6 +77,8 @@ pub fn run() {
             commands::mail::mail_is_connected,
             commands::mail::mail_sync_all,
             commands::mail::mail_cancel_sync,
+            // G6 — OS full-disk encryption detection + nudge in MailConnect.
+            commands::mail::fde::mail_fde_status,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

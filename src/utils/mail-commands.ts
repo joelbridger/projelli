@@ -38,3 +38,15 @@ export async function mailCancelSync(): Promise<void> {
   if (!isTauri()) return;
   return invoke<void>('mail_cancel_sync');
 }
+
+// G6: OS full-disk encryption status
+export interface FdeStatus {
+  status: 'on' | 'off' | 'unknown';
+  platform: string;
+  detail?: string | null;
+}
+
+export async function mailFdeStatus(): Promise<FdeStatus> {
+  if (!isTauri()) return { status: 'unknown', platform: 'browser' };
+  return invoke<FdeStatus>('mail_fde_status');
+}

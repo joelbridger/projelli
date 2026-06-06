@@ -28,4 +28,11 @@ describe('mail-commands', () => {
     const { MAIL_INDEX_CHUNK_EVENT } = await import('@/utils/mail-commands');
     expect(MAIL_INDEX_CHUNK_EVENT).toBe('mail-index-chunk');
   });
+  it('mailFdeStatus invokes mail_fde_status', async () => {
+    (invoke as any).mockResolvedValue({ status: 'on', platform: 'macOS', detail: null });
+    const { mailFdeStatus } = await import('@/utils/mail-commands');
+    const result = await mailFdeStatus();
+    expect(invoke).toHaveBeenCalledWith('mail_fde_status');
+    expect(result.status).toBe('on');
+  });
 });
