@@ -1,0 +1,143 @@
+use crate::commands::mail::model::{BodyContentType, MailMessage, Recipient};
+
+fn fmt_recipient(r: &Recipient) -> String {
+    match (&r.name, &r.address) {
+        (Some(n), Some(a)) => format!("{n} <{a}>"),
+        (None, Some(a)) => a.clone(),
+        (Some(n), None) => n.clone(),
+        _ => String::new(),
+    }
+}
+
+fn yaml_escape(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// Naive but dependency-free HTML-to-text: drop tags, collapse whitespace,
+/// decode the few entities email actually uses. Good enough for indexing;
+/// fidelity is not the goal (the original stays in the store).
+fn html_to_text(html: &str) -> String {
+    let mut out = String::with_capacity(html.len());
+    let mut in_tag = false;
+    for c in html.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    out.replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+pub fn to_markdown(m: &MailMessage) -> String {
+    let from = match (&m.from_name, &m.from_address) {
+        (Some(n), Some(a)) => format!("{n} <{a}>"),
+        (_, Some(a)) => a.clone(),
+        _ => String::new(),
+    };
+    let to = m
+        .to
+        .iter()
+        .map(fmt_recipient)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let cc = m
+        .cc
+        .iter()
+        .map(fmt_recipient)
+        .collect::<Vec<_>>()
+        .join(", ");
+    let body = match m.body_content_type {
+        BodyContentType::Html => html_to_text(&m.body_text),
+        BodyContentType::Text => m.body_text.clone(),
+    };
+    let mut s = String::new();
+    s.push_str("---\n");
+    s.push_str(&format!("message_id: {}\n", m.id));
+    if let Some(c) = &m.conversation_id {
+        s.push_str(&format!("conversation_id: {c}\n"));
+    }
+    if let Some(i) = &m.internet_message_id {
+        s.push_str(&format!("internet_message_id: \"{}\"\n", yaml_escape(i)));
+    }
+    s.push_str(&format!("subject: \"{}\"\n", yaml_escape(&m.subject)));
+    s.push_str(&format!("from: \"{}\"\n", yaml_escape(&from)));
+    s.push_str(&format!("to: \"{}\"\n", yaml_escape(&to)));
+    if !cc.is_empty() {
+        s.push_str(&format!("cc: \"{}\"\n", yaml_escape(&cc)));
+    }
+    if let Some(d) = &m.received_date_time {
+        s.push_str(&format!("date: {d}\n"));
+    }
+    s.push_str(&format!("has_attachments: {}\n", m.has_attachments));
+    s.push_str("source: microsoft365\n");
+    s.push_str("---\n\n");
+    s.push_str(&format!("# {}\n\n", m.subject));
+    s.push_str(&body);
+    s.push('\n');
+    s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::commands::mail::model::{BodyContentType, MailMessage, Recipient};
+
+    fn msg() -> MailMessage {
+        MailMessage {
+            id: "AAMk-123".into(),
+            conversation_id: Some("conv-9".into()),
+            internet_message_id: Some("<abc@hender.com>".into()),
+            subject: "Closing date".into(),
+            received_date_time: Some("2026-05-01T14:30:00Z".into()),
+            from_name: Some("Pat H".into()),
+            from_address: Some("pat@hender.com".into()),
+            to: vec![Recipient {
+                name: Some("Me".into()),
+                address: Some("me@firm.com".into()),
+            }],
+            cc: vec![],
+            has_attachments: false,
+            body_content_type: BodyContentType::Text,
+            body_text: "Confirming May 14.".into(),
+        }
+    }
+
+    #[test]
+    fn renders_frontmatter_and_body() {
+        let md = to_markdown(&msg());
+        assert!(md.starts_with("---\n"));
+        assert!(md.contains("message_id: AAMk-123"));
+        assert!(md.contains("from: \"Pat H <pat@hender.com>\""));
+        assert!(md.contains("subject: \"Closing date\""));
+        assert!(md.contains("date: 2026-05-01T14:30:00Z"));
+        assert!(md.contains("\n---\n")); // closing fence
+        assert!(md.trim_end().ends_with("Confirming May 14."));
+    }
+
+    #[test]
+    fn html_body_is_stripped_to_text() {
+        let mut m = msg();
+        m.body_content_type = BodyContentType::Html;
+        m.body_text = "<p>Hi <b>there</b></p>".into();
+        let md = to_markdown(&m);
+        assert!(md.contains("Hi there"));
+        assert!(!md.contains("<b>"));
+    }
+
+    #[test]
+    fn quotes_are_escaped_in_frontmatter() {
+        let mut m = msg();
+        m.subject = "Re: \"urgent\" matter".into();
+        let md = to_markdown(&m);
+        assert!(md.contains("subject: \"Re: \\\"urgent\\\" matter\""));
+    }
+}
