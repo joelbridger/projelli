@@ -7,7 +7,7 @@
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
-export interface DeviceCodePrompt { userCode: string; verificationUri: string; deviceCode: string; intervalSecs: number; }
+export interface DeviceCodePrompt { userCode: string; verificationUri: string; deviceCode: string; intervalSecs: number; expiresInSecs: number; }
 export type MailSyncStatus = 'idle' | 'syncing' | 'done' | 'cancelled' | 'error';
 export interface MailSyncProgress { status: MailSyncStatus; folder?: string | null; written: number; removed: number; }
 export const MAIL_SYNC_EVENT = 'mail-sync-progress';

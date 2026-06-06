@@ -52,6 +52,7 @@ pub struct DeviceCodePrompt {
     pub verification_uri: String,
     pub device_code: String,
     pub interval_secs: u64,
+    pub expires_in_secs: u64,
 }
 
 #[derive(Serialize, Clone)]
@@ -81,6 +82,7 @@ pub async fn mail_begin_login() -> Result<DeviceCodePrompt, String> {
         verification_uri: dc.verification_uri,
         device_code: dc.device_code,
         interval_secs: dc.interval_secs,
+        expires_in_secs: dc.expires_in_secs,
     })
 }
 
