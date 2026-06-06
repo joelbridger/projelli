@@ -11,6 +11,8 @@ export interface DeviceCodePrompt { userCode: string; verificationUri: string; d
 export type MailSyncStatus = 'idle' | 'syncing' | 'done' | 'cancelled' | 'error';
 export interface MailSyncProgress { status: MailSyncStatus; folder?: string | null; written: number; removed: number; }
 export const MAIL_SYNC_EVENT = 'mail-sync-progress';
+export const MAIL_INDEX_CHUNK_EVENT = 'mail-index-chunk';
+export interface MailIndexChunk { docId: string; subject: string; decryptedText: string; }
 
 export async function mailSetWorkspace(path: string): Promise<void> {
   if (!isTauri()) return;

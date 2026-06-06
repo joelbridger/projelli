@@ -17,6 +17,18 @@ use crate::commands::mail::store::EncryptedMailStore;
 const KEYCHAIN_SERVICE: &str = "keepance-mail-ms";
 const KEYCHAIN_REFRESH_KEY: &str = "ms-refresh-token";
 pub const SYNC_PROGRESS_EVENT: &str = "mail-sync-progress";
+/// G5: per-message event that carries decrypted text to the renderer for
+/// MiniSearch indexing. The text lives only in renderer-process memory.
+pub const MAIL_INDEX_CHUNK_EVENT: &str = "mail-index-chunk";
+
+/// G5: payload for the mail-index-chunk Tauri event.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct MailIndexChunkPayload {
+    pub doc_id: String,
+    pub subject: String,
+    pub decrypted_text: String,
+}
 
 pub struct MailState {
     pub workspace: tokio::sync::Mutex<Option<std::path::PathBuf>>,
@@ -280,22 +292,37 @@ pub async fn mail_sync_all(
                 },
             );
         };
-        // G4: index_callback receives (doc_id, plaintext_markdown) for each
-        // new message. We spawn an async task on the current Tokio runtime to
-        // call the in-process equivalent of rag_index_mail_text without making
-        // apply_page_enc itself async (preserving unit-testability with a sync Fn).
+        // G4+G5: index_callback receives (doc_id, plaintext_markdown) for each
+        // new message. We:
+        //   1. Spawn an async task to call index_mail_text_internal (RAG/LanceDB, G4).
+        //   2. Emit a mail-index-chunk Tauri event so the renderer feeds the
+        //      decrypted text into MiniSearch in-memory (G5). The plaintext
+        //      never touches disk — it lives only in renderer-process memory.
         let workspace_for_index = workspace.clone();
         let enc_key_for_index = enc_key;
+        let app3 = app.clone();
         let index_callback = move |id: &str, text: &str| {
             let path_key = format!("mail:{}", id);
             let text_owned = text.to_string();
             let ws = workspace_for_index.clone();
             let key = enc_key_for_index;
-            // Fire-and-forget: indexing failures are logged but never block sync.
+            // Fire-and-forget RAG indexing (G4).
             let _ = tokio::task::spawn(async move {
                 if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key).await {
                     log::warn!("G4 mail index failed for {}: {}", path_key, e);
                 }
+            });
+            // G5: extract subject from the markdown header (first line starting
+            // with "subject:") and emit the event for MiniSearch keyword indexing.
+            let subject = text
+                .lines()
+                .find(|l| l.to_lowercase().starts_with("subject:"))
+                .and_then(|l| l.split_once(':').map(|(_, v)| v.trim().to_string()))
+                .unwrap_or_default();
+            let _ = app3.emit(MAIL_INDEX_CHUNK_EVENT, MailIndexChunkPayload {
+                doc_id: id.to_string(),
+                subject,
+                decrypted_text: text.to_string(),
             });
         };
         sync::sync_folder_enc(

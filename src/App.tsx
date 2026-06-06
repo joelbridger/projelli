@@ -107,6 +107,7 @@ import { usePluginsMarketplaceStore } from '@/stores/pluginsMarketplaceStore';
 import { buildOpenFilesPromptBlock } from '@/components/ai/AIChatViewer';
 import { useModelList } from '@/hooks/useModelList';
 import { useContentIndex } from '@/hooks/useContentIndex';
+import { useMailSync } from '@/hooks/useMailSync';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { usePromptDialog } from '@/hooks/usePromptDialog';
@@ -319,6 +320,20 @@ function App() {
     rootPath,
     service: workspaceServiceRef.current,
     fileTree,
+  });
+
+  // G5: Feed decrypted mail text into the in-memory MiniSearch index via the
+  // mail-index-chunk Tauri event. The decrypted text never touches disk —
+  // it lives only in the renderer process's MiniSearch instance.
+  useMailSync({
+    onMailChunk: (chunk) => {
+      contentIndex.upsert({
+        id: `mail:${chunk.docId}`,
+        path: `mail:${chunk.docId}`,
+        name: chunk.subject || 'Email',
+        content: chunk.decryptedText,
+      });
+    },
   });
 
   // API key management

@@ -24,4 +24,8 @@ describe('mail-commands', () => {
     await mailSetWorkspace('/home/u/ws');
     expect(invoke).toHaveBeenCalledWith('mail_set_workspace', { path: '/home/u/ws' });
   });
+  it('mail-index-chunk event constant is exported', async () => {
+    const { MAIL_INDEX_CHUNK_EVENT } = await import('@/utils/mail-commands');
+    expect(MAIL_INDEX_CHUNK_EVENT).toBe('mail-index-chunk');
+  });
 });
