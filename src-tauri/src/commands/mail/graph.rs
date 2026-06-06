@@ -3,6 +3,43 @@ use std::time::Duration;
 #[derive(Debug, PartialEq)]
 pub enum Continuation { Next(String), Delta(String), End }
 
+pub struct GraphClient { token: String, base: String, http: reqwest::Client }
+
+impl GraphClient {
+    pub fn new(token: String) -> Self { Self::new_with_base(token, "https://graph.microsoft.com".into()) }
+    pub fn new_with_base(token: String, base: String) -> Self {
+        Self { token, base, http: reqwest::Client::builder().build().expect("client") }
+    }
+    pub fn base(&self) -> &str { &self.base }
+
+    /// GET an absolute Graph URL (used for nextLink/deltaLink which come back
+    /// fully-formed), honoring 429/Retry-After with capped backoff. Up to 8 tries.
+    pub async fn get_json(&self, url: &str) -> anyhow::Result<serde_json::Value> {
+        for attempt in 0..8u32 {
+            let resp = self.http.get(url)
+                .bearer_auth(&self.token)
+                .send().await?;
+            if resp.status().as_u16() == 429 {
+                let ra = resp.headers().get("Retry-After").and_then(|v| v.to_str().ok()).map(String::from);
+                tokio::time::sleep(retry_delay(ra.as_deref(), attempt)).await;
+                continue;
+            }
+            let status = resp.status();
+            let body = resp.text().await?;
+            if status.as_u16() == 410 { anyhow::bail!("410 Gone: resync required"); }
+            if !status.is_success() { anyhow::bail!("graph {} : {}", status, body); }
+            return Ok(serde_json::from_str(&body)?);
+        }
+        anyhow::bail!("graph: throttled past retry budget")
+    }
+
+    /// Start a delta round for a folder (no cursor) or resume from a saved
+    /// next/delta link. Returns the absolute URL to GET first.
+    pub fn delta_start_url(&self, folder_id: &str) -> String {
+        format!("{}/v1.0/me/mailFolders/{}/messages/delta", self.base, folder_id)
+    }
+}
+
 /// Microsoft says: wait the Retry-After seconds and retry; if absent, back off
 /// exponentially. Cap at 60s so a stuck import doesn't sleep forever.
 pub fn retry_delay(retry_after_header: Option<&str>, attempt: u32) -> Duration {
@@ -29,6 +66,28 @@ pub fn page_continuation(page: &serde_json::Value) -> Continuation {
 mod tests {
     use super::*;
     use std::time::Duration;
+
+    #[tokio::test]
+    async fn fetches_delta_page_and_retries_on_429() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+        let server = MockServer::start().await;
+        // First call 429 with Retry-After: 0, second returns a page.
+        Mock::given(method("GET")).and(path("/v1.0/me/mailFolders/inbox/messages/delta"))
+            .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "0"))
+            .up_to_n_times(1).mount(&server).await;
+        Mock::given(method("GET")).and(path("/v1.0/me/mailFolders/inbox/messages/delta"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "value": [{ "id": "m1", "subject": "Hi", "body": {"contentType":"text","content":"yo"} }],
+                "@odata.deltaLink": "https://x/d?$deltatoken=tok"
+            }))).mount(&server).await;
+
+        let client = GraphClient::new_with_base("AT".into(), server.uri());
+        let url = format!("{}/v1.0/me/mailFolders/inbox/messages/delta", server.uri());
+        let page = client.get_json(&url).await.expect("page");
+        assert_eq!(page_continuation(&page), Continuation::Delta("https://x/d?$deltatoken=tok".into()));
+        assert_eq!(page["value"][0]["id"], "m1");
+    }
 
     #[test]
     fn retry_after_header_wins() {
