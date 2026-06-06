@@ -20,13 +20,23 @@ pub const SYNC_PROGRESS_EVENT: &str = "mail-sync-progress";
 pub struct MailState {
     pub workspace: tokio::sync::Mutex<Option<std::path::PathBuf>>,
     pub cancel: Arc<AtomicBool>,
+    pub is_syncing: Arc<AtomicBool>,
 }
 
 pub fn manage_state(app: &tauri::App) {
     app.manage(MailState {
         workspace: tokio::sync::Mutex::new(None),
         cancel: Arc::new(AtomicBool::new(false)),
+        is_syncing: Arc::new(AtomicBool::new(false)),
     });
+}
+
+/// RAII guard: sets `is_syncing` to false when dropped, covering all exit paths.
+struct SyncGuard(Arc<AtomicBool>);
+impl Drop for SyncGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
 }
 
 fn client_id() -> String {
@@ -128,38 +138,61 @@ pub async fn mail_sync_all(
     app: AppHandle,
     state: State<'_, MailState>,
 ) -> Result<(), String> {
+    // FIX A: atomically claim the sync slot; reject if already in progress.
+    // We do NOT reset `cancel` here if we bail early — an in-flight sync owns it.
+    if state.is_syncing
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("a sync is already in progress".into());
+    }
+    // RAII guard: restores is_syncing=false on every exit path (success, early
+    // return from cancel check, or any ? propagation below).
+    let _sync_guard = SyncGuard(state.is_syncing.clone());
+
+    // Only reset cancel now that we hold the sync slot.
+    state.cancel.store(false, Ordering::SeqCst);
+
     let workspace = state
         .workspace
         .lock()
         .await
         .clone()
         .ok_or("workspace not set")?;
-    state.cancel.store(false, Ordering::SeqCst);
     let cancel = state.cancel.clone();
-    let token = fresh_access_token().await?;
-    let client = GraphClient::new(token);
     let store = SqliteMailStore::open(&workspace).map_err(|e| e.to_string())?;
 
-    // Enumerate mail folders (single page is enough for typical accounts; paginate if nextLink present).
-    let folders_url = format!("{}/v1.0/me/mailFolders?$top=200", client.base());
-    let folders = client
-        .get_json(&folders_url)
-        .await
-        .map_err(|e| e.to_string())?;
-    let ids: Vec<String> = folders
-        .get("value")
-        .and_then(|v| v.as_array())
-        .map(|a| {
-            a.iter()
-                .filter_map(|f| {
-                    f.get("id")
-                        .and_then(|s| s.as_str())
-                        .map(String::from)
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    // FIX C: paginate folder enumeration — follow @odata.nextLink until exhausted.
+    let mut ids: Vec<String> = Vec::new();
+    {
+        let token = fresh_access_token().await?;
+        let list_client = GraphClient::new(token);
+        let mut next_url = Some(format!(
+            "{}/v1.0/me/mailFolders?$top=200",
+            list_client.base()
+        ));
+        while let Some(url) = next_url {
+            let page = list_client
+                .get_json(&url)
+                .await
+                .map_err(|e| e.to_string())?;
+            if let Some(arr) = page.get("value").and_then(|v| v.as_array()) {
+                for f in arr {
+                    if let Some(id) = f.get("id").and_then(|s| s.as_str()) {
+                        ids.push(id.to_string());
+                    }
+                }
+            }
+            // Follow the next page if present.
+            next_url = page
+                .get("@odata.nextLink")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+        }
+    }
 
+    // FIX B: refresh the access token before each folder so long backfills
+    // never outlive the 3600-second token lifetime.
     for fid in ids {
         if cancel.load(Ordering::SeqCst) {
             let _ = app.emit(
@@ -173,6 +206,8 @@ pub async fn mail_sync_all(
             );
             return Ok(());
         }
+        let token = fresh_access_token().await?;
+        let client = GraphClient::new(token);
         let app2 = app.clone();
         let fid2 = fid.clone();
         let emit = move |w: u32, r: u32| {

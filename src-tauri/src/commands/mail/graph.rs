@@ -3,6 +3,17 @@ use std::time::Duration;
 #[derive(Debug, PartialEq)]
 pub enum Continuation { Next(String), Delta(String), End }
 
+/// Sentinel error: the delta token has expired (HTTP 410). Callers can
+/// downcast with `e.downcast_ref::<DeltaGone>()` instead of string-matching.
+#[derive(Debug)]
+pub struct DeltaGone;
+impl std::fmt::Display for DeltaGone {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "delta token expired (410 Gone): full resync required")
+    }
+}
+impl std::error::Error for DeltaGone {}
+
 pub struct GraphClient { token: String, base: String, http: reqwest::Client }
 
 impl GraphClient {
@@ -26,7 +37,7 @@ impl GraphClient {
             }
             let status = resp.status();
             let body = resp.text().await?;
-            if status.as_u16() == 410 { anyhow::bail!("410 Gone: resync required"); }
+            if status.as_u16() == 410 { return Err(anyhow::Error::new(DeltaGone)); }
             if !status.is_success() { anyhow::bail!("graph {} : {}", status, body); }
             return Ok(serde_json::from_str(&body)?);
         }
@@ -110,5 +121,22 @@ mod tests {
         assert_eq!(page_continuation(&next), Continuation::Next("https://g/n?$skiptoken=s".into()));
         assert_eq!(page_continuation(&delta), Continuation::Delta("https://g/d?$deltatoken=d".into()));
         assert_eq!(page_continuation(&serde_json::json!({"value":[]})), Continuation::End);
+    }
+
+    #[tokio::test]
+    async fn http_410_returns_delta_gone_sentinel() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+        let server = MockServer::start().await;
+        Mock::given(method("GET")).and(path("/v1.0/me/mailFolders/inbox/messages/delta"))
+            .respond_with(ResponseTemplate::new(410).set_body_string("Sync state not found"))
+            .mount(&server).await;
+        let client = GraphClient::new_with_base("AT".into(), server.uri());
+        let url = format!("{}/v1.0/me/mailFolders/inbox/messages/delta", server.uri());
+        let err = client.get_json(&url).await.expect_err("should fail on 410");
+        assert!(
+            err.downcast_ref::<DeltaGone>().is_some(),
+            "expected DeltaGone sentinel, got: {err}"
+        );
     }
 }

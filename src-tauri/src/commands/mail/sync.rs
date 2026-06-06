@@ -1,4 +1,4 @@
-use crate::commands::mail::graph::{page_continuation, Continuation, GraphClient};
+use crate::commands::mail::graph::{page_continuation, Continuation, DeltaGone, GraphClient};
 use crate::commands::mail::model::MailMessage;
 use crate::commands::mail::normalize::to_markdown;
 use crate::commands::mail::store::{MailRecord, MailStore};
@@ -62,8 +62,8 @@ pub async fn sync_folder<F: Fn(u32, u32) + Send>(
     loop {
         let page = match client.get_json(&url).await {
             Ok(p) => p,
-            Err(e) if e.to_string().contains("410") => {
-                // Token invalid: discard cursor, restart this folder from scratch.
+            Err(e) if e.downcast_ref::<DeltaGone>().is_some() => {
+                // Delta token expired (410): discard cursor, restart this folder from scratch.
                 store.set_cursor(folder_id, &client.delta_start_url(folder_id))?;
                 url = client.delta_start_url(folder_id);
                 continue;

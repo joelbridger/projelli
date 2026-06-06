@@ -61,9 +61,9 @@ pub fn to_markdown(m: &MailMessage) -> String {
     };
     let mut s = String::new();
     s.push_str("---\n");
-    s.push_str(&format!("message_id: {}\n", m.id));
+    s.push_str(&format!("message_id: \"{}\"\n", yaml_escape(&m.id)));
     if let Some(c) = &m.conversation_id {
-        s.push_str(&format!("conversation_id: {c}\n"));
+        s.push_str(&format!("conversation_id: \"{}\"\n", yaml_escape(c)));
     }
     if let Some(i) = &m.internet_message_id {
         s.push_str(&format!("internet_message_id: \"{}\"\n", yaml_escape(i)));
@@ -75,12 +75,13 @@ pub fn to_markdown(m: &MailMessage) -> String {
         s.push_str(&format!("cc: \"{}\"\n", yaml_escape(&cc)));
     }
     if let Some(d) = &m.received_date_time {
-        s.push_str(&format!("date: {d}\n"));
+        s.push_str(&format!("date: \"{}\"\n", yaml_escape(d)));
     }
     s.push_str(&format!("has_attachments: {}\n", m.has_attachments));
     s.push_str("source: microsoft365\n");
     s.push_str("---\n\n");
-    s.push_str(&format!("# {}\n\n", m.subject));
+    let heading_subject = m.subject.replace(['\r', '\n'], " ");
+    s.push_str(&format!("# {}\n\n", heading_subject));
     s.push_str(&body);
     s.push('\n');
     s
@@ -115,10 +116,12 @@ mod tests {
     fn renders_frontmatter_and_body() {
         let md = to_markdown(&msg());
         assert!(md.starts_with("---\n"));
-        assert!(md.contains("message_id: AAMk-123"));
+        // FIX E: message_id, conversation_id, and date are now quoted
+        assert!(md.contains("message_id: \"AAMk-123\""));
+        assert!(md.contains("conversation_id: \"conv-9\""));
+        assert!(md.contains("date: \"2026-05-01T14:30:00Z\""));
         assert!(md.contains("from: \"Pat H <pat@hender.com>\""));
         assert!(md.contains("subject: \"Closing date\""));
-        assert!(md.contains("date: 2026-05-01T14:30:00Z"));
         assert!(md.contains("\n---\n")); // closing fence
         assert!(md.trim_end().ends_with("Confirming May 14."));
     }
@@ -139,5 +142,31 @@ mod tests {
         m.subject = "Re: \"urgent\" matter".into();
         let md = to_markdown(&m);
         assert!(md.contains("subject: \"Re: \\\"urgent\\\" matter\""));
+    }
+
+    #[test]
+    fn message_id_and_conversation_id_and_date_are_quoted() {
+        // FIX E: all three fields must be quoted + yaml_escape'd, not bare values
+        let md = to_markdown(&msg());
+        assert!(md.contains("message_id: \"AAMk-123\""),
+            "message_id must be quoted, got:\n{md}");
+        assert!(md.contains("conversation_id: \"conv-9\""),
+            "conversation_id must be quoted, got:\n{md}");
+        assert!(md.contains("date: \"2026-05-01T14:30:00Z\""),
+            "date must be quoted, got:\n{md}");
+    }
+
+    #[test]
+    fn newline_in_subject_does_not_break_heading() {
+        // FIX F: \n or \r in the subject must be replaced with a space in the heading
+        let mut m = msg();
+        m.subject = "Line one\nLine two".into();
+        let md = to_markdown(&m);
+        // The heading must be a single line
+        assert!(md.contains("# Line one Line two\n"),
+            "heading should collapse newline to space, got:\n{md}");
+        // The frontmatter subject is still yaml_escape'd (no structural break)
+        assert!(md.contains("subject: \"Line one\nLine two\""),
+            "frontmatter subject should keep the raw (escaped) value, got:\n{md}");
     }
 }
