@@ -18,4 +18,10 @@ describe('mail-commands', () => {
     expect(await mailIsConnected()).toBe(true);
     expect(invoke).toHaveBeenCalledWith('mail_is_connected');
   });
+  it('points the mail backend at the workspace', async () => {
+    (invoke as any).mockResolvedValue(undefined);
+    const { mailSetWorkspace } = await import('@/utils/mail-commands');
+    await mailSetWorkspace('/home/u/ws');
+    expect(invoke).toHaveBeenCalledWith('mail_set_workspace', { path: '/home/u/ws' });
+  });
 });
