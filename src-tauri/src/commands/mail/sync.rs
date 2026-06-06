@@ -28,7 +28,11 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
             continue;
         }
         if let Some(msg) = MailMessage::from_graph(item) {
-            let rel = format!("Mail/{}/{}.md", folder_id, safe_filename(&msg.id));
+            // Sanitize BOTH path segments. folder_id and msg.id both come from
+            // Microsoft Graph (untrusted). safe_filename is an allowlist (only
+            // ASCII alphanumerics survive), so "../" / path separators can never
+            // escape the workspace, regardless of what Graph returns.
+            let rel = format!("Mail/{}/{}.md", safe_filename(folder_id), safe_filename(&msg.id));
             let abs = workspace_root.join(&rel);
             if let Some(p) = abs.parent() { std::fs::create_dir_all(p)?; }
             std::fs::write(&abs, to_markdown(&msg))?;
@@ -114,5 +118,21 @@ mod tests {
         assert!(!store.contains("m2").unwrap());
         // body file exists on disk
         assert!(dir.path().join("Mail/inbox/m1.md").exists());
+    }
+
+    #[test]
+    fn malicious_folder_id_cannot_escape_workspace() {
+        // folder_id comes from Microsoft Graph (untrusted). A path-traversal
+        // attempt must be neutralized by safe_filename, not written outside root.
+        let store = FakeStore::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let page = serde_json::json!({ "value": [
+            { "id":"m1","subject":"A","body":{"contentType":"text","content":"hi"} }
+        ]});
+        apply_page(&store, dir.path(), "../../etc", &page).unwrap();
+        // "../../etc" sanitizes to "______etc" — the file lands INSIDE the workspace.
+        assert!(dir.path().join("Mail/______etc/m1.md").exists());
+        // The literal traversal path was never created (no escape).
+        assert!(!dir.path().join("Mail/../../etc/m1.md").exists());
     }
 }
