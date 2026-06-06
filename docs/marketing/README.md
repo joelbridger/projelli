@@ -4,6 +4,8 @@ This folder is the canonical home for **all ongoing marketing work** for Keepanc
 
 > **Channel pivot — 2026-05-27:** As of the ICP pivot on 2026-05-27, the primary marketing channels are **bar associations (legal)**: ABA TECHSHOW, Lawyerist, Above the Law, IPWatchdog; **AICPA/NAEA (tax)**; and **Umbrex/Lenny (consulting)**. PH/HN/IH are not primary channels for the current ICP. Channel playbooks in `channels/` are retained as reference but are not the active distribution strategy.
 
+> **Distribution model — MARKETING-LED ONLY (stated 2026-06-06):** Jameson has **no personal network** to draw on. No warm intros, no "people you know," no founder-network plays. Every tactic must work cold: editorial pitches, community posts, cold outreach, SEO, ads, directories. **Jameson's name goes on everything** (bylines, posts, outreach signatures) and outreach is **sent from his personal email** (jamesondaines@outlook.com via the logged-in Outlook, autonomous + audit-logged). Reviewer recruiting is therefore cold outreach to strangers, not network asks. Any playbook content that assumes a network is stale — rewrite it for cold, marketing-led execution.
+
 ---
 
 ## Where things go
