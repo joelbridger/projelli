@@ -262,6 +262,11 @@ pub async fn rag_index_workspace(
 }
 
 /// Embed `query` and return the top-k nearest stored chunks.
+///
+/// G4: mail chunks have encrypted text columns. This function decrypts them
+/// in memory before returning. If decryption fails (key unavailable, tampered
+/// data), the chunk is returned as "[mail content unavailable]" — retrieval
+/// never panics or fails due to a bad mail chunk.
 #[tauri::command]
 pub async fn rag_retrieve(
     state: State<'_, RagState>,
@@ -299,21 +304,110 @@ pub async fn rag_retrieve(
         .await
         .map_err(|e| format!("nearest: {e}"))?;
 
+    // G4: try to get the master key once for the whole batch.
+    // If the keychain is unavailable, enc_key is None and encrypted chunks
+    // will fall through to the "[mail content unavailable — keychain locked]"
+    // placeholder — retrieval continues normally for plaintext chunks.
+    let enc_key = crate::commands::mail::crypto::get_or_create_master_key().ok();
+
     let mut hits: Vec<Hit> = raw
         .into_iter()
-        .map(|h| Hit {
-            path: h.path,
-            chunk_text: h.text,
-            score: embedder::cosine_distance_to_score(h.distance),
-            paragraph_index: h.paragraph_index,
-            source_type: h.source_type,
-            page_number: h.page_number,
+        .map(|h| {
+            let chunk_text = if h.encrypted {
+                // G4: Mail chunk — decrypt hex-encoded ciphertext.
+                // On any failure (bad key, tampered, keychain locked): return
+                // a placeholder string — do NOT crash or skip the chunk.
+                if let Some(ref k) = enc_key {
+                    hex::decode(&h.text)
+                        .ok()
+                        .and_then(|bytes| {
+                            crate::commands::mail::crypto::decrypt_with_key(&bytes, k).ok()
+                        })
+                        .and_then(|v| String::from_utf8(v).ok())
+                        .unwrap_or_else(|| "[mail content unavailable]".to_string())
+                } else {
+                    "[mail content unavailable — keychain locked]".to_string()
+                }
+            } else {
+                // Text / PDF chunk (or pre-G4 row): return as-is. No change from pre-G4.
+                h.text
+            };
+            Hit {
+                path: h.path,
+                chunk_text,
+                score: embedder::cosine_distance_to_score(h.distance),
+                paragraph_index: h.paragraph_index,
+                source_type: h.source_type,
+                page_number: h.page_number,
+            }
         })
         .collect();
     // LanceDB returns by ascending distance, which corresponds to
     // descending score, but sort defensively.
     hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
     Ok(hits)
+}
+
+/// Index pre-encrypted mail text into the RAG store.
+///
+/// G4: Called after `apply_page_enc` decrypts a blob in memory.
+/// `doc_id` is the mail message id (used as the `path` discriminator, prefixed
+/// with "mail:" to separate the namespace from workspace file paths).
+/// `plaintext` is the decrypted markdown. It is chunked + embedded in memory;
+/// the chunk `text` column is stored encrypted (hex-encoded AES-256-GCM).
+///
+/// Precedent: `rag_index_pdf_chunks` already takes text, not a file path.
+/// Idempotent — stale rows for the doc_id are deleted before inserting new ones.
+#[tauri::command]
+pub async fn rag_index_mail_text(
+    state: State<'_, RagState>,
+    doc_id: String,
+    plaintext: String,
+) -> Result<u32, String> {
+    if plaintext.trim().is_empty() {
+        return Ok(0);
+    }
+    let workspace = require_workspace(&state).await?;
+    let conn = store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let table = store::open_or_create_table(&conn)
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+
+    // Use "mail:<id>" as the path key so tombstones can use rag_delete_path.
+    let path_key = format!("mail:{}", doc_id);
+    let chunks = chunker::chunk_text(&path_key, &plaintext);
+
+    // Delete stale rows for this mail id before upsert (idempotent).
+    store::delete_path(&table, &path_key)
+        .await
+        .map_err(|e| format!("delete stale: {e}"))?;
+
+    if chunks.is_empty() {
+        return Ok(0);
+    }
+
+    let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+    let vectors = embedder::embed_documents(&texts)
+        .await
+        .map_err(|e| format!("embed mail: {e}"))?;
+    let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
+
+    let key = crate::commands::mail::crypto::get_or_create_master_key()
+        .map_err(|e| format!("get master key: {e}"))?;
+
+    let batch = store::build_batch_mail(&rows, &key)
+        .map_err(|e| format!("build mail batch: {e}"))?;
+    let schema = batch.schema();
+    use arrow_array::RecordBatchIterator;
+    table
+        .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+        .execute()
+        .await
+        .map_err(|e| format!("add mail chunks: {e}"))?;
+
+    Ok(rows.len() as u32)
 }
 
 /// Set the cancellation flag. `rag_index_workspace` polls this between

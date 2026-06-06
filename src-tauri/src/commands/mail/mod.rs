@@ -135,6 +135,60 @@ pub async fn mail_cancel_sync(state: State<'_, MailState>) -> Result<(), String>
     Ok(())
 }
 
+/// G4: In-process equivalent of rag_index_mail_text — same logic but takes raw
+/// parameters instead of Tauri State, so it can be called from the sync callback.
+///
+/// `path_key` is already formatted as "mail:<doc_id>" by the caller.
+/// Encrypts chunk text before storing in LanceDB. Idempotent (deletes stale
+/// rows first). Returns Ok(0) if plaintext is empty. Errors are logged by caller.
+async fn index_mail_text_internal(
+    workspace: &std::path::Path,
+    path_key: &str,
+    plaintext: &str,
+    key: &[u8; 32],
+) -> anyhow::Result<u32> {
+    use anyhow::Context;
+    if plaintext.trim().is_empty() {
+        return Ok(0);
+    }
+    let conn = crate::commands::rag::store::open_connection(workspace)
+        .await
+        .context("open lancedb for mail indexing")?;
+    let table = crate::commands::rag::store::open_or_create_table(&conn)
+        .await
+        .context("open/create chunks table")?;
+
+    let chunks = crate::commands::rag::chunker::chunk_text(path_key, plaintext);
+
+    // Delete stale rows before inserting (idempotent).
+    crate::commands::rag::store::delete_path(&table, path_key)
+        .await
+        .context("delete stale mail chunks")?;
+
+    if chunks.is_empty() {
+        return Ok(0);
+    }
+
+    let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+    let vectors = crate::commands::rag::embedder::embed_documents(&texts)
+        .await
+        .context("embed mail chunks")?;
+    let rows: Vec<(crate::commands::rag::chunker::Chunk, Vec<f32>)> =
+        chunks.into_iter().zip(vectors).collect();
+
+    let batch = crate::commands::rag::store::build_batch_mail(&rows, key)
+        .context("build mail batch")?;
+    let schema = batch.schema();
+    use arrow_array::RecordBatchIterator;
+    table
+        .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+        .execute()
+        .await
+        .context("add mail chunks to lancedb")?;
+
+    Ok(rows.len() as u32)
+}
+
 /// Enumerate folders then sync each to its deltaLink, emitting progress.
 #[tauri::command]
 pub async fn mail_sync_all(
@@ -226,9 +280,27 @@ pub async fn mail_sync_all(
                 },
             );
         };
+        // G4: index_callback receives (doc_id, plaintext_markdown) for each
+        // new message. We spawn an async task on the current Tokio runtime to
+        // call the in-process equivalent of rag_index_mail_text without making
+        // apply_page_enc itself async (preserving unit-testability with a sync Fn).
+        let workspace_for_index = workspace.clone();
+        let enc_key_for_index = enc_key;
+        let index_callback = move |id: &str, text: &str| {
+            let path_key = format!("mail:{}", id);
+            let text_owned = text.to_string();
+            let ws = workspace_for_index.clone();
+            let key = enc_key_for_index;
+            // Fire-and-forget: indexing failures are logged but never block sync.
+            let _ = tokio::task::spawn(async move {
+                if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key).await {
+                    log::warn!("G4 mail index failed for {}: {}", path_key, e);
+                }
+            });
+        };
         sync::sync_folder_enc(
             &client, &store, &workspace, &fid, &enc_key, &emit,
-            &|_id, _text| {}, // TODO(G4): wire rag_index_mail_text
+            &index_callback,
         )
         .await
         .map_err(|e| e.to_string())?;
