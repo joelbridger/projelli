@@ -549,7 +549,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
         (k) => lowerQ.includes(k)
       );
       if (templatesMatch) cats.add('templates');
-      const integrationsMatch = ['mcp', 'claude desktop', 'integration', 'sidecar', 'bundle'].some(
+      const integrationsMatch = ['mcp', 'claude desktop', 'integration', 'sidecar', 'bundle', 'email', 'mail', 'microsoft', '365', 'outlook'].some(
         (k) => lowerQ.includes(k)
       );
       if (integrationsMatch) cats.add('integrations');

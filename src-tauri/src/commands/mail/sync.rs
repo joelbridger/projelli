@@ -8,6 +8,10 @@ use std::path::Path;
 #[derive(Debug, Default, PartialEq)]
 pub struct PageStats { pub written: u32, pub removed: u32 }
 
+/// Max consecutive 410 (delta-token-expired) resets before a folder sync gives
+/// up, so a server stuck returning 410 cannot loop indefinitely.
+const MAX_DELTA_RESETS: u32 = 3;
+
 fn safe_filename(id: &str) -> String {
     id.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect()
 }
@@ -179,11 +183,20 @@ pub async fn sync_folder<F: Fn(u32, u32) + Send>(
         None => client.delta_start_url(folder_id),  // fresh backfill
     };
     let mut total = PageStats::default();
+    let mut delta_gone_count = 0u32;
     loop {
         let page = match client.get_json(&url).await {
             Ok(p) => p,
             Err(e) if e.downcast_ref::<DeltaGone>().is_some() => {
                 // Delta token expired (410): discard cursor, restart this folder from scratch.
+                // Bound the retries — a server stuck on 410 must not spin forever
+                // (this loop also holds the sync slot and blocks cancellation).
+                delta_gone_count += 1;
+                if delta_gone_count > MAX_DELTA_RESETS {
+                    return Err(anyhow::anyhow!(
+                        "folder {folder_id}: delta token expired {delta_gone_count}x in a row; giving up"
+                    ));
+                }
                 store.set_cursor(folder_id, &client.delta_start_url(folder_id))?;
                 url = client.delta_start_url(folder_id);
                 continue;
@@ -227,10 +240,19 @@ where
         None => client.delta_start_url(folder_id),
     };
     let mut total = PageStats::default();
+    let mut delta_gone_count = 0u32;
     loop {
         let page = match client.get_json(&url).await {
             Ok(p) => p,
             Err(e) if e.downcast_ref::<DeltaGone>().is_some() => {
+                // Bound the 410 resync loop: a server stuck on 410 must not spin
+                // forever (it holds the sync slot and blocks cancellation).
+                delta_gone_count += 1;
+                if delta_gone_count > MAX_DELTA_RESETS {
+                    return Err(anyhow::anyhow!(
+                        "folder {folder_id}: delta token expired {delta_gone_count}x in a row; giving up"
+                    ));
+                }
                 store.set_cursor(folder_id, &client.delta_start_url(folder_id))?;
                 url = client.delta_start_url(folder_id);
                 continue;
@@ -661,5 +683,26 @@ mod tests {
         assert!(dir.path().join("Mail/______etc/m1.md").exists());
         // The literal traversal path was never created (no escape).
         assert!(!dir.path().join("Mail/../../etc/m1.md").exists());
+    }
+
+    #[tokio::test]
+    async fn sync_folder_gives_up_after_repeated_410() {
+        // A server stuck on 410 must terminate the folder sync (bounded by
+        // MAX_DELTA_RESETS), not loop forever.
+        use crate::commands::mail::graph::GraphClient;
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(410).set_body_string("Sync state not found"))
+            .mount(&server)
+            .await;
+
+        let client = GraphClient::new_with_base("AT".into(), server.uri());
+        let store = FakeStore::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let res = sync_folder(&client, &store, dir.path(), "inbox", &|_w, _r| {}).await;
+        assert!(res.is_err(), "repeated 410 must error out, not spin forever");
     }
 }

@@ -10,20 +10,52 @@ fn fmt_recipient(r: &Recipient) -> String {
 }
 
 fn yaml_escape(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"")
+    // Escape backslash and quote first, then literal line breaks. Without the
+    // newline/carriage-return escapes a crafted subject (e.g. one containing a
+    // line that is just `---`) could turn the single-line double-quoted scalar
+    // into a multi-line one and inject/await a spurious YAML document break.
+    // Backslash is replaced first so the backslashes we introduce below are not
+    // doubled again.
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
 }
 
-/// Naive but dependency-free HTML-to-text: drop tags, collapse whitespace,
-/// decode the few entities email actually uses. Good enough for indexing;
-/// fidelity is not the goal (the original stays in the store).
+/// Naive but dependency-free HTML-to-text: drop tags and the contents of
+/// `<script>`/`<style>` blocks, collapse whitespace, decode the few entities
+/// email actually uses. Good enough for indexing; fidelity is not the goal
+/// (the original stays in the store).
 fn html_to_text(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut in_tag = false;
+    let mut tag = String::new();
+    // True while inside a <script>/<style> element: their text content is code,
+    // not prose, and would otherwise pollute the search index.
+    let mut skip_content = false;
     for c in html.chars() {
         match c {
-            '<' => in_tag = true,
-            '>' => in_tag = false,
-            _ if !in_tag => out.push(c),
+            '<' => {
+                in_tag = true;
+                tag.clear();
+            }
+            '>' => {
+                in_tag = false;
+                let name = tag.trim().to_ascii_lowercase();
+                let first = name
+                    .split(|ch: char| ch.is_ascii_whitespace() || ch == '/')
+                    .find(|s| !s.is_empty())
+                    .unwrap_or("");
+                if name.starts_with('/') {
+                    if first == "script" || first == "style" {
+                        skip_content = false;
+                    }
+                } else if first == "script" || first == "style" {
+                    skip_content = true;
+                }
+            }
+            _ if in_tag => tag.push(c),
+            _ if !skip_content => out.push(c),
             _ => {}
         }
     }
@@ -165,8 +197,40 @@ mod tests {
         // The heading must be a single line
         assert!(md.contains("# Line one Line two\n"),
             "heading should collapse newline to space, got:\n{md}");
-        // The frontmatter subject is still yaml_escape'd (no structural break)
-        assert!(md.contains("subject: \"Line one\nLine two\""),
-            "frontmatter subject should keep the raw (escaped) value, got:\n{md}");
+        // The frontmatter subject keeps the value on ONE physical line: the
+        // newline is now escaped as the two characters backslash-n, never raw.
+        assert!(md.contains("subject: \"Line one\\nLine two\""),
+            "frontmatter subject must escape the newline, got:\n{md}");
+        assert!(!md.contains("subject: \"Line one\nLine two\""),
+            "frontmatter subject must NOT contain a raw newline, got:\n{md}");
+    }
+
+    #[test]
+    fn crafted_subject_cannot_inject_a_yaml_document_break() {
+        // A subject whose value is a line that is just `---` (or contains one)
+        // must not be able to terminate/inject the frontmatter document.
+        let mut m = msg();
+        m.subject = "evil\n---\ninjected: true".into();
+        let md = to_markdown(&m);
+        // The whole hostile subject stays on a single escaped frontmatter line.
+        assert!(
+            md.contains("subject: \"evil\\n---\\ninjected: true\""),
+            "subject newlines must be escaped so `---` cannot break the doc, got:\n{md}"
+        );
+        // The only `---` fences are the opening and closing frontmatter fences.
+        let fence_lines = md.lines().filter(|l| l.trim() == "---").count();
+        assert_eq!(fence_lines, 2, "expected exactly 2 frontmatter fences, got:\n{md}");
+    }
+
+    #[test]
+    fn script_and_style_content_is_dropped_from_text() {
+        let mut m = msg();
+        m.body_content_type = BodyContentType::Html;
+        m.body_text =
+            "<style>.a{color:red}</style><p>Real body</p><script>alert('x')</script>".into();
+        let md = to_markdown(&m);
+        assert!(md.contains("Real body"), "prose must survive, got:\n{md}");
+        assert!(!md.contains("color:red"), "style content must be dropped, got:\n{md}");
+        assert!(!md.contains("alert"), "script content must be dropped, got:\n{md}");
     }
 }

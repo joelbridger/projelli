@@ -184,9 +184,11 @@ pub fn build_batch(rows: &[(Chunk, Vec<f32>)], source_type: SourceType) -> Resul
     let (st_str, pn_val): (&str, u32) = match source_type {
         SourceType::Text => ("text", 0),
         SourceType::Pdf { page_number } => ("pdf", page_number),
-        // build_batch is not called for Mail — use build_batch_mail instead.
-        // If called with Mail, treat as text to keep the fn total.
-        SourceType::Mail => ("mail", 0),
+        // Mail chunks MUST go through build_batch_mail (which encrypts the text
+        // column). build_batch always writes encrypted=false, so routing mail
+        // here would silently persist plaintext. Fail loudly instead — this is
+        // a programmer error on a code-chosen enum, never data-driven.
+        SourceType::Mail => unreachable!("mail chunks must use build_batch_mail, not build_batch"),
     };
     let st_arr = StringArray::from(vec![st_str; rows.len()]);
     let pn_arr = UInt32Array::from(vec![pn_val; rows.len()]);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { mailIsConnected, mailBeginLogin, mailPollLogin, mailSyncAll, mailFdeStatus, type DeviceCodePrompt } from '@/utils/mail-commands';
+import { mailIsConnected, mailBeginLogin, mailPollLogin, mailSyncAll, mailCancelSync, mailFdeStatus, type DeviceCodePrompt } from '@/utils/mail-commands';
 import { useMailSync } from '@/hooks/useMailSync';
 import { useMailStore } from '@/stores/mailStore';
 
@@ -19,54 +19,71 @@ export function MailConnect() {
     mailFdeStatus().then((s) => setFdeStatus(s.status)).catch(() => {});
   }, []);
 
-  // FIX 1: interval owned by useEffect keyed on prompt — cleared on unmount or prompt change.
-  // FIX 9: poll errors caught and surfaced; loop stops on error.
+  // Poll for sign-in completion. Self-scheduling timeout (not a fixed interval)
+  // so we can lengthen the delay on `slow_down` (RFC 8628). Cleared on unmount
+  // or when the prompt changes. Poll errors are caught and surfaced.
   useEffect(() => {
     if (!prompt) return;
-
-    const intervalMs = Math.max(1, prompt.intervalSecs) * 1000;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let delayMs = Math.max(1, prompt.intervalSecs) * 1000;
     const expiresAt = Date.now() + prompt.expiresInSecs * 1000;
 
-    const timer = setInterval(async () => {
-      // Stop if the code has expired.
+    const poll = async () => {
+      if (cancelled) return;
       if (Date.now() >= expiresAt) {
-        clearInterval(timer);
         setExpired(true);
         setPrompt(null);
         return;
       }
-
-      // FIX 9: catch errors from the poll call.
       try {
-        const ok = await mailPollLogin(prompt.deviceCode);
-        if (ok) {
-          clearInterval(timer);
+        const result = await mailPollLogin(prompt.deviceCode);
+        if (cancelled) return;
+        if (result === 'authorized') {
           setConnected(true);
           setPrompt(null);
-          mailSyncAll();
+          // Kick off the import; surface failures instead of leaving a spinner.
+          mailSyncAll().catch((err) => {
+            setPollError(err instanceof Error ? err.message : 'Mail sync could not start. Please try again.');
+          });
+          return;
         }
+        if (result === 'slow_down') delayMs += 5000; // RFC 8628: back off by >= 5s
+        timer = setTimeout(poll, delayMs);
       } catch (err) {
-        clearInterval(timer);
+        if (cancelled) return;
         setPrompt(null);
         setPollError(err instanceof Error ? err.message : 'An error occurred while signing in. Please try again.');
       }
-    }, intervalMs);
+    };
 
-    return () => clearInterval(timer);
+    timer = setTimeout(poll, delayMs);
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, [prompt]);
 
   async function connect() {
     setExpired(false);
     setPollError(null);
-    const p = await mailBeginLogin();
-    setPrompt(p);
+    try {
+      const p = await mailBeginLogin();
+      setPrompt(p);
+    } catch (err) {
+      setPollError(err instanceof Error ? err.message : 'Could not start sign-in. Please try again.');
+    }
+  }
+
+  function stopSync() {
+    mailCancelSync().catch(() => {});
   }
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4">
       <h3 className="text-sm font-semibold text-slate-900">Microsoft 365 email</h3>
       <p className="mt-1 text-sm text-slate-600">
-        Bring your Outlook mail into Keepance so you can actually find it. Your mail stays on this machine.
+        Bring your Outlook mail into Keepance so you can actually find it. Your mail is encrypted and stays on this machine.
       </p>
       {fdeStatus === 'off' && (
         <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
@@ -109,9 +126,19 @@ export function MailConnect() {
         <div className="mt-3 text-sm text-slate-700">
           <p className="font-medium text-green-700">Connected.</p>
           {progress && progress.status === 'syncing' && (
-            <p className="mt-1">Importing… {progress.written.toLocaleString()} messages so far{progress.folder ? ` (folder ${progress.folder.slice(0,8)}…)` : ''}.</p>
+            <div className="mt-1 flex items-center gap-3">
+              <p>Importing… {progress.written.toLocaleString()} messages so far.</p>
+              <button onClick={stopSync}
+                className="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                Stop
+              </button>
+            </div>
           )}
           {progress && progress.status === 'done' && <p className="mt-1">All mail imported and searchable.</p>}
+          {progress && progress.status === 'error' && (
+            <p className="mt-1 text-red-700">Mail sync ran into a problem. Open this panel again to retry.</p>
+          )}
+          {progress && progress.status === 'cancelled' && <p className="mt-1 text-slate-500">Import stopped.</p>}
         </div>
       )}
     </section>

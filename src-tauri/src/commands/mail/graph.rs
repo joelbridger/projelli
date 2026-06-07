@@ -19,7 +19,13 @@ pub struct GraphClient { token: String, base: String, http: reqwest::Client }
 impl GraphClient {
     pub fn new(token: String) -> Self { Self::new_with_base(token, "https://graph.microsoft.com".into()) }
     pub fn new_with_base(token: String, base: String) -> Self {
-        Self { token, base, http: reqwest::Client::builder().build().expect("client") }
+        // Bound every request so a hung connection can't stall a sync forever.
+        let http = reqwest::Client::builder()
+            .timeout(Duration::from_secs(60))
+            .connect_timeout(Duration::from_secs(15))
+            .build()
+            .expect("build reqwest client");
+        Self { token, base, http }
     }
     pub fn base(&self) -> &str { &self.base }
 
@@ -38,7 +44,12 @@ impl GraphClient {
             let status = resp.status();
             let body = resp.text().await?;
             if status.as_u16() == 410 { return Err(anyhow::Error::new(DeltaGone)); }
-            if !status.is_success() { anyhow::bail!("graph {} : {}", status, body); }
+            if !status.is_success() {
+                // Never surface the raw Graph body to the caller/UI: it can carry
+                // mailbox addresses or other PII. Log locally; return status only.
+                log::warn!("graph request failed (HTTP {}): {}", status, body);
+                anyhow::bail!("Microsoft Graph request failed (HTTP {})", status);
+            }
             return Ok(serde_json::from_str(&body)?);
         }
         anyhow::bail!("graph: throttled past retry budget")
@@ -47,15 +58,38 @@ impl GraphClient {
     /// Start a delta round for a folder (no cursor) or resume from a saved
     /// next/delta link. Returns the absolute URL to GET first.
     pub fn delta_start_url(&self, folder_id: &str) -> String {
-        format!("{}/v1.0/me/mailFolders/{}/messages/delta", self.base, folder_id)
+        format!(
+            "{}/v1.0/me/mailFolders/{}/messages/delta",
+            self.base,
+            enc_path_segment(folder_id)
+        )
     }
 }
 
+/// Percent-encode a single URL path segment. Graph folder ids are normally
+/// base64url (already safe), but we encode anything outside the unreserved set
+/// so an odd/hostile id can never break out of the segment (via `/`, `?`, `#`,
+/// or a `..` segment). `.` is encoded too, specifically to neutralize `..`.
+fn enc_path_segment(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'~' => out.push(b as char),
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
+}
+
 /// Microsoft says: wait the Retry-After seconds and retry; if absent, back off
-/// exponentially. Cap at 60s so a stuck import doesn't sleep forever.
+/// exponentially. Every delay is capped (header included) so a hostile or
+/// misconfigured server can't park a sync for hours.
 pub fn retry_delay(retry_after_header: Option<&str>, attempt: u32) -> Duration {
+    const MAX_HEADER_SECS: u64 = 120;
     if let Some(h) = retry_after_header {
-        if let Ok(secs) = h.trim().parse::<u64>() { return Duration::from_secs(secs); }
+        if let Ok(secs) = h.trim().parse::<u64>() {
+            return Duration::from_secs(secs.min(MAX_HEADER_SECS));
+        }
     }
     let secs = 1u64.checked_shl(attempt).unwrap_or(60).min(60);
     Duration::from_secs(secs)
@@ -112,6 +146,26 @@ mod tests {
         assert_eq!(retry_delay(None, 0), Duration::from_secs(1));
         assert_eq!(retry_delay(None, 2), Duration::from_secs(4));
         assert_eq!(retry_delay(None, 10), Duration::from_secs(60));
+    }
+
+    #[test]
+    fn retry_after_header_is_capped() {
+        // A hostile/misconfigured server cannot park the sync for hours.
+        assert_eq!(retry_delay(Some("86400"), 0), Duration::from_secs(120));
+        assert_eq!(retry_delay(Some("120"), 0), Duration::from_secs(120));
+        assert_eq!(retry_delay(Some("30"), 0), Duration::from_secs(30));
+    }
+
+    #[test]
+    fn delta_start_url_encodes_unsafe_folder_id() {
+        let client = GraphClient::new_with_base("AT".into(), "https://g".into());
+        // Normal base64url ids pass through unchanged.
+        let safe = client.delta_start_url("AQMkAD-0_abc");
+        assert!(safe.ends_with("/mailFolders/AQMkAD-0_abc/messages/delta"), "got {safe}");
+        // A traversal/escape attempt is neutralized (no raw `/` or `..` survives).
+        let evil = client.delta_start_url("../../etc");
+        assert!(!evil.contains("/../../etc/"), "folder id must be encoded: {evil}");
+        assert!(evil.contains("%2E%2E%2F%2E%2E%2Fetc"), "expected percent-encoding, got {evil}");
     }
 
     #[test]

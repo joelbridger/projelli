@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const mockMailPollLogin = vi.fn();
 const mockMailBeginLogin = vi.fn();
 const mockMailSyncAll = vi.fn();
+const mockMailCancelSync = vi.fn();
 const mockMailIsConnected = vi.fn();
 const mockMailFdeStatus = vi.fn();
 
@@ -12,6 +13,7 @@ vi.mock('@/utils/mail-commands', () => ({
   get mailBeginLogin() { return mockMailBeginLogin; },
   get mailPollLogin() { return mockMailPollLogin; },
   get mailSyncAll() { return mockMailSyncAll; },
+  get mailCancelSync() { return mockMailCancelSync; },
   get mailFdeStatus() { return mockMailFdeStatus; },
   MAIL_SYNC_EVENT: 'mail-sync-progress',
 }));
@@ -33,8 +35,9 @@ describe('MailConnect', () => {
     vi.clearAllMocks();
     mockMailIsConnected.mockResolvedValue(false);
     mockMailBeginLogin.mockResolvedValue({ ...DEFAULT_PROMPT });
-    mockMailPollLogin.mockResolvedValue(false);
+    mockMailPollLogin.mockResolvedValue('pending');
     mockMailSyncAll.mockResolvedValue(undefined);
+    mockMailCancelSync.mockResolvedValue(undefined);
     // G6: default to 'unknown' so FDE nudge is hidden in existing tests.
     mockMailFdeStatus.mockResolvedValue({ status: 'unknown', platform: 'Linux', detail: null });
   });
@@ -50,51 +53,38 @@ describe('MailConnect', () => {
     expect(screen.getByText(/microsoft\.com\/devicelogin/i)).toBeInTheDocument();
   });
 
-  it('transitions to connected when poll returns true', async () => {
-    // Poll immediately returns true (signed in).
-    mockMailPollLogin.mockResolvedValue(true);
-
-    // Use fake timers but allow real Date/promises so findBy* still works.
-    vi.useFakeTimers({ shouldAdvanceTime: false, toFake: ['setInterval', 'clearInterval'] });
+  it('transitions to connected when poll returns authorized', async () => {
+    // Poll returns authorized (signed in). Real timers: the first poll fires
+    // ~1s after the prompt appears (intervalSecs: 1).
+    mockMailPollLogin.mockResolvedValue('authorized');
 
     render(<MailConnect />);
 
-    // Wait for the connect button with real-timer-safe query.
     const btn = await screen.findByRole('button', { name: /connect microsoft 365/i });
     fireEvent.click(btn);
 
-    // Wait for the prompt to appear (mailBeginLogin resolves).
     expect(await screen.findByText(/WXYZ/)).toBeInTheDocument();
 
-    // Advance past the 1-second interval and flush promises.
-    await act(async () => {
-      vi.advanceTimersByTime(1100);
-      await vi.runAllTimersAsync();
-    });
-
-    await waitFor(() => expect(screen.getByText(/connected\./i)).toBeInTheDocument());
+    await waitFor(
+      () => expect(screen.getByText(/connected\./i)).toBeInTheDocument(),
+      { timeout: 4000 },
+    );
   });
 
   it('shows error state and Try again button when poll throws', async () => {
     mockMailPollLogin.mockRejectedValue(new Error('keychain failure'));
 
-    vi.useFakeTimers({ shouldAdvanceTime: false, toFake: ['setInterval', 'clearInterval'] });
-
     render(<MailConnect />);
 
     const btn = await screen.findByRole('button', { name: /connect microsoft 365/i });
     fireEvent.click(btn);
 
-    // Wait for the prompt to appear.
     expect(await screen.findByText(/WXYZ/)).toBeInTheDocument();
 
-    // Advance past the 1-second interval and flush promises.
-    await act(async () => {
-      vi.advanceTimersByTime(1100);
-      await vi.runAllTimersAsync();
-    });
-
-    await waitFor(() => expect(screen.getByText(/something went wrong/i)).toBeInTheDocument());
+    await waitFor(
+      () => expect(screen.getByText(/something went wrong/i)).toBeInTheDocument(),
+      { timeout: 4000 },
+    );
     expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
   });
 

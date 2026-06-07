@@ -22,9 +22,11 @@ export async function mailBeginLogin(): Promise<DeviceCodePrompt> {
   if (!isTauri()) throw new Error('Email connect is only available in the desktop app.');
   return invoke<DeviceCodePrompt>('mail_begin_login');
 }
-export async function mailPollLogin(deviceCode: string): Promise<boolean> {
-  if (!isTauri()) return false;
-  return invoke<boolean>('mail_poll_login', { deviceCode });
+/** Result of one device-code poll. `slow_down` means lengthen the interval. */
+export type PollResult = 'authorized' | 'pending' | 'slow_down';
+export async function mailPollLogin(deviceCode: string): Promise<PollResult> {
+  if (!isTauri()) return 'pending';
+  return invoke<PollResult>('mail_poll_login', { deviceCode });
 }
 export async function mailIsConnected(): Promise<boolean> {
   if (!isTauri()) return false;

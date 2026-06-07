@@ -59,6 +59,59 @@ fn client_id() -> String {
         .to_string()
 }
 
+/// Reverse `normalize::yaml_escape` for a double-quoted scalar value: `\n`/`\r`
+/// become a space, `\"` a quote, `\\` a backslash. Char-based so an escaped
+/// backslash followed by `n` is not mistaken for an escaped newline.
+fn yaml_unescape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            match chars.next() {
+                Some('n') | Some('r') => out.push(' '),
+                Some('"') => out.push('"'),
+                Some('\\') => out.push('\\'),
+                Some(other) => {
+                    out.push('\\');
+                    out.push(other);
+                }
+                None => out.push('\\'),
+            }
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Extract the `subject` from a normalized mail document's YAML frontmatter.
+/// Scans only the fenced frontmatter block, strips the surrounding double
+/// quotes, and reverses `yaml_escape`. Returns "" if not present.
+fn frontmatter_subject(markdown: &str) -> String {
+    let mut in_frontmatter = false;
+    for line in markdown.lines() {
+        if line.trim() == "---" {
+            if in_frontmatter {
+                break; // closing fence reached
+            }
+            in_frontmatter = true;
+            continue;
+        }
+        if !in_frontmatter {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("subject:") {
+            let v = rest.trim();
+            let inner = v
+                .strip_prefix('"')
+                .and_then(|s| s.strip_suffix('"'))
+                .unwrap_or(v);
+            return yaml_unescape(inner);
+        }
+    }
+    String::new()
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceCodePrompt {
@@ -100,20 +153,24 @@ pub async fn mail_begin_login() -> Result<DeviceCodePrompt, String> {
     })
 }
 
-/// Poll once; the frontend calls this on `interval_secs`. On success, the
-/// refresh token is stored in the OS keychain and `true` is returned.
+/// Poll once; the frontend calls this on `interval_secs`. Returns a status:
+/// - `"authorized"` — signed in; the refresh token is stored in the OS keychain.
+/// - `"pending"` — keep polling at the current interval.
+/// - `"slow_down"` — poll less often; the caller must lengthen the interval
+///   (RFC 8628 §3.5 requires +5s), otherwise Microsoft escalates throttling.
 #[tauri::command]
-pub async fn mail_poll_login(device_code: String) -> Result<bool, String> {
+pub async fn mail_poll_login(device_code: String) -> Result<String, String> {
     let auth = OAuth::new(client_id());
     match auth.poll_token(&device_code).await.map_err(|e| e.to_string())? {
         TokenOutcome::Tokens { refresh: Some(rt), .. } => {
             let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
                 .map_err(|e| e.to_string())?;
             entry.set_password(&rt).map_err(|e| e.to_string())?;
-            Ok(true)
+            Ok("authorized".into())
         }
         TokenOutcome::Tokens { refresh: None, .. } => Err("no refresh token returned".into()),
-        TokenOutcome::Pending | TokenOutcome::SlowDown => Ok(false),
+        TokenOutcome::Pending => Ok("pending".into()),
+        TokenOutcome::SlowDown => Ok("slow_down".into()),
         TokenOutcome::Failed(e) => Err(e),
     }
 }
@@ -225,6 +282,25 @@ pub async fn mail_sync_all(
     // Only reset cancel now that we hold the sync slot.
     state.cancel.store(false, Ordering::SeqCst);
 
+    // Run the sync; on ANY failure emit a terminal "error" progress event so the
+    // UI stops showing a spinner (the frontend listens for sync-progress).
+    let outcome = mail_sync_all_inner(&app, &state).await;
+    if let Err(ref e) = outcome {
+        log::warn!("mail sync failed: {}", e);
+        let _ = app.emit(
+            SYNC_PROGRESS_EVENT,
+            SyncProgress { status: "error".into(), folder: None, written: 0, removed: 0 },
+        );
+    }
+    outcome
+}
+
+/// Inner worker for `mail_sync_all`. The sync-slot guard and the terminal
+/// "error" event are owned by the command wrapper; this fn just does the work.
+async fn mail_sync_all_inner(
+    app: &AppHandle,
+    state: &State<'_, MailState>,
+) -> Result<(), String> {
     let workspace = state
         .workspace
         .lock()
@@ -320,13 +396,9 @@ pub async fn mail_sync_all(
                     log::warn!("G4 mail index failed for {}: {}", path_key, e);
                 }
             });
-            // G5: extract subject from the markdown header (first line starting
-            // with "subject:") and emit the event for MiniSearch keyword indexing.
-            let subject = text
-                .lines()
-                .find(|l| l.to_lowercase().starts_with("subject:"))
-                .and_then(|l| l.split_once(':').map(|(_, v)| v.trim().to_string()))
-                .unwrap_or_default();
+            // G5: pull the subject from the frontmatter (scoped to the fenced
+            // block, unquoted + unescaped) and emit the event for MiniSearch.
+            let subject = frontmatter_subject(text);
             let _ = app3.emit(MAIL_INDEX_CHUNK_EVENT, MailIndexChunkPayload {
                 doc_id: id.to_string(),
                 subject,
@@ -380,4 +452,36 @@ pub async fn mail_sync_all(
         },
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{frontmatter_subject, yaml_unescape};
+
+    #[test]
+    fn frontmatter_subject_is_unquoted_and_clean() {
+        let md = "---\nmessage_id: \"m1\"\nsubject: \"Closing date\"\nfrom: \"a@b.com\"\n---\n\n# Closing date\n\nbody subject: not this one\n";
+        assert_eq!(frontmatter_subject(md), "Closing date");
+    }
+
+    #[test]
+    fn frontmatter_subject_unescapes_and_ignores_body() {
+        // Escaped quote in the subject, plus a body line that also says "subject:".
+        let md = "---\nsubject: \"Re: \\\"urgent\\\" matter\"\n---\n\n# x\n\nsubject: decoy\n";
+        assert_eq!(frontmatter_subject(md), "Re: \"urgent\" matter");
+    }
+
+    #[test]
+    fn frontmatter_subject_collapses_escaped_newlines() {
+        let md = "---\nsubject: \"line one\\nline two\"\n---\n\n# x\n";
+        assert_eq!(frontmatter_subject(md), "line one line two");
+    }
+
+    #[test]
+    fn yaml_unescape_distinguishes_escaped_backslash_from_newline() {
+        // `\\n` (escaped backslash then literal n) must stay backslash+n,
+        // while `\n` (escaped newline) becomes a space.
+        assert_eq!(yaml_unescape("a\\\\nb"), "a\\nb");
+        assert_eq!(yaml_unescape("a\\nb"), "a b");
+    }
 }

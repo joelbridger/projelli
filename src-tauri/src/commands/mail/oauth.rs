@@ -4,7 +4,14 @@ pub struct OAuth { client_id: String, base: String, http: reqwest::Client }
 impl OAuth {
     pub fn new(client_id: String) -> Self { Self::new_with_base(client_id, "https://login.microsoftonline.com".into()) }
     pub fn new_with_base(client_id: String, base: String) -> Self {
-        Self { client_id, base, http: reqwest::Client::new() }
+        // Bound device-code polling / refresh requests so a hung connection
+        // can't stall the sign-in loop indefinitely.
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .connect_timeout(std::time::Duration::from_secs(15))
+            .build()
+            .expect("build reqwest client");
+        Self { client_id, base, http }
     }
     pub async fn request_device_code(&self) -> anyhow::Result<DeviceCode> {
         let url = format!("{}/common/oauth2/v2.0/devicecode", self.base);
@@ -67,8 +74,15 @@ pub enum TokenOutcome {
 impl TokenOutcome {
     pub fn from_json(status: u16, v: &serde_json::Value) -> TokenOutcome {
         if status == 200 {
+            // A 200 with no (or empty) access_token is a malformed response;
+            // treat it as a failure rather than handing an empty bearer token
+            // to the Graph client (which would just 401 with a confusing error).
+            let access = v.get("access_token").and_then(|s| s.as_str()).unwrap_or("");
+            if access.is_empty() {
+                return TokenOutcome::Failed("token response had no access_token".into());
+            }
             return TokenOutcome::Tokens {
-                access: v.get("access_token").and_then(|s| s.as_str()).unwrap_or("").to_string(),
+                access: access.to_string(),
                 refresh: v.get("refresh_token").and_then(|s| s.as_str()).map(String::from),
                 expires_in: v.get("expires_in").and_then(|x| x.as_u64()).unwrap_or(3600),
             };
@@ -120,7 +134,18 @@ mod tests {
         }
         let pending = serde_json::json!({ "error": "authorization_pending" });
         assert!(matches!(TokenOutcome::from_json(400, &pending), TokenOutcome::Pending));
+        let slow = serde_json::json!({ "error": "slow_down" });
+        assert!(matches!(TokenOutcome::from_json(400, &slow), TokenOutcome::SlowDown));
         let denied = serde_json::json!({ "error": "authorization_declined" });
         assert!(matches!(TokenOutcome::from_json(400, &denied), TokenOutcome::Failed(_)));
+    }
+
+    #[test]
+    fn empty_access_token_is_treated_as_failure() {
+        // A 200 with a missing or empty access_token must not yield Tokens.
+        let missing = serde_json::json!({ "refresh_token": "RT", "expires_in": 3600 });
+        assert!(matches!(TokenOutcome::from_json(200, &missing), TokenOutcome::Failed(_)));
+        let empty = serde_json::json!({ "access_token": "", "refresh_token": "RT" });
+        assert!(matches!(TokenOutcome::from_json(200, &empty), TokenOutcome::Failed(_)));
     }
 }
