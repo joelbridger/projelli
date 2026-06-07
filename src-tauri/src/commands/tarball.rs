@@ -175,6 +175,39 @@ mod tests {
         path
     }
 
+    /// Build a single-entry tarball whose entry name is written directly into
+    /// the GNU header, bypassing `tar::Builder`'s path sanitization. The safe
+    /// writer API (`append_data` -> `set_path`) refuses `..` and absolute paths
+    /// outright, so it cannot express the adversarial archives a real attacker
+    /// would hand-craft. Writing the raw name lets these tests feed genuine
+    /// malicious input to the extractor and prove its own defenses hold.
+    fn build_tarball_with_raw_name(tmpdir: &Path, name: &str, data: &[u8]) -> PathBuf {
+        let path = tmpdir.join("bundle.tar.gz");
+        let f = File::create(&path).expect("create tar");
+        let enc = GzEncoder::new(f, Compression::default());
+        let mut builder = tar::Builder::new(enc);
+
+        let mut header = tar::Header::new_gnu();
+        header.set_size(data.len() as u64);
+        header.set_mode(0o644);
+        {
+            // Overwrite the raw name field after the header is otherwise set up.
+            let gnu = header.as_gnu_mut().expect("gnu header");
+            let bytes = name.as_bytes();
+            assert!(bytes.len() <= gnu.name.len(), "raw name too long for fixture");
+            gnu.name[..bytes.len()].copy_from_slice(bytes);
+        }
+        // Checksum must be computed after the name is written.
+        header.set_cksum();
+        // `append` (unlike `append_data`) writes the header verbatim, so the raw
+        // malicious name survives into the archive instead of being rejected.
+        builder
+            .append(&header, std::io::Cursor::new(data))
+            .expect("append raw entry");
+        builder.into_inner().expect("finish").finish().expect("gz finish");
+        path
+    }
+
     #[test]
     fn extracts_clean_tarball() {
         let dir = tempdir().expect("tmp");
@@ -194,16 +227,22 @@ mod tests {
     fn rejects_parent_traversal() {
         let dir = tempdir().expect("tmp");
         let dest = dir.path().join("dest");
-        let tar = build_tarball(dir.path(), &[("../escape.txt", b"x")]);
+        let tar = build_tarball_with_raw_name(dir.path(), "../escape.txt", b"x");
         let res = extract_tarball_blocking(tar.to_str().unwrap(), dest.to_str().unwrap());
         assert!(res.is_err(), "expected refusal, got {:?}", res);
+        // Defense must actually hold: `../escape.txt` relative to dest resolves
+        // to a sibling of dest, which must never have been written.
+        assert!(
+            !dir.path().join("escape.txt").exists(),
+            "parent-traversal entry escaped the destination directory"
+        );
     }
 
     #[test]
     fn rejects_absolute_path() {
         let dir = tempdir().expect("tmp");
         let dest = dir.path().join("dest");
-        let tar = build_tarball(dir.path(), &[("/etc/passwd", b"x")]);
+        let tar = build_tarball_with_raw_name(dir.path(), "/etc/passwd", b"x");
         let res = extract_tarball_blocking(tar.to_str().unwrap(), dest.to_str().unwrap());
         assert!(res.is_err(), "expected refusal, got {:?}", res);
     }

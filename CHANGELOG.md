@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Template-install path-traversal tests now exercise the real defense.** The two `extract_tarball` traversal tests (`rejects_parent_traversal`, `rejects_absolute_path`) built their fixtures through `tar`'s safe writer, which refuses `..`/absolute entry names, so they panicked during setup and never reached the extractor. They now hand-craft genuinely malicious archives (raw GNU header name) and confirm the extractor rejects them and writes nothing outside the destination. The shipping extractor is unchanged and was already correct; this closes 2 pre-existing failing tests. Files: `src-tauri/src/commands/tarball.rs`.
+
 ## [2.4.1] - 2026-06-06 (build fix: ship Tier 2 + Tier 3 installers)
 
 ### Fixed
