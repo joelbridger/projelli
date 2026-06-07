@@ -8,6 +8,8 @@
 pub mod fs;
 pub mod http;
 pub mod keychain;
+// M365 email-import (Task 1+) — pure-Rust Graph JSON parsing, local index, sync.
+pub mod mail;
 // Phase 4 M4 (v1.5 Flag 2) — host-side bridge for the Keepance MCP sidecar:
 // list pending write approvals, record the user's decision, resolve the
 // platform `.mcpb` bundle path.

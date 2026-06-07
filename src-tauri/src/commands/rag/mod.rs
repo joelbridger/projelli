@@ -262,6 +262,11 @@ pub async fn rag_index_workspace(
 }
 
 /// Embed `query` and return the top-k nearest stored chunks.
+///
+/// G4: mail chunks have encrypted text columns. This function decrypts them
+/// in memory before returning. If decryption fails (key unavailable, tampered
+/// data), the chunk is returned as "[mail content unavailable]" — retrieval
+/// never panics or fails due to a bad mail chunk.
 #[tauri::command]
 pub async fn rag_retrieve(
     state: State<'_, RagState>,
@@ -299,15 +304,42 @@ pub async fn rag_retrieve(
         .await
         .map_err(|e| format!("nearest: {e}"))?;
 
+    // G4: try to get the master key once for the whole batch.
+    // If the keychain is unavailable, enc_key is None and encrypted chunks
+    // will fall through to the "[mail content unavailable — keychain locked]"
+    // placeholder — retrieval continues normally for plaintext chunks.
+    let enc_key = crate::commands::mail::crypto::get_or_create_master_key().ok();
+
     let mut hits: Vec<Hit> = raw
         .into_iter()
-        .map(|h| Hit {
-            path: h.path,
-            chunk_text: h.text,
-            score: embedder::cosine_distance_to_score(h.distance),
-            paragraph_index: h.paragraph_index,
-            source_type: h.source_type,
-            page_number: h.page_number,
+        .map(|h| {
+            let chunk_text = if h.encrypted {
+                // G4: Mail chunk — decrypt hex-encoded ciphertext.
+                // On any failure (bad key, tampered, keychain locked): return
+                // a placeholder string — do NOT crash or skip the chunk.
+                if let Some(ref k) = enc_key {
+                    hex::decode(&h.text)
+                        .ok()
+                        .and_then(|bytes| {
+                            crate::commands::mail::crypto::decrypt_with_key(&bytes, k).ok()
+                        })
+                        .and_then(|v| String::from_utf8(v).ok())
+                        .unwrap_or_else(|| "[mail content unavailable]".to_string())
+                } else {
+                    "[mail content unavailable — keychain locked]".to_string()
+                }
+            } else {
+                // Text / PDF chunk (or pre-G4 row): return as-is. No change from pre-G4.
+                h.text
+            };
+            Hit {
+                path: h.path,
+                chunk_text,
+                score: embedder::cosine_distance_to_score(h.distance),
+                paragraph_index: h.paragraph_index,
+                source_type: h.source_type,
+                page_number: h.page_number,
+            }
         })
         .collect();
     // LanceDB returns by ascending distance, which corresponds to
@@ -315,6 +347,19 @@ pub async fn rag_retrieve(
     hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
     Ok(hits)
 }
+
+// N2: rag_index_mail_text was removed.
+// The Tauri command was never called from the frontend; the real indexing path
+// is index_mail_text_internal in commands/mail/mod.rs, which calls the rag
+// store helpers directly without going through IPC.  Keeping a public
+// #[tauri::command] that accepts plaintext over IPC was a latent plaintext-
+// over-IPC surface, so the command has been deleted entirely.
+//
+// If you need to restore it, the full implementation is in git history
+// (commit message: "fix(mail): encryption review — purge plaintext mail.db ...").
+// Before restoring, verify that the frontend does NOT call it — the IPC
+// surface ships plaintext message content from renderer to backend, bypassing
+// the encrypted-blob architecture.
 
 /// Set the cancellation flag. `rag_index_workspace` polls this between
 /// files and exits cleanly. Called by the frontend "Pause" / "Cancel"

@@ -107,6 +107,8 @@ import { usePluginsMarketplaceStore } from '@/stores/pluginsMarketplaceStore';
 import { buildOpenFilesPromptBlock } from '@/components/ai/AIChatViewer';
 import { useModelList } from '@/hooks/useModelList';
 import { useContentIndex } from '@/hooks/useContentIndex';
+import { useMailSync } from '@/hooks/useMailSync';
+import type { MailIndexChunk } from '@/utils/mail-commands';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { usePromptDialog } from '@/hooks/usePromptDialog';
@@ -320,6 +322,22 @@ function App() {
     service: workspaceServiceRef.current,
     fileTree,
   });
+
+  // G5: Feed decrypted mail text into the in-memory MiniSearch index via the
+  // mail-index-chunk Tauri event. The decrypted text never touches disk —
+  // it lives only in the renderer process's MiniSearch instance.
+  // Stable identity (useCallback) so useMailSync subscribes once and does not
+  // tear down / re-create the listener on every render (which would drop chunks
+  // fired during an active sync).
+  const handleMailChunk = useCallback((chunk: MailIndexChunk) => {
+    contentIndex.upsert({
+      id: `mail:${chunk.docId}`,
+      path: `mail:${chunk.docId}`,
+      name: chunk.subject || 'Email',
+      content: chunk.decryptedText,
+    });
+  }, [contentIndex.upsert]);
+  useMailSync({ onMailChunk: handleMailChunk });
 
   // API key management
   const { apiKeys, handleSaveApiKey: rawSaveApiKey, handleDeleteApiKey: rawDeleteApiKey } = useApiKeys();

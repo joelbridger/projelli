@@ -51,6 +51,8 @@ pub fn run() {
             commands::rag::rag_delete_path,
             // A3 — PDF RAG indexing bridge (JS extracts, Rust embeds+stores).
             commands::rag::rag_index_pdf_chunks,
+            // N2: rag_index_mail_text removed — latent plaintext-over-IPC surface.
+            // The real indexing path is index_mail_text_internal (mail/mod.rs).
             commands::watcher::watch_workspace,
             // Phase 4 M4 (v1.5 Flag 2) — MCP approval bridge + .mcpb path.
             commands::mcp::mcp_list_pending_approvals,
@@ -68,6 +70,15 @@ pub fn run() {
             // Stream C1 (v2.0): Templates Marketplace install pipeline.
             commands::checksum::sha256_file,
             commands::tarball::extract_tarball,
+            // Phase 1 email — Microsoft 365 import.
+            commands::mail::mail_set_workspace,
+            commands::mail::mail_begin_login,
+            commands::mail::mail_poll_login,
+            commands::mail::mail_is_connected,
+            commands::mail::mail_sync_all,
+            commands::mail::mail_cancel_sync,
+            // G6 — OS full-disk encryption detection + nudge in MailConnect.
+            commands::mail::fde::mail_fde_status,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -81,6 +92,8 @@ pub fn run() {
             // cancellation flag for the workspace indexer). Required by all
             // `rag_*` commands.
             commands::rag::manage_state(app);
+            // Phase 1 email — manage mail state (active workspace + cancel flag).
+            commands::mail::manage_state(app);
             // Auto-updater stack. Desktop-only because the underlying
             // crates are gated to macOS / Windows / Linux in Cargo.toml.
             // The plugin reads endpoints + pubkey from tauri.conf.json so

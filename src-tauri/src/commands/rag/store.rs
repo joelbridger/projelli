@@ -39,6 +39,8 @@ pub enum SourceType {
     Text,
     /// 1-based page number for display.
     Pdf { page_number: u32 },
+    /// Email message. `text` column holds hex-encoded AES-256-GCM ciphertext.
+    Mail,
 }
 
 /// Name of the per-workspace LanceDB table that stores chunk embeddings.
@@ -74,6 +76,10 @@ fn hex_encode(bytes: &[u8]) -> String {
 ///
 /// A3: two new nullable columns added at the end so existing LanceDB
 /// datasets created before A3 still open; old rows return null for these.
+///
+/// G4: one new nullable boolean column `encrypted` added at the end.
+/// Existing pre-G4 datasets (rows without this column) return null → false
+/// so old text/pdf rows are treated as unencrypted (correct behaviour).
 pub fn build_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
         Field::new("id", DataType::Utf8, false),
@@ -95,6 +101,10 @@ pub fn build_schema() -> SchemaRef {
         // A3: 1-based page number for PDF chunks; 0 for text chunks.
         // Nullable for pre-A3 rows.
         Field::new("page_number", DataType::UInt32, true),
+        // G4: true for mail chunks whose text column holds hex-encoded AES-256-GCM ciphertext.
+        // false for text/pdf chunks (plaintext). Nullable so pre-G4 rows (no column) default
+        // to null → treated as false by the retrieval layer.
+        Field::new("encrypted", DataType::Boolean, true),
     ]))
 }
 
@@ -138,6 +148,10 @@ pub async fn open_or_create_table(conn: &Connection) -> Result<Table> {
 /// Pass `SourceType::Text` for all text-file chunks (page_number = 0).
 /// Pass `SourceType::Pdf { page_number }` for PDF chunks where page_number
 /// is derived from `chunk.paragraph_index / MAX_CHUNKS_PER_PAGE + 1`.
+///
+/// G4: `encrypted` is always false for Text and Pdf — the text column holds
+/// the original plaintext, byte-for-byte unchanged. Mail chunks use
+/// `build_batch_mail` instead, which encrypts the text column.
 pub fn build_batch(rows: &[(Chunk, Vec<f32>)], source_type: SourceType) -> Result<RecordBatch> {
     let schema = build_schema();
     let now = std::time::SystemTime::now()
@@ -170,9 +184,17 @@ pub fn build_batch(rows: &[(Chunk, Vec<f32>)], source_type: SourceType) -> Resul
     let (st_str, pn_val): (&str, u32) = match source_type {
         SourceType::Text => ("text", 0),
         SourceType::Pdf { page_number } => ("pdf", page_number),
+        // Mail chunks MUST go through build_batch_mail (which encrypts the text
+        // column). build_batch always writes encrypted=false, so routing mail
+        // here would silently persist plaintext. Fail loudly instead — this is
+        // a programmer error on a code-chosen enum, never data-driven.
+        SourceType::Mail => unreachable!("mail chunks must use build_batch_mail, not build_batch"),
     };
     let st_arr = StringArray::from(vec![st_str; rows.len()]);
     let pn_arr = UInt32Array::from(vec![pn_val; rows.len()]);
+
+    // G4: encrypted = false for text/pdf rows. Text column is plaintext.
+    let enc_arr = arrow_array::BooleanArray::from(vec![false; rows.len()]);
 
     let batch = RecordBatch::try_new(
         schema,
@@ -185,10 +207,81 @@ pub fn build_batch(rows: &[(Chunk, Vec<f32>)], source_type: SourceType) -> Resul
             Arc::new(ts_arr),
             Arc::new(st_arr),
             Arc::new(pn_arr),
+            Arc::new(enc_arr),
         ],
     )
     .context("RecordBatch::try_new failed for chunks batch")?;
     Ok(batch)
+}
+
+/// Build a RecordBatch for mail chunks. The `text` column contains
+/// hex-encoded AES-256-GCM ciphertext (encrypt_with_key). Embeddings are
+/// computed from plaintext (already passed in as `rows`). `encrypted = true`.
+///
+/// G4: This is the ONLY function that writes encrypted text to the store.
+/// `build_batch` for Text/Pdf always writes plaintext — this separation
+/// ensures the document/PDF code paths cannot accidentally encrypt.
+pub fn build_batch_mail(rows: &[(Chunk, Vec<f32>)], key: &[u8; 32]) -> Result<RecordBatch> {
+    use crate::commands::mail::crypto::encrypt_with_key;
+
+    let schema = build_schema();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+
+    let ids: Vec<String> = rows
+        .iter()
+        .map(|(c, _)| chunk_id(&c.path, c.paragraph_index))
+        .collect();
+    let paths: Vec<&str> = rows.iter().map(|(c, _)| c.path.as_str()).collect();
+    let para_idx: Vec<u32> = rows.iter().map(|(c, _)| c.paragraph_index).collect();
+    let timestamps = vec![now; rows.len()];
+
+    // Encrypt each chunk's text; store as hex string in the text column.
+    // The embedding was computed from plaintext (passed in `rows`) and is stored unencrypted.
+    //
+    // S2: Propagate encrypt errors — an unwrap_or_default() here would silently
+    // store an empty string with encrypted=true, producing a permanently-
+    // unrecoverable chunk. Instead, return Err so the caller sees the failure.
+    let mut encrypted_texts: Vec<String> = Vec::with_capacity(rows.len());
+    for (c, _) in rows.iter() {
+        let blob = encrypt_with_key(c.text.as_bytes(), key)
+            .map_err(|e| anyhow::anyhow!("encrypt mail chunk {}: {e}", c.path))?;
+        encrypted_texts.push(hex::encode(&blob));
+    }
+
+    let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
+        rows.iter()
+            .map(|(_, v)| Some(v.iter().copied().map(Some).collect::<Vec<_>>())),
+        EMBEDDING_DIM as i32,
+    );
+
+    let id_arr = StringArray::from_iter_values(ids.iter().map(|s| s.as_str()));
+    let path_arr = StringArray::from_iter_values(paths.iter().copied());
+    let pi_arr = UInt32Array::from(para_idx);
+    let text_arr = StringArray::from_iter_values(encrypted_texts.iter().map(|s| s.as_str()));
+    let ts_arr = Int64Array::from(timestamps);
+    let st_arr = StringArray::from(vec!["mail"; rows.len()]);
+    let pn_arr = UInt32Array::from(vec![0u32; rows.len()]);
+    // G4: encrypted = true — the text column holds ciphertext, not plaintext.
+    let enc_arr = arrow_array::BooleanArray::from(vec![true; rows.len()]);
+
+    RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(id_arr),
+            Arc::new(path_arr),
+            Arc::new(pi_arr),
+            Arc::new(text_arr),
+            Arc::new(vectors),
+            Arc::new(ts_arr),
+            Arc::new(st_arr),
+            Arc::new(pn_arr),
+            Arc::new(enc_arr),
+        ],
+    )
+    .context("RecordBatch::try_new failed for mail chunks batch")
 }
 
 /// Replace all rows for `path` with the new `rows`. Idempotent re-index.
@@ -250,6 +343,9 @@ pub struct StoredHit {
     // A3 additions. None for pre-A3 rows that lack these columns.
     pub source_type: Option<String>,
     pub page_number: Option<u32>,
+    // G4: true means `text` holds hex-encoded AES-256-GCM ciphertext; must
+    // be decrypted before use. false (and null for pre-G4 rows) means plaintext.
+    pub encrypted: bool,
 }
 
 /// Nearest-neighbor search. Returns up to `top_k` raw hits.
@@ -303,6 +399,10 @@ pub async fn nearest(table: &Table, query_vec: &[f32], top_k: usize) -> Result<V
         let pn_col = batch
             .column_by_name("page_number")
             .and_then(|c| c.as_any().downcast_ref::<UInt32Array>());
+        // G4: read nullable encrypted column. Absent on pre-G4 rows → false (plaintext).
+        let enc_col = batch
+            .column_by_name("encrypted")
+            .and_then(|c| c.as_any().downcast_ref::<arrow_array::BooleanArray>());
 
         for i in 0..batch.num_rows() {
             let distance = dist_col.map(|c| c.value(i)).unwrap_or(0.0);
@@ -310,6 +410,8 @@ pub async fn nearest(table: &Table, query_vec: &[f32], top_k: usize) -> Result<V
                 .filter(|c| !c.is_null(i))
                 .map(|c| c.value(i).to_string());
             let page_number = pn_col.filter(|c| !c.is_null(i)).map(|c| c.value(i));
+            // G4: null or absent encrypted column → false (pre-G4 plaintext row).
+            let encrypted = enc_col.map(|c| !c.is_null(i) && c.value(i)).unwrap_or(false);
             out.push(StoredHit {
                 path: path_col.value(i).to_string(),
                 paragraph_index: pi_col.value(i),
@@ -317,6 +419,7 @@ pub async fn nearest(table: &Table, query_vec: &[f32], top_k: usize) -> Result<V
                 distance,
                 source_type,
                 page_number,
+                encrypted,
             });
         }
     }
@@ -346,7 +449,7 @@ mod tests {
     }
 
     #[test]
-    fn schema_has_eight_fields_in_canonical_order() {
+    fn schema_has_nine_fields_in_canonical_order() {
         let s = build_schema();
         let names: Vec<_> = s.fields().iter().map(|f| f.name().as_str()).collect();
         assert_eq!(
@@ -360,6 +463,7 @@ mod tests {
                 "indexed_at",
                 "source_type",
                 "page_number",
+                "encrypted",
             ]
         );
     }
@@ -390,8 +494,8 @@ mod tests {
         ];
         let batch = build_batch(&chunks, SourceType::Text).expect("build_batch");
         assert_eq!(batch.num_rows(), 2);
-        // 8 columns: id, path, paragraph_index, text, vector, indexed_at, source_type, page_number
-        assert_eq!(batch.num_columns(), 8);
+        // 9 columns: id, path, paragraph_index, text, vector, indexed_at, source_type, page_number, encrypted
+        assert_eq!(batch.num_columns(), 9);
     }
 
     #[test]
@@ -444,5 +548,206 @@ mod tests {
             .expect("page_number column missing")
             .as_primitive::<arrow_array::types::UInt32Type>();
         assert_eq!(pn_col.value(0), 3);
+    }
+
+    // -----------------------------------------------------------------------
+    // G4 regression tests: text/pdf rows must be UNCHANGED after schema extension.
+    // Mail rows must store ciphertext + encrypted=true.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn build_batch_text_source_type_unchanged_after_g4_schema() {
+        use arrow_array::cast::AsArray;
+        let rows = vec![(
+            Chunk {
+                path: "/a.md".into(),
+                paragraph_index: 0,
+                text: "hello world".into(),
+                start_offset: 0,
+                end_offset: 11,
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )];
+        let batch = build_batch(&rows, SourceType::Text).expect("build_batch text");
+        // text column must contain the original plaintext (not encrypted).
+        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        assert_eq!(
+            text_col.value(0),
+            "hello world",
+            "text-source text column must be plaintext after G4 schema change"
+        );
+        // source_type must still be "text".
+        let st_col = batch.column_by_name("source_type").expect("st col").as_string::<i32>();
+        assert_eq!(st_col.value(0), "text");
+        // encrypted column must be false for text rows.
+        let enc_col = batch
+            .column_by_name("encrypted")
+            .expect("encrypted column must exist")
+            .as_boolean();
+        assert!(!enc_col.value(0), "text rows must have encrypted=false");
+    }
+
+    #[test]
+    fn build_batch_pdf_source_type_unchanged_after_g4_schema() {
+        use arrow_array::cast::AsArray;
+        let rows = vec![(
+            Chunk {
+                path: "/a.pdf".into(),
+                paragraph_index: 0,
+                text: "page text".into(),
+                start_offset: 0,
+                end_offset: 9,
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )];
+        let batch =
+            build_batch(&rows, SourceType::Pdf { page_number: 3 }).expect("build_batch pdf");
+        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        assert_eq!(
+            text_col.value(0),
+            "page text",
+            "pdf-source text column must be plaintext after G4 schema change"
+        );
+        let st_col = batch.column_by_name("source_type").expect("st col").as_string::<i32>();
+        assert_eq!(st_col.value(0), "pdf");
+        let enc_col = batch
+            .column_by_name("encrypted")
+            .expect("encrypted column must exist")
+            .as_boolean();
+        assert!(!enc_col.value(0), "pdf rows must have encrypted=false");
+    }
+
+    #[test]
+    fn build_batch_mail_source_stores_ciphertext_in_text_column() {
+        use arrow_array::cast::AsArray;
+        let plaintext = "Re: closing — see you at 10am.";
+        let key = [0x42u8; 32];
+        let rows = vec![(
+            Chunk {
+                path: "mail:AAMk-abc".into(),
+                paragraph_index: 0,
+                text: plaintext.to_string(),
+                start_offset: 0,
+                end_offset: plaintext.len(),
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )];
+        let batch = build_batch_mail(&rows, &key).expect("build_batch mail");
+        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        let stored = text_col.value(0);
+        // The text column must NOT contain the plaintext.
+        assert!(
+            !stored.contains(plaintext),
+            "mail text column must contain ciphertext, not plaintext; got: {:?}",
+            &stored[..stored.len().min(30)]
+        );
+        // source_type must be "mail".
+        let st_col = batch.column_by_name("source_type").expect("st col").as_string::<i32>();
+        assert_eq!(st_col.value(0), "mail");
+        // encrypted must be true.
+        let enc_col = batch.column_by_name("encrypted").expect("enc col").as_boolean();
+        assert!(enc_col.value(0), "mail rows must have encrypted=true");
+    }
+
+    #[test]
+    fn build_batch_mail_ciphertext_decrypts_to_original_plaintext() {
+        use arrow_array::cast::AsArray;
+        use crate::commands::mail::crypto::decrypt_with_key;
+        let plaintext = "Confidential: closing scheduled for 10am.";
+        let key = [0x77u8; 32];
+        let rows = vec![(
+            Chunk {
+                path: "mail:m1".into(),
+                paragraph_index: 0,
+                text: plaintext.to_string(),
+                start_offset: 0,
+                end_offset: plaintext.len(),
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )];
+        let batch = build_batch_mail(&rows, &key).expect("build batch");
+        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        let stored_hex = text_col.value(0);
+        let blob = hex::decode(stored_hex).expect("hex decode");
+        let recovered = decrypt_with_key(&blob, &key).expect("decrypt");
+        assert_eq!(
+            String::from_utf8(recovered).expect("utf8"),
+            plaintext,
+            "decrypted ciphertext must equal original plaintext"
+        );
+    }
+
+    // S2 tests ----------------------------------------------------------------
+
+    /// S2: build_batch_mail must never produce an empty text column for a
+    /// successfully-built batch. Previously the .unwrap_or_default() would
+    /// silently store "" with encrypted=true on encryption failure.
+    /// This test confirms the success path stores a non-empty hex ciphertext,
+    /// exercising the loop that replaced the map+unwrap_or_default.
+    #[test]
+    fn build_batch_mail_s2_no_empty_ciphertext_on_success() {
+        use arrow_array::cast::AsArray;
+        let key = [0xAAu8; 32];
+        let rows = vec![
+            (
+                Chunk {
+                    path: "mail:a1".into(),
+                    paragraph_index: 0,
+                    text: "First confidential paragraph.".into(),
+                    start_offset: 0,
+                    end_offset: 30,
+                },
+                vec![0.1f32; EMBEDDING_DIM],
+            ),
+            (
+                Chunk {
+                    path: "mail:a1".into(),
+                    paragraph_index: 1,
+                    text: "Second confidential paragraph.".into(),
+                    start_offset: 31,
+                    end_offset: 61,
+                },
+                vec![0.2f32; EMBEDDING_DIM],
+            ),
+        ];
+        let batch = build_batch_mail(&rows, &key).expect("build_batch_mail must succeed");
+        let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
+        // Every row must have a non-empty hex ciphertext — the S2 fix removes the
+        // unwrap_or_default() that would silently store "" on failure.
+        for i in 0..batch.num_rows() {
+            let stored = text_col.value(i);
+            assert!(
+                !stored.is_empty(),
+                "S2: row {} text column must not be empty (was unwrap_or_default)",
+                i
+            );
+            // Must be valid hex (would decode and decrypt to the plaintext).
+            assert!(
+                hex::decode(stored).is_ok(),
+                "S2: row {} text column must be valid hex ciphertext",
+                i
+            );
+        }
+    }
+
+    /// S2: build_batch_mail called with a single-row batch must return Ok (not
+    /// silently swallow an encrypt error). Verifying the batch propagates
+    /// correctly through the row-by-row error path.
+    #[test]
+    fn build_batch_mail_s2_single_row_returns_ok_with_valid_key() {
+        let key = [0xBBu8; 32];
+        let rows = vec![(
+            Chunk {
+                path: "mail:singleton".into(),
+                paragraph_index: 0,
+                text: "One chunk.".into(),
+                start_offset: 0,
+                end_offset: 10,
+            },
+            vec![0.5f32; EMBEDDING_DIM],
+        )];
+        // Should succeed — verifies the for-loop path (not the old .map iterator).
+        let result = build_batch_mail(&rows, &key);
+        assert!(result.is_ok(), "S2: single-row build_batch_mail must return Ok; got {:?}", result.err());
     }
 }

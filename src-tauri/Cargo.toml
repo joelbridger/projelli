@@ -89,6 +89,12 @@ anyhow = "1"
 flate2 = "1"
 tar = "0.4"
 hex = "0.4"
+# Mail import (M365 Phase 1) — SQLite metadata store tracking imported message ids,
+# on-disk paths, and per-folder delta-sync cursors. `bundled` compiles SQLite
+# from source so there is no runtime dependency on a system libsqlite3.
+rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }
+aes-gcm = "0.10"
+rand = "0.8"
 
 # Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
 # the cfg() filter keeps the iOS/Android crate graph slim.
@@ -102,3 +108,6 @@ tokio = { version = "1", features = ["full", "test-util"] }
 # dir per test; `tempfile` is the de-facto standard and already transitively
 # in the lock via `lancedb` + `fastembed`, so no new build-time weight.
 tempfile = "3"
+# HTTP mock server for M365 Graph API integration tests (added here so it compiles
+# alongside rusqlite in one pass rather than requiring a second dep-compile later).
+wiremock = "0.6"

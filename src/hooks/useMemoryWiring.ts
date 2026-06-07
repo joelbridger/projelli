@@ -35,6 +35,7 @@ import {
   watchWorkspace,
   type WorkspaceChangeEvent,
 } from '@/utils/tauri-commands';
+import { mailSetWorkspace } from '@/utils/mail-commands';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { FileNode } from '@/types/workspace';
 
@@ -158,6 +159,7 @@ export function useMemoryWiring(
         if (!core.isTauri()) return;
 
         await MemoryService.setWorkspace(rootPath);
+        await mailSetWorkspace(rootPath);
         await watchWorkspace(rootPath);
 
         const { listen } = await import('@tauri-apps/api/event');
