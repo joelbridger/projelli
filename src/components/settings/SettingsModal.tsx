@@ -50,6 +50,7 @@ import { OllamaSettingsSection } from '@/components/settings/OllamaSettingsSecti
 import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';
 import { MailConnect } from '@/components/settings/MailConnect';
 import { MailImapConnect } from '@/components/settings/MailImapConnect';
+import { MailGmailConnect } from '@/components/settings/MailGmailConnect';
 import { LanguagePicker } from '@/components/settings/LanguagePicker';
 import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
 import type { AuditEntry } from '@/types/audit';
@@ -748,6 +749,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
               <>
                 <MailConnect />
                 <MailImapConnect />
+                <MailGmailConnect />
                 <McpSettingsSection />
                 <OllamaSettingsSection />
               </>

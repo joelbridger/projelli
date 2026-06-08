@@ -104,6 +104,10 @@ mail-parser = "0.11"
 async-imap = { version = "0.11.2", default-features = false, features = ["runtime-tokio"] }
 tokio-native-tls = "0.3"
 native-tls = "0.2"
+# Gmail OAuth (loopback + PKCE). base64 for base64url-nopad PKCE challenge;
+# open for launching the system browser to the Google auth URL.
+base64 = "0.22"
+open = "5"
 
 # Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
 # the cfg() filter keeps the iOS/Android crate graph slim.
