@@ -113,7 +113,7 @@ export function MailImapConnect() {
             <input
               id="imap-password"
               type="password"
-              placeholder="App password or account password"
+              placeholder="App password (Gmail and Outlook require one)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required

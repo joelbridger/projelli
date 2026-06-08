@@ -255,14 +255,18 @@ pub async fn mail_imap_connect(
     provider.list_folders().await.map_err(|e| format!("Could not connect: {e}"))?;
     let cfg = ImapConfig { account: username.clone(), host, port, username };
     let cfg_json = serde_json::to_string(&cfg).map_err(|e| e.to_string())?;
-    keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_CONFIG_KEY)
-        .map_err(|e| e.to_string())?
-        .set_password(&cfg_json)
-        .map_err(|e| e.to_string())?;
-    keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_PASSWORD_KEY)
-        .map_err(|e| e.to_string())?
-        .set_password(&password)
-        .map_err(|e| e.to_string())?;
+    let cfg_entry =
+        keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_CONFIG_KEY).map_err(|e| e.to_string())?;
+    cfg_entry.set_password(&cfg_json).map_err(|e| e.to_string())?;
+    let pw_entry =
+        keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_PASSWORD_KEY).map_err(|e| e.to_string())?;
+    if let Err(e) = pw_entry.set_password(&password) {
+        // Don't leave a config without its password: load_imap_config requires
+        // both, so a half-write would surface as a confusing "not connected"
+        // after an apparently-successful connect. Roll back the config entry.
+        let _ = cfg_entry.delete_credential();
+        return Err(e.to_string());
+    }
     Ok(())
 }
 
