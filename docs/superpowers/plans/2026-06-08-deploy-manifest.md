@@ -1,7 +1,7 @@
 # Deploy Manifest — Competitive-Landscape Activation (2026-06-08)
 
-> ## ⛔ NOT DEPLOYED — awaiting your review and go-ahead
-> Everything below is committed on branch `v2-overhaul` and verified, but nothing is live on keepance.com. To publish after review, run `infra/deploy.sh` (see "How to deploy" at the bottom).
+> ## ✅ DEPLOYED + LIVE on keepance.com (2026-06-08, 20:08 UTC)
+> Jameson approved ("DEPLOY ALL"). Shipped via `infra/deploy.sh --skip-demo`; Cloudflare cache purged; new pages verified serving (homepage hero, the 6 `/vs/` pages, `/security`, blog posts, matrix; counts 18/13/9/7; Practice $499/yr). Branch `v2-overhaul` pushed to origin. The original staging detail is preserved below for the record; the post-review CEO decisions are in the "Post-review CEO decisions" section near the end.
 
 All six workstreams are built, staged, and the full test suite is green (**2148 passed, 6 skipped, 0 failed**; the website content lint is **243 passed**). Branch `v2-overhaul`.
 
@@ -93,4 +93,19 @@ Canonical now consistent everywhere: **Personal $49 one-time / Professional $149
 
 ## How to deploy (after your go)
 
-`infra/deploy.sh` rsyncs `website/` → `/var/www/keepance.com` and purges the Cloudflare cache. **Note:** its `--dry-run` flag still triggers the live CF cache purge (the purge block isn't gated by `--dry-run`), so I did not run a dry-run during staging. The git delta above (43 website files, 3515 insertions) is exactly what would sync. On your go, I run `infra/deploy.sh` and confirm the pages are live.
+`infra/deploy.sh` rsyncs `website/` → `/var/www/keepance.com` and purges the Cloudflare cache. **Note:** its `--dry-run` flag still triggers the live CF cache purge (the purge block isn't gated by `--dry-run`), so I did not run a dry-run during staging. The git delta above (43 website files, 3515 insertions) is exactly what would sync. **Deployed 2026-06-08 with `--skip-demo`** (only static `website/` changed; skipping the unrelated `/try/` vite rebuild avoided a build failure leaving the cache unpurged).
+
+---
+
+## Post-review CEO decisions (2026-06-08, after "DEPLOY ALL")
+
+Jameson delegated D1-D4 ("do what you think is best as my CEO"). Resolutions:
+
+- **Deploy — DONE.** All six workstreams live + verified (see banner).
+- **D1 (template `@draft` headers) — DONE.** Reconciled the stale "do not expose to users without sign-off / requires review before shipping" source comments to honest "shipped, built with practitioner input; outputs carry a review banner." All user-facing "requires professional review / not legal advice" output banners preserved. `tsc` clean, 243 lint tests green. Commit `6fedb9a`.
+- **D2 (hero) — kept.** Workspace + local-first core, local-model-led, email as the headline proof. No change.
+- **SOC 2 — deferred.** Per `2026-06-08-soc2-decision-brief.md`: don't start now; begin readiness when 3+ qualified deals stall specifically on SOC 2 in one quarter (~$25k-65k all-in first year, 12-18 mo). Brief is ready.
+- **DPA — deferred.** Per `docs/legal/dpa-template.md`: have a startup contracts attorney review the draft ($500-$2k) when the first real deal asks. Draft is ready, marked do-not-send-until-reviewed.
+- **Competitor-watch recurring — not automated (by design).** Baseline done, wedge intact. Decided against an unattended web-browsing agent (prompt-injection surface per our security policy; the cloud `schedule` skill also can't reach local `notify-jameson` and needs GitHub connected). Runs attended-quarterly instead; see `2026-06-08-ws4-competitor-watch.md`. Next check ~2026-09.
+
+**Open (your call, when ready):** start SOC 2 / DPA review if a customer demands it; optionally add a pure-notification quarterly reminder for the competitor-watch. Nothing is blocking.

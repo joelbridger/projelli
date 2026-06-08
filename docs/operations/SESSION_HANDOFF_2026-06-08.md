@@ -1,5 +1,11 @@
 # Keepance — Session Handoff (2026-06-08)
 
+> ## ✅ RESOLVED — competitive activation SHIPPED + LIVE (2026-06-08 PM)
+> The "big piece" teed up below (competitive website content) plus all six activation workstreams are **built, deployed, and live on keepance.com**. Full record: `docs/superpowers/plans/2026-06-08-deploy-manifest.md` (what shipped, the new pages, the pricing/counts fix, and the post-review CEO decisions on D1-D4, SOC 2, DPA, and competitor-watch).
+> **What shipped:** pricing/counts canonical fix; 6 `/vs/` incumbent pages (copilot/clio-duo/cocounsel/jump/intuit-assist/gamma); comparison sections + email row on the 4 vertical pages; `/vs/` hub; local-model+email hero; competitive angle on the 4 gatekeeper one-pagers; 4 regulatory blog posts (Heppner/§7216/Reg S-P/NDA); `/security` trust page; press-kit comparison matrix; internal battlecards + reviewer kit; competitor-watch baseline (wedge intact).
+> **Still open (Jameson's call, not blocking):** SOC 2 and DPA — pursue when a customer demands it (briefs ready at `docs/strategy/2026-06-08-soc2-decision-brief.md` + `docs/legal/dpa-template.md`). Competitor-watch — run attended-quarterly (next ~2026-09); routine prompt in `docs/strategy/competitor-watch-log.md`.
+> **Also still open from the original handoff below (unchanged by this session):** publishing the v2.5.0 GitHub release draft, and Jameson live-testing the email connectors. The rest of this file is the original input handoff, kept for context.
+
 Paste this whole file as the first message of the next session. It is self-contained.
 
 You are CEO + head of build/marketing for Keepance (local-first AI workspace for attorneys, CPAs, consultants, RIAs). Repo `~/keepance`. Read `CLAUDE.md` first. Jameson is **not a developer** — plain language, never dump stack traces or git jargon (you own version control). Everything below is on branch `v2-overhaul` (the active line) unless noted.
