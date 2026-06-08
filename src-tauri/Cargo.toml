@@ -1,6 +1,6 @@
 [package]
 name = "keepance"
-version = "2.5.1"
+version = "2.5.2"
 description = "Local-first AI workspace for confidential client work"
 authors = ["Keepance"]
 license = "MIT"

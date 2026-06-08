@@ -5,12 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.5.1] - 2026-06-08 (Email release, completed across all platforms)
+## [2.5.2] - 2026-06-08 (Email release, completed across all platforms)
 
-Same release as 2.5.0 (the email feature: Microsoft 365, IMAP, and Gmail, imported and kept on your machine). The 2.5.0 release build did not finish on Windows and Apple Silicon, so it was never published. 2.5.1 is the build that completes on every platform.
+Same release as 2.5.0 (the email feature: Microsoft 365, IMAP, and Gmail, imported and kept on your machine). The 2.5.0 and 2.5.1 release builds did not finish on Windows, so they were never published. 2.5.2 is the build that completes and is signed on every platform.
 
 ### Fixed
-- **Windows installer now builds and signs again.** The release build's Azure Trusted Signing step failed because the GitHub Windows runner no longer ships with the PowerShell Gallery registered, so the signing module could not install ("Unable to find repository 'PSGallery'"). The release workflow now registers PSGallery and pre-installs the signing module before signing. File: `.github/workflows/release.yml`.
+- **Windows installer now builds and signs again.** The release build's Azure Trusted Signing step failed because recent GitHub Windows runner images no longer ship with the PowerShell Gallery registered or the NuGet package provider bootstrapped, so the signing module could not install. The release workflow now bootstraps the NuGet provider from Microsoft's endpoint, registers and trusts PSGallery, and verifies the signing module installs before signing runs. File: `.github/workflows/release.yml`.
 - **Version strings aligned.** Bumped `src-tauri/Cargo.toml` (and the lockfile) from a stale `2.1.2` to match the app version.
 
 ## [2.5.0] - 2026-06-08 (Email comes to Keepance: Microsoft 365, IMAP, and Gmail)

@@ -502,14 +502,21 @@ jobs:
       - name: Ensure PSGallery + TrustedSigning module are available
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null
-          if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
-            Register-PSRepository -Default
-          }
+          Write-Host "pwsh $($PSVersionTable.PSVersion)"
+          # Bootstrap the NuGet provider from Microsoft's provider endpoint. This does
+          # NOT need a registered repository (Install-PackageProvider DOES, which is why
+          # it failed with "No match was found for the provider 'NuGet'").
+          Get-PackageProvider -Name NuGet -ForceBootstrap | Out-Null
+          # Register + trust PSGallery for PowerShellGet v2. The signing action runs
+          # `Install-Module -Repository PSGallery` in pwsh, and recent windows-latest
+          # images ship without PSGallery registered.
+          if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) { Register-PSRepository -Default }
           Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          # Canary: mirror the signing action's exact call. If this succeeds, so will it.
           Install-Module -Name TrustedSigning -RequiredVersion 0.5.3 -Force -Scope CurrentUser -Repository PSGallery
-          Get-PSRepository | Format-Table Name,InstallationPolicy
+          Get-InstalledModule -Name TrustedSigning | Format-Table Name,Version
 
       - name: Sign Windows artifacts with Azure Trusted Signing
         uses: azure/trusted-signing-action@v0.5.1
