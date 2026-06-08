@@ -225,10 +225,21 @@ describe('T1-D — homepage pricing card reflects actual template counts', () =>
     const path = await import('node:path');
     const websiteDir = WEBSITE_ROOT;
     const homeHtml = await fs.readFile(path.join(websiteDir, 'index.html'), 'utf-8');
-    // These must match actual shipped template counts — update if packs grow
-    expect(homeHtml).toContain('Legal Practice pack: 10 templates');
-    expect(homeHtml).toContain('Tax Practice pack: 8 templates');
-    expect(homeHtml).toContain('Consulting Practice pack: 6 templates');
+    // Self-computing: count *.ts files (excluding index.ts) per pack dir so this
+    // never goes stale as packs grow. Dir maps to homepage label.
+    const packs = [
+      { dir: 'legal', label: 'Legal' },
+      { dir: 'tax', label: 'Tax' },
+      { dir: 'consulting', label: 'Consulting' },
+      { dir: 'advisors', label: 'Advisor' },
+    ];
+    const templatesRoot = path.resolve(websiteDir, '../src/modules/workflow/templates');
+    for (const { dir, label } of packs) {
+      const files = (await fs.readdir(path.join(templatesRoot, dir))).filter(
+        (f) => f.endsWith('.ts') && f !== 'index.ts',
+      );
+      expect(homeHtml, `${label} count`).toContain(`${label} Practice pack: ${files.length} templates`);
+    }
   });
 });
 
@@ -307,4 +318,47 @@ describe('Blog posts — em-dash sweep (all blog/*.html)', () => {
       });
     });
   }
+});
+
+/**
+ * A0 (2026-06-08) — pricing collocation guard.
+ *
+ * Practice is $499/yr (annual), not one-time. Fail if any site file places
+ * "$499" next to "one-time"/"once" WITHOUT a "/yr" suffix on the 499. The
+ * negative lookahead tolerates correct lines like "$49 one-time ... $499/yr"
+ * where the one-time belongs to the Personal tier.
+ */
+describe('A0 — no "$499 one-time" pricing collocation', () => {
+  function walkSite(dir: string): string[] {
+    const out: string[] = [];
+    let entries: string[] = [];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return out;
+    }
+    for (const e of entries) {
+      const abs = join(dir, e);
+      let st;
+      try {
+        st = statSync(abs);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) out.push(...walkSite(abs));
+      else if (e.endsWith('.html') || e.endsWith('.txt') || e.endsWith('.md')) out.push(abs);
+    }
+    return out;
+  }
+
+  const PRICING_RE =
+    /\$?499(?!\s*\/\s*yr|\s*\/\s*year)[^<]{0,15}(one-time|once)|(one-time|once)[^<]{0,15}\$?499(?!\s*\/\s*yr|\s*\/\s*year)/i;
+
+  it('finds no Practice $499 one-time/once collocation in any site file', () => {
+    const offenders: string[] = [];
+    for (const f of walkSite(WEBSITE_ROOT)) {
+      if (PRICING_RE.test(readFileSync(f, 'utf-8'))) offenders.push(relative(WEBSITE_ROOT, f));
+    }
+    expect(offenders, `stale Practice one-time pricing in: ${offenders.join(', ')}`).toEqual([]);
+  });
 });

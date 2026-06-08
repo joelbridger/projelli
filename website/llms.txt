@@ -22,7 +22,7 @@ Keepance is not designed for enterprise teams, hobbyists, or users who want an a
 2. **BYOK (Bring Your Own Key)**: users supply their own Anthropic, OpenAI, or Google AI Studio API key. Keepance never holds AI credentials and AI requests go directly from the user's machine to the AI provider.
 3. **Chat-as-files**: every AI conversation produces a real Markdown file the user can open, edit, version, back up, or delete with regular file system tools.
 4. **Profession-specific template packs**: workflow templates organized by practice type (Legal Practice, Tax Practice, Consulting Practice) covering the documents professionals actually produce for clients.
-5. **Confidential by architecture**: documents and API keys stay on the user's machine; prompts go straight to the AI provider, never through Keepance servers. $49 Personal (one-time) / $149/yr Professional (includes one profession pack) / $499 Practice one-time (up to 5 seats).
+5. **Confidential by architecture**: documents and API keys stay on the user's machine; prompts go straight to the AI provider, never through Keepance servers. $49 Personal (one-time) / $149/yr Professional (includes one profession pack) / $499/yr Practice (up to 5 seats).
 
 ## Pricing
 
@@ -30,7 +30,7 @@ Keepance is not designed for enterprise teams, hobbyists, or users who want an a
 |---|---|---|
 | Personal | $49 one-time | Core editor, all 3 AI providers, unlimited workspaces, whiteboard, audio, research/citations, 1 year of updates |
 | Professional | $149/yr | Everything Personal has + one profession-specific template pack (Legal, Tax, or Consulting) + commercial use license |
-| Practice | $499 one-time | Everything Professional has + up to 5 seats + all profession packs + updates forever |
+| Practice | $499/yr | Everything Professional has + up to 5 seats + all profession packs, kept current |
 
 Sold via LemonSqueezy (merchant of record handles VAT, tax, refunds). 14-day refund window, no questions asked.
 

@@ -83,4 +83,4 @@ The honest pricing models put all four in front of the user. BYOK does this by d
 
 If you're a professional buying these tools, watch the layers between you and the cost. Each layer is a place where the math can change without you noticing — and for professionals with confidentiality obligations, each layer is also a party that may be touching your client's information.
 
-I'll keep the [Keepance pricing](https://keepance.com/#pricing) consistent with what I argue for: Professional at $149/year (one profession pack, BYOK, no markup on inference), Practice at $499 one-time (all three packs, up to five seats). If you're running a different setup and seeing different math, or different compliance considerations, I'd like to hear about it.
+I'll keep the [Keepance pricing](https://keepance.com/#pricing) consistent with what I argue for: Professional at $149/year (one profession pack, BYOK, no markup on inference), Practice at $499 a year for up to five seats and all four packs. If you're running a different setup and seeing different math, or different compliance considerations, I'd like to hear about it.
