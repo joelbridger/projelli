@@ -71,10 +71,10 @@ fn parse_gmail_cursor(cursor: &Cursor) -> GmailCursor {
 ///
 /// **History-too-old fallback**:
 /// If `users.history` returns HTTP 404 (historyId too old / expired), the
-/// current `ChangePage` is returned as `done: true, next: None`. On the next
-/// sync call with no cursor the sync layer will restart with `Cursor::Backfill`,
-/// triggering a full re-backfill. A `log::warn!` is emitted so the event is
-/// visible in app logs.
+/// `ChangePage` is returned with `next: Some("")` (an empty cursor, which
+/// `parse_gmail_cursor` maps back to `Cursor::Backfill`). The sync layer
+/// persists that reset cursor, so the next sync performs a full re-backfill.
+/// A `log::warn!` is emitted so the event is visible in app logs.
 pub struct GmailProvider {
     client: GmailClient,
     account: String,
@@ -187,21 +187,22 @@ impl GmailProvider {
             Ok(v) => v,
             Err(e) => {
                 // Gmail returns 404 when the historyId is too old (expired from
-                // the server-side history log). In this case we cannot recover
-                // incrementally. Return done=true, next=None so the next sync
-                // call (with no cursor => Cursor::Backfill) performs a full
-                // re-backfill.
+                // the server-side history log). We cannot recover incrementally,
+                // so RESET the cursor to empty (parse_gmail_cursor maps "" =>
+                // Backfill) — `next: Some("")` is persisted by the sync loop, so
+                // the next sync performs a full re-backfill. (Returning None here
+                // would leave the stale hist: cursor in place and 404 forever.)
                 let msg = e.to_string();
                 if msg.contains("HTTP 404") {
                     log::warn!(
                         "gmail history: historyId {} expired for account {}; \
-                         a full re-backfill is required on the next sync",
+                         resetting cursor for a full re-backfill on the next sync",
                         start_history_id, self.account
                     );
                     return Ok(ChangePage {
                         messages: vec![],
                         removed_ids: vec![],
-                        next: None,
+                        next: Some(String::new()),
                         done: true,
                     });
                 }
