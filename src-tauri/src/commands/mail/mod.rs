@@ -8,6 +8,7 @@ pub mod sync;
 pub mod crypto;
 pub mod fde;
 pub mod imap;
+pub mod gmail;
 
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
