@@ -83,6 +83,10 @@ pub fn run() {
             commands::mail::mail_imap_connect,
             commands::mail::mail_imap_is_connected,
             commands::mail::mail_imap_disconnect,
+            // Gmail native provider (loopback PKCE OAuth).
+            commands::mail::gmail_connect,
+            commands::mail::gmail_is_connected,
+            commands::mail::gmail_disconnect,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

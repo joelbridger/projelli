@@ -67,3 +67,17 @@ export async function mailImapDisconnect(): Promise<void> {
   if (!isTauri()) return;
   return invoke<void>('mail_imap_disconnect');
 }
+
+// Gmail native provider (loopback PKCE OAuth)
+export async function gmailConnect(): Promise<void> {
+  if (!isTauri()) throw new Error('Gmail connect is only available in the desktop app.');
+  return invoke<void>('gmail_connect');
+}
+export async function gmailIsConnected(): Promise<boolean> {
+  if (!isTauri()) return false;
+  return invoke<boolean>('gmail_is_connected');
+}
+export async function gmailDisconnect(): Promise<void> {
+  if (!isTauri()) return;
+  return invoke<void>('gmail_disconnect');
+}

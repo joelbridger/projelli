@@ -27,6 +27,17 @@ const M365_ACCOUNT: &str = "default";
 const IMAP_KEYCHAIN_SERVICE: &str = "keepance-mail-imap";
 const IMAP_CONFIG_KEY: &str = "config"; // JSON {account,host,port,username}
 const IMAP_PASSWORD_KEY: &str = "password";
+
+const GMAIL_KEYCHAIN_SERVICE: &str = "keepance-mail-gmail";
+const GMAIL_REFRESH_KEY: &str = "refresh-token";
+const GMAIL_ACCOUNT: &str = "default"; // single Gmail account today; cursors are (provider,account,folder)-scoped
+
+fn gmail_client_id() -> String {
+    option_env!("KEEPANCE_GMAIL_CLIENT_ID")
+        // PLACEHOLDER — replaced with the real Desktop OAuth client id after the Google Cloud registration.
+        .unwrap_or("PLACEHOLDER_GMAIL_CLIENT_ID.apps.googleusercontent.com")
+        .to_string()
+}
 pub const SYNC_PROGRESS_EVENT: &str = "mail-sync-progress";
 /// G5: per-message event that carries decrypted text to the renderer for
 /// MiniSearch indexing. The text lives only in renderer-process memory.
@@ -285,6 +296,48 @@ pub async fn mail_imap_disconnect() -> Result<(), String> {
         let _ = e.delete_credential();
     }
     Ok(())
+}
+
+/// Run the Gmail loopback+PKCE sign-in: open the browser, catch the redirect,
+/// exchange the code, and store the refresh token in the OS keychain. Blocks
+/// until the user finishes in the browser (or a 5-minute timeout).
+#[tauri::command]
+pub async fn gmail_connect() -> Result<(), String> {
+    use crate::commands::mail::gmail::oauth::{bind_loopback, build_auth_url, gen_pkce, gen_state, open_browser, await_redirect_code, GoogleOAuth};
+    let (verifier, challenge) = gen_pkce();
+    let state = gen_state();
+    let (listener, redirect_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
+    let url = build_auth_url(&gmail_client_id(), &redirect_uri, &challenge, &state);
+    open_browser(&url);
+    let code = await_redirect_code(listener, &state, std::time::Duration::from_secs(300)).await.map_err(|e| e.to_string())?;
+    let oauth = GoogleOAuth::new(gmail_client_id());
+    let tokens = oauth.exchange_code(&code, &verifier, &redirect_uri).await.map_err(|e| e.to_string())?;
+    let refresh = tokens.refresh.ok_or("Google did not return a refresh token; try again")?;
+    keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY).map_err(|e| e.to_string())?
+        .set_password(&refresh).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn gmail_is_connected() -> Result<bool, String> {
+    Ok(keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY).map_err(|e| e.to_string())?.get_password().is_ok())
+}
+
+#[tauri::command]
+pub async fn gmail_disconnect() -> Result<(), String> {
+    if let Ok(e) = keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY) { let _ = e.delete_credential(); }
+    Ok(())
+}
+
+/// Read the Gmail refresh token from the keychain and exchange it for a fresh
+/// access token. Returns `Err("not connected")` if no refresh token is stored.
+async fn fresh_gmail_access_token() -> Result<String, String> {
+    let entry = keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY)
+        .map_err(|e| e.to_string())?;
+    let rt = entry.get_password().map_err(|_| "not connected".to_string())?;
+    let oauth = crate::commands::mail::gmail::oauth::GoogleOAuth::new(gmail_client_id());
+    let tokens = oauth.refresh(&rt).await.map_err(|e| e.to_string())?;
+    Ok(tokens.access)
 }
 
 /// G4 / N2: Internal mail RAG indexer — takes raw parameters instead of Tauri
@@ -596,6 +649,103 @@ async fn mail_sync_all_inner(
             };
             sync::sync_folder_provider(
                 &provider, &store, &workspace, &folder, &imap_cfg.account, &enc_key,
+                &emit, &index_callback, &tombstone_callback,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
+    // ── Gmail account (if connected) — runs after IMAP ────────────────────
+    if gmail_is_connected().await.unwrap_or(false) {
+        use crate::commands::mail::gmail::GmailProvider;
+        let folders = {
+            let token = fresh_gmail_access_token().await?;
+            GmailProvider::new(token, GMAIL_ACCOUNT.to_string()).list_folders().await.map_err(|e| e.to_string())?
+        };
+        for folder in folders {
+            if cancel.load(Ordering::SeqCst) {
+                let _ = app.emit(
+                    SYNC_PROGRESS_EVENT,
+                    SyncProgress {
+                        status: "cancelled".into(),
+                        folder: None,
+                        written: 0,
+                        removed: 0,
+                    },
+                );
+                return Ok(());
+            }
+            let token = fresh_gmail_access_token().await?;
+            let provider = GmailProvider::new(token, GMAIL_ACCOUNT.to_string());
+            let app2 = app.clone();
+            let fid2 = folder.id.clone();
+            let emit = move |w: u32, r: u32| {
+                let _ = app2.emit(
+                    SYNC_PROGRESS_EVENT,
+                    SyncProgress {
+                        status: "syncing".into(),
+                        folder: Some(fid2.clone()),
+                        written: w,
+                        removed: r,
+                    },
+                );
+            };
+            let workspace_for_index = workspace.clone();
+            let enc_key_for_index = enc_key;
+            let app3 = app.clone();
+            let index_callback = move |id: &str, text: &str| {
+                let path_key = format!("mail:{}", id);
+                let text_owned = text.to_string();
+                let ws = workspace_for_index.clone();
+                let key = enc_key_for_index;
+                // Fire-and-forget RAG indexing (G4).
+                let _ = tokio::task::spawn(async move {
+                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key).await {
+                        log::warn!("G4 mail index failed for {}: {}", path_key, e);
+                    }
+                });
+                // G5: pull the subject from the frontmatter (scoped to the fenced
+                // block, unquoted + unescaped) and emit the event for MiniSearch.
+                let subject = frontmatter_subject(text);
+                let _ = app3.emit(MAIL_INDEX_CHUNK_EVENT, MailIndexChunkPayload {
+                    doc_id: id.to_string(),
+                    subject,
+                    decrypted_text: text.to_string(),
+                });
+            };
+            // S3: tombstone_callback fires for each deleted message. It spawns a
+            // fire-and-forget async task to remove the LanceDB RAG chunks keyed
+            // "mail:<id>" so deleted email stops surfacing in rag_retrieve.
+            let workspace_for_tombstone = workspace.clone();
+            let tombstone_callback = move |id: &str| {
+                let path_key = format!("mail:{}", id);
+                let ws = workspace_for_tombstone.clone();
+                let _ = tokio::task::spawn(async move {
+                    // Reuse the same store::delete_path helper used by rag_delete_path.
+                    match crate::commands::rag::store::open_connection(&ws).await {
+                        Ok(conn) => {
+                            let names = conn.table_names().execute().await.unwrap_or_default();
+                            if names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
+                                if let Ok(table) = conn
+                                    .open_table(crate::commands::rag::store::TABLE_NAME)
+                                    .execute()
+                                    .await
+                                {
+                                    if let Err(e) = crate::commands::rag::store::delete_path(&table, &path_key).await {
+                                        log::warn!("S3 tombstone: delete RAG chunks for {} failed: {}", path_key, e);
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("S3 tombstone: open lancedb for {} failed: {}", path_key, e);
+                        }
+                    }
+                });
+            };
+            sync::sync_folder_provider(
+                &provider, &store, &workspace, &folder, GMAIL_ACCOUNT, &enc_key,
                 &emit, &index_callback, &tombstone_callback,
             )
             .await
