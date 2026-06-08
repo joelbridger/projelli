@@ -96,6 +96,8 @@ hex = "0.4"
 rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }
 aes-gcm = "0.10"
 rand = "0.8"
+# IMAP RFC822 normalizer — fast zero-copy email parser.
+mail-parser = "0.11"
 
 # Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
 # the cfg() filter keeps the iOS/Android crate graph slim.
