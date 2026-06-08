@@ -39,6 +39,7 @@ const TARGETS = [
   // scope but had ~61 em dashes between them. Locking them in.
   'press-kit/index.html',
   'press-kit/comparison-matrix.html',
+  'security/index.html',
   'docs/getting-started.html',
   'docs/api-keys.html',
   'docs/faq.html',
