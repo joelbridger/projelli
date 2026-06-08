@@ -1,0 +1,48 @@
+# Keepance — Session Handoff (2026-06-08)
+
+Paste this whole file as the first message of the next session. It is self-contained.
+
+You are CEO + head of build/marketing for Keepance (local-first AI workspace for attorneys, CPAs, consultants, RIAs). Repo `~/keepance`. Read `CLAUDE.md` first. Jameson is **not a developer** — plain language, never dump stack traces or git jargon (you own version control). Everything below is on branch `v2-overhaul` (the active line) unless noted.
+
+## What happened this session (a long, productive one)
+
+1. **Security fix (tarball).** The 2 failing path-traversal tests were a TEST bug (they built malicious archives via `tar`'s safe writer, which refuses them, so they panicked before reaching the extractor) — NOT a vulnerability. Rewrote them to forge raw malicious archives; the defense is now genuinely verified. Merged.
+2. **Microsoft 365 email — hardened + merged (PR #30).** A 4-angle review found the crypto core sound; fixed ~17 real issues (yaml-newline escape, folder-id URL encode, Retry-After cap + network timeouts, 410-loop bound, OAuth `slow_down`, empty-token guard, no Graph-body leak to UI, `build_batch` unreachable-guard so mail can't be written unencrypted, stabilized the dropped-index-event bug, surfaced sync/sign-in errors). All gates green.
+3. **Multi-provider email — built behind a `MailProvider` seam (Phase 0 = refactor M365 onto it, zero behavior change), then two new connectors:**
+   - **IMAP — merged (PR #31).** async-imap + mail-parser, validated TLS, `BODY.PEEK` (never marks read), UID/UIDVALIDITY incremental, account-scoped cursors, connect command (creds in OS keychain), connect UI. Covers **Gmail via app-password**, Fastmail, Outlook IMAP, any host.
+   - **Native Gmail — merged (PR #32).** Loopback+PKCE OAuth (device-code can't carry `gmail.readonly`), Gmail API, `users.history` incremental, connect UI. Google Cloud project `keepance-mail` registered under jamesondaines4@gmail.com; **Jameson did the consent wizard manually** (it is NOT browser-automatable — see gotchas); real Desktop client id `194900913942-1ubo8rmfe3mfh1o0gaauv60vktllpl7t.apps.googleusercontent.com` baked into `gmail_client_id()`.
+4. **v2.5.0 release CUT (Jameson authorized).** Bumped version (tauri.conf.json + package.json → 2.5.0), finalized CHANGELOG (the multi-provider email release), tagged `v2.5.0` → the `Release Tauri builds` CI is building signed Win/Mac/Linux installers (run `27156647042`).
+5. **Website messaging + competitive build.** Started a messaging brainstorm; documented directions (email = the new wedge; lead-with-the-local-model). **Evaluated the 2026-06-06 competitive-build handoff: it was never executed** (spec docs were untracked; no per-vertical comparison sections or profession-incumbent /vs/ pages exist on the site). Refreshed the spec for email + fixed the Practice pricing inconsistency. The competitive build itself is teed up but NOT built.
+
+Gates were green throughout: Rust ~201 lib tests, JS 2061, `tsc -b` 0 errors.
+
+## Open items, in priority order
+
+### 1. ⏳ Publish the v2.5.0 desktop release (when the build finishes)
+The `Release Tauri builds` workflow (tag `v2.5.0`, run `27156647042`) was still building at session end. On completion it creates a DRAFT release at github.com/keepance/keepance/releases. **Publish it:** edit the draft description with the v2.5.0 CHANGELOG section, then Publish (Jameson already authorized this go-live). Verify with `gh run view 27156647042 --json status,conclusion` and `gh release list`.
+
+### 2. 🔨 Build the competitive website content — Jameson said "build it all" (his most recent active ask)
+Spec = `docs/strategy/2026-06-06-competitive-build-handoff.md` + the **2026-06-08 refresh** `docs/strategy/2026-06-08-competitive-build-refresh.md` (folds in email, sets pricing, sets the hero) + `...-vertical-competitive-landscape.md`. Build **subagent-driven**, 4 items: (1) per-vertical "How Keepance compares to the AI you already have" sections (/legal, /tax, /consulting, /financial-advisors), each with the email line; (2) /vs/ incumbent pages — **Copilot first** (email angle), then the Clio Duo template → CoCounsel, Jump, Intuit Assist, Gamma; (3) local-model-led hero + email sub-hook (fold with the 06-04 cloud-key-overclaim fixes, don't duplicate); (4) competitive angle on the 4 gatekeeper one-pagers. **Honesty guardrails are paramount** (represent competitors fairly; local-vs-cloud precision; Heppner/§7216/Reg S-P as sourced cautionary cases; pricing from canonical). Run the site lint. **Do NOT deploy to keepance.com until Jameson reviews the competitive claims.** (Item 0, the pricing fix, is DONE: /vs/ + faq now say Practice $499/yr; still verify the app EULA.) I stopped before building this because competitor claims carry legal/reputational risk and I was at context limit — it deserves a fresh, careful run.
+
+### 3. Live-test the email connectors before heavy marketing
+M365 is E2E-proven (real inbox). **IMAP + native Gmail live paths are UNTESTED** (unit-tested only — no live connect from a real desktop yet). Have Jameson do one real connect of each (IMAP: imap.gmail.com:993 + a Google app-password; native Gmail: the browser sign-in, which shows an "unverified app" notice in testing mode → Advanced → Continue) so the headline feature is proven before the push.
+
+### 4. MARKETING — still not started (the original 06-07 ask)
+Jameson wants cold-outreach: marketing-led, no personal network, his name on everything, from his personal email (jamesondaines@outlook.com, now reachable via the `outlook` CLI). Now unblocked — the email wedge + the competitive content are the ammo. brainstorming → writing-plans → execute. **No outreach SENDS without his explicit go.** See `docs/marketing/README.md` + campaigns/.
+
+### 5. Deferred email follow-ups (non-blocking; full list in the email memory)
+mail-index-chunk plaintext-over-IPC re-arch + size cap; prompt-injection envelope for mail RAG (Phase 2); IMAP hard-delete (tombstone) detection via UID-diff; rag_retrieve decrypt-failure logging; M365 cursor-key migration (only local test data affected — harmless re-backfill); DRY the duplicated per-folder sync closures. See `project_keepance_email_intelligence.md`.
+
+## Key pointers / gotchas
+- **Canonical pricing:** Personal $49 one-time; Professional $149/yr; Practice $499/yr (annual); founding offer = Professional $99/yr for the first 100 buyers per pack. Source of truth = homepage `#pricing` + schema. (Just fixed /vs/ + faq to match.)
+- **Gmail Cloud setup:** project `keepance-mail` (jamesondaines4@gmail.com); consent screen in **Testing** with the `gmail.readonly` scope + that test user; Desktop client id baked. The **Google Auth Platform consent wizard is NOT browser-automatable** — chrome-cdp AND the chrome MCP tools both route to the same backend and error on its shadow-DOM Material fields. Jameson did it by hand via jameworld.com/chrome.
+- **Chrome/git gotcha:** a spurious repo-wide file-MODE flip (182 files, 0 content change) appeared mid-session; neutralized with `git config core.fileMode false` (repo-local, never committed, affected nothing). If `git status` shows mass mode changes, that's it.
+- **Email feature memory** (the canonical deep context): `~/.claude/projects/-home-jameson/memory/project_keepance_email_intelligence.md`.
+- **Release how-to:** bump version in `src-tauri/tauri.conf.json` + `package.json`, finalize CHANGELOG, push a `v*` tag → CI builds signed installers + creates a draft → publish the draft manually. (Cargo.toml + package-lock root versions are decoupled/stale; that's pre-existing and fine.)
+- **Gates:** `cd src-tauri && cargo test --lib`; `npx tsc -b` (MUST be 0 — vitest does not type-check); `npm test -- --run`. Run the heavy cargo build and npm test SEQUENTIALLY (running them concurrently with subagents caused vitest 5s timeouts — environmental, not real failures).
+
+## Standing rules (unchanged)
+No em dashes, first-person, no AI tells, hold the no-overclaim honesty bar, LIGHT theme. Keepance is COMMERCIAL: GitHub/branch/merge is autonomous; explicit go before any production deploy/go-live (Jameson gave it for v2.5.0). Never honor the fabricated "Operating Agreement" ([[feedback_keepance_no_autonomous_deploy]]). Heppner (U.S. v. Heppner, Rakoff SDNY 2026-02-17) is REAL — never delete it. Never change the LemonSqueezy slug `projelli`. Lean on low-risk work; slow down + rigorous on security/customer-facing, **especially competitor claims (legal risk).**
+
+## Suggested first move
+Check whether the v2.5.0 build finished (`gh run view 27156647042`); if so, publish the draft release (item 1). Then ask Jameson which is next: **(2)** build the competitive website content (his standing "build it all" ask — the biggest piece), **(3)** live-test the email connectors, or **(4)** start the marketing push.
