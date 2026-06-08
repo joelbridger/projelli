@@ -4411,6 +4411,7 @@ dependencies = [
  "arrow-array",
  "arrow-schema",
  "async-stream",
+ "async-trait",
  "dirs 5.0.1",
  "fastembed",
  "flate2",
