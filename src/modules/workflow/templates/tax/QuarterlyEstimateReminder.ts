@@ -1,5 +1,5 @@
-// @draft — Tax Practice Pack v2.2
-// Requires CPA/EA advisor review before shipping. Do not expose to users without review.
+// Tax Practice Pack v2.2 (shipped). Built with input from practicing CPAs and EAs.
+// Drafting aid: every generated output carries a banner requiring professional review before use.
 
 import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
 

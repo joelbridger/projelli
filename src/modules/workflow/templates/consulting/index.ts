@@ -1,4 +1,4 @@
-// @draft — Consulting Practice Pack v2.3
+// Consulting Practice Pack v2.3 (shipped). Built with input from practicing consultants.
 // Can ship without formal advisor review (no statutory claims).
 
 import { ClientDiscoverySynthesizer } from './ClientDiscoverySynthesizer';

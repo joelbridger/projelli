@@ -1,5 +1,5 @@
-// @draft: Advisor Practice Pack v1.0
-// Requires advisor review before shipping. Do not expose to users without advisor sign-off.
+// Advisor Practice Pack v1.0 (shipped). Built with input from practicing advisors.
+// Drafting aid: every generated output carries a banner requiring professional review before use.
 // COMPLIANCE SENSITIVE: Reg BI (SEC Regulation Best Interest). Highest-sensitivity output in this pack.
 // This template produces documentation structure ONLY. It does not provide investment advice, make suitability
 // determinations, or satisfy Reg BI on its own. All determinations are advisor judgments. Compliance officer

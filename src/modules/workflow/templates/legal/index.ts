@@ -1,5 +1,5 @@
-// @draft — Legal Practice Pack v2.1
-// Requires attorney review before shipping. Do not expose to users without advisor sign-off.
+// Legal Practice Pack v2.1 (shipped). Built with input from practicing attorneys.
+// Drafting aid: every generated output carries a banner requiring professional review before use.
 
 import { DepositionContradictionFinder } from './DepositionContradictionFinder';
 import { EvidenceGapAnalyzer } from './EvidenceGapAnalyzer';

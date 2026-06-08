@@ -169,8 +169,9 @@ describe('Phase 6 — website content lint', () => {
  * T1-A — professional-review claim accuracy.
  *
  * Asserts that no page claims attorney/CPA/consultant review has already
- * happened, because every template still carries a @draft header and the
- * review has not yet taken place. The correct framing is "built with X input".
+ * happened. The packs ship as drafting aids built with practitioner input;
+ * no formal professional review is claimed, so "reviewed by" phrasing stays
+ * forbidden. The correct framing is "built with X input".
  */
 describe('T1-A — no false attorney/CPA/consultant-review claims', () => {
   const PRACTICE_PAGES: Array<{ label: string; rel: string }> = [
