@@ -226,6 +226,7 @@ pub async fn sync_folder_provider<F, I, T>(
     store: &(dyn MailStore + Sync),
     workspace_root: &Path,
     folder: &RemoteFolder,
+    account: &str,
     key: &[u8; 32],
     emit: &F,
     index_callback: &I,
@@ -236,7 +237,11 @@ where
     I: Fn(&str, &str) + Send + Sync,
     T: Fn(&str) + Send + Sync,
 {
-    let mut cursor = Cursor::from_token(store.get_cursor(&folder.id)?);
+    // Scope the resume cursor by provider + account + folder so multiple accounts
+    // (even two of the same provider, or an IMAP "INBOX" vs an M365 inbox) never
+    // collide on a folder id.
+    let cursor_key = format!("{}\u{1}{}\u{1}{}", provider.kind(), account, folder.id);
+    let mut cursor = Cursor::from_token(store.get_cursor(&cursor_key)?);
     let mut total = PageStats::default();
     loop {
         let page = provider.fetch_changes(folder, &cursor).await?;
@@ -244,7 +249,7 @@ where
         total.written += s.written;
         total.removed += s.removed;
         emit(total.written, total.removed);
-        if let Some(tok) = &page.next { store.set_cursor(&folder.id, tok)?; }
+        if let Some(tok) = &page.next { store.set_cursor(&cursor_key, tok)?; }
         if page.done { break; }
         cursor = Cursor::from_token(page.next);
     }

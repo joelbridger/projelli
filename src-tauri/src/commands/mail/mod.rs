@@ -19,6 +19,9 @@ use crate::commands::mail::store::EncryptedMailStore;
 
 const KEYCHAIN_SERVICE: &str = "keepance-mail-ms";
 const KEYCHAIN_REFRESH_KEY: &str = "ms-refresh-token";
+/// Account id for the single Microsoft 365 account (one refresh token today).
+/// Cursors are scoped by (provider, account, folder); see `sync_folder_provider`.
+const M365_ACCOUNT: &str = "default";
 pub const SYNC_PROGRESS_EVENT: &str = "mail-sync-progress";
 /// G5: per-message event that carries decrypted text to the renderer for
 /// MiniSearch indexing. The text lives only in renderer-process memory.
@@ -417,7 +420,7 @@ async fn mail_sync_all_inner(
             });
         };
         sync::sync_folder_provider(
-            &provider, &store, &workspace, &folder, &enc_key, &emit,
+            &provider, &store, &workspace, &folder, M365_ACCOUNT, &enc_key, &emit,
             &index_callback, &tombstone_callback,
         )
         .await
