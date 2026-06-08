@@ -143,6 +143,18 @@ impl GmailClient {
         }
         self.get_json(&url).await
     }
+
+    /// `GET /gmail/v1/users/me/profile` — returns the mailbox's current
+    /// `historyId` as a string. Used at the end of a backfill to record the
+    /// high-water mark for incremental history queries.
+    pub async fn get_profile_history_id(&self) -> anyhow::Result<String> {
+        let url = format!("{}/gmail/v1/users/me/profile", self.base);
+        let v = self.get_json(&url).await?;
+        v.get("historyId")
+            .and_then(|h| h.as_str())
+            .map(String::from)
+            .ok_or_else(|| anyhow::anyhow!("Gmail profile response missing historyId field"))
+    }
 }
 
 /// Gmail says: honour the Retry-After seconds; if absent, back off
@@ -295,6 +307,30 @@ mod tests {
         let result = client.get_message("msg99").await.expect("get_message");
         assert_eq!(result["id"], "msg99");
         assert_eq!(result["threadId"], "thread99");
+    }
+
+    // ── get_profile_history_id ───────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn get_profile_history_id_parses_history_id() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/gmail/v1/users/me/profile"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "emailAddress": "user@gmail.com",
+                "messagesTotal": 4321,
+                "threadsTotal": 1234,
+                "historyId": "12345"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = GmailClient::new_with_base("AT".into(), server.uri());
+        let hid = client.get_profile_history_id().await.expect("get_profile_history_id");
+        assert_eq!(hid, "12345");
     }
 
     // ── 429 retry ────────────────────────────────────────────────────────────
