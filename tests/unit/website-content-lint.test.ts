@@ -20,6 +20,13 @@ const TARGETS = [
   'vs/obsidian.html',
   'vs/notion.html',
   'vs/chatgpt.html',
+  // 2026-06-08 competitive incumbent pages (WS0 Phase B)
+  'vs/copilot.html',
+  'vs/clio-duo.html',
+  'vs/cocounsel.html',
+  'vs/jump.html',
+  'vs/intuit-assist.html',
+  'vs/gamma.html',
   'blog/index.html',
   'blog/keepance-1-5-announce.html',
   'blog/keepance-v2-announce.html',
@@ -361,4 +368,44 @@ describe('A0 — no "$499 one-time" pricing collocation', () => {
     }
     expect(offenders, `stale Practice one-time pricing in: ${offenders.join(', ')}`).toEqual([]);
   });
+});
+
+/**
+ * B (2026-06-08) — local-vs-cloud precision guard on comparison surfaces.
+ *
+ * Absolute egress claims ("nothing leaves your machine", "nothing was uploaded",
+ * "zero egress") are only true on the local-model path. Any comparison page that
+ * makes such a claim must also say "local model" so the claim stays qualified.
+ */
+describe('B — local-vs-cloud precision on comparison pages', () => {
+  const COMPARISON_PAGES = [
+    'vs/copilot.html',
+    'vs/clio-duo.html',
+    'vs/cocounsel.html',
+    'vs/jump.html',
+    'vs/intuit-assist.html',
+    'vs/gamma.html',
+    'legal/index.html',
+    'tax/index.html',
+    'consulting/index.html',
+    'financial-advisors/index.html',
+  ];
+  const ABSOLUTES = [
+    'nothing leaves your machine',
+    'nothing was uploaded',
+    'nothing is uploaded',
+    'zero egress',
+  ];
+
+  for (const rel of COMPARISON_PAGES) {
+    it(`${rel}: any absolute egress claim co-occurs with "local model"`, () => {
+      const content = readFileSync(join(WEBSITE_ROOT, rel), 'utf-8').toLowerCase();
+      if (ABSOLUTES.some((p) => content.includes(p))) {
+        expect(
+          content.includes('local model'),
+          `${rel} makes an absolute egress claim without saying "local model"`,
+        ).toBe(true);
+      }
+    });
+  }
 });

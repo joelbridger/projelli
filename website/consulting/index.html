@@ -510,6 +510,72 @@
     }
     .gatekeeper-callout a { display: block; font-weight: 600; margin: 6px 0; color: var(--grad-blue); }
     .gatekeeper-callout span { font-size: 0.85rem; color: #64748b; }
+
+    /* ── COMPARISON SECTION ──────────────────────────────── */
+    .compare-section {
+      background: var(--white);
+      padding: var(--section) 0;
+      border-top: 1px solid var(--border);
+    }
+    .compare-section .section-header { margin-bottom: 36px; }
+    .compare-section .section-header p { font-size: 1rem; color: var(--text-body); line-height: 1.7; }
+    .compare-table-wrap { overflow-x: auto; margin: 0 0 32px; }
+    .compare-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.9375rem;
+      min-width: 580px;
+    }
+    .compare-table th,
+    .compare-table td {
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      text-align: left;
+      vertical-align: top;
+      line-height: 1.55;
+    }
+    .compare-table th {
+      background: #F8FAFC;
+      color: var(--text-heading);
+      font-weight: 700;
+      font-size: 0.875rem;
+    }
+    .compare-table td:first-child { color: var(--text-heading); font-weight: 500; }
+    .compare-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .compare-pill.yes { background: rgba(16,185,129,0.14); color: #046148; }
+    .compare-pill.no { background: rgba(239,68,68,0.12); color: #a1201c; }
+    .compare-honest {
+      background: #F8FAFC;
+      border-left: 4px solid #E2E8F0;
+      padding: 18px 22px;
+      border-radius: 0 8px 8px 0;
+      margin: 0 0 24px;
+      font-size: 0.9375rem;
+    }
+    .compare-honest strong { color: var(--text-heading); display: block; margin-bottom: 8px; font-size: 0.9375rem; }
+    .compare-honest p { margin: 0; color: var(--text-body); line-height: 1.65; }
+    .compare-why {
+      background: rgba(93,198,255,0.06);
+      border: 1px solid rgba(93,198,255,0.2);
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-size: 0.9375rem;
+      color: var(--text-body);
+      line-height: 1.65;
+    }
+    .compare-why strong { color: var(--text-heading); display: block; margin-bottom: 8px; font-size: 0.9375rem; }
+    .compare-footnote {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-top: 10px;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -541,7 +607,7 @@
 
           <div class="compliance-item anim">
             <h3>NDA AI Clauses Are Real</h3>
-            <p>A growing share of enterprise client contracts now explicitly prohibit uploading work product to cloud AI tools. With a local Ollama model, nothing reaches any AI provider — the only path that cleanly satisfies an explicit no-AI-upload clause. With a cloud API key, prompts go to that provider's API directly; check your NDA's definition to confirm whether that counts as an upload before relying on this path for clause compliance.</p>
+            <p>A growing share of enterprise client contracts now explicitly prohibit uploading work product to cloud AI tools. With a local Ollama model, nothing reaches any AI provider, the only path that cleanly satisfies an explicit no-AI-upload clause. With a cloud API key, prompts go to that provider's API directly; check your NDA's definition to confirm whether that counts as an upload before relying on this path for clause compliance.</p>
           </div>
 
           <div class="compliance-item anim">
@@ -649,6 +715,93 @@
           <strong>Need to document your AI use for a client, carrier, or compliance officer?</strong>
           <a href="/one-pagers/consulting-client-data-statement.html" target="_blank">Download the data-handling statement &rarr;</a>
           <span>Fill in your firm name and save as PDF. One page.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW KEEPANCE COMPARES -->
+    <section class="compare-section" id="compare">
+      <div class="container">
+        <div class="section-header anim">
+          <span class="section-label">How Keepance compares</span>
+          <h2>How Keepance compares to the AI you already have</h2>
+          <p>As an independent consultant, your AI options are usually ChatGPT or Claude, Microsoft Copilot if you're on 365, and a tool like Gamma for decks. Here's the honest comparison, including where they beat Keepance.</p>
+        </div>
+
+        <div class="compare-table-wrap anim">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>Keepance</th>
+                <th><a href="https://www.microsoft.com/en-us/microsoft-365/business/copilot-for-microsoft-365" target="_blank" rel="noopener">Microsoft 365 Copilot</a></th>
+                <th><a href="https://gamma.app/" target="_blank" rel="noopener">Gamma</a></th>
+                <th><a href="https://openai.com/chatgpt/overview/" target="_blank" rel="noopener">ChatGPT Plus</a></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Runs fully on your machine, nothing leaves, with a local model</td>
+                <td><span class="compare-pill yes">Yes, with a local model</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Honors a strict "no AI upload" NDA clause, with a local model</td>
+                <td><span class="compare-pill yes">Yes, with a local model</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Keeps each client's work separated</td>
+                <td>Yes (per-client folders)</td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Your email, imported and searchable on your machine</td>
+                <td>Yes, local import and search across M365, IMAP, Gmail</td>
+                <td>Reads your Outlook in Microsoft's cloud</td>
+                <td>No direct email import</td>
+                <td>No (any email sent to ChatGPT goes to OpenAI's cloud)</td>
+              </tr>
+              <tr>
+                <td>Turns work into a finished, designed deck</td>
+                <td>Outline plus basic export</td>
+                <td>Yes, real slides</td>
+                <td>Best-in-class</td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Your files stay on your own computer</td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Typical cost</td>
+                <td>$149/yr + your own AI usage</td>
+                <td>Approx. $18-30/mo <a href="https://www.microsoft.com/en-us/microsoft-365/business/copilot-for-microsoft-365" target="_blank" rel="noopener">(check current pricing)</a></td>
+                <td>Approx. $9-18/mo <a href="https://gamma.app/pricing" target="_blank" rel="noopener">(check current pricing)</a></td>
+                <td>Approx. $20/mo <a href="https://openai.com/chatgpt/pricing/" target="_blank" rel="noopener">(check current pricing)</a></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="compare-footnote">Competitor pricing and features are approximate, as of 2026; check each vendor for current details.</p>
+        </div>
+
+        <div class="compare-honest anim">
+          <strong>Where the others are the better choice (honest)</strong>
+          <p>Gamma and Copilot make a polished deck far better than Keepance does today. If your only job is a beautiful deck fast, use them. The honest play: do your client-discovery synthesis, your confidential research, and your slide outline in Keepance, where the work stays private, then build the final visual deck in Gamma or PowerPoint.</p>
+        </div>
+
+        <div class="compare-why anim">
+          <strong>Why it matters for your client agreements</strong>
+          <p>ChatGPT Plus and Claude Pro train on your conversations by default, and even the enterprise tiers and Copilot still send your client's material to a vendor's cloud. If your NDA says no uploading work product to AI services, only a local model honors that literally. Keepance is the one that can do that. Run a local model and nothing leaves your machine at all. Use a cloud key and the prompt goes to that provider, but never through Keepance.</p>
         </div>
       </div>
     </section>

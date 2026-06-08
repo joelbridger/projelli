@@ -533,6 +533,72 @@
     }
     .gatekeeper-callout a { display: block; font-weight: 600; margin: 6px 0; color: var(--grad-blue); }
     .gatekeeper-callout span { font-size: 0.85rem; color: #64748b; }
+
+    /* ── COMPARISON SECTION ──────────────────────────────── */
+    .compare-section {
+      background: var(--white);
+      padding: 88px 0;
+      border-top: 1px solid var(--border);
+    }
+    .compare-section .section-header { margin-bottom: 36px; }
+    .compare-section .section-header p { font-size: 1rem; color: var(--text-body); line-height: 1.7; }
+    .compare-table-wrap { overflow-x: auto; margin: 0 0 32px; }
+    .compare-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.9375rem;
+      min-width: 580px;
+    }
+    .compare-table th,
+    .compare-table td {
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      text-align: left;
+      vertical-align: top;
+      line-height: 1.55;
+    }
+    .compare-table th {
+      background: #F8FAFC;
+      color: var(--text-heading);
+      font-weight: 700;
+      font-size: 0.875rem;
+    }
+    .compare-table td:first-child { color: var(--text-heading); font-weight: 500; }
+    .compare-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .compare-pill.yes { background: rgba(16,185,129,0.14); color: #046148; }
+    .compare-pill.no { background: rgba(239,68,68,0.12); color: #a1201c; }
+    .compare-honest {
+      background: #F8FAFC;
+      border-left: 4px solid #E2E8F0;
+      padding: 18px 22px;
+      border-radius: 0 8px 8px 0;
+      margin: 0 0 24px;
+      font-size: 0.9375rem;
+    }
+    .compare-honest strong { color: var(--text-heading); display: block; margin-bottom: 8px; font-size: 0.9375rem; }
+    .compare-honest p { margin: 0; color: var(--text-body); line-height: 1.65; }
+    .compare-why {
+      background: rgba(93,198,255,0.06);
+      border: 1px solid rgba(93,198,255,0.2);
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-size: 0.9375rem;
+      color: var(--text-body);
+      line-height: 1.65;
+    }
+    .compare-why strong { color: var(--text-heading); display: block; margin-bottom: 8px; font-size: 0.9375rem; }
+    .compare-footnote {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-top: 10px;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -652,6 +718,93 @@
           <strong>Need to document your AI use for your CCO or compliance program?</strong>
           <a href="/one-pagers/advisor-cco-reg-sp.html" target="_blank">Download the Reg S-P architecture memo &rarr;</a>
           <span>Fill in your firm name and save as PDF. One page.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW KEEPANCE COMPARES -->
+    <section class="compare-section" id="compare">
+      <div class="container">
+        <div class="section-header anim">
+          <span class="section-label">How Keepance compares</span>
+          <h2>How Keepance compares to the AI you already have</h2>
+          <p>Most advisors are looking at the AI meeting-notes tools (Jump, Zocks), the AI now bundled into eMoney or MoneyGuidePro, or ad-hoc ChatGPT. Here's the honest comparison.</p>
+        </div>
+
+        <div class="compare-table-wrap anim">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>Keepance</th>
+                <th><a href="https://www.meetjump.com/" target="_blank" rel="noopener">Jump</a></th>
+                <th><a href="https://www.emoneyadvisor.com/" target="_blank" rel="noopener">eMoney AI (bundled)</a></th>
+                <th><a href="https://openai.com/chatgpt/overview/" target="_blank" rel="noopener">ChatGPT (free/Plus)</a></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Runs fully on your machine, nothing leaves, with a local model</td>
+                <td><span class="compare-pill yes">Yes, with a local model</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Client data stays on your own computer</td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td>No (vendor cloud)</td>
+                <td>No (Envestnet cloud)</td>
+                <td>No (vendor cloud)</td>
+              </tr>
+              <tr>
+                <td>Your email, imported and searchable on your machine</td>
+                <td>Yes, local import and search across M365, IMAP, Gmail</td>
+                <td>No direct email import</td>
+                <td>No direct email import</td>
+                <td>No (any email sent to ChatGPT goes to OpenAI's cloud)</td>
+              </tr>
+              <tr>
+                <td>An AI vendor to vet under Reg S-P</td>
+                <td>None, with a local model</td>
+                <td>Yes</td>
+                <td>Yes</td>
+                <td>Yes</td>
+              </tr>
+              <tr>
+                <td>Records meetings and syncs notes to your CRM</td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Built for confidential drafting and analysis</td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td>Partly</td>
+                <td>Planning only</td>
+                <td>Generic</td>
+              </tr>
+              <tr>
+                <td>Typical cost</td>
+                <td>$149/yr + your own AI usage</td>
+                <td>Approx. $75-175/advisor/mo <a href="https://www.meetjump.com/pricing" target="_blank" rel="noopener">(check current pricing)</a></td>
+                <td>Bundled <a href="https://www.emoneyadvisor.com/" target="_blank" rel="noopener">(check current details)</a></td>
+                <td>$0-20/mo <a href="https://openai.com/chatgpt/pricing/" target="_blank" rel="noopener">(check current pricing)</a></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="compare-footnote">Competitor pricing and features are approximate, as of 2026; check each vendor for current details.</p>
+        </div>
+
+        <div class="compare-honest anim">
+          <strong>Where the others are the better choice (honest)</strong>
+          <p>Jump and Zocks are purpose-built for meeting notes and CRM sync, and that's not what Keepance does. If automating post-meeting admin is your main need, buy one of them. Keepance is for the private drafting and analysis of your most sensitive client work, and for the firm whose compliance officer doesn't want any AI vendor receiving client data at all.</p>
+        </div>
+
+        <div class="compare-why anim">
+          <strong>Why the timing matters</strong>
+          <p>The <a href="https://www.sec.gov/rules/final/2023/34-97990.pdf" target="_blank" rel="noopener">SEC's Reg S-P amendments</a> now require you to vet and monitor every vendor that touches client data, and the smaller-firm deadline passed in June 2026. With Keepance on a local model, there's no AI vendor in the data path to vet, because nothing leaves your machine. Informational, not compliance advice; verify with your compliance counsel.</p>
         </div>
       </div>
     </section>

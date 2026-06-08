@@ -542,6 +542,72 @@
       margin-top: 8px;
       font-style: italic;
     }
+
+    /* ── COMPARISON SECTION ──────────────────────────────── */
+    .compare-section {
+      background: var(--white);
+      padding: 88px 0;
+      border-top: 1px solid var(--border);
+    }
+    .compare-section .section-header { margin-bottom: 36px; }
+    .compare-section .section-header p { font-size: 1rem; color: var(--text-body); line-height: 1.7; }
+    .compare-table-wrap { overflow-x: auto; margin: 0 0 32px; }
+    .compare-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.9375rem;
+      min-width: 580px;
+    }
+    .compare-table th,
+    .compare-table td {
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      text-align: left;
+      vertical-align: top;
+      line-height: 1.55;
+    }
+    .compare-table th {
+      background: #F8FAFC;
+      color: var(--text-heading);
+      font-weight: 700;
+      font-size: 0.875rem;
+    }
+    .compare-table td:first-child { color: var(--text-heading); font-weight: 500; }
+    .compare-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .compare-pill.yes { background: rgba(16,185,129,0.14); color: #046148; }
+    .compare-pill.no { background: rgba(239,68,68,0.12); color: #a1201c; }
+    .compare-honest {
+      background: #F8FAFC;
+      border-left: 4px solid #E2E8F0;
+      padding: 18px 22px;
+      border-radius: 0 8px 8px 0;
+      margin: 0 0 24px;
+      font-size: 0.9375rem;
+    }
+    .compare-honest strong { color: var(--text-heading); display: block; margin-bottom: 8px; font-size: 0.9375rem; }
+    .compare-honest p { margin: 0; color: var(--text-body); line-height: 1.65; }
+    .compare-why {
+      background: rgba(93,198,255,0.06);
+      border: 1px solid rgba(93,198,255,0.2);
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-size: 0.9375rem;
+      color: var(--text-body);
+      line-height: 1.65;
+    }
+    .compare-why strong { color: var(--text-heading); display: block; margin-bottom: 8px; font-size: 0.9375rem; }
+    .compare-footnote {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-top: 10px;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -576,7 +642,7 @@
 
           <div class="compliance-item anim">
             <div class="compliance-hook">IRC §6713: Strict-Liability Civil Penalty</div>
-            <div class="compliance-desc">A strict-liability civil penalty of $250 per unauthorized disclosure of tax return information, with no intent required, capped at $10,000 per calendar year. It applies to return preparers regardless of intent. Cloud AI with training opt-outs is not a safe harbor. Local-first puts Keepance's servers out of the path entirely. With a local Ollama model, nothing reaches any AI provider — removing the Section 7216 disclosure concern completely. With a cloud API key, your prompts go to that provider directly under your key; the Section 7216 consent template in the pack is the right tool for that path.</div>
+            <div class="compliance-desc">A strict-liability civil penalty of $250 per unauthorized disclosure of tax return information, with no intent required, capped at $10,000 per calendar year. It applies to return preparers regardless of intent. Cloud AI with training opt-outs is not a safe harbor. Local-first puts Keepance's servers out of the path entirely. With a local Ollama model, nothing reaches any AI provider, removing the Section 7216 disclosure concern completely. With a cloud API key, your prompts go to that provider directly under your key; the Section 7216 consent template in the pack is the right tool for that path.</div>
           </div>
 
           <div class="compliance-item anim">
@@ -613,7 +679,7 @@
           <div class="template-card anim">
             <div class="template-num">2</div>
             <h3>Pre-Review Checklist</h3>
-            <p>Generates a pre-filing checklist organized by section: income, deductions, credits, carryovers, state items, signature requirements, with elevated-scrutiny flags based on the client's income mix and life events.</p>
+            <p>Generates a pre-filing checklist organized by section: income, deductions, credits, carryovers, state items, signature requirements, with heightened-scrutiny flags based on the client's income mix and life events.</p>
           </div>
 
           <div class="template-card anim">
@@ -695,6 +761,93 @@
           <strong>Need to document your AI use for a client or compliance review?</strong>
           <a href="/one-pagers/tax-7216-data-handling.html" target="_blank">Download the Section 7216 data-handling statement &rarr;</a>
           <span>Fill in your name and PTIN and save as PDF. One page.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW KEEPANCE COMPARES -->
+    <section class="compare-section" id="compare">
+      <div class="container">
+        <div class="section-header anim">
+          <span class="section-label">How Keepance compares</span>
+          <h2>How Keepance compares to the AI you already have</h2>
+          <p>Most tax pros have one of three AI options: whatever's bundled in your tax software (Intuit Assist if you're on Lacerte or ProConnect; nothing, if you're on Drake), a research platform like Blue J, or pasting into ChatGPT. Here's the honest comparison.</p>
+        </div>
+
+        <div class="compare-table-wrap anim">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>Keepance</th>
+                <th><a href="https://www.intuit.com/intuit-assist/" target="_blank" rel="noopener">Intuit Assist (bundled)</a></th>
+                <th><a href="https://www.bluej.com/" target="_blank" rel="noopener">Blue J</a></th>
+                <th><a href="https://openai.com/chatgpt/overview/" target="_blank" rel="noopener">ChatGPT (free/Plus)</a></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Runs fully on your machine, nothing leaves, with a local model</td>
+                <td><span class="compare-pill yes">Yes, with a local model</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Client return data stays on your computer</td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td>No (Intuit's cloud)</td>
+                <td>No (vendor cloud)</td>
+                <td>No (vendor cloud)</td>
+              </tr>
+              <tr>
+                <td>Your email, imported and searchable on your machine</td>
+                <td>Yes, local import and search across M365, IMAP, Gmail</td>
+                <td>No direct email import</td>
+                <td>No direct email import</td>
+                <td>No (any email sent to ChatGPT goes to OpenAI's cloud)</td>
+              </tr>
+              <tr>
+                <td>Tax templates (IRS notices, Section 7216 consent, WISP, research memo)</td>
+                <td>Yes</td>
+                <td>Planning only</td>
+                <td>Research only</td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Primary-authority tax research</td>
+                <td><span class="compare-pill no">No (verify model output)</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Works with Drake and any tax software</td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td>No (Intuit only)</td>
+                <td><span class="compare-pill no">No</span></td>
+                <td>n/a</td>
+              </tr>
+              <tr>
+                <td>Typical cost</td>
+                <td>$149/yr + your own AI usage</td>
+                <td>Bundled (Intuit only) <a href="https://www.intuit.com/intuit-assist/" target="_blank" rel="noopener">(check current details)</a></td>
+                <td>Premium, per user/yr <a href="https://www.bluej.com/pricing" target="_blank" rel="noopener">(check current pricing)</a></td>
+                <td>$0-20/mo <a href="https://openai.com/chatgpt/pricing/" target="_blank" rel="noopener">(check current pricing)</a></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="compare-footnote">Competitor pricing and features are approximate, as of 2026; check each vendor for current details.</p>
+        </div>
+
+        <div class="compare-honest anim">
+          <strong>Where the others are the better choice (honest)</strong>
+          <p>Blue J is the right tool for citation-grounded tax research; Keepance has no primary-authority database. If you're on Lacerte or ProConnect and just want advisory planning from a return, Intuit Assist is already included. Keepance is for the drafting, notice responses, and confidential analysis those tools don't cover, and it's the only one of the four that works if you're on Drake.</p>
+        </div>
+
+        <div class="compare-why anim">
+          <strong>Why a preparer adds Keepance</strong>
+          <p>A cloud key still sends your client's return information to a third party, which is exactly what <a href="https://www.irs.gov/tax-professionals/irc-7216-information-returns" target="_blank" rel="noopener">IRC Section 7216</a> governs. Run a local model in Keepance and nothing leaves your machine, so there's no third-party disclosure to consent around. Informational, not tax or legal advice; verify with your own advisor.</p>
         </div>
       </div>
     </section>

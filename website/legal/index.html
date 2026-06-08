@@ -540,6 +540,72 @@
     }
     .gatekeeper-callout a { display: block; font-weight: 600; margin: 6px 0; color: var(--grad-blue); }
     .gatekeeper-callout span { font-size: 0.85rem; color: #64748b; }
+
+    /* ── COMPARISON SECTION ──────────────────────────────── */
+    .compare-section {
+      background: var(--white);
+      padding: var(--section) 0;
+      border-top: 1px solid var(--border);
+    }
+    .compare-section .section-header { margin-bottom: 36px; }
+    .compare-section .section-header p { font-size: 1rem; color: var(--text-body); line-height: 1.7; }
+    .compare-table-wrap { overflow-x: auto; margin: 0 0 32px; }
+    .compare-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.9375rem;
+      min-width: 580px;
+    }
+    .compare-table th,
+    .compare-table td {
+      border: 1px solid var(--border);
+      padding: 12px 14px;
+      text-align: left;
+      vertical-align: top;
+      line-height: 1.55;
+    }
+    .compare-table th {
+      background: #F8FAFC;
+      color: var(--text-heading);
+      font-weight: 700;
+      font-size: 0.875rem;
+    }
+    .compare-table td:first-child { color: var(--text-heading); font-weight: 500; }
+    .compare-pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .compare-pill.yes { background: rgba(16,185,129,0.14); color: #046148; }
+    .compare-pill.no { background: rgba(239,68,68,0.12); color: #a1201c; }
+    .compare-honest {
+      background: #F8FAFC;
+      border-left: 4px solid #E2E8F0;
+      padding: 18px 22px;
+      border-radius: 0 8px 8px 0;
+      margin: 0 0 24px;
+      font-size: 0.9375rem;
+    }
+    .compare-honest strong { color: var(--text-heading); display: block; margin-bottom: 8px; font-size: 0.9375rem; }
+    .compare-honest p { margin: 0; color: var(--text-body); line-height: 1.65; }
+    .compare-why {
+      background: rgba(93,198,255,0.06);
+      border: 1px solid rgba(93,198,255,0.2);
+      border-radius: 10px;
+      padding: 20px 24px;
+      font-size: 0.9375rem;
+      color: var(--text-body);
+      line-height: 1.65;
+    }
+    .compare-why strong { color: var(--text-heading); display: block; margin-bottom: 8px; font-size: 0.9375rem; }
+    .compare-footnote {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-top: 10px;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
@@ -711,6 +777,93 @@
           <strong>Need to document your AI use for a client, carrier, or compliance officer?</strong>
           <a href="/one-pagers/legal-malpractice-carrier.html" target="_blank">Download the data-handling statement &rarr;</a>
           <span>Fill in your firm name and save as PDF. One page.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW KEEPANCE COMPARES -->
+    <section class="compare-section" id="compare">
+      <div class="container">
+        <div class="section-header anim">
+          <span class="section-label">How Keepance compares</span>
+          <h2>How Keepance compares to the AI you already have</h2>
+          <p>If you're a lawyer weighing AI, you've usually got three options in front of you: the AI now built into Clio, a dedicated research platform like CoCounsel, or pasting into ChatGPT. Here's the honest comparison, including where those tools beat Keepance.</p>
+        </div>
+
+        <div class="compare-table-wrap anim">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>Keepance</th>
+                <th><a href="https://www.clio.com/blog/clio-duo/" target="_blank" rel="noopener">Clio Duo</a></th>
+                <th><a href="https://cocounsel.thomsonreuters.com/" target="_blank" rel="noopener">CoCounsel</a></th>
+                <th><a href="https://openai.com/chatgpt/overview/" target="_blank" rel="noopener">ChatGPT (free/Plus)</a></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Runs fully on your machine, nothing leaves, with a local model</td>
+                <td><span class="compare-pill yes">Yes, with a local model</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Your files stay on your own computer</td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td>No (Clio's cloud)</td>
+                <td>No (vendor cloud)</td>
+                <td>No (vendor cloud)</td>
+              </tr>
+              <tr>
+                <td>Your email, imported and searchable on your machine</td>
+                <td>Yes, local import and search across M365, IMAP, Gmail</td>
+                <td>No direct email import</td>
+                <td>No direct email import</td>
+                <td>No (any email sent to ChatGPT goes to OpenAI's cloud)</td>
+              </tr>
+              <tr>
+                <td>Built for legal work</td>
+                <td>Yes, 18 legal practice templates</td>
+                <td>Basic (matter + billing context)</td>
+                <td>Yes, deep (Westlaw-backed)</td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Case-law research with citation checking</td>
+                <td><span class="compare-pill no">No (keep Westlaw/Lexis)</span></td>
+                <td><span class="compare-pill no">No</span></td>
+                <td><span class="compare-pill yes">Yes</span></td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Knows your matters, billing, deadlines</td>
+                <td>No (sits beside Clio)</td>
+                <td>Yes</td>
+                <td>Partly</td>
+                <td><span class="compare-pill no">No</span></td>
+              </tr>
+              <tr>
+                <td>Typical cost</td>
+                <td>$149/yr + your own AI usage</td>
+                <td>Approx. $50-60/mo on top of Clio <a href="https://www.clio.com/pricing/" target="_blank" rel="noopener">(check current pricing)</a></td>
+                <td>Premium, per seat <a href="https://cocounsel.thomsonreuters.com/" target="_blank" rel="noopener">(check current pricing)</a></td>
+                <td>$0-20/mo <a href="https://openai.com/chatgpt/pricing/" target="_blank" rel="noopener">(check current pricing)</a></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="compare-footnote">Competitor pricing and features are approximate, as of 2026; check each vendor for current details.</p>
+        </div>
+
+        <div class="compare-honest anim">
+          <strong>Where the others are the better choice (honest)</strong>
+          <p>CoCounsel is the right tool if you need citation-verified case-law research; Keepance doesn't do that, and you should keep your Westlaw or Lexis subscription. Clio Duo is the better fit if you mainly want AI that already knows your matters and billing. Keepance is the private place your confidential drafting and analysis happen, beside those tools, not instead of them.</p>
+        </div>
+
+        <div class="compare-why anim">
+          <strong>Why a lawyer adds Keepance anyway</strong>
+          <p>In <a href="https://www.gibsondunn.com/ai-privilege-waivers-sdny-rules-against-privilege-protection-for-consumer-ai-outputs/" target="_blank" rel="noopener noreferrer"><em>United States v. Heppner</em></a> (S.D.N.Y., Feb. 17, 2026; defendant convicted May 7, 2026), a federal court held that running your work through consumer cloud AI, without attorney direction, may cost you privilege, because transmitting communications to a third-party AI platform can destroy confidentiality. Every option above keeps a copy of your work on a vendor's servers. With Keepance on a local model, nothing leaves your machine at all. Informational, not legal advice; verify with your bar counsel.</p>
         </div>
       </div>
     </section>
