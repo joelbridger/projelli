@@ -96,8 +96,14 @@ hex = "0.4"
 rusqlite = { version = "0.32", features = ["bundled-sqlcipher-vendored-openssl"] }
 aes-gcm = "0.10"
 rand = "0.8"
-# IMAP RFC822 normalizer — fast zero-copy email parser.
+# Mail import — RFC822 parser used by the IMAP normalizer.
 mail-parser = "0.11"
+# IMAP client (email/gmail-imap-multiprovider).
+# runtime-tokio enables the tokio AsyncRead/AsyncWrite impls; default-features=false
+# drops the async-std dep.  TLS is provided by tokio-native-tls + native-tls.
+async-imap = { version = "0.11.2", default-features = false, features = ["runtime-tokio"] }
+tokio-native-tls = "0.3"
+native-tls = "0.2"
 
 # Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
 # the cfg() filter keeps the iOS/Android crate graph slim.
