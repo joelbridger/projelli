@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>How I Handle Client Return Data with AI</title>
+  <link rel="canonical" href="https://keepance.com/one-pagers/tax-7216-data-handling">
   <meta name="robots" content="noindex">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -50,6 +51,11 @@
 
   <h2>Audit log</h2>
   <p>Every AI action is logged automatically: timestamp, model, files included, and output produced. For any client whose return data was processed with AI assistance, I can produce a complete activity log on request. This log stays on my machine and is part of the permanent client file.</p>
+
+  <h2>How this compares to the AI tool your tax preparer likely already uses</h2>
+  <p>The most common AI tool in professional tax software today is <strong>Intuit Assist</strong>, bundled into Lacerte and ProConnect at no extra charge. Intuit Assist is a cloud SaaS tool with access to data points pulled directly from the return inside the Intuit platform. For preparers on Lacerte or ProConnect who want advisory planning summaries generated without additional setup, it is the lowest-friction option.</p>
+  <p>The architectural difference that matters for a Section 7216 review: Intuit Assist routes return information to Intuit's cloud servers to generate those summaries. That transmission is a disclosure of return information to a third party for purposes of IRC Section 7216, regardless of Intuit's data-handling commitments. Keepance with a local model keeps return data on my machine; nothing is furnished to any third party, and the Section 7216 consent requirement for that path does not arise. When I use a cloud API key, I treat that as a disclosure and obtain signed written consent as described in this document.</p>
+  <p>Intuit Assist is available only inside Lacerte and ProConnect. Preparers on Drake, ProSeries, or any other platform get nothing from Intuit. Keepance works alongside any tax software because it is a separate desktop application, not a plugin.</p>
 
   <p class="meta">
     Keepance v2.2 &nbsp;·&nbsp;

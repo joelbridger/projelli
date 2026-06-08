@@ -40,6 +40,11 @@ const TARGETS = [
   'press-kit/index.html',
   'press-kit/comparison-matrix.html',
   'security/index.html',
+  // 2026-06-08 gatekeeper one-pagers (WS0 Task B5)
+  'one-pagers/advisor-cco-reg-sp.html',
+  'one-pagers/consulting-client-data-statement.html',
+  'one-pagers/legal-malpractice-carrier.html',
+  'one-pagers/tax-7216-data-handling.html',
   'docs/getting-started.html',
   'docs/api-keys.html',
   'docs/faq.html',

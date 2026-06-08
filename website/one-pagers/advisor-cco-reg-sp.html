@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>How Keepance Fits Our Reg S-P Program</title>
+  <link rel="canonical" href="https://keepance.com/one-pagers/advisor-cco-reg-sp">
   <meta name="robots" content="noindex">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -51,6 +52,11 @@
 
   <h2>What this document does not cover</h2>
   <p>This document describes the data-path architecture of Keepance as used by an advisor at this firm. It does not constitute a Written Information Security Program (WISP), a Reg S-P risk assessment, or legal or compliance advice. Firms should have their compliance consultant review Keepance's role within the full Reg S-P program, including any required updates to the firm's service-provider due-diligence log and incident-response plan.</p>
+
+  <h2>How this compares to the AI tool your advisor likely already uses</h2>
+  <p>The most common AI tool in this category is <strong>Jump</strong> (meetjump.com), used by more than 27,000 advisors for automated meeting notes and CRM sync. Jump is a cloud SaaS tool with a contractual no-training policy, and it genuinely wins at automating post-meeting admin. It also holds SOC 2 Type II certification and can satisfy a standard signed-DPA requirement, which Keepance cannot today. If the firm's priority is meeting transcription and automatic CRM updates, Jump is a proven choice.</p>
+  <p>The architectural difference that matters for this review: Jump routes meeting data through Jump's servers. Under Reg S-P, Jump is a service provider in the data path and requires documentation and monitoring accordingly. Keepance is not a service provider in that path. With a local model, Keepance runs entirely on the advisor's machine and there is no AI vendor to vet or monitor. With a cloud API key, the relevant service provider is the AI provider (Anthropic, OpenAI, or Google) directly, not Keepance. For a CCO whose goal is minimizing the vendor surface that touches client data, that is a meaningfully different posture, not a better meeting-notes tool.</p>
+  <p>Keepance does not have SOC 2 or a signed DPA, and does not record or transcribe meetings. Firms that need meeting-notes automation and cloud-vendor credentialing should use Jump for that function. The question for this review is whether an advisor's drafting and analysis workspace a separate layer from meeting notes needs to add another cloud vendor to the service-provider inventory at all.</p>
 
   <p class="meta">
     Keepance v2.2 &nbsp;·&nbsp;
