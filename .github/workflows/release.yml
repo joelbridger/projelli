@@ -493,6 +493,24 @@ jobs:
           Copy-Item "target/release/keepance.exe" "$portableDir/Keepance__x64-portable.exe"
           Get-ChildItem $portableDir | Format-Table Name,Length
 
+      # azure/trusted-signing-action installs the TrustedSigning PowerShell
+      # module from PSGallery. Recent windows-latest runner images ship without
+      # PSGallery registered, so that install fails with "Unable to find
+      # repository 'PSGallery'" (v2.4.1 signed fine 2026-06-06; v2.5.0 failed
+      # 2026-06-08 with exactly this). Register PSGallery + the NuGet provider and
+      # pre-install the exact module version the action needs, before it runs.
+      - name: Ensure PSGallery + TrustedSigning module are available
+        shell: pwsh
+        run: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser | Out-Null
+          if (-not (Get-PSRepository -Name PSGallery -ErrorAction SilentlyContinue)) {
+            Register-PSRepository -Default
+          }
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module -Name TrustedSigning -RequiredVersion 0.5.3 -Force -Scope CurrentUser -Repository PSGallery
+          Get-PSRepository | Format-Table Name,InstallationPolicy
+
       - name: Sign Windows artifacts with Azure Trusted Signing
         uses: azure/trusted-signing-action@v0.5.1
         with:
