@@ -256,7 +256,7 @@ This assessment is only worth the use we make of it. Concrete plays, by priority
 | 7 | **Trust signals: SOC 2 (Type II) + a standard DPA** | The recurring hard blocker for RIA / multi-lawyer-firm vendor approval | Without it, the regulated verticals can't formally approve us no matter how good the pitch | `Jameson` / `board` (spend + process) |
 | 8 | **Competitor-watch + quarterly refresh** | A living watch list (Elephas, Lexis+ BYOK, incumbents adding local/BYOK) and a quarterly price/feature re-check | Pricing and features move fast; this doc decays | `auto` (scheduled) |
 
-Plays 1, 2, 5, and 6 are specified build-ready in the companion **[Competitive Build Handoff, 2026-06-06](./2026-06-06-competitive-build-handoff.md)** for the Keepance build instance. Plays 3 and 4 are drafting tasks Claude can take next. Play 7 is yours. Play 8 should be a standing routine.
+All of these plays are now handed to the Keepance build session in one place: **[Competitive Activation Master Handoff, 2026-06-08](./2026-06-08-competitive-activation-master-handoff.md)** (which references the build-ready website spec in [Competitive Build Handoff, 2026-06-06](./2026-06-06-competitive-build-handoff.md)). Play 7 (SOC 2 + DPA) stays a Jameson/board decision; the master handoff specs the buildable parts and a decision brief.
 
 ---
 
