@@ -12,8 +12,8 @@ use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
-use crate::commands::mail::graph::GraphClient;
 use crate::commands::mail::oauth::{OAuth, TokenOutcome};
+use crate::commands::mail::provider::MailProvider;
 use crate::commands::mail::store::EncryptedMailStore;
 
 const KEYCHAIN_SERVICE: &str = "keepance-mail-ms";
@@ -318,38 +318,17 @@ async fn mail_sync_all_inner(
     let enc_key = crate::commands::mail::crypto::get_or_create_master_key()
         .map_err(|e| e.to_string())?;
 
-    // FIX C: paginate folder enumeration — follow @odata.nextLink until exhausted.
-    let mut ids: Vec<String> = Vec::new();
-    {
+    // Enumerate folders through the provider seam (M365 GraphProvider for now;
+    // Gmail/IMAP providers slot in here unchanged).
+    let folders = {
         let token = fresh_access_token().await?;
-        let list_client = GraphClient::new(token);
-        let mut next_url = Some(format!(
-            "{}/v1.0/me/mailFolders?$top=200",
-            list_client.base()
-        ));
-        while let Some(url) = next_url {
-            let page = list_client
-                .get_json(&url)
-                .await
-                .map_err(|e| e.to_string())?;
-            if let Some(arr) = page.get("value").and_then(|v| v.as_array()) {
-                for f in arr {
-                    if let Some(id) = f.get("id").and_then(|s| s.as_str()) {
-                        ids.push(id.to_string());
-                    }
-                }
-            }
-            // Follow the next page if present.
-            next_url = page
-                .get("@odata.nextLink")
-                .and_then(|v| v.as_str())
-                .map(String::from);
-        }
-    }
+        let provider = crate::commands::mail::graph::GraphProvider::new(token);
+        provider.list_folders().await.map_err(|e| e.to_string())?
+    };
 
     // FIX B: refresh the access token before each folder so long backfills
     // never outlive the 3600-second token lifetime.
-    for fid in ids {
+    for folder in folders {
         if cancel.load(Ordering::SeqCst) {
             let _ = app.emit(
                 SYNC_PROGRESS_EVENT,
@@ -363,9 +342,9 @@ async fn mail_sync_all_inner(
             return Ok(());
         }
         let token = fresh_access_token().await?;
-        let client = GraphClient::new(token);
+        let provider = crate::commands::mail::graph::GraphProvider::new(token);
         let app2 = app.clone();
-        let fid2 = fid.clone();
+        let fid2 = folder.id.clone();
         let emit = move |w: u32, r: u32| {
             let _ = app2.emit(
                 SYNC_PROGRESS_EVENT,
@@ -436,8 +415,8 @@ async fn mail_sync_all_inner(
                 }
             });
         };
-        sync::sync_folder_enc(
-            &client, &store, &workspace, &fid, &enc_key, &emit,
+        sync::sync_folder_provider(
+            &provider, &store, &workspace, &folder, &enc_key, &emit,
             &index_callback, &tombstone_callback,
         )
         .await

@@ -219,69 +219,6 @@ pub async fn sync_folder<F: Fn(u32, u32) + Send>(
     Ok(total)
 }
 
-/// Encrypted variant of sync_folder. Uses apply_page_enc instead of apply_page.
-/// `index_callback` receives (doc_id, plaintext_markdown) for each new message —
-/// the caller feeds this to the RAG indexer and MiniSearch without persisting it.
-/// `tombstone_callback` receives (doc_id) for each tombstoned message — the
-/// caller spawns an async task to delete the corresponding LanceDB RAG chunks (S3).
-pub async fn sync_folder_enc<F, I, T>(
-    client: &GraphClient,
-    store: &(dyn MailStore + Sync),
-    workspace_root: &Path,
-    folder_id: &str,
-    key: &[u8; 32],
-    emit: &F,
-    index_callback: &I,
-    tombstone_callback: &T,
-) -> anyhow::Result<PageStats>
-where
-    F: Fn(u32, u32) + Send,
-    I: Fn(&str, &str) + Send + Sync,
-    T: Fn(&str) + Send + Sync,
-{
-    let mut url = match store.get_cursor(folder_id)? {
-        Some(saved) => saved,
-        None => client.delta_start_url(folder_id),
-    };
-    let mut total = PageStats::default();
-    let mut delta_gone_count = 0u32;
-    loop {
-        let page = match client.get_json(&url).await {
-            Ok(p) => p,
-            Err(e) if e.downcast_ref::<DeltaGone>().is_some() => {
-                // Bound the 410 resync loop: a server stuck on 410 must not spin
-                // forever (it holds the sync slot and blocks cancellation).
-                delta_gone_count += 1;
-                if delta_gone_count > MAX_DELTA_RESETS {
-                    return Err(anyhow::anyhow!(
-                        "folder {folder_id}: delta token expired {delta_gone_count}x in a row; giving up"
-                    ));
-                }
-                store.set_cursor(folder_id, &client.delta_start_url(folder_id))?;
-                url = client.delta_start_url(folder_id);
-                continue;
-            }
-            Err(e) => return Err(e),
-        };
-        let s = apply_page_enc(store, workspace_root, folder_id, &page, key, index_callback, tombstone_callback)?;
-        total.written += s.written;
-        total.removed += s.removed;
-        emit(total.written, total.removed);
-        match page_continuation(&page) {
-            Continuation::Next(next) => {
-                store.set_cursor(folder_id, &next)?;
-                url = next;
-            }
-            Continuation::Delta(delta) => {
-                store.set_cursor(folder_id, &delta)?;
-                break;
-            }
-            Continuation::End => break,
-        }
-    }
-    Ok(total)
-}
-
 /// Provider-agnostic encrypted folder sync. Loops a provider's `fetch_changes`,
 /// persisting the resume cursor after each page, applying via `apply_messages_enc`.
 pub async fn sync_folder_provider<F, I, T>(
