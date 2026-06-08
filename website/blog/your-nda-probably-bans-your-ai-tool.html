@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your NDA Probably Bans the AI Tool You're Using | Keepance</title>
+  <meta name="description" content="Client NDAs increasingly prohibit uploading work product to AI services. Even the enterprise tiers still upload. Here's the only setup that honors a strict no-AI clause.">
+  <link rel="canonical" href="https://keepance.com/blog/your-nda-probably-bans-your-ai-tool">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://keepance.com/blog/your-nda-probably-bans-your-ai-tool">
+  <meta property="og:title" content="Your NDA Probably Bans the AI Tool You're Using">
+  <meta property="og:description" content="Client NDAs increasingly prohibit uploading work product to AI services. Even the enterprise tiers still upload. Here's the only setup that honors a strict no-AI clause.">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      padding: 0 24px 100px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #FF7C6E 0%, #FF6554 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+    .caveat { background: var(--bg-surface); border: 1px solid var(--border-gray); border-radius: 8px; padding: 16px 20px; margin: 48px 0 0; font-size: 0.9375rem; color: var(--text-muted); }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">← All posts</a>
+
+    <h1>Your NDA Probably Bans the AI Tool You're Using</h1>
+    <p class="meta">By Jameson Daines &middot; June 8, 2026 &middot; 7 min read</p>
+
+    <p>A growing number of corporate clients are putting explicit AI provisions in their MSAs and NDAs. Not vague "protect our data" language that's been in contracts for years, but specific clauses that address AI services by name or category. Some of those clauses are narrow: no training on our data, no use of outputs to improve a model. Others are broader: no uploading of our confidential information to any AI service.</p>
+
+    <p>If you're an independent consultant or boutique agency that signs MSAs with enterprise clients, there's a real chance you already have one of these clauses sitting in your contract stack. And if you're using ChatGPT Plus, Claude Pro, or any cloud-based AI tool for that client's work, there's a real chance you're in breach of it.</p>
+
+    <p>I want to walk through the actual distinction that matters in these clauses, why common "safe" options like enterprise AI tiers don't fully address it, and what the only architecture is that honors a strict no-upload requirement literally.</p>
+
+    <h2>The clause that's showing up in contracts</h2>
+
+    <p>Most of the AI-specific NDA language that's been reported in legal commentary over the past 18 months falls into two categories.</p>
+
+    <p>The first category is training-focused: "Consultant shall not use Client's confidential information to train any artificial intelligence model." This is primarily about protecting the client's data from being used to improve AI systems. It addresses what happens to data after it's been processed, not whether it can be transmitted in the first place.</p>
+
+    <p>The second category is upload-focused: "Consultant shall not upload, transmit, or otherwise submit Client's confidential information to any artificial intelligence service or platform." This is broader. It prohibits the transmission itself, regardless of what happens to the data afterward. A vendor's contractual promise not to train on your data does not satisfy this clause, because the data still got transmitted.</p>
+
+    <p>Sophisticated clients, particularly in financial services, healthcare, and defense contracting, have been moving toward the second formulation. Their legal teams understand the distinction between "they promised not to use it" and "it never left our control," and they want the latter.</p>
+
+    <h2>Why "no training" doesn't satisfy a "no upload" clause</h2>
+
+    <p>This is the gap most consultants don't notice until it's too late.</p>
+
+    <p>When you paste client work product into ChatGPT Enterprise or Claude Team, the data travels from your machine to OpenAI's or Anthropic's servers. That's an upload. Those enterprise tiers contractually promise not to use the data for training. But the upload happened. The data left your machine and arrived at a third-party vendor's infrastructure.</p>
+
+    <p>A strict no-upload clause is violated by the transmission itself. The vendor's training policy is irrelevant to whether you've complied with the clause, because the clause governs the upload, not what the vendor does afterward.</p>
+
+    <blockquote>
+      <p>A "no training on our data" promise from a vendor tells you what they'll do with your client's information after it arrives. A "no upload" clause tells you the data can't arrive there at all. These are different requirements and they need different solutions.</p>
+    </blockquote>
+
+    <p>The same logic applies to Microsoft 365 Copilot, even in its enterprise tenant configuration. Your prompts go to Microsoft's Azure infrastructure for processing. Your client's confidential strategy document, pasted into a Copilot prompt, left your machine. The enterprise security around that transmission is real, and Microsoft's data handling commitments are real, but the clause says no upload. The document was uploaded.</p>
+
+    <h2>The default training problem on consumer tiers</h2>
+
+    <p>Before getting to the architecture solution, it's worth being specific about what the consumer tiers actually do, because many consultants don't realize their default settings.</p>
+
+    <p>ChatGPT Free and Plus train on conversations by default. You have to actively opt out in settings. Claude's consumer tiers (Free, Pro, Max) have similar default behavior; <a href="https://www.anthropic.com/legal/consumer-privacy-policy" target="_blank" rel="noopener noreferrer">Anthropic's consumer privacy policy</a> describes data retention and usage that differs from the enterprise agreement. Claude Pro keeps conversation data for a period of time and uses it for safety and model improvement unless you opt out.</p>
+
+    <p>So with consumer tiers, you're not just uploading to a vendor. You're uploading to a vendor that trains on the data by default. A client who wrote a "no training" clause and then discovered their strategy documents were in your Claude Pro conversation history would have grounds to be upset on two levels: the upload itself, and the training use.</p>
+
+    <p>Even if you've opted out of training on a consumer account, you're still uploading. The opt-out addresses the training clause but not the upload clause.</p>
+
+    <h2>Per-client isolation: the second NDA risk</h2>
+
+    <p>There's a related risk that doesn't get as much attention: cross-contamination between client contexts.</p>
+
+    <p>Most consultants work across multiple clients at once. If you're using the same AI tool account for multiple clients, there's a question of whether information from one client's context can influence responses involving another client's context. This depends heavily on the tool and how context is stored and used.</p>
+
+    <p>Long-context memory features, conversation history, and workspace features in AI tools can create situations where confidential information from Client A is technically in scope when you're working on Client B's project. Whether this violates your NDAs depends on the specific language, but it's a real risk surface that a single shared AI account creates.</p>
+
+    <p>The cleaner answer is per-client isolation at the folder level. Your work for each client lives in a separate, clearly bounded workspace. Nothing from Client A's context is reachable when you're working on Client B. This is a structural guarantee rather than a behavioral one.</p>
+
+    <h2>The local model: the only setup that satisfies a strict no-upload clause</h2>
+
+    <p>A <strong>local model</strong>, running entirely on your hardware, means the AI inference happens on your machine. Your prompt, which contains your client's confidential information, never travels over the network to any vendor. There is no upload. The data doesn't arrive anywhere except your own processor.</p>
+
+    <p>This is the only setup that can honestly tell a client: "Nothing you shared with me was uploaded to any AI service." With a cloud tool, even the best-governed enterprise tier, you're telling them: "What you shared was uploaded to a vendor, but the vendor has promised to handle it responsibly." Those are different representations, and a client with a strict no-upload clause will read them differently.</p>
+
+    <p>The local model path has gotten considerably more practical over the past year. Open-weight models like Llama 3.1, Mistral, and Qwen 2.5 run well on modern laptops with a decent GPU, or on a desktop machine. Ollama makes the setup tractable without requiring any technical depth beyond following a guide. The output quality is meaningfully below the frontier models (Claude Sonnet, GPT-4.1) for complex reasoning tasks, but for drafting, summarizing, outlining, and reviewing client documents, the quality is usable.</p>
+
+    <p>One honest caveat: local models don't change anything about your final deliverable. The deck still gets built in PowerPoint or Gamma. The model helps you think, draft, and structure. It doesn't replace the design tool, the spreadsheet, or the presentation software your client is expecting. Using a local model for the confidential thinking work and a standard tool for the designed output is a reasonable and honest split.</p>
+
+    <h2>What to do if you're already under a strict clause</h2>
+
+    <p>If you're actively working on an engagement with a no-upload NDA clause and you've been using cloud AI tools, the practical steps:</p>
+
+    <ol>
+      <li><strong>Read the actual clause.</strong> Is it training-focused or upload-focused? The remediation is different. A training-focused clause may be satisfied by enterprise tier tools with documented no-training policies. An upload-focused clause requires either consent from the client or a local model.</li>
+      <li><strong>Don't retroactively disclose unless you have to.</strong> Talk to your own counsel about your obligations. The analysis is fact-specific and depends on what you uploaded, what the clause says, and what jurisdiction you're in.</li>
+      <li><strong>For ongoing work, stop the upload.</strong> Switch to a local model for anything touching that client's confidential information until you've resolved the clause question.</li>
+      <li><strong>For new contracts, flag the clause before you sign.</strong> If a no-upload AI clause is going to affect how you work, negotiate it or get written clarity on what's permitted before the engagement starts.</li>
+    </ol>
+
+    <p>Some clients will accept a "enterprise tier with SOC 2 and no-training contractual protections" answer. Others won't. Knowing which kind of client you're dealing with before you start using AI on their work is much better than finding out afterward.</p>
+
+    <h2>Using this as a selling point</h2>
+
+    <p>Here's the angle most consultants miss: being able to honestly tell a prospective client "I use AI to work faster, and I do it in a way that nothing is ever uploaded to any external service" is a differentiator. Sophisticated clients are asking about AI use in their vendor evaluation now. Most consultants either use cloud AI and hope the client doesn't ask, or avoid AI and miss the productivity. The local model path lets you say yes to AI and yes to strict confidentiality at the same time.</p>
+
+    <p>That's a conversation worth having proactively, not reactively when the client's legal team is already asking questions.</p>
+
+    <p>Keepance is set up for this workflow. Connect it to a local model via Ollama and nothing leaves your machine; connect it with your own API key and you're routing directly to the model provider with no Keepance intermediary. Each client gets their own workspace folder. Your outputs are Markdown files on your drive, not entries in a vendor's database. The <a href="/consulting/">consulting workflow templates</a> were built with input from practicing independent consultants and include engagement kickoff, discovery synthesis, and stakeholder-presentation templates. The <a href="/local-model-setup/">local model setup guide</a> covers the Ollama connection step by step. For a direct look at how this compares to the deck-generation tools, here's <a href="/vs/gamma">an honest comparison of Keepance and Gamma</a>, including where Gamma is the better tool for the final deliverable.</p>
+
+    <p>The NDA clause problem has a clean technical answer. A local model is the only AI setup where you can say, without qualification, that your client's confidential information was never uploaded to any service. For the clients who care about that distinction, and there are more of them every year, that's a real and substantive promise.</p>
+
+    <div class="caveat">
+      <p>This is informational, not legal advice. Whether your current AI tool use complies with your specific NDA or MSA obligations depends on the exact contract language and applicable law. Verify your posture with your own counsel before making representations to clients about your AI data handling.</p>
+    </div>
+
+    <a href="https://keepance.com" class="cta">Try Keepance free for 30 days &rarr;</a>
+  </div>
+</body>
+</html>

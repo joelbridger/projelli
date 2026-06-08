@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Is Your AI Tax Tool §7216-Clean? | Keepance</title>
+  <meta name="description" content="A cloud AI key still sends your client's return information to a third party. Here's what IRC §7216 actually requires, and the one setup that removes the disclosure entirely.">
+  <link rel="canonical" href="https://keepance.com/blog/is-your-ai-tax-tool-7216-clean">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://keepance.com/blog/is-your-ai-tax-tool-7216-clean">
+  <meta property="og:title" content="Is Your AI Tax Tool §7216-Clean?">
+  <meta property="og:description" content="A cloud AI key still sends your client's return information to a third party. Here's what IRC §7216 actually requires, and the one setup that removes the disclosure entirely.">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      padding: 0 24px 100px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #FF7C6E 0%, #FF6554 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+    .caveat { background: var(--bg-surface); border: 1px solid var(--border-gray); border-radius: 8px; padding: 16px 20px; margin: 48px 0 0; font-size: 0.9375rem; color: var(--text-muted); }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">← All posts</a>
+
+    <h1>Is Your AI Tax Tool §7216-Clean?</h1>
+    <p class="meta">By Jameson Daines &middot; June 8, 2026 &middot; 7 min read</p>
+
+    <p>About 52% of tax firms that use AI are using consumer tools, according to recent survey data. ChatGPT, Claude, and similar general-purpose assistants rather than purpose-built tax software. I understand why. The purpose-built tools cost $1,500 to $3,000 per year. The consumer tools are $0 to $20 a month and they're genuinely capable.</p>
+
+    <p>But there's a compliance question that most practitioners I talk to haven't fully worked through: when you paste a client's return data into a cloud AI tool, does that constitute a disclosure under IRC §7216? And does it matter whether the vendor promises not to train on your data?</p>
+
+    <p>The answer to the first question is probably yes. The answer to the second is: the training policy does not resolve the disclosure question.</p>
+
+    <h2>What §7216 and §6713 actually cover</h2>
+
+    <p>The <a href="https://www.irs.gov/tax-professionals/section-7216-information-center" target="_blank" rel="noopener noreferrer">IRS §7216 information center</a> is the clearest place to start. IRC §7216 is the criminal provision: it makes it unlawful for a tax return preparer to knowingly or recklessly disclose or use return information for any purpose other than preparing, assisting in preparing, or obtaining or providing services in connection with preparing a tax return. Violation is a misdemeanor, up to a year in prison, up to a $1,000 fine per violation.</p>
+
+    <p>IRC §6713 is the civil counterpart. It does not require intent. The penalty is $250 per unauthorized disclosure or use, up to a $10,000 cap per calendar year. Strict liability, no knowledge requirement.</p>
+
+    <p>"Return information" is defined broadly: it includes any data furnished to the IRS in connection with a return, and any information derived from that data. In practice, that covers most of what a preparer would type into an AI prompt about a client's tax situation.</p>
+
+    <p>The FTC Safeguards Rule, which applies to tax preparers as "financial institutions" under its updated definition, adds a data security layer on top of this. You're required to have a Written Information Security Plan (WISP) and to document how you handle client financial data. An AI tool that touches return information is part of that picture.</p>
+
+    <h2>Why a cloud AI key is still a disclosure</h2>
+
+    <p>Here's the part many preparers miss. The typical mental model is: "I'm using my own API key, the vendor promised no training on my data, so I'm fine."</p>
+
+    <p>That reasoning conflates two different things. The "no training" promise means the vendor says it won't use your data to improve its model. That's a contractual representation about what happens to the data after it arrives. But the data still arrives. Your prompt, which contains your client's return information, travels over the internet to the model provider's servers, gets processed there, and a response comes back. The transmission happened. The provider received the data.</p>
+
+    <p>Under §7216, "disclosure" means furnishing tax return information to any person. A model provider's servers are operated by a person (a legal entity). The data went there. Whether the provider then trains on it is a separate question from whether the disclosure occurred in the first place.</p>
+
+    <blockquote>
+      <p>"No training on your data" means the vendor won't use your data to improve their model. It does not mean the data never left your machine. Those are different facts.</p>
+    </blockquote>
+
+    <p>§7216 does provide for consented disclosures. A preparer can disclose return information with the taxpayer's written consent, in a form that meets the regulatory requirements. So there is a path for using cloud AI tools with client data, but it runs through consent management, and most preparers would rather not track per-tool consent forms for every client.</p>
+
+    <h2>The consent path and why most preparers skip it</h2>
+
+    <p>The IRS has published specific requirements for §7216 consent forms. They must identify the recipient of the information, describe what information will be disclosed, state the purpose of the disclosure, and meet other formatting and content requirements. Blanket consents don't work; the consent has to be specific enough to be meaningful.</p>
+
+    <p>In theory, you could have every client sign a §7216 consent for each AI tool you use. In practice, this creates an administrative overhead that most small and solo practices find impractical, especially across multiple AI tools. It also creates a documentation and audit trail obligation. If you're ever examined, you'd need to produce those consent forms.</p>
+
+    <p>The simpler path, for practitioners who want to use AI for client work without managing per-tool consent forms, is to use a setup where the disclosure never happens in the first place.</p>
+
+    <h2>The local model: no disclosure to consent around</h2>
+
+    <p>A <strong>local model</strong>, one running entirely on your own hardware, changes the architecture of the problem. When the model runs locally, your prompt never leaves your machine. There is no API call to an external server. There is no third party receiving the data. There is no disclosure under §7216 to manage, because the data stayed in your possession throughout.</p>
+
+    <p>This is different from a BYOK setup where you supply your own API key. With BYOK, you're still routing your prompt to Anthropic, OpenAI, or whoever holds the key. Your key, not the tool vendor's key. But the provider still receives your client's data. The §7216 question is the same.</p>
+
+    <p>Only a local model removes the third-party transmission entirely. Tools like Ollama make this tractable on a modern laptop or desktop. You're running an open-weight model locally, and nothing crosses the network boundary for the AI inference itself.</p>
+
+    <h2>The Drake problem</h2>
+
+    <p>A significant fraction of small and solo CPA and EA practices run Drake, which as of mid-2026 ships with no generative AI features at all. If you're a Drake shop and you want AI for your practice, you're building your own stack. Your vendor is not going to solve this for you.</p>
+
+    <p>For Lacerte and ProSeries users, Intuit Assist is bundled at no extra cost. It's a capable planning tool. But it runs on Intuit's cloud, pulls data from your client's return in ways that route through Intuit's AI infrastructure, and its training policy on uploaded data has been described as "unclear" in the public materials I've read. Using it for advisory conversations is a different §7216 posture than using a local model.</p>
+
+    <p>The WISP angle is worth one paragraph here. The FTC Safeguards Rule requires you to assess risks to client information and implement reasonable safeguards. "I use ChatGPT Plus for client data" is a difficult answer to a Safeguards Rule audit. "I run a local model that never transmits client data" is a much cleaner answer. Your WISP should document whichever approach you take.</p>
+
+    <h2>What a §7216-clean AI setup actually looks like</h2>
+
+    <p>In practice, a §7216-clean workflow for a solo or small-firm preparer looks something like this:</p>
+
+    <ul>
+      <li>AI inference runs locally, either on the machine you use for tax work or on hardware you control.</li>
+      <li>Client data never leaves that hardware as part of an AI request.</li>
+      <li>Your outputs, research memos, client letters, notice responses, are files you own and control.</li>
+      <li>Your WISP documents the setup and the data handling decisions you've made.</li>
+    </ul>
+
+    <p>This is not a hypothetical. A small but real community of solo CPAs and EAs is already running Ollama or similar local models for exactly this reason. No commercial product has productized that workflow with profession-specific templates until recently.</p>
+
+    <p>Keepance is built to work this way. You connect it to a local model and your AI requests never leave your machine, or you bring your own API key and understand clearly that the cloud provider receives your prompt. The <a href="/tax/">tax workflow templates</a> were built with input from practicing CPAs and EAs and include CP2000 response templates, §7216 consent form starters, and WISP documentation starters. The <a href="/local-model-setup/">local model setup guide</a> walks through the Ollama connection so you can verify for yourself that nothing is transmitted. If you're evaluating alternatives, here's <a href="/vs/intuit-assist">how Keepance compares to Intuit Assist</a> for the client work that Intuit's bundled tool doesn't cover.</p>
+
+    <p>The §7216 question has a clean answer. It just requires using a setup where the disclosure never happens, rather than relying on contractual promises about what a third party does with data after it arrives.</p>
+
+    <div class="caveat">
+      <p>This is informational, not legal or tax advice. IRC §7216 and §6713 analysis depends on the specific facts of your practice and the tools you use. Verify your compliance posture with your own counsel or a tax compliance specialist before making changes to your practice.</p>
+    </div>
+
+    <a href="https://keepance.com" class="cta">Try Keepance free for 30 days &rarr;</a>
+  </div>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reg S-P Just Changed Your AI Vendor List | Keepance</title>
+  <meta name="description" content="The SEC's Reg S-P amendments now require you to vet every vendor that touches client data. The smaller-firm deadline passed in June 2026. Here's what that means for the AI you use.">
+  <link rel="canonical" href="https://keepance.com/blog/reg-s-p-changed-your-ai-vendor-list">
+  <meta name="author" content="Jameson Daines">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://keepance.com/blog/reg-s-p-changed-your-ai-vendor-list">
+  <meta property="og:title" content="Reg S-P Just Changed Your AI Vendor List">
+  <meta property="og:description" content="The SEC's Reg S-P amendments now require you to vet every vendor that touches client data. The smaller-firm deadline passed in June 2026. Here's what that means for the AI you use.">
+  <meta property="og:image" content="https://keepance.com/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://keepance.com/og-image.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script defer data-domain="keepance.com" src="https://analytics.jamesondaines.com/js/script.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-white: #FFFFFF;
+      --bg-surface: #F8FAFC;
+      --border-gray: #E2E8F0;
+      --text-heading: #111F35;
+      --text-body: #475569;
+      --text-muted: #94A3B8;
+      --accent-blue: #3B82F6;
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-white);
+      color: var(--text-body);
+      line-height: 1.75;
+      padding: 0 24px 100px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { max-width: 720px; margin: 0 auto; }
+    .back { display: inline-block; margin-bottom: 32px; font-size: 0.875rem; color: var(--accent-blue); text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    h1 { font-size: 2.5rem; color: var(--text-heading); margin-bottom: 16px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
+    h2 { font-size: 1.625rem; color: var(--text-heading); margin-top: 56px; margin-bottom: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    h3 { font-size: 1.25rem; color: var(--text-heading); margin-top: 36px; margin-bottom: 12px; font-weight: 600; }
+    .meta { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 48px; padding-bottom: 24px; border-bottom: 1px solid var(--border-gray); }
+    p { margin-bottom: 20px; font-size: 1.0625rem; }
+    ul, ol { margin-bottom: 20px; padding-left: 24px; }
+    li { margin-bottom: 8px; font-size: 1.0625rem; }
+    strong { color: var(--text-heading); font-weight: 600; }
+    a { color: var(--accent-blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code { background: #F1F5F9; padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.875em; }
+    blockquote { border-left: 4px solid var(--accent-blue); background: var(--bg-surface); padding: 18px 24px; margin: 24px 0; border-radius: 0 8px 8px 0; font-size: 1.0625rem; color: var(--text-body); }
+    blockquote p:last-child { margin-bottom: 0; }
+    .cta { display: block; background: linear-gradient(135deg, #FF7C6E 0%, #FF6554 100%); color: white !important; padding: 24px 32px; border-radius: 12px; margin: 48px 0 0; text-decoration: none !important; font-weight: 600; font-size: 1.0625rem; text-align: center; }
+    .cta:hover { opacity: 0.92; }
+    .caveat { background: var(--bg-surface); border: 1px solid var(--border-gray); border-radius: 8px; padding: 16px 20px; margin: 48px 0 0; font-size: 0.9375rem; color: var(--text-muted); }
+  </style>
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/styles/keepance-nav.v2.css">
+  <script src="/scripts/keepance-nav.v4.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <a href="/blog/" class="back">← All posts</a>
+
+    <h1>Reg S-P Just Changed Your AI Vendor List</h1>
+    <p class="meta">By Jameson Daines &middot; June 8, 2026 &middot; 8 min read</p>
+
+    <p>The compliance deadline for smaller registered investment advisers under the SEC's amended Regulation S-P passed on June 3, 2026. If you're an independent RIA and you've been telling yourself you'd deal with the new requirements later, later has arrived.</p>
+
+    <p>Most of the coverage of these amendments focuses on the breach notification requirement, which is real and important. But the provision that has the most day-to-day impact on how independent advisers work is the service-provider oversight obligation. That obligation, applied to the AI tools advisers actually use, creates a new kind of vendor-management burden that most firms haven't fully mapped out.</p>
+
+    <p>I want to walk through what changed, what the shadow-AI problem looks like under the new rules, and why the architecture of the AI tools you use matters more now than it did before June.</p>
+
+    <h2>What the Reg S-P amendments actually require</h2>
+
+    <p>The <a href="https://www.federalregister.gov/documents/2024/05/16/2024-07367/regulation-s-p-privacy-of-consumer-financial-information-and-safeguarding-customer-information" target="_blank" rel="noopener noreferrer">Reg S-P amendments published in the Federal Register</a> in May 2024 made several changes that are now in effect for smaller firms. The ones that matter most for AI use:</p>
+
+    <ul>
+      <li><strong>Written incident-response program.</strong> You need a documented program for detecting, responding to, and notifying clients of unauthorized access to their covered data. Not a verbal plan. A written one.</li>
+      <li><strong>30-day customer notification.</strong> If there's a breach affecting customer information, you have 30 days to notify affected customers. That timeline is tighter than most firms have planned for.</li>
+      <li><strong>Service-provider oversight.</strong> You must oversee any service providers that receive, maintain, process, or otherwise are permitted access to customer information. That oversight has to be documented: written contracts, periodic assessments, and procedures to address service-provider failures.</li>
+    </ul>
+
+    <p><a href="https://www.hklaw.com/en/insights/publications/2024/05/sec-adopts-significant-amendments-to-regulation-s-p" target="_blank" rel="noopener noreferrer">Holland &amp; Knight's analysis of the amendments</a> covers the service-provider definition and the documentation requirements in practical detail. The key point for AI tools: a service provider is any entity that receives, maintains, processes, or is otherwise permitted access to customer information on your behalf. An AI tool that you paste client financial data into almost certainly qualifies.</p>
+
+    <h2>The shadow-AI problem, now a compliance problem</h2>
+
+    <p>The industry has known for a while that most RIA advisers using AI are doing it informally. They're pasting client data into ChatGPT or Claude on personal accounts, not through any firm-approved tool, not documented anywhere, not overseen by the CCO. The estimate I've seen most consistently is that the majority of AI-using advisers at smaller firms are in this category.</p>
+
+    <p>Before the Reg S-P amendments, this was a risk-management and professional-judgment problem. You were potentially exposing client data and you didn't have documented controls around it. That was bad practice, but the specific regulatory trigger was softer.</p>
+
+    <p>After June 3, it's a service-provider oversight problem. If your advisers are pasting client data into ChatGPT, then OpenAI is receiving, maintaining, and processing customer information on your behalf, within the plain reading of the amended rule. Whether you've assessed OpenAI as a service provider, whether you have a written contract with OpenAI that addresses the Reg S-P obligations, whether you've built procedures to address OpenAI's potential failures, those are now questions your CCO needs an answer to.</p>
+
+    <blockquote>
+      <p>The SEC's AI-washing enforcement actions in 2025 and 2026 showed the commission is willing to act on AI-related compliance gaps at investment advisers. The combination of those actions and the new Reg S-P service-provider obligation makes the shadow-AI situation materially riskier than it was a year ago.</p>
+    </blockquote>
+
+    <h2>What service-provider oversight means for your AI stack</h2>
+
+    <p>Let's be concrete about what the oversight obligation looks like for the AI tools advisers actually use.</p>
+
+    <p><strong>Jump</strong> is the category leader for AI meeting notes in the RIA space, with around 27,000 advisers using it. It has SOC 2 Type II certification, contractual no-training policies, and a real security posture. But under the amended Reg S-P, Jump is a service provider receiving customer information. You need a written contract with Jump that addresses the new requirements, you need to periodically assess Jump's practices, and you need procedures for what happens if Jump has an incident. If you're already on Jump and haven't revisited your contract since the amendments, that's a gap.</p>
+
+    <p><strong>Zocks</strong> positions itself as privacy-forward, with a no-recording architecture where audio is processed locally and only notes are sent to the cloud. That's a meaningfully better posture than tools that store audio. But notes containing client financial information are still leaving your machine and arriving at Zocks' infrastructure. Same oversight obligation applies.</p>
+
+    <p><strong>ChatGPT or Claude</strong> on a personal account: OpenAI and Anthropic have no contractual relationship with your firm for the purposes of Reg S-P. Consumer accounts have no data processing agreements, no explicit Reg S-P accommodations, and no SOC 2 coverage for your firm's use of their consumer product. This is the clearest gap.</p>
+
+    <p>The oversight burden compounds when you multiply it across every AI tool in the firm. Each one needs a vendor assessment, a written contract addressing the new obligations, and ongoing monitoring. For a small RIA with one or two staff members doing compliance part-time, that's a real burden.</p>
+
+    <h2>The zero-vendor-surface option</h2>
+
+    <p>There's a fundamentally different approach: use an AI tool where no AI vendor receives your client data at all.</p>
+
+    <p>With a <strong>local model</strong> running on your own hardware, the AI inference happens on your machine. Your client data never leaves your network as part of an AI request. There is no service provider receiving, maintaining, or processing that customer information, because it never went anywhere. Under the amended Reg S-P, there is no AI vendor to oversee, assess, or contract with for this data path.</p>
+
+    <p>This is architecturally different from a tool that promises strong data handling. A strong data handling promise is a contractual commitment about what a vendor does with data after it arrives. A local model means the data never arrives at any vendor. The Reg S-P service-provider oversight obligation simply does not attach to a vendor that never receives the data.</p>
+
+    <p>That's a significant simplification of your compliance posture, especially for a small firm where the CCO and the adviser are the same person.</p>
+
+    <h2>The books-and-records angle</h2>
+
+    <p>Rule 204-2 under the Investment Advisers Act requires RIAs to maintain certain records, including records of written communications. AI-generated outputs that touch client recommendations, meeting summaries, or investment rationale are increasingly in scope for that requirement.</p>
+
+    <p>If your AI-generated outputs live in a cloud vendor's database, you have a records-retention dependency on that vendor. If the vendor changes its pricing, gets acquired, or shuts down, your records situation becomes complicated. If you have an SEC examination and the relevant AI outputs are stored in a tool you no longer have access to, you have a production problem.</p>
+
+    <p>AI outputs that live as plain files on your own drive, in folders you control, are records you have direct custody of. You can produce them in an examination without depending on a vendor's cooperation or availability. This is a small but real advantage of the local-file architecture that most cloud AI tools don't offer.</p>
+
+    <h2>Practical next steps for an independent RIA</h2>
+
+    <p>If you're catching up after the June 3 deadline, the most urgent things:</p>
+
+    <ol>
+      <li><strong>Inventory your AI tools.</strong> Every tool where client financial data is being entered, even informally, is a potential service provider under the amended rule. Get the list on paper.</li>
+      <li><strong>Assess the contractual posture.</strong> For each tool on that list, do you have a written contract that addresses data handling in a way that satisfies the Reg S-P service-provider requirements? If not, you have a gap to close.</li>
+      <li><strong>Document your incident-response program.</strong> This doesn't need to be elaborate, but it needs to exist in writing and it needs to cover your AI tools.</li>
+      <li><strong>Consider whether the local model path simplifies your posture.</strong> If the service-provider oversight burden is the main friction point, a local model removes it for the AI inference data path entirely.</li>
+    </ol>
+
+    <p>Keepance is built for the RIA who wants to use AI seriously without adding to the compliance burden. When you run it with a local model, there's no AI vendor in your data path: no service provider to vet, no written contract to negotiate, no periodic assessment to document. Your outputs are plain Markdown files in a folder on your drive. The <a href="/financial-advisors/">advisor workflow templates</a> were built with input from practicing RIAs and include IPS drafting, meeting prep, and client communication templates. The <a href="/local-model-setup/">local model setup guide</a> walks through connecting Ollama so your client data stays on your hardware. For advisers evaluating the purpose-built meeting-notes tools, here's <a href="/vs/jump">an honest comparison of Keepance and Jump</a>, including where Jump is the better choice.</p>
+
+    <p>The Reg S-P amendments are in effect. The AI vendor you use for client work is now a compliance question, not just a product preference. The cleanest answer to that question is a tool where the question doesn't arise.</p>
+
+    <div class="caveat">
+      <p>This is informational, not legal or compliance advice. Reg S-P obligations depend on the specific facts of your practice, your registration status, and the tools you use. Verify your compliance posture with your own compliance counsel or CCO before making changes to your vendor stack.</p>
+    </div>
+
+    <a href="https://keepance.com" class="cta">Try Keepance free for 30 days &rarr;</a>
+  </div>
+</body>
+</html>

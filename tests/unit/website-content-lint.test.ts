@@ -30,9 +30,15 @@ const TARGETS = [
   'blog/index.html',
   'blog/keepance-1-5-announce.html',
   'blog/keepance-v2-announce.html',
+  // 2026-06-08 regulatory-hook posts (WS1)
+  'blog/what-us-v-heppner-means-for-your-ai.html',
+  'blog/is-your-ai-tax-tool-7216-clean.html',
+  'blog/reg-s-p-changed-your-ai-vendor-list.html',
+  'blog/your-nda-probably-bans-your-ai-tool.html',
   // Added 2026-04-17 night sweep — these were originally outside Phase 6
   // scope but had ~61 em dashes between them. Locking them in.
   'press-kit/index.html',
+  'press-kit/comparison-matrix.html',
   'docs/getting-started.html',
   'docs/api-keys.html',
   'docs/faq.html',
