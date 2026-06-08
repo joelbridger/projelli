@@ -2,6 +2,7 @@ use crate::commands::mail::crypto::encrypt_with_key;
 use crate::commands::mail::graph::{page_continuation, Continuation, DeltaGone, GraphClient};
 use crate::commands::mail::model::MailMessage;
 use crate::commands::mail::normalize::to_markdown;
+use crate::commands::mail::provider::{Cursor, MailProvider, RemoteFolder};
 use crate::commands::mail::store::{MailRecord, MailStore};
 use std::path::Path;
 
@@ -277,6 +278,38 @@ where
             }
             Continuation::End => break,
         }
+    }
+    Ok(total)
+}
+
+/// Provider-agnostic encrypted folder sync. Loops a provider's `fetch_changes`,
+/// persisting the resume cursor after each page, applying via `apply_messages_enc`.
+pub async fn sync_folder_provider<F, I, T>(
+    provider: &dyn MailProvider,
+    store: &(dyn MailStore + Sync),
+    workspace_root: &Path,
+    folder: &RemoteFolder,
+    key: &[u8; 32],
+    emit: &F,
+    index_callback: &I,
+    tombstone_callback: &T,
+) -> anyhow::Result<PageStats>
+where
+    F: Fn(u32, u32) + Send,
+    I: Fn(&str, &str) + Send + Sync,
+    T: Fn(&str) + Send + Sync,
+{
+    let mut cursor = Cursor::from_token(store.get_cursor(&folder.id)?);
+    let mut total = PageStats::default();
+    loop {
+        let page = provider.fetch_changes(folder, &cursor).await?;
+        let s = apply_messages_enc(store, workspace_root, &folder.id, &page.messages, &page.removed_ids, key, index_callback, tombstone_callback)?;
+        total.written += s.written;
+        total.removed += s.removed;
+        emit(total.written, total.removed);
+        if let Some(tok) = &page.next { store.set_cursor(&folder.id, tok)?; }
+        if page.done { break; }
+        cursor = Cursor::from_token(page.next);
     }
     Ok(total)
 }
