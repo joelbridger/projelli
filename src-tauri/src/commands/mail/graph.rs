@@ -107,6 +107,79 @@ pub fn page_continuation(page: &serde_json::Value) -> Continuation {
     Continuation::End
 }
 
+use crate::commands::mail::model::MailMessage;
+use crate::commands::mail::provider::{ChangePage, Cursor, MailProvider, RemoteFolder};
+use async_trait::async_trait;
+
+/// Max consecutive 410 (delta-token-expired) resets within one fetch before giving up.
+const PROVIDER_MAX_DELTA_RESETS: u32 = 3;
+
+/// Microsoft 365 implementation of `MailProvider`, wrapping `GraphClient`.
+pub struct GraphProvider { client: GraphClient }
+impl GraphProvider {
+    pub fn new(token: String) -> Self { Self { client: GraphClient::new(token) } }
+    pub fn new_with_base(token: String, base: String) -> Self { Self { client: GraphClient::new_with_base(token, base) } }
+}
+
+#[async_trait]
+impl MailProvider for GraphProvider {
+    fn kind(&self) -> &'static str { "m365" }
+
+    async fn list_folders(&self) -> anyhow::Result<Vec<RemoteFolder>> {
+        let mut folders = Vec::new();
+        let mut next = Some(format!("{}/v1.0/me/mailFolders?$top=200", self.client.base()));
+        while let Some(url) = next {
+            let page = self.client.get_json(&url).await?;
+            if let Some(arr) = page.get("value").and_then(|v| v.as_array()) {
+                for f in arr {
+                    if let Some(id) = f.get("id").and_then(|s| s.as_str()) {
+                        let name = f.get("displayName").and_then(|s| s.as_str()).unwrap_or(id).to_string();
+                        folders.push(RemoteFolder { id: id.to_string(), display_name: name });
+                    }
+                }
+            }
+            next = page.get("@odata.nextLink").and_then(|v| v.as_str()).map(String::from);
+        }
+        Ok(folders)
+    }
+
+    async fn fetch_changes(&self, folder: &RemoteFolder, cursor: &Cursor) -> anyhow::Result<ChangePage> {
+        let mut url = match cursor {
+            Cursor::Backfill => self.client.delta_start_url(&folder.id),
+            Cursor::Resume(t) => t.clone(),
+        };
+        let mut resets = 0u32;
+        let page = loop {
+            match self.client.get_json(&url).await {
+                Ok(p) => break p,
+                Err(e) if e.downcast_ref::<DeltaGone>().is_some() => {
+                    resets += 1;
+                    if resets > PROVIDER_MAX_DELTA_RESETS {
+                        anyhow::bail!("folder {}: delta token expired {} times in a row; giving up", folder.id, resets);
+                    }
+                    url = self.client.delta_start_url(&folder.id);
+                }
+                Err(e) => return Err(e),
+            }
+        };
+        let mut messages = Vec::new();
+        let mut removed_ids = Vec::new();
+        if let Some(arr) = page.get("value").and_then(|v| v.as_array()) {
+            for item in arr {
+                let id = item.get("id").and_then(|s| s.as_str()).unwrap_or("");
+                if id.is_empty() { continue; }
+                if MailMessage::is_removed(item) { removed_ids.push(id.to_string()); }
+                else if let Some(m) = MailMessage::from_graph(item) { messages.push(m); }
+            }
+        }
+        Ok(match page_continuation(&page) {
+            Continuation::Next(n) => ChangePage { messages, removed_ids, next: Some(n), done: false },
+            Continuation::Delta(d) => ChangePage { messages, removed_ids, next: Some(d), done: true },
+            Continuation::End => ChangePage { messages, removed_ids, next: None, done: true },
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,5 +265,30 @@ mod tests {
             err.downcast_ref::<DeltaGone>().is_some(),
             "expected DeltaGone sentinel, got: {err}"
         );
+    }
+
+    #[tokio::test]
+    async fn graph_provider_fetch_changes_backfill_returns_message_and_delta_done() {
+        use crate::commands::mail::provider::{Cursor, RemoteFolder};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        use wiremock::matchers::{method, path};
+
+        let server = MockServer::start().await;
+        let delta_link = format!("{}/v1.0/me/mailFolders/inbox/messages/delta?$deltatoken=tok123", server.uri());
+        Mock::given(method("GET")).and(path("/v1.0/me/mailFolders/inbox/messages/delta"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "value": [{ "id": "msg1", "subject": "Hello from Graph", "body": { "contentType": "text", "content": "Body text here." } }],
+                "@odata.deltaLink": delta_link
+            }))).mount(&server).await;
+
+        let provider = GraphProvider::new_with_base("AT".into(), server.uri());
+        let folder = RemoteFolder { id: "inbox".into(), display_name: "Inbox".into() };
+        let page = provider.fetch_changes(&folder, &Cursor::Backfill).await.expect("fetch_changes");
+
+        assert_eq!(page.messages.len(), 1, "expected exactly one message");
+        assert_eq!(page.messages[0].id, "msg1");
+        assert!(page.done, "Cursor::Backfill with deltaLink must be done=true");
+        assert_eq!(page.next, Some(delta_link), "next must equal the deltaLink");
+        assert!(page.removed_ids.is_empty(), "no tombstones expected");
     }
 }

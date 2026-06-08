@@ -101,6 +101,15 @@ pub fn to_markdown(m: &MailMessage) -> String {
         s.push_str(&format!("internet_message_id: \"{}\"\n", yaml_escape(i)));
     }
     s.push_str(&format!("subject: \"{}\"\n", yaml_escape(&m.subject)));
+    if let Some(t) = &m.thread_id {
+        s.push_str(&format!("thread_id: \"{}\"\n", yaml_escape(t)));
+    }
+    if !m.folders.is_empty() {
+        s.push_str(&format!("folders: \"{}\"\n", yaml_escape(&m.folders.join(", "))));
+    }
+    if !m.provider.is_empty() {
+        s.push_str(&format!("provider: \"{}\"\n", yaml_escape(&m.provider)));
+    }
     s.push_str(&format!("from: \"{}\"\n", yaml_escape(&from)));
     s.push_str(&format!("to: \"{}\"\n", yaml_escape(&to)));
     if !cc.is_empty() {
@@ -138,6 +147,10 @@ mod tests {
                 address: Some("me@firm.com".into()),
             }],
             cc: vec![],
+            folders: vec![],
+            thread_id: None,
+            provider: "m365".into(),
+            account: String::new(),
             has_attachments: false,
             body_content_type: BodyContentType::Text,
             body_text: "Confirming May 14.".into(),
@@ -220,6 +233,18 @@ mod tests {
         // The only `---` fences are the opening and closing frontmatter fences.
         let fence_lines = md.lines().filter(|l| l.trim() == "---").count();
         assert_eq!(fence_lines, 2, "expected exactly 2 frontmatter fences, got:\n{md}");
+    }
+
+    #[test]
+    fn frontmatter_includes_thread_and_provider() {
+        let mut m = msg();
+        m.thread_id = Some("conv-9".into());
+        m.provider = "m365".into();
+        m.folders = vec!["Inbox".into(), "Important".into()];
+        let md = to_markdown(&m);
+        assert!(md.contains("thread_id: \"conv-9\""), "got:\n{md}");
+        assert!(md.contains("provider: \"m365\""), "got:\n{md}");
+        assert!(md.contains("folders: \"Inbox, Important\""), "got:\n{md}");
     }
 
     #[test]

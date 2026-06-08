@@ -52,3 +52,18 @@ export async function mailFdeStatus(): Promise<FdeStatus> {
   if (!isTauri()) return { status: 'unknown', platform: 'browser' };
   return invoke<FdeStatus>('mail_fde_status');
 }
+
+// IMAP multi-provider support
+export interface ImapConnectInput { host: string; port: number; username: string; password: string; }
+export async function mailImapConnect(input: ImapConnectInput): Promise<void> {
+  if (!isTauri()) throw new Error('Email connect is only available in the desktop app.');
+  return invoke<void>('mail_imap_connect', { host: input.host, port: input.port, username: input.username, password: input.password });
+}
+export async function mailImapIsConnected(): Promise<boolean> {
+  if (!isTauri()) return false;
+  return invoke<boolean>('mail_imap_is_connected');
+}
+export async function mailImapDisconnect(): Promise<void> {
+  if (!isTauri()) return;
+  return invoke<void>('mail_imap_disconnect');
+}

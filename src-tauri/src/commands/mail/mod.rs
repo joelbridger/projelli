@@ -1,22 +1,31 @@
 pub mod model;
 pub mod normalize;
+pub mod provider;
 pub mod store;
 pub mod graph;
 pub mod oauth;
 pub mod sync;
 pub mod crypto;
 pub mod fde;
+pub mod imap;
 
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
-use crate::commands::mail::graph::GraphClient;
 use crate::commands::mail::oauth::{OAuth, TokenOutcome};
+use crate::commands::mail::provider::MailProvider;
 use crate::commands::mail::store::EncryptedMailStore;
 
 const KEYCHAIN_SERVICE: &str = "keepance-mail-ms";
 const KEYCHAIN_REFRESH_KEY: &str = "ms-refresh-token";
+/// Account id for the single Microsoft 365 account (one refresh token today).
+/// Cursors are scoped by (provider, account, folder); see `sync_folder_provider`.
+const M365_ACCOUNT: &str = "default";
+
+const IMAP_KEYCHAIN_SERVICE: &str = "keepance-mail-imap";
+const IMAP_CONFIG_KEY: &str = "config"; // JSON {account,host,port,username}
+const IMAP_PASSWORD_KEY: &str = "password";
 pub const SYNC_PROGRESS_EVENT: &str = "mail-sync-progress";
 /// G5: per-message event that carries decrypted text to the renderer for
 /// MiniSearch indexing. The text lives only in renderer-process memory.
@@ -131,6 +140,26 @@ pub struct SyncProgress {
     pub removed: u32,
 }
 
+/// Stored IMAP account configuration (no password — stored separately).
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ImapConfig {
+    pub account: String,
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+}
+
+/// Load the stored IMAP config + password from the keychain, if configured.
+fn load_imap_config() -> Option<(ImapConfig, String)> {
+    let cfg_e = keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_CONFIG_KEY).ok()?;
+    let cfg_json = cfg_e.get_password().ok()?;
+    let cfg: ImapConfig = serde_json::from_str(&cfg_json).ok()?;
+    let pw_e = keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_PASSWORD_KEY).ok()?;
+    let pw = pw_e.get_password().ok()?;
+    Some((cfg, pw))
+}
+
 #[tauri::command]
 pub async fn mail_set_workspace(
     state: State<'_, MailState>,
@@ -202,6 +231,58 @@ async fn fresh_access_token() -> Result<String, String> {
 #[tauri::command]
 pub async fn mail_cancel_sync(state: State<'_, MailState>) -> Result<(), String> {
     state.cancel.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+/// Validate IMAP credentials by listing folders, then store them in the OS keychain.
+/// account id = the username (email). Never logs the password.
+#[tauri::command]
+pub async fn mail_imap_connect(
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+) -> Result<(), String> {
+    use crate::commands::mail::imap::ImapProvider;
+    let provider = ImapProvider {
+        host: host.clone(),
+        port,
+        username: username.clone(),
+        password: password.clone(),
+        account: username.clone(),
+    };
+    // Validate the connection (also rejects bad host/credentials up front).
+    provider.list_folders().await.map_err(|e| format!("Could not connect: {e}"))?;
+    let cfg = ImapConfig { account: username.clone(), host, port, username };
+    let cfg_json = serde_json::to_string(&cfg).map_err(|e| e.to_string())?;
+    let cfg_entry =
+        keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_CONFIG_KEY).map_err(|e| e.to_string())?;
+    cfg_entry.set_password(&cfg_json).map_err(|e| e.to_string())?;
+    let pw_entry =
+        keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_PASSWORD_KEY).map_err(|e| e.to_string())?;
+    if let Err(e) = pw_entry.set_password(&password) {
+        // Don't leave a config without its password: load_imap_config requires
+        // both, so a half-write would surface as a confusing "not connected"
+        // after an apparently-successful connect. Roll back the config entry.
+        let _ = cfg_entry.delete_credential();
+        return Err(e.to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn mail_imap_is_connected() -> Result<bool, String> {
+    Ok(load_imap_config().is_some())
+}
+
+#[tauri::command]
+pub async fn mail_imap_disconnect() -> Result<(), String> {
+    if let Ok(e) = keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_CONFIG_KEY) {
+        let _ = e.delete_credential();
+    }
+    if let Ok(e) = keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_PASSWORD_KEY) {
+        let _ = e.delete_credential();
+    }
     Ok(())
 }
 
@@ -317,38 +398,17 @@ async fn mail_sync_all_inner(
     let enc_key = crate::commands::mail::crypto::get_or_create_master_key()
         .map_err(|e| e.to_string())?;
 
-    // FIX C: paginate folder enumeration — follow @odata.nextLink until exhausted.
-    let mut ids: Vec<String> = Vec::new();
-    {
+    // Enumerate folders through the provider seam (M365 GraphProvider for now;
+    // Gmail/IMAP providers slot in here unchanged).
+    let folders = {
         let token = fresh_access_token().await?;
-        let list_client = GraphClient::new(token);
-        let mut next_url = Some(format!(
-            "{}/v1.0/me/mailFolders?$top=200",
-            list_client.base()
-        ));
-        while let Some(url) = next_url {
-            let page = list_client
-                .get_json(&url)
-                .await
-                .map_err(|e| e.to_string())?;
-            if let Some(arr) = page.get("value").and_then(|v| v.as_array()) {
-                for f in arr {
-                    if let Some(id) = f.get("id").and_then(|s| s.as_str()) {
-                        ids.push(id.to_string());
-                    }
-                }
-            }
-            // Follow the next page if present.
-            next_url = page
-                .get("@odata.nextLink")
-                .and_then(|v| v.as_str())
-                .map(String::from);
-        }
-    }
+        let provider = crate::commands::mail::graph::GraphProvider::new(token);
+        provider.list_folders().await.map_err(|e| e.to_string())?
+    };
 
     // FIX B: refresh the access token before each folder so long backfills
     // never outlive the 3600-second token lifetime.
-    for fid in ids {
+    for folder in folders {
         if cancel.load(Ordering::SeqCst) {
             let _ = app.emit(
                 SYNC_PROGRESS_EVENT,
@@ -362,9 +422,9 @@ async fn mail_sync_all_inner(
             return Ok(());
         }
         let token = fresh_access_token().await?;
-        let client = GraphClient::new(token);
+        let provider = crate::commands::mail::graph::GraphProvider::new(token);
         let app2 = app.clone();
-        let fid2 = fid.clone();
+        let fid2 = folder.id.clone();
         let emit = move |w: u32, r: u32| {
             let _ = app2.emit(
                 SYNC_PROGRESS_EVENT,
@@ -435,13 +495,113 @@ async fn mail_sync_all_inner(
                 }
             });
         };
-        sync::sync_folder_enc(
-            &client, &store, &workspace, &fid, &enc_key, &emit,
+        sync::sync_folder_provider(
+            &provider, &store, &workspace, &folder, M365_ACCOUNT, &enc_key, &emit,
             &index_callback, &tombstone_callback,
         )
         .await
         .map_err(|e| e.to_string())?;
     }
+
+    // ── IMAP account (if configured) — runs after M365 ────────────────────
+    if let Some((imap_cfg, imap_pw)) = load_imap_config() {
+        use crate::commands::mail::imap::ImapProvider;
+        let provider = ImapProvider {
+            host: imap_cfg.host.clone(),
+            port: imap_cfg.port,
+            username: imap_cfg.username.clone(),
+            password: imap_pw,
+            account: imap_cfg.account.clone(),
+        };
+        let folders = provider.list_folders().await.map_err(|e| e.to_string())?;
+        for folder in folders {
+            if cancel.load(Ordering::SeqCst) {
+                let _ = app.emit(
+                    SYNC_PROGRESS_EVENT,
+                    SyncProgress {
+                        status: "cancelled".into(),
+                        folder: None,
+                        written: 0,
+                        removed: 0,
+                    },
+                );
+                return Ok(());
+            }
+            let app2 = app.clone();
+            let fid2 = folder.id.clone();
+            let emit = move |w: u32, r: u32| {
+                let _ = app2.emit(
+                    SYNC_PROGRESS_EVENT,
+                    SyncProgress {
+                        status: "syncing".into(),
+                        folder: Some(fid2.clone()),
+                        written: w,
+                        removed: r,
+                    },
+                );
+            };
+            let workspace_for_index = workspace.clone();
+            let enc_key_for_index = enc_key;
+            let app3 = app.clone();
+            let index_callback = move |id: &str, text: &str| {
+                let path_key = format!("mail:{}", id);
+                let text_owned = text.to_string();
+                let ws = workspace_for_index.clone();
+                let key = enc_key_for_index;
+                // Fire-and-forget RAG indexing (G4).
+                let _ = tokio::task::spawn(async move {
+                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key).await {
+                        log::warn!("G4 mail index failed for {}: {}", path_key, e);
+                    }
+                });
+                // G5: pull the subject from the frontmatter (scoped to the fenced
+                // block, unquoted + unescaped) and emit the event for MiniSearch.
+                let subject = frontmatter_subject(text);
+                let _ = app3.emit(MAIL_INDEX_CHUNK_EVENT, MailIndexChunkPayload {
+                    doc_id: id.to_string(),
+                    subject,
+                    decrypted_text: text.to_string(),
+                });
+            };
+            // S3: tombstone_callback fires for each deleted message. It spawns a
+            // fire-and-forget async task to remove the LanceDB RAG chunks keyed
+            // "mail:<id>" so deleted email stops surfacing in rag_retrieve.
+            let workspace_for_tombstone = workspace.clone();
+            let tombstone_callback = move |id: &str| {
+                let path_key = format!("mail:{}", id);
+                let ws = workspace_for_tombstone.clone();
+                let _ = tokio::task::spawn(async move {
+                    // Reuse the same store::delete_path helper used by rag_delete_path.
+                    match crate::commands::rag::store::open_connection(&ws).await {
+                        Ok(conn) => {
+                            let names = conn.table_names().execute().await.unwrap_or_default();
+                            if names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
+                                if let Ok(table) = conn
+                                    .open_table(crate::commands::rag::store::TABLE_NAME)
+                                    .execute()
+                                    .await
+                                {
+                                    if let Err(e) = crate::commands::rag::store::delete_path(&table, &path_key).await {
+                                        log::warn!("S3 tombstone: delete RAG chunks for {} failed: {}", path_key, e);
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("S3 tombstone: open lancedb for {} failed: {}", path_key, e);
+                        }
+                    }
+                });
+            };
+            sync::sync_folder_provider(
+                &provider, &store, &workspace, &folder, &imap_cfg.account, &enc_key,
+                &emit, &index_callback, &tombstone_callback,
+            )
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+    }
+
     let _ = app.emit(
         SYNC_PROGRESS_EVENT,
         SyncProgress {

@@ -2,6 +2,7 @@ use crate::commands::mail::crypto::encrypt_with_key;
 use crate::commands::mail::graph::{page_continuation, Continuation, DeltaGone, GraphClient};
 use crate::commands::mail::model::MailMessage;
 use crate::commands::mail::normalize::to_markdown;
+use crate::commands::mail::provider::{Cursor, MailProvider, RemoteFolder};
 use crate::commands::mail::store::{MailRecord, MailStore};
 use std::path::Path;
 
@@ -52,6 +53,54 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
     Ok(stats)
 }
 
+/// Apply already-normalized changes to the encrypted store + index. Provider-
+/// agnostic core used by `apply_page_enc` (Graph) and future Gmail/IMAP paths.
+pub fn apply_messages_enc<F, T>(
+    store: &dyn MailStore,
+    workspace_root: &Path,
+    folder_id: &str,
+    messages: &[MailMessage],
+    removed_ids: &[String],
+    key: &[u8; 32],
+    index_callback: &F,
+    tombstone_callback: &T,
+) -> anyhow::Result<PageStats>
+where
+    F: Fn(&str, &str),
+    T: Fn(&str),
+{
+    let mut stats = PageStats::default();
+    for id in removed_ids {
+        if id.is_empty() { continue; }
+        if let Some(rel) = store.tombstone(id)? {
+            let _ = std::fs::remove_file(workspace_root.join(&rel));
+            tombstone_callback(id);
+            stats.removed += 1;
+        }
+    }
+    for msg in messages {
+        let markdown = to_markdown(msg);
+        let blob_dir = workspace_root.join(".keepance").join("mail").join("blobs");
+        std::fs::create_dir_all(&blob_dir)?;
+        let safe = safe_filename(&msg.id);
+        let blob_filename = format!("{}.enc", safe);
+        let blob_abs = blob_dir.join(&blob_filename);
+        let encrypted = encrypt_with_key(markdown.as_bytes(), key)?;
+        std::fs::write(&blob_abs, &encrypted)?;
+        let rel = format!(".keepance/mail/blobs/{}", blob_filename);
+        store.upsert(&MailRecord {
+            id: msg.id.clone(),
+            folder_id: folder_id.to_string(),
+            internet_message_id: msg.internet_message_id.clone(),
+            relative_path: rel,
+            received_date_time: msg.received_date_time.clone(),
+        })?;
+        index_callback(&msg.id, &markdown);
+        stats.written += 1;
+    }
+    Ok(stats)
+}
+
 /// Encrypted variant of apply_page.
 ///
 /// Differences from `apply_page`:
@@ -82,64 +131,19 @@ where
     F: Fn(&str, &str),
     T: Fn(&str),
 {
-    let mut stats = PageStats::default();
-    let items = page
-        .get("value")
-        .and_then(|v| v.as_array())
-        .cloned()
-        .unwrap_or_default();
-
+    let items = page.get("value").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let mut messages: Vec<MailMessage> = Vec::new();
+    let mut removed_ids: Vec<String> = Vec::new();
     for item in &items {
         let id = item.get("id").and_then(|s| s.as_str()).unwrap_or("");
-        if id.is_empty() {
-            continue;
-        }
-
+        if id.is_empty() { continue; }
         if MailMessage::is_removed(item) {
-            if let Some(rel) = store.tombstone(id)? {
-                // Delete the encrypted blob (relative path points to .enc file).
-                let _ = std::fs::remove_file(workspace_root.join(&rel));
-                // S3: delete the RAG chunks for this mail id so deleted email
-                // stops surfacing in rag_retrieve. The callback is fire-and-forget
-                // (spawned as a tokio task by the caller).
-                tombstone_callback(id);
-                stats.removed += 1;
-            }
-            continue;
-        }
-
-        if let Some(msg) = MailMessage::from_graph(item) {
-            let markdown = to_markdown(&msg);
-
-            // Encrypt the markdown and write the blob.
-            let blob_dir = workspace_root
-                .join(".keepance")
-                .join("mail")
-                .join("blobs");
-            std::fs::create_dir_all(&blob_dir)?;
-            let safe = safe_filename(&msg.id);
-            let blob_filename = format!("{}.enc", safe);
-            let blob_abs = blob_dir.join(&blob_filename);
-            let encrypted = encrypt_with_key(markdown.as_bytes(), key)?;
-            std::fs::write(&blob_abs, &encrypted)?;
-
-            let rel = format!(".keepance/mail/blobs/{}", blob_filename);
-            store.upsert(&MailRecord {
-                id: msg.id.clone(),
-                folder_id: folder_id.to_string(),
-                internet_message_id: msg.internet_message_id.clone(),
-                relative_path: rel,
-                received_date_time: msg.received_date_time.clone(),
-            })?;
-
-            // Feed decrypted text to the in-memory indexer (RAG + keyword).
-            // This is the ONLY place the plaintext exists — never written to disk.
-            index_callback(&msg.id, &markdown);
-
-            stats.written += 1;
+            removed_ids.push(id.to_string());
+        } else if let Some(m) = MailMessage::from_graph(item) {
+            messages.push(m);
         }
     }
-    Ok(stats)
+    apply_messages_enc(store, workspace_root, folder_id, &messages, &removed_ids, key, index_callback, tombstone_callback)
 }
 
 /// G7: Migration — remove the plaintext `Mail/` directory written by Phase 1.
@@ -215,16 +219,14 @@ pub async fn sync_folder<F: Fn(u32, u32) + Send>(
     Ok(total)
 }
 
-/// Encrypted variant of sync_folder. Uses apply_page_enc instead of apply_page.
-/// `index_callback` receives (doc_id, plaintext_markdown) for each new message —
-/// the caller feeds this to the RAG indexer and MiniSearch without persisting it.
-/// `tombstone_callback` receives (doc_id) for each tombstoned message — the
-/// caller spawns an async task to delete the corresponding LanceDB RAG chunks (S3).
-pub async fn sync_folder_enc<F, I, T>(
-    client: &GraphClient,
+/// Provider-agnostic encrypted folder sync. Loops a provider's `fetch_changes`,
+/// persisting the resume cursor after each page, applying via `apply_messages_enc`.
+pub async fn sync_folder_provider<F, I, T>(
+    provider: &dyn MailProvider,
     store: &(dyn MailStore + Sync),
     workspace_root: &Path,
-    folder_id: &str,
+    folder: &RemoteFolder,
+    account: &str,
     key: &[u8; 32],
     emit: &F,
     index_callback: &I,
@@ -235,45 +237,21 @@ where
     I: Fn(&str, &str) + Send + Sync,
     T: Fn(&str) + Send + Sync,
 {
-    let mut url = match store.get_cursor(folder_id)? {
-        Some(saved) => saved,
-        None => client.delta_start_url(folder_id),
-    };
+    // Scope the resume cursor by provider + account + folder so multiple accounts
+    // (even two of the same provider, or an IMAP "INBOX" vs an M365 inbox) never
+    // collide on a folder id.
+    let cursor_key = format!("{}\u{1}{}\u{1}{}", provider.kind(), account, folder.id);
+    let mut cursor = Cursor::from_token(store.get_cursor(&cursor_key)?);
     let mut total = PageStats::default();
-    let mut delta_gone_count = 0u32;
     loop {
-        let page = match client.get_json(&url).await {
-            Ok(p) => p,
-            Err(e) if e.downcast_ref::<DeltaGone>().is_some() => {
-                // Bound the 410 resync loop: a server stuck on 410 must not spin
-                // forever (it holds the sync slot and blocks cancellation).
-                delta_gone_count += 1;
-                if delta_gone_count > MAX_DELTA_RESETS {
-                    return Err(anyhow::anyhow!(
-                        "folder {folder_id}: delta token expired {delta_gone_count}x in a row; giving up"
-                    ));
-                }
-                store.set_cursor(folder_id, &client.delta_start_url(folder_id))?;
-                url = client.delta_start_url(folder_id);
-                continue;
-            }
-            Err(e) => return Err(e),
-        };
-        let s = apply_page_enc(store, workspace_root, folder_id, &page, key, index_callback, tombstone_callback)?;
+        let page = provider.fetch_changes(folder, &cursor).await?;
+        let s = apply_messages_enc(store, workspace_root, &folder.id, &page.messages, &page.removed_ids, key, index_callback, tombstone_callback)?;
         total.written += s.written;
         total.removed += s.removed;
         emit(total.written, total.removed);
-        match page_continuation(&page) {
-            Continuation::Next(next) => {
-                store.set_cursor(folder_id, &next)?;
-                url = next;
-            }
-            Continuation::Delta(delta) => {
-                store.set_cursor(folder_id, &delta)?;
-                break;
-            }
-            Continuation::End => break,
-        }
+        if let Some(tok) = &page.next { store.set_cursor(&cursor_key, tok)?; }
+        if page.done { break; }
+        cursor = Cursor::from_token(page.next);
     }
     Ok(total)
 }
@@ -436,6 +414,25 @@ mod tests {
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].0, "m3");
         assert!(pairs[0].1.contains("Index me!"), "callback receives plaintext");
+    }
+
+    #[test]
+    fn apply_messages_enc_writes_blob_and_indexes() {
+        let store = FakeStore::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x11u8; 32];
+        let mut m = crate::commands::mail::model::MailMessage::from_graph(&serde_json::json!({
+            "id":"mm1","subject":"Hi","body":{"contentType":"text","content":"hello world"}
+        })).unwrap();
+        m.account = "acct".into();
+        let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let cap2 = captured.clone();
+        let stats = apply_messages_enc(&store, dir.path(), "inbox", &[m], &[], &key,
+            &|id: &str, _t: &str| { cap2.lock().unwrap().push(id.to_string()); },
+            &|_id: &str| {}).unwrap();
+        assert_eq!(stats.written, 1);
+        assert!(store.contains("mm1").unwrap());
+        assert_eq!(captured.lock().unwrap().as_slice(), &["mm1"]);
     }
 
     // S3 tests ----------------------------------------------------------------

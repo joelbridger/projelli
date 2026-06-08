@@ -49,6 +49,7 @@ import { McpSettingsSection } from '@/components/settings/McpSettingsSection';
 import { OllamaSettingsSection } from '@/components/settings/OllamaSettingsSection';
 import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';
 import { MailConnect } from '@/components/settings/MailConnect';
+import { MailImapConnect } from '@/components/settings/MailImapConnect';
 import { LanguagePicker } from '@/components/settings/LanguagePicker';
 import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
 import type { AuditEntry } from '@/types/audit';
@@ -746,6 +747,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
             ) : activeCategory === 'integrations' ? (
               <>
                 <MailConnect />
+                <MailImapConnect />
                 <McpSettingsSection />
                 <OllamaSettingsSection />
               </>

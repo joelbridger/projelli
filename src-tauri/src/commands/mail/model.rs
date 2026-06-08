@@ -29,6 +29,10 @@ pub struct MailMessage {
     pub from_address: Option<String>,
     pub to: Vec<Recipient>,
     pub cc: Vec<Recipient>,
+    pub folders: Vec<String>,
+    pub thread_id: Option<String>,
+    pub provider: String,
+    pub account: String,
     pub has_attachments: bool,
     pub body_content_type: BodyContentType,
     pub body_text: String,
@@ -76,12 +80,14 @@ impl MailMessage {
             Some("html") => BodyContentType::Html,
             _ => BodyContentType::Text,
         };
+        let conversation_id = v
+            .get("conversationId")
+            .and_then(|s| s.as_str())
+            .map(String::from);
         Some(MailMessage {
             id,
-            conversation_id: v
-                .get("conversationId")
-                .and_then(|s| s.as_str())
-                .map(String::from),
+            thread_id: conversation_id.clone(),
+            conversation_id,
             internet_message_id: v
                 .get("internetMessageId")
                 .and_then(|s| s.as_str())
@@ -105,6 +111,9 @@ impl MailMessage {
                 .map(String::from),
             to: recipients(v, "toRecipients"),
             cc: recipients(v, "ccRecipients"),
+            folders: vec![],
+            provider: "m365".to_string(),
+            account: String::new(),
             has_attachments: v
                 .get("hasAttachments")
                 .and_then(|b| b.as_bool())
@@ -167,5 +176,14 @@ mod tests {
         let m = MailMessage::from_graph(&j).unwrap();
         assert_eq!(m.body_content_type, BodyContentType::Html);
         assert_eq!(m.body_text, "<p>Hi <b>there</b></p>"); // raw kept; stripping is a later task
+    }
+
+    #[test]
+    fn from_graph_sets_provenance_fields() {
+        let m = MailMessage::from_graph(&sample_graph_json()).expect("parse");
+        assert_eq!(m.provider, "m365");
+        assert_eq!(m.thread_id.as_deref(), Some("conv-9"));   // from conversationId
+        assert!(m.folders.is_empty());                         // folder is assigned by the sync layer
+        assert_eq!(m.account, "");                             // account is assigned by the sync layer
     }
 }
