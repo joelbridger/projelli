@@ -34,8 +34,10 @@ const GMAIL_ACCOUNT: &str = "default"; // single Gmail account today; cursors ar
 
 fn gmail_client_id() -> String {
     option_env!("KEEPANCE_GMAIL_CLIENT_ID")
-        // PLACEHOLDER — replaced with the real Desktop OAuth client id after the Google Cloud registration.
-        .unwrap_or("PLACEHOLDER_GMAIL_CLIENT_ID.apps.googleusercontent.com")
+        // Desktop OAuth client for the "Keepance Mail" Google Cloud project
+        // (registered under jamesondaines4@gmail.com, 2026-06-08). A public-client
+        // id is not a secret; the loopback+PKCE flow needs no client secret.
+        .unwrap_or("194900913942-1ubo8rmfe3mfh1o0gaauv60vktllpl7t.apps.googleusercontent.com")
         .to_string()
 }
 pub const SYNC_PROGRESS_EVENT: &str = "mail-sync-progress";
