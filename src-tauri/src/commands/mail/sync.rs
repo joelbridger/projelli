@@ -52,6 +52,54 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
     Ok(stats)
 }
 
+/// Apply already-normalized changes to the encrypted store + index. Provider-
+/// agnostic core used by `apply_page_enc` (Graph) and future Gmail/IMAP paths.
+pub fn apply_messages_enc<F, T>(
+    store: &dyn MailStore,
+    workspace_root: &Path,
+    folder_id: &str,
+    messages: &[MailMessage],
+    removed_ids: &[String],
+    key: &[u8; 32],
+    index_callback: &F,
+    tombstone_callback: &T,
+) -> anyhow::Result<PageStats>
+where
+    F: Fn(&str, &str),
+    T: Fn(&str),
+{
+    let mut stats = PageStats::default();
+    for id in removed_ids {
+        if id.is_empty() { continue; }
+        if let Some(rel) = store.tombstone(id)? {
+            let _ = std::fs::remove_file(workspace_root.join(&rel));
+            tombstone_callback(id);
+            stats.removed += 1;
+        }
+    }
+    for msg in messages {
+        let markdown = to_markdown(msg);
+        let blob_dir = workspace_root.join(".keepance").join("mail").join("blobs");
+        std::fs::create_dir_all(&blob_dir)?;
+        let safe = safe_filename(&msg.id);
+        let blob_filename = format!("{}.enc", safe);
+        let blob_abs = blob_dir.join(&blob_filename);
+        let encrypted = encrypt_with_key(markdown.as_bytes(), key)?;
+        std::fs::write(&blob_abs, &encrypted)?;
+        let rel = format!(".keepance/mail/blobs/{}", blob_filename);
+        store.upsert(&MailRecord {
+            id: msg.id.clone(),
+            folder_id: folder_id.to_string(),
+            internet_message_id: msg.internet_message_id.clone(),
+            relative_path: rel,
+            received_date_time: msg.received_date_time.clone(),
+        })?;
+        index_callback(&msg.id, &markdown);
+        stats.written += 1;
+    }
+    Ok(stats)
+}
+
 /// Encrypted variant of apply_page.
 ///
 /// Differences from `apply_page`:
@@ -82,64 +130,19 @@ where
     F: Fn(&str, &str),
     T: Fn(&str),
 {
-    let mut stats = PageStats::default();
-    let items = page
-        .get("value")
-        .and_then(|v| v.as_array())
-        .cloned()
-        .unwrap_or_default();
-
+    let items = page.get("value").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+    let mut messages: Vec<MailMessage> = Vec::new();
+    let mut removed_ids: Vec<String> = Vec::new();
     for item in &items {
         let id = item.get("id").and_then(|s| s.as_str()).unwrap_or("");
-        if id.is_empty() {
-            continue;
-        }
-
+        if id.is_empty() { continue; }
         if MailMessage::is_removed(item) {
-            if let Some(rel) = store.tombstone(id)? {
-                // Delete the encrypted blob (relative path points to .enc file).
-                let _ = std::fs::remove_file(workspace_root.join(&rel));
-                // S3: delete the RAG chunks for this mail id so deleted email
-                // stops surfacing in rag_retrieve. The callback is fire-and-forget
-                // (spawned as a tokio task by the caller).
-                tombstone_callback(id);
-                stats.removed += 1;
-            }
-            continue;
-        }
-
-        if let Some(msg) = MailMessage::from_graph(item) {
-            let markdown = to_markdown(&msg);
-
-            // Encrypt the markdown and write the blob.
-            let blob_dir = workspace_root
-                .join(".keepance")
-                .join("mail")
-                .join("blobs");
-            std::fs::create_dir_all(&blob_dir)?;
-            let safe = safe_filename(&msg.id);
-            let blob_filename = format!("{}.enc", safe);
-            let blob_abs = blob_dir.join(&blob_filename);
-            let encrypted = encrypt_with_key(markdown.as_bytes(), key)?;
-            std::fs::write(&blob_abs, &encrypted)?;
-
-            let rel = format!(".keepance/mail/blobs/{}", blob_filename);
-            store.upsert(&MailRecord {
-                id: msg.id.clone(),
-                folder_id: folder_id.to_string(),
-                internet_message_id: msg.internet_message_id.clone(),
-                relative_path: rel,
-                received_date_time: msg.received_date_time.clone(),
-            })?;
-
-            // Feed decrypted text to the in-memory indexer (RAG + keyword).
-            // This is the ONLY place the plaintext exists — never written to disk.
-            index_callback(&msg.id, &markdown);
-
-            stats.written += 1;
+            removed_ids.push(id.to_string());
+        } else if let Some(m) = MailMessage::from_graph(item) {
+            messages.push(m);
         }
     }
-    Ok(stats)
+    apply_messages_enc(store, workspace_root, folder_id, &messages, &removed_ids, key, index_callback, tombstone_callback)
 }
 
 /// G7: Migration — remove the plaintext `Mail/` directory written by Phase 1.
@@ -436,6 +439,25 @@ mod tests {
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].0, "m3");
         assert!(pairs[0].1.contains("Index me!"), "callback receives plaintext");
+    }
+
+    #[test]
+    fn apply_messages_enc_writes_blob_and_indexes() {
+        let store = FakeStore::default();
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x11u8; 32];
+        let mut m = crate::commands::mail::model::MailMessage::from_graph(&serde_json::json!({
+            "id":"mm1","subject":"Hi","body":{"contentType":"text","content":"hello world"}
+        })).unwrap();
+        m.account = "acct".into();
+        let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+        let cap2 = captured.clone();
+        let stats = apply_messages_enc(&store, dir.path(), "inbox", &[m], &[], &key,
+            &|id: &str, _t: &str| { cap2.lock().unwrap().push(id.to_string()); },
+            &|_id: &str| {}).unwrap();
+        assert_eq!(stats.written, 1);
+        assert!(store.contains("mm1").unwrap());
+        assert_eq!(captured.lock().unwrap().as_slice(), &["mm1"]);
     }
 
     // S3 tests ----------------------------------------------------------------
