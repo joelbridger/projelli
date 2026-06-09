@@ -977,6 +977,16 @@
       "no-html__sourceHash": "407001c06145d57a6dd7143fd0e3e8e7554be541a3cedb5e1295006dd0a5da72"
     }
   },
+  "matter": {
+    "manager": {
+      "mail-label": "Cuentas de correo en este asunto",
+      "mail-label__sourceHash": "894f4e905bce6814391e9107fa9e0d0e23f8d94eee4a68377ba19ce693254204",
+      "no-mail-accounts": "Conecta una cuenta de correo en Ajustes para asignarla a este asunto.",
+      "no-mail-accounts__sourceHash": "f70cdbae3d15c210bed435039db2131924d653e252a9894ced3068cb495ece3f",
+      "mail-account-hint": "El correo de una cuenta asignada queda acotado a este asunto.",
+      "mail-account-hint__sourceHash": "a15b0e3173e41645bc5d1cce02ad1d26d8bab3856b2202f65365a049f43a1829"
+    }
+  },
   "media": {
     "presentation": {
       "basic-preview": "Vista previa básica. Instala <a>LibreOffice</a> para mayor fidelidad.",

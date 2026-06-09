@@ -49,6 +49,7 @@ import { WaveformEditor } from '@/components/audio/WaveformEditor';
 import { VersionHistoryPanel } from '@/components/version/VersionHistoryPanel';
 import { BrowserPanel } from '@/components/workflow/BrowserPanel';
 import { WorkflowExecutionTab } from '@/components/workflow/WorkflowExecutionTab';
+import { EmailViewer } from '@/components/mail/EmailViewer';
 import {
   fileDataToExecution,
   isWorkflowFilePath,
@@ -614,6 +615,13 @@ export function MainPanel({
             className="h-full"
           />
         );
+      }
+      // Keepance 3.0 email viewer tab — read-only view of one stored message.
+      // The message id rides in metadata.mailSourceId (falling back to the tab
+      // path, which is the `mail:<id>` key for citation-opened messages).
+      if (tab.type === 'email') {
+        const sourceId = tab.metadata?.mailSourceId ?? tab.path;
+        return <EmailViewer sourceId={sourceId} className="h-full" />;
       }
       // Workflow execution tab — dispatched purely by the `.workflow`
       // extension so the same renderer covers (a) a freshly-opened live run

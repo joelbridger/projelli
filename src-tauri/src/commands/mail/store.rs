@@ -24,6 +24,52 @@ pub struct MailRecord {
     pub internet_message_id: Option<String>,
     pub relative_path: String,
     pub received_date_time: Option<String>,
+    /// WS-B/C: provider this message came from ("m365" | "gmail" | "imap").
+    /// Together with `account` + `folder_id` this is the mail-folder key a
+    /// matter maps to. Defaults to "" on pre-mapping rows (a fresh sync fills it).
+    pub provider: String,
+    /// WS-B/C: account id within the provider (the mailbox). Part of the
+    /// mail-folder key. Defaults to "" on pre-mapping rows.
+    pub account: String,
+}
+
+/// Map a `messages` row (in the canonical column order used by `get_record`)
+/// to a `MailRecord`. Shared by both store implementations.
+fn row_to_mail_record(r: &rusqlite::Row<'_>) -> rusqlite::Result<MailRecord> {
+    Ok(MailRecord {
+        id: r.get(0)?,
+        folder_id: r.get(1)?,
+        internet_message_id: r.get(2)?,
+        relative_path: r.get(3)?,
+        received_date_time: r.get(4)?,
+        provider: r.get(5)?,
+        account: r.get(6)?,
+    })
+}
+
+/// List message ids for a (provider, account, folder). An empty filter value
+/// matches any value for that column (so an account-level mapping with an empty
+/// `folder_id` returns every message in the account). Shared by both stores.
+fn query_ids_in_folder(
+    conn: &Connection,
+    provider: &str,
+    account: &str,
+    folder_id: &str,
+) -> Result<Vec<String>> {
+    // `(?1 = '' OR provider = ?1)` makes an empty filter a wildcard without
+    // needing dynamic SQL. Same for account + folder.
+    let mut stmt = conn.prepare(
+        "SELECT id FROM messages
+         WHERE (?1 = '' OR provider = ?1)
+           AND (?2 = '' OR account = ?2)
+           AND (?3 = '' OR folder_id = ?3)",
+    )?;
+    let rows = stmt
+        .query_map(rusqlite::params![provider, account, folder_id], |r| {
+            r.get::<_, String>(0)
+        })?
+        .collect::<rusqlite::Result<Vec<String>>>()?;
+    Ok(rows)
 }
 
 // ---------------------------------------------------------------------------
@@ -42,6 +88,20 @@ pub trait MailStore: Send + Sync {
     fn tombstone(&self, id: &str) -> Result<Option<String>>;
     /// Returns true if a record with this id is present.
     fn contains(&self, id: &str) -> Result<bool>;
+    /// Fetch the full record for `id`, or `None` if absent. Used by the mail
+    /// viewer to locate (and then decrypt) one stored message.
+    fn get_record(&self, id: &str) -> Result<Option<MailRecord>>;
+    /// List the message ids stored under a given (provider, account, folder).
+    /// Used to re-tag a folder's mail to a matter in place. An empty `account`
+    /// or `provider` filter matches any value for that column, so an
+    /// account-level mapping (provider/account, empty folder) can re-tag every
+    /// folder in that account.
+    fn ids_in_folder(
+        &self,
+        provider: &str,
+        account: &str,
+        folder_id: &str,
+    ) -> Result<Vec<String>>;
     /// Total number of tracked messages (useful for tests + diagnostics).
     fn count(&self) -> Result<i64>;
     /// Retrieve the per-folder MS Graph delta-link cursor, or `None` if not yet set.
@@ -79,17 +139,34 @@ impl SqliteMailStore {
                 folder_id            TEXT NOT NULL,
                 internet_message_id  TEXT,
                 relative_path        TEXT NOT NULL,
-                received_date_time   TEXT
+                received_date_time   TEXT,
+                provider             TEXT NOT NULL DEFAULT '',
+                account              TEXT NOT NULL DEFAULT ''
             );
              CREATE TABLE IF NOT EXISTS folder_cursors (
                 folder_id  TEXT PRIMARY KEY,
                 cursor     TEXT NOT NULL
             );",
         )?;
+        migrate_message_columns(&conn);
         Ok(Self {
             conn: std::sync::Mutex::new(conn),
         })
     }
+}
+
+/// Idempotent migration: add the `provider` / `account` columns to a pre-mapping
+/// `messages` table. `ALTER TABLE ADD COLUMN` errors if the column already
+/// exists, so we ignore the error (SQLite has no `ADD COLUMN IF NOT EXISTS`).
+fn migrate_message_columns(conn: &Connection) {
+    let _ = conn.execute(
+        "ALTER TABLE messages ADD COLUMN provider TEXT NOT NULL DEFAULT ''",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE messages ADD COLUMN account TEXT NOT NULL DEFAULT ''",
+        [],
+    );
 }
 
 impl MailStore for SqliteMailStore {
@@ -97,19 +174,23 @@ impl MailStore for SqliteMailStore {
         let c = self.conn.lock().unwrap();
         c.execute(
             "INSERT INTO messages
-                (id, folder_id, internet_message_id, relative_path, received_date_time)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+                (id, folder_id, internet_message_id, relative_path, received_date_time, provider, account)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(id) DO UPDATE SET
                 folder_id           = ?2,
                 internet_message_id = ?3,
                 relative_path       = ?4,
-                received_date_time  = ?5",
+                received_date_time  = ?5,
+                provider            = ?6,
+                account             = ?7",
             rusqlite::params![
                 rec.id,
                 rec.folder_id,
                 rec.internet_message_id,
                 rec.relative_path,
-                rec.received_date_time
+                rec.received_date_time,
+                rec.provider,
+                rec.account
             ],
         )?;
         Ok(())
@@ -138,6 +219,29 @@ impl MailStore for SqliteMailStore {
             |_| Ok(()),
         )
         .is_ok())
+    }
+
+    fn get_record(&self, id: &str) -> Result<Option<MailRecord>> {
+        let c = self.conn.lock().unwrap();
+        let rec = c
+            .query_row(
+                "SELECT id, folder_id, internet_message_id, relative_path, received_date_time, provider, account
+                 FROM messages WHERE id = ?1",
+                [id],
+                row_to_mail_record,
+            )
+            .ok();
+        Ok(rec)
+    }
+
+    fn ids_in_folder(
+        &self,
+        provider: &str,
+        account: &str,
+        folder_id: &str,
+    ) -> Result<Vec<String>> {
+        let c = self.conn.lock().unwrap();
+        query_ids_in_folder(&c, provider, account, folder_id)
     }
 
     fn count(&self) -> Result<i64> {
@@ -215,13 +319,16 @@ impl EncryptedMailStore {
                 folder_id            TEXT NOT NULL,
                 internet_message_id  TEXT,
                 relative_path        TEXT NOT NULL,
-                received_date_time   TEXT
+                received_date_time   TEXT,
+                provider             TEXT NOT NULL DEFAULT '',
+                account              TEXT NOT NULL DEFAULT ''
             );
              CREATE TABLE IF NOT EXISTS folder_cursors (
                 folder_id  TEXT PRIMARY KEY,
                 cursor     TEXT NOT NULL
             );",
         )?;
+        migrate_message_columns(&conn);
         Ok(Self {
             conn: std::sync::Mutex::new(conn),
             workspace_root: workspace_root.to_path_buf(),
@@ -284,16 +391,18 @@ impl MailStore for EncryptedMailStore {
         let c = self.conn.lock().unwrap();
         c.execute(
             "INSERT INTO messages
-                (id, folder_id, internet_message_id, relative_path, received_date_time)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+                (id, folder_id, internet_message_id, relative_path, received_date_time, provider, account)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
              ON CONFLICT(id) DO UPDATE SET
                 folder_id           = ?2,
                 internet_message_id = ?3,
                 relative_path       = ?4,
-                received_date_time  = ?5",
+                received_date_time  = ?5,
+                provider            = ?6,
+                account             = ?7",
             rusqlite::params![
                 rec.id, rec.folder_id, rec.internet_message_id,
-                rec.relative_path, rec.received_date_time
+                rec.relative_path, rec.received_date_time, rec.provider, rec.account
             ],
         )?;
         Ok(())
@@ -325,6 +434,29 @@ impl MailStore for EncryptedMailStore {
             |_| Ok(()),
         )
         .is_ok())
+    }
+
+    fn get_record(&self, id: &str) -> Result<Option<MailRecord>> {
+        let c = self.conn.lock().unwrap();
+        let rec = c
+            .query_row(
+                "SELECT id, folder_id, internet_message_id, relative_path, received_date_time, provider, account
+                 FROM messages WHERE id = ?1",
+                [id],
+                row_to_mail_record,
+            )
+            .ok();
+        Ok(rec)
+    }
+
+    fn ids_in_folder(
+        &self,
+        provider: &str,
+        account: &str,
+        folder_id: &str,
+    ) -> Result<Vec<String>> {
+        let c = self.conn.lock().unwrap();
+        query_ids_in_folder(&c, provider, account, folder_id)
     }
 
     fn count(&self) -> Result<i64> {
@@ -377,11 +509,18 @@ mod tests {
             internet_message_id: Some("<x@y>".into()),
             relative_path: "Mail/inbox/m1.md".into(),
             received_date_time: Some("2026-05-01T00:00:00Z".into()),
+            provider: "m365".into(),
+            account: "default".into(),
         };
         s.upsert(&rec).unwrap();
         s.upsert(&rec).unwrap(); // replay must not duplicate
         assert_eq!(s.count().unwrap(), 1);
         assert!(s.contains("m1").unwrap());
+        // get_record round-trips the new provider/account columns.
+        let got = s.get_record("m1").unwrap().expect("record present");
+        assert_eq!(got.provider, "m365");
+        assert_eq!(got.account, "default");
+        assert_eq!(got.folder_id, "inbox");
     }
 
     #[test]
@@ -393,6 +532,8 @@ mod tests {
             internet_message_id: None,
             relative_path: "Mail/inbox/m1.md".into(),
             received_date_time: None,
+            provider: "m365".into(),
+            account: "default".into(),
         };
         s.upsert(&rec).unwrap();
         let removed = s.tombstone("m1").unwrap();
@@ -438,11 +579,43 @@ mod tests {
             internet_message_id: Some("<x@y>".into()),
             relative_path: ".keepance/mail/blobs/m1.enc".into(),
             received_date_time: Some("2026-05-01T00:00:00Z".into()),
+            provider: "m365".into(), account: "default".into(),
         };
         s.upsert(&rec).unwrap();
         s.upsert(&rec).unwrap();
         assert_eq!(s.count().unwrap(), 1);
         assert!(s.contains("m1").unwrap());
+        // get_record round-trips through the SQLCipher store too.
+        let got = s.get_record("m1").unwrap().expect("record present");
+        assert_eq!(got.provider, "m365");
+        assert_eq!(got.account, "default");
+    }
+
+    #[test]
+    fn enc_ids_in_folder_filters_by_provider_account_folder() {
+        let (_d, s) = enc_store();
+        let mk = |id: &str, provider: &str, account: &str, folder: &str| MailRecord {
+            id: id.into(), folder_id: folder.into(), internet_message_id: None,
+            relative_path: format!(".keepance/mail/blobs/{}.enc", id),
+            received_date_time: None, provider: provider.into(), account: account.into(),
+        };
+        s.upsert(&mk("a", "m365", "default", "inbox")).unwrap();
+        s.upsert(&mk("b", "m365", "default", "inbox")).unwrap();
+        s.upsert(&mk("c", "m365", "default", "sent")).unwrap();
+        s.upsert(&mk("d", "gmail", "default", "INBOX")).unwrap();
+
+        // Exact (provider, account, folder).
+        let mut inbox = s.ids_in_folder("m365", "default", "inbox").unwrap();
+        inbox.sort();
+        assert_eq!(inbox, vec!["a", "b"]);
+
+        // Account-level (empty folder) returns every folder in that account.
+        let mut acct = s.ids_in_folder("m365", "default", "").unwrap();
+        acct.sort();
+        assert_eq!(acct, vec!["a", "b", "c"]);
+
+        // Different provider is isolated.
+        assert_eq!(s.ids_in_folder("gmail", "default", "INBOX").unwrap(), vec!["d"]);
     }
 
     #[test]
@@ -459,6 +632,7 @@ mod tests {
             internet_message_id: None,
             relative_path: rel.clone(),
             received_date_time: None,
+            provider: "m365".into(), account: "default".into(),
         };
         s.upsert(&rec).unwrap();
 
@@ -523,6 +697,7 @@ mod tests {
             internet_message_id: None,
             relative_path: "x".into(),
             received_date_time: None,
+            provider: "m365".into(), account: "default".into(),
         }).unwrap();
         drop(s); // close the connection so file is flushed
 
@@ -546,6 +721,7 @@ mod tests {
                 internet_message_id: Some("<persisted@test>".into()),
                 relative_path: ".keepance/mail/blobs/persisted.enc".into(),
                 received_date_time: Some("2026-06-06T00:00:00Z".into()),
+                provider: "m365".into(), account: "default".into(),
             }).unwrap();
         } // connection dropped / closed
 
@@ -566,6 +742,7 @@ mod tests {
             internet_message_id: None,
             relative_path: "Mail/f1/r.md".into(),
             received_date_time: None,
+            provider: String::new(), account: String::new(),
         };
         s.upsert(&rec).unwrap();
         assert!(s.contains("regression-check").unwrap());

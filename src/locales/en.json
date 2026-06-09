@@ -771,7 +771,10 @@
       "delete": "Delete matter",
       "empty": "No matters yet. Create your first matter above.",
       "folders-label": "Folders in this matter",
-      "no-folders": "Open a workspace to map folders to this matter."
+      "no-folders": "Open a workspace to map folders to this matter.",
+      "mail-label": "Email accounts in this matter",
+      "no-mail-accounts": "Connect an email account in Settings to map it to this matter.",
+      "mail-account-hint": "Email from a mapped account is scoped to this matter."
     }
   },
   "privacy": {

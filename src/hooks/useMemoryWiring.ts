@@ -28,7 +28,9 @@ import {
   setPrivilegeResolver,
 } from '@/modules/memory/MemoryService';
 import { resolveMatterIdForPath, useMatterStore } from '@/stores/matterStore';
-import { isPathInFolder } from '@/modules/memory/matterResolver';
+import { isPathInFolder, parseMailFolderKey } from '@/modules/memory/matterResolver';
+import { UNASSIGNED_MATTER_ID } from '@/types/matter';
+import { mailRetagFolderMatter } from '@/utils/mail-commands';
 import {
   resolvePrivilegeForSource,
   usePrivilegeStore,
@@ -129,6 +131,33 @@ export function changedFolderPaths(
     if (!after.has(folder)) changed.add(folder); // folder removed from a matter
   }
   return Array.from(changed);
+}
+
+/**
+ * WS-B/C — diff two matters' mail-folder mappings and return the set of mail
+ * folder keys whose matter assignment changed (added, removed, or moved between
+ * matters), as `{ key, matterId }` (the resolved matter id after the change, or
+ * the unassigned sentinel when the key was unmapped). When a mapping changes we
+ * re-tag the already-synced mail in that folder so retrieval scoping updates
+ * immediately. Mirrors `changedFolderPaths` but for mail folder keys.
+ */
+export function changedMailFolderPaths(
+  prev: Array<{ id: string; mailFolderPaths?: string[] }>,
+  next: Array<{ id: string; mailFolderPaths?: string[] }>,
+): Array<{ key: string; matterId: string }> {
+  const before = new Map<string, string>(); // key -> matterId
+  for (const m of prev) for (const k of m.mailFolderPaths ?? []) before.set(k, m.id);
+  const after = new Map<string, string>();
+  for (const m of next) for (const k of m.mailFolderPaths ?? []) after.set(k, m.id);
+
+  const changed = new Map<string, string>(); // key -> resolved matterId after change
+  for (const [key, id] of after) {
+    if (before.get(key) !== id) changed.set(key, id);
+  }
+  for (const [key] of before) {
+    if (!after.has(key)) changed.set(key, UNASSIGNED_MATTER_ID); // unmapped -> unassigned
+  }
+  return Array.from(changed, ([key, matterId]) => ({ key, matterId }));
 }
 
 /**
@@ -351,6 +380,42 @@ export function useMemoryWiring(
       }
       for (const [matterId, paths] of byMatter) {
         void MemoryService.reindexPaths(paths, matterId).catch(() => {});
+      }
+    });
+    return unsubscribe;
+  }, [rootPath]);
+
+  // WS-B/C — re-tag synced mail when a matter's mail-folder mapping changes.
+  // Mapping a mail folder to a matter (or remapping/unmapping it) must re-scope
+  // the email already imported from that folder so retrieval reflects the new
+  // matter immediately, without a full re-sync. We diff the matters' mail-folder
+  // mappings on every change and re-tag each affected folder's messages IN PLACE
+  // via `mail_retag_folder_matter` (the same re-tag path files use). Best-effort
+  // and debounced by Zustand's single-notification-per-set semantics.
+  useEffect(() => {
+    if (!rootPath) return;
+    let prevMatters = useMatterStore.getState().matters.map((m) => ({
+      id: m.id,
+      mailFolderPaths: m.mailFolderPaths ?? [],
+    }));
+
+    const unsubscribe = useMatterStore.subscribe((state) => {
+      const nextMatters = state.matters.map((m) => ({
+        id: m.id,
+        mailFolderPaths: m.mailFolderPaths ?? [],
+      }));
+      const changed = changedMailFolderPaths(prevMatters, nextMatters);
+      prevMatters = nextMatters;
+      if (changed.length === 0) return;
+      for (const { key, matterId } of changed) {
+        const parsed = parseMailFolderKey(key);
+        if (!parsed) continue;
+        void mailRetagFolderMatter(
+          parsed.provider,
+          parsed.account,
+          parsed.folderId,
+          matterId,
+        ).catch(() => {});
       }
     });
     return unsubscribe;

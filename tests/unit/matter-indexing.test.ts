@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   ragRetrieve: vi.fn(),
   ragCancelIndexing: vi.fn(),
   ragDeletePath: vi.fn(),
+  ragRetagMatter: vi.fn(),
 }));
 
 vi.mock('@/utils/tauri-commands', () => ({
@@ -29,6 +30,7 @@ vi.mock('@/utils/tauri-commands', () => ({
   ragRetrieve: mocks.ragRetrieve,
   ragCancelIndexing: mocks.ragCancelIndexing,
   ragDeletePath: mocks.ragDeletePath,
+  ragRetagMatter: mocks.ragRetagMatter,
 }));
 
 import {
@@ -112,5 +114,19 @@ describe('MemoryService indexing carries matter id', () => {
       { kind: 'matter', matterId: 'm1' },
       false,
     );
+  });
+
+  it('retagMatter forwards the source id and matter to rag_retag_matter', async () => {
+    mocks.ragRetagMatter.mockResolvedValue(2);
+    const n = await MemoryService.retagMatter('mail:AAMk-1', 'matter_a');
+    expect(mocks.ragRetagMatter).toHaveBeenCalledWith('mail:AAMk-1', 'matter_a');
+    expect(n).toBe(2);
+  });
+
+  it('retagMatter is a no-op when memory is disabled', async () => {
+    setMemoryEnabledReader(() => false);
+    const n = await MemoryService.retagMatter('mail:AAMk-1', 'matter_a');
+    expect(mocks.ragRetagMatter).not.toHaveBeenCalled();
+    expect(n).toBe(0);
   });
 });

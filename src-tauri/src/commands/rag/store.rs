@@ -529,6 +529,37 @@ pub async fn retag_privilege_for_path(
     Ok(result.rows_updated)
 }
 
+/// WS-B/C — re-tag the matter of every already-indexed chunk for `path` IN
+/// PLACE, without re-embedding. The mirror of `retag_privilege_for_path` for the
+/// matter scope: used when a source's matter assignment changes (e.g. a mail
+/// folder is mapped to a different matter) so retrieval scoping updates without
+/// re-running the embedder. The chunk text + vectors are unchanged; only the
+/// `matter_id` column flips, which is exactly what changes which matter scope the
+/// chunk surfaces under.
+///
+/// `matter_id` is validated (non-empty; `UNASSIGNED_MATTER` is allowed) and
+/// SQL-escaped both as the SET literal and in the WHERE clause. Returns the
+/// number of rows updated (0 when the source has not been indexed yet — it will
+/// pick up the right matter when next indexed, since the index path resolves the
+/// matter at index time).
+pub async fn retag_matter_for_path(
+    table: &Table,
+    path: &str,
+    matter_id: &str,
+) -> Result<u64> {
+    let matter_id = validate_matter_id(matter_id)?;
+    let predicate = format!("path = '{}'", sql_escape(path));
+    let value_expr = format!("'{}'", sql_escape(matter_id));
+    let result = table
+        .update()
+        .only_if(predicate)
+        .column("matter_id", value_expr)
+        .execute()
+        .await
+        .with_context(|| format!("retag matter failed for {}", path))?;
+    Ok(result.rows_updated)
+}
+
 /// One raw query result before scoring.
 #[derive(Debug, Clone)]
 pub struct StoredHit {
@@ -1400,5 +1431,84 @@ mod tests {
         // Should succeed — verifies the for-loop path (not the old .map iterator).
         let result = build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE);
         assert!(result.is_ok(), "S2: single-row build_batch_mail must return Ok; got {:?}", result.err());
+    }
+
+    // WS-B/C — mail is scoped by matter exactly like files ---------------------
+
+    /// Add a single mail chunk to `table` under `matter_id` with a deterministic
+    /// vector (no embedder needed). `seed` differentiates the vectors so the
+    /// nearest-neighbour ordering is stable.
+    async fn add_mail_chunk(table: &Table, path: &str, matter_id: &str, seed: f32) {
+        let key = [0x42u8; 32];
+        let rows = vec![(
+            Chunk {
+                path: path.into(),
+                paragraph_index: 0,
+                text: format!("confidential body for {path}"),
+                start_offset: 0,
+                end_offset: 10,
+            },
+            vec![seed; EMBEDDING_DIM],
+        )];
+        let batch = build_batch_mail(&rows, &key, matter_id, PRIVILEGE_NONE).expect("build mail batch");
+        let schema = batch.schema();
+        table
+            .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+            .execute()
+            .await
+            .expect("add mail chunk");
+    }
+
+    /// An email indexed under Matter A must be retrievable under the Matter A
+    /// scope and MUST NOT surface under the Matter B scope — the same matter
+    /// prefilter that scopes files, applied to `mail:<id>` chunks.
+    #[tokio::test]
+    async fn mail_chunk_is_retrievable_only_under_its_matter_scope() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        add_mail_chunk(&table, "mail:a-msg", "matter_a", 0.10).await;
+        add_mail_chunk(&table, "mail:b-msg", "matter_b", 0.11).await;
+
+        let q = vec![0.10f32; EMBEDDING_DIM];
+
+        // Scoped to Matter A: only the Matter-A mail comes back.
+        let hits_a = nearest(&table, &q, 10, Some("matter_a"), false).await.expect("nearest a");
+        let paths_a: Vec<&str> = hits_a.iter().map(|h| h.path.as_str()).collect();
+        assert!(paths_a.contains(&"mail:a-msg"), "Matter A scope must return Matter A mail");
+        assert!(!paths_a.contains(&"mail:b-msg"), "Matter A scope must NOT return Matter B mail");
+
+        // Scoped to Matter B: only the Matter-B mail comes back.
+        let hits_b = nearest(&table, &q, 10, Some("matter_b"), false).await.expect("nearest b");
+        let paths_b: Vec<&str> = hits_b.iter().map(|h| h.path.as_str()).collect();
+        assert!(paths_b.contains(&"mail:b-msg"));
+        assert!(!paths_b.contains(&"mail:a-msg"));
+    }
+
+    /// Re-tagging a mail's matter IN PLACE moves which scope it surfaces under,
+    /// without re-embedding — the engine half of the folder->matter remap path.
+    #[tokio::test]
+    async fn retag_matter_for_path_moves_mail_between_scopes() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        add_mail_chunk(&table, "mail:movable", "matter_a", 0.10).await;
+        let q = vec![0.10f32; EMBEDDING_DIM];
+
+        // Initially under Matter A.
+        let before = nearest(&table, &q, 10, Some("matter_a"), false).await.unwrap();
+        assert!(before.iter().any(|h| h.path == "mail:movable"));
+
+        // Re-tag to Matter B in place.
+        let updated = retag_matter_for_path(&table, "mail:movable", "matter_b").await.expect("retag");
+        assert_eq!(updated, 1, "exactly one chunk re-tagged");
+
+        // Now it is gone from Matter A and present under Matter B.
+        let after_a = nearest(&table, &q, 10, Some("matter_a"), false).await.unwrap();
+        assert!(!after_a.iter().any(|h| h.path == "mail:movable"), "must leave Matter A after re-tag");
+        let after_b = nearest(&table, &q, 10, Some("matter_b"), false).await.unwrap();
+        assert!(after_b.iter().any(|h| h.path == "mail:movable"), "must appear under Matter B after re-tag");
     }
 }

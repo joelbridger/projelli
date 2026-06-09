@@ -9,6 +9,7 @@ pub mod crypto;
 pub mod fde;
 pub mod imap;
 pub mod gmail;
+pub mod view;
 
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,7 +17,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 use crate::commands::mail::oauth::{OAuth, TokenOutcome};
 use crate::commands::mail::provider::MailProvider;
-use crate::commands::mail::store::EncryptedMailStore;
+use crate::commands::mail::store::{EncryptedMailStore, MailStore};
 
 const KEYCHAIN_SERVICE: &str = "keepance-mail-ms";
 const KEYCHAIN_REFRESH_KEY: &str = "ms-refresh-token";
@@ -52,6 +53,49 @@ pub struct MailIndexChunkPayload {
     pub doc_id: String,
     pub subject: String,
     pub decrypted_text: String,
+}
+
+/// WS-B/C: one (provider, account, folder) -> matter mapping entry, supplied by
+/// the frontend matter store. An empty `folder_id` means an account-level
+/// mapping (every folder in that account). The most specific match wins (a
+/// folder-level entry beats an account-level one), so a sub-folder filed under
+/// a different matter than its account is respected.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MailMatterMapEntry {
+    pub provider: String,
+    pub account: String,
+    #[serde(default)]
+    pub folder_id: String,
+    pub matter_id: String,
+}
+
+/// Resolve the matter id for a folder from the supplied mapping. Folder-level
+/// entries (matching provider+account+folder) take precedence over account-level
+/// entries (matching provider+account with an empty folder). Falls back to
+/// `UNASSIGNED_MATTER` when nothing matches — mail is never silently filed into a
+/// matter it was not mapped to.
+fn resolve_mail_matter(
+    map: &[MailMatterMapEntry],
+    provider: &str,
+    account: &str,
+    folder_id: &str,
+) -> String {
+    let mut account_level: Option<&str> = None;
+    for e in map {
+        if e.provider != provider || e.account != account {
+            continue;
+        }
+        if !e.folder_id.is_empty() && e.folder_id == folder_id {
+            return e.matter_id.clone(); // most specific wins
+        }
+        if e.folder_id.is_empty() {
+            account_level = Some(&e.matter_id);
+        }
+    }
+    account_level
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| crate::commands::rag::store::UNASSIGNED_MATTER.to_string())
 }
 
 pub struct MailState {
@@ -183,6 +227,132 @@ pub async fn mail_set_workspace(
     Ok(())
 }
 
+/// Fetch + decrypt ONE stored message by id and return it as a structured view
+/// for the read-only mail viewer.
+///
+/// `id` is the provider message id — the part after `mail:` in a citation
+/// source. A leading `mail:` prefix is tolerated so the viewer can pass the raw
+/// citation source id straight through.
+///
+/// The plaintext (decrypted Markdown) lives only in this process's memory and
+/// the returned struct; it is never written back to disk.
+///
+/// Pure core (`get_message_with_key`) takes the workspace + key so it is unit-
+/// testable without the OS keychain.
+fn get_message_with_key(
+    workspace: &std::path::Path,
+    id: &str,
+    key: &[u8; 32],
+) -> anyhow::Result<Option<view::MailView>> {
+    use anyhow::Context;
+    // Tolerate a "mail:" prefix so callers can pass the citation source id.
+    let id = id.strip_prefix("mail:").unwrap_or(id);
+    let store = EncryptedMailStore::open_with_key(workspace, key)
+        .context("open encrypted mail store")?;
+    let rec = match store.get_record(id)? {
+        Some(r) => r,
+        None => return Ok(None),
+    };
+    let bytes = store
+        .read_blob_with_key(&rec.relative_path, workspace, key)
+        .with_context(|| format!("read+decrypt mail blob for {id}"))?;
+    let markdown = String::from_utf8(bytes).context("decrypted mail blob is not UTF-8")?;
+    Ok(Some(view::MailView::from_markdown(id, &markdown)))
+}
+
+#[tauri::command]
+pub async fn mail_get_message(
+    state: State<'_, MailState>,
+    id: String,
+) -> Result<view::MailView, String> {
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("workspace not set")?;
+    let key = crate::commands::mail::crypto::get_or_create_master_key()
+        .map_err(|e| e.to_string())?;
+    // Decrypt + DB read are blocking fs/sqlite work; run off the async runtime.
+    let view = tokio::task::spawn_blocking(move || get_message_with_key(&workspace, &id, &key))
+        .await
+        .map_err(|e| format!("join: {e}"))?
+        .map_err(|e| e.to_string())?;
+    view.ok_or_else(|| "message not found".to_string())
+}
+
+/// WS-B/C: re-tag every message stored under a (provider, account, folder) to a
+/// matter, IN PLACE in the RAG store (no re-embedding) — the same re-tag path
+/// files use. Called by the frontend when a mail folder's matter mapping
+/// changes, so already-indexed mail picks up the new scope immediately. An empty
+/// `folder_id` re-tags every folder in the account (an account-level mapping).
+/// Returns the number of messages re-tagged. No-op (Ok(0)) when memory/index has
+/// nothing for those messages yet.
+#[tauri::command]
+pub async fn mail_retag_folder_matter(
+    state: State<'_, MailState>,
+    provider: String,
+    account: String,
+    folder_id: String,
+    matter_id: String,
+) -> Result<u32, String> {
+    // Validate the matter id up front (defence-in-depth before any SQL update).
+    crate::commands::rag::store::validate_matter_id(&matter_id)
+        .map_err(|e| format!("invalid matter id: {e}"))?;
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("workspace not set")?;
+
+    // List the message ids for this folder from the encrypted metadata store.
+    let ws_for_ids = workspace.clone();
+    let (provider2, account2, folder2) = (provider.clone(), account.clone(), folder_id.clone());
+    let ids: Vec<String> = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
+        let store = EncryptedMailStore::open(&ws_for_ids)?;
+        store.ids_in_folder(&provider2, &account2, &folder2)
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())?;
+
+    if ids.is_empty() {
+        return Ok(0);
+    }
+
+    // Re-tag each message's RAG chunks in place via the shared LanceDB helper
+    // (the same `retag_matter_for_path` files use).
+    let conn = crate::commands::rag::store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let names = conn
+        .table_names()
+        .execute()
+        .await
+        .map_err(|e| format!("list tables: {e}"))?;
+    if !names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
+        return Ok(0); // nothing indexed yet
+    }
+    let table = conn
+        .open_table(crate::commands::rag::store::TABLE_NAME)
+        .execute()
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+
+    let mut retagged = 0u32;
+    for id in ids {
+        let path_key = format!("mail:{}", id);
+        match crate::commands::rag::store::retag_matter_for_path(&table, &path_key, &matter_id).await
+        {
+            Ok(rows) if rows > 0 => retagged += 1,
+            Ok(_) => {}
+            Err(e) => log::warn!("retag matter for {path_key} failed: {e}"),
+        }
+    }
+    Ok(retagged)
+}
+
 #[tauri::command]
 pub async fn mail_begin_login() -> Result<DeviceCodePrompt, String> {
     let auth = OAuth::new(client_id());
@@ -287,6 +457,47 @@ pub async fn mail_imap_connect(
 #[tauri::command]
 pub async fn mail_imap_is_connected() -> Result<bool, String> {
     Ok(load_imap_config().is_some())
+}
+
+/// One connected mail account, surfaced to the matter-mapping UI so a matter can
+/// be mapped to it. `account` is the stable key used in mail-folder mapping
+/// (provider/account[/folder]); `label` is for display.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectedAccount {
+    pub provider: String,
+    pub account: String,
+    pub label: String,
+}
+
+/// List the mail accounts currently connected, so the matter manager can offer
+/// an account-level mail->matter mapping for each. M365 + Gmail use the single
+/// "default" account id; IMAP uses its configured username.
+#[tauri::command]
+pub async fn mail_connected_accounts() -> Result<Vec<ConnectedAccount>, String> {
+    let mut out = Vec::new();
+    if mail_is_connected().await.unwrap_or(false) {
+        out.push(ConnectedAccount {
+            provider: "m365".into(),
+            account: M365_ACCOUNT.into(),
+            label: "Microsoft 365".into(),
+        });
+    }
+    if let Some((cfg, _pw)) = load_imap_config() {
+        out.push(ConnectedAccount {
+            provider: "imap".into(),
+            account: cfg.account.clone(),
+            label: format!("IMAP ({})", cfg.username),
+        });
+    }
+    if gmail_is_connected().await.unwrap_or(false) {
+        out.push(ConnectedAccount {
+            provider: "gmail".into(),
+            account: GMAIL_ACCOUNT.into(),
+            label: "Gmail".into(),
+        });
+    }
+    Ok(out)
 }
 
 #[tauri::command]
@@ -415,10 +626,17 @@ async fn index_mail_text_internal(
 }
 
 /// Enumerate folders then sync each to its deltaLink, emitting progress.
+///
+/// `matter_map` is the frontend's (provider, account, folder) -> matter mapping
+/// (from the matter store). Each folder's mail is indexed under the resolved
+/// matter at index time, falling back to `UNASSIGNED_MATTER` when unmapped. The
+/// argument is optional (defaults to empty) so callers that don't scope mail yet
+/// keep working.
 #[tauri::command]
 pub async fn mail_sync_all(
     app: AppHandle,
     state: State<'_, MailState>,
+    matter_map: Option<Vec<MailMatterMapEntry>>,
 ) -> Result<(), String> {
     // FIX A: atomically claim the sync slot; reject if already in progress.
     // We do NOT reset `cancel` here if we bail early — an in-flight sync owns it.
@@ -435,9 +653,11 @@ pub async fn mail_sync_all(
     // Only reset cancel now that we hold the sync slot.
     state.cancel.store(false, Ordering::SeqCst);
 
+    let matter_map = matter_map.unwrap_or_default();
+
     // Run the sync; on ANY failure emit a terminal "error" progress event so the
     // UI stops showing a spinner (the frontend listens for sync-progress).
-    let outcome = mail_sync_all_inner(&app, &state).await;
+    let outcome = mail_sync_all_inner(&app, &state, &matter_map).await;
     if let Err(ref e) = outcome {
         log::warn!("mail sync failed: {}", e);
         let _ = app.emit(
@@ -453,6 +673,7 @@ pub async fn mail_sync_all(
 async fn mail_sync_all_inner(
     app: &AppHandle,
     state: &State<'_, MailState>,
+    matter_map: &[MailMatterMapEntry],
 ) -> Result<(), String> {
     let workspace = state
         .workspace
@@ -517,14 +738,17 @@ async fn mail_sync_all_inner(
         let workspace_for_index = workspace.clone();
         let enc_key_for_index = enc_key;
         let app3 = app.clone();
-        let index_callback = move |id: &str, text: &str| {
+        let index_callback = move |id: &str, text: &str, matter_id: &str| {
             let path_key = format!("mail:{}", id);
             let text_owned = text.to_string();
             let ws = workspace_for_index.clone();
             let key = enc_key_for_index;
+            // WS-B/C: the matter resolved for this folder is tagged on the chunk
+            // at index time (UNASSIGNED_MATTER when the folder is not mapped).
+            let matter = matter_id.to_string();
             // Fire-and-forget RAG indexing (G4).
             let _ = tokio::task::spawn(async move {
-                if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key, crate::commands::rag::store::UNASSIGNED_MATTER).await {
+                if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key, &matter).await {
                     log::warn!("G4 mail index failed for {}: {}", path_key, e);
                 }
             });
@@ -567,8 +791,9 @@ async fn mail_sync_all_inner(
                 }
             });
         };
+        let folder_matter = resolve_mail_matter(matter_map, "m365", M365_ACCOUNT, &folder.id);
         sync::sync_folder_provider(
-            &provider, &store, &workspace, &folder, M365_ACCOUNT, &enc_key, &emit,
+            &provider, &store, &workspace, &folder, M365_ACCOUNT, &folder_matter, &enc_key, &emit,
             &index_callback, &tombstone_callback,
         )
         .await
@@ -615,14 +840,15 @@ async fn mail_sync_all_inner(
             let workspace_for_index = workspace.clone();
             let enc_key_for_index = enc_key;
             let app3 = app.clone();
-            let index_callback = move |id: &str, text: &str| {
+            let index_callback = move |id: &str, text: &str, matter_id: &str| {
                 let path_key = format!("mail:{}", id);
                 let text_owned = text.to_string();
                 let ws = workspace_for_index.clone();
                 let key = enc_key_for_index;
+                let matter = matter_id.to_string();
                 // Fire-and-forget RAG indexing (G4).
                 let _ = tokio::task::spawn(async move {
-                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key, crate::commands::rag::store::UNASSIGNED_MATTER).await {
+                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key, &matter).await {
                         log::warn!("G4 mail index failed for {}: {}", path_key, e);
                     }
                 });
@@ -665,8 +891,9 @@ async fn mail_sync_all_inner(
                     }
                 });
             };
+            let folder_matter = resolve_mail_matter(matter_map, "imap", &imap_cfg.account, &folder.id);
             sync::sync_folder_provider(
-                &provider, &store, &workspace, &folder, &imap_cfg.account, &enc_key,
+                &provider, &store, &workspace, &folder, &imap_cfg.account, &folder_matter, &enc_key,
                 &emit, &index_callback, &tombstone_callback,
             )
             .await
@@ -712,14 +939,15 @@ async fn mail_sync_all_inner(
             let workspace_for_index = workspace.clone();
             let enc_key_for_index = enc_key;
             let app3 = app.clone();
-            let index_callback = move |id: &str, text: &str| {
+            let index_callback = move |id: &str, text: &str, matter_id: &str| {
                 let path_key = format!("mail:{}", id);
                 let text_owned = text.to_string();
                 let ws = workspace_for_index.clone();
                 let key = enc_key_for_index;
+                let matter = matter_id.to_string();
                 // Fire-and-forget RAG indexing (G4).
                 let _ = tokio::task::spawn(async move {
-                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key, crate::commands::rag::store::UNASSIGNED_MATTER).await {
+                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key, &matter).await {
                         log::warn!("G4 mail index failed for {}: {}", path_key, e);
                     }
                 });
@@ -762,8 +990,9 @@ async fn mail_sync_all_inner(
                     }
                 });
             };
+            let folder_matter = resolve_mail_matter(matter_map, "gmail", GMAIL_ACCOUNT, &folder.id);
             sync::sync_folder_provider(
-                &provider, &store, &workspace, &folder, GMAIL_ACCOUNT, &enc_key,
+                &provider, &store, &workspace, &folder, GMAIL_ACCOUNT, &folder_matter, &enc_key,
                 &emit, &index_callback, &tombstone_callback,
             )
             .await
@@ -785,7 +1014,126 @@ async fn mail_sync_all_inner(
 
 #[cfg(test)]
 mod tests {
-    use super::{frontmatter_subject, yaml_unescape};
+    use super::{frontmatter_subject, get_message_with_key, resolve_mail_matter, yaml_unescape, MailMatterMapEntry};
+    use crate::commands::mail::store::EncryptedMailStore;
+    use crate::commands::rag::store::UNASSIGNED_MATTER;
+
+    fn entry(provider: &str, account: &str, folder: &str, matter: &str) -> MailMatterMapEntry {
+        MailMatterMapEntry {
+            provider: provider.into(),
+            account: account.into(),
+            folder_id: folder.into(),
+            matter_id: matter.into(),
+        }
+    }
+
+    #[test]
+    fn resolve_mail_matter_falls_back_to_unassigned_when_unmapped() {
+        let map = vec![entry("m365", "default", "inbox", "matter_a")];
+        assert_eq!(
+            resolve_mail_matter(&map, "m365", "default", "sent"),
+            UNASSIGNED_MATTER
+        );
+        assert_eq!(resolve_mail_matter(&[], "m365", "default", "inbox"), UNASSIGNED_MATTER);
+    }
+
+    #[test]
+    fn resolve_mail_matter_matches_exact_folder() {
+        let map = vec![entry("m365", "default", "inbox", "matter_a")];
+        assert_eq!(resolve_mail_matter(&map, "m365", "default", "inbox"), "matter_a");
+    }
+
+    #[test]
+    fn resolve_mail_matter_account_level_matches_any_folder() {
+        // Empty folder_id == account-level mapping for every folder in the account.
+        let map = vec![entry("gmail", "default", "", "matter_g")];
+        assert_eq!(resolve_mail_matter(&map, "gmail", "default", "INBOX"), "matter_g");
+        assert_eq!(resolve_mail_matter(&map, "gmail", "default", "Label_42"), "matter_g");
+        // Different account is not covered.
+        assert_eq!(resolve_mail_matter(&map, "gmail", "other", "INBOX"), UNASSIGNED_MATTER);
+    }
+
+    #[test]
+    fn resolve_mail_matter_folder_level_wins_over_account_level() {
+        let map = vec![
+            entry("m365", "default", "", "matter_account"),
+            entry("m365", "default", "litigation", "matter_litigation"),
+        ];
+        // The more specific folder-level mapping takes precedence.
+        assert_eq!(
+            resolve_mail_matter(&map, "m365", "default", "litigation"),
+            "matter_litigation"
+        );
+        // Other folders fall back to the account-level mapping.
+        assert_eq!(resolve_mail_matter(&map, "m365", "default", "inbox"), "matter_account");
+    }
+
+    #[test]
+    fn get_message_with_key_decrypts_and_parses_fields() {
+        use crate::commands::mail::model::{BodyContentType, MailMessage, Recipient};
+        use crate::commands::mail::normalize::to_markdown;
+        use crate::commands::mail::store::{MailRecord, MailStore};
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x42u8; 32];
+        let store = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
+
+        let msg = MailMessage {
+            id: "AAMk-xyz".into(),
+            conversation_id: Some("c1".into()),
+            internet_message_id: Some("<m@x>".into()),
+            subject: "Closing date".into(),
+            received_date_time: Some("2026-05-01T14:30:00Z".into()),
+            from_name: Some("Pat H".into()),
+            from_address: Some("pat@hender.com".into()),
+            to: vec![Recipient { name: Some("Me".into()), address: Some("me@firm.com".into()) }],
+            cc: vec![],
+            folders: vec![],
+            thread_id: Some("c1".into()),
+            provider: "m365".into(),
+            account: "default".into(),
+            has_attachments: false,
+            body_content_type: BodyContentType::Text,
+            body_text: "Confirming May 14.".into(),
+        };
+        let markdown = to_markdown(&msg);
+        // Write the encrypted blob + register the record (mirrors apply_messages_enc).
+        let rel = store.write_blob_with_key("AAMk-xyz", markdown.as_bytes(), &key).unwrap();
+        store
+            .upsert(&MailRecord {
+                id: "AAMk-xyz".into(),
+                folder_id: "inbox".into(),
+                internet_message_id: Some("<m@x>".into()),
+                relative_path: rel,
+                received_date_time: Some("2026-05-01T14:30:00Z".into()),
+                provider: "m365".into(),
+                account: "default".into(),
+            })
+            .unwrap();
+
+        // Fetch by raw id and by "mail:" prefixed citation id — both must work.
+        for query in ["AAMk-xyz", "mail:AAMk-xyz"] {
+            let v = get_message_with_key(dir.path(), query, &key)
+                .unwrap()
+                .expect("message present");
+            assert_eq!(v.id, "AAMk-xyz");
+            assert_eq!(v.subject, "Closing date");
+            assert_eq!(v.from, "Pat H <pat@hender.com>");
+            assert_eq!(v.to, vec!["Me <me@firm.com>"]);
+            assert_eq!(v.date.as_deref(), Some("2026-05-01T14:30:00Z"));
+            assert_eq!(v.body, "Confirming May 14.");
+        }
+    }
+
+    #[test]
+    fn get_message_with_key_returns_none_for_unknown_id() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x42u8; 32];
+        // Create an (empty) store so the DB exists.
+        let _ = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
+        let got = get_message_with_key(dir.path(), "does-not-exist", &key).unwrap();
+        assert!(got.is_none());
+    }
 
     #[test]
     fn frontmatter_subject_is_unquoted_and_clean() {

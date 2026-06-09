@@ -783,6 +783,44 @@ pub async fn rag_retag_privilege(
     Ok(updated as u32)
 }
 
+/// WS-B/C — update the matter of an already-indexed source and re-tag its chunks
+/// IN PLACE (no re-embedding). The matter-scope mirror of `rag_retag_privilege`.
+/// Used when a source's matter assignment changes (a file moved between mapped
+/// folders, or a mail folder re-mapped to a different matter) so retrieval
+/// scoping updates immediately. `matter_id` must be non-empty (`unassigned` is
+/// allowed). Returns the number of chunks updated — 0 when the source has not
+/// been indexed yet (it picks up the right matter the next time it is indexed).
+#[tauri::command]
+pub async fn rag_retag_matter(
+    state: State<'_, RagState>,
+    path: String,
+    matter_id: String,
+) -> Result<u32, String> {
+    // Validate before any work (defence-in-depth before the SQL update).
+    store::validate_matter_id(&matter_id).map_err(|e| format!("invalid matter id: {e}"))?;
+    let workspace = require_workspace(&state).await?;
+    let conn = store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let names = conn
+        .table_names()
+        .execute()
+        .await
+        .map_err(|e| format!("list tables: {e}"))?;
+    if !names.iter().any(|n| n == store::TABLE_NAME) {
+        return Ok(0);
+    }
+    let table = conn
+        .open_table(store::TABLE_NAME)
+        .execute()
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+    let updated = store::retag_matter_for_path(&table, &path, &matter_id)
+        .await
+        .map_err(|e| format!("retag matter: {e}"))?;
+    Ok(updated as u32)
+}
+
 /// Convenience: register the RAG state with a Tauri builder. Called from
 /// `lib.rs::run`'s setup hook.
 pub fn manage_state<R: tauri::Runtime>(app: &tauri::App<R>) {

@@ -57,6 +57,8 @@ pub fn run() {
             commands::rag::rag_index_pdf_chunks,
             // WS-PRIV — re-tag a source's privilege in place (default-exclude privileged).
             commands::rag::rag_retag_privilege,
+            // WS-B/C — re-tag a source's matter in place (mail/file re-scope).
+            commands::rag::rag_retag_matter,
             // N2: rag_index_mail_text removed — latent plaintext-over-IPC surface.
             // The real indexing path is index_mail_text_internal (mail/mod.rs).
             commands::watcher::watch_workspace,
@@ -98,6 +100,12 @@ pub fn run() {
             commands::mail::mail_is_connected,
             commands::mail::mail_sync_all,
             commands::mail::mail_cancel_sync,
+            // Keepance 3.0 email viewer — fetch + decrypt one stored message.
+            commands::mail::mail_get_message,
+            // WS-B/C — re-tag a mail folder's messages to a matter in place.
+            commands::mail::mail_retag_folder_matter,
+            // WS-B/C — list connected mail accounts for the matter-mapping UI.
+            commands::mail::mail_connected_accounts,
             // G6 — OS full-disk encryption detection + nudge in MailConnect.
             commands::mail::fde::mail_fde_status,
             // IMAP multi-provider support.

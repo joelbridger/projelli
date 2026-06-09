@@ -6,8 +6,27 @@
 // @tauri-apps/api/core, guard every call site.
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import type { MailMatterMapEntry } from '@/modules/memory/matterResolver';
 
 export interface DeviceCodePrompt { userCode: string; verificationUri: string; deviceCode: string; intervalSecs: number; expiresInSecs: number; }
+
+/** One attachment, name only (v1 mail lists names; opening is a follow-up). */
+export interface MailAttachmentRef { name: string; }
+
+/** A decrypted, structured email message for the read-only viewer. Mirror of
+ *  the Rust `MailView` returned by `mail_get_message`. */
+export interface MailView {
+  id: string;
+  subject: string;
+  from: string;
+  to: string[];
+  cc: string[];
+  date: string | null;
+  provider: string | null;
+  body: string;
+  hasAttachments: boolean;
+  attachments: MailAttachmentRef[];
+}
 export type MailSyncStatus = 'idle' | 'syncing' | 'done' | 'cancelled' | 'error';
 export interface MailSyncProgress { status: MailSyncStatus; folder?: string | null; written: number; removed: number; }
 export const MAIL_SYNC_EVENT = 'mail-sync-progress';
@@ -32,13 +51,48 @@ export async function mailIsConnected(): Promise<boolean> {
   if (!isTauri()) return false;
   return invoke<boolean>('mail_is_connected');
 }
-export async function mailSyncAll(): Promise<void> {
+/** Run a full mail sync. `matterMap` (from the matter store) scopes each mail
+ *  folder to a matter at index time; omit it (or pass an empty array) to leave
+ *  mail unassigned. */
+export async function mailSyncAll(matterMap: MailMatterMapEntry[] = []): Promise<void> {
   if (!isTauri()) throw new Error('Email sync is only available in the desktop app.');
-  return invoke<void>('mail_sync_all');
+  // The Rust command expects camelCase `folderId` / `matterId` on each entry,
+  // which matches MailMatterMapEntry, so we can pass it straight through.
+  return invoke<void>('mail_sync_all', { matterMap });
 }
 export async function mailCancelSync(): Promise<void> {
   if (!isTauri()) return;
   return invoke<void>('mail_cancel_sync');
+}
+
+/** Fetch + decrypt ONE stored message for the read-only viewer. `id` may be the
+ *  raw message id or a `mail:<id>` citation source id. */
+export async function mailGetMessage(id: string): Promise<MailView> {
+  if (!isTauri()) throw new Error('Email viewer is only available in the desktop app.');
+  return invoke<MailView>('mail_get_message', { id });
+}
+
+/** Re-tag every message in a (provider, account, folder) to a matter in place.
+ *  Empty `folderId` re-tags every folder in the account. Returns the count of
+ *  messages re-tagged. No-op outside Tauri. */
+export async function mailRetagFolderMatter(
+  provider: string,
+  account: string,
+  folderId: string,
+  matterId: string,
+): Promise<number> {
+  if (!isTauri()) return 0;
+  return invoke<number>('mail_retag_folder_matter', { provider, account, folderId, matterId });
+}
+
+/** A connected mail account offered for matter mapping. Mirror of the Rust
+ *  `ConnectedAccount`. */
+export interface ConnectedAccount { provider: string; account: string; label: string; }
+
+/** List the mail accounts currently connected, for the matter-mapping UI. */
+export async function mailConnectedAccounts(): Promise<ConnectedAccount[]> {
+  if (!isTauri()) return [];
+  return invoke<ConnectedAccount[]>('mail_connected_accounts');
 }
 
 // G6: OS full-disk encryption status

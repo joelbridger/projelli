@@ -47,6 +47,7 @@ export interface CreateMatterInput {
   name: string;
   client: string;
   folderPaths?: string[];
+  mailFolderPaths?: string[];
 }
 
 interface MatterState {
@@ -61,6 +62,10 @@ interface MatterState {
   setFolderPaths: (id: string, folderPaths: string[]) => void;
   addFolderPath: (id: string, folderPath: string) => void;
   removeFolderPath: (id: string, folderPath: string) => void;
+
+  // WS-B/C — mail folder mapping (provider/account[/folder] keys).
+  addMailFolderPath: (id: string, mailFolderKey: string) => void;
+  removeMailFolderPath: (id: string, mailFolderKey: string) => void;
 
   // Active matter
   setActiveMatter: (id: string | null) => void;
@@ -78,6 +83,7 @@ export const useMatterStore = create<MatterState>()(
           name: input.name.trim(),
           client: input.client.trim(),
           folderPaths: (input.folderPaths ?? []).map(normalizeFolder).filter(Boolean),
+          mailFolderPaths: Array.from(new Set((input.mailFolderPaths ?? []).filter(Boolean))),
           createdAt: new Date().toISOString(),
         };
         set((state) => ({ matters: [...state.matters, matter] }));
@@ -140,13 +146,51 @@ export const useMatterStore = create<MatterState>()(
         }));
       },
 
+      addMailFolderPath: (id, mailFolderKey) => {
+        const key = mailFolderKey.trim();
+        if (!key) return;
+        set((state) => ({
+          matters: state.matters.map((m) => {
+            if (m.id !== id) return m;
+            const existing = m.mailFolderPaths ?? [];
+            if (existing.includes(key)) return m;
+            return { ...m, mailFolderPaths: [...existing, key] };
+          }),
+        }));
+      },
+
+      removeMailFolderPath: (id, mailFolderKey) => {
+        const key = mailFolderKey.trim();
+        set((state) => ({
+          matters: state.matters.map((m) =>
+            m.id === id
+              ? { ...m, mailFolderPaths: (m.mailFolderPaths ?? []).filter((k) => k !== key) }
+              : m,
+          ),
+        }));
+      },
+
       setActiveMatter: (id) => {
         set({ activeMatterId: id });
       },
     }),
     {
       name: 'keepance:matters',
-      version: 1,
+      version: 2,
+      // v1 -> v2: matters gained `mailFolderPaths`. Backfill an empty array so
+      // older persisted matters parse cleanly (a missing value is also tolerated
+      // by readers via `?? []`, but normalising here keeps the shape consistent).
+      migrate: (persisted, version) => {
+        const state = persisted as Partial<MatterState> | undefined;
+        if (!state || !Array.isArray(state.matters)) return state as MatterState;
+        if (version < 2) {
+          state.matters = state.matters.map((m) => ({
+            ...m,
+            mailFolderPaths: m.mailFolderPaths ?? [],
+          }));
+        }
+        return state as MatterState;
+      },
       partialize: (state) => ({
         matters: state.matters,
         activeMatterId: state.activeMatterId,

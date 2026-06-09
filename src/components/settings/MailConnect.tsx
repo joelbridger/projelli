@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { mailIsConnected, mailBeginLogin, mailPollLogin, mailSyncAll, mailCancelSync, mailFdeStatus, type DeviceCodePrompt } from '@/utils/mail-commands';
 import { useMailSync } from '@/hooks/useMailSync';
 import { useMailStore } from '@/stores/mailStore';
+import { getMatters } from '@/stores/matterStore';
+import { buildMailMatterMap } from '@/modules/memory/matterResolver';
 
 export function MailConnect() {
   useMailSync();
@@ -43,7 +45,9 @@ export function MailConnect() {
           setConnected(true);
           setPrompt(null);
           // Kick off the import; surface failures instead of leaving a spinner.
-          mailSyncAll().catch((err) => {
+          // Pass the current mail->matter mapping so synced mail is scoped at
+          // index time (unmapped folders fall back to "unassigned").
+          mailSyncAll(buildMailMatterMap(getMatters())).catch((err) => {
             setPollError(err instanceof Error ? err.message : 'Mail sync could not start. Please try again.');
           });
           return;

@@ -108,6 +108,7 @@ import { buildOpenFilesPromptBlock } from '@/components/ai/AIChatViewer';
 import { useModelList } from '@/hooks/useModelList';
 import { useContentIndex } from '@/hooks/useContentIndex';
 import { useMailSync } from '@/hooks/useMailSync';
+import { useOpenEmailListener } from '@/hooks/useOpenEmailListener';
 import type { MailIndexChunk } from '@/utils/mail-commands';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
@@ -1392,6 +1393,12 @@ function App() {
     const tabPath = `__ai_assistant__${Date.now()}`;
     openTab(tabPath, 'AI Assistant', '', 'ai-assistant');
   }, [openTab]);
+
+  // WS-B/C — open the read-only email viewer when an email citation is clicked
+  // in chat. AIChatViewer dispatches `keepance:open-email` for `mail:<id>`
+  // sources; this hook turns that into an `email` tab. (Extracted to
+  // useOpenEmailListener so the wiring is unit-tested.)
+  useOpenEmailListener(openTab);
 
   // UX-35: shared writer that routes binary file extensions (.docx, .xlsx,
   // .pptx, .rtf, etc.) through writeFileBinary using the bytes decoded

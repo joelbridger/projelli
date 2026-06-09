@@ -29,12 +29,23 @@ export const UNASSIGNED_MATTER_ID = 'unassigned';
 export interface Matter {
   /** Stable unique id (uuid-ish). The citation/scope key the backend stores. */
   id: string;
-  /** Human-readable matter name, e.g. "Acme v. Beta — Patent". */
+  /** Human-readable matter name, e.g. "Acme v. Beta - Patent". */
   name: string;
   /** The client this matter belongs to, e.g. "Acme Corp". */
   client: string;
   /** Absolute folder paths whose files belong to this matter. */
   folderPaths: string[];
+  /**
+   * Mail-folder keys whose email belongs to this matter. Each key is a mail
+   * folder identifier in the form `provider/account/folderId`, or
+   * `provider/account` for an account-level mapping (every folder in that
+   * account). Email synced from a mapped folder is indexed under this matter;
+   * see `mailFolderKey` / `parseMailFolderKey` in `matterResolver`.
+   *
+   * Optional so matters created before mail mapping landed still parse from
+   * persisted storage (a missing value is treated as an empty list).
+   */
+  mailFolderPaths?: string[];
   /** ISO timestamp the matter was created. */
   createdAt: string;
 }

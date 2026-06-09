@@ -319,6 +319,19 @@ export async function ragRetagPrivilege(
   return invoke<number>('rag_retag_privilege', { path, privilege });
 }
 
+/** WS-B/C — update a source's matter and re-tag its already-indexed chunks in
+ *  place (no re-embedding), so re-scoping a source (a file moved between mapped
+ *  folders, or a mail folder remapped) immediately changes which matter scope it
+ *  surfaces under. `matterId` must be non-empty (`'unassigned'` is allowed).
+ *  Returns the number of chunks updated. No-op in browser/test mode. */
+export async function ragRetagMatter(
+  path: string,
+  matterId: string,
+): Promise<number> {
+  if (!isTauri()) return 0;
+  return invoke<number>('rag_retag_matter', { path, matterId });
+}
+
 /** WS-B/C — verify a citation against the local store so the app can REFUSE to
  *  present an answer whose citation does not verify. Looks up the chunk by its
  *  content-addressed `id` SCOPED to `claimedMatterId`, then asserts the stored

@@ -46,6 +46,9 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
                 id: msg.id.clone(), folder_id: folder_id.to_string(),
                 internet_message_id: msg.internet_message_id.clone(),
                 relative_path: rel, received_date_time: msg.received_date_time.clone(),
+                // Legacy Phase-1 plaintext path (removed by migrate_plaintext);
+                // provider/account are only used by the encrypted store's mapping.
+                provider: String::new(), account: String::new(),
             })?;
             stats.written += 1;
         }
@@ -55,10 +58,21 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
 
 /// Apply already-normalized changes to the encrypted store + index. Provider-
 /// agnostic core used by `apply_page_enc` (Graph) and future Gmail/IMAP paths.
+///
+/// `provider` / `account` are persisted on each record so a message can later be
+/// mapped back to its mail-folder key (provider/account/folder), which is what a
+/// matter maps to. `matter_id` is the confidentiality scope resolved for this
+/// folder (the caller resolves the account/folder->matter mapping once per
+/// folder; it is `UNASSIGNED_MATTER` when the folder is not mapped) and is
+/// forwarded to `index_callback` so the RAG chunk is tagged at index time.
+#[allow(clippy::too_many_arguments)]
 pub fn apply_messages_enc<F, T>(
     store: &dyn MailStore,
     workspace_root: &Path,
     folder_id: &str,
+    provider: &str,
+    account: &str,
+    matter_id: &str,
     messages: &[MailMessage],
     removed_ids: &[String],
     key: &[u8; 32],
@@ -66,7 +80,7 @@ pub fn apply_messages_enc<F, T>(
     tombstone_callback: &T,
 ) -> anyhow::Result<PageStats>
 where
-    F: Fn(&str, &str),
+    F: Fn(&str, &str, &str),
     T: Fn(&str),
 {
     let mut stats = PageStats::default();
@@ -94,8 +108,10 @@ where
             internet_message_id: msg.internet_message_id.clone(),
             relative_path: rel,
             received_date_time: msg.received_date_time.clone(),
+            provider: provider.to_string(),
+            account: account.to_string(),
         })?;
-        index_callback(&msg.id, &markdown);
+        index_callback(&msg.id, &markdown, matter_id);
         stats.written += 1;
     }
     Ok(stats)
@@ -118,17 +134,21 @@ where
 /// `store` must be an `EncryptedMailStore` (or any MailStore impl that stores
 /// relative_path pointing to .enc files). The trait is used so tests can pass
 /// a FakeStore.
+#[allow(clippy::too_many_arguments)]
 pub fn apply_page_enc<F, T>(
     store: &dyn MailStore,
     workspace_root: &Path,
     folder_id: &str,
+    provider: &str,
+    account: &str,
+    matter_id: &str,
     page: &serde_json::Value,
     key: &[u8; 32],
     index_callback: &F,
     tombstone_callback: &T,
 ) -> anyhow::Result<PageStats>
 where
-    F: Fn(&str, &str),
+    F: Fn(&str, &str, &str),
     T: Fn(&str),
 {
     let items = page.get("value").and_then(|v| v.as_array()).cloned().unwrap_or_default();
@@ -143,7 +163,7 @@ where
             messages.push(m);
         }
     }
-    apply_messages_enc(store, workspace_root, folder_id, &messages, &removed_ids, key, index_callback, tombstone_callback)
+    apply_messages_enc(store, workspace_root, folder_id, provider, account, matter_id, &messages, &removed_ids, key, index_callback, tombstone_callback)
 }
 
 /// G7: Migration — remove the plaintext `Mail/` directory written by Phase 1.
@@ -221,12 +241,19 @@ pub async fn sync_folder<F: Fn(u32, u32) + Send>(
 
 /// Provider-agnostic encrypted folder sync. Loops a provider's `fetch_changes`,
 /// persisting the resume cursor after each page, applying via `apply_messages_enc`.
+///
+/// `matter_id` is the confidentiality scope this folder maps to. The caller
+/// resolves the account/folder->matter mapping once per folder before calling
+/// this (it is `UNASSIGNED_MATTER` when the folder is not mapped) so every chunk
+/// indexed from this folder is tagged with the right matter at index time.
+#[allow(clippy::too_many_arguments)]
 pub async fn sync_folder_provider<F, I, T>(
     provider: &dyn MailProvider,
     store: &(dyn MailStore + Sync),
     workspace_root: &Path,
     folder: &RemoteFolder,
     account: &str,
+    matter_id: &str,
     key: &[u8; 32],
     emit: &F,
     index_callback: &I,
@@ -234,7 +261,7 @@ pub async fn sync_folder_provider<F, I, T>(
 ) -> anyhow::Result<PageStats>
 where
     F: Fn(u32, u32) + Send,
-    I: Fn(&str, &str) + Send + Sync,
+    I: Fn(&str, &str, &str) + Send + Sync,
     T: Fn(&str) + Send + Sync,
 {
     // Scope the resume cursor by provider + account + folder so multiple accounts
@@ -245,7 +272,7 @@ where
     let mut total = PageStats::default();
     loop {
         let page = provider.fetch_changes(folder, &cursor).await?;
-        let s = apply_messages_enc(store, workspace_root, &folder.id, &page.messages, &page.removed_ids, key, index_callback, tombstone_callback)?;
+        let s = apply_messages_enc(store, workspace_root, &folder.id, provider.kind(), account, matter_id, &page.messages, &page.removed_ids, key, index_callback, tombstone_callback)?;
         total.written += s.written;
         total.removed += s.removed;
         emit(total.written, total.removed);
@@ -264,11 +291,19 @@ mod tests {
     use std::collections::HashMap;
 
     #[derive(Default)]
-    struct FakeStore { msgs: Mutex<HashMap<String,String>>, cursors: Mutex<HashMap<String,String>> }
+    struct FakeStore { msgs: Mutex<HashMap<String,MailRecord>>, cursors: Mutex<HashMap<String,String>> }
     impl MailStore for FakeStore {
-        fn upsert(&self, r:&MailRecord)->anyhow::Result<()> { self.msgs.lock().unwrap().insert(r.id.clone(), r.relative_path.clone()); Ok(()) }
-        fn tombstone(&self, id:&str)->anyhow::Result<Option<String>> { Ok(self.msgs.lock().unwrap().remove(id)) }
+        fn upsert(&self, r:&MailRecord)->anyhow::Result<()> { self.msgs.lock().unwrap().insert(r.id.clone(), r.clone()); Ok(()) }
+        fn tombstone(&self, id:&str)->anyhow::Result<Option<String>> { Ok(self.msgs.lock().unwrap().remove(id).map(|r| r.relative_path)) }
         fn contains(&self, id:&str)->anyhow::Result<bool> { Ok(self.msgs.lock().unwrap().contains_key(id)) }
+        fn get_record(&self, id:&str)->anyhow::Result<Option<MailRecord>> { Ok(self.msgs.lock().unwrap().get(id).cloned()) }
+        fn ids_in_folder(&self, provider:&str, account:&str, folder_id:&str)->anyhow::Result<Vec<String>> {
+            Ok(self.msgs.lock().unwrap().values()
+                .filter(|r| (provider.is_empty() || r.provider == provider)
+                    && (account.is_empty() || r.account == account)
+                    && (folder_id.is_empty() || r.folder_id == folder_id))
+                .map(|r| r.id.clone()).collect())
+        }
         fn count(&self)->anyhow::Result<i64> { Ok(self.msgs.lock().unwrap().len() as i64) }
         fn get_cursor(&self, f:&str)->anyhow::Result<Option<String>> { Ok(self.cursors.lock().unwrap().get(f).cloned()) }
         fn set_cursor(&self, f:&str, c:&str)->anyhow::Result<()> { self.cursors.lock().unwrap().insert(f.into(), c.into()); Ok(()) }
@@ -284,7 +319,8 @@ mod tests {
         ]});
         // pre-seed m2 so the tombstone has something to remove
         store.upsert(&MailRecord{ id:"m2".into(), folder_id:"inbox".into(), internet_message_id:None,
-            relative_path:"Mail/inbox/m2.md".into(), received_date_time:None}).unwrap();
+            relative_path:"Mail/inbox/m2.md".into(), received_date_time:None,
+            provider:String::new(), account:String::new()}).unwrap();
         let stats = apply_page(&store, dir.path(), "inbox", &page).unwrap();
         assert_eq!(stats.written, 1);
         assert_eq!(stats.removed, 1);
@@ -323,9 +359,12 @@ mod tests {
             &store,
             dir.path(),
             "inbox",
+            "m365",
+            "default",
+            crate::commands::rag::store::UNASSIGNED_MATTER,
             &page,
             &key,
-            &|_id: &str, _text: &str| {}, // stub index callback
+            &|_id: &str, _text: &str, _m: &str| {}, // stub index callback
             &|_id: &str| {},               // stub tombstone callback
         ).unwrap();
 
@@ -369,6 +408,7 @@ mod tests {
             internet_message_id: None,
             relative_path: blob_rel.clone(),
             received_date_time: None,
+            provider: "m365".into(), account: "default".into(),
         }).unwrap();
 
         let page = serde_json::json!({ "value": [
@@ -377,8 +417,9 @@ mod tests {
         let tombstoned_ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
         let tombstoned_ids2 = tombstoned_ids.clone();
         let stats = apply_page_enc(
-            &store, dir.path(), "inbox", &page, &key,
-            &|_id, _text| {},
+            &store, dir.path(), "inbox", "m365", "default",
+            crate::commands::rag::store::UNASSIGNED_MATTER, &page, &key,
+            &|_id, _text, _m| {},
             &|id: &str| { tombstoned_ids2.lock().unwrap().push(id.to_string()); },
         ).unwrap();
 
@@ -400,12 +441,12 @@ mod tests {
         ]});
 
         // Use Arc<Mutex<Vec>> to collect from the closure.
-        let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::<(String, String)>::new()));
+        let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::<(String, String, String)>::new()));
         let cap2 = captured.clone();
         apply_page_enc(
-            &store, dir.path(), "inbox", &page, &key,
-            &|id: &str, text: &str| {
-                cap2.lock().unwrap().push((id.to_string(), text.to_string()));
+            &store, dir.path(), "inbox", "m365", "default", "matter_acme", &page, &key,
+            &|id: &str, text: &str, matter: &str| {
+                cap2.lock().unwrap().push((id.to_string(), text.to_string(), matter.to_string()));
             },
             &|_id: &str| {}, // stub tombstone callback
         ).unwrap();
@@ -414,6 +455,8 @@ mod tests {
         assert_eq!(pairs.len(), 1);
         assert_eq!(pairs[0].0, "m3");
         assert!(pairs[0].1.contains("Index me!"), "callback receives plaintext");
+        // The resolved matter id is forwarded to the index callback at index time.
+        assert_eq!(pairs[0].2, "matter_acme", "callback receives the resolved matter id");
     }
 
     #[test]
@@ -427,12 +470,17 @@ mod tests {
         m.account = "acct".into();
         let captured = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
         let cap2 = captured.clone();
-        let stats = apply_messages_enc(&store, dir.path(), "inbox", &[m], &[], &key,
-            &|id: &str, _t: &str| { cap2.lock().unwrap().push(id.to_string()); },
+        let stats = apply_messages_enc(&store, dir.path(), "inbox", "imap", "acct",
+            crate::commands::rag::store::UNASSIGNED_MATTER, &[m], &[], &key,
+            &|id: &str, _t: &str, _m: &str| { cap2.lock().unwrap().push(id.to_string()); },
             &|_id: &str| {}).unwrap();
         assert_eq!(stats.written, 1);
         assert!(store.contains("mm1").unwrap());
         assert_eq!(captured.lock().unwrap().as_slice(), &["mm1"]);
+        // Provider + account are persisted on the record so it can be mapped to a matter.
+        let rec = store.get_record("mm1").unwrap().unwrap();
+        assert_eq!(rec.provider, "imap");
+        assert_eq!(rec.account, "acct");
     }
 
     // S3 tests ----------------------------------------------------------------
@@ -456,6 +504,7 @@ mod tests {
                 internet_message_id: None,
                 relative_path: format!(".keepance/mail/blobs/{}.enc", id),
                 received_date_time: None,
+                provider: "m365".into(), account: "default".into(),
             }).unwrap();
         }
 
@@ -468,8 +517,9 @@ mod tests {
         let tombstoned_ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
         let tombstoned_ids2 = tombstoned_ids.clone();
         let stats = apply_page_enc(
-            &store, dir.path(), "inbox", &page, &key,
-            &|_id, _text| {},
+            &store, dir.path(), "inbox", "m365", "default",
+            crate::commands::rag::store::UNASSIGNED_MATTER, &page, &key,
+            &|_id, _text, _m| {},
             &|id: &str| { tombstoned_ids2.lock().unwrap().push(id.to_string()); },
         ).unwrap();
 
@@ -497,8 +547,9 @@ mod tests {
         let tombstoned_ids = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
         let tombstoned_ids2 = tombstoned_ids.clone();
         let stats = apply_page_enc(
-            &store, dir.path(), "inbox", &page, &key,
-            &|_id, _text| {},
+            &store, dir.path(), "inbox", "m365", "default",
+            crate::commands::rag::store::UNASSIGNED_MATTER, &page, &key,
+            &|_id, _text, _m| {},
             &|id: &str| { tombstoned_ids2.lock().unwrap().push(id.to_string()); },
         ).unwrap();
 

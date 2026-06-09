@@ -11,9 +11,9 @@
  * from the current workspace tree — the simplest real model (folder = matter).
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Briefcase, FolderOpen, Plus, Trash2, Check } from 'lucide-react';
+import { Briefcase, FolderOpen, Mail, Plus, Trash2, Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +28,8 @@ import { cn } from '@/lib/utils';
 import { useMatters, useMatterStore } from '@/stores/matterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { FileNode } from '@/types/workspace';
+import { mailConnectedAccounts, type ConnectedAccount } from '@/utils/mail-commands';
+import { mailFolderKey } from '@/modules/memory/matterResolver';
 
 export interface MatterManagerDialogProps {
   open: boolean;
@@ -60,12 +62,36 @@ function relLabel(path: string, root: string | null): string {
 export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogProps) {
   const { t } = useTranslation();
   const matters = useMatters();
-  const { createMatter, renameMatter, deleteMatter, addFolderPath, removeFolderPath } =
-    useMatterStore();
+  const {
+    createMatter,
+    renameMatter,
+    deleteMatter,
+    addFolderPath,
+    removeFolderPath,
+    addMailFolderPath,
+    removeMailFolderPath,
+  } = useMatterStore();
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const fileTree = useWorkspaceStore((s) => s.fileTree);
 
   const folderPaths = useMemo(() => collectFolderPaths(fileTree), [fileTree]);
+
+  // Connected mail accounts offered for an account-level mail -> matter mapping.
+  const [mailAccounts, setMailAccounts] = useState<ConnectedAccount[]>([]);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    mailConnectedAccounts()
+      .then((accts) => {
+        if (!cancelled) setMailAccounts(accts);
+      })
+      .catch(() => {
+        /* no mail accounts / browser mode — leave empty */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const [newName, setNewName] = useState('');
   const [newClient, setNewClient] = useState('');
@@ -228,6 +254,59 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                         );
                       })}
                     </div>
+                  )}
+                </div>
+
+                {/* Email account mapping (account-level: every folder in the account) */}
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">
+                    {t('matter.manager.mail-label')}
+                  </p>
+                  {mailAccounts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t('matter.manager.no-mail-accounts')}
+                    </p>
+                  ) : (
+                    <div className="rounded border divide-y">
+                      {mailAccounts.map((acct) => {
+                        const key = mailFolderKey(acct.provider, acct.account);
+                        const checked = (m.mailFolderPaths ?? []).includes(key);
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            data-testid={`matter-mail-${m.id}-${key}`}
+                            data-checked={checked ? 'true' : 'false'}
+                            onClick={() => {
+                              if (checked) removeMailFolderPath(m.id, key);
+                              else addMailFolderPath(m.id, key);
+                            }}
+                            className={cn(
+                              'flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-accent',
+                              checked && 'bg-primary/5',
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                'flex h-4 w-4 shrink-0 items-center justify-center rounded border',
+                                checked
+                                  ? 'border-primary bg-primary text-primary-foreground'
+                                  : 'border-muted-foreground/40',
+                              )}
+                            >
+                              {checked && <Check className="h-3 w-3" />}
+                            </span>
+                            <Mail className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate">{acct.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {mailAccounts.length > 0 && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {t('matter.manager.mail-account-hint')}
+                    </p>
                   )}
                 </div>
               </div>

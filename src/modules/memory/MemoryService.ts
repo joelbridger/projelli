@@ -22,6 +22,7 @@ import {
   ragIndexFile,
   ragIndexPdfChunks,
   ragIndexWorkspace,
+  ragRetagMatter,
   ragRetagPrivilege,
   ragRetrieve,
   ragSetWorkspace,
@@ -221,6 +222,17 @@ export const MemoryService = {
   async retagPrivilege(sourceId: string, privilege: string): Promise<number> {
     if (!isMemoryEnabled()) return 0;
     return ragRetagPrivilege(sourceId, privilege);
+  },
+
+  /**
+   * WS-B/C — set a source's matter and re-tag its already-indexed chunks in
+   * place (no re-embed). Used to re-scope a single source (e.g. a `mail:<id>`)
+   * when its matter changes. Returns the number of chunks updated. No-op when
+   * memory is disabled. This is the matter-scope mirror of `retagPrivilege`.
+   */
+  async retagMatter(sourceId: string, matterId: string): Promise<number> {
+    if (!isMemoryEnabled()) return 0;
+    return ragRetagMatter(sourceId, matterId);
   },
 
   async cancelIndexing(): Promise<void> {

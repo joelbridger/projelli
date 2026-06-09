@@ -13,9 +13,10 @@
  *     matching folder wins — the most specific mapping is the right one.
  *   - When nothing matches, the source is `unassigned` (the same sentinel the
  *     Rust indexer uses when no matterId is supplied).
- *   - `mail:<id>` source ids never live under a workspace folder, so they
- *     resolve to `unassigned` here. Fine-grained email->matter assignment is
- *     a later task; folder/account mapping is out of scope for this helper.
+ *   - `mail:<id>` source ids never live under a workspace folder, so this
+ *     path-based resolver returns `unassigned` for them. Email is mapped to a
+ *     matter by its mail folder, not by the `mail:<id>` key — see
+ *     `mailFolderKey` / `resolveMailMatter` / `buildMailMatterMap` below.
  */
 
 import { UNASSIGNED_MATTER_ID, type Matter } from '@/types/matter';
@@ -92,4 +93,107 @@ export function matterLabel(matter: Matter): string {
   const client = matter.client.trim();
   if (name && client) return `${client} - ${name}`;
   return name || client || matter.id;
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Email -> matter mapping (WS-B/C)
+//
+// Email is filed into a matter by the mail FOLDER it lives in, not by the
+// `mail:<id>` source key. A mail-folder key encodes the provider, account, and
+// (optionally) folder id so the same matter store can map mail alongside files.
+// ─────────────────────────────────────────────────────────────────────
+
+/** One parsed mail-folder mapping (the backend `MailMatterMapEntry` shape). */
+export interface MailMatterMapEntry {
+  provider: string;
+  account: string;
+  /** Empty string == account-level mapping (every folder in the account). */
+  folderId: string;
+  matterId: string;
+}
+
+/**
+ * Build a mail-folder key from its parts. `folderId` is optional; omitting it
+ * (or passing an empty string) yields an account-level key (`provider/account`)
+ * that maps every folder in that account.
+ *
+ * The key is the value stored in a matter's `mailFolderPaths`. Provider and
+ * account are required and must be non-empty.
+ */
+export function mailFolderKey(provider: string, account: string, folderId?: string): string {
+  const p = provider.trim();
+  const a = account.trim();
+  const f = (folderId ?? '').trim();
+  return f ? `${p}/${a}/${f}` : `${p}/${a}`;
+}
+
+/**
+ * Parse a mail-folder key back into its parts. The first two segments are
+ * provider + account; everything after the second slash is the folder id (folder
+ * ids may themselves contain slashes, so we only split on the first two). A key
+ * with just `provider/account` has an empty `folderId` (account-level).
+ *
+ * Returns `null` for a malformed key (fewer than two segments).
+ */
+export function parseMailFolderKey(
+  key: string,
+): { provider: string; account: string; folderId: string } | null {
+  const firstSlash = key.indexOf('/');
+  if (firstSlash < 0) return null;
+  const provider = key.slice(0, firstSlash);
+  const rest = key.slice(firstSlash + 1);
+  const secondSlash = rest.indexOf('/');
+  if (secondSlash < 0) {
+    // provider/account (account-level)
+    if (!provider || !rest) return null;
+    return { provider, account: rest, folderId: '' };
+  }
+  const account = rest.slice(0, secondSlash);
+  const folderId = rest.slice(secondSlash + 1);
+  if (!provider || !account) return null;
+  return { provider, account, folderId };
+}
+
+/**
+ * Flatten every matter's `mailFolderPaths` into the `MailMatterMapEntry[]` the
+ * backend `mail_sync_all` / mapping commands consume. Skips the unassigned
+ * sentinel and any malformed keys.
+ */
+export function buildMailMatterMap(matters: Matter[]): MailMatterMapEntry[] {
+  const out: MailMatterMapEntry[] = [];
+  for (const m of matters) {
+    if (m.id === UNASSIGNED_MATTER_ID) continue;
+    for (const key of m.mailFolderPaths ?? []) {
+      const parsed = parseMailFolderKey(key);
+      if (!parsed) continue;
+      out.push({ ...parsed, matterId: m.id });
+    }
+  }
+  return out;
+}
+
+/**
+ * Resolve which matter a given mail folder (provider/account/folder) belongs to,
+ * mirroring the backend `resolve_mail_matter`: a folder-level mapping wins over
+ * an account-level one; nothing matching falls back to `unassigned`. Used by the
+ * frontend MiniSearch path and tests so the two indexers agree.
+ */
+export function resolveMailMatter(
+  matters: Matter[],
+  provider: string,
+  account: string,
+  folderId: string,
+): string {
+  let accountLevel: string | null = null;
+  for (const m of matters) {
+    if (m.id === UNASSIGNED_MATTER_ID) continue;
+    for (const key of m.mailFolderPaths ?? []) {
+      const parsed = parseMailFolderKey(key);
+      if (!parsed) continue;
+      if (parsed.provider !== provider || parsed.account !== account) continue;
+      if (parsed.folderId && parsed.folderId === folderId) return m.id; // most specific wins
+      if (!parsed.folderId) accountLevel = m.id;
+    }
+  }
+  return accountLevel ?? UNASSIGNED_MATTER_ID;
 }

@@ -4,7 +4,7 @@
 import { useCallback, useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
-import { X, GripVertical, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, GripVertical, MoreHorizontal, MessageSquare, Settings, Globe, Sparkles, EyeOff, ChevronLeft, ChevronRight, Mail } from 'lucide-react';
 import { getFileIcon } from '@/utils/fileIcons';
 import { Button } from '@/components/ui/button';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
@@ -57,7 +57,7 @@ export function pathToTestId(path: string): string {
 // UX-37: Helper function to get file icon based on tab type and extension.
 // Uses the shared getFileIcon SSOT from utils/fileIcons.ts for file tabs,
 // with special-case overrides for non-file tab types (browser, AI assistant).
-const getTabIcon = (tab: { name: string; type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' | 'workflow-execution' }) => {
+const getTabIcon = (tab: { name: string; type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' | 'workflow-execution' | 'email' }) => {
   if (tab.type === 'browser') {
     return <Globe className="h-4 w-4 text-sky-500 flex-shrink-0" />;
   }
@@ -66,6 +66,9 @@ const getTabIcon = (tab: { name: string; type?: 'file' | 'browser' | 'whiteboard
   }
   if (tab.type === 'workflow-execution') {
     return <Sparkles className="h-4 w-4 text-amber-500 flex-shrink-0" />;
+  }
+  if (tab.type === 'email') {
+    return <Mail className="h-4 w-4 text-[#0A2540] flex-shrink-0" />;
   }
   const ext = tab.name.split('.').pop()?.toLowerCase();
   const { Icon, color } = getFileIcon(ext);

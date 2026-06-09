@@ -11,10 +11,13 @@ interface OpenTab {
   // UX-21: 'ai-assistant' is a new sentinel type for the AI Assistant
   // main-panel tab. Reusing the existing 'file' → extension routing in
   // MainPanel doesn't work here because the tab has no file on disk.
-  type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' | 'workflow-execution';
+  // 'email' is the Keepance 3.0 read-only mail viewer (no file on disk; the
+  // message id rides in `metadata.mailSourceId`).
+  type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' | 'workflow-execution' | 'email';
   metadata?: {
     url?: string; // For browser tabs
     favicon?: string; // For browser tabs
+    mailSourceId?: string; // For email tabs: the `mail:<id>` source / message id
   };
 }
 
@@ -71,7 +74,7 @@ interface EditorState {
 
   // Actions
   openFile: (path: string, name: string, content: string) => void;
-  openTab: (path: string, name: string, content: string, type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' | 'workflow-execution', metadata?: { url?: string; favicon?: string }) => void;
+  openTab: (path: string, name: string, content: string, type?: 'file' | 'browser' | 'whiteboard' | 'ai-assistant' | 'workflow-execution' | 'email', metadata?: { url?: string; favicon?: string; mailSourceId?: string }) => void;
   closeTab: (path: string) => void;
   closeTabsByPath: (path: string) => void; // Close all tabs for a deleted file
   setActiveTab: (path: string) => void;
@@ -611,6 +614,24 @@ export const useEditorStore = create<EditorState>()(
             type: 'ai-assistant',
             ...(meta ? { metadata: meta } : {}),
           });
+          continue;
+        }
+
+        // Email viewer tabs have no on-disk file — the message id rides in
+        // metadata.mailSourceId and the viewer re-fetches + decrypts it on
+        // mount. Restore the tab when the id is present; otherwise drop it.
+        if (tab.type === 'email') {
+          if (meta?.mailSourceId) {
+            restoredTabs.push({
+              path: tab.path,
+              name: tab.name,
+              content: '',
+              isDirty: false,
+              groupId: tab.groupId ?? null,
+              type: 'email',
+              metadata: meta,
+            });
+          }
           continue;
         }
 
