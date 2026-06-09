@@ -16,6 +16,11 @@
 //!   * [`docx_author_revision`] — the helper the AI redliner (A4) will call:
 //!     add a new tracked change (insertion / deletion) to the DOM and return
 //!     the updated DOM. Pure DOM-in / DOM-out; no disk I/O.
+//!   * [`docx_resolve_revision`] / [`docx_resolve_all`] — the helpers the editor
+//!     (A3) calls to ACCEPT / REJECT one tracked change (by revision id) or all
+//!     of them (the review pane's bulk buttons). Pure DOM-in / DOM-out; no disk
+//!     I/O. The `action` is a plain string `"accept"` / `"reject"` (see
+//!     [`resolve_revision_core`]).
 //!
 //! The JSON DOM shape is defined by `keepance_docx::Document` (serde,
 //! camelCase). See the engine crate for the authoritative schema.
@@ -24,7 +29,8 @@ use std::path::Path;
 
 use keepance_docx::author;
 use keepance_docx::{
-    document_from_value, document_to_value, serialize_docx_bytes, Document, OpenedDocument,
+    document_from_value, document_to_value, resolve_all, resolve_revision, serialize_docx_bytes,
+    Document, OpenedDocument, ResolveAction,
 };
 use serde_json::Value;
 
@@ -127,6 +133,43 @@ pub fn author_revision_core(
     document_to_value(&document).map_err(|e| e.to_string())
 }
 
+/// Parse the loose `action` string the editor sends into a [`ResolveAction`],
+/// or a user-facing error. Shared by the resolve-one and resolve-all cores so
+/// both reject the same way.
+fn parse_action(action: &str) -> Result<ResolveAction, String> {
+    ResolveAction::from_str_action(action)
+        .ok_or_else(|| format!("unknown resolve action {action:?} (expected \"accept\" or \"reject\")"))
+}
+
+/// Accept or reject a SINGLE tracked change (every inline whose revision id
+/// matches `revision_id`) and return the updated DOM. `action` is `"accept"` or
+/// `"reject"` (case-insensitive). Errors if the action is unknown or if no
+/// revision with that id exists (so the editor can surface a precise message
+/// rather than silently no-op'ing a stale button click).
+pub fn resolve_revision_core(
+    document_json: Value,
+    revision_id: &str,
+    action: &str,
+) -> Result<DocumentJson, String> {
+    let act = parse_action(action)?;
+    let mut document: Document = document_from_value(document_json).map_err(|e| e.to_string())?;
+    if !resolve_revision(&mut document, revision_id, act) {
+        return Err(format!("no revision with id {revision_id:?} found"));
+    }
+    document_to_value(&document).map_err(|e| e.to_string())
+}
+
+/// Accept-all or reject-all: apply `action` to every tracked change in the
+/// document and return the updated DOM. `action` is `"accept"` or `"reject"`.
+/// Resolving a document with no tracked changes is a no-op (not an error) — the
+/// review pane can call this unconditionally.
+pub fn resolve_all_core(document_json: Value, action: &str) -> Result<DocumentJson, String> {
+    let act = parse_action(action)?;
+    let mut document: Document = document_from_value(document_json).map_err(|e| e.to_string())?;
+    resolve_all(&mut document, act);
+    document_to_value(&document).map_err(|e| e.to_string())
+}
+
 // ---------------------------------------------------------------------------
 // Tauri command surface — thin wrappers around the core fns above.
 // ---------------------------------------------------------------------------
@@ -194,6 +237,43 @@ pub async fn docx_author_revision(
     })
     .await
     .map_err(|e| format!("task join error: {e}"))?
+}
+
+/// Accept or reject a single tracked change on the JSON DOM and return the
+/// updated DOM. This is what the editor (A3) wires its per-revision
+/// accept/reject buttons to.
+///
+/// Parameters:
+///   * `document` — the JSON DOM.
+///   * `revision_id` — the revision's `w:id` (groups all runs of one change).
+///   * `action` — `"accept"` or `"reject"` (case-insensitive).
+///
+/// Word semantics: accept an insertion keeps its text (as normal runs) / reject
+/// removes it; accept a deletion removes the text / reject restores it.
+#[tauri::command]
+pub async fn docx_resolve_revision(
+    document: Value,
+    revision_id: String,
+    action: String,
+) -> Result<DocumentJson, String> {
+    tokio::task::spawn_blocking(move || resolve_revision_core(document, &revision_id, &action))
+        .await
+        .map_err(|e| format!("task join error: {e}"))?
+}
+
+/// Accept-all or reject-all every tracked change on the JSON DOM and return the
+/// updated DOM. This is what the editor's review pane wires its bulk buttons to.
+///
+/// Parameters:
+///   * `document` — the JSON DOM.
+///   * `action` — `"accept"` or `"reject"` (case-insensitive).
+///
+/// A document with no tracked changes is returned unchanged (no error).
+#[tauri::command]
+pub async fn docx_resolve_all(document: Value, action: String) -> Result<DocumentJson, String> {
+    tokio::task::spawn_blocking(move || resolve_all_core(document, &action))
+        .await
+        .map_err(|e| format!("task join error: {e}"))?
 }
 
 #[cfg(test)]
@@ -343,5 +423,99 @@ mod tests {
         std::fs::write(&path, b"not a zip at all").unwrap();
         let res = super::docx_open(path.to_string_lossy().to_string()).await;
         assert!(res.is_err(), "opening non-docx must error");
+    }
+
+    // -----------------------------------------------------------------------
+    // resolve (accept/reject) command-layer coverage
+    // -----------------------------------------------------------------------
+
+    /// resolve_revision_core accepts an insertion (id 101) → its text stays as a
+    /// normal run, the other revision (102) is untouched, comment preserved.
+    #[test]
+    fn resolve_revision_core_accept_insertion() {
+        let json = document_to_value(&build_fixture_model()).unwrap();
+        let out = resolve_revision_core(json, "101", "accept").expect("resolve");
+        let doc = keepance_docx::document_from_value(out).unwrap();
+        let revs = doc.revisions();
+        assert_eq!(revs.len(), 1, "only the deletion remains");
+        assert_eq!(revs[0].0.id, "102");
+        assert!(doc.comments.contains_key("1"), "comment preserved");
+    }
+
+    /// resolve_revision_core errors (does not panic) on an unknown id and on a
+    /// bad action string — the editor needs precise messages.
+    #[test]
+    fn resolve_revision_core_rejects_bad_input() {
+        let json = document_to_value(&build_fixture_model()).unwrap();
+        let err = resolve_revision_core(json.clone(), "9999", "accept").unwrap_err();
+        assert!(err.contains("no revision with id"), "got: {err}");
+        let err = resolve_revision_core(json, "101", "maybe").unwrap_err();
+        assert!(err.contains("unknown resolve action"), "got: {err}");
+    }
+
+    /// resolve_all_core accept-all clears every revision; reject-all also clears
+    /// them (restoring deleted text), and a clean document is a no-op (no error).
+    #[test]
+    fn resolve_all_core_accept_reject_and_noop() {
+        let json = document_to_value(&build_fixture_model()).unwrap();
+        let accepted = resolve_all_core(json.clone(), "accept").expect("accept all");
+        let doc = keepance_docx::document_from_value(accepted.clone()).unwrap();
+        assert!(doc.revisions().is_empty());
+
+        let rejected = resolve_all_core(json, "reject").expect("reject all");
+        assert!(keepance_docx::document_from_value(rejected)
+            .unwrap()
+            .revisions()
+            .is_empty());
+
+        // Resolving the already-clean doc is fine (review pane calls it freely).
+        let again = resolve_all_core(accepted, "accept").expect("noop accept all");
+        assert!(keepance_docx::document_from_value(again)
+            .unwrap()
+            .revisions()
+            .is_empty());
+    }
+
+    /// Smoke the ACTUAL async `#[tauri::command]` resolve surface end to end:
+    /// open a real file, accept one revision, accept-all the rest, save, reopen,
+    /// and confirm the result is a clean, valid document with the comment intact.
+    #[tokio::test]
+    async fn async_command_surface_resolve_smoke() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("matter.docx");
+        let bytes = keepance_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        let path_str = path.to_string_lossy().to_string();
+
+        let json = super::docx_open(path_str.clone()).await.expect("open");
+
+        // Accept the insertion (id 101) via the async command.
+        let after_one = super::docx_resolve_revision(json, "101".to_string(), "accept".to_string())
+            .await
+            .expect("docx_resolve_revision");
+        let mid = keepance_docx::document_from_value(after_one.clone()).unwrap();
+        assert_eq!(mid.revisions().len(), 1, "deletion still pending");
+
+        // Accept everything else via the async bulk command.
+        let after_all = super::docx_resolve_all(after_one, "accept".to_string())
+            .await
+            .expect("docx_resolve_all");
+
+        // Save and reopen → clean, valid, comment preserved.
+        super::docx_save(path_str.clone(), after_all)
+            .await
+            .expect("save");
+        let reopened = super::docx_open(path_str).await.expect("reopen");
+        let doc = keepance_docx::document_from_value(reopened).unwrap();
+        assert!(doc.revisions().is_empty(), "all revisions resolved");
+        assert!(doc.comments.contains_key("1"), "comment preserved");
+    }
+
+    /// The async resolve command surfaces errors (not panic) for a bad action.
+    #[tokio::test]
+    async fn async_command_resolve_rejects_bad_action() {
+        let json = document_to_value(&build_fixture_model()).unwrap();
+        let res = super::docx_resolve_all(json, "frobnicate".to_string()).await;
+        assert!(res.is_err(), "bad action must error");
     }
 }

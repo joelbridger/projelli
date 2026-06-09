@@ -20,8 +20,8 @@ use keepance_docx::model::{BlockContent, Inline, RevisionKind};
 use keepance_docx::package::{Limits, Package};
 use keepance_docx::validate::validate_package;
 use keepance_docx::{
-    document_from_json, document_to_json, open_docx_bytes, parse_docx_bytes, roundtrip_bytes,
-    serialize_docx_bytes, Document,
+    document_from_json, document_to_json, open_docx_bytes, parse_docx_bytes, resolve_all,
+    resolve_revision, roundtrip_bytes, serialize_docx_bytes, Document, ResolveAction,
 };
 
 /// Build fixture .docx bytes from the model (single source of truth).
@@ -1203,4 +1203,162 @@ fn test_doctype_entity_is_not_expanded_billion_laughs() {
             // Erroring on the DOCTYPE/entity is also acceptable (and inert).
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// TEST R — accept/reject tracked changes (resolve) still produces a VALID
+// .docx that round-trips. This is the contract for the editor's accept/reject
+// + review-pane bulk buttons: resolving must yield a document Word can open,
+// with comments and unrelated content intact.
+// ---------------------------------------------------------------------------
+
+/// Concatenate every plain-run text in body order (revisions still present are
+/// ignored). Mirrors the engine's own helper for asserting resolved text.
+fn body_plain_text(doc: &Document) -> String {
+    doc.body
+        .iter()
+        .filter_map(|b| match b {
+            BlockContent::Paragraph(p) => Some(p),
+            _ => None,
+        })
+        .flat_map(|p| p.inlines.iter())
+        .filter_map(|i| match i {
+            Inline::Run(r) => Some(r.text.as_str()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn test_r_accept_all_serializes_to_valid_roundtripping_docx() {
+    let mut doc = build_fixture_model();
+    let n = resolve_all(&mut doc, ResolveAction::Accept);
+    assert_eq!(n, 2, "fixture has one insertion + one deletion");
+    assert!(doc.revisions().is_empty(), "no revisions remain after accept-all");
+
+    // Serialize from scratch, validate the package structurally.
+    let bytes = serialize_docx_bytes(&doc).expect("serialize accepted doc");
+    let pkg = Package::read_from_bytes(&bytes).expect("valid zip");
+    assert!(
+        validate_package(&pkg).ok(),
+        "accepted doc invalid: {:?}",
+        validate_package(&pkg).errors
+    );
+
+    // Re-parse and confirm the resolved text + that the comment survived.
+    let reparsed = parse_docx_bytes(&bytes).expect("reparse accepted");
+    assert!(reparsed.revisions().is_empty());
+    assert_eq!(
+        body_plain_text(&reparsed),
+        "The parties agree to promptly resolve all disputes."
+    );
+    assert!(
+        reparsed.comments.contains_key(FIXTURE_COMMENT_ID),
+        "comment must survive accept-all"
+    );
+
+    // Idempotent serialization (stable diffs / version history).
+    let round2 = roundtrip_bytes(&bytes).expect("roundtrip accepted");
+    let round3 = roundtrip_bytes(&round2).expect("roundtrip accepted 2");
+    assert_eq!(round2, round3, "resolved doc serialization not idempotent");
+}
+
+#[test]
+fn test_r_reject_all_serializes_to_valid_roundtripping_docx() {
+    let mut doc = build_fixture_model();
+    let n = resolve_all(&mut doc, ResolveAction::Reject);
+    assert_eq!(n, 2);
+    assert!(doc.revisions().is_empty(), "no revisions remain after reject-all");
+
+    let bytes = serialize_docx_bytes(&doc).expect("serialize rejected doc");
+    let pkg = Package::read_from_bytes(&bytes).expect("valid zip");
+    assert!(
+        validate_package(&pkg).ok(),
+        "rejected doc invalid: {:?}",
+        validate_package(&pkg).errors
+    );
+
+    let reparsed = parse_docx_bytes(&bytes).expect("reparse rejected");
+    // Reject restores the original (pre-redline) text.
+    assert_eq!(
+        body_plain_text(&reparsed),
+        "The parties agree to resolve all minor disputes."
+    );
+    assert!(reparsed.comments.contains_key(FIXTURE_COMMENT_ID));
+}
+
+#[test]
+fn test_r_resolve_one_revision_preserves_comment_graph_through_save() {
+    // Resolve just the insertion. The deletion AND the comment anchors must
+    // survive serialization — the serializer's dangling-comment-ref guard would
+    // reject the save if resolving had orphaned the comment.
+    let mut doc = build_fixture_model();
+    assert!(resolve_revision(&mut doc, "101", ResolveAction::Accept));
+
+    let bytes = serialize_docx_bytes(&doc).expect("serialize partially-resolved doc");
+    let pkg = Package::read_from_bytes(&bytes).expect("valid zip");
+    assert!(
+        validate_package(&pkg).ok(),
+        "partially-resolved doc invalid: {:?}",
+        validate_package(&pkg).errors
+    );
+
+    let reparsed = parse_docx_bytes(&bytes).expect("reparse");
+    // The other revision (the deletion, id 102) is intact and round-tripped.
+    let revs = reparsed.revisions();
+    assert_eq!(revs.len(), 1);
+    assert_eq!(revs[0].0.id, "102");
+    assert_eq!(revs[0].1, RevisionKind::Deletion);
+    // Comment preserved with no dangling reference.
+    assert!(reparsed.comments.contains_key(FIXTURE_COMMENT_ID));
+    // Accepted insertion text is now plain text.
+    assert!(body_plain_text(&reparsed).contains("promptly "));
+}
+
+#[test]
+fn test_r_resolve_preserves_unmodeled_parts_via_opened_document() {
+    // Resolve through the preserve-by-default save path (OpenedDocument), proving
+    // styles/theme/numbering/media survive when the editor accepts a change and
+    // saves. The rich fixture has no revisions of its own, so author one first.
+    let original = build_rich_package_bytes();
+    let opened = open_docx_bytes(&original).expect("open rich");
+    let mut doc = opened.document.clone();
+
+    delete_run_containing(&mut doc, 0, "Lead text ", AI_AUTHOR, OPPOSING_DATE)
+        .expect("found a run to delete in the rich doc");
+    assert_eq!(doc.revisions().len(), 1, "one authored revision present");
+
+    // Accept it (the delete applies). resolve_all reports it resolved.
+    let resolved = resolve_all(&mut doc, ResolveAction::Accept);
+    assert_eq!(resolved, 1);
+    assert!(doc.revisions().is_empty(), "authored revision resolved");
+
+    let out = opened.with_document(doc).save_bytes().expect("save resolved");
+    let pkg = Package::read_from_bytes(&out).expect("valid zip");
+    assert!(
+        validate_package(&pkg).ok(),
+        "resolved rich doc invalid: {:?}",
+        validate_package(&pkg).errors
+    );
+
+    // Unmodeled parts survived byte-for-byte through the resolve+save.
+    let original_pkg = Package::read_from_bytes(&original).unwrap();
+    for part in [
+        "word/styles.xml",
+        "word/numbering.xml",
+        "customXml/item1.xml",
+        "word/theme/theme1.xml",
+        "word/media/image1.png",
+    ] {
+        assert_eq!(
+            pkg.get(part),
+            original_pkg.get(part),
+            "unmodeled part {part} must survive resolve+save byte-for-byte"
+        );
+    }
+
+    let reparsed = parse_docx_bytes(&out).expect("reparse resolved rich");
+    assert!(reparsed.revisions().is_empty(), "all revisions resolved");
+    // The accepted deletion removed "Lead text " from the normal flow.
+    assert!(!body_plain_text(&reparsed).contains("Lead text"));
 }

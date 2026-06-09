@@ -18,6 +18,8 @@
 //!   (de)serializes to JSON via serde so the React editor (A3) can consume it.
 //! * [`author`] — helpers the AI redliner (A4) calls to add new tracked
 //!   changes alongside existing ones.
+//! * [`resolve`] — helpers the editor (A3) calls to accept / reject tracked
+//!   changes (the inverse of [`author`]).
 //!
 //! # Preserve-by-default
 //!
@@ -33,6 +35,7 @@ pub mod error;
 pub mod model;
 pub mod package;
 pub mod parse;
+pub mod resolve;
 pub mod serialize;
 pub mod validate;
 
@@ -48,6 +51,7 @@ pub use model::{
     DOM_FORMAT_VERSION,
 };
 pub use package::Package;
+pub use resolve::{resolve_all, resolve_revision, ResolveAction};
 
 /// A document opened from `.docx` bytes, carrying both the typed [`Document`]
 /// DOM and the *original* [`Package`] it came from.

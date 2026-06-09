@@ -76,6 +76,9 @@ pub fn run() {
             commands::docx::docx_open,
             commands::docx::docx_save,
             commands::docx::docx_author_revision,
+            // Editor (A3) accept/reject tracked changes — one revision or all.
+            commands::docx::docx_resolve_revision,
+            commands::docx::docx_resolve_all,
             // Phase 1 email — Microsoft 365 import.
             commands::mail::mail_set_workspace,
             commands::mail::mail_begin_login,
