@@ -23,6 +23,7 @@ import {
   X,
 } from 'lucide-react';
 import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
+import { AiSetupReminder } from '@/components/onboarding/AiSetupReminder';
 import { getCorsSafeFetch, getProviderBaseUrl } from '@/modules/models/fetchUtils';
 import { openExternal } from '@/utils/openExternal';
 import { getDefaultModelsForTier } from '@/utils/defaultModel';
@@ -405,6 +406,16 @@ export function AIAssistantPane({
           <span className="truncate">Models</span>
         </button>
       </div>
+
+      {/* Gentle, persistent reminder when the user skipped AI setup during
+          onboarding and has not yet connected a model. Disappears for good
+          once a key or a local model is connected. */}
+      <AiSetupReminder
+        hasModelConnected={
+          apiKeys.some((k) => k.isValid) || (localOnly && ollamaStatus === 'ready')
+        }
+        onConnect={() => setActiveTab('keys')}
+      />
 
       {/* Tab Content - Scrollable */}
       <div className="flex-1 overflow-y-auto min-h-0">

@@ -55,7 +55,7 @@ interface MapRow {
   caveat?: string;
 }
 
-const ROWS: MapRow[] = [
+export const DATA_MAP_ROWS: MapRow[] = [
   {
     icon: Laptop,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
@@ -212,57 +212,69 @@ export function DataMapDialog({ open, onOpenChange }: DataMapDialogProps) {
 
         {/* Body — this region is what gets printed. */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
-          <div id="keepance-data-map-printable">
-            <h1 className="text-lg font-semibold mb-1">
-              Where your data lives and who can see it
-            </h1>
-            <p className="sub text-sm text-muted-foreground mb-6">
-              How Keepance handles your information, in plain language. The short
-              version: your work stays on your computer, your AI requests go
-              straight to the provider you chose (not through us), and you can run
-              entirely on your own machine when you need to.
-            </p>
-
-            <div className="space-y-0">
-              {ROWS.map((row, i) => {
-                const Icon = row.icon;
-                return (
-                  <div
-                    key={i}
-                    data-testid={`data-map-row-${String(i)}`}
-                    className="row flex gap-3 py-4 border-b border-border/60 last:border-b-0"
-                  >
-                    <div
-                      className={`shrink-0 h-8 w-8 rounded-md flex items-center justify-center ${row.tone}`}
-                      aria-hidden
-                    >
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <h2 className="text-sm font-semibold mb-1">{row.title}</h2>
-                      <p className="text-sm text-muted-foreground">{row.body}</p>
-                      {row.caveat && (
-                        <p className="caveat mt-2 text-xs rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                          {row.caveat}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <p className="foot mt-6 text-xs text-muted-foreground">
-              This describes the Keepance desktop app. The online browser demo is
-              different: it can route messages through a shared Keepance relay, so
-              the demo should never be used with confidential or client
-              information. Keepance is a tool you control, not a custodian of your
-              data. You decide what is sent and to whom.
-            </p>
-          </div>
+          <DataMapContent printableId="keepance-data-map-printable" />
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * DataMapContent — the plain-English data-map body, extracted so it can be
+ * reused verbatim outside the dialog (e.g. as a step in first-run onboarding)
+ * without duplicating the legally-precise copy. The wording lives in exactly
+ * one place: `DATA_MAP_ROWS` and the surrounding prose here.
+ */
+export function DataMapContent({ printableId }: { printableId?: string }) {
+  return (
+    <div id={printableId} data-testid="data-map-content">
+      <h1 className="text-lg font-semibold mb-1">
+        Where your data lives and who can see it
+      </h1>
+      <p className="sub text-sm text-muted-foreground mb-6">
+        How Keepance handles your information, in plain language. The short
+        version: your work stays on your computer, your AI requests go straight
+        to the provider you chose (not through us), and you can run entirely on
+        your own machine when you need to.
+      </p>
+
+      <div className="space-y-0">
+        {DATA_MAP_ROWS.map((row, i) => {
+          const Icon = row.icon;
+          return (
+            <div
+              key={i}
+              data-testid={`data-map-row-${String(i)}`}
+              className="row flex gap-3 py-4 border-b border-border/60 last:border-b-0"
+            >
+              <div
+                className={`shrink-0 h-8 w-8 rounded-md flex items-center justify-center ${row.tone}`}
+                aria-hidden
+              >
+                <Icon className="h-4 w-4" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold mb-1">{row.title}</h2>
+                <p className="text-sm text-muted-foreground">{row.body}</p>
+                {row.caveat && (
+                  <p className="caveat mt-2 text-xs rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                    {row.caveat}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="foot mt-6 text-xs text-muted-foreground">
+        This describes the Keepance desktop app. The online browser demo is
+        different: it can route messages through a shared Keepance relay, so the
+        demo should never be used with confidential or client information.
+        Keepance is a tool you control, not a custodian of your data. You decide
+        what is sent and to whom.
+      </p>
+    </div>
   );
 }
 

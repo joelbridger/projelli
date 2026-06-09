@@ -3,10 +3,15 @@
  *
  * Walks the user through:
  *   1. Welcome / value prop
- *   2. Pick a workspace location
- *   3. (Optional) Paste an AI provider API key — can be skipped
- *   4. (Optional) Run a sample workflow to see the magic moment
- *   5. Done — drop them into the workspace
+ *   2. What kind of work do you do (profession) — also sets a sensible default model
+ *   3. Pick a workspace location
+ *   4. Where your data goes (plain-English data map) — the trust story, told
+ *      BEFORE the AI step so the user understands it around connecting a key
+ *   5. Connect an AI (the rebuilt core step): plain English first, then three
+ *      clear paths (use your own account / keep it on your computer / set up
+ *      later). Never dead-ends; skip is always available.
+ *   6. (Optional) Run a sample workflow to see the magic moment
+ *   7. Done — drop them into the workspace
  *
  * Triggered when:
  *   - The app launches with no recent workspaces (`workspaceStore.recentWorkspaces.length === 0`)
@@ -17,15 +22,23 @@
  * Designed to be embedded inside the existing WorkspaceSelector flow rather
  * than replacing it — we want to honor the existing path-input vs file-picker
  * logic for browser vs Tauri modes.
+ *
+ * TODO (later, out of scope here): a guided "wedge" demo that, on first run,
+ * lands the user on connect-email-then-ask-a-cited-question. The clean hook for
+ * it is the `onComplete` callback below: a future build can branch into the
+ * wedge flow there instead of dropping straight into the workspace.
  */
 
 import { useState, type ReactNode } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { writeSampleFiles, getSamplesForProfession } from '@/onboarding/samples';
-import { ApiKeyExplainer } from '@/components/onboarding/ApiKeyExplainer';
-import { ApiKeyTester } from '@/components/onboarding/ApiKeyTester';
+import { AiSetupStep } from '@/components/onboarding/AiSetupStep';
+import { DataMapDialog, DataMapContent } from '@/components/privacy/DataMapDialog';
+import { persistProfessionModelDefault, getModelForProfession } from '@/onboarding/professionModel';
+import { markAiSetupDeferred } from '@/onboarding/aiSetupState';
+import type { KeyProvider } from '@/modules/models/KeychainService';
+import type { ProviderId } from '@/components/onboarding/ProviderTutorialSteps';
 
 const STORAGE_KEY = 'keepance_onboarding_complete';
 const PROFESSION_STORAGE_KEY = 'keepance_profession';
@@ -52,9 +65,16 @@ export interface FirstRunWizardProps {
    * without a workspace root selected yet.
    */
   workspace?: WizardWorkspace;
+  /**
+   * Persist a connected cloud API key. Should route into the same save path
+   * Settings uses (KeychainService.setKey). When omitted, the AI-setup step
+   * still renders and behaves, but the key is only validated, not persisted
+   * (useful for tests/browsers without a keychain).
+   */
+  onSaveApiKey?: (provider: KeyProvider, key: string) => void | Promise<void>;
 }
 
-type Step = 'welcome' | 'profession' | 'workspace' | 'apikey' | 'demo' | 'done';
+type Step = 'welcome' | 'profession' | 'workspace' | 'data' | 'ai-setup' | 'demo' | 'done';
 
 type Profession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 
@@ -87,16 +107,31 @@ const PROFESSION_OPTIONS: ProfessionOption[] = [
   },
 ];
 
-export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizardProps) {
+export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: FirstRunWizardProps) {
   const { t } = useTranslation();
   const [step, setStep] = useState<Step>('welcome');
   const [profession, setProfession] = useState<Profession | null>(null);
-  const [apiKey, setApiKey] = useState('');
   // Q11 (Wave 1.5): default ON — new users benefit from seeing realistic
   // artifacts before they run their first workflow.
   const [populateSamples, setPopulateSamples] = useState(true);
   const [isFinishing, setIsFinishing] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
+  // Always-available "Where does my data go?" map, reachable from the AI step
+  // and the dedicated data step.
+  const [dataMapOpen, setDataMapOpen] = useState(false);
+
+  // Default AI provider for the "use your own account" flow, derived from the
+  // chosen profession. Every profession we ship defaults to Claude (Anthropic).
+  const defaultProvider: ProviderId =
+    (getModelForProfession(profession).provider as ProviderId) ?? 'anthropic';
+
+  /** Select a profession and lock in its sensible default model. */
+  const selectProfession = (id: Profession) => {
+    setProfession(id);
+    // Set a sensible default model for the chosen profession (e.g. legal -> a
+    // strong Claude default). Never overrides a model the user already picked.
+    persistProfessionModelDefault(id);
+  };
 
   const markComplete = async () => {
     setFinishError(null);
@@ -117,6 +152,9 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
     // Store profession selection for template pre-installation (template registry
     // wiring is handled separately). Default to 'other' if the user skipped.
     localStorage.setItem(PROFESSION_STORAGE_KEY, profession ?? 'other');
+    // Make sure the profession's default model is recorded even if the user
+    // skipped quickly. Never overrides an already-chosen model.
+    persistProfessionModelDefault(profession ?? 'other');
     localStorage.setItem(STORAGE_KEY, 'true');
     onComplete();
   };
@@ -127,8 +165,8 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
         {/* Progress indicator */}
         <div className="flex items-center justify-between px-8 pt-6">
           <div className="flex gap-2">
-            {(['welcome', 'profession', 'workspace', 'apikey', 'demo'] as Step[]).map((s) => {
-              const order: Step[] = ['welcome', 'profession', 'workspace', 'apikey', 'demo', 'done'];
+            {(['welcome', 'profession', 'workspace', 'data', 'ai-setup', 'demo'] as Step[]).map((s) => {
+              const order: Step[] = ['welcome', 'profession', 'workspace', 'data', 'ai-setup', 'demo', 'done'];
               const currentIdx = order.indexOf(step);
               const stepIdx = order.indexOf(s);
               return (
@@ -190,7 +228,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
                         key={option.id}
                         type="button"
                         data-testid={`profession-card-${option.id}`}
-                        onClick={() => setProfession(option.id)}
+                        onClick={() => selectProfession(option.id)}
                         className={`rounded-lg border p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                           isSelected
                             ? 'bg-primary/10 border-primary'
@@ -252,7 +290,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
                   <Button variant="outline" onClick={() => setStep('profession')}>
                     {t('onboarding.first-run.back')}
                   </Button>
-                  <Button onClick={() => setStep('apikey')} size="lg">
+                  <Button onClick={() => setStep('data')} size="lg">
                     {t('onboarding.first-run.workspace.cta')}
                   </Button>
                 </div>
@@ -260,63 +298,15 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
             />
           )}
 
-          {step === 'apikey' && (
+          {/* Data step: the user finishes onboarding able to explain where their
+              data lives. Reuses the exact, legally-precise DataMapContent. */}
+          {step === 'data' && (
             <Pane
-              title={t('onboarding.first-run.apikey.title')}
-              subtitle={t('onboarding.first-run.apikey.subtitle')}
+              title="Where your data goes"
+              subtitle="Before we connect an AI, here is the whole picture in plain language."
               body={
-                <div className="space-y-4 text-sm text-muted-foreground">
-                  {/* Plain-English explainer — shown by default in onboarding */}
-                  <ApiKeyExplainer defaultOpen={true} />
-
-                  <p>
-                    <Trans
-                      i18nKey="onboarding.first-run.apikey.body-2"
-                      components={{ s: <strong className="text-foreground" /> }}
-                    />
-                  </p>
-                  <ol className="space-y-1 text-xs ml-4 list-decimal">
-                    <li>
-                      <Trans
-                        i18nKey="onboarding.first-run.apikey.step-go-to"
-                        components={{
-                          a: (
-                            <a
-                              href="https://console.anthropic.com/"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-primary underline"
-                            />
-                          ),
-                        }}
-                      />
-                    </li>
-                    <li>{t('onboarding.first-run.apikey.step-signup')}</li>
-                    <li>{t('onboarding.first-run.apikey.step-create-key')}</li>
-                    <li>
-                      <Trans
-                        i18nKey="onboarding.first-run.apikey.step-copy-key"
-                        components={{ c: <code className="text-foreground" /> }}
-                      />
-                    </li>
-                  </ol>
-                  <div className="pt-2 space-y-2">
-                    <Input
-                      type="password"
-                      placeholder="sk-ant-api03-..."
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      className="font-mono"
-                      data-testid="first-run-apikey-input"
-                    />
-                    {/* Test-this-key button — only shown when the user has typed something */}
-                    {apiKey.trim() && (
-                      <ApiKeyTester provider="anthropic" apiKey={apiKey} />
-                    )}
-                    <p className="text-xs text-muted-foreground">
-                      {t('onboarding.first-run.apikey.skip-hint')}
-                    </p>
-                  </div>
+                <div data-testid="onboarding-data-step" className="space-y-4">
+                  <DataMapContent />
                 </div>
               }
               actions={
@@ -324,14 +314,35 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
                   <Button variant="outline" onClick={() => setStep('workspace')}>
                     {t('onboarding.first-run.back')}
                   </Button>
-                  <Button variant="outline" onClick={() => setStep('demo')}>
-                    {t('onboarding.first-run.skip-for-now')}
-                  </Button>
-                  <Button onClick={() => setStep('demo')} size="lg" disabled={!apiKey.trim()}>
-                    {t('onboarding.first-run.apikey.save-cta')}
+                  <Button onClick={() => setStep('ai-setup')} size="lg">
+                    {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+                    Got it, connect an AI
                   </Button>
                 </div>
               }
+            />
+          )}
+
+          {/* AI-setup step: the core fix. Plain English, then three paths,
+              never dead-ends (skip is always available). */}
+          {step === 'ai-setup' && (
+            <AiSetupStep
+              defaultProvider={defaultProvider}
+              onBack={() => setStep('data')}
+              onOpenDataMap={() => setDataMapOpen(true)}
+              onSaveKey={async (provider, key) => {
+                if (onSaveApiKey) {
+                  await onSaveApiKey(provider, key);
+                }
+                setStep('demo');
+              }}
+              onUseLocal={() => setStep('demo')}
+              onSkip={() => {
+                // A genuine, no-shame skip: set the reminder flag and move on.
+                // Onboarding is never blocked on the key.
+                markAiSetupDeferred();
+                setStep('demo');
+              }}
             />
           )}
 
@@ -408,7 +419,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
               }
               actions={
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setStep('apikey')} disabled={isFinishing}>
+                  <Button variant="outline" onClick={() => setStep('ai-setup')} disabled={isFinishing}>
                     {t('onboarding.first-run.back')}
                   </Button>
                   <Button onClick={markComplete} size="lg" disabled={isFinishing}>
@@ -420,6 +431,9 @@ export function FirstRunWizard({ onComplete, onSkip, workspace }: FirstRunWizard
           )}
         </div>
       </div>
+
+      {/* Always-available "Where does my data go?" map, opened from the AI step. */}
+      <DataMapDialog open={dataMapOpen} onOpenChange={setDataMapOpen} />
     </div>
   );
 }

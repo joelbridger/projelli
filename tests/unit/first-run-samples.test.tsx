@@ -33,10 +33,12 @@ function advanceToDemoStep() {
   fireEvent.click(screen.getByRole('button', { name: /let's go/i }));
   // profession -> workspace (no profession picked, so the in-step CTA reads "Skip for now")
   clickLastSkip();
-  // workspace -> apikey
+  // workspace -> data (rebuilt flow: data-map step sits before the AI step)
   fireEvent.click(screen.getByRole('button', { name: /^Got it$/i }));
-  // apikey -> demo (skip entering a key)
-  clickLastSkip();
+  // data -> ai-setup
+  fireEvent.click(screen.getByRole('button', { name: /connect an ai/i }));
+  // ai-setup -> demo via the genuine, no-shame "Set this up later" path
+  fireEvent.click(screen.getByTestId('ai-path-later'));
 }
 
 describe('FirstRunWizard sample population (Q11)', () => {
