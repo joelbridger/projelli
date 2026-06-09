@@ -39,6 +39,9 @@ import {
 import { EmptyState } from '@/components/common/EmptyState';
 import { AI_MESSAGE_MIME } from '@/utils/fileDrop';
 import { cn } from '@/lib/utils';
+import { PrivilegeMenuItems } from '@/components/privilege/PrivilegeMenuItems';
+import { PrivilegeIndicator } from '@/components/privilege/PrivilegeIndicator';
+import { usePrivilegeForSource } from '@/stores/privilegeStore';
 
 interface FileTreeProps {
   onFileOpen: (path: string, name: string) => Promise<void>;
@@ -584,6 +587,9 @@ function FileTreeItem({
   const isExpanded = expandedPaths.has(node.path);
   const isFolder = node.type === 'folder';
   const isDragOver = dragOverPath === node.path;
+  // WS-PRIV: a file's privilege status drives the row indicator. Folders are
+  // not tagged (privilege is per-source); the indicator renders nothing for them.
+  const privilege = usePrivilegeForSource(isFolder ? null : node.path);
 
   // Single click: select + open files, toggle folders
   // With Ctrl/Cmd: toggle selection
@@ -831,6 +837,11 @@ function FileTreeItem({
         {/* Name */}
         <span className="flex-1 truncate text-sm">{node.name}</span>
 
+        {/* WS-PRIV: privilege indicator (files only; renders nothing for "none"). */}
+        {!isFolder && (
+          <PrivilegeIndicator privilege={privilege} compact className="mr-1 shrink-0" />
+        )}
+
         {/* Context menu - always rendered but invisible when not hovered to prevent layout shift */}
         <DropdownMenu open={isMenuOpen} onOpenChange={setIsMenuOpen}>
           <DropdownMenuTrigger asChild>
@@ -871,6 +882,19 @@ function FileTreeItem({
                   Download
                 </DropdownMenuItem>
               )}
+              {/* WS-PRIV: tag this file's privilege. Files only — privilege is
+                  per-source. Changing it re-tags the file's indexed chunks so it
+                  is excluded from AI retrieval by default. */}
+              {!isFolder && (
+                <>
+                  <DropdownMenuSeparator />
+                  <PrivilegeMenuItems
+                    sourceId={node.path}
+                    onChanged={() => setIsMenuOpen(false)}
+                  />
+                </>
+              )}
+              <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => { onDelete?.(node.path); setIsMenuOpen(false); }}
                 className="text-destructive focus:text-destructive"

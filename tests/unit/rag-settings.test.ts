@@ -58,9 +58,13 @@ describe('MemoryService toggle', () => {
     const hits = await MemoryService.retrieve('hello', 5);
     // WS-B/C: retrieve defaults to an explicit cross-matter scope (no silent
     // "everything" — the command requires a named scope).
-    expect(tauri.ragRetrieve).toHaveBeenCalledWith('hello', 5, {
-      kind: 'allMatters',
-    });
+    // WS-PRIV: includePrivileged defaults to false (privileged content excluded).
+    expect(tauri.ragRetrieve).toHaveBeenCalledWith(
+      'hello',
+      5,
+      { kind: 'allMatters' },
+      false,
+    );
     expect(hits).toHaveLength(1);
     expect(hits[0]?.chunkText).toBe('hello');
   });
@@ -69,10 +73,12 @@ describe('MemoryService toggle', () => {
     setMemoryEnabledReader(() => true);
     (tauri.ragRetrieve as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
     await MemoryService.retrieve('hello', 5, { kind: 'matter', matterId: 'm-1' });
-    expect(tauri.ragRetrieve).toHaveBeenCalledWith('hello', 5, {
-      kind: 'matter',
-      matterId: 'm-1',
-    });
+    expect(tauri.ragRetrieve).toHaveBeenCalledWith(
+      'hello',
+      5,
+      { kind: 'matter', matterId: 'm-1' },
+      false,
+    );
   });
 
   it('short-circuits retrieve with [] when disabled (no Tauri call)', async () => {
@@ -101,7 +107,8 @@ describe('MemoryService toggle', () => {
     await MemoryService.indexFile('/w/a.md');
     // WS-B/C: indexing always tags the chunk with a matter id; with no matter
     // resolver installed the default is the "unassigned" sentinel.
-    expect(tauri.ragIndexFile).toHaveBeenCalledWith('/w/a.md', 'unassigned');
+    // WS-PRIV: a 3rd arg carries privilege; with no privilege resolver the default is "none".
+    expect(tauri.ragIndexFile).toHaveBeenCalledWith('/w/a.md', 'unassigned', 'none');
   });
 
   it('short-circuits indexFile when disabled', async () => {

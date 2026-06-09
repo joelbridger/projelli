@@ -70,6 +70,8 @@ pub fn build_pdf_chunks(path: &str, pages: &[String]) -> Vec<Chunk> {
 /// JS bridge). `page_count` is the total page count from the PDF metadata
 /// (metadata only, not used for chunking). `matter_id` is the confidentiality
 /// scope the PDF belongs to (WS-B/C); pass `UNASSIGNED_MATTER` when unknown.
+/// `privilege` is the litigation-safety status (WS-PRIV); pass `PRIVILEGE_NONE`
+/// when the PDF is not privileged.
 ///
 /// Returns the number of chunks successfully stored, or 0 if all pages were
 /// empty / skipped (stale rows are cleaned up either way).
@@ -79,6 +81,7 @@ pub async fn index_pdf_chunks(
     pages: &[String],
     page_count: u32,
     matter_id: &str,
+    privilege: &str,
 ) -> Result<usize> {
     let _ = page_count; // stored in metadata; not needed for chunking logic
 
@@ -131,7 +134,7 @@ pub async fn index_pdf_chunks(
     use super::store::build_batch;
     let mut batches: Vec<Result<arrow_array::RecordBatch, ArrowError>> = Vec::new();
     for (page_num, rows) in &grouped {
-        let batch = build_batch(rows, SourceType::Pdf { page_number: *page_num }, matter_id)
+        let batch = build_batch(rows, SourceType::Pdf { page_number: *page_num }, matter_id, privilege)
             .map_err(|e| ArrowError::ExternalError(e.into()))?;
         batches.push(Ok(batch));
     }

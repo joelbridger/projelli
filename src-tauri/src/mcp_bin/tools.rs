@@ -315,7 +315,12 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
     // client/matter UI is a separate task. Pass `None` (no matter prefilter) to
     // preserve the existing whole-workspace search behaviour here. When matter
     // scoping is surfaced to MCP clients, thread a `RetrievalScope` through.
-    let raw = store::nearest(&table, &qvec, top_k, None)
+    //
+    // WS-PRIV: privileged content must NEVER leak to an external MCP client.
+    // `include_privileged = false` here, and there is intentionally NO way for an
+    // MCP client to flip it — the "include privileged" capability is an in-app,
+    // user-initiated decision only.
+    let raw = store::nearest(&table, &qvec, top_k, None, false)
         .await
         .map_err(|e| JsonRpcError::internal(format!("nearest: {e}")))?;
 

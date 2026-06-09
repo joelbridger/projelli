@@ -25,9 +25,15 @@ import {
   setMemoryEnabledReader,
   setMatterResolver,
   setPdfIndexingEnabledReader,
+  setPrivilegeResolver,
 } from '@/modules/memory/MemoryService';
 import { resolveMatterIdForPath, useMatterStore } from '@/stores/matterStore';
 import { isPathInFolder } from '@/modules/memory/matterResolver';
+import {
+  resolvePrivilegeForSource,
+  usePrivilegeStore,
+} from '@/stores/privilegeStore';
+import type { PrivilegeMap } from '@/modules/memory/privilegeResolver';
 import { createFactsService, type FactsStorage } from '@/modules/memory/FactsService';
 import {
   setFactsService,
@@ -125,6 +131,26 @@ export function changedFolderPaths(
   return Array.from(changed);
 }
 
+/**
+ * WS-PRIV — diff two privilege maps and return the set of source ids whose
+ * privilege changed (added, removed, or value-changed). When a source's
+ * privilege changes we re-tag its already-indexed chunks so default retrieval
+ * picks up the new exclusion immediately.
+ */
+export function changedPrivilegeSources(
+  prev: PrivilegeMap,
+  next: PrivilegeMap,
+): string[] {
+  const changed = new Set<string>();
+  for (const key of Object.keys(next)) {
+    if (prev[key] !== next[key]) changed.add(key);
+  }
+  for (const key of Object.keys(prev)) {
+    if (!(key in next)) changed.add(key); // privilege cleared back to "none"
+  }
+  return Array.from(changed);
+}
+
 /** Walk all .pdf files in the workspace and index them via MemoryService. */
 async function indexWorkspacePdfs(
   workspaceService: MemoryWiringWorkspaceService,
@@ -174,6 +200,10 @@ export function useMemoryWiring(
     // WS-B/C — install the matter resolver so every indexed chunk is tagged
     // with the matter the file belongs to (or "unassigned").
     setMatterResolver((path) => resolveMatterIdForPath(path));
+    // WS-PRIV — install the privilege resolver so every indexed chunk is tagged
+    // with its source's privilege (or "none"), keeping privileged content
+    // excluded from default retrieval even after a re-index.
+    setPrivilegeResolver((sourceId) => resolvePrivilegeForSource(sourceId));
   }, []);
 
   // M3 — wire the facts service once the workspace is open so the
@@ -321,6 +351,31 @@ export function useMemoryWiring(
       }
       for (const [matterId, paths] of byMatter) {
         void MemoryService.reindexPaths(paths, matterId).catch(() => {});
+      }
+    });
+    return unsubscribe;
+  }, [rootPath]);
+
+  // WS-PRIV — re-tag when a source's privilege changes. Marking a source
+  // privileged must immediately remove it from default retrieval (and clearing
+  // privilege must restore it), so we diff the privilege map on every change and
+  // re-tag the affected sources' already-indexed chunks IN PLACE (no re-embed)
+  // via `rag_retag_privilege`. Best-effort and debounced by Zustand's
+  // single-notification-per-set semantics. Mirrors the matter re-index reaction.
+  useEffect(() => {
+    if (!rootPath) return;
+    let prevMap = { ...usePrivilegeStore.getState().privilegeBySource };
+
+    const unsubscribe = usePrivilegeStore.subscribe((state) => {
+      const nextMap = { ...state.privilegeBySource };
+      const sources = changedPrivilegeSources(prevMap, nextMap);
+      prevMap = nextMap;
+      if (sources.length === 0) return;
+      for (const sourceId of sources) {
+        // resolvePrivilegeForSource reflects the latest store (a cleared entry
+        // resolves to "none", which re-tags the chunks back to non-privileged).
+        const privilege = resolvePrivilegeForSource(sourceId);
+        void MemoryService.retagPrivilege(sourceId, privilege).catch(() => {});
       }
     });
     return unsubscribe;

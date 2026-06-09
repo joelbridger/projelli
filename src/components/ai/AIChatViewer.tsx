@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, FileText, ChevronDown, ChevronRight, Check, X, Pencil, Brain, AlertTriangle, Briefcase, Globe } from 'lucide-react';
+import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, FileText, ChevronDown, ChevronRight, Check, X, Pencil, Brain, AlertTriangle, Briefcase, Globe, ShieldAlert } from 'lucide-react';
 import { ChatInputToolbar } from '@/components/chat/ChatInputToolbar';
 import { AttachmentService } from '@/modules/attachments/AttachmentService';
 import { SUPPORTED_IMAGE_MIMES, MAX_ATTACHMENT_BYTES, isVisionModel } from '@/modules/models/vision-capability';
@@ -36,6 +36,7 @@ import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
 import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } from '@/stores/aiChatStore';
 import { useActiveMatter } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
+import { useIncludePrivileged, usePrivilegeStore } from '@/stores/privilegeStore';
 import { MatterScopeSelector } from '@/components/matter/MatterScopeSelector';
 import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
 import type { RetrievalScope } from '@/utils/tauri-commands';
@@ -582,6 +583,11 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // When null, the chat searches across all matters (the explicit cross-matter
   // capability). Switching the active matter changes retrieval scope.
   const activeMatter = useActiveMatter();
+  // WS-PRIV — whether the next query may retrieve privileged sources. Default
+  // false (privileged content excluded); flipped on only by the explicit,
+  // visible "Include privileged sources" toggle below the input. Resets on reload.
+  const includePrivileged = useIncludePrivileged();
+  const setIncludePrivileged = usePrivilegeStore((s) => s.setIncludePrivileged);
   // M2 — surfaced inline beneath the input when a citation can't be
   // resolved. Cleared whenever the user interacts with the input again.
   const [missingSourceWarning, setMissingSourceWarning] = useState<string | null>(null);
@@ -912,10 +918,14 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           // prefilters by matter so other clients' chunks can never be
           // returned. We never silently pass AllMatters when a matter is
           // active; the scope object above is the single source of truth.
+          // WS-PRIV — privileged content is excluded UNLESS the user has
+          // explicitly turned on "Include privileged sources" (captured at send
+          // time). The default (false) keeps privileged work out of retrieval.
           const hits = await MemoryService.retrieve(
             retrievalQuery,
             DEFAULT_WORKSPACE_TOP_K,
             retrievalScope,
+            includePrivileged,
           );
           // D1 — filter workspace retrieval results to the active folder scope
           // so @workspace searches don't surface documents from other client
@@ -1581,7 +1591,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         setLoading(chatId, false);
       }
     })();
-  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter]);
+  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
 
   // Stream A2 — File selection handler (paperclip, paste, drag-drop).
   // Accepts images (A1) and PDFs (A2). For PDFs: runs extractPdfText to
@@ -2042,6 +2052,35 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             <Sparkles className="h-4 w-4" />
             {t('ai.chat.ask-workspace')}
           </Button>
+          {/* WS-PRIV — explicit, visible "Include privileged sources" toggle.
+              OFF by default (privileged content excluded from retrieval). Only
+              shown when retrieval is active, so the deliberate opt-in sits right
+              next to the workspace-aware control. Amber/rose accent so turning it
+              on never reads as the normal, safe state. */}
+          {askWorkspaceMode && (
+            <Button
+              data-testid="include-privileged-toggle"
+              data-enabled={includePrivileged ? 'true' : 'false'}
+              variant="outline"
+              size="sm"
+              onClick={() => setIncludePrivileged(!includePrivileged)}
+              className={cn(
+                'gap-2',
+                includePrivileged
+                  ? 'border-rose-400 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                  : 'text-muted-foreground',
+              )}
+              aria-pressed={includePrivileged}
+              title={
+                includePrivileged
+                  ? 'Privileged sources ARE included in retrieval for this chat. Click to exclude them again.'
+                  : 'Privileged sources are excluded from retrieval (default). Click to include them deliberately.'
+              }
+            >
+              <ShieldAlert className="h-4 w-4" />
+              {includePrivileged ? 'Privileged: included' : 'Include privileged'}
+            </Button>
+          )}
           <Button
             data-testid="chat-export-button"
             variant="outline"

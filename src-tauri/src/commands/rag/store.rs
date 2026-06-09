@@ -14,6 +14,8 @@
 //   source_type     : Utf8 (nullable) — "text" | "pdf" | "mail"; null for pre-A3 rows
 //   page_number     : UInt32 (nullable) — 1-based page # for PDF, 0 for text
 //   encrypted       : Boolean (nullable) — true => `text` holds AES-256-GCM ciphertext
+//   privilege       : Utf8 NOT NULL  — privilege status (WS-PRIV). One of
+//                                      "none" | "attorney-client" | "work-product".
 //
 // `id` is content-addressed by `(path, paragraph_index)` so re-indexing a
 // file is idempotent — we delete `path = ?` first and then append, avoiding
@@ -63,6 +65,43 @@ pub enum SourceType {
 /// Name of the per-workspace LanceDB table that stores chunk embeddings.
 pub const TABLE_NAME: &str = "chunks";
 
+/// WS-PRIV — privilege is a LITIGATION-SAFETY GUARANTEE, treat it as
+/// security-critical, parallel to matter scoping:
+///   - `privilege` is NON-NULL. Every chunk carries one of the three values
+///     below; never null, never empty. New rows default to `PRIVILEGE_NONE`.
+///   - Privileged chunks (`PRIVILEGE_ATTORNEY_CLIENT` / `PRIVILEGE_WORK_PRODUCT`)
+///     are EXCLUDED from retrieval BY DEFAULT. The scoped query composes the
+///     privilege predicate with the matter predicate as a single LanceDB
+///     PREFILTER (`matter_id = '..' AND privilege = 'none'`), so a privileged
+///     row is never even a candidate for the vector search.
+///   - The ONLY way privileged rows surface is an explicit, deliberate
+///     `include_privileged = true` on the query — analogous to `AllMatters`
+///     being a deliberate cross-matter capability, never the silent default.
+
+/// Privilege status: content carries no privilege claim. The default for every
+/// row; the ONLY value retrieval returns unless privileged content is explicitly
+/// requested.
+pub const PRIVILEGE_NONE: &str = "none";
+/// Privilege status: attorney-client privileged. Excluded from retrieval by default.
+pub const PRIVILEGE_ATTORNEY_CLIENT: &str = "attorney-client";
+/// Privilege status: attorney work product. Excluded from retrieval by default.
+pub const PRIVILEGE_WORK_PRODUCT: &str = "work-product";
+
+/// Validate a privilege value before it is interpolated into a SQL `only_if`
+/// filter or written to a row. Defence-in-depth, parallel to `validate_matter_id`:
+/// only the three known, fixed values are accepted, so a degenerate or crafted
+/// privilege string can never reach the predicate. Returns the value unchanged
+/// if valid.
+pub fn validate_privilege(privilege: &str) -> Result<&str> {
+    match privilege {
+        PRIVILEGE_NONE | PRIVILEGE_ATTORNEY_CLIENT | PRIVILEGE_WORK_PRODUCT => Ok(privilege),
+        other => anyhow::bail!(
+            "invalid privilege {:?} (expected one of: none, attorney-client, work-product)",
+            other
+        ),
+    }
+}
+
 /// Sentinel matter id for content that has not yet been assigned to a matter.
 /// WS-B/C: `matter_id` is NON-NULL by design — a null/empty matter is a
 /// confidentiality hazard. Not-yet-categorized content is indexed under this
@@ -72,9 +111,16 @@ pub const UNASSIGNED_MATTER: &str = "unassigned";
 
 /// Schema/index version marker. Bumped when the on-disk chunk schema changes in
 /// a way that requires a one-time re-index (e.g. adding the NON-NULL
-/// `matter_id` / `source_id` columns in 3.0). Stored at
+/// `matter_id` / `source_id` columns in 3.0, then the NON-NULL `privilege`
+/// column in WS-PRIV → version 4). Stored at
 /// `<workspace>/.keepance/vectors/.index_version`. See `needs_migration`.
-pub const INDEX_VERSION: u32 = 3;
+///
+/// WS-PRIV: bumped 3 → 4. A pre-WS-PRIV table has rows without the NON-NULL
+/// `privilege` column; we never back-fill (a missing privilege is a litigation-
+/// safety hazard the same way a null matter is a confidentiality hazard), so the
+/// migration drops + re-indexes, defaulting every row to `PRIVILEGE_NONE` and
+/// then re-tagging from the privilege store.
+pub const INDEX_VERSION: u32 = 4;
 
 /// Filename (under the vectors dir) holding the integer `INDEX_VERSION` the
 /// current `chunks` table was built with.
@@ -169,6 +215,11 @@ pub fn build_schema() -> SchemaRef {
         // false for text/pdf chunks (plaintext). Nullable so pre-G4 rows (no column) default
         // to null → treated as false by the retrieval layer.
         Field::new("encrypted", DataType::Boolean, true),
+        // WS-PRIV: privilege status. NON-NULL — every chunk carries one of
+        // "none" | "attorney-client" | "work-product". Privileged values are
+        // excluded from retrieval by default. Pre-WS-PRIV tables (no column)
+        // are dropped + re-indexed by the version-4 migration, never back-filled.
+        Field::new("privilege", DataType::Utf8, false),
     ]))
 }
 
@@ -220,10 +271,15 @@ pub async fn open_or_create_table(conn: &Connection) -> Result<Table> {
 /// WS-B/C: `matter_id` is the confidentiality scope key written to every row
 /// (NON-NULL). `source_id` is set to the chunk's `path` (docs/pdf path), which
 /// is the resolvable originating source for the citation contract.
+///
+/// WS-PRIV: `privilege` is the litigation-safety status written to every row
+/// (NON-NULL — one of "none" | "attorney-client" | "work-product"). Privileged
+/// rows are excluded from retrieval by default.
 pub fn build_batch(
     rows: &[(Chunk, Vec<f32>)],
     source_type: SourceType,
     matter_id: &str,
+    privilege: &str,
 ) -> Result<RecordBatch> {
     let schema = build_schema();
     let now = std::time::SystemTime::now()
@@ -271,6 +327,12 @@ pub fn build_batch(
     // G4: encrypted = false for text/pdf rows. Text column is plaintext.
     let enc_arr = arrow_array::BooleanArray::from(vec![false; rows.len()]);
 
+    // WS-PRIV: validate the privilege value (defence-in-depth) before it is
+    // written to every row. An invalid value fails the build loudly rather than
+    // persisting an unscopeable privilege string.
+    let privilege = validate_privilege(privilege)?;
+    let priv_arr = StringArray::from(vec![privilege; rows.len()]);
+
     let batch = RecordBatch::try_new(
         schema,
         vec![
@@ -285,6 +347,7 @@ pub fn build_batch(
             Arc::new(st_arr),
             Arc::new(pn_arr),
             Arc::new(enc_arr),
+            Arc::new(priv_arr),
         ],
     )
     .context("RecordBatch::try_new failed for chunks batch")?;
@@ -302,10 +365,15 @@ pub fn build_batch(
 /// WS-B/C: `matter_id` is the confidentiality scope key (NON-NULL) written to
 /// every row. `source_id` is the chunk's `path` — for mail this is the
 /// "mail:<message-id>" key, the resolvable source for the citation contract.
+///
+/// WS-PRIV: `privilege` is the litigation-safety status (NON-NULL) written to
+/// every row. Privileged mail (e.g. a client communication) is excluded from
+/// retrieval by default, just like a privileged document.
 pub fn build_batch_mail(
     rows: &[(Chunk, Vec<f32>)],
     key: &[u8; 32],
     matter_id: &str,
+    privilege: &str,
 ) -> Result<RecordBatch> {
     use crate::commands::mail::crypto::encrypt_with_key;
 
@@ -354,6 +422,9 @@ pub fn build_batch_mail(
     let pn_arr = UInt32Array::from(vec![0u32; rows.len()]);
     // G4: encrypted = true — the text column holds ciphertext, not plaintext.
     let enc_arr = arrow_array::BooleanArray::from(vec![true; rows.len()]);
+    // WS-PRIV: validate + write the privilege value to every mail row.
+    let privilege = validate_privilege(privilege)?;
+    let priv_arr = StringArray::from(vec![privilege; rows.len()]);
 
     RecordBatch::try_new(
         schema,
@@ -369,6 +440,7 @@ pub fn build_batch_mail(
             Arc::new(st_arr),
             Arc::new(pn_arr),
             Arc::new(enc_arr),
+            Arc::new(priv_arr),
         ],
     )
     .context("RecordBatch::try_new failed for mail chunks batch")
@@ -388,6 +460,7 @@ pub async fn upsert_chunks_for_path(
     rows: Vec<(Chunk, Vec<f32>)>,
     source_type: SourceType,
     matter_id: &str,
+    privilege: &str,
 ) -> Result<()> {
     // Always delete first — even if `rows` is empty (the file may have
     // been emptied by the user) we want to drop stale chunks.
@@ -401,7 +474,7 @@ pub async fn upsert_chunks_for_path(
         return Ok(());
     }
 
-    let batch = build_batch(&rows, source_type, matter_id)?;
+    let batch = build_batch(&rows, source_type, matter_id, privilege)?;
     let schema = batch.schema();
     let iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
     table
@@ -421,6 +494,39 @@ pub async fn delete_path(table: &Table, path: &str) -> Result<()> {
         .await
         .with_context(|| format!("delete failed for {}", path))?;
     Ok(())
+}
+
+/// WS-PRIV — re-tag the privilege of every already-indexed chunk for `path`
+/// IN PLACE, without re-embedding. Used when the user toggles a source's
+/// privilege: the chunk text + vectors are unchanged, only the `privilege`
+/// column flips, which is exactly what changes whether the chunk is excluded
+/// from default retrieval.
+///
+/// Implemented as a LanceDB `UPDATE ... WHERE path = ?` so it is cheap and does
+/// not touch the embedder. The new value is validated against the three known
+/// privilege values (defence-in-depth) and SQL-escaped both as the SET literal
+/// and in the WHERE clause. Returns the number of rows updated.
+///
+/// Note: a source that has not been indexed yet has zero chunks; this returns 0
+/// and the source picks up the right privilege when it is next indexed (the
+/// privilege store is the source of truth and the index resolver reads it).
+pub async fn retag_privilege_for_path(
+    table: &Table,
+    path: &str,
+    privilege: &str,
+) -> Result<u64> {
+    let privilege = validate_privilege(privilege)?;
+    let predicate = format!("path = '{}'", sql_escape(path));
+    // The update expression is a SQL string literal for the new privilege value.
+    let value_expr = format!("'{}'", sql_escape(privilege));
+    let result = table
+        .update()
+        .only_if(predicate)
+        .column("privilege", value_expr)
+        .execute()
+        .await
+        .with_context(|| format!("retag privilege failed for {}", path))?;
+    Ok(result.rows_updated)
 }
 
 /// One raw query result before scoring.
@@ -445,6 +551,50 @@ pub struct StoredHit {
     // G4: true means `text` holds hex-encoded AES-256-GCM ciphertext; must
     // be decrypted before use. false (and null for pre-G4 rows) means plaintext.
     pub encrypted: bool,
+    // WS-PRIV: the chunk's privilege status. None only on a pre-WS-PRIV row
+    // (which the version-4 migration re-indexes away). Default retrieval only
+    // returns "none"; this is surfaced so the UI can label an explicitly-
+    // included privileged hit.
+    pub privilege: Option<String>,
+}
+
+/// Compose the LanceDB `only_if` PREFILTER predicate for a retrieval query from
+/// the matter scope and the privilege rule. This is the single place the two
+/// security boundaries are AND-ed together, so the composition is auditable and
+/// tested as a unit.
+///
+/// WS-B/C — matter scope:
+///   - `scope = Some(matter_id)` → `matter_id = '<escaped>'`
+///   - `scope = None`            → no matter clause (deliberate cross-matter)
+///
+/// WS-PRIV — privilege rule (litigation safety):
+///   - `include_privileged = false` (the DEFAULT) → `privilege = 'none'`, so
+///     attorney-client / work-product rows are never even candidates.
+///   - `include_privileged = true` (deliberate)   → no privilege clause.
+///
+/// Both clauses are validated + SQL-escaped before interpolation. Returns
+/// `None` only when BOTH are absent (cross-matter AND include-privileged) — a
+/// fully unconstrained scan that callers must reach via two explicit choices.
+pub fn build_retrieval_predicate(
+    scope: Option<&str>,
+    include_privileged: bool,
+) -> Result<Option<String>> {
+    let mut clauses: Vec<String> = Vec::with_capacity(2);
+    if let Some(matter_id) = scope {
+        let matter_id = validate_matter_id(matter_id)?;
+        clauses.push(format!("matter_id = '{}'", sql_escape(matter_id)));
+    }
+    if !include_privileged {
+        // Default exclusion: only non-privileged content. PRIVILEGE_NONE is a
+        // fixed constant, but escape it anyway so the predicate-building rule is
+        // uniform and future-proof.
+        clauses.push(format!("privilege = '{}'", sql_escape(PRIVILEGE_NONE)));
+    }
+    Ok(if clauses.is_empty() {
+        None
+    } else {
+        Some(clauses.join(" AND "))
+    })
 }
 
 /// Nearest-neighbor search. Returns up to `top_k` raw hits.
@@ -459,6 +609,14 @@ pub struct StoredHit {
 ///     path — never the silent default; the `rag_retrieve` command requires an
 ///     explicit scope and only reaches `None` via the named `AllMatters` action).
 ///
+/// WS-PRIV — `include_privileged` is the litigation-safety boundary, composed
+/// into the SAME prefilter as the matter scope:
+///   - `false` (DEFAULT) appends `AND privilege = 'none'`, so attorney-client /
+///     work-product chunks are never candidates — they cannot surface even if
+///     they are the single most semantically relevant row.
+///   - `true` is a deliberate, separately-named capability (mirrors AllMatters)
+///     that omits the privilege clause so privileged content can be retrieved.
+///
 /// SECURITY: we NEVER call `.postfilter()` here. Postfilter runs the vector
 /// search first and filters afterward, which can both drop in-scope hits and
 /// admit ranking approximation. The scoped path must stay prefilter-only.
@@ -467,6 +625,7 @@ pub async fn nearest(
     query_vec: &[f32],
     top_k: usize,
     scope: Option<&str>,
+    include_privileged: bool,
 ) -> Result<Vec<StoredHit>> {
     use futures_util::TryStreamExt;
     let mut query = table
@@ -474,12 +633,10 @@ pub async fn nearest(
         .nearest_to(query_vec)
         .context("nearest_to failed")?
         .limit(top_k);
-    if let Some(matter_id) = scope {
-        // Validate + escape before interpolating into the filter string. The
-        // matter filter is part of the query PLAN (prefilter), not a post-hoc
-        // filter on the returned Vec.
-        let matter_id = validate_matter_id(matter_id)?;
-        query = query.only_if(format!("matter_id = '{}'", sql_escape(matter_id)));
+    // WS-B/C + WS-PRIV: compose the matter AND privilege predicate. It is part
+    // of the query PLAN (prefilter), not a post-hoc filter on the returned Vec.
+    if let Some(predicate) = build_retrieval_predicate(scope, include_privileged)? {
+        query = query.only_if(predicate);
     }
     let mut stream = query
         .execute()
@@ -541,6 +698,10 @@ pub async fn nearest(
         let enc_col = batch
             .column_by_name("encrypted")
             .and_then(|c| c.as_any().downcast_ref::<arrow_array::BooleanArray>());
+        // WS-PRIV: read the privilege column. Absent on pre-WS-PRIV rows → None.
+        let priv_col = batch
+            .column_by_name("privilege")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
 
         for i in 0..batch.num_rows() {
             let distance = dist_col.map(|c| c.value(i)).unwrap_or(0.0);
@@ -560,6 +721,9 @@ pub async fn nearest(
             let source_id = source_col
                 .filter(|c| !c.is_null(i))
                 .map(|c| c.value(i).to_string());
+            let privilege = priv_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string());
             out.push(StoredHit {
                 id,
                 path: path_col.value(i).to_string(),
@@ -571,6 +735,7 @@ pub async fn nearest(
                 source_type,
                 page_number,
                 encrypted,
+                privilege,
             });
         }
     }
@@ -594,6 +759,11 @@ pub struct ChunkRecord {
     /// the caller must decrypt before comparing.
     pub text: String,
     pub encrypted: bool,
+    /// WS-PRIV: the chunk's privilege status (None only on a pre-WS-PRIV row).
+    /// Verification does NOT filter on privilege — a privileged source must still
+    /// verify for an explicitly-included query — but the value is surfaced so the
+    /// caller can audit/label it.
+    pub privilege: Option<String>,
 }
 
 /// Look up at most one chunk by its content-addressed `id`. Optionally
@@ -657,6 +827,9 @@ pub async fn lookup_by_id(
             .and_then(|c| c.as_any().downcast_ref::<arrow_array::BooleanArray>())
             .map(|c| !c.is_null(0) && c.value(0))
             .unwrap_or(false);
+        let priv_v = str_col("privilege")
+            .filter(|c| !c.is_null(0))
+            .map(|c| c.value(0).to_string());
         return Ok(Some(ChunkRecord {
             id: id_v,
             matter_id: matter_v,
@@ -664,6 +837,7 @@ pub async fn lookup_by_id(
             paragraph_index: pi_v,
             text: text_v,
             encrypted: enc_v,
+            privilege: priv_v,
         }));
     }
     Ok(None)
@@ -779,6 +953,7 @@ mod tests {
                 "source_type",
                 "page_number",
                 "encrypted",
+                "privilege",
             ]
         );
     }
@@ -787,8 +962,9 @@ mod tests {
     fn matter_id_and_source_id_are_non_nullable() {
         // WS-B/C: a null matter_id is a confidentiality hazard. The schema must
         // forbid it (and source_id) at the column level.
+        // WS-PRIV: a null privilege is a litigation-safety hazard — forbid it too.
         let s = build_schema();
-        for name in ["matter_id", "source_id"] {
+        for name in ["matter_id", "source_id", "privilege"] {
             let f = s.field_with_name(name).expect("field present");
             assert!(!f.is_nullable(), "{name} must be NOT NULL");
         }
@@ -807,6 +983,116 @@ mod tests {
         assert!(validate_matter_id("matter\0id").is_err());
         assert!(validate_matter_id("good-uuid-1234").is_ok());
         assert!(validate_matter_id(UNASSIGNED_MATTER).is_ok());
+    }
+
+    // -----------------------------------------------------------------------
+    // WS-PRIV: privilege validation + composed-prefilter construction.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn validate_privilege_accepts_only_known_values() {
+        assert!(validate_privilege(PRIVILEGE_NONE).is_ok());
+        assert!(validate_privilege(PRIVILEGE_ATTORNEY_CLIENT).is_ok());
+        assert!(validate_privilege(PRIVILEGE_WORK_PRODUCT).is_ok());
+        // Anything else is rejected, never silently coerced — a degenerate
+        // privilege string must not be able to reach the SQL predicate.
+        assert!(validate_privilege("").is_err());
+        assert!(validate_privilege("privileged").is_err());
+        assert!(validate_privilege("none' OR '1'='1").is_err());
+        assert!(validate_privilege("attorney_client").is_err()); // underscore, not hyphen
+    }
+
+    #[test]
+    fn build_batch_writes_privilege_value() {
+        use arrow_array::cast::AsArray;
+        let rows = vec![(
+            Chunk {
+                path: "/w/memo.md".into(),
+                paragraph_index: 0,
+                text: "work product memo".into(),
+                start_offset: 0,
+                end_offset: 17,
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )];
+        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_WORK_PRODUCT)
+            .expect("build_batch");
+        let priv_col = batch
+            .column_by_name("privilege")
+            .expect("privilege col")
+            .as_string::<i32>();
+        assert_eq!(priv_col.value(0), PRIVILEGE_WORK_PRODUCT);
+    }
+
+    #[test]
+    fn build_batch_rejects_invalid_privilege() {
+        let rows = vec![(
+            Chunk {
+                path: "/w/x.md".into(),
+                paragraph_index: 0,
+                text: "x".into(),
+                start_offset: 0,
+                end_offset: 1,
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )];
+        // A bad privilege value fails the build loudly rather than persisting an
+        // unscopeable row.
+        assert!(build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, "bogus").is_err());
+    }
+
+    // ---- build_retrieval_predicate: the single place matter AND privilege compose.
+
+    #[test]
+    fn predicate_default_excludes_privileged_with_matter_scope() {
+        // The DEFAULT (include_privileged = false) composes matter AND privilege
+        // into one prefilter: `matter_id = '..' AND privilege = 'none'`.
+        let p = build_retrieval_predicate(Some("matter-acme"), false)
+            .expect("predicate")
+            .expect("some predicate");
+        assert_eq!(p, "matter_id = 'matter-acme' AND privilege = 'none'");
+    }
+
+    #[test]
+    fn predicate_default_excludes_privileged_even_cross_matter() {
+        // Cross-matter (scope None) still excludes privileged by default — the
+        // privilege clause stands alone.
+        let p = build_retrieval_predicate(None, false)
+            .expect("predicate")
+            .expect("some predicate");
+        assert_eq!(p, "privilege = 'none'");
+    }
+
+    #[test]
+    fn predicate_include_privileged_drops_privilege_clause() {
+        // include_privileged = true is the deliberate capability: only the matter
+        // clause remains; privileged rows become candidates.
+        let p = build_retrieval_predicate(Some("matter-acme"), true)
+            .expect("predicate")
+            .expect("some predicate");
+        assert_eq!(p, "matter_id = 'matter-acme'");
+    }
+
+    #[test]
+    fn predicate_fully_unconstrained_only_when_both_chosen() {
+        // The only way to a None predicate (no prefilter at all) is BOTH explicit
+        // choices: cross-matter AND include-privileged. Neither is a silent default.
+        let p = build_retrieval_predicate(None, true).expect("predicate");
+        assert!(p.is_none(), "cross-matter + include-privileged => no prefilter");
+    }
+
+    #[test]
+    fn predicate_sql_escapes_matter_id() {
+        // SECURITY: a crafted matter id is escaped inside the composed predicate.
+        let p = build_retrieval_predicate(Some("a'b"), false)
+            .expect("predicate")
+            .expect("some predicate");
+        assert_eq!(p, "matter_id = 'a''b' AND privilege = 'none'");
+    }
+
+    #[test]
+    fn predicate_rejects_invalid_matter_id() {
+        assert!(build_retrieval_predicate(Some("bad\0id"), false).is_err());
     }
 
     #[test]
@@ -833,11 +1119,12 @@ mod tests {
                 vec![0.2f32; EMBEDDING_DIM],
             ),
         ];
-        let batch = build_batch(&chunks, SourceType::Text, UNASSIGNED_MATTER).expect("build_batch");
+        let batch = build_batch(&chunks, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE)
+            .expect("build_batch");
         assert_eq!(batch.num_rows(), 2);
-        // 11 columns: id, path, matter_id, source_id, paragraph_index, text,
-        // vector, indexed_at, source_type, page_number, encrypted
-        assert_eq!(batch.num_columns(), 11);
+        // 12 columns: id, path, matter_id, source_id, paragraph_index, text,
+        // vector, indexed_at, source_type, page_number, encrypted, privilege
+        assert_eq!(batch.num_columns(), 12);
     }
 
     #[test]
@@ -853,7 +1140,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, "matter-acme").expect("build_batch");
+        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_NONE).expect("build_batch");
         let matter_col = batch.column_by_name("matter_id").expect("matter_id col").as_string::<i32>();
         assert_eq!(matter_col.value(0), "matter-acme");
         // source_id mirrors the path (the resolvable originating source).
@@ -874,7 +1161,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER).expect("build_batch text");
+        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE).expect("build_batch text");
         let st_col = batch
             .column_by_name("source_type")
             .expect("source_type column missing")
@@ -900,7 +1187,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER)
+        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE)
             .expect("build_batch pdf");
         let st_col = batch
             .column_by_name("source_type")
@@ -932,7 +1219,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER).expect("build_batch text");
+        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE).expect("build_batch text");
         // text column must contain the original plaintext (not encrypted).
         let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
         assert_eq!(
@@ -964,7 +1251,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER)
+        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE)
             .expect("build_batch pdf");
         let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
         assert_eq!(
@@ -996,7 +1283,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch_mail(&rows, &key, UNASSIGNED_MATTER).expect("build_batch mail");
+        let batch = build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE).expect("build_batch mail");
         let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
         let stored = text_col.value(0);
         // The text column must NOT contain the plaintext.
@@ -1029,7 +1316,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch_mail(&rows, &key, UNASSIGNED_MATTER).expect("build batch");
+        let batch = build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE).expect("build batch");
         let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
         let stored_hex = text_col.value(0);
         let blob = hex::decode(stored_hex).expect("hex decode");
@@ -1074,7 +1361,7 @@ mod tests {
                 vec![0.2f32; EMBEDDING_DIM],
             ),
         ];
-        let batch = build_batch_mail(&rows, &key, UNASSIGNED_MATTER).expect("build_batch_mail must succeed");
+        let batch = build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE).expect("build_batch_mail must succeed");
         let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
         // Every row must have a non-empty hex ciphertext — the S2 fix removes the
         // unwrap_or_default() that would silently store "" on failure.
@@ -1111,7 +1398,7 @@ mod tests {
             vec![0.5f32; EMBEDDING_DIM],
         )];
         // Should succeed — verifies the for-loop path (not the old .map iterator).
-        let result = build_batch_mail(&rows, &key, UNASSIGNED_MATTER);
+        let result = build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE);
         assert!(result.is_ok(), "S2: single-row build_batch_mail must return Ok; got {:?}", result.err());
     }
 }

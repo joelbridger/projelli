@@ -57,9 +57,11 @@ describe('MemoryService indexing carries matter id', () => {
       path.includes('/Acme/') ? 'matter_acme' : 'unassigned',
     );
     await MemoryService.indexFile('/ws/Acme/discovery.md');
+    // WS-PRIV: a 3rd arg carries the source's privilege (default "none").
     expect(mocks.ragIndexFile).toHaveBeenCalledWith(
       '/ws/Acme/discovery.md',
       'matter_acme',
+      'none',
     );
   });
 
@@ -69,6 +71,7 @@ describe('MemoryService indexing carries matter id', () => {
     expect(mocks.ragIndexFile).toHaveBeenCalledWith(
       '/ws/Scratch/todo.md',
       'unassigned',
+      'none',
     );
   });
 
@@ -87,8 +90,8 @@ describe('MemoryService indexing carries matter id', () => {
 
   it('reindexPaths tags every path with the given matter id', async () => {
     await MemoryService.reindexPaths(['/ws/A/1.md', '/ws/A/2.md'], 'matter_a');
-    expect(mocks.ragIndexFile).toHaveBeenNthCalledWith(1, '/ws/A/1.md', 'matter_a');
-    expect(mocks.ragIndexFile).toHaveBeenNthCalledWith(2, '/ws/A/2.md', 'matter_a');
+    expect(mocks.ragIndexFile).toHaveBeenNthCalledWith(1, '/ws/A/1.md', 'matter_a', 'none');
+    expect(mocks.ragIndexFile).toHaveBeenNthCalledWith(2, '/ws/A/2.md', 'matter_a', 'none');
   });
 
   it('reindexPaths is best-effort (one failure does not abort the batch)', async () => {
@@ -102,9 +105,12 @@ describe('MemoryService indexing carries matter id', () => {
   it('retrieve forwards the scope to rag_retrieve', async () => {
     mocks.ragRetrieve.mockResolvedValue([]);
     await MemoryService.retrieve('q', 5, { kind: 'matter', matterId: 'm1' });
-    expect(mocks.ragRetrieve).toHaveBeenCalledWith('q', 5, {
-      kind: 'matter',
-      matterId: 'm1',
-    });
+    // WS-PRIV: a 4th arg carries includePrivileged (default false — exclude).
+    expect(mocks.ragRetrieve).toHaveBeenCalledWith(
+      'q',
+      5,
+      { kind: 'matter', matterId: 'm1' },
+      false,
+    );
   });
 });

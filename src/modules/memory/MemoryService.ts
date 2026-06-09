@@ -22,6 +22,7 @@ import {
   ragIndexFile,
   ragIndexPdfChunks,
   ragIndexWorkspace,
+  ragRetagPrivilege,
   ragRetrieve,
   ragSetWorkspace,
   type RagHit,
@@ -122,6 +123,43 @@ export function resolveMatterForPath(path: string): string {
   }
 }
 
+// WS-PRIV — privilege resolver. The indexer must tag every chunk with the
+// privilege of the source it belongs to, so privileged content is excluded from
+// retrieval by default. Pluggable so MemoryService stays free of the privilege
+// store (and tests can stub it), mirroring the matter resolver.
+
+/** Resolve a source id (path / `mail:<id>` / `.aichat` path) → privilege value. */
+export type PrivilegeResolver = (sourceId: string) => string;
+
+/** Default: everything is "none" (not privileged) until a real resolver is installed. */
+const DEFAULT_PRIVILEGE_RESOLVER: PrivilegeResolver = () => 'none';
+
+let privilegeResolver: PrivilegeResolver = DEFAULT_PRIVILEGE_RESOLVER;
+
+/** Install the privilege resolver. Called from `usePrivilegeWiring` with a
+ *  closure over `resolvePrivilegeForSource` from the privilege store. */
+export function setPrivilegeResolver(resolver: PrivilegeResolver): void {
+  privilegeResolver = resolver;
+}
+
+/** Reset to the always-"none" default. Test helper. */
+export function resetPrivilegeResolver(): void {
+  privilegeResolver = DEFAULT_PRIVILEGE_RESOLVER;
+}
+
+/** Resolve a source id to its privilege via the installed resolver. Never
+ *  throws — falls back to "none" (the SAFE default is non-privileged content;
+ *  a resolver failure must never accidentally mark content privileged AND must
+ *  never accidentally surface it — "none" keeps indexing correct and the user
+ *  re-tags explicitly). */
+export function resolvePrivilegeForPath(sourceId: string): string {
+  try {
+    return privilegeResolver(sourceId) || 'none';
+  } catch {
+    return 'none';
+  }
+}
+
 export const MemoryService = {
   /** Point the indexer at a workspace. Always runs even if disabled — the
    *  workspace handle is metadata, not user data. */
@@ -134,7 +172,9 @@ export const MemoryService = {
     // WS-B/C: tag the chunk with the matter this file belongs to so retrieval
     // can prefilter by matter. Resolves to "unassigned" when the file is not
     // under any matter's mapped folders.
-    await ragIndexFile(path, resolveMatterForPath(path));
+    // WS-PRIV: also tag with the source's privilege so privileged content is
+    // excluded from default retrieval. Resolves to "none" when not tagged.
+    await ragIndexFile(path, resolveMatterForPath(path), resolvePrivilegeForPath(path));
   },
 
   /**
@@ -162,11 +202,25 @@ export const MemoryService = {
     if (!isMemoryEnabled()) return;
     for (const path of paths) {
       try {
-        await ragIndexFile(path, matterId);
+        // WS-PRIV: preserve each file's privilege across a matter re-index so a
+        // matter remap never silently un-privileges a source.
+        await ragIndexFile(path, matterId, resolvePrivilegeForPath(path));
       } catch {
         // Best-effort: skip and continue.
       }
     }
+  },
+
+  /**
+   * WS-PRIV — set a source's privilege and re-tag its already-indexed chunks in
+   * place (no re-embed). Called when the user marks a file / email / chat as
+   * privileged (or clears it). Returns the number of chunks updated. No-op when
+   * memory is disabled (nothing is indexed to re-tag). Best-effort at the call
+   * site; this surfaces the count so callers can decide whether to also index.
+   */
+  async retagPrivilege(sourceId: string, privilege: string): Promise<number> {
+    if (!isMemoryEnabled()) return 0;
+    return ragRetagPrivilege(sourceId, privilege);
   },
 
   async cancelIndexing(): Promise<void> {
@@ -184,15 +238,20 @@ export const MemoryService = {
    *  cross-matter (`allMatters`) search to preserve the pre-3.0 whole-workspace
    *  behaviour until the matter-assignment UI lands and passes a real
    *  `{ kind: 'matter', matterId }` scope here. There is no silent "everything"
-   *  path: the underlying command requires a named scope. */
+   *  path: the underlying command requires a named scope.
+   *
+   *  WS-PRIV: `includePrivileged` defaults to `false` — attorney-client and
+   *  work-product content is EXCLUDED by default. Pass `true` only for a
+   *  deliberate, user-initiated query that opts privileged sources in. */
   async retrieve(
     query: string,
     topK: number,
     scope: RetrievalScope = { kind: 'allMatters' },
+    includePrivileged = false,
   ): Promise<RagHit[]> {
     if (!isMemoryEnabled()) return [];
     if (!query.trim() || topK <= 0) return [];
-    return ragRetrieve(query, topK, scope);
+    return ragRetrieve(query, topK, scope, includePrivileged);
   },
 
   /** Index a single PDF file into the RAG store. Reads bytes via the
@@ -229,11 +288,14 @@ export const MemoryService = {
     }
 
     // WS-B/C: tag PDF chunks with the matter this file belongs to.
+    // WS-PRIV: tag with the source's privilege so a privileged PDF is excluded
+    // from default retrieval.
     const chunksStored = await ragIndexPdfChunks(
       path,
       result.pages,
       result.pageCount,
       resolveMatterForPath(path),
+      resolvePrivilegeForPath(path),
     );
     return {
       indexed: chunksStored > 0,

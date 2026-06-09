@@ -74,6 +74,12 @@ pub struct Hit {
     pub source_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_number: Option<u32>,
+    // WS-PRIV: the chunk's privilege status ("none" | "attorney-client" |
+    // "work-product"). Present post-WS-PRIV; Optional so a stray pre-WS-PRIV row
+    // still serializes. Default retrieval only ever returns "none"; this is
+    // surfaced so an explicitly-included privileged hit can be labelled in the UI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub privilege: Option<String>,
 }
 
 /// WS-B/C — the REQUIRED retrieval scope. Confidentiality is enforced here: a
@@ -200,8 +206,10 @@ pub async fn rag_index_file(
     state: State<'_, RagState>,
     path: String,
     matter_id: Option<String>,
+    privilege: Option<String>,
 ) -> Result<(), String> {
     let matter = resolve_matter(matter_id.as_deref())?;
+    let privilege = resolve_privilege(privilege.as_deref())?;
     let workspace = require_workspace(&state).await?;
     let file_path = PathBuf::from(&path);
     if !extractor::is_indexable(&file_path) {
@@ -217,7 +225,7 @@ pub async fn rag_index_file(
         .await
         .map_err(|e| format!("open table: {e}"))?;
 
-    index_one_file(&table, &file_path, &matter)
+    index_one_file(&table, &file_path, &matter, &privilege)
         .await
         .map_err(|e| format!("index_file failed: {e}"))?;
     Ok(())
@@ -235,6 +243,20 @@ fn resolve_matter(matter_id: Option<&str>) -> Result<String, String> {
     }
 }
 
+/// WS-PRIV — resolve an optional caller-supplied privilege string into a
+/// concrete, validated value. `None`/`Some("")` → `PRIVILEGE_NONE` (the safe
+/// default: the file carries no privilege claim). A non-empty value is validated
+/// against the three known privilege values (defence-in-depth before it reaches
+/// a SQL filter or a row write). Mirrors `resolve_matter`.
+fn resolve_privilege(privilege: Option<&str>) -> Result<String, String> {
+    match privilege {
+        None | Some("") => Ok(store::PRIVILEGE_NONE.to_string()),
+        Some(s) => store::validate_privilege(s)
+            .map(|s| s.to_string())
+            .map_err(|e| format!("invalid privilege: {e}")),
+    }
+}
+
 /// Internal: extract → chunk → embed → upsert for one file.
 ///
 /// WS-B/C: `matter_id` is the confidentiality scope the file is filed under
@@ -244,6 +266,7 @@ async fn index_one_file(
     table: &lancedb::Table,
     file_path: &Path,
     matter_id: &str,
+    privilege: &str,
 ) -> anyhow::Result<()> {
     let path_str = file_path.to_string_lossy().to_string();
     let Some(text) = extractor::read_text(file_path) else {
@@ -260,8 +283,15 @@ async fn index_one_file(
     let vectors = embedder::embed_documents(&texts).await?;
     let rows: Vec<(chunker::Chunk, Vec<f32>)> =
         chunks.into_iter().zip(vectors).collect();
-    store::upsert_chunks_for_path(table, &path_str, rows, store::SourceType::Text, matter_id)
-        .await?;
+    store::upsert_chunks_for_path(
+        table,
+        &path_str,
+        rows,
+        store::SourceType::Text,
+        matter_id,
+        privilege,
+    )
+    .await?;
     Ok(())
 }
 
@@ -349,7 +379,12 @@ pub async fn rag_index_workspace(
                 current_path: Some(file.to_string_lossy().to_string()),
             },
         );
-        if let Err(e) = index_one_file(&table, file, &matter).await {
+        // WS-PRIV: the full-workspace walk indexes everything at PRIVILEGE_NONE.
+        // Privilege is a per-source decision (a whole workspace is never uniformly
+        // privileged), applied via the privilege store + `rag_retag_privilege`
+        // after indexing — mirroring how per-file matter assignment re-tags on top
+        // of the unassigned full walk.
+        if let Err(e) = index_one_file(&table, file, &matter, store::PRIVILEGE_NONE).await {
             // Don't abort the whole walk on a single bad file — log and move on.
             log::warn!(
                 "rag_index_workspace: failed to index {}: {}",
@@ -388,6 +423,13 @@ pub async fn rag_index_workspace(
 ///   - `AllMatters` is a deliberate, separately-named cross-matter capability;
 ///     it is the ONLY way to search across matters and is never the default.
 ///
+/// WS-PRIV — `include_privileged` is the litigation-safety boundary. It defaults
+/// to `false` (via `#[serde(default)]`) so a caller that omits it gets the safe
+/// behaviour: attorney-client / work-product chunks are EXCLUDED. Passing `true`
+/// is a deliberate, separately-named decision (analogous to `AllMatters`) that
+/// composes into the SAME prefilter — never a silent default. Default retrieval
+/// therefore never returns privileged content.
+///
 /// G4: mail chunks have encrypted text columns. This function decrypts them
 /// in memory before returning. If decryption fails (key unavailable, tampered
 /// data), the chunk is returned as "[mail content unavailable]" — retrieval
@@ -398,10 +440,14 @@ pub async fn rag_retrieve(
     query: String,
     top_k: u32,
     scope: RetrievalScope,
+    include_privileged: Option<bool>,
 ) -> Result<Vec<Hit>, String> {
     if query.trim().is_empty() || top_k == 0 {
         return Ok(Vec::new());
     }
+    // WS-PRIV: absent (legacy callers) or false → EXCLUDE privileged content.
+    // Only an explicit `true` flips it. The default is the safe one.
+    let include_privileged = include_privileged.unwrap_or(false);
     // Resolve + validate the scope into the store-level filter argument BEFORE
     // any work. Matter ids are validated here (defence-in-depth before the SQL
     // prefilter). AllMatters → None (no filter; deliberate cross-matter).
@@ -437,9 +483,15 @@ pub async fn rag_retrieve(
         .await
         .map_err(|e| format!("embed query: {e}"))?;
 
-    let raw = store::nearest(&table, &qvec, top_k as usize, scope_filter.as_deref())
-        .await
-        .map_err(|e| format!("nearest: {e}"))?;
+    let raw = store::nearest(
+        &table,
+        &qvec,
+        top_k as usize,
+        scope_filter.as_deref(),
+        include_privileged,
+    )
+    .await
+    .map_err(|e| format!("nearest: {e}"))?;
 
     // G4: try to get the master key once for the whole batch.
     // If the keychain is unavailable, enc_key is None and encrypted chunks
@@ -480,6 +532,9 @@ pub async fn rag_retrieve(
                 source_id: h.source_id,
                 source_type: h.source_type,
                 page_number: h.page_number,
+                // WS-PRIV: carry the privilege status so an explicitly-included
+                // privileged hit can be labelled. Default retrieval only returns "none".
+                privilege: h.privilege,
             }
         })
         .collect();
@@ -665,8 +720,10 @@ pub async fn rag_index_pdf_chunks(
     pages: Vec<String>,
     page_count: u32,
     matter_id: Option<String>,
+    privilege: Option<String>,
 ) -> Result<u32, String> {
     let matter = resolve_matter(matter_id.as_deref())?;
+    let privilege = resolve_privilege(privilege.as_deref())?;
     let workspace = require_workspace(&state).await?;
     let conn = store::open_connection(&workspace)
         .await
@@ -675,10 +732,55 @@ pub async fn rag_index_pdf_chunks(
         .await
         .map_err(|e| format!("open table: {e}"))?;
 
-    let count = pdf_indexer::index_pdf_chunks(&table, &path, &pages, page_count, &matter)
+    let count = pdf_indexer::index_pdf_chunks(&table, &path, &pages, page_count, &matter, &privilege)
         .await
         .map_err(|e| format!("index_pdf_chunks: {e}"))?;
     Ok(count as u32)
+}
+
+/// WS-PRIV — update the privilege of an already-indexed source and re-tag its
+/// chunks IN PLACE (no re-embedding). Called when the user marks a file / email /
+/// chat as privileged (or clears it) in the UI: the privilege store persists the
+/// decision, and this flips the `privilege` column on every chunk for `path`,
+/// which is exactly what changes whether the source is excluded from default
+/// retrieval.
+///
+/// `privilege` must be one of "none" | "attorney-client" | "work-product" (an
+/// invalid value is rejected). Returns the number of chunks updated — 0 when the
+/// source has not been indexed yet (it will pick up the right privilege the next
+/// time it is indexed, because the index path reads the privilege store).
+#[tauri::command]
+pub async fn rag_retag_privilege(
+    state: State<'_, RagState>,
+    path: String,
+    privilege: String,
+) -> Result<u32, String> {
+    // Validate before any work (defence-in-depth before the SQL update).
+    let privilege = store::validate_privilege(&privilege)
+        .map_err(|e| format!("invalid privilege: {e}"))?
+        .to_string();
+    let workspace = require_workspace(&state).await?;
+    let conn = store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    // No table yet → nothing indexed → nothing to re-tag.
+    let names = conn
+        .table_names()
+        .execute()
+        .await
+        .map_err(|e| format!("list tables: {e}"))?;
+    if !names.iter().any(|n| n == store::TABLE_NAME) {
+        return Ok(0);
+    }
+    let table = conn
+        .open_table(store::TABLE_NAME)
+        .execute()
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+    let updated = store::retag_privilege_for_path(&table, &path, &privilege)
+        .await
+        .map_err(|e| format!("retag privilege: {e}"))?;
+    Ok(updated as u32)
 }
 
 /// Convenience: register the RAG state with a Tauri builder. Called from
@@ -703,6 +805,7 @@ mod tests {
             source_id: Some("/w/doc.md".into()),
             source_type: None,
             page_number: None,
+            privilege: Some("none".into()),
         }
     }
 
@@ -747,6 +850,7 @@ mod tests {
             source_id: Some("/w/doc.pdf".into()),
             source_type: Some("pdf".into()),
             page_number: Some(1),
+            privilege: Some("none".into()),
         };
         let s = serde_json::to_string(&hit).expect("serialize");
         assert!(s.contains("\"sourceType\":\"pdf\""), "got {}", s);
@@ -765,12 +869,23 @@ mod tests {
             source_id: None,
             source_type: None,
             page_number: None,
+            privilege: None,
         };
         let s = serde_json::to_string(&hit).expect("serialize");
         assert!(!s.contains("sourceType"), "got {}", s);
         assert!(!s.contains("pageNumber"), "got {}", s);
         assert!(!s.contains("matterId"), "got {}", s);
         assert!(!s.contains("sourceId"), "got {}", s);
+        assert!(!s.contains("privilege"), "got {}", s);
+    }
+
+    #[test]
+    fn hit_serializes_privilege_when_present() {
+        // WS-PRIV: an explicitly-included privileged hit carries its status so
+        // the UI can label it (default retrieval only ever yields "none").
+        let hit = sample_hit();
+        let s = serde_json::to_string(&hit).expect("serialize");
+        assert!(s.contains("\"privilege\":\"none\""), "got {}", s);
     }
 
     // -----------------------------------------------------------------------
@@ -839,6 +954,24 @@ mod tests {
         assert_eq!(resolve_matter(Some("matter-x")).unwrap(), "matter-x");
         // A malformed id is rejected, never silently coerced.
         assert!(resolve_matter(Some("bad\0id")).is_err());
+    }
+
+    #[test]
+    fn resolve_privilege_defaults_to_none_and_validates() {
+        // WS-PRIV: absent/empty → the safe PRIVILEGE_NONE default (no privilege
+        // claim), never a privileged value by accident.
+        assert_eq!(resolve_privilege(None).unwrap(), store::PRIVILEGE_NONE);
+        assert_eq!(resolve_privilege(Some("")).unwrap(), store::PRIVILEGE_NONE);
+        assert_eq!(
+            resolve_privilege(Some("attorney-client")).unwrap(),
+            store::PRIVILEGE_ATTORNEY_CLIENT
+        );
+        assert_eq!(
+            resolve_privilege(Some("work-product")).unwrap(),
+            store::PRIVILEGE_WORK_PRODUCT
+        );
+        // An unknown value is rejected, never silently coerced.
+        assert!(resolve_privilege(Some("bogus")).is_err());
     }
 
     #[test]

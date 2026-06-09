@@ -391,8 +391,18 @@ async fn index_mail_text_internal(
     let rows: Vec<(crate::commands::rag::chunker::Chunk, Vec<f32>)> =
         chunks.into_iter().zip(vectors).collect();
 
-    let batch = crate::commands::rag::store::build_batch_mail(&rows, key, matter_id)
-        .context("build mail batch")?;
+    // WS-PRIV: mail is indexed at PRIVILEGE_NONE (the default). Mail sync runs
+    // from the server and has no privilege signal of its own; the user marks a
+    // message privileged in the UI, which writes the privilege store and re-tags
+    // these chunks in place via `rag_retag_privilege` (parallel to how a mail's
+    // matter is assigned after indexing, not at sync time).
+    let batch = crate::commands::rag::store::build_batch_mail(
+        &rows,
+        key,
+        matter_id,
+        crate::commands::rag::store::PRIVILEGE_NONE,
+    )
+    .context("build mail batch")?;
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;
     table

@@ -149,10 +149,13 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
     act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled());
-    expect(mocks.retrieve).toHaveBeenCalledWith('pricing?', 8, {
-      kind: 'matter',
-      matterId: m.id,
-    });
+    // WS-PRIV: a 4th arg carries includePrivileged — false by default (exclude).
+    expect(mocks.retrieve).toHaveBeenCalledWith(
+      'pricing?',
+      8,
+      { kind: 'matter', matterId: m.id },
+      false,
+    );
   });
 
   it('uses the explicit all-matters scope when no matter is active', async () => {
@@ -164,9 +167,12 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
     act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled());
-    expect(mocks.retrieve).toHaveBeenCalledWith('pricing?', 8, {
-      kind: 'allMatters',
-    });
+    expect(mocks.retrieve).toHaveBeenCalledWith(
+      'pricing?',
+      8,
+      { kind: 'allMatters' },
+      false,
+    );
   });
 
   it('shows the active matter in the scope selector', () => {

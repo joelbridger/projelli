@@ -100,6 +100,10 @@ export interface RagHit {
   sourceType?: 'text' | 'pdf' | 'mail';
   /** A3: 1-based page number for PDF chunks. Absent on pre-A3 rows. */
   pageNumber?: number;
+  /** WS-PRIV: the chunk's privilege status. Present post-WS-PRIV. Default
+   *  retrieval only ever returns `'none'`; a non-`none` value appears only on an
+   *  explicitly include-privileged query, so the UI can label it. */
+  privilege?: 'none' | 'attorney-client' | 'work-product';
 }
 
 /** WS-B/C — the REQUIRED retrieval scope. A caller cannot omit scope and
@@ -215,13 +219,16 @@ export async function ragSetWorkspace(path: string): Promise<void> {
 export async function ragIndexFile(
   path: string,
   matterId?: string,
+  privilege?: string,
 ): Promise<void> {
   if (!isTauri()) {
     throw new Error('RAG is only available in the desktop app.');
   }
   // WS-B/C: omitting matterId indexes under the "unassigned" sentinel (never
   // null). The matter-assignment UI passes a real id here.
-  return invoke<void>('rag_index_file', { path, matterId });
+  // WS-PRIV: omitting privilege indexes as "none" (not privileged); the privilege
+  // store passes the source's real status so privileged content is excluded by default.
+  return invoke<void>('rag_index_file', { path, matterId, privilege });
 }
 
 /** Index the entire active workspace. Walks every supported file under the
@@ -263,11 +270,14 @@ export async function ragIndexPdfChunks(
   pages: string[],
   pageCount: number,
   matterId?: string,
+  privilege?: string,
 ): Promise<number> {
   if (!isTauri()) {
     throw new Error('RAG PDF indexing is only available in the desktop app.');
   }
-  return invoke<number>('rag_index_pdf_chunks', { path, pages, pageCount, matterId });
+  // WS-PRIV: omitting privilege indexes as "none"; pass the source's status to
+  // exclude a privileged PDF from default retrieval.
+  return invoke<number>('rag_index_pdf_chunks', { path, pages, pageCount, matterId, privilege });
 }
 
 /** Query the local RAG store, scoped to a matter. Returns up to `topK` hits
@@ -277,16 +287,36 @@ export async function ragIndexPdfChunks(
  *  WS-B/C: `scope` is REQUIRED — confidentiality is enforced here. Pass
  *  `{ kind: 'matter', matterId }` for normal client work (prefiltered to that
  *  matter), or the explicit `{ kind: 'allMatters' }` for a deliberate
- *  cross-matter search. There is no "search everything" default. */
+ *  cross-matter search. There is no "search everything" default.
+ *
+ *  WS-PRIV: `includePrivileged` defaults to `false` (omitted) — attorney-client
+ *  and work-product content is EXCLUDED by default. Pass `true` only for a
+ *  deliberate, user-initiated "include privileged sources" query. The exclusion
+ *  composes with the matter scope as a single backend prefilter. */
 export async function ragRetrieve(
   query: string,
   topK: number,
   scope: RetrievalScope,
+  includePrivileged?: boolean,
 ): Promise<RagHit[]> {
   if (!isTauri()) {
     throw new Error('RAG is only available in the desktop app.');
   }
-  return invoke<RagHit[]>('rag_retrieve', { query, topK, scope });
+  return invoke<RagHit[]>('rag_retrieve', { query, topK, scope, includePrivileged });
+}
+
+/** WS-PRIV — update a source's privilege and re-tag its already-indexed chunks
+ *  in place (no re-embedding), so toggling privilege immediately changes whether
+ *  the source is excluded from default retrieval. `privilege` must be one of
+ *  `'none' | 'attorney-client' | 'work-product'`. Returns the number of chunks
+ *  updated (0 if the source has not been indexed yet — it will pick up the new
+ *  privilege when it is next indexed). No-op in browser/test mode. */
+export async function ragRetagPrivilege(
+  path: string,
+  privilege: string,
+): Promise<number> {
+  if (!isTauri()) return 0;
+  return invoke<number>('rag_retag_privilege', { path, privilege });
 }
 
 /** WS-B/C — verify a citation against the local store so the app can REFUSE to

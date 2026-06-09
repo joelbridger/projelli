@@ -53,6 +53,8 @@ pub fn run() {
             commands::rag::rag_delete_path,
             // A3 — PDF RAG indexing bridge (JS extracts, Rust embeds+stores).
             commands::rag::rag_index_pdf_chunks,
+            // WS-PRIV — re-tag a source's privilege in place (default-exclude privileged).
+            commands::rag::rag_retag_privilege,
             // N2: rag_index_mail_text removed — latent plaintext-over-IPC surface.
             // The real indexing path is index_mail_text_internal (mail/mod.rs).
             commands::watcher::watch_workspace,
