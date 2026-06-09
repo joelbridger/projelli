@@ -30,6 +30,7 @@ import type { AuditEvent } from '@/types/audit';
 describe('AuditService persistence (browser, localStorage)', () => {
   beforeEach(() => {
     mocks.isTauri.mockReturnValue(false);
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
     mocks.invoke.mockReset();
     localStorage.clear();
   });
@@ -72,6 +73,9 @@ describe('AuditService persistence (browser, localStorage)', () => {
 describe('AuditService persistence (desktop, encrypted store)', () => {
   beforeEach(() => {
     mocks.isTauri.mockReturnValue(true);
+    // Production detects desktop via the injected Tauri window global, so
+    // simulate it here (the isTauri mock alone is no longer read).
+    Reflect.set(window, '__TAURI_INTERNALS__', {});
     mocks.invoke.mockReset();
     mocks.invoke.mockResolvedValue(undefined);
     localStorage.clear();
@@ -79,6 +83,7 @@ describe('AuditService persistence (desktop, encrypted store)', () => {
 
   afterEach(() => {
     mocks.isTauri.mockReturnValue(false);
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
   });
 
   it('isAuditEncrypted() is true on the desktop', () => {

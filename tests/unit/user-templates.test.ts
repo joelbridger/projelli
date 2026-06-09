@@ -39,7 +39,9 @@ function makeMemoryStorage() {
   };
 }
 
-const builtIn = allWorkflows[0]!;
+// Pick a built-in that actually has a generate step (registry ordering and the
+// WS-D `analyze`-step templates mean allWorkflows[0] is no longer guaranteed to).
+const builtIn = allWorkflows.find((t) => t.steps.some((s) => s.type === 'generate')) ?? allWorkflows[0]!;
 
 describe('user templates (Q19)', () => {
   beforeEach(() => {

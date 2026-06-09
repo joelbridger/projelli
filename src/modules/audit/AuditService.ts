@@ -21,7 +21,10 @@ import {
   auditSetWorkspace,
   type AuditEntryRecord,
 } from '@/utils/tauri-commands';
-import { isTauri } from '@tauri-apps/api/core';
+// Tauri presence is detected via the injected window global in
+// isAuditEncrypted(), not the SDK's isTauri export: vitest throws when code
+// accesses a named export a partial mock omits, so importing isTauri here would
+// break any test that mocks @tauri-apps/api/core without it.
 
 /**
  * True when the audit log is encrypted at rest (the desktop app). False in the
@@ -29,7 +32,10 @@ import { isTauri } from '@tauri-apps/api/core';
  * an honest at-rest note.
  */
 export function isAuditEncrypted(): boolean {
-  return isTauri();
+  return (
+    typeof window !== 'undefined' &&
+    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+  );
 }
 
 /** Serialize a flat entry to the encrypted-store record shape. The full entry
