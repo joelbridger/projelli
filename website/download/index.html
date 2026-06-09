@@ -354,7 +354,7 @@
   <!-- DOWNLOAD HERO -->
   <section class="download-hero">
     <div class="container">
-      <p class="eyebrow">v2.1.3, all platforms signed &amp; notarized</p>
+      <p class="eyebrow">v2.5.2, all platforms signed &amp; notarized</p>
       <h1>Download Keepance</h1>
       <p>30-day free trial on every plan. No credit card, no account. Install, open your workspace, and go.</p>
 
@@ -366,7 +366,7 @@
           <p class="platform-version">64-bit · signed installer</p>
           <a id="dl-windows"
              data-platform="windows"
-             href="https://github.com/keepance/keepance/releases/download/v2.1.3/Keepance_2.1.3_x64-setup.exe"
+             href="https://github.com/keepance/keepance/releases/download/v2.5.2/Keepance_2.5.2_x64-setup.exe"
              class="dl-btn">
             ↓ Download .exe
           </a>
@@ -379,11 +379,11 @@
           <p class="platform-version" id="mac-version-note">Apple Silicon · signed &amp; notarized</p>
           <a id="dl-mac"
              data-platform="macos"
-             href="https://github.com/keepance/keepance/releases/download/v2.1.3/Keepance_2.1.3_aarch64.dmg"
+             href="https://github.com/keepance/keepance/releases/download/v2.5.2/Keepance_2.5.2_aarch64.dmg"
              class="dl-btn">
             ↓ Download .dmg
           </a>
-          <p class="platform-alt"><a id="dl-mac-alt" href="https://github.com/keepance/keepance/releases/download/v2.1.3/Keepance_2.1.3_x64.dmg">Intel Mac?</a></p>
+          <p class="platform-alt"><a id="dl-mac-alt" href="https://github.com/keepance/keepance/releases/download/v2.5.2/Keepance_2.5.2_x64.dmg">Intel Mac?</a></p>
         </div>
 
         <!-- Linux -->
@@ -392,11 +392,11 @@
           <p class="platform-version">amd64 · .deb package</p>
           <a id="dl-linux"
              data-platform="linux"
-             href="https://github.com/keepance/keepance/releases/download/v2.1.3/Keepance_2.1.3_amd64.deb"
+             href="https://github.com/keepance/keepance/releases/download/v2.5.2/Keepance_2.5.2_amd64.deb"
              class="dl-btn">
             ↓ Download .deb
           </a>
-          <p class="platform-alt"><a href="https://github.com/keepance/keepance/releases/download/v2.1.3/Keepance-2.1.3-1.x86_64.rpm">rpm instead?</a></p>
+          <p class="platform-alt"><a href="https://github.com/keepance/keepance/releases/download/v2.5.2/Keepance-2.5.2-1.x86_64.rpm">rpm instead?</a></p>
         </div>
 
       </div>
@@ -483,9 +483,9 @@
           var btn = document.getElementById('dl-mac');
           var alt = document.getElementById('dl-mac-alt');
           var note = document.getElementById('mac-version-note');
-          if (btn) btn.href = 'https://github.com/keepance/keepance/releases/download/v2.1.3/Keepance_2.1.3_x64.dmg';
+          if (btn) btn.href = 'https://github.com/keepance/keepance/releases/download/v2.5.2/Keepance_2.5.2_x64.dmg';
           if (note) note.textContent = 'Intel · signed & notarized';
-          if (alt) { alt.href = 'https://github.com/keepance/keepance/releases/download/v2.1.3/Keepance_2.1.3_aarch64.dmg'; alt.textContent = 'Apple Silicon instead?'; }
+          if (alt) { alt.href = 'https://github.com/keepance/keepance/releases/download/v2.5.2/Keepance_2.5.2_aarch64.dmg'; alt.textContent = 'Apple Silicon instead?'; }
         }
       } else if (isLinux) {
         document.getElementById('card-linux') && document.getElementById('card-linux').classList.add('current-os');
