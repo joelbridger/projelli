@@ -76,6 +76,9 @@ import { markdownToPptxBytes } from '@/utils/pptx-io';
 import { detectLibreOffice, convertDocToDocx } from '@/utils/tauri-commands';
 import { isTauriEnvironment } from '@/modules/workspace/BackendFactory';
 import { withShortcut } from '@/utils/shortcuts';
+import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
+import { modeRestrictsToLocal } from '@/modules/privacy/egress';
+import { detectOllama } from '@/modules/models/OllamaProvider';
 
 /**
  * Check if a file is a whiteboard file
@@ -396,6 +399,29 @@ export function MainPanel({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  // WS-C honesty — confidentiality mode for the DOCX AI redline. In Local-only
+  // mode the redline must run on a LOCAL model (Ollama), so we route the
+  // DocxEditor's redline provider to 'ollama' and discover a local model to
+  // use. Outside Local-only the redline stays on the default cloud provider
+  // (unchanged behaviour). This keeps redlining inside Local-only on-machine —
+  // nothing leaves the device, matching the egress promise.
+  const redlineLocalOnly = modeRestrictsToLocal(useConfidentialityMode());
+  const [redlineOllamaModel, setRedlineOllamaModel] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (!redlineLocalOnly) {
+      setRedlineOllamaModel(undefined);
+      return;
+    }
+    let cancelled = false;
+    void detectOllama().then((result) => {
+      if (cancelled) return;
+      setRedlineOllamaModel(result.reachable ? result.models[0] : undefined);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [redlineLocalOnly]);
 
   // UX-04 onboarding: has the user dismissed the API key setup card in this
   // session? Reset to the live sessionStorage value each mount so a page
@@ -797,12 +823,16 @@ export function MainPanel({
         if (extension?.toLowerCase() === 'docx') {
           return (
             <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
+              {/* WS-C honesty — in Local-only mode the redline runs on the
+                  local model (Ollama) so nothing leaves the machine. */}
               <DocxEditor
                 filePath={tab.path}
                 src={tab.content}
                 fileName={tab.name}
                 onFirstEdit={() => writeBackupIfNeeded(tab.path)}
                 apiKeys={apiKeys}
+                {...(redlineLocalOnly ? { aiProvider: 'ollama' as const } : {})}
+                {...(redlineLocalOnly && redlineOllamaModel ? { aiModel: redlineOllamaModel } : {})}
                 {...(onAuditLog ? { onAuditLog } : {})}
               />
             </Suspense>

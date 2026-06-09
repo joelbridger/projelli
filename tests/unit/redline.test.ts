@@ -6,7 +6,7 @@
 // a mocked Provider. The engine application itself is exercised by the engine's
 // Rust tests and the DocxEditor component test.
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 import {
   REDLINE_SCHEMA,
@@ -19,6 +19,7 @@ import {
 } from '@/modules/docx/redline';
 import type { DocumentJson } from '@/types/docx';
 import type { Provider } from '@/modules/models/Provider';
+import { createProvider } from '@/modules/models/providerFactory';
 
 function sampleDoc(): DocumentJson {
   return {
@@ -187,5 +188,60 @@ describe('redline — requestRedlineEdits (provider translation)', () => {
       structuredOutput: vi.fn().mockResolvedValue({ edits: [] }),
     } as unknown as Provider;
     expect(await requestRedlineEdits(provider, 'nothing to do', sampleDoc())).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WS-C honesty — a redline in Local-only mode must run on the LOCAL model
+// (Ollama, 127.0.0.1) and never reach a cloud provider. DocxEditor constructs
+// its redline provider via `createProvider({ provider: 'ollama', ... })`; here
+// we exercise that construction point end-to-end against a mocked fetch and
+// assert the request goes ONLY to the local daemon.
+// ---------------------------------------------------------------------------
+describe('redline — local (Ollama) routing (the honesty guarantee)', () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    vi.restoreAllMocks();
+  });
+
+  it('routes a local redline to 127.0.0.1 (Ollama) and never to a cloud host', async () => {
+    const urls: string[] = [];
+    // Mock fetch: record every URL, return an Ollama-shaped JSON edit list.
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      urls.push(String(input));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          model: 'llama3.2:3b',
+          message: {
+            role: 'assistant',
+            content: JSON.stringify({
+              edits: [
+                { op: 'replace', paragraphIndex: 3, anchorText: 'Delaware', newText: 'New York', reason: 'venue' },
+              ],
+            }),
+          },
+          done: true,
+        }),
+      } as unknown as Response;
+    }) as unknown as typeof fetch;
+
+    // The construction point DocxEditor uses for a local redline. No API key.
+    const provider = createProvider({ provider: 'ollama', model: 'llama3.2:3b' });
+    const edits = await requestRedlineEdits(provider, 'change venue to NY', sampleDoc());
+
+    // The edit list came back normalized.
+    expect(edits).toEqual([
+      { op: 'replace', paragraphIndex: 3, anchorText: 'Delaware', newText: 'New York', reason: 'venue' },
+    ]);
+
+    // Every request went to the LOCAL daemon — never a cloud provider host.
+    expect(urls.length).toBeGreaterThan(0);
+    for (const u of urls) {
+      expect(u).toContain('127.0.0.1:11434');
+      expect(u).not.toMatch(/anthropic|openai|googleapis/i);
+    }
   });
 });

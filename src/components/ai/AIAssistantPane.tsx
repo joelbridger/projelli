@@ -29,8 +29,12 @@ import { getDefaultModelsForTier } from '@/utils/defaultModel';
 import { useLicense } from '@/hooks/useLicense';
 import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import { modeRestrictsToLocal } from '@/modules/privacy/egress';
+import { detectOllama, formatOllamaDisplayName } from '@/modules/models/OllamaProvider';
 import type { AIChatFile } from '@/types/ai';
 import type { ModelInfo } from '@/modules/models/ModelListService';
+
+/** The provider ids the pane can create chats for (cloud + local Ollama). */
+type ChatProvider = 'anthropic' | 'openai' | 'google' | 'ollama';
 
 interface APIKey {
   provider: 'anthropic' | 'openai' | 'google';
@@ -45,7 +49,12 @@ interface AIAssistantPaneProps {
   modelLists?: Record<string, ModelInfo[]>;
   onSaveApiKey: (provider: 'anthropic' | 'openai' | 'google', key: string) => void;
   onDeleteApiKey: (provider: 'anthropic' | 'openai' | 'google') => void;
-  onCreateNewChat: (provider: 'anthropic' | 'openai' | 'google', model?: string) => void;
+  /**
+   * Create a new chat. Cloud providers carry a model id from the picker;
+   * `'ollama'` is the LOCAL provider (used in Local-only mode) and carries a
+   * discovered local model id.
+   */
+  onCreateNewChat: (provider: ChatProvider, model?: string) => void;
   onOpenChat: (chatFile: AIChatFile) => void;
   onDeleteChat: (chatId: string) => void;
   onOpenAIRules?: () => void;
@@ -60,6 +69,12 @@ interface AIAssistantPaneProps {
    * one-shot request (otherwise re-renders would keep snapping back to it).
    */
   onRequestedTabApplied?: () => void;
+  /**
+   * Override Ollama detection so tests can stub the local-model discovery
+   * without a real daemon. When omitted, uses the real `detectOllama` against
+   * 127.0.0.1:11434. Mirrors `OllamaSettingsSection`'s `onDetect`.
+   */
+  onDetectOllama?: () => Promise<{ reachable: boolean; models: string[] }>;
   className?: string;
 }
 
@@ -96,6 +111,7 @@ export function AIAssistantPane({
   onOpenAIRules,
   requestedTab,
   onRequestedTabApplied,
+  onDetectOllama,
   className,
 }: AIAssistantPaneProps) {
   const { t } = useTranslation();
@@ -124,6 +140,43 @@ export function AIAssistantPane({
   // (nothing leaves the machine). The egress indicator reflects the same mode.
   const confidentialityMode = useConfidentialityMode();
   const localOnly = modeRestrictsToLocal(confidentialityMode);
+
+  // WS-C honesty — Local-only model picker. In Local-only mode the only
+  // selectable models are the LOCAL ones discovered from the Ollama daemon
+  // (cloud providers are disabled). We auto-detect on entering Local-only so
+  // the picker is populated and a new chat defaults to a real local model.
+  const [ollamaStatus, setOllamaStatus] = useState<'idle' | 'checking' | 'ready' | 'unavailable'>('idle');
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [selectedOllamaModel, setSelectedOllamaModel] = useState<string>('');
+
+  useEffect(() => {
+    if (!localOnly) {
+      // Reset when leaving Local-only so re-entering re-detects fresh.
+      setOllamaStatus('idle');
+      return;
+    }
+    let cancelled = false;
+    setOllamaStatus('checking');
+    void (onDetectOllama ? onDetectOllama() : detectOllama()).then((result) => {
+      if (cancelled) return;
+      if (result.reachable) {
+        setOllamaModels(result.models);
+        setOllamaStatus('ready');
+        // Default the selection to the first discovered model (only when the
+        // current pick isn't already in the list, so a user's choice sticks).
+        setSelectedOllamaModel((prev) =>
+          prev && result.models.includes(prev) ? prev : (result.models[0] ?? ''),
+        );
+      } else {
+        setOllamaModels([]);
+        setOllamaStatus('unavailable');
+        setSelectedOllamaModel('');
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [localOnly, onDetectOllama]);
 
   // Model selection state.
   // Defaults resolve through `getDefaultModelsForTier` (Q9 — Wave 1.5) so free-tier
@@ -369,6 +422,68 @@ export function AIAssistantPane({
                   Local-only mode is on, so cloud providers are disabled. Chats
                   run on a local model and nothing leaves your machine. Change
                   this in Settings → AI → Confidentiality mode.
+                </div>
+              )}
+              {/* WS-C honesty — Local-only model picker. The ONLY selectable
+                  models here are the local ones discovered from Ollama. The
+                  new-chat button creates an `ollama` chat that runs on
+                  127.0.0.1 — nothing leaves the machine. */}
+              {localOnly && (
+                <div data-testid="local-only-ollama-picker" className="mb-2 space-y-2">
+                  {ollamaStatus === 'checking' && (
+                    <p className="text-[11px] text-muted-foreground">Looking for local models…</p>
+                  )}
+                  {ollamaStatus === 'unavailable' && (
+                    <div
+                      data-testid="local-only-ollama-unavailable"
+                      className="px-2.5 py-2 rounded border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 text-[11px] leading-snug"
+                    >
+                      Ollama isn&apos;t running, so there are no local models to use.
+                      Start Ollama (or install it from ollama.com), then reopen this
+                      tab. Until then, no chat can be started in Local-only mode.
+                    </div>
+                  )}
+                  {ollamaStatus === 'ready' && ollamaModels.length === 0 && (
+                    <div
+                      data-testid="local-only-ollama-no-models"
+                      className="px-2.5 py-2 rounded border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 text-[11px] leading-snug"
+                    >
+                      Ollama is running but has no models installed. Pull one (for
+                      example <code className="font-mono">ollama pull llama3.2</code>),
+                      then reopen this tab.
+                    </div>
+                  )}
+                  {ollamaStatus === 'ready' && ollamaModels.length > 0 && (
+                    <>
+                      <label className="text-xs font-medium block truncate">Local model (Ollama)</label>
+                      <select
+                        data-testid="model-select-ollama"
+                        value={selectedOllamaModel}
+                        onChange={(e) => { setSelectedOllamaModel(e.target.value); }}
+                        className="w-full h-8 text-xs px-2 border rounded-md bg-background"
+                      >
+                        {ollamaModels.map((m) => (
+                          <option key={m} value={m}>{formatOllamaDisplayName(m)}</option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+                  <Button
+                    data-testid="new-chat-ollama"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs w-full justify-start"
+                    onClick={() => { onCreateNewChat('ollama', selectedOllamaModel || undefined); }}
+                    disabled={ollamaStatus !== 'ready' || ollamaModels.length === 0 || !selectedOllamaModel}
+                    title={
+                      ollamaStatus === 'ready' && selectedOllamaModel
+                        ? `New local chat on ${formatOllamaDisplayName(selectedOllamaModel)} — nothing leaves your machine`
+                        : 'Start Ollama and install a model to begin a local chat'
+                    }
+                  >
+                    <Plus className="h-3 w-3 mr-2 shrink-0" />
+                    <span className="truncate">Local model (Ollama)</span>
+                  </Button>
                 </div>
               )}
               <div className="flex flex-col gap-2">

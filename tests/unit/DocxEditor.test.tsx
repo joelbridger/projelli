@@ -31,6 +31,10 @@ vi.mock('@/modules/docx/redline', async (importOriginal) => {
 });
 vi.mock('@/modules/models/providerFactory', () => ({
   createProvider: vi.fn(() => ({ structuredOutput: vi.fn() })),
+  // WS-C honesty — DocxEditor now imports this to decide if the redline is
+  // local (Ollama, keyless) vs cloud. These tests use the default cloud
+  // provider, so it returns false; keep the real semantics (only 'ollama').
+  isLocalProviderId: (provider: string) => provider === 'ollama',
 }));
 
 import { TooltipProvider } from '@/components/ui/tooltip';

@@ -62,7 +62,7 @@ import {
   docxSave,
   isDocxEngineAvailable,
 } from '@/utils/docx-commands';
-import { createProvider, type ChatProviderId } from '@/modules/models/providerFactory';
+import { createProvider, isLocalProviderId, type ChatProviderId } from '@/modules/models/providerFactory';
 import {
   REDLINE_AUTHOR,
   paragraphPlainRunText,
@@ -396,11 +396,18 @@ export function DocxEditor({
   );
 
   // ---- A4: AI redline ----------------------------------------------------
-  // The valid key for the selected provider, if any (enables the button).
+  // WS-C honesty — a LOCAL provider (Ollama) needs no API key; redlining runs
+  // on the user's own machine and nothing leaves the device. For cloud
+  // providers we still require the BYOK key.
+  const isLocalRedline = isLocalProviderId(aiProvider);
+  // The valid key for the selected CLOUD provider, if any.
   const redlineKey = useMemo(
     () => apiKeys.find((k) => k.provider === aiProvider && k.isValid)?.key,
     [apiKeys, aiProvider],
   );
+  // The redline action is ready when it's a local provider (keyless) or a cloud
+  // provider with a valid key.
+  const redlineReady = isLocalRedline || Boolean(redlineKey);
 
   /**
    * Run an AI redline from the user's instruction. Builds a prompt from the
@@ -411,7 +418,8 @@ export function DocxEditor({
   const runRedline = useCallback(async () => {
     const instruction = redlineInstruction.trim();
     if (!instruction || !currentDoc || redlineBusy) return;
-    if (!redlineKey) {
+    // Cloud providers require a key; a local (Ollama) provider does not.
+    if (!isLocalRedline && !redlineKey) {
       setRedlineError(t('media.docx-editor.redline-need-key'));
       return;
     }
@@ -419,9 +427,12 @@ export function DocxEditor({
     setRedlineError(null);
     setRedlineSummary(null);
     try {
+      // WS-C honesty — createProvider builds the LOCAL provider for 'ollama'
+      // (no key, on-machine) and the cloud provider otherwise. A local redline
+      // can never be routed to a cloud provider here.
       const provider = createProvider({
         provider: aiProvider,
-        apiKey: redlineKey,
+        ...(redlineKey ? { apiKey: redlineKey } : {}),
         ...(aiModel ? { model: aiModel } : {}),
       });
       const edits = await requestRedlineEdits(provider, instruction, currentDoc);
@@ -465,7 +476,14 @@ export function DocxEditor({
         metadata: { feature: 'docx_redline', file: fileName },
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      // WS-C honesty — a LOCAL redline that fails is almost always Ollama not
+      // running. Show a clear, friendly message instead of a raw fetch error,
+      // and NEVER retry on a cloud provider (nothing left the machine).
+      const message = isLocalRedline
+        ? "Ollama isn't running, so this local redline couldn't run. Start Ollama and try again, or switch your confidentiality mode in Settings → AI. Nothing was sent anywhere."
+        : err instanceof Error
+          ? err.message
+          : String(err);
       setRedlineError(message);
       console.error('[DocxEditor] AI redline failed:', err);
     } finally {
@@ -475,6 +493,7 @@ export function DocxEditor({
     redlineInstruction,
     currentDoc,
     redlineBusy,
+    isLocalRedline,
     redlineKey,
     aiProvider,
     aiModel,
@@ -596,7 +615,7 @@ export function DocxEditor({
             disabled={redlineBusy}
             aria-expanded={redlineOpen}
             title={
-              redlineKey
+              redlineReady
                 ? t('media.docx-editor.revise-with-ai')
                 : t('media.docx-editor.redline-need-key')
             }
@@ -653,7 +672,7 @@ export function DocxEditor({
           onInstructionChange={setRedlineInstruction}
           busy={redlineBusy}
           error={redlineError}
-          hasKey={Boolean(redlineKey)}
+          hasKey={redlineReady}
           onRun={() => void runRedline()}
           onClose={() => { setRedlineOpen(false); }}
         />

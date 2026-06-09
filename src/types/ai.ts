@@ -158,6 +158,12 @@ export interface AIChatFile {
   created: string; // ISO datetime
   updated: string; // ISO datetime
   messages: ChatMessage[];
-  provider?: 'anthropic' | 'openai' | 'google'; // Optional: which AI provider
-  model?: string; // Optional: specific model ID (e.g. 'claude-sonnet-4-5-20250514')
+  /**
+   * Which AI provider this chat sends to. `'ollama'` is a LOCAL provider:
+   * inference runs on the user's own machine (127.0.0.1:11434) and nothing
+   * leaves the device. The cloud providers (anthropic/openai/google) send the
+   * prompt directly to that vendor with the user's own key (BYOK).
+   */
+  provider?: 'anthropic' | 'openai' | 'google' | 'ollama';
+  model?: string; // Optional: specific model ID (e.g. 'claude-sonnet-4-5-20250514' or 'llama3.2:3b')
 }

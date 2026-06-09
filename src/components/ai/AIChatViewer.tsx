@@ -23,6 +23,8 @@ import type { Provider, AttachmentBytes } from '@/modules/models/Provider';
 import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
 import { GeminiProvider } from '@/modules/models/GeminiProvider';
+import { OllamaProvider } from '@/modules/models/OllamaProvider';
+import { isLocalProviderId } from '@/modules/models/providerFactory';
 // Stream D-web Group III · Task 3.5 — demo-mode AI override.
 // `IS_DEMO` is statically false in the desktop build, so Rollup tree-shakes
 // the dynamic import below and the demo provider never lands in the desktop
@@ -730,8 +732,14 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     if (!shouldRunExtraction(count, extractionStateRef.current)) return;
 
     const chatProvider = chatData.provider ?? 'anthropic';
-    const apiKey = apiKeys.find((k) => k.provider === chatProvider && k.isValid);
-    if (!apiKey) {
+    // WS-C honesty — a LOCAL (Ollama) chat extracts facts on the local model
+    // itself ($0, nothing leaves). It needs no key, so it must not be gated by
+    // the cloud key check, and it must NEVER fall through to a cloud provider.
+    const isLocal = isLocalProviderId(chatProvider);
+    const apiKey = isLocal
+      ? undefined
+      : apiKeys.find((k) => k.provider === chatProvider && k.isValid);
+    if (!isLocal && !apiKey) {
       // No key — silently advance the checkpoint so we don't spin on
       // every render. Next checkpoint will try again when there's a key.
       extractionStateRef.current = markCheckpointRan(
@@ -746,25 +754,35 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       try {
         let provider: Provider;
         switch (chatProvider) {
+          case 'ollama':
+            // Local extraction — on-machine, nothing leaves.
+            provider = new OllamaProvider({
+              ...(chatData.model ? { model: chatData.model } : {}),
+            });
+            break;
           case 'openai':
             provider = new OpenAIProvider({
-              apiKey: apiKey.key,
+              apiKey: apiKey!.key,
               ...(chatData.model ? { model: chatData.model } : {}),
             });
             break;
           case 'google':
             provider = new GeminiProvider({
-              apiKey: apiKey.key,
+              apiKey: apiKey!.key,
               ...(chatData.model ? { model: chatData.model } : {}),
             });
             break;
           case 'anthropic':
-          default:
             provider = new ClaudeProvider({
-              apiKey: apiKey.key,
+              apiKey: apiKey!.key,
               ...(chatData.model ? { model: chatData.model } : {}),
             });
             break;
+          default: {
+            // Exhaustiveness guard — never a Claude fallback.
+            const never: never = chatProvider;
+            throw new Error(`Unsupported chat provider: ${String(never)}`);
+          }
         }
         const proposals = await runExtraction(provider, messages);
         extractionStateRef.current = markCheckpointRan(
@@ -998,10 +1016,18 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         const chatProvider = chatData.provider ?? 'anthropic';
         const chatModel = chatData.model;
 
-        // Find valid API key for the chat's provider
-        const apiKey = apiKeys.find(k => k.provider === chatProvider && k.isValid);
+        // WS-C honesty — a LOCAL provider (Ollama) needs no API key; inference
+        // runs on the user's own machine. The key lookup + "no key" error only
+        // applies to cloud providers. We MUST NOT fall through from a local
+        // selection to a cloud provider on any path below.
+        const isLocal = isLocalProviderId(chatProvider);
 
-        if (!apiKey) {
+        // Find valid API key for the chat's provider (cloud only).
+        const apiKey = isLocal
+          ? undefined
+          : apiKeys.find(k => k.provider === chatProvider && k.isValid);
+
+        if (!isLocal && !apiKey) {
           const providerNames: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' };
           throw new Error(`No valid ${providerNames[chatProvider] ?? chatProvider} API key found. Please add your API key in the settings.`);
         }
@@ -1163,10 +1189,27 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           // demo's seeded workspace is read-mostly and the proxy is text-only.
           provider = createDemoProvider({ ...(chatModel ? { model: chatModel } : {}) });
         } else {
+          // WS-C honesty — this switch is the single chat send path. A LOCAL
+          // selection ('ollama') is handled by its OWN case and constructs the
+          // local provider; it can NEVER fall through to a cloud branch. The
+          // exhaustiveness guard at the end throws on an unknown id rather than
+          // defaulting to Claude, so a confidential/local chat can never be
+          // silently routed to the cloud.
           switch (chatProvider) {
+            case 'ollama': {
+              // Local model on 127.0.0.1:11434. No API key, $0, nothing leaves
+              // the machine. Ollama does not support file-access tool calling,
+              // so we don't register tools (the non-tool streaming path handles
+              // it; the egress indicator stays "nothing leaves").
+              provider = new OllamaProvider({
+                ...(chatModel ? { model: chatModel } : {}),
+                ...rulesOpt,
+              });
+              break;
+            }
             case 'openai': {
               const openai = new OpenAIProvider({
-                apiKey: apiKey.key,
+                apiKey: apiKey!.key,
                 ...(chatModel ? { model: chatModel } : {}),
                 ...rulesOpt,
               });
@@ -1181,7 +1224,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             }
             case 'google': {
               const gemini = new GeminiProvider({
-                apiKey: apiKey.key,
+                apiKey: apiKey!.key,
                 ...(chatModel ? { model: chatModel } : {}),
                 ...rulesOpt,
               });
@@ -1194,10 +1237,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               provider = gemini;
               break;
             }
-            case 'anthropic':
-            default: {
+            case 'anthropic': {
               const claude = new ClaudeProvider({
-                apiKey: apiKey.key,
+                apiKey: apiKey!.key,
                 ...(chatModel ? { model: chatModel } : {}),
                 ...rulesOpt,
               });
@@ -1209,6 +1251,13 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               }
               provider = claude;
               break;
+            }
+            default: {
+              // Exhaustiveness guard. NOT a Claude fallback — an unrecognised
+              // provider id is a hard error so a local/confidential selection
+              // can never be silently downgraded to a cloud provider.
+              const never: never = chatProvider;
+              throw new Error(`Unsupported chat provider: ${String(never)}`);
             }
           }
         }
@@ -1474,7 +1523,18 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         let errorContent: string;
         let errorDiagnostic: string | undefined;
 
-        if (error instanceof ApiResponseParseError) {
+        // WS-C honesty — a LOCAL (Ollama) chat that fails is almost always the
+        // daemon not running / not reachable. Show a clear, friendly message
+        // telling the user how to fix it. We NEVER silently retry on a cloud
+        // provider here: a Local-only / Ollama selection that errors stays
+        // local-and-failed, it does not leak to the cloud.
+        if (isLocalProviderId(chatData.provider ?? 'anthropic')) {
+          errorContent =
+            "Ollama isn't running, so this local chat couldn't get a response. " +
+            'Start Ollama (then try again), or switch your confidentiality mode ' +
+            'in Settings → AI to use a cloud model. Your message was not sent ' +
+            'anywhere — nothing left your machine.';
+        } else if (error instanceof ApiResponseParseError) {
           // The response came back but couldn't be parsed as JSON.
           // This is the Tauri HTTP plugin compatibility bug — show the user
           // a clear message and capture the full body for diagnostic copy.
