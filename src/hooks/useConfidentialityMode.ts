@@ -26,11 +26,10 @@ function coerceMode(value: unknown): ConfidentialityMode {
 /** Reactive read of the active confidentiality mode. */
 export function useConfidentialityMode(): ConfidentialityMode {
   const value = useSettingsStore((s) => s.getSetting(CONFIDENTIALITY_MODE_SETTING_KEY));
-  // `assured` is shown in the UI but never selectable, so if it somehow lands
-  // in storage we fall back to the default rather than silently behaving as a
-  // mode that does not exist yet.
-  const mode = coerceMode(value);
-  return mode === 'assured' ? DEFAULT_CONFIDENTIALITY_MODE : mode;
+  // 'assured' is now a real, selectable mode for firms with a managed key. The
+  // egress layer + provider construction fall back to BYOK-direct when no
+  // managed key is configured, so it is always safe to return the stored value.
+  return coerceMode(value);
 }
 
 /** Setter for the confidentiality mode. */
@@ -44,6 +43,5 @@ export function useSetConfidentialityMode(): (mode: ConfidentialityMode) => void
 /** Non-reactive read for use outside React render (e.g. provider construction). */
 export function getConfidentialityMode(): ConfidentialityMode {
   const value = useSettingsStore.getState().getSetting(CONFIDENTIALITY_MODE_SETTING_KEY);
-  const mode = coerceMode(value);
-  return mode === 'assured' ? DEFAULT_CONFIDENTIALITY_MODE : mode;
+  return coerceMode(value);
 }

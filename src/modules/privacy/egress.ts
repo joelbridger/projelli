@@ -46,8 +46,12 @@ export type EgressProvider = string;
  *                   disabled. Nothing leaves the machine.
  *   - 'direct'      Default. The user's own key talks directly to their chosen
  *                   provider. The provider sees the prompt.
- *   - 'assured'     Reserved / coming soon: a future zero-retention relay.
- *                   Shown so the spectrum is visible, but not selectable yet.
+ *   - 'assured'     The FIRM zero-retention path: cloud inference routed through
+ *                   the Keepance proxy, which attaches the firm's MANAGED key
+ *                   server-side and retains nothing (a DPA + provider ZDR back
+ *                   it). Selectable only when the firm has a managed key
+ *                   configured for the active provider; otherwise it falls back
+ *                   to the default and the picker explains why.
  */
 export type ConfidentialityMode = 'local-only' | 'direct' | 'assured';
 
@@ -68,15 +72,19 @@ export const CONFIDENTIALITY_MODE_SETTING_KEY = 'confidentialityMode';
  *   - 'safe'   nothing leaves the machine (local model).
  *   - 'direct' leaves to the chosen provider, with the user's key (expected,
  *              honest — not an error, but the user must understand it).
+ *   - 'assured' leaves via the Keepance zero-retention proxy to the provider
+ *              under the firm's managed key + DPA (honest, contractually
+ *              no-logging on our side; the provider still sees the prompt).
  *   - 'warn'   a shared/relayed path that is NOT for confidential data
  *              (the browser-demo proxy).
  */
-export type EgressSeverity = 'safe' | 'direct' | 'warn';
+export type EgressSeverity = 'safe' | 'direct' | 'assured' | 'warn';
 
 /** What kind of destination the next request resolves to. */
 export type EgressDestination =
   | 'local' // on-machine (Ollama)
   | 'provider-direct' // direct to Anthropic/OpenAI/Google with the user's key
+  | 'assured-proxy' // firm zero-retention proxy -> provider (managed key + DPA)
   | 'demo-proxy'; // shared Keepance demo relay (web demo, no personal key)
 
 export interface EgressInfo {
@@ -126,6 +134,14 @@ export interface ResolveEgressInput {
    * Ignored outside demo mode.
    */
   hasDemoByokKey?: boolean;
+  /**
+   * Assured mode only: whether the firm has a MANAGED key configured for this
+   * provider server-side. When the mode is 'assured' AND this is true, the
+   * request routes through the zero-retention proxy. When 'assured' is selected
+   * but no managed key exists, we fall back to the honest BYOK-direct story
+   * (the proxy can't run without a managed key).
+   */
+  assuredAvailable?: boolean;
 }
 
 /**
@@ -136,7 +152,7 @@ export interface ResolveEgressInput {
  * assert against for accuracy).
  */
 export function resolveEgress(input: ResolveEgressInput): EgressInfo {
-  const { mode, isDemo = false, hasDemoByokKey = false } = input;
+  const { mode, isDemo = false, hasDemoByokKey = false, assuredAvailable = false } = input;
   const provider = input.provider || 'anthropic';
 
   // Local-only mode forces a local destination regardless of the chat's stored
@@ -152,6 +168,21 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
       note: 'This runs on a local model (Ollama). No prompt or file is sent over the network.',
       dataLeaves: false,
       provider: isLocalProvider(provider) ? provider : 'ollama',
+    };
+  }
+
+  // Assured mode with a managed key configured for this provider: route through
+  // the Keepance zero-retention proxy. We retain nothing (DPA + provider ZDR);
+  // the provider still receives the prompt, which the note states honestly.
+  if (mode === 'assured' && assuredAvailable && !isDemo) {
+    const name = providerDisplayName(provider);
+    return {
+      destination: 'assured-proxy',
+      severity: 'assured',
+      label: `Assured: via Keepance zero-retention proxy to ${name}`,
+      note: `Sent through the Keepance proxy using your firm's managed ${name} key. Keepance retains nothing (no prompt, no completion) and stamps each response no-retention. ${name} still receives the prompt under your firm's DPA and zero-retention settings.`,
+      dataLeaves: true,
+      provider,
     };
   }
 
@@ -185,7 +216,15 @@ export function modeRestrictsToLocal(mode: ConfidentialityMode): boolean {
   return mode === 'local-only';
 }
 
-/** True when the mode is shown in the UI but not yet usable. */
-export function modeIsComingSoon(mode: ConfidentialityMode): boolean {
-  return mode === 'assured';
+/**
+ * True when the mode is shown in the UI but cannot be USED in the current
+ * context. Assured is now a real path, but it is only usable when the firm has
+ * a managed key configured for the active provider; the picker passes
+ * `assuredAvailable` so the card can explain when it is not yet selectable.
+ */
+export function modeIsComingSoon(
+  mode: ConfidentialityMode,
+  assuredAvailable = false,
+): boolean {
+  return mode === 'assured' && !assuredAvailable;
 }

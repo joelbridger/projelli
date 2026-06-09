@@ -78,6 +78,15 @@ export default defineConfig({
           'Origin': '',
         },
       },
+      // Firm backend proxy (dev only). Points at a locally-running firm backend
+      // (backend/, Bun). Override the target with FIRM_BACKEND_TARGET. `ws: true`
+      // forwards the matter-sync WebSocket upgrade too.
+      '/api/firm': {
+        target: process.env['FIRM_BACKEND_TARGET'] ?? 'http://127.0.0.1:5290',
+        changeOrigin: true,
+        ws: true,
+        rewrite: (path) => path.replace(/^\/api\/firm/, ''),
+      },
     },
   },
   // Build configuration

@@ -1,0 +1,421 @@
+/**
+ * firmStore — the orchestration layer for the FIRM tier (opt-in).
+ *
+ * Solo/local mode never touches this store; it stays accountless. A firm user
+ * signs in, activates a seat, and from then on this store is the single source
+ * of truth for "are we a firm seat, and what does it entitle?".
+ *
+ * SECURITY MODEL
+ * ──────────────
+ *   - SECRETS (access token, refresh token, seat token, per-matter keys) live
+ *     ONLY in the OS keychain (firmKeychain). They are NEVER persisted to
+ *     localStorage and are NOT held in the persisted slice of this store.
+ *   - The persisted slice holds only NON-secret session metadata so the app can
+ *     reload the keychain secrets for the known user on next launch and show the
+ *     firm UI immediately, then re-validate online.
+ *
+ * Entitlement: an active firm seat grants the Firm tier via `decideFirmEntitlement`
+ * (the pure decision layer). Offline grace mirrors the rest of the app: a
+ * network blip never bricks a paying firm; data access is never gated.
+ */
+
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { FirmApiClient, FirmApiError, type TokenSource } from '@/modules/firm/FirmApiClient';
+import { verifySeatToken } from '@/modules/firm/seatToken';
+import {
+  storeAuthTokens,
+  storeSeatToken,
+  loadFirmTokens,
+  clearUserSecrets,
+} from '@/modules/firm/firmKeychain';
+import {
+  decideFirmEntitlement,
+  type FirmSeatState,
+} from '@/modules/firm/firmEntitlement';
+import type { Entitlement } from '@/modules/licensing/entitlements';
+import type {
+  PublicUser,
+  Plan,
+  ProfessionPack,
+  SeatLimitExceededResponse,
+  AssuredProvider,
+} from '@/modules/firm/contract';
+
+/** Stable per-machine id, shared with the licensing hook's convention. */
+const MACHINE_ID_KEY = 'keepance_machine_id';
+function getMachineId(): string {
+  if (typeof localStorage === 'undefined') return 'unknown-machine';
+  let id = localStorage.getItem(MACHINE_ID_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(MACHINE_ID_KEY, id);
+  }
+  return id;
+}
+
+export interface FirmOrg {
+  org_id: string;
+  name: string;
+  plan: Plan;
+  packs: ProfessionPack[];
+  seat_limit: number;
+}
+
+/** NON-secret session metadata persisted to localStorage. */
+interface PersistedFirmSession {
+  userId: string;
+  email: string;
+  role: 'admin' | 'member';
+  org: FirmOrg | null;
+  seatId: string | null;
+  tier: Plan | null;
+  packs: ProfessionPack[];
+  seats: number;
+  /** ISO of the last successful online seat validate (last-known-good). */
+  lastValidatedAt: string | null;
+  /** Whether a seat has been activated on this machine. */
+  activated: boolean;
+}
+
+interface FirmState {
+  // session metadata (persisted; non-secret)
+  session: PersistedFirmSession | null;
+  // runtime-only (NOT persisted)
+  accessToken: string | null;
+  seatToken: string | null;
+  seatPublicKeyPem: string | null;
+  serverVerdict: 'valid' | 'revoked' | 'unknown';
+  offlineSeatValid: boolean;
+  isOffline: boolean;
+  isLoading: boolean;
+  error: string | null;
+  /** Providers for which the firm has a managed (assured) key configured. */
+  assuredProviders: AssuredProvider[];
+
+  // actions
+  signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  activateSeat: (
+    licenseKey: string,
+    machineLabel?: string,
+  ) => Promise<{ ok: boolean; error?: string; seatLimit?: SeatLimitExceededResponse }>;
+  signOut: () => Promise<void>;
+  /** Re-hydrate secrets from the keychain for a previously signed-in user. */
+  hydrate: () => Promise<void>;
+  /** Online seat validate + heartbeat; updates verdict + last-known-good. */
+  validateSeat: () => Promise<void>;
+  /** Refresh the list of providers with a managed assured key (admin view). */
+  refreshAssuredProviders: () => Promise<void>;
+  /** A TokenSource the FirmApiClient uses (auto-refresh on 401). */
+  tokenSource: () => TokenSource;
+  /** A FirmApiClient bound to this store's token source. */
+  client: () => FirmApiClient;
+}
+
+function emptyVerdict(): Pick<
+  FirmState,
+  'serverVerdict' | 'offlineSeatValid' | 'isOffline'
+> {
+  return { serverVerdict: 'unknown', offlineSeatValid: false, isOffline: false };
+}
+
+export const useFirmStore = create<FirmState>()(
+  persist(
+    (set, get) => ({
+      session: null,
+      accessToken: null,
+      seatToken: null,
+      seatPublicKeyPem: null,
+      ...emptyVerdict(),
+      isLoading: false,
+      error: null,
+      assuredProviders: [],
+
+      tokenSource: (): TokenSource => ({
+        getAccessToken: () => get().accessToken,
+        refreshAccessToken: async () => {
+          const session = get().session;
+          if (!session) return null;
+          // Load the (rotating) refresh token from the keychain.
+          const tokens = await loadFirmTokens(session.userId);
+          if (!tokens) return null;
+          try {
+            // Bare client (no token source) to avoid refresh recursion.
+            const bare = new FirmApiClient();
+            const res = await bare.refresh(tokens.refreshToken);
+            await storeAuthTokens(session.userId, res.access_token, res.refresh_token);
+            set({ accessToken: res.access_token, isOffline: false });
+            return res.access_token;
+          } catch {
+            return null;
+          }
+        },
+      }),
+
+      client: () => new FirmApiClient(get().tokenSource()),
+
+      signIn: async (email, password) => {
+        set({ isLoading: true, error: null });
+        try {
+          const bare = new FirmApiClient();
+          const res = await bare.login(email.trim(), password);
+          const user: PublicUser = res.user;
+          await storeAuthTokens(user.user_id, res.access_token, res.refresh_token);
+
+          // Fetch org context + the seat public key (for offline verification).
+          set({ accessToken: res.access_token });
+          let org: FirmOrg | null = null;
+          let seatPublicKeyPem: string | null = get().seatPublicKeyPem;
+          try {
+            const me = await new FirmApiClient(get().tokenSource()).me();
+            org = me.org;
+          } catch {
+            /* non-fatal; org fills in on next validate */
+          }
+          try {
+            seatPublicKeyPem = await new FirmApiClient().getSeatPublicKey();
+          } catch {
+            /* non-fatal; offline verify just won't run until we have it */
+          }
+
+          // Carry forward a prior seat for the SAME user (re-sign-in); otherwise
+          // start fresh.
+          const prevSession = get().session;
+          const prev = prevSession && prevSession.userId === user.user_id ? prevSession : null;
+          set({
+            session: {
+              userId: user.user_id,
+              email: user.email,
+              role: user.role,
+              org,
+              seatId: prev ? prev.seatId : null,
+              tier: prev ? prev.tier : null,
+              packs: prev ? prev.packs : [],
+              seats: prev ? prev.seats : 1,
+              lastValidatedAt: prev ? prev.lastValidatedAt : null,
+              activated: prev ? prev.activated : false,
+            },
+            seatPublicKeyPem,
+            isLoading: false,
+            error: null,
+            isOffline: false,
+          });
+          // If a seat was already activated on this machine, re-validate it.
+          if (get().session?.activated) void get().validateSeat();
+          return { ok: true };
+        } catch (err) {
+          const message =
+            err instanceof FirmApiError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : 'Sign-in failed';
+          set({ isLoading: false, error: message, isOffline: !(err instanceof FirmApiError) });
+          return { ok: false, error: message };
+        }
+      },
+
+      activateSeat: async (licenseKey, machineLabel) => {
+        const session = get().session;
+        if (!session) return { ok: false, error: 'Sign in first.' };
+        set({ isLoading: true, error: null });
+        try {
+          const client = get().client();
+          const res = await client.activate(licenseKey.trim(), getMachineId(), machineLabel);
+          await storeSeatToken(session.userId, res.seat_token);
+
+          // Verify the freshly minted seat token offline against the public key.
+          let offlineSeatValid = false;
+          const pem = get().seatPublicKeyPem ?? (await safeGetPubKey(get));
+          if (pem) {
+            const v = await verifySeatToken(res.seat_token, pem);
+            offlineSeatValid = v.valid;
+          }
+
+          const now = new Date().toISOString();
+          set({
+            seatToken: res.seat_token,
+            seatPublicKeyPem: pem,
+            serverVerdict: 'valid',
+            offlineSeatValid,
+            isOffline: false,
+            isLoading: false,
+            error: null,
+            session: {
+              ...session,
+              seatId: res.seat_id,
+              tier: res.tier,
+              packs: res.packs,
+              seats: res.seats,
+              lastValidatedAt: now,
+              activated: true,
+            },
+          });
+          return { ok: true };
+        } catch (err) {
+          if (err instanceof FirmApiError && err.seatLimit) {
+            set({ isLoading: false, error: err.message });
+            return { ok: false, error: err.message, seatLimit: err.seatLimit };
+          }
+          const message = err instanceof Error ? err.message : 'Activation failed';
+          set({ isLoading: false, error: message });
+          return { ok: false, error: message };
+        }
+      },
+
+      signOut: async () => {
+        const session = get().session;
+        if (session) {
+          // Best-effort server logout with the current refresh token.
+          try {
+            const tokens = await loadFirmTokens(session.userId);
+            if (tokens) await new FirmApiClient().logout(tokens.refreshToken);
+          } catch {
+            /* ignore */
+          }
+          await clearUserSecrets(session.userId);
+        }
+        set({
+          session: null,
+          accessToken: null,
+          seatToken: null,
+          ...emptyVerdict(),
+          assuredProviders: [],
+          error: null,
+        });
+      },
+
+      hydrate: async () => {
+        const session = get().session;
+        if (!session) return;
+        const tokens = await loadFirmTokens(session.userId);
+        if (!tokens) {
+          // Secrets gone (different machine / keychain cleared): treat as signed
+          // out but keep no stale runtime tokens.
+          set({ accessToken: null, seatToken: null, ...emptyVerdict() });
+          return;
+        }
+        set({ accessToken: tokens.accessToken, seatToken: tokens.seatToken ?? null });
+
+        // Offline-verify the stored seat token immediately (works on a plane).
+        let offlineSeatValid = false;
+        let pem = get().seatPublicKeyPem;
+        if (!pem) pem = await safeGetPubKey(get);
+        if (pem && tokens.seatToken) {
+          const v = await verifySeatToken(tokens.seatToken, pem);
+          offlineSeatValid = v.valid;
+        }
+        set({ seatPublicKeyPem: pem, offlineSeatValid });
+
+        // Then try an online validate to catch revocations.
+        if (session.activated) void get().validateSeat();
+      },
+
+      validateSeat: async () => {
+        const session = get().session;
+        const seatToken = get().seatToken;
+        if (!session || !seatToken) return;
+        try {
+          const res = await new FirmApiClient().seatHeartbeat(seatToken);
+          if (res.valid) {
+            const now = new Date().toISOString();
+            set((s) => ({
+              serverVerdict: 'valid',
+              isOffline: false,
+              session: s.session
+                ? {
+                    ...s.session,
+                    tier: res.tier,
+                    packs: res.packs,
+                    seats: res.seats,
+                    seatId: res.seat_id,
+                    lastValidatedAt: now,
+                  }
+                : s.session,
+            }));
+          } else {
+            // Server rejected the seat (revoked / deprovisioned / suspended).
+            // Degrade features, keep data — never lock out.
+            set({ serverVerdict: 'revoked', isOffline: false });
+          }
+        } catch {
+          // Network failure — rely on the offline-verified token within grace.
+          set({ isOffline: true });
+        }
+      },
+
+      refreshAssuredProviders: async () => {
+        const session = get().session;
+        if (!session || session.role !== 'admin') {
+          set({ assuredProviders: [] });
+          return;
+        }
+        try {
+          const res = await get().client().listProviderKeys();
+          set({ assuredProviders: res.keys.map((k) => k.provider) });
+        } catch {
+          /* leave as-is on error */
+        }
+      },
+    }),
+    {
+      name: 'keepance:firm-session',
+      version: 1,
+      // Persist ONLY non-secret session metadata. Secrets stay in the keychain.
+      partialize: (state) => ({ session: state.session }),
+    },
+  ),
+);
+
+/** Fetch + cache the seat public key, tolerating failure (offline). */
+async function safeGetPubKey(get: () => FirmState): Promise<string | null> {
+  try {
+    return await new FirmApiClient().getSeatPublicKey();
+  } catch {
+    return get().seatPublicKeyPem;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Derived selectors
+// ─────────────────────────────────────────────────────────────────────
+
+/** Build the FirmSeatState the entitlement layer consumes. */
+export function selectFirmSeatState(s: FirmState): FirmSeatState {
+  const session = s.session;
+  return {
+    activated: Boolean(session?.activated),
+    tier: session?.tier ?? 'free',
+    packs: session?.packs ?? [],
+    seats: session?.seats ?? 1,
+    serverVerdict: s.serverVerdict,
+    offlineValid: s.offlineSeatValid,
+    lastValidatedAt: session?.lastValidatedAt ?? null,
+  };
+}
+
+/** The firm entitlement (pure decision over the current seat state). */
+export function selectFirmEntitlement(s: FirmState, now: Date = new Date()): Entitlement {
+  return decideFirmEntitlement(selectFirmSeatState(s), now);
+}
+
+/** True when the user is signed into a firm (regardless of seat state). */
+export function selectIsFirmSignedIn(s: FirmState): boolean {
+  return s.session != null;
+}
+
+/** True when an active firm seat currently grants the Firm tier. */
+export function selectHasActiveFirmSeat(s: FirmState): boolean {
+  return selectFirmEntitlement(s).aiEnabled && Boolean(s.session?.activated);
+}
+
+// Non-reactive accessors for provider construction outside React.
+export function getFirmSeatToken(): string | null {
+  return useFirmStore.getState().seatToken;
+}
+export function getFirmAccessToken(): string | null {
+  return useFirmStore.getState().accessToken;
+}
+export function getAssuredProviders(): AssuredProvider[] {
+  return useFirmStore.getState().assuredProviders;
+}

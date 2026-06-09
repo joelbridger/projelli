@@ -15,7 +15,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { Laptop, Cloud, AlertTriangle } from 'lucide-react';
+import { Laptop, Cloud, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   resolveEgress,
@@ -48,6 +48,12 @@ export interface EgressIndicatorProps {
    * Exposed for tests and for surfaces that already hold the mode.
    */
   mode?: ConfidentialityMode;
+  /**
+   * Whether the firm has a managed assured key for this provider. Only matters
+   * when the mode is 'assured': true routes through the zero-retention proxy,
+   * false falls back to the honest BYOK-direct story.
+   */
+  assuredAvailable?: boolean;
   variant?: 'full' | 'compact';
   className?: string;
 }
@@ -57,6 +63,9 @@ const SEVERITY_STYLES: Record<EgressInfo['severity'], string> = {
   safe: 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200',
   direct:
     'border-sky-300 bg-sky-50 text-sky-900 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-200',
+  // Assured: indigo reads as "managed / contractual" — distinct from BYOK sky.
+  assured:
+    'border-indigo-300 bg-indigo-50 text-indigo-900 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-200',
   warn: 'border-amber-400 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200',
 };
 
@@ -69,6 +78,8 @@ function EgressIcon({ info, className }: { info: EgressInfo; className: string }
   if (info.destination === 'local') return <Laptop className={className} aria-hidden />;
   if (info.destination === 'demo-proxy')
     return <AlertTriangle className={className} aria-hidden />;
+  if (info.destination === 'assured-proxy')
+    return <ShieldCheck className={className} aria-hidden />;
   return <Cloud className={className} aria-hidden />;
 }
 
@@ -77,7 +88,11 @@ function EgressIcon({ info, className }: { info: EgressInfo; className: string }
  * authority for destination/severity/dataLeaves and only translate the user-
  * facing strings, so the facts can't drift between code and copy.
  */
-function useEgressView(provider: EgressProvider, modeOverride?: ConfidentialityMode) {
+function useEgressView(
+  provider: EgressProvider,
+  modeOverride?: ConfidentialityMode,
+  assuredAvailable = false,
+) {
   const { t } = useTranslation();
   const hookMode = useConfidentialityMode();
   const mode = modeOverride ?? hookMode;
@@ -86,6 +101,7 @@ function useEgressView(provider: EgressProvider, modeOverride?: ConfidentialityM
     mode,
     isDemo: IS_DEMO,
     hasDemoByokKey: hasDemoByokKey(),
+    assuredAvailable,
   });
 
   const name = providerDisplayName(info.provider);
@@ -100,6 +116,12 @@ function useEgressView(provider: EgressProvider, modeOverride?: ConfidentialityM
       label = t('privacy.egress.demo.label');
       note = t('privacy.egress.demo.note');
       break;
+    case 'assured-proxy':
+      // New firm path: use the canonical, audience-checked copy from egress.ts
+      // (not yet split into i18n keys, like the confidentiality-mode copy).
+      label = info.label;
+      note = info.note;
+      break;
     case 'provider-direct':
     default:
       label = t('privacy.egress.direct.label', { provider: name });
@@ -112,10 +134,11 @@ function useEgressView(provider: EgressProvider, modeOverride?: ConfidentialityM
 export function EgressIndicator({
   provider,
   mode,
+  assuredAvailable = false,
   variant = 'full',
   className,
 }: EgressIndicatorProps) {
-  const { info, label, note } = useEgressView(provider, mode);
+  const { info, label, note } = useEgressView(provider, mode, assuredAvailable);
 
   if (variant === 'compact') {
     return (

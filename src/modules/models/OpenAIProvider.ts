@@ -15,6 +15,7 @@ import type {
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { applyAssuredRoute, type AssuredRoute } from '@/modules/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
@@ -47,6 +48,12 @@ export interface OpenAIProviderConfig {
   baseUrl?: string;
   organization?: string;
   aiRules?: string;
+  /**
+   * Firm "Assured" routing. When set, the OpenAI-native request is sent through
+   * the firm zero-retention proxy (`POST /assured/infer`) with the org's managed
+   * key attached server-side, instead of BYOK-direct. Undefined => unchanged.
+   */
+  assured?: AssuredRoute;
 }
 
 /**
@@ -171,6 +178,7 @@ export class OpenAIProvider implements Provider {
   private readonly baseUrl: string;
   private readonly organization: string | undefined;
   private readonly aiRules: string | undefined;
+  private readonly assured: AssuredRoute | undefined;
   private tools: OpenAITool[] = [];
   private toolExecutor?: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>;
 
@@ -181,6 +189,7 @@ export class OpenAIProvider implements Provider {
     this.baseUrl = getOpenAIBaseUrl(config.baseUrl);
     this.organization = config.organization ?? undefined;
     this.aiRules = config.aiRules;
+    this.assured = config.assured;
   }
 
   /**
@@ -402,9 +411,10 @@ export class OpenAIProvider implements Provider {
     if (this.organization) headers['OpenAI-Organization'] = this.organization;
 
     const safeFetch = await getCorsSafeFetch();
-    const response = await safeFetch(`${this.baseUrl}/v1/chat/completions`, {
+    const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/chat/completions`, headers);
+    const response = await safeFetch(routed.url, {
       method: 'POST',
-      headers,
+      headers: routed.headers,
       body: JSON.stringify(request),
       ...(signal ? { signal } : {}),
     });
@@ -580,9 +590,10 @@ Respond ONLY with the JSON object.`;
         }
 
         const safeFetch = await getCorsSafeFetch();
-        const response = await safeFetch(`${this.baseUrl}/v1/chat/completions`, {
+        const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/chat/completions`, headers);
+        const response = await safeFetch(routed.url, {
           method: 'POST',
-          headers,
+          headers: routed.headers,
           body: JSON.stringify(request),
           ...(signal ? { signal } : {}),
         });

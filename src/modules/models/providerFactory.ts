@@ -15,6 +15,7 @@ import {
   getDefaultModelForTier,
   type Provider as CloudProviderId,
 } from '@/utils/defaultModel';
+import type { AssuredRoute } from '@/modules/firm/assuredInference';
 
 /**
  * The provider ids the chat surfaces use.
@@ -45,6 +46,13 @@ export interface CreateProviderOptions {
   model?: string;
   /** Optional AI rules to prepend (chat surfaces pass workspace ai-rules.md). */
   aiRules?: string;
+  /**
+   * Firm "Assured" routing. When provided (assured mode active + a managed key
+   * configured), the cloud provider routes through the firm zero-retention
+   * proxy instead of BYOK-direct. Ignored for the local ('ollama') provider,
+   * which never reaches the network. Undefined => BYOK-direct (default).
+   */
+  assured?: AssuredRoute;
 }
 
 /**
@@ -58,23 +66,25 @@ export interface CreateProviderOptions {
  */
 export function createProvider(opts: CreateProviderOptions): Provider {
   const rulesOpt = opts.aiRules ? { aiRules: opts.aiRules } : {};
+  // Assured routing only applies to cloud providers; never to the local one.
+  const assuredOpt = opts.assured ? { assured: opts.assured } : {};
   switch (opts.provider) {
     case 'ollama': {
-      // Local, keyless. Talks to 127.0.0.1:11434. $0.
+      // Local, keyless. Talks to 127.0.0.1:11434. $0. Never assured-routed.
       const model = opts.model ?? OLLAMA_DEFAULT_MODEL;
       return new OllamaProvider({ model, ...rulesOpt });
     }
     case 'openai': {
       const model = opts.model ?? getDefaultModelForTier('openai', 'free');
-      return new OpenAIProvider({ apiKey: opts.apiKey ?? '', model, ...rulesOpt });
+      return new OpenAIProvider({ apiKey: opts.apiKey ?? '', model, ...rulesOpt, ...assuredOpt });
     }
     case 'google': {
       const model = opts.model ?? getDefaultModelForTier('google', 'free');
-      return new GeminiProvider({ apiKey: opts.apiKey ?? '', model, ...rulesOpt });
+      return new GeminiProvider({ apiKey: opts.apiKey ?? '', model, ...rulesOpt, ...assuredOpt });
     }
     case 'anthropic': {
       const model = opts.model ?? getDefaultModelForTier('anthropic', 'free');
-      return new ClaudeProvider({ apiKey: opts.apiKey ?? '', model, ...rulesOpt });
+      return new ClaudeProvider({ apiKey: opts.apiKey ?? '', model, ...rulesOpt, ...assuredOpt });
     }
     default: {
       // Exhaustiveness guard — if a new provider id is added to the union,

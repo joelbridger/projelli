@@ -15,6 +15,7 @@ import type {
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { applyAssuredRoute, type AssuredRoute } from '@/modules/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
@@ -42,6 +43,14 @@ export interface GeminiProviderConfig {
   maxRetries?: number;
   baseUrl?: string;
   aiRules?: string;
+  /**
+   * Firm "Assured" routing. When set, the Google-native request is sent through
+   * the firm zero-retention proxy (`POST /assured/infer`) with the org's managed
+   * key attached server-side, instead of BYOK-direct. The proxy chooses the
+   * Google endpoint from `X-Stream`, so the `?key=` query is dropped here.
+   * Undefined => unchanged BYOK-direct behaviour.
+   */
+  assured?: AssuredRoute;
 }
 
 /**
@@ -169,6 +178,7 @@ export class GeminiProvider implements Provider {
   private readonly maxRetries: number;
   private readonly baseUrl: string;
   private readonly aiRules: string | undefined;
+  private readonly assured: AssuredRoute | undefined;
   private tools: GeminiFunctionDeclaration[] = [];
   private toolExecutor?: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>;
 
@@ -178,6 +188,7 @@ export class GeminiProvider implements Provider {
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getGeminiBaseUrl(config.baseUrl);
     this.aiRules = config.aiRules;
+    this.assured = config.assured;
   }
 
   /**
@@ -392,9 +403,10 @@ export class GeminiProvider implements Provider {
     const url = `${this.baseUrl}/v1beta/models/${this.model}:streamGenerateContent?key=${this.apiKey}&alt=sse`;
 
     const safeFetch = await getCorsSafeFetch();
-    const response = await safeFetch(url, {
+    const routed = applyAssuredRoute(this.assured, url, { 'Content-Type': 'application/json' });
+    const response = await safeFetch(routed.url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: routed.headers,
       body: JSON.stringify(request),
       ...(signal ? { signal } : {}),
     });
@@ -510,11 +522,10 @@ export class GeminiProvider implements Provider {
 
     try {
       const safeFetch = await getCorsSafeFetch();
-      const response = await safeFetch(url, {
+      const routed = applyAssuredRoute(this.assured, url, { 'Content-Type': 'application/json' });
+      const response = await safeFetch(routed.url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: routed.headers,
         body: JSON.stringify(request),
         ...(signal ? { signal } : {}),
       });

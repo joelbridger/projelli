@@ -1,0 +1,353 @@
+/**
+ * FirmApiClient — the typed HTTP client for the firm backend.
+ *
+ * Wraps every `/auth`, `/org`, `/seat`, `/matter`, and `/assured` endpoint the
+ * desktop client uses. Concerns kept here (not in the store/UI):
+ *   - base-URL resolution (firmConfig)
+ *   - CORS-safe fetch in production Tauri builds (reuses the model layer's
+ *     `getCorsSafeFetch`, which swaps in the Tauri HTTP plugin)
+ *   - automatic access-token refresh on a 401 (one retry), via an injected
+ *     refresh callback so token persistence stays in the store/keychain
+ *
+ * It holds NO secrets long-term: tokens are passed in per call (the store owns
+ * them and persists them to the keychain). This keeps the client easy to unit
+ * test with a mocked `fetch`.
+ */
+
+import { getCorsSafeFetch } from '@/modules/models/fetchUtils';
+import { getFirmApiBase, FIRM_APP_VERSION } from './firmConfig';
+import {
+  FIRM_ENDPOINTS,
+  type LoginResponse,
+  type RefreshResponse,
+  type MeResponse,
+  type ActivateResponse,
+  type SeatLimitExceededResponse,
+  type SeatValidateResponse,
+  type CreateMatterResponse,
+  type ListMattersResponse,
+  type MatterMembersResponse,
+  type AddMatterMemberResponse,
+  type RemoveMatterMemberResponse,
+  type SetWallResponse,
+  type ClearWallResponse,
+  type PushUpdateResponse,
+  type PullUpdatesResponse,
+  type ListSeatsResponse,
+  type ListProviderKeysResponse,
+  type SetProviderKeyResponse,
+  type DeleteProviderKeyResponse,
+  type AssuredProvider,
+  type MatterRole,
+  type UserRole,
+} from './contract';
+
+export class FirmApiError extends Error {
+  status: number;
+  code: string | undefined;
+  /** Present on a 409 seat-limit response so the UI can offer revoke/transfer. */
+  seatLimit?: SeatLimitExceededResponse | undefined;
+  constructor(status: number, code: string | undefined, message: string) {
+    super(message);
+    this.name = 'FirmApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+/** Token provider: how the client gets the current access token and refreshes. */
+export interface TokenSource {
+  getAccessToken(): string | null;
+  /**
+   * Refresh the access token (rotates the refresh token too). Returns the new
+   * access token, or null if refresh failed (caller should treat as signed out).
+   * The store implements this and persists the rotated tokens to the keychain.
+   */
+  refreshAccessToken(): Promise<string | null>;
+}
+
+async function readJson<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  if (!text) return {} as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new FirmApiError(res.status, 'bad_json', `Malformed response (HTTP ${String(res.status)}).`);
+  }
+}
+
+export class FirmApiClient {
+  private readonly tokens: TokenSource | null;
+
+  constructor(tokens?: TokenSource) {
+    this.tokens = tokens ?? null;
+  }
+
+  private url(path: string): string {
+    return `${getFirmApiBase()}${path}`;
+  }
+
+  // --- low-level fetch with optional auth + one refresh retry ---------------
+  private async request<T>(
+    path: string,
+    init: { method: string; body?: unknown; auth?: boolean; query?: Record<string, string> } = {
+      method: 'GET',
+    },
+  ): Promise<T> {
+    const doFetch = async (accessToken: string | null): Promise<Response> => {
+      const fetchFn = await getCorsSafeFetch();
+      const headers: Record<string, string> = {};
+      if (init.body !== undefined) headers['Content-Type'] = 'application/json';
+      if (init.auth && accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+      let fullPath = path;
+      if (init.query) {
+        const qs = new URLSearchParams(init.query).toString();
+        fullPath += (path.includes('?') ? '&' : '?') + qs;
+      }
+      return fetchFn(this.url(fullPath), {
+        method: init.method,
+        headers,
+        ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+      });
+    };
+
+    let accessToken = init.auth && this.tokens ? this.tokens.getAccessToken() : null;
+    let res = await doFetch(accessToken);
+
+    // One automatic refresh + retry on a 401 for authed calls.
+    if (res.status === 401 && init.auth && this.tokens) {
+      const refreshed = await this.tokens.refreshAccessToken();
+      if (refreshed) {
+        accessToken = refreshed;
+        res = await doFetch(accessToken);
+      }
+    }
+
+    if (!res.ok) {
+      const err = await readJson<{ error?: string; detail?: string } & Partial<SeatLimitExceededResponse>>(
+        res,
+      ).catch(() => ({}) as { error?: string; detail?: string });
+      const apiErr = new FirmApiError(
+        res.status,
+        err.error,
+        err.detail ?? err.error ?? `Request failed (HTTP ${String(res.status)}).`,
+      );
+      if (res.status === 409 && err.error === 'seat_limit_exceeded') {
+        apiErr.seatLimit = err as SeatLimitExceededResponse;
+      }
+      throw apiErr;
+    }
+    return readJson<T>(res);
+  }
+
+  // --- open endpoints --------------------------------------------------------
+  async getSeatPublicKey(): Promise<string> {
+    const fetchFn = await getCorsSafeFetch();
+    const res = await fetchFn(this.url(FIRM_ENDPOINTS.seatPublicKey));
+    if (!res.ok) throw new FirmApiError(res.status, undefined, 'Could not fetch seat public key.');
+    return res.text();
+  }
+
+  // --- auth ------------------------------------------------------------------
+  login(email: string, password: string): Promise<LoginResponse> {
+    return this.request<LoginResponse>(FIRM_ENDPOINTS.login, {
+      method: 'POST',
+      body: { email, password },
+    });
+  }
+
+  refresh(refreshToken: string): Promise<RefreshResponse> {
+    return this.request<RefreshResponse>(FIRM_ENDPOINTS.refresh, {
+      method: 'POST',
+      body: { refresh_token: refreshToken },
+    });
+  }
+
+  async logout(refreshToken: string): Promise<void> {
+    await this.request<{ ok: true }>(FIRM_ENDPOINTS.logout, {
+      method: 'POST',
+      body: { refresh_token: refreshToken },
+    });
+  }
+
+  me(): Promise<MeResponse> {
+    return this.request<MeResponse>(FIRM_ENDPOINTS.me, { method: 'GET', auth: true });
+  }
+
+  // --- licensing / seats -----------------------------------------------------
+  activate(
+    licenseKey: string,
+    machineId: string,
+    machineLabel?: string,
+  ): Promise<ActivateResponse> {
+    return this.request<ActivateResponse>(FIRM_ENDPOINTS.activate, {
+      method: 'POST',
+      auth: true,
+      body: {
+        license_key: licenseKey,
+        machine_id: machineId,
+        ...(machineLabel ? { machine_label: machineLabel } : {}),
+        app_version: FIRM_APP_VERSION,
+      },
+    });
+  }
+
+  seatValidate(seatToken: string): Promise<SeatValidateResponse> {
+    return this.request<SeatValidateResponse>(FIRM_ENDPOINTS.seatValidate, {
+      method: 'POST',
+      body: { seat_token: seatToken },
+    });
+  }
+
+  seatHeartbeat(seatToken: string): Promise<SeatValidateResponse> {
+    return this.request<SeatValidateResponse>(FIRM_ENDPOINTS.seatHeartbeat, {
+      method: 'POST',
+      body: { seat_token: seatToken },
+    });
+  }
+
+  // --- matters ---------------------------------------------------------------
+  createMatter(clientName: string): Promise<CreateMatterResponse> {
+    return this.request<CreateMatterResponse>(FIRM_ENDPOINTS.createMatter, {
+      method: 'POST',
+      auth: true,
+      body: { client_name: clientName },
+    });
+  }
+
+  listMatters(): Promise<ListMattersResponse> {
+    return this.request<ListMattersResponse>(FIRM_ENDPOINTS.listMatters, {
+      method: 'POST',
+      auth: true,
+    });
+  }
+
+  listMatterMembers(matterId: string): Promise<MatterMembersResponse> {
+    return this.request<MatterMembersResponse>(
+      FIRM_ENDPOINTS.listMatterMembers.replace(':id', encodeURIComponent(matterId)),
+      { method: 'POST', auth: true },
+    );
+  }
+
+  addMatterMember(
+    matterId: string,
+    userId: string,
+    role?: MatterRole,
+  ): Promise<AddMatterMemberResponse> {
+    return this.request<AddMatterMemberResponse>(
+      FIRM_ENDPOINTS.addMatterMember.replace(':id', encodeURIComponent(matterId)),
+      { method: 'POST', auth: true, body: { user_id: userId, ...(role ? { role } : {}) } },
+    );
+  }
+
+  removeMatterMember(matterId: string, userId: string): Promise<RemoveMatterMemberResponse> {
+    return this.request<RemoveMatterMemberResponse>(
+      FIRM_ENDPOINTS.removeMatterMember.replace(':id', encodeURIComponent(matterId)),
+      { method: 'POST', auth: true, body: { user_id: userId } },
+    );
+  }
+
+  setWall(matterId: string, userId: string, reason?: string): Promise<SetWallResponse> {
+    return this.request<SetWallResponse>(
+      FIRM_ENDPOINTS.setWall.replace(':id', encodeURIComponent(matterId)),
+      { method: 'POST', auth: true, body: { user_id: userId, ...(reason ? { reason } : {}) } },
+    );
+  }
+
+  clearWall(matterId: string, userId: string): Promise<ClearWallResponse> {
+    return this.request<ClearWallResponse>(
+      FIRM_ENDPOINTS.clearWall.replace(':id', encodeURIComponent(matterId)),
+      { method: 'POST', auth: true, body: { user_id: userId } },
+    );
+  }
+
+  // --- E2EE relay ------------------------------------------------------------
+  pushUpdate(
+    matterId: string,
+    blobId: string,
+    ciphertextB64: string,
+    seatToken: string,
+    keyEpoch?: number,
+  ): Promise<PushUpdateResponse> {
+    return this.request<PushUpdateResponse>(
+      FIRM_ENDPOINTS.pushUpdate.replace(':id', encodeURIComponent(matterId)),
+      {
+        method: 'POST',
+        auth: true,
+        body: {
+          blob_id: blobId,
+          ciphertext_b64: ciphertextB64,
+          seat_token: seatToken,
+          ...(keyEpoch !== undefined ? { key_epoch: keyEpoch } : {}),
+        },
+      },
+    );
+  }
+
+  pullUpdates(matterId: string, since: number, seatToken: string): Promise<PullUpdatesResponse> {
+    return this.request<PullUpdatesResponse>(
+      FIRM_ENDPOINTS.pullUpdates.replace(':id', encodeURIComponent(matterId)),
+      {
+        method: 'GET',
+        auth: true,
+        query: { since: String(since), seat_token: seatToken },
+      },
+    );
+  }
+
+  // --- admin: seats + users --------------------------------------------------
+  listSeats(): Promise<ListSeatsResponse> {
+    return this.request<ListSeatsResponse>(FIRM_ENDPOINTS.listSeats, {
+      method: 'POST',
+      auth: true,
+    });
+  }
+
+  revokeSeat(seatId: string, reason?: string): Promise<{ ok: true }> {
+    return this.request<{ ok: true }>(FIRM_ENDPOINTS.revokeSeat, {
+      method: 'POST',
+      auth: true,
+      body: { seat_id: seatId, ...(reason ? { reason } : {}) },
+    });
+  }
+
+  deprovisionUser(userId: string): Promise<{ ok: true }> {
+    return this.request<{ ok: true }>(FIRM_ENDPOINTS.deprovisionUser, {
+      method: 'POST',
+      auth: true,
+      body: { user_id: userId },
+    });
+  }
+
+  createUser(email: string, password: string, role?: UserRole): Promise<{ user: unknown }> {
+    return this.request<{ user: unknown }>(FIRM_ENDPOINTS.createUser, {
+      method: 'POST',
+      auth: true,
+      body: { email, password, ...(role ? { role } : {}) },
+    });
+  }
+
+  // --- admin: assured managed keys -------------------------------------------
+  listProviderKeys(): Promise<ListProviderKeysResponse> {
+    return this.request<ListProviderKeysResponse>(FIRM_ENDPOINTS.assuredKeyList, {
+      method: 'POST',
+      auth: true,
+    });
+  }
+
+  setProviderKey(provider: AssuredProvider, apiKey: string): Promise<SetProviderKeyResponse> {
+    return this.request<SetProviderKeyResponse>(FIRM_ENDPOINTS.assuredKeySet, {
+      method: 'POST',
+      auth: true,
+      body: { provider, api_key: apiKey },
+    });
+  }
+
+  deleteProviderKey(provider: AssuredProvider): Promise<DeleteProviderKeyResponse> {
+    return this.request<DeleteProviderKeyResponse>(FIRM_ENDPOINTS.assuredKeyDelete, {
+      method: 'POST',
+      auth: true,
+      body: { provider },
+    });
+  }
+}

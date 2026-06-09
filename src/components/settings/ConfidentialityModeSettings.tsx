@@ -38,6 +38,7 @@ import {
   usePrivilegedMatterMode,
   useSetPrivilegedMatterMode,
 } from '@/hooks/usePrivilegedMatterMode';
+import { useFirmStore } from '@/stores/firmStore';
 
 interface ModeCard {
   mode: ConfidentialityMode;
@@ -71,9 +72,8 @@ const CARDS: ModeCard[] = [
     icon: ShieldCheck,
     title: 'Assured',
     blurb:
-      'A future zero-retention relay for teams that need a contractual no-logging guarantee on top of a cloud model. Not available yet.',
-    accent: 'text-slate-600 border-slate-300 dark:text-slate-400 dark:border-slate-700',
-    comingSoon: true,
+      "Cloud inference routed through the Keepance zero-retention proxy using your firm's managed key. We keep nothing (DPA + provider zero-retention). Available once your firm admin sets a managed key.",
+    accent: 'text-indigo-700 border-indigo-400 dark:text-indigo-300 dark:border-indigo-700',
   },
 ];
 
@@ -83,6 +83,9 @@ export function ConfidentialityModeSettings() {
   const [dataMapOpen, setDataMapOpen] = useState(false);
   const privileged = usePrivilegedMatterMode();
   const setPrivileged = useSetPrivilegedMatterMode();
+  // Assured is selectable once the firm has at least one managed provider key.
+  // The egress indicator does the precise per-provider check at send time.
+  const assuredAvailable = useFirmStore((s) => s.assuredProviders.length > 0);
 
   return (
     <div
@@ -102,7 +105,11 @@ export function ConfidentialityModeSettings() {
         {CARDS.map((card) => {
           const Icon = card.icon;
           const selected = active === card.mode;
-          const disabled = !!card.comingSoon || modeIsComingSoon(card.mode);
+          // Assured is gated on a managed key being configured; others are always on.
+          const disabled =
+            (!!card.comingSoon && card.mode !== 'assured') ||
+            modeIsComingSoon(card.mode, assuredAvailable);
+          const notYetAvailable = card.mode === 'assured' && !assuredAvailable;
           return (
             <button
               key={card.mode}
@@ -140,7 +147,7 @@ export function ConfidentialityModeSettings() {
                 )}
                 {disabled && (
                   <span className="text-[10px] uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-muted text-muted-foreground">
-                    Coming soon
+                    {notYetAvailable ? 'Needs admin key' : 'Coming soon'}
                   </span>
                 )}
               </div>

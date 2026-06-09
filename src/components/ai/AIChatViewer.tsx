@@ -28,6 +28,8 @@ import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
 import { GeminiProvider } from '@/modules/models/GeminiProvider';
 import { OllamaProvider } from '@/modules/models/OllamaProvider';
 import { isLocalProviderId } from '@/modules/models/providerFactory';
+import { resolveAssuredRoute, isAssuredProvider } from '@/modules/firm/resolveAssuredRoute';
+import { useFirmStore } from '@/stores/firmStore';
 // Stream D-web Group III · Task 3.5 — demo-mode AI override.
 // `IS_DEMO` is statically false in the desktop build, so Rollup tree-shakes
 // the dynamic import below and the demo provider never lands in the desktop
@@ -573,6 +575,12 @@ function chatToMarkdown(chat: AIChatFile): string {
 
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onOpenFileAtPath, className }: AIChatViewerProps) {
   const { t } = useTranslation();
+  // Firm "Assured" availability for THIS chat's provider — does the firm have a
+  // managed key for it? Drives the egress indicator's assured-proxy story.
+  const assuredAvailableForChat = useFirmStore((s) => {
+    const p = chatData.provider ?? 'anthropic';
+    return isAssuredProvider(p) && s.assuredProviders.includes(p);
+  });
   // 30-day trial gate. Locks chat send + voice when expired and not paid.
   const trialGate = useTrialGate();
   // Use global store for chat state (persists across navigation)
@@ -1269,6 +1277,11 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         // Create the appropriate provider
         let provider: Provider;
         const rulesOpt = aiRules ? { aiRules } : {};
+        // Firm "Assured" path: when confidentiality mode is 'assured' AND the
+        // firm has a managed key for this provider, route the cloud call through
+        // the zero-retention proxy. Undefined => BYOK-direct (unchanged).
+        const assuredRoute = resolveAssuredRoute(chatProvider, chatModel || '');
+        const assuredOpt = assuredRoute ? { assured: assuredRoute } : {};
 
         if (IS_DEMO) {
           // Demo build: route every chat through the demo provider, which
@@ -1300,6 +1313,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                 apiKey: apiKey!.key,
                 ...(chatModel ? { model: chatModel } : {}),
                 ...rulesOpt,
+                ...assuredOpt,
               });
               if (hasWorkspaceForTools) {
                 openai.setTools(FILE_ACCESS_TOOLS, toolExecutor);
@@ -1315,6 +1329,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                 apiKey: apiKey!.key,
                 ...(chatModel ? { model: chatModel } : {}),
                 ...rulesOpt,
+                ...assuredOpt,
               });
               if (hasWorkspaceForTools) {
                 gemini.setTools(FILE_ACCESS_TOOLS, toolExecutor);
@@ -1330,6 +1345,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                 apiKey: apiKey!.key,
                 ...(chatModel ? { model: chatModel } : {}),
                 ...rulesOpt,
+                ...assuredOpt,
               });
               if (hasWorkspaceForTools) {
                 claude.setTools(FILE_ACCESS_TOOLS, toolExecutor);
@@ -2556,6 +2572,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
              without seeing the destination. */}
         <EgressIndicator
           provider={chatData.provider ?? 'anthropic'}
+          assuredAvailable={assuredAvailableForChat}
           variant="full"
           className="mb-2"
         />

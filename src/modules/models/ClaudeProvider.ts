@@ -15,6 +15,7 @@ import type {
 } from './Provider';
 import type { ChatAttachment } from '@/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { applyAssuredRoute, type AssuredRoute } from '@/modules/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { supportsNativePdf as pdfNativeCheck } from './pdf-capability';
@@ -57,6 +58,13 @@ export interface ClaudeProviderConfig {
   baseUrl?: string;
   dangerouslySkipPermissions?: boolean;
   aiRules?: string;
+  /**
+   * Firm "Assured" routing. When set, the provider-native request is sent
+   * through the firm zero-retention proxy (`POST /assured/infer`) with the
+   * managed key attached server-side, instead of BYOK-direct to Anthropic.
+   * Undefined => unchanged BYOK-direct behaviour.
+   */
+  assured?: AssuredRoute;
 }
 
 /**
@@ -159,11 +167,13 @@ export class ClaudeProvider implements Provider {
   private readonly maxRetries: number;
   private readonly baseUrl: string;
   private readonly aiRules: string | undefined;
+  private readonly assured: AssuredRoute | undefined;
   private tools: ClaudeTool[] = [];
   private toolExecutor?: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>;
 
   constructor(config: ClaudeProviderConfig) {
     this.apiKey = config.apiKey;
+    this.assured = config.assured;
     // Q9 (Wave 1.5): when no model is specified, fall back to Claude Haiku 4.5.
     // It's the cheapest capable Anthropic model in 2026 and a safer free-tier
     // default than Sonnet for surfaces that forgot to pass one through.
@@ -374,14 +384,15 @@ export class ClaudeProvider implements Provider {
     }
 
     const safeFetch = await getCorsSafeFetch();
-    const response = await safeFetch(`${this.baseUrl}/v1/messages`, {
+    const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/messages`, {
+      'Content-Type': 'application/json',
+      'x-api-key': this.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    });
+    const response = await safeFetch(routed.url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
+      headers: routed.headers,
       body: JSON.stringify(request),
       ...(signal ? { signal } : {}),
     });
@@ -554,14 +565,15 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
         const safeFetch = await getCorsSafeFetch();
-        const response = await safeFetch(`${this.baseUrl}/v1/messages`, {
+        const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/messages`, {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        });
+        const response = await safeFetch(routed.url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': this.apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
+          headers: routed.headers,
           body: JSON.stringify(request),
           ...(signal ? { signal } : {}),
         });

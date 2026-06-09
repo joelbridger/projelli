@@ -39,6 +39,8 @@ import { TemplateModelSettings } from '@/components/settings/TemplateModelSettin
 import { LicenseSettings } from '@/components/settings/LicenseSettings';
 import { PrivacySettings } from '@/components/settings/PrivacySettings';
 import { ConfidentialityModeSettings } from '@/components/settings/ConfidentialityModeSettings';
+import { FirmSignIn } from '@/components/firm/FirmSignIn';
+import { FirmAdminConsole } from '@/components/firm/FirmAdminConsole';
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
 import { MarketplaceTab } from '@/components/marketplace/MarketplaceTab';
 import { useTemplateUpdateCount } from '@/hooks/useTemplatesMarketplace';
@@ -560,6 +562,10 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
         (k) => lowerQ.includes(k)
       );
       if (licenseMatch) cats.add('license');
+      const firmMatch = ['firm', 'seat', 'collaborat', 'matter', 'admin', 'ethical wall', 'assured', 'team'].some(
+        (k) => lowerQ.includes(k)
+      );
+      if (firmMatch) cats.add('firm');
       const privacyMatch = ['privacy', 'telemetry', 'tracking', 'data', 'anonymous', 'opt'].some(
         (k) => lowerQ.includes(k)
       );
@@ -574,6 +580,7 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
       cats.add('mobile');
       cats.add('advanced');
       cats.add('license');
+      cats.add('firm');
       cats.add('privacy');
     }
     return cats;
@@ -744,6 +751,11 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
               <TemplateModelSettings templates={templates ?? []} />
             ) : activeCategory === 'license' ? (
               <LicenseSettings />
+            ) : activeCategory === 'firm' ? (
+              <>
+                <FirmSignIn />
+                <FirmAdminConsole />
+              </>
             ) : activeCategory === 'privacy' ? (
               <PrivacySettings />
             ) : activeCategory === 'integrations' ? (
