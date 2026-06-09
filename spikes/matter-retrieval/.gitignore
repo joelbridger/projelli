@@ -1,0 +1,6 @@
+# Build artifacts for the standalone spike crate.
+/target
+Cargo.lock
+# fastembed downloads the e5-small ONNX model (~120MB) here on first test run.
+# Never commit the model weights; they re-download on demand.
+/.fastembed_cache
