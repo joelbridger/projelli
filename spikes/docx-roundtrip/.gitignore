@@ -1,0 +1,3 @@
+# Build artifacts for the standalone spike crate.
+/target
+Cargo.lock
