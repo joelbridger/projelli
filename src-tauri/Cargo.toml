@@ -9,7 +9,7 @@ members = [".", "crates/keepance-docx"]
 
 [package]
 name = "keepance"
-version = "2.5.2"
+version = "3.0.0"
 description = "Local-first AI workspace for confidential client work"
 authors = ["Keepance"]
 license = "MIT"
