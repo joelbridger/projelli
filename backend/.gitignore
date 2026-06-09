@@ -1,7 +1,9 @@
 # Secrets — never commit
 .env
 .env.*
+# ...but DO commit the secret-free templates (the negations un-ignore only these).
 !.env.example
+!.env.production.example
 
 # Local SQLite data (WAL siblings included)
 data/*.sqlite

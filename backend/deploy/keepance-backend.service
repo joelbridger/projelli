@@ -1,0 +1,53 @@
+# Keepance firm platform backend — systemd unit.
+#
+# Mirrors the existing /etc/systemd/system/license-validator.service pattern
+# (same host, same stack: Bun + Bun.serve, loopback bind, EnvironmentFile,
+# systemd hardening). This is a SYSTEM unit, not a user unit — install it to
+# /etc/systemd/system/keepance-backend.service (see deploy/RUNBOOK.md).
+#
+# It serves the Firm tier (identity/auth, per-org seat licensing, the E2EE sync
+# relay, and the assured zero-retention inference proxy). It is loopback-only;
+# Caddy (:8080) terminates TLS and is the only thing that talks to it, reached
+# from the public internet via the Cloudflare tunnel as api.keepance.com.
+#
+# It is ADDITIVE and independent of license-validator (5181 / licenses.keepance.com),
+# which is never touched by this deployment.
+
+[Unit]
+Description=Keepance firm backend (identity/auth + per-org seat licensing + E2EE sync relay + assured zero-retention proxy)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=jameson
+Group=jameson
+WorkingDirectory=/home/jameson/keepance/backend
+# Real secrets live here (root:jameson, chmod 640), OUTSIDE the repo, never committed.
+# The leading "-" tolerates a missing file at boot the same way license-validator does.
+EnvironmentFile=-/etc/keepance-firm-backend.env
+# Absolute bun path (matches license-validator.service); WorkingDirectory lets the
+# relative imports + bun.lock resolve against the repo checkout.
+ExecStart=/home/jameson/.bun/bin/bun run /home/jameson/keepance/backend/src/server.ts
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# --- Hardening (identical posture to license-validator.service) ---
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+# The only writable path: the persistent SQLite DB dir (DB file + WAL/SHM siblings).
+# Keep the DB OUT of the repo so the read-only repo checkout stays immutable and
+# nothing can be accidentally committed. Create this dir before first start.
+ReadWritePaths=/home/jameson/services/keepance-firm-backend/data
+PrivateTmp=true
+# Defense-in-depth extras (consistent with the host's other hardened units):
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ProtectClock=true
+
+[Install]
+WantedBy=multi-user.target
