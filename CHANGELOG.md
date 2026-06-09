@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **New Word document editor (Keepance 3.0).** A Word-familiar editing surface for `.docx` files that renders the in-house OOXML engine's document model faithfully: a clean white page on a light-gray canvas with generous margins, common formatting (bold, italic, underline, strike, size, color, highlight, headings, alignment) mapped for display, and tracked changes shown the Word way: insertions in green underline, deletions in red strikethrough, each attributed to its author on hover. A right-side Review pane lists every change grouped by revision with author, a snippet, and per-change Accept / Reject, plus Accept all / Reject all; accept/reject runs through the engine and the result is saved back to the real file, preserving every unmodeled part of the document (styles, numbering, theme, headers/footers, media, tables). A "Reviewing" toggle switches between the marked-up view and a clean final view, and comments are shown in the Review pane with author, date, and text. Replaces the previous lossy Mammoth/TipTap editor. Files: `src/components/media/DocxEditor.tsx`, `src/utils/docx-dom.ts`, `src/utils/docx-commands.ts`, `src/types/docx.ts`, `src/components/layout/MainPanel.tsx`, `src/locales/{en,es,de}.json`.
+
 ## [2.5.2] - 2026-06-08 (Email release, completed across all platforms)
 
 Same release as 2.5.0 (the email feature: Microsoft 365, IMAP, and Gmail, imported and kept on your machine). The 2.5.0 and 2.5.1 release builds did not finish on Windows, so they were never published. 2.5.2 is the build that completes and is signed on every platform.

@@ -786,17 +786,21 @@ export function MainPanel({
         );
       }
       if (isWord) {
-        // `.docx` gets the new in-app preview. `.doc` (legacy binary format)
-        // can't be parsed reliably in-browser, so we keep the friendly
-        // fallback. Full `.doc` support comes in a later phase via a Tauri
-        // LibreOffice subprocess fallback.
+        // `.docx` gets the new in-house OOXML editor (WS-A / A3): faithful
+        // tracked-changes rendering + accept/reject + comments, backed by the
+        // Rust engine which reads/writes the file by PATH (preserving every
+        // unmodeled part of the package). It manages its own save via the
+        // engine, so it takes `filePath` (the real on-disk path) rather than
+        // routing data-URL content back through `onContentChange`. `src` is the
+        // tab's data URL, used only for the browser/test read-only fallback.
+        // `.doc` (legacy binary) still gets the LibreOffice-convert fallback.
         if (extension?.toLowerCase() === 'docx') {
           return (
             <Suspense fallback={<DocLoadingFallback fileName={tab.name} />}>
               <DocxEditor
+                filePath={tab.path}
                 src={tab.content}
                 fileName={tab.name}
-                onContentChange={onContentChange}
                 onFirstEdit={() => writeBackupIfNeeded(tab.path)}
               />
             </Suspense>

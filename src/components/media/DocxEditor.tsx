@@ -1,461 +1,1265 @@
-// DOCX Editor
-// WYSIWYG editor for `.docx` files. Uses mammoth to extract HTML from the
-// incoming bytes, feeds that into TipTap, and serializes back to .docx on
-// change via `docx` + DOMParser in `utils/docx-io`.
+// DOCX Editor (WS-A / A3) — the Word-familiar document surface.
 //
-// This is a sibling to `DocxViewer` (read-only renderer). MainPanel picks
-// the editor when `onContentChange` is provided, falls back to viewer for
-// read-only contexts.
+// This REPLACES the old lossy Mammoth/TipTap editor. It renders the JSON DOM
+// produced by the in-house OOXML engine (`docx_open`) faithfully — paragraphs
+// with common formatting, runs, tracked insertions (green/underline) and
+// deletions (red/strikethrough) with author tooltips, and comment ranges — and
+// drives accept/reject of tracked changes through the engine
+// (`docx_resolve_revision` / `docx_resolve_all`). Edits and resolutions persist
+// to the real `.docx` via `docx_save`, which preserves every unmodeled part of
+// the package (styles, numbering, theme, headers/footers, media, tables).
 //
-// Limitations (shown to user via a dismissible banner on mount):
-//   - Tables, images, headers/footers, and other advanced formatting are not
-//     preserved when saving. Mammoth extracts plain HTML; the docx package
-//     re-renders it. The banner warns + reminds users a backup was written.
+// LAYOUT (locked design): a slim top bar (file name · Reviewing toggle · save
+// status), a clean document surface (white page on light-gray canvas, generous
+// margins, letterhead-friendly), and a right-side Review pane listing changes
+// grouped by revision with per-change Accept/Reject + Accept all / Reject all,
+// plus a comments display. LIGHT THEME ONLY; navy accent (#0A2540).
+//
+// ENGINE COUPLING: the engine reads/writes by FILE PATH, not the data-URL the
+// rest of the tab pipeline carries. So this editor takes `filePath` and is the
+// source of truth for the `.docx` on disk; it does not push data-URL content
+// back up through `onContentChange`. In the browser / test environment (no
+// native engine) it degrades to the read-only `DocxViewer` with a notice.
+//
+// A4 SEAM: `applyResolvedDocument` is the single choke point that swaps the
+// in-memory DOM after any engine call and schedules a save. The future AI
+// redliner reuses exactly this: call `docx_author_revision`, then feed the
+// returned DOM through `applyResolvedDocument`. `onDocumentChange` is exposed so
+// a parent (or A4) can observe the live DOM.
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import CharacterCount from '@tiptap/extension-character-count';
-import Placeholder from '@tiptap/extension-placeholder';
 import {
   AlertTriangle,
-  Bold,
-  Italic,
-  Underline as UnderlineIcon,
-  Strikethrough,
-  Heading1,
-  Heading2,
-  Heading3,
-  List,
-  ListOrdered,
-  Code,
-  Link as LinkIcon,
-  Undo,
-  Redo,
-  X,
+  Check,
+  CheckCheck,
   FileType,
+  MessageSquare,
+  PanelRightClose,
+  PanelRightOpen,
+  X,
+  XCircle,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import {
-  extractDocxText,
-  serializeDocx,
-  docxBytesToDataUrl,
-} from '@/utils/docx-io';
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import { AutoSaveIndicator } from '@/components/editor/AutoSaveIndicator';
+import { DocxViewer } from '@/components/media/DocxViewer';
+import {
+  docxOpen,
+  docxResolveAll,
+  docxResolveRevision,
+  docxSave,
+  isDocxEngineAvailable,
+} from '@/utils/docx-commands';
+import {
+  anchoredCommentIds,
+  authorColor,
+  commentList,
+  countRevisions,
+  formatRevisionDate,
+  groupRevisions,
+  parseParagraphFormat,
+  parseRunFormat,
+  runFormatToStyle,
+  runsText,
+  snippet,
+} from '@/utils/docx-dom';
+import type {
+  DocumentJson,
+  DocxBlock,
+  DocxComment,
+  DocxInline,
+  DocxParagraph,
+  DocxResolveAction,
+  DocxRun,
+  GroupedRevision,
+} from '@/types/docx';
+
+const SAVE_DEBOUNCE_MS = 1200;
 
 interface DocxEditorProps {
-  src: string;
+  /**
+   * The real on-disk path of the `.docx` (the tab's path). The engine reads /
+   * writes here directly. Required for editing; without it (or in browser mode)
+   * the component shows the read-only fallback.
+   */
+  filePath?: string;
+  /** Display name for the top bar + fallbacks. */
   fileName: string;
+  /**
+   * The tab's data-URL content. Only used to drive the read-only `DocxViewer`
+   * fallback in non-Tauri / no-path environments — the engine path ignores it.
+   */
+  src?: string;
   className?: string;
-  onContentChange: (newDataUrl: string) => void;
-  /** Called once per file/session before the first serialization push so the
-   *  parent can write a backup of the original bytes. */
+  /**
+   * Fired once before the first edit/resolve hits disk so the parent can write
+   * a backup of the original bytes (mirrors the other binary editors). Optional.
+   */
   onFirstEdit?: () => Promise<void> | void;
+  /**
+   * Observe the live DOM after any change (edit / accept / reject). A4 + tests
+   * use this; production wiring may ignore it.
+   */
+  onDocumentChange?: (doc: DocumentJson) => void;
 }
 
+type LoadState =
+  | { status: 'loading' }
+  | { status: 'ready'; doc: DocumentJson }
+  | { status: 'error'; message: string }
+  | { status: 'unsupported' };
+
 export function DocxEditor({
-  src,
+  filePath,
   fileName,
+  src,
   className,
-  onContentChange,
   onFirstEdit,
+  onDocumentChange,
 }: DocxEditorProps) {
   const { t } = useTranslation();
-  const [initialHtml, setInitialHtml] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
 
-  const onChangeRef = useRef(onContentChange);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [load, setLoad] = useState<LoadState>({ status: 'loading' });
+  // "Reviewing" gates whether tracked changes are shown inline (Word's "All
+  // Markup") vs a clean "final" view that renders insertions as normal text and
+  // hides deletions. The Review pane only shows while reviewing.
+  const [reviewing, setReviewing] = useState(true);
+  const [showReviewPane, setShowReviewPane] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<number | undefined>(undefined);
+  const [isDirty, setIsDirty] = useState(false);
+  // The comment whose card is highlighted (clicked anchor <-> card linking).
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstEditFiredRef = useRef(false);
-  // Track the last URL we pushed upstream so an incoming `src` round-trip
-  // doesn't cause us to re-parse our own serialization (which would lose
-  // editor state like the cursor position).
-  const lastPushedUrlRef = useRef<string | null>(null);
-
+  const onDocumentChangeRef = useRef(onDocumentChange);
   useEffect(() => {
-    onChangeRef.current = onContentChange;
-  }, [onContentChange]);
+    onDocumentChangeRef.current = onDocumentChange;
+  }, [onDocumentChange]);
 
-  // Extract HTML from the incoming .docx bytes on mount / src change.
+  const canEdit = Boolean(filePath) && isDocxEngineAvailable();
+
+  // ---- Load the DOM from disk via the engine -----------------------------
   useEffect(() => {
-    if (src === lastPushedUrlRef.current) {
-      // Echo of our own serialization — ignore.
+    let cancelled = false;
+    if (!canEdit || !filePath) {
+      // No engine (browser/test) or no path: read-only fallback.
+      setLoad({ status: 'unsupported' });
       return;
     }
-    let cancelled = false;
-    setError(null);
-    setInitialHtml(null);
-    extractDocxText(src)
-      .then((result) => {
+    setLoad({ status: 'loading' });
+    docxOpen(filePath)
+      .then((doc) => {
         if (cancelled) return;
-        setInitialHtml(result.html.length > 0 ? result.html : '<p></p>');
+        setLoad({ status: 'ready', doc });
+        setIsDirty(false);
+        setSaveError(null);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const message = err instanceof Error ? err.message : 'Unknown error.';
-        setError(message);
+        const message = err instanceof Error ? err.message : String(err);
+        setLoad({ status: 'error', message });
       });
     return () => {
       cancelled = true;
     };
-  }, [src]);
+  }, [canEdit, filePath]);
 
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        link: {
-          openOnClick: false,
-          autolink: true,
-          HTMLAttributes: {
-            class: 'text-blue-500 underline',
-            rel: 'noopener noreferrer',
-            target: '_blank',
-          },
-        },
-      }),
-      CharacterCount,
-      Placeholder.configure({
-        placeholder: 'Start writing...',
-      }),
-    ],
-    content: initialHtml ?? '<p></p>',
-    editorProps: {
-      attributes: {
-        class: 'prose prose-sm dark:prose-invert max-w-none focus:outline-none min-h-full',
-        'data-testid': 'docx-editor-content',
-      },
-    },
-    onUpdate: ({ editor: currentEditor }) => {
-      // Debounce serialization so rapid typing doesn't thrash the disk.
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      const html = currentEditor.getHTML();
-      debounceTimerRef.current = setTimeout(async () => {
-        try {
-          // Fire first-edit hook (for backup write) BEFORE the first push.
-          if (!firstEditFiredRef.current) {
-            firstEditFiredRef.current = true;
-            try {
-              await onFirstEdit?.();
-            } catch (err) {
-              console.warn('[DocxEditor] onFirstEdit failed:', err);
-            }
-          }
-          const bytes = await serializeDocx(html, fileName);
-          const dataUrl = docxBytesToDataUrl(bytes);
-          lastPushedUrlRef.current = dataUrl;
-          onChangeRef.current(dataUrl);
-        } catch (err) {
-          console.error('[DocxEditor] serialize failed:', err);
-        }
-      }, 2000);
-    },
-  }, [initialHtml !== null]);
-
-  // When the extracted HTML arrives (after mount or src change), push it
-  // into the editor so the first render has real content rather than the
-  // placeholder paragraph.
-  useEffect(() => {
-    if (!editor || initialHtml === null) return;
-    const current = editor.getHTML();
-    if (current !== initialHtml) {
-      editor.commands.setContent(initialHtml, { emitUpdate: false });
-    }
-  }, [editor, initialHtml]);
-
-  // Cleanup debounce on unmount.
+  // ---- Cleanup the debounce on unmount -----------------------------------
   useEffect(() => {
     return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
   }, []);
 
-  const handleSetLink = () => {
-    if (!editor) return;
-    const previousUrl = editor.getAttributes('link')['href'] as string | undefined;
-    const url = window.prompt('Enter URL (leave empty to remove link):', previousUrl ?? '');
-    if (url === null) return;
-    if (url === '') {
-      editor.chain().focus().extendMarkRange('link').unsetLink().run();
-      return;
-    }
-    const safeUrl = /^(https?:\/\/|mailto:|\/)/i.test(url) ? url : `https://${url}`;
-    editor.chain().focus().extendMarkRange('link').setLink({ href: safeUrl }).run();
-  };
+  // ---- Persist (debounced) ----------------------------------------------
+  const persist = useCallback(
+    async (doc: DocumentJson) => {
+      if (!filePath) return;
+      setIsSaving(true);
+      setSaveError(null);
+      try {
+        if (!firstEditFiredRef.current) {
+          firstEditFiredRef.current = true;
+          try {
+            await onFirstEdit?.();
+          } catch (err) {
+            console.warn('[DocxEditor] onFirstEdit failed:', err);
+          }
+        }
+        await docxSave(filePath, doc);
+        setLastSavedAt(Date.now());
+        setIsDirty(false);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setSaveError(message);
+        console.error('[DocxEditor] save failed:', err);
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [filePath, onFirstEdit],
+  );
 
-  if (error) {
+  const scheduleSave = useCallback(
+    (doc: DocumentJson) => {
+      setIsDirty(true);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        void persist(doc);
+      }, SAVE_DEBOUNCE_MS);
+    },
+    [persist],
+  );
+
+  /**
+   * THE A4 SEAM + the resolve choke point. Swap the in-memory DOM, notify
+   * observers, and schedule a save. Every mutation (edit, accept, reject,
+   * future AI redline) funnels through here so state + persistence can't drift.
+   */
+  const applyResolvedDocument = useCallback(
+    (doc: DocumentJson, save = true) => {
+      setLoad({ status: 'ready', doc });
+      onDocumentChangeRef.current?.(doc);
+      if (save) scheduleSave(doc);
+    },
+    [scheduleSave],
+  );
+
+  const currentDoc = load.status === 'ready' ? load.doc : null;
+
+  // ---- Accept / reject ---------------------------------------------------
+  const handleResolveOne = useCallback(
+    async (revisionId: string, action: DocxResolveAction) => {
+      if (!currentDoc) return;
+      try {
+        const next = await docxResolveRevision(currentDoc, revisionId, action);
+        applyResolvedDocument(next);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setSaveError(message);
+        console.error('[DocxEditor] resolve revision failed:', err);
+      }
+    },
+    [currentDoc, applyResolvedDocument],
+  );
+
+  const handleResolveAll = useCallback(
+    async (action: DocxResolveAction) => {
+      if (!currentDoc) return;
+      try {
+        const next = await docxResolveAll(currentDoc, action);
+        applyResolvedDocument(next);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setSaveError(message);
+        console.error('[DocxEditor] resolve all failed:', err);
+      }
+    },
+    [currentDoc, applyResolvedDocument],
+  );
+
+  /**
+   * Basic editing of NORMAL run text. Replaces the text of the run at
+   * `[blockIndex].inlines[inlineIndex]` (only plain runs are editable here —
+   * tracked-change text is read-only in this task; turning user edits INTO
+   * tracked changes is A4). Schedules a save.
+   */
+  const handleRunEdit = useCallback(
+    (blockIndex: number, inlineIndex: number, newText: string) => {
+      if (!currentDoc) return;
+      const block = currentDoc.body[blockIndex];
+      if (!block || block.kind !== 'paragraph') return;
+      const inline = block.inlines[inlineIndex];
+      if (!inline || inline.kind !== 'run') return;
+      if (inline.text === newText) return;
+
+      // Structural clone so we never mutate the live object (keeps React happy
+      // and preserves the previous DOM for undo/redo later).
+      const next: DocumentJson = structuredCloneSafe(currentDoc);
+      const nextBlock = next.body[blockIndex] as DocxParagraph;
+      const nextInline = nextBlock.inlines[inlineIndex] as DocxRun & {
+        kind: 'run';
+      };
+      nextInline.text = newText;
+      applyResolvedDocument(next);
+    },
+    [currentDoc, applyResolvedDocument],
+  );
+
+  const revisions = useMemo(
+    () => (currentDoc ? groupRevisions(currentDoc) : []),
+    [currentDoc],
+  );
+  const comments = useMemo(
+    () => (currentDoc ? commentList(currentDoc) : []),
+    [currentDoc],
+  );
+  const anchoredIds = useMemo(
+    () => (currentDoc ? anchoredCommentIds(currentDoc) : new Set<string>()),
+    [currentDoc],
+  );
+  const revisionCount = currentDoc ? countRevisions(currentDoc) : 0;
+
+  // ---- Render: fallbacks -------------------------------------------------
+  if (load.status === 'unsupported') {
+    // Browser / test / no-path: read-only preview keeps the file viewable.
+    if (src) {
+      return (
+        <div
+          data-testid="docx-editor"
+          data-mode="readonly-fallback"
+          className={cn('flex h-full flex-col bg-background', className)}
+        >
+          <div
+            data-testid="docx-editor-readonly-banner"
+            className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <p className="flex-1">{t('media.docx-editor.desktop-only')}</p>
+          </div>
+          <div className="min-h-0 flex-1">
+            <DocxViewer src={src} fileName={fileName} className="h-full" />
+          </div>
+        </div>
+      );
+    }
+    return (
+      <DocxEditorMessage
+        fileName={fileName}
+        message={t('media.docx-editor.desktop-only')}
+      />
+    );
+  }
+
+  if (load.status === 'error') {
     return (
       <div
         data-testid="docx-editor-error"
         className={cn(
           'flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground',
-          className
+          className,
         )}
       >
         <AlertTriangle className="h-10 w-10 text-destructive opacity-70" />
         <div>
-          <p className="text-sm font-medium text-foreground">{t('media.docx-editor.could-not-open', { fileName })}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{error}</p>
+          <p className="text-sm font-medium text-foreground">
+            {t('media.docx-editor.could-not-open', { fileName })}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{load.message}</p>
         </div>
       </div>
     );
   }
 
-  if (!editor || initialHtml === null) {
+  if (load.status === 'loading' || !currentDoc) {
     return (
       <div
         data-testid="docx-editor-loading"
         className={cn(
           'flex h-full flex-col items-center justify-center gap-2 text-muted-foreground',
-          className
+          className,
         )}
       >
         <FileType className="h-10 w-10 animate-pulse opacity-50" />
-        <p className="text-sm">Opening {fileName}...</p>
+        <p className="text-sm">{t('media.docx-editor.opening', { fileName })}</p>
       </div>
     );
   }
 
-  const toolbarButton = (opts: {
-    icon: React.ElementType;
-    label: string;
-    isActive?: boolean;
-    onClick: () => void;
-    disabled?: boolean;
-  }) => {
-    const Icon = opts.icon;
-    return (
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className={cn(
-          'h-8 w-8 p-0',
-          opts.isActive && 'bg-accent text-accent-foreground'
-        )}
-        title={opts.label}
-        aria-label={opts.label}
-        aria-pressed={opts.isActive}
-        disabled={opts.disabled}
-        onClick={opts.onClick}
-      >
-        <Icon className="h-4 w-4" />
-      </Button>
-    );
-  };
-
+  // ---- Render: the editor ------------------------------------------------
   return (
     <div
       data-testid="docx-editor"
-      className={cn('h-full flex flex-col', className)}
+      data-mode="editor"
+      data-reviewing={reviewing ? 'true' : 'false'}
+      className={cn('flex h-full flex-col bg-background', className)}
     >
-      {!isBannerDismissed && (
-        <div
-          data-testid="docx-editor-banner"
-          className="flex items-start gap-2 border-b bg-yellow-50 dark:bg-yellow-900/30 px-3 py-2 text-xs text-yellow-900 dark:text-yellow-100"
-        >
-          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
-          <p className="flex-1">
-            {t('media.docx-editor.formatting-warning')}
-          </p>
+      {/* Slim top bar: file name · Reviewing toggle · save status */}
+      <div
+        data-testid="docx-editor-topbar"
+        className="flex items-center gap-3 border-b bg-background px-3 py-1.5"
+      >
+        <span className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground/80">
+          <FileType className="h-4 w-4 shrink-0 text-blue-600" />
+          <span className="truncate">{fileName}</span>
+        </span>
+
+        <div className="ml-auto flex items-center gap-2">
+          <AutoSaveIndicator
+            isDirty={isDirty}
+            isSaving={isSaving}
+            {...(lastSavedAt !== undefined ? { lastSavedAt } : {})}
+            {...(saveError ? { error: saveError } : {})}
+            onRetry={() => void persist(currentDoc)}
+          />
+
+          <ReviewingToggle reviewing={reviewing} onToggle={setReviewing} />
+
           <Button
-            data-testid="docx-editor-banner-dismiss"
-            type="button"
+            data-testid="docx-toggle-review-pane"
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0 -mr-1 -my-1"
-            onClick={() => setIsBannerDismissed(true)}
-            aria-label="Dismiss notice"
+            className="h-7 w-7 p-0"
+            onClick={() => { setShowReviewPane((v) => !v); }}
+            title={
+              showReviewPane
+                ? t('media.docx-editor.hide-review')
+                : t('media.docx-editor.show-review')
+            }
+            aria-label={
+              showReviewPane
+                ? t('media.docx-editor.hide-review')
+                : t('media.docx-editor.show-review')
+            }
+            aria-pressed={showReviewPane}
           >
-            <X className="h-3 w-3" />
+            {showReviewPane ? (
+              <PanelRightClose className="h-4 w-4" />
+            ) : (
+              <PanelRightOpen className="h-4 w-4" />
+            )}
           </Button>
         </div>
-      )}
-      <div
-        data-testid="docx-editor-toolbar"
-        className="flex items-center gap-0.5 flex-wrap border-b px-2 py-1 bg-background"
-      >
-        {toolbarButton({
-          icon: Bold,
-          label: 'Bold (Ctrl+B)',
-          isActive: editor.isActive('bold'),
-          onClick: () => editor.chain().focus().toggleBold().run(),
-        })}
-        {toolbarButton({
-          icon: Italic,
-          label: 'Italic (Ctrl+I)',
-          isActive: editor.isActive('italic'),
-          onClick: () => editor.chain().focus().toggleItalic().run(),
-        })}
-        {toolbarButton({
-          icon: UnderlineIcon,
-          label: 'Underline (Ctrl+U)',
-          isActive: editor.isActive('underline'),
-          onClick: () => editor.chain().focus().toggleUnderline().run(),
-        })}
-        {toolbarButton({
-          icon: Strikethrough,
-          label: 'Strikethrough',
-          isActive: editor.isActive('strike'),
-          onClick: () => editor.chain().focus().toggleStrike().run(),
-        })}
-        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
-        {toolbarButton({
-          icon: Heading1,
-          label: 'Heading 1',
-          isActive: editor.isActive('heading', { level: 1 }),
-          onClick: () => editor.chain().focus().toggleHeading({ level: 1 }).run(),
-        })}
-        {toolbarButton({
-          icon: Heading2,
-          label: 'Heading 2',
-          isActive: editor.isActive('heading', { level: 2 }),
-          onClick: () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-        })}
-        {toolbarButton({
-          icon: Heading3,
-          label: 'Heading 3',
-          isActive: editor.isActive('heading', { level: 3 }),
-          onClick: () => editor.chain().focus().toggleHeading({ level: 3 }).run(),
-        })}
-        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
-        {toolbarButton({
-          icon: List,
-          label: 'Bullet List',
-          isActive: editor.isActive('bulletList'),
-          onClick: () => editor.chain().focus().toggleBulletList().run(),
-        })}
-        {toolbarButton({
-          icon: ListOrdered,
-          label: 'Numbered List',
-          isActive: editor.isActive('orderedList'),
-          onClick: () => editor.chain().focus().toggleOrderedList().run(),
-        })}
-        {toolbarButton({
-          icon: Code,
-          label: 'Inline Code',
-          isActive: editor.isActive('code'),
-          onClick: () => editor.chain().focus().toggleCode().run(),
-        })}
-        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
-        {toolbarButton({
-          icon: LinkIcon,
-          label: 'Link',
-          isActive: editor.isActive('link'),
-          onClick: handleSetLink,
-        })}
-        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
-        {toolbarButton({
-          icon: Undo,
-          label: 'Undo',
-          onClick: () => editor.chain().focus().undo().run(),
-          disabled: !editor.can().undo(),
-        })}
-        {toolbarButton({
-          icon: Redo,
-          label: 'Redo',
-          onClick: () => editor.chain().focus().redo().run(),
-          disabled: !editor.can().redo(),
-        })}
       </div>
 
-      <div
-        className="flex-1 overflow-auto px-6 py-4 cursor-text bg-background"
-        onClick={() => {
-          if (!editor.isFocused) editor.chain().focus().run();
-        }}
-      >
-        <EditorContent editor={editor} className="h-full" />
+      {/* Body: document surface + optional review pane */}
+      <div className="flex min-h-0 flex-1">
+        {/* Document canvas */}
+        <div
+          data-testid="docx-canvas"
+          className="min-w-0 flex-1 overflow-auto bg-[#f3f4f6] px-6 py-8"
+        >
+          <div
+            data-testid="docx-page"
+            className="mx-auto max-w-[816px] rounded-sm bg-white px-[96px] py-[72px] shadow-sm ring-1 ring-black/5"
+            style={{
+              // Word-like default body type. Page is 8.5in @ 96dpi = 816px,
+              // 1in margins = 96px. Keeps letterhead spacing familiar.
+              fontFamily: '"Calibri", "Segoe UI", system-ui, sans-serif',
+              fontSize: '11pt',
+              lineHeight: 1.5,
+              color: '#1a1a1a',
+            }}
+          >
+            <DocumentBody
+              doc={currentDoc}
+              reviewing={reviewing}
+              editable={canEdit}
+              activeCommentId={activeCommentId}
+              onRunEdit={handleRunEdit}
+              onCommentAnchorClick={setActiveCommentId}
+            />
+          </div>
+        </div>
+
+        {/* Review pane */}
+        {showReviewPane && (
+          <ReviewPane
+            reviewing={reviewing}
+            revisions={revisions}
+            revisionCount={revisionCount}
+            comments={comments}
+            anchoredIds={anchoredIds}
+            activeCommentId={activeCommentId}
+            onResolveOne={(id, action) => { void handleResolveOne(id, action); }}
+            onResolveAll={(action) => { void handleResolveAll(action); }}
+            onSelectComment={setActiveCommentId}
+            onClose={() => { setShowReviewPane(false); }}
+          />
+        )}
       </div>
-
-      <WordCountFooter editor={editor} />
-
-      {/* Reuse styles similar to RichTextEditor so TipTap output renders
-          visibly without @tailwindcss/typography in the bundle. */}
-      <style>{`
-        .ProseMirror { outline: none; min-height: 100%; }
-        .ProseMirror h1 { font-size: 1.875rem; font-weight: bold; margin: 1rem 0 0.5rem; }
-        .ProseMirror h2 { font-size: 1.5rem; font-weight: bold; margin: 1rem 0 0.5rem; }
-        .ProseMirror h3 { font-size: 1.25rem; font-weight: bold; margin: 1rem 0 0.5rem; }
-        .ProseMirror p { margin: 0.5rem 0; line-height: 1.6; }
-        .ProseMirror ul { list-style-type: disc; padding-left: 1.5rem; margin: 0.5rem 0; }
-        .ProseMirror ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }
-        .ProseMirror li { margin: 0.25rem 0; }
-        .ProseMirror li > p { margin: 0; }
-        .ProseMirror blockquote {
-          border-left: 3px solid #94a3b8;
-          padding-left: 1rem;
-          color: #64748b;
-          margin: 0.5rem 0;
-          font-style: italic;
-        }
-        .ProseMirror code {
-          background: #f1f5f9;
-          padding: 2px 4px;
-          border-radius: 3px;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
-          font-size: 0.875em;
-        }
-        .ProseMirror strong { font-weight: bold; }
-        .ProseMirror em { font-style: italic; }
-        .ProseMirror u { text-decoration: underline; }
-        .ProseMirror s { text-decoration: line-through; }
-        .ProseMirror a { color: #3b82f6; text-decoration: underline; cursor: pointer; }
-        .ProseMirror p.is-editor-empty:first-child::before {
-          color: #94a3b8;
-          content: attr(data-placeholder);
-          float: left;
-          height: 0;
-          pointer-events: none;
-        }
-      `}</style>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Word count footer — shared with RtfEditor + RichTextEditor via copy (kept
-// local to the editor module to avoid a one-line shared file).
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// Reviewing toggle (Word's "All Markup" vs "No Markup")
+// ===========================================================================
 
-type TipTapEditor = NonNullable<ReturnType<typeof useEditor>>;
-
-function WordCountFooter({ editor }: { editor: TipTapEditor }) {
-  const [counts, setCounts] = useState(() => ({
-    words: editor.storage['characterCount']?.words() ?? 0,
-    characters: editor.storage['characterCount']?.characters() ?? 0,
-  }));
-
-  useEffect(() => {
-    const update = () => {
-      setCounts({
-        words: editor.storage['characterCount']?.words() ?? 0,
-        characters: editor.storage['characterCount']?.characters() ?? 0,
-      });
-    };
-    editor.on('update', update);
-    editor.on('create', update);
-    return () => {
-      editor.off('update', update);
-      editor.off('create', update);
-    };
-  }, [editor]);
-
+function ReviewingToggle({
+  reviewing,
+  onToggle,
+}: {
+  reviewing: boolean;
+  onToggle: (v: boolean) => void;
+}) {
+  const { t } = useTranslation();
   return (
-    <div
-      data-testid="editor-word-count"
-      className="flex items-center justify-end border-t bg-background px-3 py-1 text-[11px] text-muted-foreground"
-      style={{ fontVariantNumeric: 'tabular-nums' }}
+    <button
+      type="button"
+      data-testid="docx-reviewing-toggle"
+      role="switch"
+      aria-checked={reviewing}
+      onClick={() => { onToggle(!reviewing); }}
+      title={t('media.docx-editor.reviewing-hint')}
+      className={cn(
+        'flex items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+        reviewing
+          ? 'border-[#0A2540]/30 bg-[#0A2540]/5 text-[#0A2540]'
+          : 'border-border bg-background text-muted-foreground hover:text-foreground',
+      )}
     >
-      {counts.words} words · {counts.characters.toLocaleString()} characters
+      <span
+        aria-hidden="true"
+        className={cn(
+          'relative h-3.5 w-6 rounded-full transition-colors',
+          reviewing ? 'bg-[#0A2540]' : 'bg-muted-foreground/30',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-0.5 h-2.5 w-2.5 rounded-full bg-white transition-all',
+            reviewing ? 'left-[12px]' : 'left-0.5',
+          )}
+        />
+      </span>
+      {t('media.docx-editor.reviewing')}
+    </button>
+  );
+}
+
+// ===========================================================================
+// Document body rendering
+// ===========================================================================
+
+function DocumentBody({
+  doc,
+  reviewing,
+  editable,
+  activeCommentId,
+  onRunEdit,
+  onCommentAnchorClick,
+}: {
+  doc: DocumentJson;
+  reviewing: boolean;
+  editable: boolean;
+  activeCommentId: string | null;
+  onRunEdit: (blockIndex: number, inlineIndex: number, text: string) => void;
+  onCommentAnchorClick: (id: string) => void;
+}) {
+  return (
+    <div data-testid="docx-document-body">
+      {doc.body.map((block, blockIndex) => (
+        <BlockView
+          key={blockIndex}
+          block={block}
+          blockIndex={blockIndex}
+          reviewing={reviewing}
+          editable={editable}
+          activeCommentId={activeCommentId}
+          onRunEdit={onRunEdit}
+          onCommentAnchorClick={onCommentAnchorClick}
+        />
+      ))}
     </div>
   );
+}
+
+function BlockView({
+  block,
+  blockIndex,
+  reviewing,
+  editable,
+  activeCommentId,
+  onRunEdit,
+  onCommentAnchorClick,
+}: {
+  block: DocxBlock;
+  blockIndex: number;
+  reviewing: boolean;
+  editable: boolean;
+  activeCommentId: string | null;
+  onRunEdit: (blockIndex: number, inlineIndex: number, text: string) => void;
+  onCommentAnchorClick: (id: string) => void;
+}) {
+  const { t } = useTranslation();
+
+  if (block.kind === 'raw') {
+    // Preserve-by-default block (table, sectPr, content control). Read-only
+    // placeholder — never parse the XML. Labeled so users know it's preserved.
+    return (
+      <div
+        data-testid="docx-raw-block"
+        className="my-3 select-none rounded border border-dashed border-muted-foreground/30 bg-muted/30 px-3 py-2 text-xs text-muted-foreground"
+        contentEditable={false}
+      >
+        {t('media.docx-editor.preserved-block')}
+      </div>
+    );
+  }
+
+  const pfmt = parseParagraphFormat(block.propertiesXml);
+  const align = pfmt.alignment;
+
+  const inlineEls = block.inlines.map((inline, inlineIndex) => (
+    <InlineView
+      key={inlineIndex}
+      inline={inline}
+      blockIndex={blockIndex}
+      inlineIndex={inlineIndex}
+      reviewing={reviewing}
+      editable={editable}
+      activeCommentId={activeCommentId}
+      onRunEdit={onRunEdit}
+      onCommentAnchorClick={onCommentAnchorClick}
+    />
+  ));
+
+  const commonStyle: React.CSSProperties = {
+    textAlign: align,
+    margin: '0 0 0.5em',
+  };
+
+  // Heading paragraphs get larger, heavier, navy-tinted type (Word default
+  // headings are blue-ish; we lean to the app's navy accent).
+  if (pfmt.headingLevel) {
+    const level = pfmt.headingLevel;
+    const sizes: Record<number, string> = {
+      1: '20pt',
+      2: '16pt',
+      3: '13pt',
+      4: '12pt',
+      5: '11pt',
+      6: '11pt',
+    };
+    return (
+      <p
+        data-testid="docx-paragraph"
+        data-heading={level}
+        style={{
+          ...commonStyle,
+          fontSize: sizes[level],
+          fontWeight: 600,
+          color: '#0A2540',
+          marginTop: '0.8em',
+        }}
+      >
+        {inlineEls.length > 0 ? inlineEls : <br />}
+      </p>
+    );
+  }
+
+  return (
+    <p data-testid="docx-paragraph" style={commonStyle}>
+      {inlineEls.length > 0 ? inlineEls : <br />}
+    </p>
+  );
+}
+
+function InlineView({
+  inline,
+  blockIndex,
+  inlineIndex,
+  reviewing,
+  editable,
+  activeCommentId,
+  onRunEdit,
+  onCommentAnchorClick,
+}: {
+  inline: DocxInline;
+  blockIndex: number;
+  inlineIndex: number;
+  reviewing: boolean;
+  editable: boolean;
+  activeCommentId: string | null;
+  onRunEdit: (blockIndex: number, inlineIndex: number, text: string) => void;
+  onCommentAnchorClick: (id: string) => void;
+}) {
+  switch (inline.kind) {
+    case 'run':
+      return (
+        <PlainRun
+          run={inline}
+          blockIndex={blockIndex}
+          inlineIndex={inlineIndex}
+          editable={editable}
+          onRunEdit={onRunEdit}
+        />
+      );
+
+    case 'insertion':
+      return (
+        <RevisionRun
+          kind="insertion"
+          runs={inline.runs}
+          author={inline.meta.author}
+          date={inline.meta.date}
+          reviewing={reviewing}
+        />
+      );
+
+    case 'deletion':
+      return (
+        <RevisionRun
+          kind="deletion"
+          runs={inline.runs}
+          author={inline.meta.author}
+          date={inline.meta.date}
+          reviewing={reviewing}
+        />
+      );
+
+    case 'commentReference':
+      return (
+        <CommentMarker
+          id={inline.id}
+          active={activeCommentId === inline.id}
+          onClick={() => { onCommentAnchorClick(inline.id); }}
+        />
+      );
+
+    case 'commentRangeStart':
+      // Anchors are rendered as zero-width markers; the highlight comes from the
+      // runs between start/end being wrapped. We keep them as data anchors so
+      // future range-highlighting can find them; visually they're invisible.
+      return (
+        <span
+          data-testid="docx-comment-range-start"
+          data-comment-id={inline.id}
+          className={cn(
+            activeCommentId === inline.id && 'bg-amber-100',
+          )}
+        />
+      );
+
+    case 'commentRangeEnd':
+      return (
+        <span
+          data-testid="docx-comment-range-end"
+          data-comment-id={inline.id}
+        />
+      );
+
+    case 'raw':
+      // Preserve-by-default inline (hyperlink, field, drawing). Render its
+      // flattened text if we can cheaply extract it, else a subtle marker.
+      return <RawInline xml={inline.xml} />;
+
+    default:
+      return null;
+  }
+}
+
+/** A normal, editable run. */
+function PlainRun({
+  run,
+  blockIndex,
+  inlineIndex,
+  editable,
+  onRunEdit,
+}: {
+  run: DocxRun;
+  blockIndex: number;
+  inlineIndex: number;
+  editable: boolean;
+  onRunEdit: (blockIndex: number, inlineIndex: number, text: string) => void;
+}) {
+  const fmt = useMemo(() => parseRunFormat(run.propertiesXml), [run.propertiesXml]);
+  const { style, underline, strike } = runFormatToStyle(fmt);
+  // Combine underline + strike into a single CSS decoration value (inline, so we
+  // don't depend on specific Tailwind utility classes being present).
+  const decorationLine = [underline && 'underline', strike && 'line-through']
+    .filter(Boolean)
+    .join(' ');
+
+  const handleBlur = useCallback(
+    (e: React.FocusEvent<HTMLSpanElement>) => {
+      const text = e.currentTarget.textContent ?? '';
+      onRunEdit(blockIndex, inlineIndex, text);
+    },
+    [blockIndex, inlineIndex, onRunEdit],
+  );
+
+  return (
+    <span
+      data-testid="docx-run"
+      data-block={blockIndex}
+      data-inline={inlineIndex}
+      // `suppressContentEditableWarning` because we set initial text as a child
+      // and let the browser own subsequent edits; we read it back on blur.
+      contentEditable={editable}
+      suppressContentEditableWarning
+      spellCheck={editable}
+      onBlur={editable ? handleBlur : undefined}
+      style={{
+        ...style,
+        ...(decorationLine ? { textDecorationLine: decorationLine } : {}),
+        whiteSpace: 'pre-wrap',
+        outline: 'none',
+      }}
+    >
+      {run.text}
+    </span>
+  );
+}
+
+/** A tracked insertion or deletion run, Word-styled, with author tooltip. */
+function RevisionRun({
+  kind,
+  runs,
+  author,
+  date,
+  reviewing,
+}: {
+  kind: 'insertion' | 'deletion';
+  runs: DocxRun[];
+  author: string;
+  date: string;
+  reviewing: boolean;
+}) {
+  const text = runsText(runs);
+  const color = authorColor(author);
+
+  // Clean "final" view: insertions become normal text, deletions vanish.
+  if (!reviewing) {
+    if (kind === 'deletion') return null;
+    return (
+      <span data-testid="docx-run" data-revision="insertion-final">
+        {text}
+      </span>
+    );
+  }
+
+  const isIns = kind === 'insertion';
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          data-testid={isIns ? 'docx-insertion' : 'docx-deletion'}
+          data-author={author}
+          style={{
+            color,
+            textDecorationLine: isIns ? 'underline' : 'line-through',
+            textDecorationColor: color,
+            whiteSpace: 'pre-wrap',
+            cursor: 'help',
+          }}
+        >
+          {text}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>
+        <span className="font-medium">
+          {isIns ? 'Inserted' : 'Deleted'} by {author}
+        </span>
+        <span className="ml-1 text-muted-foreground">
+          · {formatRevisionDate(date)}
+        </span>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** The little [n] marker Word shows where a comment reference sits. */
+function CommentMarker({
+  id,
+  active,
+  onClick,
+}: {
+  id: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid="docx-comment-marker"
+      data-comment-id={id}
+      onClick={onClick}
+      title={`Comment ${id}`}
+      className={cn(
+        'mx-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-sm px-1 align-super text-[9px] font-semibold leading-none',
+        active
+          ? 'bg-amber-400 text-amber-950'
+          : 'bg-amber-200 text-amber-900 hover:bg-amber-300',
+      )}
+    >
+      <MessageSquare className="mr-0.5 h-2.5 w-2.5" />
+      {id}
+    </button>
+  );
+}
+
+/**
+ * Render a preserved (unmodeled) inline. We try a cheap text extraction from the
+ * raw XML so hyperlinks/fields still read naturally; if there's no text, show a
+ * subtle non-editable marker. Never parse structurally.
+ */
+function RawInline({ xml }: { xml: string }) {
+  const text = useMemo(() => extractLooseText(xml), [xml]);
+  if (text.trim().length > 0) {
+    return (
+      <span data-testid="docx-raw-inline" data-preserved="true">
+        {text}
+      </span>
+    );
+  }
+  return (
+    <span
+      data-testid="docx-raw-inline"
+      data-preserved="true"
+      contentEditable={false}
+      className="mx-0.5 inline-block select-none rounded bg-muted px-1 text-[10px] text-muted-foreground"
+      title="Preserved content"
+    >
+      ⋯
+    </span>
+  );
+}
+
+// ===========================================================================
+// Review pane
+// ===========================================================================
+
+function ReviewPane({
+  reviewing,
+  revisions,
+  revisionCount,
+  comments,
+  anchoredIds,
+  activeCommentId,
+  onResolveOne,
+  onResolveAll,
+  onSelectComment,
+  onClose,
+}: {
+  reviewing: boolean;
+  revisions: GroupedRevision[];
+  revisionCount: number;
+  comments: DocxComment[];
+  anchoredIds: Set<string>;
+  activeCommentId: string | null;
+  onResolveOne: (id: string, action: DocxResolveAction) => void;
+  onResolveAll: (action: DocxResolveAction) => void;
+  onSelectComment: (id: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <aside
+      data-testid="docx-review-pane"
+      className="flex w-80 shrink-0 flex-col border-l bg-muted/20"
+    >
+      <div className="flex items-center justify-between border-b px-3 py-2">
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {t('media.docx-editor.review')}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0"
+          onClick={onClose}
+          title={t('media.docx-editor.hide-review')}
+          aria-label={t('media.docx-editor.hide-review')}
+        >
+          <PanelRightClose className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Bulk actions */}
+      <div className="flex items-center gap-2 border-b px-3 py-2">
+        <Button
+          data-testid="docx-accept-all"
+          variant="outline"
+          size="sm"
+          className="h-7 flex-1 gap-1 text-xs"
+          disabled={revisionCount === 0}
+          onClick={() => { onResolveAll('accept'); }}
+        >
+          <CheckCheck className="h-3.5 w-3.5 text-emerald-600" />
+          {t('media.docx-editor.accept-all')}
+        </Button>
+        <Button
+          data-testid="docx-reject-all"
+          variant="outline"
+          size="sm"
+          className="h-7 flex-1 gap-1 text-xs"
+          disabled={revisionCount === 0}
+          onClick={() => { onResolveAll('reject'); }}
+        >
+          <XCircle className="h-3.5 w-3.5 text-red-600" />
+          {t('media.docx-editor.reject-all')}
+        </Button>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-auto">
+        {/* Changes */}
+        <div className="px-3 py-2">
+          <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {t('media.docx-editor.changes')} ({revisionCount})
+          </h3>
+          {!reviewing && revisionCount > 0 && (
+            <p
+              data-testid="docx-review-final-note"
+              className="mb-2 rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800"
+            >
+              {t('media.docx-editor.final-view-note')}
+            </p>
+          )}
+          {revisionCount === 0 ? (
+            <p
+              data-testid="docx-no-changes"
+              className="py-2 text-xs text-muted-foreground"
+            >
+              {t('media.docx-editor.no-changes')}
+            </p>
+          ) : (
+            <ul data-testid="docx-revision-list" className="space-y-1.5">
+              {revisions.map((rev) => (
+                <RevisionRow
+                  key={rev.id}
+                  revision={rev}
+                  onAccept={() => { onResolveOne(rev.id, 'accept'); }}
+                  onReject={() => { onResolveOne(rev.id, 'reject'); }}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* Comments */}
+        {comments.length > 0 && (
+          <div className="border-t px-3 py-2">
+            <h3 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {t('media.docx-editor.comments')} ({comments.length})
+            </h3>
+            <ul data-testid="docx-comment-list" className="space-y-1.5">
+              {comments.map((c) => (
+                <CommentCard
+                  key={c.id}
+                  comment={c}
+                  anchored={anchoredIds.has(c.id)}
+                  active={activeCommentId === c.id}
+                  onClick={() => { onSelectComment(c.id); }}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function RevisionRow({
+  revision,
+  onAccept,
+  onReject,
+}: {
+  revision: GroupedRevision;
+  onAccept: () => void;
+  onReject: () => void;
+}) {
+  const { t } = useTranslation();
+  const color = authorColor(revision.author);
+  const isIns = revision.kind === 'insertion';
+  return (
+    <li
+      data-testid="docx-revision-row"
+      data-revision-id={revision.id}
+      data-revision-kind={revision.kind}
+      className="rounded-md border bg-background p-2 text-xs shadow-sm"
+    >
+      <div className="mb-1 flex items-center gap-1.5">
+        <span
+          aria-hidden="true"
+          className="h-2 w-2 shrink-0 rounded-full"
+          style={{ backgroundColor: color }}
+        />
+        <span className="font-medium" style={{ color }}>
+          {revision.author}
+        </span>
+        <span
+          className={cn(
+            'ml-auto rounded px-1 py-0.5 text-[10px] font-medium uppercase',
+            isIns
+              ? 'bg-emerald-50 text-emerald-700'
+              : 'bg-red-50 text-red-700',
+          )}
+        >
+          {isIns
+            ? t('media.docx-editor.insertion')
+            : t('media.docx-editor.deletion')}
+        </span>
+      </div>
+      <p
+        className={cn(
+          'mb-1.5 break-words text-foreground/80',
+          isIns ? 'italic' : 'line-through',
+        )}
+        title={revision.text}
+      >
+        {snippet(revision.text) || (
+          <span className="not-italic text-muted-foreground no-underline">
+            {t('media.docx-editor.empty-change')}
+          </span>
+        )}
+      </p>
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-muted-foreground">
+          {formatRevisionDate(revision.date)}
+        </span>
+        <div className="flex gap-1">
+          <Button
+            data-testid="docx-accept-one"
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+            onClick={onAccept}
+            title={t('media.docx-editor.accept')}
+            aria-label={t('media.docx-editor.accept')}
+          >
+            <Check className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            data-testid="docx-reject-one"
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-red-600 hover:bg-red-50 hover:text-red-700"
+            onClick={onReject}
+            title={t('media.docx-editor.reject')}
+            aria-label={t('media.docx-editor.reject')}
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function CommentCard({
+  comment,
+  anchored,
+  active,
+  onClick,
+}: {
+  comment: DocxComment;
+  anchored: boolean;
+  active: boolean;
+  onClick: () => void;
+}) {
+  const { t } = useTranslation();
+  const color = authorColor(comment.author);
+  return (
+    <li
+      data-testid="docx-comment-card"
+      data-comment-id={comment.id}
+      data-active={active ? 'true' : 'false'}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          'w-full rounded-md border bg-background p-2 text-left text-xs shadow-sm transition-colors',
+          active ? 'ring-2 ring-amber-300' : 'hover:bg-muted/40',
+        )}
+      >
+        <div className="mb-1 flex items-center gap-1.5">
+          <span
+            aria-hidden="true"
+            className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-semibold text-white"
+            style={{ backgroundColor: color }}
+          >
+            {(comment.initials || comment.author || '?')
+              .slice(0, 2)
+              .toUpperCase()}
+          </span>
+          <span className="font-medium" style={{ color }}>
+            {comment.author}
+          </span>
+          {!anchored && (
+            <span
+              className="ml-auto text-[9px] text-muted-foreground"
+              title={t('media.docx-editor.orphan-comment')}
+            >
+              {t('media.docx-editor.orphan-comment')}
+            </span>
+          )}
+        </div>
+        <p className="mb-1 whitespace-pre-wrap break-words text-foreground/80">
+          {comment.text}
+        </p>
+        <span className="text-[10px] text-muted-foreground">
+          {formatRevisionDate(comment.date)}
+        </span>
+      </button>
+    </li>
+  );
+}
+
+// ===========================================================================
+// Small shared pieces
+// ===========================================================================
+
+function DocxEditorMessage({
+  fileName,
+  message,
+}: {
+  fileName: string;
+  message: string;
+}) {
+  return (
+    <div
+      data-testid="docx-editor"
+      data-mode="message"
+      className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-muted-foreground"
+    >
+      <FileType className="h-12 w-12 opacity-50" />
+      <p className="text-sm font-medium text-foreground">{fileName}</p>
+      <p className="max-w-sm text-xs">{message}</p>
+    </div>
+  );
+}
+
+// ===========================================================================
+// Pure helpers
+// ===========================================================================
+
+/** structuredClone with a JSON fallback for older runtimes / jsdom. */
+function structuredCloneSafe<T>(value: T): T {
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(value);
+    } catch {
+      /* fall through */
+    }
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+/**
+ * Pull human-readable text out of a small OOXML fragment by concatenating
+ * `<w:t>...</w:t>` runs. Purely for display of preserved inlines (hyperlinks,
+ * fields). Returns '' if none. Never throws; never used for structure.
+ */
+function extractLooseText(xml: string): string {
+  let out = '';
+  const re = /<(?:\w+:)?t(?:\s[^>]*)?>([\s\S]*?)<\/(?:\w+:)?t>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(xml)) !== null) {
+    out += decodeXmlEntities(m[1] ?? '');
+  }
+  return out;
+}
+
+function decodeXmlEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
 }
 
 export default DocxEditor;

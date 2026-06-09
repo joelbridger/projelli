@@ -612,7 +612,27 @@
     },
     "docx-editor": {
       "could-not-open": "Couldn't open {{fileName}}",
-      "formatting-warning": "Some advanced formatting (tables, images, page headers) may not be preserved when saving. A backup of the original file is created before your first edit."
+      "formatting-warning": "Some advanced formatting (tables, images, page headers) may not be preserved when saving. A backup of the original file is created before your first edit.",
+      "opening": "Opening {{fileName}}...",
+      "desktop-only": "Editing Word documents with tracked changes is only available in the Keepance desktop app. Showing a read-only preview here.",
+      "reviewing": "Reviewing",
+      "reviewing-hint": "Show tracked changes (insertions, deletions). Turn off for a clean final view.",
+      "review": "Review",
+      "show-review": "Show review pane",
+      "hide-review": "Hide review pane",
+      "accept-all": "Accept all",
+      "reject-all": "Reject all",
+      "accept": "Accept change",
+      "reject": "Reject change",
+      "changes": "Changes",
+      "no-changes": "No tracked changes in this document.",
+      "comments": "Comments",
+      "insertion": "Insert",
+      "deletion": "Delete",
+      "empty-change": "(no text)",
+      "preserved-block": "[preserved content - table, section, or other element kept as-is]",
+      "final-view-note": "Showing the final document. Turn on Reviewing to accept or reject individual changes inline.",
+      "orphan-comment": "no anchor"
     },
     "docx-viewer": {
       "could-not-open": "Couldn't open {{fileName}}",
