@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  STAGED for 3.0 launch - NOT live.
+
+  This page is the Keepance 3.0 pricing page. It is staged in the repo for the
+  3.0 launch and is NOT deployed to the live v2.5 site. The live pricing still
+  lives in website/index.html (#pricing). Do not link to this page from the
+  live site, and do not deploy website/3.0/ until 3.0 ships.
+
+  Source of truth for every number + line of copy on this page:
+  docs/strategy/2026-06-09-keepance-3.0-pricing.md and the canonical app config
+  src/config/pricing.ts. Keep all three in sync.
+
+  The checkout buttons below intentionally point nowhere yet ("#"): the
+  LemonSqueezy 3.0 products are not created. See
+  docs/operations/2026-06-09-lemonsqueezy-3.0-setup.md.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Pricing - Keepance 3.0 (staged)</title>
+  <link rel="preconnect" href="https://api.fontshare.com" crossorigin>
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@800,700,500,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy: #0A2540;
+      --navy-mid: #12345A;
+      --bone: #F5F5F0;
+      --bone-dark: #EEEEE8;
+      --white: #FFFFFF;
+      --text-heading: #0A2540;
+      --text-body: #3A3A38;
+      --text-muted: #6B6B65;
+      --border: #E0E0D8;
+      --accent: #0A2540;
+      --container: 1100px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Satoshi', system-ui, sans-serif;
+      background: var(--bone);
+      color: var(--text-body);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container { width: 100%; max-width: var(--container); margin: 0 auto; padding: 0 28px; }
+
+    /* Staging banner so no one mistakes this for the live page. */
+    .staging-banner {
+      background: #FFF7E0;
+      border-bottom: 1px solid #E8D88A;
+      color: #6B5500;
+      font-size: 13px;
+      text-align: center;
+      padding: 8px 16px;
+      font-weight: 500;
+    }
+
+    header.hero {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 72px 0 56px;
+      text-align: center;
+    }
+    .section-label { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--navy-mid); }
+    h1 { font-size: clamp(2rem, 3.6vw, 2.75rem); font-weight: 800; color: var(--text-heading); letter-spacing: -0.02em; margin: 12px 0 16px; }
+    .hero p { font-size: 17px; color: var(--text-muted); max-width: 640px; margin: 0 auto; }
+
+    .trial-banner {
+      max-width: 700px;
+      margin: 28px auto 0;
+      background: var(--bone-dark);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px 20px;
+      font-size: 14.5px;
+      color: var(--text-body);
+    }
+    .trial-banner strong { color: var(--text-heading); }
+
+    main { padding: 56px 0 80px; }
+
+    .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+    @media (max-width: 880px) { .pricing-grid { grid-template-columns: 1fr; max-width: 460px; margin: 0 auto; } }
+
+    .pricing-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 30px 26px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .pricing-card.featured {
+      border-color: var(--navy);
+      box-shadow: 0 8px 28px rgba(10,37,64,0.10);
+    }
+    .pricing-badge {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--navy); color: var(--white);
+      font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 4px 14px; border-radius: 20px; white-space: nowrap;
+    }
+    .pricing-tier { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--navy-mid); margin-bottom: 4px; }
+    .pricing-audience { font-size: 13px; color: var(--text-muted); margin-bottom: 18px; min-height: 38px; }
+    .pricing-price { font-size: 2.4rem; font-weight: 800; color: var(--text-heading); line-height: 1; letter-spacing: -0.03em; }
+    .pricing-price .per { font-size: 15px; font-weight: 500; color: var(--text-muted); }
+    .pricing-price-note { font-size: 13px; color: var(--text-muted); margin: 8px 0 4px; }
+    .pricing-founding { font-size: 12.5px; color: var(--navy-mid); font-weight: 600; margin-bottom: 18px; }
+    hr.pricing-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0 20px; }
+    .pricing-features { list-style: none; display: flex; flex-direction: column; gap: 11px; margin-bottom: 26px; flex: 1; }
+    .pricing-features li { display: flex; align-items: flex-start; gap: 10px; font-size: 13.5px; color: var(--text-body); line-height: 1.5; }
+    .pricing-features li::before { content: '→'; color: var(--navy-mid); font-weight: 700; flex-shrink: 0; }
+    .pricing-features li.strong { font-weight: 600; color: var(--text-heading); }
+
+    .btn-buy {
+      display: block; text-align: center; text-decoration: none;
+      padding: 13px 18px; border-radius: 8px; font-weight: 700; font-size: 14.5px;
+      transition: filter 0.15s, background 0.15s;
+    }
+    .btn-buy.primary { background: var(--navy); color: var(--white); }
+    .btn-buy.primary:hover { filter: brightness(1.15); }
+    .btn-buy.secondary { background: var(--white); color: var(--navy); border: 1.5px solid var(--navy); }
+    .btn-buy.secondary:hover { background: var(--bone-dark); }
+
+    /* Info blocks (BYOK, data ownership, competitor context). */
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 48px; }
+    @media (max-width: 880px) { .info-grid { grid-template-columns: 1fr; } }
+    .info-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 26px 26px;
+    }
+    .info-card h3 { font-size: 16px; font-weight: 700; color: var(--text-heading); margin-bottom: 10px; }
+    .info-card p { font-size: 14px; color: var(--text-body); }
+    .info-card.ownership { border-left: 3px solid var(--navy); }
+
+    .competitor {
+      margin-top: 48px;
+      background: var(--navy);
+      border-radius: 14px;
+      padding: 40px 36px;
+      color: var(--white);
+    }
+    .competitor .story { font-size: 19px; font-weight: 600; line-height: 1.45; max-width: 760px; }
+    .competitor table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+    .competitor th, .competitor td { text-align: left; padding: 11px 12px; font-size: 13.5px; border-bottom: 1px solid rgba(255,255,255,0.12); vertical-align: top; }
+    .competitor th { color: #B8C6D6; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .competitor td { color: #E8E8E2; }
+    .competitor td.product { font-weight: 600; color: var(--white); }
+
+    .footnote { margin-top: 40px; font-size: 13px; color: var(--text-muted); text-align: center; line-height: 1.7; }
+    .footnote a { color: var(--navy); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="staging-banner">Staged preview of Keepance 3.0 pricing. Not live. Numbers and copy come from the ratified pricing recommendation.</div>
+
+  <header class="hero">
+    <div class="container">
+      <span class="section-label">Pricing</span>
+      <h1>The private intelligence layer for your practice.</h1>
+      <p>Per seat, billed annually. Month-to-month available. A fraction of the specialized legal AI, and the only one where your client files never leave your control.</p>
+      <div class="trial-banner">
+        <strong>Try it free for 30 days.</strong> No credit card. Windows, Mac, and Linux. The founding cohort locks a 30% discount for the life of the subscription.
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+
+      <div class="pricing-grid">
+        <!-- Solo (wire code: personal) -->
+        <div class="pricing-card">
+          <div class="pricing-tier">Solo</div>
+          <div class="pricing-audience">A single attorney</div>
+          <div class="pricing-price">$39<span class="per">/mo</span></div>
+          <div class="pricing-price-note">$468/yr, billed annually · or $49/mo month-to-month</div>
+          <div class="pricing-founding">Founding rate: $27/mo ($324/yr), locked for life</div>
+          <hr class="pricing-divider">
+          <ul class="pricing-features">
+            <li class="strong">The complete confidential workspace</li>
+            <li>The Word-native editor</li>
+            <li>AI redlining with tracked changes</li>
+            <li>Confidential matter-scoped cited recall across email and documents</li>
+            <li>Privilege controls</li>
+            <li>Local model or your own AI key</li>
+            <li>The trust layer</li>
+          </ul>
+          <a href="#" class="btn-buy secondary" data-staged-checkout="solo">Start free trial</a>
+        </div>
+
+        <!-- Professional (wire code: professional) - featured -->
+        <div class="pricing-card featured">
+          <div class="pricing-badge">Most popular</div>
+          <div class="pricing-tier">Professional</div>
+          <div class="pricing-audience">The serious solo or small-firm litigator</div>
+          <div class="pricing-price">$79<span class="per">/mo</span></div>
+          <div class="pricing-price-note">$948/yr, billed annually · or $99/mo month-to-month</div>
+          <div class="pricing-founding">Founding rate: $55/mo ($660/yr), locked for life</div>
+          <hr class="pricing-divider">
+          <ul class="pricing-features">
+            <li class="strong">Everything in Solo</li>
+            <li>The litigation associate: deposition contradiction-finder, timelines, discovery triage, privilege-log drafter</li>
+            <li>Version history</li>
+            <li>All practice packs</li>
+            <li>Priority support</li>
+          </ul>
+          <a href="#" class="btn-buy primary" data-staged-checkout="professional">Start free trial</a>
+        </div>
+
+        <!-- Firm (wire code: practice) -->
+        <div class="pricing-card">
+          <div class="pricing-tier">Firm</div>
+          <div class="pricing-audience">Firms of roughly 5 to 50 attorneys</div>
+          <div class="pricing-price">$129<span class="per">/seat/mo</span></div>
+          <div class="pricing-price-note">$1,548/seat/yr, billed annually · min 3 seats · or $159/seat/mo month-to-month</div>
+          <div class="pricing-founding">Founding rate: $90/seat/mo ($1,080/seat/yr), locked for life</div>
+          <hr class="pricing-divider">
+          <ul class="pricing-features">
+            <li class="strong">Everything in Professional</li>
+            <li>Shared matters and collaboration</li>
+            <li>Admin console with SSO and ethical walls</li>
+            <li>The assured zero-retention option</li>
+            <li>The assurance package: DPA, trust center, SOC 2 readiness</li>
+          </ul>
+          <a href="#" class="btn-buy secondary" data-staged-checkout="firm">Talk to us</a>
+        </div>
+      </div>
+
+      <!-- BYOK transparency + data-ownership guarantee -->
+      <div class="info-grid">
+        <div class="info-card">
+          <h3>You bring your own AI key, and we never mark it up</h3>
+          <p>You bring your own AI key and pay the provider directly (usually $5 to $15 a month for a solo). We take zero markup on AI usage, and you see exactly what it costs. Prefer that nothing leaves your machine at all? Run a local model with Ollama and pay nothing for AI. Either way, your subscription covers the platform: the Word editor, AI redlining, confidential cited recall, privilege controls, encryption, updates, and support. It does not cover the AI tokens, and we never mark them up.</p>
+        </div>
+        <div class="info-card ownership">
+          <h3>Your files are always yours</h3>
+          <p>They are real Word and PDF files in your own folders. If you ever cancel, you keep every document, email, and matter you have made. A lapsed subscription turns off the AI features and updates, not your data. Nothing is ever held hostage.</p>
+        </div>
+      </div>
+
+      <!-- Competitor context -->
+      <div class="competitor">
+        <p class="story">A fraction of CoCounsel, and the only one where your client files never leave your control.</p>
+        <table>
+          <thead>
+            <tr><th>Product</th><th>Price (per seat)</th><th>Where Keepance sits</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="product">Thomson Reuters CoCounsel Core</td>
+              <td>$225/seat/mo (about $4,500/yr)</td>
+              <td>Keepance Firm is roughly half to one-third the price</td>
+            </tr>
+            <tr>
+              <td class="product">Westlaw + CoCounsel</td>
+              <td>$428 to $639/seat/mo</td>
+              <td>Keepance Firm is one-third to one-fifth the price</td>
+            </tr>
+            <tr>
+              <td class="product">Clio / MyCase (practice management)</td>
+              <td>$39 to $149/seat/mo annual</td>
+              <td>Comparable, but Keepance is the private AI layer beside Clio, not a replacement</td>
+            </tr>
+            <tr>
+              <td class="product">Microsoft 365 Copilot</td>
+              <td>$21 to $30/mo add-on (needs base M365)</td>
+              <td>Keepance Solo is at or above, with legal-specific depth and no required base subscription</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="footnote">
+        All plans include a 30-day free trial. No credit card required to download.<br>
+        Already bought the old one-time Personal, Professional, or Practice license? You keep exactly what you paid for, in good faith. Keepance 3.0 is a new, repositioned product at new pricing, and we never claw back what you already own.<br>
+        Pricing references for CoCounsel, Westlaw, Clio, MyCase, and Microsoft 365 Copilot are from the providers' published rates as of June 2026 and are for comparison only.
+      </p>
+
+    </div>
+  </main>
+</body>
+</html>

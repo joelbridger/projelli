@@ -123,9 +123,9 @@
         "trial": "TRIAL"
       },
       "tier": {
-        "personal": "Personal",
+        "personal": "Solo",
         "professional": "Professional",
-        "practice": "Practice",
+        "practice": "Firm",
         "free": "Free"
       },
       "packs": {
@@ -137,7 +137,7 @@
       "all-packs": "All profession packs included",
       "seats": "Up to {{count}} seats",
       "valid-until": "Valid until: {{date}}",
-      "perpetual-tagline": "Perpetual license. Updates and security patches for the life of the product.",
+      "ownership-tagline": "Your files are always yours. If you ever cancel, you keep every document, email, and matter you have made. A lapsed subscription turns off the AI features and updates, not your data.",
       "refresh": "Refresh",
       "deactivate": "Deactivate",
       "activate": "Activate",
@@ -158,9 +158,9 @@
         "whiteboard-audio-research": "Whiteboard, audio recording, research citations",
         "multi-model": "Multi-model comparison",
         "commercial": "Commercial use license",
-        "updates": "Updates and security patches for the life of the product",
-        "one-pack": "One profession pack (Professional)",
-        "all-packs": "Every profession pack, plus up to 5 seats (Practice)"
+        "updates": "Continuous updates, legal-content maintenance, and security patches",
+        "one-pack": "The litigation associate and all practice packs (Professional)",
+        "all-packs": "Shared matters, admin console, and the assurance package (Firm)"
       }
     },
     "privacy": {

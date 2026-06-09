@@ -210,9 +210,9 @@
         "trial__sourceHash": "02af1180fe7197c1f48654f1eef29208e079d14732f21bb0a1d3249136cd0264"
       },
       "tier": {
-        "personal": "Personal",
+        "personal": "Solo",
         "professional": "Professional",
-        "practice": "Kanzlei",
+        "practice": "Firm",
         "free": "Kostenlos",
         "free__sourceHash": "f411a1fb62758b4c54690d0a702b4955b54dd22115416fa7b1ce51b4a084818d"
       },
@@ -226,7 +226,7 @@
       "seats": "Bis zu {{count}} Lizenzplätze",
       "valid-until": "Gültig bis: {{date}}",
       "valid-until__sourceHash": "372882d81d7a610854bb9f16fb7b3107228616db853ef184e951479a52727321",
-      "perpetual-tagline": "Dauerlizenz. Updates und Sicherheitspatches für die gesamte Lebensdauer des Produkts.",
+      "ownership-tagline": "Ihre Dateien gehören immer Ihnen. Wenn Sie kündigen, behalten Sie jedes Dokument, jede E-Mail und jeden Vorgang, den Sie erstellt haben. Ein abgelaufenes Abonnement schaltet die KI-Funktionen und Updates ab, nicht Ihre Daten.",
       "refresh": "Aktualisieren",
       "refresh__sourceHash": "0e91610117029a62a478b7fa7df0b8598bebe3ab1e192d4b1882e310719c9671",
       "deactivate": "Deaktivieren",

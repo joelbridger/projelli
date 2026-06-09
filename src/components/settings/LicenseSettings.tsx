@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CostDashboard } from '@/components/ai/CostDashboard';
+import { PricingTiers } from '@/components/settings/PricingTiers';
+import { displayName } from '@/config/pricing';
 
 export function LicenseSettings() {
   const { t } = useTranslation();
@@ -71,14 +73,9 @@ export function LicenseSettings() {
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                   {t('settings.license.badge.activated')}
                 </span>
-                <span className="text-lg font-medium capitalize">
-                  {tier === 'practice'
-                    ? t('settings.license.tier.practice')
-                    : tier === 'professional'
-                      ? t('settings.license.tier.professional')
-                      : tier === 'personal'
-                        ? t('settings.license.tier.personal')
-                        : t('settings.license.tier.free')}
+                <span className="text-lg font-medium" data-testid="license-tier-name">
+                  {/* 3.0 display name; the wire/license code is unchanged. */}
+                  {displayName(tier)}
                 </span>
               </div>
               {/* Profession pack(s): Practice gets all packs; Professional shows its one pack. */}
@@ -106,8 +103,8 @@ export function LicenseSettings() {
                   {t('settings.license.valid-until', { date: expiresAt.toLocaleDateString() })}
                 </p>
               )}
-              <p className="text-sm text-muted-foreground mt-1">
-                {t('settings.license.perpetual-tagline')}
+              <p className="text-sm text-muted-foreground mt-1" data-testid="license-ownership-guarantee">
+                {t('settings.license.ownership-tagline')}
               </p>
             </div>
             <div className="flex gap-2">
@@ -178,6 +175,8 @@ export function LicenseSettings() {
             )}
           </div>
           <div className="border-t pt-5 space-y-4">
+            {/* 3.0 per-seat subscription tiers, rendered from the canonical config. */}
+            <PricingTiers />
             <Button
               asChild
               size="lg"

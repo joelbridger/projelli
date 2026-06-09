@@ -210,9 +210,9 @@
         "trial__sourceHash": "02af1180fe7197c1f48654f1eef29208e079d14732f21bb0a1d3249136cd0264"
       },
       "tier": {
-        "personal": "Personal",
-        "professional": "Profesional",
-        "practice": "Despacho",
+        "personal": "Solo",
+        "professional": "Professional",
+        "practice": "Firm",
         "free": "Gratuita",
         "free__sourceHash": "f411a1fb62758b4c54690d0a702b4955b54dd22115416fa7b1ce51b4a084818d"
       },
@@ -226,7 +226,7 @@
       "seats": "Hasta {{count}} licencias",
       "valid-until": "Válida hasta: {{date}}",
       "valid-until__sourceHash": "372882d81d7a610854bb9f16fb7b3107228616db853ef184e951479a52727321",
-      "perpetual-tagline": "Licencia perpetua. Actualizaciones y parches de seguridad durante toda la vida del producto.",
+      "ownership-tagline": "Tus archivos siempre son tuyos. Si cancelas, conservas cada documento, correo y asunto que hayas creado. Una suscripción vencida desactiva las funciones de IA y las actualizaciones, no tus datos.",
       "refresh": "Actualizar",
       "refresh__sourceHash": "0e91610117029a62a478b7fa7df0b8598bebe3ab1e192d4b1882e310719c9671",
       "deactivate": "Desactivar",
