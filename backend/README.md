@@ -6,12 +6,14 @@ per-machine license check (a JWT in `localStorage`, with a `seats` number nobody
 counted) with org-scoped, signed, revocable **seat tokens** under a
 server-enforced `seat_limit`.
 
-This is **chunk 1 of 3** of the firm backend defined in
+This implements **chunks 1 + 2 of 3** of the firm backend defined in
 [`../spikes/firm-sync/DECISION.md`](../spikes/firm-sync/DECISION.md):
 
-1. **Identity + licensing** ← *this service*
-2. CRDT sync relay (E2EE update blobs) — later
-3. Assured zero-retention inference proxy — later
+1. **Identity + licensing** ← built
+2. **Matter ACL + ethical walls + E2EE CRDT sync relay** ← built (this is the
+   chunk-2 addition; see [§4](#matter-acl--ethical-walls-decisionmd-4) +
+   [the relay](#e2ee-sync-relay-decisionmd-1) below)
+3. Assured zero-retention inference proxy — later (design only, DECISION.md §5)
 
 > **Solo/local mode is unaffected.** The accountless, local-first, BYOK
 > experience is still the default and **never talks to this server.** Everything
@@ -193,6 +195,75 @@ field name for drop-in compatibility with today's `/validate`.
 > `/webhook`). It has no in-app auth gate because there is no admin to authorize
 > the very first org. Do **not** expose it publicly.
 
+### Matters + ethical walls (chunk 2; Bearer access token, `role: admin`, same-org)
+| Method · Path | Body |
+|---|---|
+| `POST /org/matters` | `{ client_name }` → create a matter (201) |
+| `POST /org/matters/list` | — → `{ matters: [...] }` |
+| `POST /matter/:id/archive` | — → archive |
+| `POST /matter/:id/members/add` | `{ user_id, role? }` → add member (+ `key_release` hint) |
+| `POST /matter/:id/members/remove` | `{ user_id }` → remove (**bumps `key_epoch`** → rotate) |
+| `POST /matter/:id/members/list` | — → `{ members, walls, key_epoch }` |
+| `POST /matter/:id/wall/set` | `{ user_id, reason? }` → **raise a screen** (**bumps `key_epoch`**) |
+| `POST /matter/:id/wall/clear` | `{ user_id }` → lift a screen (does **not** re-grant membership) |
+
+### E2EE sync relay (chunk 2; any firm member — access JWT + active seat + `member ∧ ¬walled`)
+| Method · Path | Auth | Body / Query | Returns |
+|---|---|---|---|
+| `POST /matter/:id/updates` | Bearer + `seat_token` (body) | `{ blob_id, ciphertext_b64, seat_token, key_epoch? }` | `{ ok, cursor, blob_id, key_epoch, duplicate }` · 201 new / 200 dup · **403** walled/non-member · **404** cross-org · **413** over cap |
+| `GET /matter/:id/updates` | Bearer + `?seat_token=` | `?since=<cursor>` | `{ updates:[{cursor, ciphertext_b64, ...}], cursor, latest_cursor, has_more }` |
+| `GET /matter/:id/sync` *(WS)* | `?seat_token=` + `?access_token=`² | — | live `update` frames + an initial backlog; access-gated **before** upgrade |
+
+² The browser `WebSocket` API can't set an `Authorization` header, so the relay
+accepts the short-lived access JWT via `?access_token=` **only on the relay
+endpoints** (`authenticateRelay`). The HTTP relay keeps using the header.
+
+**The relay is a dumb pipe (DECISION.md §1).** It stores `{matter_id, blob_id,
+ciphertext, author_seat, key_epoch, created_at}` — **opaque bytes it never
+parses, decodes, hashes, or logs.** `ciphertext_b64` is a client-encrypted Yjs
+update; the relay never holds the per-matter key and the only shape check is a
+**1 MiB size cap** (a sanity bound, not content inspection). Pushes are
+idempotent on `(matter, blob_id)`; `since`-cursor catch-up returns updates
+strictly after the cursor, ascending. Every relay access (push/pull/connect) is
+gated by the §4 predicate and **audited on both grant and denial**
+(`matter.access.granted` / `matter.access.denied`).
+
+#### Matter ACL + ethical walls (DECISION.md §4)
+The server is the source of truth for `MatterMember` + `EthicalWall`. One
+predicate, computed in one place (`src/lib/matters.ts → resolveAccess`),
+fail-closed:
+
+```
+allowed = (member ∨ org-admin) ∧ ¬walled        # deny-overrides-allow
+```
+
+- **Default deny** — no `MatterMember` row ⇒ no access.
+- **An ethical wall wins outright** — a screened user is blocked even if
+  mistakenly added as a member or holding the admin role. A walled user's relay
+  push/pull is 403 and their WebSocket upgrade is refused.
+- **Cross-org is 404** (never confirm another org's matter exists).
+- Walls + membership changes are append-only **audited** (the audit trail is
+  itself the compliance artifact).
+
+#### Where per-matter key release/rotation hooks in (for the desktop task)
+The relay stores only ciphertext; the per-matter content key is **client-held**
+and released **out of band** into the OS keychain
+(`com.keepance.matter.<matter_id>`, §2) — only to `member ∧ ¬walled`. The server
+tracks a **`key_epoch`** per matter (starts at 1) and bumps it at exactly three
+points, each emitting a `matter.key.rotate` audit event:
+
+| Server action | Effect | Desktop key-release service must… |
+|---|---|---|
+| `POST /matter/:id/members/add` | response carries `key_release` (`release_to_member` \| `blocked_walled`) | **release** the current-epoch key to the new member's keychain (iff not walled) |
+| `POST /matter/:id/members/remove` | `key_epoch++` | **stop** releasing to the removed user; **rotate** + re-release the new key to remaining members |
+| `POST /matter/:id/wall/set` | `key_epoch++` | **stop** releasing to the screened user; **rotate** + re-release to everyone else |
+| `POST /org/user/deprovision` (chunk 1) | — | **stop** releasing all matter keys to that user (existing `NOTE` hook in `routes/admin.ts`) |
+
+Updates carry the `key_epoch` they were sealed under, so a removed/walled user's
+old key cannot decrypt updates pushed after the bump (DECISION.md §4 layer 2 —
+the cryptographic teeth). The server never sees the key; rolling the actual
+crypto is the desktop task's job.
+
 ---
 
 ## Security posture
@@ -230,19 +301,24 @@ field name for drop-in compatibility with today's `/validate`.
   `/org/seats/transfer`, `/org/users`, `/org/audit`.
 - Types are in `src/contract.ts` — import/copy them.
 
-**Chunk 2 — CRDT sync relay:** authenticate seats here (reuse the access token /
-seat token), then fan out **opaque E2EE CRDT blobs** keyed by `(matter_id,
-doc_id)` only to `member ∧ ¬walled` seats. Same trust class: ciphertext only.
-The relay needs: a "is this seat valid right now" check (reuse `/seat/validate`)
-and per-matter membership (the `MatterMember`/`EthicalWall` tables from §4 —
-*not* built here; this chunk stopped at Org/User/Seat).
+- **Sync relay client (chunk 2 — now built server-side):** drive a Yjs doc per
+  open matter document; on local change, encrypt the Yjs update under the
+  per-matter key and `POST /matter/:id/updates`; on startup/reconnect, `GET
+  /matter/:id/updates?since=<lastCursor>` and apply; keep a live `GET
+  /matter/:id/sync` WebSocket for fan-out (advance `since` to each frame's
+  `cursor`). The relay handles ciphertext only — encryption/decryption + the
+  per-matter key live entirely client-side.
+- **Per-matter key management (the one crypto piece left):** implement
+  release/rotation at the four hooks in
+  [the key-release table](#where-per-matter-key-releaserotation-hooks-in-for-the-desktop-task)
+  above. The server already tracks + bumps `key_epoch` and audits rotations; the
+  desktop holds the keys in `com.keepance.matter.<matter_id>` and re-keys on a
+  bump. Define admin escrow (a firm admin recovers a matter if an attorney
+  leaves — escrow the matter key to an org master key) here too (R9).
 
-**Chunk 3 — assured zero-retention proxy:** authenticate firm seats (reuse this
-service's tokens), attach the firm's provider credential, stream through with
-**no body write path** (type-enforced), metadata-only billing logs. Reuses the
-org/seat identity established here.
-
-**Per-matter keys + ethical walls (§4):** the `deprovision` handler is already
-the hook to stop releasing matter keys (see the `NOTE` in `routes/admin.ts`).
-Adding `Matter`, `MatterMember`, `EthicalWall` + the key-release service is the
-natural next slice once chunk 2 needs them.
+**Chunk 3 — assured zero-retention proxy (not built; design only, §5):**
+authenticate firm seats (reuse this service's tokens + `verifyActiveSeat` from
+`src/lib/matters.ts`), attach the firm's provider credential, stream through with
+**no body write path** (type-enforced), metadata-only billing logs. Same trust
+class as the relay (ciphertext/transient only). Reuses the org/seat identity
+established here.

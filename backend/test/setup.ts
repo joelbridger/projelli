@@ -20,6 +20,7 @@ process.env.ACCESS_TOKEN_TTL_SECONDS = "3600";
 process.env.REFRESH_TOKEN_TTL_SECONDS = "86400";
 process.env.SEAT_TOKEN_TTL_SECONDS = "2592000";
 process.env.AUTH_RATE_LIMIT_MAX = "1000"; // don't rate-limit the test runner
+process.env.RELAY_RATE_LIMIT_MAX = "100000"; // relay is chatty in tests; don't throttle
 
 const kp = generateKeyPairSync("ed25519");
 process.env.SEAT_PRIVATE_KEY_PEM = kp.privateKey.export({ type: "pkcs8", format: "pem" }) as string;

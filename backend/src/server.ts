@@ -25,65 +25,181 @@ import {
   handleAudit,
   handleCreateOrg,
 } from "./routes/admin.ts";
+import {
+  handleCreateMatter,
+  handleListMatters,
+  handleArchiveMatter,
+  handleAddMatterMember,
+  handleRemoveMatterMember,
+  handleListMatterMembers,
+  handleSetWall,
+  handleClearWall,
+  handlePushUpdate,
+  handlePullUpdates,
+  authorizeSyncConnect,
+} from "./routes/matters.ts";
+import { fanout, FanoutHub, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
+import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
+
+/** Data attached to each sync WebSocket on upgrade (set by authorizeSyncConnect). */
+export interface SyncSocketData {
+  subId: string;
+  matterId: string;
+  orgId: string;
+  userId: string;
+  seatId: string;
+}
+
+/**
+ * Extract a `/matter/:id/...` path. Returns the matter id and the trailing
+ * segment (e.g. "updates", "members/add", "" for the bare matter). The id is a
+ * single path segment; we never let it contain a slash.
+ */
+function matchMatter(path: string): { id: string; rest: string } | null {
+  const m = path.match(/^\/matter\/([^/]+)(?:\/(.*))?$/);
+  if (!m) return null;
+  return { id: decodeURIComponent(m[1]!), rest: m[2] ?? "" };
+}
+
+/**
+ * Build the Bun.serve options for a given Store + fan-out hub. Factored out (vs.
+ * an inline object) so tests can boot an isolated server on an ephemeral port
+ * with their own in-memory store + hub, exercising the SAME routes + WebSocket
+ * fan-out as production — no logic duplication, no cross-file server-lifecycle
+ * coupling.
+ */
+export function buildServeOptions(store: Store, hub: FanoutHub) {
+  return {
+    hostname: config.host,
+    port: config.port,
+    // Long-ish idle timeout so a slow bcrypt verify under load never severs the
+    // connection (mirrors the Keepance Bun idleTimeout gotcha).
+    idleTimeout: 60,
+    async fetch(req: Request, srv: Bun.Server<SyncSocketData>): Promise<Response | undefined> {
+      const url = new URL(req.url);
+      const path = url.pathname;
+      const method = req.method;
+      const ip = srv.requestIP(req)?.address ?? "unknown";
+
+      if (method === "OPTIONS") return preflight();
+
+      try {
+        // --- E2EE sync relay + matter ACL (chunk 2) ---
+        // The WebSocket upgrade is handled before normal routing so the relay
+        // live fan-out shares the same access gate as the HTTP endpoints.
+        const mm = matchMatter(path);
+        if (mm) {
+          // Live sync socket: GET /matter/:id/sync (Upgrade: websocket).
+          if (mm.rest === "sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+            const authz = authorizeSyncConnect(req, store, mm.id);
+            if (!authz.ok) return authz.resp;
+            const data: SyncSocketData = { subId: randomUUID(), ...authz.data };
+            if (srv.upgrade(req, { data })) return undefined; // upgraded; Bun owns the socket now
+            return error("upgrade_failed", 400);
+          }
+          // Relay: append / catch-up. Push broadcasts via this server's hub.
+          if (mm.rest === "updates" && method === "POST") return await handlePushUpdate(req, store, mm.id, ip, hub);
+          if (mm.rest === "updates" && method === "GET") return handlePullUpdates(req, store, mm.id, ip);
+          // Admin: membership + walls (scoped to :id).
+          if (mm.rest === "members/add" && method === "POST") return await handleAddMatterMember(req, store, mm.id);
+          if (mm.rest === "members/remove" && method === "POST") return await handleRemoveMatterMember(req, store, mm.id);
+          if (mm.rest === "members/list" && method === "POST") return handleListMatterMembers(req, store, mm.id);
+          if (mm.rest === "wall/set" && method === "POST") return await handleSetWall(req, store, mm.id);
+          if (mm.rest === "wall/clear" && method === "POST") return await handleClearWall(req, store, mm.id);
+          if (mm.rest === "archive" && method === "POST") return handleArchiveMatter(req, store, mm.id);
+        }
+        // Admin: matter collection.
+        if (path === "/org/matters" && method === "POST") return await handleCreateMatter(req, store);
+        if (path === "/org/matters/list" && method === "POST") return handleListMatters(req, store);
+
+        // --- Health (open) ---
+        if (path === "/healthz" && method === "GET") {
+          return json({ ok: true, service: "keepance-firm-backend", version: "0.1.0" });
+        }
+        // Public key the desktop client embeds to verify seat tokens offline.
+        if (path === "/.well-known/seat-pubkey" && method === "GET") {
+          return new Response(config.seatPublicKeyPem, { status: 200, headers: { "content-type": "application/x-pem-file", "Access-Control-Allow-Origin": "*" } });
+        }
+
+        // --- Auth ---
+        if (path === "/auth/login" && method === "POST") return await handleLogin(req, store, ip);
+        if (path === "/auth/refresh" && method === "POST") return await handleRefresh(req, store, ip);
+        if (path === "/auth/logout" && method === "POST") return await handleLogout(req, store);
+        if (path === "/auth/me" && method === "GET") return handleMe(req, store);
+
+        // --- Licensing / seats (client-facing core) ---
+        if (path === "/org/activate" && method === "POST") return await handleActivate(req, store);
+        if (path === "/seat/validate" && method === "POST") return await handleSeatValidate(req, store);
+        if (path === "/seat/heartbeat" && method === "POST") return await handleSeatHeartbeat(req, store);
+
+        // --- Admin (role=admin) ---
+        if (path === "/org/seats" && method === "POST") return await handleListSeats(req, store);
+        if (path === "/org/seat/revoke" && method === "POST") return await handleRevokeSeat(req, store);
+        if (path === "/org/user/deprovision" && method === "POST") return await handleDeprovisionUser(req, store);
+        if (path === "/org/seats/transfer" && method === "POST") return await handleTransferSeat(req, store);
+        if (path === "/org/users" && method === "POST") return await handleCreateUser(req, store);
+        if (path === "/org/audit" && (method === "POST" || method === "GET")) return handleAudit(req, store);
+
+        // --- Provisioning (billing-driven; protect at network layer) ---
+        if (path === "/admin/org" && method === "POST") return await handleCreateOrg(req, store);
+
+        return error("not_found", 404);
+      } catch (err) {
+        console.error(`[error] ${method} ${path}:`, err);
+        return error("internal_error", 500);
+      }
+    },
+
+    // Live fan-out for the sync relay. The connection is already access-gated in
+    // `fetch` (authorizeSyncConnect) before upgrade, so a walled / non-member /
+    // cross-org socket never gets here. We register the socket as a Subscriber and
+    // ship a `since=0` backlog so a late joiner catches up, then receives new
+    // updates live. We never read inbound socket frames as document data: pushes
+    // go through the audited HTTP POST so every write is gated + recorded.
+    websocket: {
+      open(ws: Bun.ServerWebSocket<SyncSocketData>) {
+        const d = ws.data;
+        const sub: Subscriber = {
+          id: d.subId,
+          user_id: d.userId,
+          seat_id: d.seatId,
+          send: (frame) => {
+            try {
+              ws.send(JSON.stringify(frame));
+            } catch {
+              /* dead socket; close handler prunes */
+            }
+          },
+        };
+        hub.subscribe(d.matterId, sub);
+        // Catch-up backlog (opaque bytes, base64; never logged).
+        try {
+          const backlog = store.getMatterUpdatesSince(d.matterId, 0, 500);
+          ws.send(JSON.stringify({ type: "ready", matter_id: d.matterId, backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterId) }));
+          for (const u of backlog) ws.send(JSON.stringify(toUpdateFrame(u)));
+        } catch {
+          /* best-effort backlog */
+        }
+      },
+      message() {
+        // Inbound socket frames are ignored on purpose. Awareness/presence would
+        // ride a separate ephemeral channel; document writes use the HTTP relay so
+        // they pass the access gate + audit. (DECISION.md §1.)
+      },
+      close(ws: Bun.ServerWebSocket<SyncSocketData>) {
+        const d = ws.data;
+        hub.unsubscribe(d.matterId, d.subId);
+      },
+    },
+  };
+}
 
 const store = getStore();
 maybeBootstrap(store);
 startRateLimitGc();
 
-const server = Bun.serve({
-  hostname: config.host,
-  port: config.port,
-  // Long-ish idle timeout so a slow bcrypt verify under load never severs the
-  // connection (mirrors the Keepance Bun idleTimeout gotcha).
-  idleTimeout: 60,
-  async fetch(req, srv) {
-    const url = new URL(req.url);
-    const path = url.pathname;
-    const method = req.method;
-    const ip = srv.requestIP(req)?.address ?? "unknown";
-
-    if (method === "OPTIONS") return preflight();
-
-    try {
-      // --- Health (open) ---
-      if (path === "/healthz" && method === "GET") {
-        return json({ ok: true, service: "keepance-firm-backend", version: "0.1.0" });
-      }
-      // Public key the desktop client embeds to verify seat tokens offline.
-      if (path === "/.well-known/seat-pubkey" && method === "GET") {
-        return new Response(config.seatPublicKeyPem, { status: 200, headers: { "content-type": "application/x-pem-file", "Access-Control-Allow-Origin": "*" } });
-      }
-
-      // --- Auth ---
-      if (path === "/auth/login" && method === "POST") return await handleLogin(req, store, ip);
-      if (path === "/auth/refresh" && method === "POST") return await handleRefresh(req, store, ip);
-      if (path === "/auth/logout" && method === "POST") return await handleLogout(req, store);
-      if (path === "/auth/me" && method === "GET") return handleMe(req, store);
-
-      // --- Licensing / seats (client-facing core) ---
-      if (path === "/org/activate" && method === "POST") return await handleActivate(req, store);
-      if (path === "/seat/validate" && method === "POST") return await handleSeatValidate(req, store);
-      if (path === "/seat/heartbeat" && method === "POST") return await handleSeatHeartbeat(req, store);
-
-      // --- Admin (role=admin) ---
-      if (path === "/org/seats" && method === "POST") return await handleListSeats(req, store);
-      if (path === "/org/seat/revoke" && method === "POST") return await handleRevokeSeat(req, store);
-      if (path === "/org/user/deprovision" && method === "POST") return await handleDeprovisionUser(req, store);
-      if (path === "/org/seats/transfer" && method === "POST") return await handleTransferSeat(req, store);
-      if (path === "/org/users" && method === "POST") return await handleCreateUser(req, store);
-      if (path === "/org/audit" && (method === "POST" || method === "GET")) return handleAudit(req, store);
-
-      // --- Provisioning (billing-driven; protect at network layer) ---
-      if (path === "/admin/org" && method === "POST") return await handleCreateOrg(req, store);
-
-      return error("not_found", 404);
-    } catch (err) {
-      console.error(`[error] ${method} ${path}:`, err);
-      return error("internal_error", 500);
-    }
-  },
-});
+const server = Bun.serve<SyncSocketData>(buildServeOptions(store, fanout));
 
 console.log(`[startup] keepance-firm-backend listening on http://${server.hostname}:${server.port}`);
 console.log(`[startup] DB: ${config.dbPath}`);

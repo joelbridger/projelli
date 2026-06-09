@@ -84,16 +84,21 @@ export function sanitizePacks(v: unknown): string[] {
 // ---------------------------------------------------------------------------
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
-export function rateLimit(ip: string, bucket: string): { ok: boolean; retryAfter?: number } {
+export function rateLimit(
+  ip: string,
+  bucket: string,
+  opts?: { max?: number; windowSeconds?: number },
+): { ok: boolean; retryAfter?: number } {
   const key = `${bucket}:${ip}`;
   const now = Date.now();
-  const windowMs = config.authRateLimitWindowSeconds * 1000;
+  const max = opts?.max ?? config.authRateLimitMax;
+  const windowMs = (opts?.windowSeconds ?? config.authRateLimitWindowSeconds) * 1000;
   const entry = buckets.get(key);
   if (!entry || entry.resetAt <= now) {
     buckets.set(key, { count: 1, resetAt: now + windowMs });
     return { ok: true };
   }
-  if (entry.count >= config.authRateLimitMax) {
+  if (entry.count >= max) {
     return { ok: false, retryAfter: Math.ceil((entry.resetAt - now) / 1000) };
   }
   entry.count++;
@@ -125,12 +130,33 @@ export type AuthResult =
   | { ok: true; claims: AccessTokenClaims }
   | { ok: false; reason: string };
 
-/** Verify the request carries a valid access JWT. Does NOT check role. */
-export function authenticate(req: Request): AuthResult {
-  const token = getBearer(req);
-  if (!token) return { ok: false, reason: "missing_token" };
+/** Verify a token string as an access JWT. */
+function verifyAccess(token: string): AuthResult {
   const res = verifyAccessJwt<AccessTokenClaims>(token);
   if (!res.valid) return { ok: false, reason: res.reason };
   if (res.payload.typ !== "access") return { ok: false, reason: "wrong_token_type" };
   return { ok: true, claims: res.payload };
+}
+
+/** Verify the request carries a valid access JWT (Authorization: Bearer). Does NOT check role. */
+export function authenticate(req: Request): AuthResult {
+  const token = getBearer(req);
+  if (!token) return { ok: false, reason: "missing_token" };
+  return verifyAccess(token);
+}
+
+/**
+ * Like `authenticate`, but also accepts the access token via an `access_token`
+ * query param. ONLY for the sync-relay endpoints, where the WebSocket upgrade
+ * request is initiated by the browser `WebSocket` API which cannot set an
+ * Authorization header. The token is still a short-lived signed JWT; it is never
+ * logged (we never log relay request URLs with their query string). HTTP relay
+ * callers keep using the header; the query-param path is the WS escape hatch.
+ */
+export function authenticateRelay(req: Request): AuthResult {
+  const header = getBearer(req);
+  if (header) return verifyAccess(header);
+  const qp = new URL(req.url).searchParams.get("access_token");
+  if (qp) return verifyAccess(qp.trim());
+  return { ok: false, reason: "missing_token" };
 }

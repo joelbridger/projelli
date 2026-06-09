@@ -177,6 +177,138 @@ export interface CreateOrgResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Chunk 2 — Matters, ethical walls, and the E2EE sync relay (DECISION.md §1+§4)
+//
+// ACL: a firm user can access a matter iff (member ∨ org-admin) ∧ ¬walled,
+// default-deny, deny-overrides-allow. The relay is a DUMB PIPE: it stores opaque
+// client-encrypted CRDT update blobs keyed by matter and fans them out to
+// `allowed` seats. It NEVER holds the per-matter content key and never sees
+// plaintext — clients encrypt/decrypt with a key released out of band into the
+// OS keychain (`com.keepance.matter.<matter_id>`, §2), released only to
+// `member ∧ ¬walled` and rotated (key_epoch++) on member-remove / wall-set.
+// ---------------------------------------------------------------------------
+
+export type MatterStatus = "active" | "archived";
+export type MatterRole = "owner" | "editor" | "viewer";
+
+export interface Matter {
+  matter_id: string;
+  org_id: string;
+  client_name: string;
+  status: MatterStatus;
+  key_epoch: number; // bumps on member-remove / wall-set; client rotates the matter key to match
+  created_at: string;
+}
+
+// ---- Admin: matter CRUD (role=admin; Authorization: Bearer <access_token>) --
+/** POST /org/matters            { client_name }            -> { matter } (201) */
+export interface CreateMatterRequest {
+  client_name: string;
+}
+/** POST /org/matters/list                                  -> { matters: Matter[] } */
+export interface ListMattersResponse {
+  matters: Matter[];
+}
+/** POST /matter/:id/archive                                -> { ok, matter_id, status } */
+
+// ---- Admin: membership ------------------------------------------------------
+/** POST /matter/:id/members/add     { user_id, role? }     -> { ok, key_epoch, key_release } */
+export interface AddMatterMemberRequest {
+  user_id: string;
+  role?: MatterRole; // default "editor"
+}
+/** POST /matter/:id/members/remove  { user_id }            -> { ok, removed, key_epoch (bumped) } */
+export interface RemoveMatterMemberRequest {
+  user_id: string;
+}
+/** POST /matter/:id/members/list                           -> members + walls + key_epoch */
+export interface MatterMembersResponse {
+  matter_id: string;
+  key_epoch: number;
+  members: Array<{ matter_id: string; user_id: string; org_id: string; role: MatterRole; created_at: string }>;
+  walls: Array<{ matter_id: string; user_id: string; org_id: string; reason: string | null; created_by: string; created_at: string }>;
+}
+
+// ---- Admin: ethical walls (explicit DENY; deny-overrides-allow) -------------
+/** POST /matter/:id/wall/set     { user_id, reason? }      -> { ok, walled, key_epoch (bumped) } */
+export interface SetWallRequest {
+  user_id: string;
+  reason?: string;
+}
+/** POST /matter/:id/wall/clear   { user_id }               -> { ok, cleared } (does NOT re-grant membership) */
+export interface ClearWallRequest {
+  user_id: string;
+}
+
+// ---- Relay (any firm member; access JWT + active seat + member∧¬walled) ------
+/**
+ * POST /matter/:id/updates  — append one opaque encrypted CRDT update.
+ * `ciphertext_b64` is a base64 client-encrypted Yjs update; the relay stores the
+ * bytes verbatim and never decodes them. Idempotent on (matter, blob_id).
+ * 201 on first store, 200 on an idempotent retry (`duplicate: true`).
+ * 401 if access/seat invalid, 403 if walled/non-member, 404 cross-org,
+ * 413 if the blob exceeds the relay cap (1 MiB decoded).
+ */
+export interface PushUpdateRequest {
+  blob_id: string; // client uuid; per-matter idempotency key
+  ciphertext_b64: string; // opaque, base64; relay never parses it
+  seat_token: string; // a valid, active seat token (chunk-1)
+  key_epoch?: number; // the matter key epoch this blob was sealed under (defaults to current)
+}
+export interface PushUpdateResponse {
+  ok: true;
+  cursor: number; // the assigned monotonic id; advance your `since` to this
+  blob_id: string;
+  key_epoch: number;
+  duplicate: boolean;
+}
+/**
+ * GET /matter/:id/updates?since=<cursor>&seat_token=<t>  — cursor catch-up.
+ * Returns updates strictly AFTER `since`, ascending. `since=0` = full history.
+ * (Access JWT via Authorization header; seat_token via query.)
+ */
+export interface PullUpdatesResponse {
+  matter_id: string;
+  key_epoch: number;
+  since: number;
+  cursor: number; // highest cursor in this page (== since if empty)
+  latest_cursor: number; // highest cursor stored (for "am I caught up?")
+  has_more: boolean; // more pages beyond this one
+  updates: Array<{
+    cursor: number;
+    blob_id: string;
+    key_epoch: number;
+    author_seat: string;
+    created_at: string;
+    ciphertext_b64: string; // opaque, base64; decrypt client-side with the matter key
+  }>;
+}
+/**
+ * WS /matter/:id/sync?seat_token=<t>&access_token=<a>  — live fan-out.
+ * The browser WebSocket can't set headers, so the access token rides as
+ * `access_token` here (header is also accepted on the HTTP relay). On open the
+ * server sends `{ type:"ready", backlog, latest_cursor }` then the backlog as
+ * `update` frames, then live `update` frames as peers push. Inbound frames are
+ * ignored — writes go through the audited HTTP POST. Frame shape:
+ */
+export interface SyncReadyFrame {
+  type: "ready";
+  matter_id: string;
+  backlog: number;
+  latest_cursor: number;
+}
+export interface SyncUpdateFrame {
+  type: "update";
+  matter_id: string;
+  cursor: number;
+  blob_id: string;
+  key_epoch: number;
+  author_seat: string;
+  created_at: string;
+  ciphertext_b64: string; // opaque, base64
+}
+
+// ---------------------------------------------------------------------------
 // Errors (generic envelope used by 4xx/5xx that aren't a typed shape above)
 // ---------------------------------------------------------------------------
 export interface ApiError {
@@ -202,4 +334,16 @@ export const ENDPOINTS = {
   createUser: { method: "POST", path: "/org/users" },
   audit: { method: "POST", path: "/org/audit" },
   createOrg: { method: "POST", path: "/admin/org" },
+  // Chunk 2 — matters / ethical walls / E2EE sync relay. `:id` = matter_id.
+  createMatter: { method: "POST", path: "/org/matters" },
+  listMatters: { method: "POST", path: "/org/matters/list" },
+  archiveMatter: { method: "POST", path: "/matter/:id/archive" },
+  addMatterMember: { method: "POST", path: "/matter/:id/members/add" },
+  removeMatterMember: { method: "POST", path: "/matter/:id/members/remove" },
+  listMatterMembers: { method: "POST", path: "/matter/:id/members/list" },
+  setWall: { method: "POST", path: "/matter/:id/wall/set" },
+  clearWall: { method: "POST", path: "/matter/:id/wall/clear" },
+  pushUpdate: { method: "POST", path: "/matter/:id/updates" },
+  pullUpdates: { method: "GET", path: "/matter/:id/updates" },
+  syncSocket: { method: "GET", path: "/matter/:id/sync" }, // WebSocket upgrade
 } as const;

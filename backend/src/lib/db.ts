@@ -28,6 +28,12 @@ import type {
   UserRole,
   UserStatus,
   SeatStatus,
+  Matter,
+  MatterStatus,
+  MatterMember,
+  MatterRole,
+  EthicalWall,
+  MatterUpdate,
 } from "./types.ts";
 
 const SCHEMA = `
@@ -120,6 +126,63 @@ CREATE TABLE IF NOT EXISTS audit_events (
   ts             TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_audit_org ON audit_events(org_id);
+
+-- =====================================================================
+-- Chunk 2: Matters, membership, ethical walls, and the E2EE sync relay
+-- (DECISION.md §4 ACL + §1 dumb-relay). All rows carry org_id so every
+-- query is org-scoped — there is no cross-org read path.
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS matters (
+  matter_id   TEXT PRIMARY KEY,
+  org_id      TEXT NOT NULL REFERENCES orgs(org_id),
+  client_name TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'active',   -- active | archived
+  key_epoch   INTEGER NOT NULL DEFAULT 1,       -- bumps on member-remove / wall-set
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_matters_org ON matters(org_id);
+
+CREATE TABLE IF NOT EXISTS matter_members (
+  matter_id  TEXT NOT NULL REFERENCES matters(matter_id),
+  user_id    TEXT NOT NULL REFERENCES users(user_id),
+  org_id     TEXT NOT NULL,
+  role       TEXT NOT NULL DEFAULT 'editor',    -- owner | editor | viewer
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (matter_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_matter_members_user ON matter_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_matter_members_matter ON matter_members(matter_id);
+
+-- Explicit DENY (a screen). Deny-overrides-allow: a row here blocks (matter,user)
+-- regardless of membership or admin role.
+CREATE TABLE IF NOT EXISTS ethical_walls (
+  matter_id  TEXT NOT NULL REFERENCES matters(matter_id),
+  user_id    TEXT NOT NULL REFERENCES users(user_id),
+  org_id     TEXT NOT NULL,
+  reason     TEXT,
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (matter_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ethical_walls_user ON ethical_walls(user_id);
+
+-- The dumb relay: opaque end-to-end-encrypted CRDT update blobs. The ciphertext
+-- is stored as a BLOB and is NEVER parsed, decoded, hashed, or logged. The id is
+-- the monotonic fetch cursor for catch-up. (blob_id) is a per-matter client
+-- idempotency key so a retried push doesn't duplicate.
+CREATE TABLE IF NOT EXISTS matter_updates (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  matter_id   TEXT NOT NULL REFERENCES matters(matter_id),
+  org_id      TEXT NOT NULL,
+  blob_id     TEXT NOT NULL,
+  ciphertext  BLOB NOT NULL,
+  author_seat TEXT NOT NULL,
+  key_epoch   INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_matter_updates_matter ON matter_updates(matter_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_matter_updates_blob ON matter_updates(matter_id, blob_id);
 `;
 
 // ---------------------------------------------------------------------------
@@ -202,6 +265,25 @@ function toSeat(r: SeatRow): Seat {
     last_seen: r.last_seen,
     revoked_at: r.revoked_at,
     revoked_reason: r.revoked_reason,
+  };
+}
+
+interface MatterRow {
+  matter_id: string;
+  org_id: string;
+  client_name: string;
+  status: string;
+  key_epoch: number;
+  created_at: string;
+}
+function toMatter(r: MatterRow): Matter {
+  return {
+    matter_id: r.matter_id,
+    org_id: r.org_id,
+    client_name: r.client_name,
+    status: r.status as MatterStatus,
+    key_epoch: r.key_epoch,
+    created_at: r.created_at,
   };
 }
 
@@ -675,6 +757,241 @@ export class Store {
       detail: r.detail,
       ts: r.ts,
     }));
+  }
+
+  // ===========================================================================
+  // Matters (DECISION.md §4 ACL unit)
+  // ===========================================================================
+  createMatter(input: { org_id: string; client_name: string }): Matter {
+    const m: Matter = {
+      matter_id: randomUUID(),
+      org_id: input.org_id,
+      client_name: input.client_name,
+      status: "active",
+      key_epoch: 1,
+      created_at: this.nowIso(),
+    };
+    this.db
+      .query(
+        `INSERT INTO matters (matter_id, org_id, client_name, status, key_epoch, created_at)
+         VALUES (?, ?, ?, 'active', 1, ?)`,
+      )
+      .run(m.matter_id, m.org_id, m.client_name, m.created_at);
+    return m;
+  }
+
+  getMatter(matterId: string): Matter | null {
+    const r = this.db.query(`SELECT * FROM matters WHERE matter_id = ?`).get(matterId) as MatterRow | null;
+    return r ? toMatter(r) : null;
+  }
+
+  listMatters(orgId: string): Matter[] {
+    const rows = this.db
+      .query(`SELECT * FROM matters WHERE org_id = ? ORDER BY created_at DESC`)
+      .all(orgId) as MatterRow[];
+    return rows.map(toMatter);
+  }
+
+  setMatterStatus(matterId: string, status: MatterStatus): void {
+    this.db.query(`UPDATE matters SET status = ? WHERE matter_id = ?`).run(status, matterId);
+  }
+
+  /**
+   * Bump the matter key epoch (returns the new epoch). Called on member-remove /
+   * wall-set so the desktop key-release service rotates the per-matter key and a
+   * removed/walled user's old key can't read subsequently-pushed updates (§4 L2).
+   */
+  bumpMatterKeyEpoch(matterId: string): number {
+    const txn = this.db.transaction(() => {
+      this.db.query(`UPDATE matters SET key_epoch = key_epoch + 1 WHERE matter_id = ?`).run(matterId);
+      const r = this.db.query(`SELECT key_epoch FROM matters WHERE matter_id = ?`).get(matterId) as
+        | { key_epoch: number }
+        | null;
+      return r?.key_epoch ?? 1;
+    });
+    return txn() as number;
+  }
+
+  // ---- Matter membership ---------------------------------------------------
+  addMatterMember(input: { matter_id: string; user_id: string; org_id: string; role: MatterRole }): MatterMember {
+    const m: MatterMember = {
+      matter_id: input.matter_id,
+      user_id: input.user_id,
+      org_id: input.org_id,
+      role: input.role,
+      created_at: this.nowIso(),
+    };
+    // Upsert: re-adding updates the role (and refreshes created_at on first add only).
+    this.db
+      .query(
+        `INSERT INTO matter_members (matter_id, user_id, org_id, role, created_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(matter_id, user_id) DO UPDATE SET role = excluded.role`,
+      )
+      .run(m.matter_id, m.user_id, m.org_id, m.role, m.created_at);
+    return m;
+  }
+
+  removeMatterMember(matterId: string, userId: string): boolean {
+    const res = this.db
+      .query(`DELETE FROM matter_members WHERE matter_id = ? AND user_id = ?`)
+      .run(matterId, userId);
+    return res.changes > 0;
+  }
+
+  getMatterMember(matterId: string, userId: string): MatterMember | null {
+    const r = this.db
+      .query(`SELECT * FROM matter_members WHERE matter_id = ? AND user_id = ?`)
+      .get(matterId, userId) as
+      | { matter_id: string; user_id: string; org_id: string; role: string; created_at: string }
+      | null;
+    return r ? { ...r, role: r.role as MatterRole } : null;
+  }
+
+  listMatterMembers(matterId: string): MatterMember[] {
+    const rows = this.db
+      .query(`SELECT * FROM matter_members WHERE matter_id = ? ORDER BY created_at ASC`)
+      .all(matterId) as Array<{ matter_id: string; user_id: string; org_id: string; role: string; created_at: string }>;
+    return rows.map((r) => ({ ...r, role: r.role as MatterRole }));
+  }
+
+  // ---- Ethical walls (explicit DENY, deny-overrides-allow) -----------------
+  setEthicalWall(input: { matter_id: string; user_id: string; org_id: string; reason: string | null; created_by: string }): EthicalWall {
+    const w: EthicalWall = {
+      matter_id: input.matter_id,
+      user_id: input.user_id,
+      org_id: input.org_id,
+      reason: input.reason,
+      created_by: input.created_by,
+      created_at: this.nowIso(),
+    };
+    this.db
+      .query(
+        `INSERT INTO ethical_walls (matter_id, user_id, org_id, reason, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(matter_id, user_id) DO UPDATE SET reason = excluded.reason, created_by = excluded.created_by, created_at = excluded.created_at`,
+      )
+      .run(w.matter_id, w.user_id, w.org_id, w.reason, w.created_by, w.created_at);
+    return w;
+  }
+
+  clearEthicalWall(matterId: string, userId: string): boolean {
+    const res = this.db
+      .query(`DELETE FROM ethical_walls WHERE matter_id = ? AND user_id = ?`)
+      .run(matterId, userId);
+    return res.changes > 0;
+  }
+
+  getEthicalWall(matterId: string, userId: string): EthicalWall | null {
+    const r = this.db
+      .query(`SELECT * FROM ethical_walls WHERE matter_id = ? AND user_id = ?`)
+      .get(matterId, userId) as
+      | { matter_id: string; user_id: string; org_id: string; reason: string | null; created_by: string; created_at: string }
+      | null;
+    return r ?? null;
+  }
+
+  listEthicalWalls(matterId: string): EthicalWall[] {
+    return this.db
+      .query(`SELECT * FROM ethical_walls WHERE matter_id = ? ORDER BY created_at ASC`)
+      .all(matterId) as EthicalWall[];
+  }
+
+  /** True iff there is an active ethical-wall (deny) row for (matter, user). */
+  isWalled(matterId: string, userId: string): boolean {
+    const r = this.db
+      .query(`SELECT 1 FROM ethical_walls WHERE matter_id = ? AND user_id = ? LIMIT 1`)
+      .get(matterId, userId);
+    return r !== null;
+  }
+
+  // ===========================================================================
+  // The E2EE sync relay (DECISION.md §1 — dumb relay, opaque ciphertext only)
+  // ===========================================================================
+  /**
+   * Append an opaque encrypted CRDT update. Idempotent on (matter_id, blob_id):
+   * a retried push returns the already-stored row rather than duplicating. The
+   * ciphertext is stored verbatim and NEVER inspected. Returns the stored row
+   * (so callers can fan out the assigned cursor `id`).
+   */
+  appendMatterUpdate(input: {
+    matter_id: string;
+    org_id: string;
+    blob_id: string;
+    ciphertext: Uint8Array;
+    author_seat: string;
+    key_epoch: number;
+  }): { update: MatterUpdate; duplicate: boolean } {
+    const now = this.nowIso();
+    const txn = this.db.transaction(() => {
+      const existing = this.db
+        .query(`SELECT * FROM matter_updates WHERE matter_id = ? AND blob_id = ?`)
+        .get(input.matter_id, input.blob_id) as
+        | { id: number; matter_id: string; org_id: string; blob_id: string; ciphertext: Uint8Array; author_seat: string; key_epoch: number; created_at: string }
+        | null;
+      if (existing) {
+        return { update: { ...existing, ciphertext: new Uint8Array(existing.ciphertext) }, duplicate: true };
+      }
+      this.db
+        .query(
+          `INSERT INTO matter_updates (matter_id, org_id, blob_id, ciphertext, author_seat, key_epoch, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          input.matter_id,
+          input.org_id,
+          input.blob_id,
+          input.ciphertext,
+          input.author_seat,
+          input.key_epoch,
+          now,
+        );
+      const row = this.db
+        .query(`SELECT * FROM matter_updates WHERE matter_id = ? AND blob_id = ?`)
+        .get(input.matter_id, input.blob_id) as {
+        id: number;
+        matter_id: string;
+        org_id: string;
+        blob_id: string;
+        ciphertext: Uint8Array;
+        author_seat: string;
+        key_epoch: number;
+        created_at: string;
+      };
+      return { update: { ...row, ciphertext: new Uint8Array(row.ciphertext) }, duplicate: false };
+    });
+    // IMMEDIATE so concurrent pushes of the same blob_id can't both insert.
+    return txn.immediate() as { update: MatterUpdate; duplicate: boolean };
+  }
+
+  /**
+   * Fetch updates for a matter strictly AFTER `sinceCursor`, in cursor order, for
+   * catch-up. `sinceCursor = 0` returns the whole history. Bounded by `limit`.
+   */
+  getMatterUpdatesSince(matterId: string, sinceCursor: number, limit = 500): MatterUpdate[] {
+    const rows = this.db
+      .query(
+        `SELECT * FROM matter_updates WHERE matter_id = ? AND id > ? ORDER BY id ASC LIMIT ?`,
+      )
+      .all(matterId, sinceCursor, limit) as Array<{
+      id: number;
+      matter_id: string;
+      org_id: string;
+      blob_id: string;
+      ciphertext: Uint8Array;
+      author_seat: string;
+      key_epoch: number;
+      created_at: string;
+    }>;
+    return rows.map((r) => ({ ...r, ciphertext: new Uint8Array(r.ciphertext) }));
+  }
+
+  /** Highest cursor currently stored for a matter (0 if none). */
+  latestMatterCursor(matterId: string): number {
+    const r = this.db
+      .query(`SELECT MAX(id) AS m FROM matter_updates WHERE matter_id = ?`)
+      .get(matterId) as { m: number | null };
+    return r.m ?? 0;
   }
 }
 

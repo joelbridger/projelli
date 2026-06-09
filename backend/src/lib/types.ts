@@ -71,7 +71,17 @@ export type AuditAction =
   | "seat.heartbeat"
   | "seat.validate.rejected"
   | "seat.revoke"
-  | "seat.transfer";
+  | "seat.transfer"
+  // ---- chunk 2: matters / ethical walls / E2EE sync relay --------------------
+  | "matter.create"
+  | "matter.archive"
+  | "matter.member.add"
+  | "matter.member.remove"
+  | "matter.wall.set"
+  | "matter.wall.clear"
+  | "matter.key.rotate" // key_epoch bump — desktop key-release service rotates the matter key here
+  | "matter.access.granted" // a push/pull/connect that passed the access gate
+  | "matter.access.denied"; // a push/pull/connect rejected (non-member, walled, cross-org)
 
 export interface AuditEvent {
   id: number;
@@ -112,3 +122,73 @@ export interface AccessTokenClaims {
   exp: number;
   typ: "access";
 }
+
+// ---------------------------------------------------------------------------
+// Chunk 2 — Matters, membership, ethical walls, and the E2EE sync relay.
+//
+// DECISION.md §4: Matter is the ACL unit; access = (member ∨ org-admin) ∧ ¬walled,
+// default-deny, deny-overrides-allow. DECISION.md §1: the relay stores opaque,
+// client-side-encrypted CRDT update blobs keyed by matter and fans them out to
+// `allowed` seats; it never sees plaintext and never holds the per-matter key.
+// ---------------------------------------------------------------------------
+
+export type MatterStatus = "active" | "archived";
+/** Role a member holds inside a matter (UX/authoring hint; access is still member∧¬walled). */
+export type MatterRole = "owner" | "editor" | "viewer";
+
+export interface Matter {
+  matter_id: string;
+  org_id: string;
+  client_name: string;
+  status: MatterStatus;
+  /**
+   * Monotonic key epoch (starts at 1). The per-matter content-encryption key is
+   * client-held (OS keychain, §2) and the relay never sees it — but the epoch is
+   * tracked here so member-removal / wall-set can bump it. Updates carry the
+   * epoch they were sealed under; the desktop key-release service rotates the
+   * key on a bump so a removed/walled user's old key can't read new updates.
+   */
+  key_epoch: number;
+  created_at: string; // ISO
+}
+
+export interface MatterMember {
+  matter_id: string;
+  user_id: string;
+  org_id: string;
+  role: MatterRole;
+  created_at: string; // ISO
+}
+
+/** An explicit DENY (a "screen"). Overrides any membership/admin role for (matter,user). */
+export interface EthicalWall {
+  matter_id: string;
+  user_id: string;
+  org_id: string;
+  reason: string | null;
+  created_by: string; // user_id of the admin who raised the screen
+  created_at: string; // ISO
+}
+
+/**
+ * One opaque, end-to-end-encrypted CRDT update. The relay stores BYTES IT CANNOT
+ * READ: `ciphertext` is a client-encrypted Yjs update, `id` is the monotonic
+ * fetch cursor, `author_seat` attributes the push (for audit, never trusted as
+ * content), `key_epoch` is the matter epoch the client sealed under.
+ */
+export interface MatterUpdate {
+  id: number; // monotonic cursor (AUTOINCREMENT)
+  matter_id: string;
+  org_id: string;
+  blob_id: string; // client-supplied idempotency id (uuid); unique per matter
+  ciphertext: Uint8Array; // opaque — never logged, never parsed
+  author_seat: string; // seat_id that pushed it
+  key_epoch: number; // matter key epoch this blob was encrypted under
+  created_at: string; // ISO
+}
+
+/** Result of the §4 access predicate for (user, matter). */
+export type MatterAccess =
+  | { allowed: true; matter: Matter; reason: "member" | "admin" }
+  | { allowed: false; matter: Matter; reason: "walled" | "not_member" }
+  | { allowed: false; matter: null; reason: "matter_not_found" | "cross_org" };

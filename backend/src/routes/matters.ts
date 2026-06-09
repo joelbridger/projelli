@@ -1,0 +1,372 @@
+/**
+ * Matter / ethical-wall admin routes + the E2EE sync relay (DECISION.md §1+§4).
+ *
+ * ADMIN (role=admin, same-org): the source of truth for the ACL.
+ *   POST /org/matters                         { client_name }                  -> create a matter
+ *   POST /org/matters/list                                                     -> list this org's matters
+ *   POST /matter/:id/members/add              { user_id, role? }               -> add a member
+ *   POST /matter/:id/members/remove           { user_id }                      -> remove a member (+ key rotate)
+ *   POST /matter/:id/members/list                                              -> members + walls + key_epoch
+ *   POST /matter/:id/wall/set                 { user_id, reason? }             -> raise a screen (+ key rotate)
+ *   POST /matter/:id/wall/clear               { user_id }                      -> lift a screen
+ *
+ * RELAY (any firm member, gated by access JWT + active seat + member∧¬walled):
+ *   POST /matter/:id/updates                  { blob_id, ciphertext_b64, seat_token, key_epoch? }
+ *       -> append one opaque encrypted CRDT update; fans out live to connected members.
+ *   GET  /matter/:id/updates?since=<cursor>&seat_token=<t>
+ *       -> catch-up: updates strictly after the cursor, in order.
+ *   (WS)  /matter/:id/sync?seat_token=<t>     -> live fan-out (upgrade handled in server.ts)
+ *
+ * Every relay access runs through `gateMatterAccess`, which audits grant + deny.
+ * The relay stores ciphertext bytes only; it never requires/accepts plaintext,
+ * never decodes the blob, never logs it. A 1 MiB size cap is the only shape check.
+ */
+
+import { json, error, readJson, isNonEmptyString, authenticate, authenticateRelay, rateLimit } from "../lib/http.ts";
+import { config } from "../lib/config.ts";
+import {
+  gateMatterAccess,
+  resolveAccess,
+  verifyActiveSeat,
+  toUpdateFrame,
+  fanout,
+  MAX_UPDATE_BYTES,
+  type FanoutHub,
+} from "../lib/matters.ts";
+import type { Store } from "../lib/db.ts";
+import type { AccessTokenClaims, MatterRole } from "../lib/types.ts";
+
+const VALID_MATTER_ROLES = new Set<MatterRole>(["owner", "editor", "viewer"]);
+
+// ---------------------------------------------------------------------------
+// Shared admin guard (mirrors routes/admin.ts requireAdmin).
+// ---------------------------------------------------------------------------
+function requireAdmin(req: Request): { ok: true; claims: AccessTokenClaims } | { ok: false; resp: Response } {
+  const auth = authenticate(req);
+  if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
+  if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
+  return { ok: true, claims: auth.claims };
+}
+
+/** Validate that the target user exists and is in the admin's org (no cross-org). */
+function sameOrgUser(store: Store, orgId: string, userId: string): { ok: true } | { ok: false; resp: Response } {
+  const u = store.getUser(userId);
+  if (!u) return { ok: false, resp: error("user_not_found", 404) };
+  if (u.org_id !== orgId) return { ok: false, resp: error("forbidden", 403, "cross_org") };
+  return { ok: true };
+}
+
+/** Fetch a matter and assert it's in the caller's org; else a 404 (don't leak existence). */
+function sameOrgMatter(store: Store, orgId: string, matterId: string): { ok: true; matter: NonNullable<ReturnType<Store["getMatter"]>> } | { ok: false; resp: Response } {
+  const m = store.getMatter(matterId);
+  if (!m || m.org_id !== orgId) return { ok: false, resp: error("matter_not_found", 404) };
+  return { ok: true, matter: m };
+}
+
+// ===========================================================================
+// Admin: matter CRUD
+// ===========================================================================
+export async function handleCreateMatter(req: Request, store: Store): Promise<Response> {
+  const a = requireAdmin(req);
+  if (!a.ok) return a.resp;
+  const body = await readJson<{ client_name?: unknown }>(req);
+  if (!body || !isNonEmptyString(body.client_name, 256)) return error("missing_fields", 400);
+
+  const matter = store.createMatter({ org_id: a.claims.org_id, client_name: body.client_name.trim() });
+  store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.create", target: matter.matter_id, detail: { client_name: matter.client_name } });
+  return json({ matter }, 201);
+}
+
+export function handleListMatters(req: Request, store: Store): Response {
+  const a = requireAdmin(req);
+  if (!a.ok) return a.resp;
+  return json({ matters: store.listMatters(a.claims.org_id) });
+}
+
+export function handleArchiveMatter(req: Request, store: Store, matterId: string): Response {
+  const a = requireAdmin(req);
+  if (!a.ok) return a.resp;
+  const m = sameOrgMatter(store, a.claims.org_id, matterId);
+  if (!m.ok) return m.resp;
+  store.setMatterStatus(matterId, "archived");
+  store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.archive", target: matterId });
+  return json({ ok: true, matter_id: matterId, status: "archived" });
+}
+
+// ===========================================================================
+// Admin: membership
+// ===========================================================================
+export async function handleAddMatterMember(req: Request, store: Store, matterId: string): Promise<Response> {
+  const a = requireAdmin(req);
+  if (!a.ok) return a.resp;
+  const m = sameOrgMatter(store, a.claims.org_id, matterId);
+  if (!m.ok) return m.resp;
+
+  const body = await readJson<{ user_id?: unknown; role?: unknown }>(req);
+  if (!body || !isNonEmptyString(body.user_id, 64)) return error("missing_fields", 400);
+  const ok = sameOrgUser(store, a.claims.org_id, body.user_id);
+  if (!ok.ok) return ok.resp;
+
+  const role: MatterRole = VALID_MATTER_ROLES.has(body.role as MatterRole) ? (body.role as MatterRole) : "editor";
+  store.addMatterMember({ matter_id: matterId, user_id: body.user_id, org_id: a.claims.org_id, role });
+  store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.member.add", target: matterId, detail: { user_id: body.user_id, role } });
+
+  // NOTE (desktop key-release task, §4 L2): this is the hook to RELEASE the
+  // per-matter content key to the newly-added member's keychain (only if they
+  // are not walled). The relay never holds that key.
+  const walled = store.isWalled(matterId, body.user_id);
+  return json({ ok: true, matter_id: matterId, user_id: body.user_id, role, key_epoch: m.matter.key_epoch, key_release: walled ? "blocked_walled" : "release_to_member" });
+}
+
+export async function handleRemoveMatterMember(req: Request, store: Store, matterId: string): Promise<Response> {
+  const a = requireAdmin(req);
+  if (!a.ok) return a.resp;
+  const m = sameOrgMatter(store, a.claims.org_id, matterId);
+  if (!m.ok) return m.resp;
+
+  const body = await readJson<{ user_id?: unknown }>(req);
+  if (!body || !isNonEmptyString(body.user_id, 64)) return error("missing_fields", 400);
+
+  const removed = store.removeMatterMember(matterId, body.user_id);
+  // Removing a member rotates the matter key so updates pushed after this point
+  // are sealed under an epoch the removed user never receives (§4 L2).
+  const newEpoch = store.bumpMatterKeyEpoch(matterId);
+  store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.member.remove", target: matterId, detail: { user_id: body.user_id, removed } });
+  store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.key.rotate", target: matterId, detail: { reason: "member_remove", key_epoch: newEpoch } });
+
+  // NOTE (desktop key-release task): stop releasing the matter key to this user
+  // and re-release the NEW epoch key to remaining members.
+  return json({ ok: true, matter_id: matterId, user_id: body.user_id, removed, key_epoch: newEpoch });
+}
+
+export function handleListMatterMembers(req: Request, store: Store, matterId: string): Response {
+  const a = requireAdmin(req);
+  if (!a.ok) return a.resp;
+  const m = sameOrgMatter(store, a.claims.org_id, matterId);
+  if (!m.ok) return m.resp;
+  return json({
+    matter_id: matterId,
+    key_epoch: m.matter.key_epoch,
+    members: store.listMatterMembers(matterId),
+    walls: store.listEthicalWalls(matterId),
+  });
+}
+
+// ===========================================================================
+// Admin: ethical walls (explicit DENY)
+// ===========================================================================
+export async function handleSetWall(req: Request, store: Store, matterId: string): Promise<Response> {
+  const a = requireAdmin(req);
+  if (!a.ok) return a.resp;
+  const m = sameOrgMatter(store, a.claims.org_id, matterId);
+  if (!m.ok) return m.resp;
+
+  const body = await readJson<{ user_id?: unknown; reason?: unknown }>(req);
+  if (!body || !isNonEmptyString(body.user_id, 64)) return error("missing_fields", 400);
+  const ok = sameOrgUser(store, a.claims.org_id, body.user_id);
+  if (!ok.ok) return ok.resp;
+
+  const reason = isNonEmptyString(body.reason, 512) ? body.reason.trim() : null;
+  store.setEthicalWall({ matter_id: matterId, user_id: body.user_id, org_id: a.claims.org_id, reason, created_by: a.claims.sub });
+  // Raising a screen rotates the key so the screened user — even if they were a
+  // member with the old key — cannot read updates pushed after the screen (§4 L2).
+  const newEpoch = store.bumpMatterKeyEpoch(matterId);
+  store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.wall.set", target: matterId, detail: { user_id: body.user_id, reason } });
+  store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.key.rotate", target: matterId, detail: { reason: "wall_set", key_epoch: newEpoch } });
+
+  // NOTE (desktop key-release task): immediately stop releasing the matter key
+  // to the screened user and rotate for everyone else.
+  return json({ ok: true, matter_id: matterId, user_id: body.user_id, walled: true, key_epoch: newEpoch });
+}
+
+export async function handleClearWall(req: Request, store: Store, matterId: string): Promise<Response> {
+  const a = requireAdmin(req);
+  if (!a.ok) return a.resp;
+  const m = sameOrgMatter(store, a.claims.org_id, matterId);
+  if (!m.ok) return m.resp;
+
+  const body = await readJson<{ user_id?: unknown }>(req);
+  if (!body || !isNonEmptyString(body.user_id, 64)) return error("missing_fields", 400);
+
+  const cleared = store.clearEthicalWall(matterId, body.user_id);
+  store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.wall.clear", target: matterId, detail: { user_id: body.user_id, cleared } });
+  // Lifting a screen does NOT auto-grant access; the user still needs membership.
+  return json({ ok: true, matter_id: matterId, user_id: body.user_id, cleared });
+}
+
+// ===========================================================================
+// The E2EE sync relay
+// ===========================================================================
+
+/** Shared front gate for relay calls: access JWT + active seat + matter access. */
+function relayGate(
+  req: Request,
+  store: Store,
+  matterId: string,
+  seatToken: string | null,
+  action: string,
+):
+  | { ok: true; claims: AccessTokenClaims; seatId: string; matter: NonNullable<ReturnType<Store["getMatter"]>> }
+  | { ok: false; resp: Response } {
+  // Relay accepts the access token via header OR (?access_token=) query param so
+  // the browser-initiated WebSocket upgrade — which can't set headers — works.
+  const auth = authenticateRelay(req);
+  if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
+
+  if (!seatToken) return { ok: false, resp: error("seat_required", 401, "missing_seat_token") };
+  const seat = verifyActiveSeat(store, seatToken, { user_id: auth.claims.sub, org_id: auth.claims.org_id });
+  if (!seat.ok) return { ok: false, resp: error("seat_invalid", 401, seat.reason) };
+
+  const gate = gateMatterAccess(store, { org_id: auth.claims.org_id, user_id: auth.claims.sub, role: auth.claims.role }, matterId, action);
+  if (!gate.ok) return { ok: false, resp: error(gate.error, gate.http, gate.reason) };
+
+  return { ok: true, claims: auth.claims, seatId: seat.claims.seat_id, matter: gate.matter };
+}
+
+/** POST /matter/:id/updates — append one opaque encrypted CRDT update. */
+export async function handlePushUpdate(req: Request, store: Store, matterId: string, ip: string, hub: FanoutHub = fanout): Promise<Response> {
+  // Per-IP relay write rate limit (generous; sync is chatty but still bounded).
+  const rl = rateLimit(ip, "relay_push", { max: config.relayRateLimitMax, windowSeconds: config.relayRateLimitWindowSeconds });
+  if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
+
+  // Read body first (we need seat_token from it), with the relay's larger cap.
+  const read = await readUpdateBody(req);
+  if (!read.ok) {
+    return read.tooLarge
+      ? error("payload_too_large", 413, `Encrypted update exceeds the relay limit (${MAX_UPDATE_BYTES} bytes).`)
+      : error("invalid_json", 400);
+  }
+  const body = read.body;
+  const seatToken = typeof body.seat_token === "string" ? body.seat_token : null;
+
+  const gate = relayGate(req, store, matterId, seatToken, "push");
+  if (!gate.ok) return gate.resp;
+
+  if (!isNonEmptyString(body.blob_id, 128)) return error("missing_fields", 400, "blob_id");
+  if (typeof body.ciphertext_b64 !== "string" || body.ciphertext_b64.length === 0) {
+    return error("missing_fields", 400, "ciphertext_b64");
+  }
+
+  // Decode the opaque blob. We do NOT inspect it — only measure it against the cap.
+  let ciphertext: Uint8Array;
+  try {
+    ciphertext = new Uint8Array(Buffer.from(body.ciphertext_b64, "base64"));
+  } catch {
+    return error("invalid_ciphertext", 400);
+  }
+  if (ciphertext.byteLength === 0) return error("invalid_ciphertext", 400, "empty");
+  if (ciphertext.byteLength > MAX_UPDATE_BYTES) {
+    return error("payload_too_large", 413, `Encrypted update exceeds ${MAX_UPDATE_BYTES} bytes.`);
+  }
+
+  // Clients seal under the current epoch; default to the matter's current epoch
+  // if the client didn't pin one. We store what the client declares (it's the
+  // client's key regime), but never let it diverge wildly — clamp to >= 1.
+  const keyEpoch =
+    typeof body.key_epoch === "number" && Number.isInteger(body.key_epoch) && body.key_epoch >= 1
+      ? body.key_epoch
+      : gate.matter.key_epoch;
+
+  const { update, duplicate } = store.appendMatterUpdate({
+    matter_id: matterId,
+    org_id: gate.claims.org_id,
+    blob_id: body.blob_id.trim(),
+    ciphertext,
+    author_seat: gate.seatId,
+    key_epoch: keyEpoch,
+  });
+
+  // Fan the new update out to connected members. A duplicate (idempotent retry)
+  // is NOT re-broadcast. Never log the ciphertext.
+  if (!duplicate) {
+    hub.broadcast(matterId, toUpdateFrame(update));
+  }
+
+  return json({ ok: true, cursor: update.id, blob_id: update.blob_id, key_epoch: update.key_epoch, duplicate }, duplicate ? 200 : 201);
+}
+
+/** GET /matter/:id/updates?since=<cursor>&seat_token=<t> — cursor catch-up. */
+export function handlePullUpdates(req: Request, store: Store, matterId: string, ip: string): Response {
+  const rl = rateLimit(ip, "relay_pull", { max: config.relayRateLimitMax, windowSeconds: config.relayRateLimitWindowSeconds });
+  if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
+
+  const url = new URL(req.url);
+  const seatToken = url.searchParams.get("seat_token");
+  const gate = relayGate(req, store, matterId, seatToken, "pull");
+  if (!gate.ok) return gate.resp;
+
+  const sinceRaw = url.searchParams.get("since") ?? "0";
+  const since = Number(sinceRaw);
+  if (!Number.isInteger(since) || since < 0) return error("invalid_cursor", 400);
+
+  const updates = store.getMatterUpdatesSince(matterId, since, 500);
+  const latest = store.latestMatterCursor(matterId);
+  // The opaque bytes ride back base64-encoded, untouched.
+  return json({
+    matter_id: matterId,
+    key_epoch: gate.matter.key_epoch,
+    since,
+    cursor: updates.length ? updates[updates.length - 1]!.id : since,
+    latest_cursor: latest,
+    has_more: updates.length === 500 && (updates[updates.length - 1]!.id < latest),
+    updates: updates.map((u) => ({
+      cursor: u.id,
+      blob_id: u.blob_id,
+      key_epoch: u.key_epoch,
+      author_seat: u.author_seat,
+      created_at: u.created_at,
+      ciphertext_b64: Buffer.from(u.ciphertext).toString("base64"),
+    })),
+  });
+}
+
+/**
+ * Authorize a WebSocket sync connection BEFORE upgrade. Returns the data the
+ * server attaches to the socket on success, or an error Response to send instead
+ * of upgrading. Same gate as the HTTP relay (access JWT + active seat + access).
+ */
+export function authorizeSyncConnect(
+  req: Request,
+  store: Store,
+  matterId: string,
+):
+  | { ok: true; data: { matterId: string; orgId: string; userId: string; seatId: string } }
+  | { ok: false; resp: Response } {
+  const url = new URL(req.url);
+  const seatToken = url.searchParams.get("seat_token");
+  const gate = relayGate(req, store, matterId, seatToken, "connect");
+  if (!gate.ok) return { ok: false, resp: gate.resp };
+  return { ok: true, data: { matterId, orgId: gate.claims.org_id, userId: gate.claims.sub, seatId: gate.seatId } };
+}
+
+// ---------------------------------------------------------------------------
+// Body reader for relay pushes: larger cap than the auth/licensing endpoints
+// (encrypted CRDT updates are bigger than tiny JSON), still hard-bounded.
+//
+// The ciphertext rides as base64 (≈4/3 the raw size) plus a small JSON envelope.
+// We size the request cap above the base64-inflated blob cap + envelope so a
+// blob that's only slightly over MAX_UPDATE_BYTES still reaches the explicit
+// 413 path (a precise "payload_too_large"), while a grossly oversized body is
+// rejected here. `tooLarge` lets the route distinguish a size rejection (413)
+// from a malformed-JSON rejection (400).
+// ---------------------------------------------------------------------------
+const MAX_REQUEST_BYTES = Math.ceil(MAX_UPDATE_BYTES * 1.4) + 64 * 1024;
+
+type ReadResult =
+  | { ok: true; body: { blob_id?: unknown; ciphertext_b64?: unknown; seat_token?: unknown; key_epoch?: unknown } }
+  | { ok: false; tooLarge: boolean };
+
+async function readUpdateBody(req: Request): Promise<ReadResult> {
+  const len = Number(req.headers.get("content-length") ?? "0");
+  if (Number.isFinite(len) && len > MAX_REQUEST_BYTES) return { ok: false, tooLarge: true };
+  try {
+    const text = await req.text();
+    if (text.length > MAX_REQUEST_BYTES) return { ok: false, tooLarge: true };
+    return { ok: true, body: JSON.parse(text) };
+  } catch {
+    return { ok: false, tooLarge: false };
+  }
+}
+
+// Re-export for the access-decision tests.
+export { resolveAccess };

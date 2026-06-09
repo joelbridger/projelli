@@ -111,6 +111,11 @@ export const config = {
   authRateLimitMax: num("AUTH_RATE_LIMIT_MAX", 10),
   authRateLimitWindowSeconds: num("AUTH_RATE_LIMIT_WINDOW_SECONDS", 60),
 
+  // Sync relay is chattier than auth (a busy redline pushes many small updates),
+  // so it gets its own, more generous per-IP+bucket window. Still bounds abuse.
+  relayRateLimitMax: num("RELAY_RATE_LIMIT_MAX", 600),
+  relayRateLimitWindowSeconds: num("RELAY_RATE_LIMIT_WINDOW_SECONDS", 60),
+
   /** JWT issuer claim. Kept identical to the legacy validator's audience so the
    *  client treats tokens uniformly; the seat-token issuer is the firm host. */
   issuer: str("TOKEN_ISSUER", "licenses.keepance.com"),
