@@ -146,6 +146,54 @@ export interface DocumentJson {
 export type DocxResolveAction = 'accept' | 'reject';
 
 // ---------------------------------------------------------------------------
+// AI redline (A4) — batch edit application
+// ---------------------------------------------------------------------------
+
+/**
+ * One AI-proposed edit against the ORIGINAL document, mirroring the structured
+ * output the model returns and the `EditInput` the engine deserializes.
+ *
+ * - `insert`: insert `newText`. With `anchorText`, the insertion lands right
+ *   AFTER the first occurrence of `anchorText` in the paragraph; without it,
+ *   it's appended at the paragraph end.
+ * - `delete`: mark the first occurrence of `anchorText` as a tracked deletion.
+ * - `replace`: a paired deletion+insertion (one logical change) swapping the
+ *   first occurrence of `anchorText` for `newText`.
+ *
+ * `anchorText` MUST be quoted verbatim from the document so the engine can
+ * anchor it reliably against the original (un-revised) paragraph text.
+ */
+export interface DocxAiEdit {
+  op: 'insert' | 'delete' | 'replace';
+  /** Paragraph index (counting only paragraphs) in the ORIGINAL document. */
+  paragraphIndex: number;
+  /** Verbatim substring to locate. Required for delete/replace. */
+  anchorText?: string;
+  /** Inserted / replacement text. Required for insert/replace. */
+  newText?: string;
+  /** Why the AI made this edit — shown in the results panel, ignored by engine. */
+  reason?: string;
+}
+
+/** Per-edit outcome from the batch redline (matches engine `EditOutcome`). */
+export interface DocxAiEditOutcome {
+  /** Index of the edit in the input list. */
+  index: number;
+  /** True if applied; false if its anchor/paragraph couldn't be resolved. */
+  applied: boolean;
+  /** Revision `w:id` assigned when applied, else null. */
+  revisionId: string | null;
+  /** Short reason when skipped, else null. */
+  error: string | null;
+}
+
+/** Result of `docx_author_revisions`: the updated DOM + per-edit outcomes. */
+export interface DocxAuthorRevisionsResult {
+  document: DocumentJson;
+  results: DocxAiEditOutcome[];
+}
+
+// ---------------------------------------------------------------------------
 // Display-only helper shapes (produced by utils/docx-dom.ts, never sent back to
 // the engine). These describe parsed common formatting and grouped revisions
 // the UI renders.

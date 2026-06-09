@@ -16,6 +16,8 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 
 import type {
   DocumentJson,
+  DocxAiEdit,
+  DocxAuthorRevisionsResult,
   DocxResolveAction,
 } from '@/types/docx';
 
@@ -110,6 +112,34 @@ export async function docxAuthorRevision(
     paragraphIndex,
     text: opts.text ?? null,
     needle: opts.needle ?? null,
+    author: opts.author ?? null,
+    date: opts.date ?? null,
+  });
+}
+
+/**
+ * Author a BATCH of AI-proposed tracked changes (the A4 redline) in ONE engine
+ * pass and return the updated DOM plus per-edit outcomes. This is drift-safe:
+ * the engine resolves every `paragraphIndex` and `anchorText` against the
+ * ORIGINAL document (not a progressively-mutated one) and assigns each edit a
+ * fresh, non-colliding revision id. A `replace` becomes a paired deletion +
+ * insertion sharing one id (so Word treats it as a single accept/reject).
+ *
+ * Anchors that can't be found are skipped and reported in `results[].applied`
+ * (not fatal) — a single mis-quoted anchor never discards the whole proposal.
+ *
+ * @param author defaults to "Keepance AI" when omitted/empty.
+ * @param date ISO-8601; defaults to now (UTC) when omitted.
+ */
+export async function docxAuthorRevisions(
+  document: DocumentJson,
+  edits: DocxAiEdit[],
+  opts: { author?: string; date?: string } = {},
+): Promise<DocxAuthorRevisionsResult> {
+  if (!isTauri()) throw new Error(BROWSER_ERROR);
+  return invoke<DocxAuthorRevisionsResult>('docx_author_revisions', {
+    document,
+    edits,
     author: opts.author ?? null,
     date: opts.date ?? null,
   });

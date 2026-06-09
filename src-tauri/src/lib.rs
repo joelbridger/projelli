@@ -76,6 +76,8 @@ pub fn run() {
             commands::docx::docx_open,
             commands::docx::docx_save,
             commands::docx::docx_author_revision,
+            // AI redline (A4) — apply a BATCH of edits drift-safely in one pass.
+            commands::docx::docx_author_revisions,
             // Editor (A3) accept/reject tracked changes — one revision or all.
             commands::docx::docx_resolve_revision,
             commands::docx::docx_resolve_all,

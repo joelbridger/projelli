@@ -17,9 +17,10 @@ import {
   docxResolveRevision,
   docxResolveAll,
   docxAuthorRevision,
+  docxAuthorRevisions,
   isDocxEngineAvailable,
 } from '@/utils/docx-commands';
-import type { DocumentJson } from '@/types/docx';
+import type { DocumentJson, DocxAiEdit } from '@/types/docx';
 
 const invokeMock = vi.mocked(invoke);
 
@@ -81,6 +82,33 @@ describe('docx-commands (Tauri available)', () => {
       text: 'added',
       needle: null,
       author: null,
+      date: null,
+    });
+  });
+
+  it('docxAuthorRevisions passes the document, edits, and null defaults', async () => {
+    const result = { document: doc, results: [] };
+    invokeMock.mockResolvedValue(result);
+    const edits: DocxAiEdit[] = [
+      { op: 'replace', paragraphIndex: 0, anchorText: 'hi', newText: 'hello', reason: 'expand' },
+    ];
+    const out = await docxAuthorRevisions(doc, edits);
+    expect(invoke).toHaveBeenCalledWith('docx_author_revisions', {
+      document: doc,
+      edits,
+      author: null,
+      date: null,
+    });
+    expect(out).toBe(result);
+  });
+
+  it('docxAuthorRevisions forwards an explicit author', async () => {
+    invokeMock.mockResolvedValue({ document: doc, results: [] });
+    await docxAuthorRevisions(doc, [], { author: 'You' });
+    expect(invoke).toHaveBeenCalledWith('docx_author_revisions', {
+      document: doc,
+      edits: [],
+      author: 'You',
       date: null,
     });
   });

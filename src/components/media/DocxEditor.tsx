@@ -34,14 +34,18 @@ import {
   Check,
   CheckCheck,
   FileType,
+  Loader2,
   MessageSquare,
   PanelRightClose,
   PanelRightOpen,
+  Sparkles,
+  Wand2,
   X,
   XCircle,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Tooltip,
   TooltipContent,
@@ -51,12 +55,20 @@ import { cn } from '@/lib/utils';
 import { AutoSaveIndicator } from '@/components/editor/AutoSaveIndicator';
 import { DocxViewer } from '@/components/media/DocxViewer';
 import {
+  docxAuthorRevisions,
   docxOpen,
   docxResolveAll,
   docxResolveRevision,
   docxSave,
   isDocxEngineAvailable,
 } from '@/utils/docx-commands';
+import { createProvider, type ChatProviderId } from '@/modules/models/providerFactory';
+import {
+  REDLINE_AUTHOR,
+  paragraphPlainRunText,
+  requestRedlineEdits,
+} from '@/modules/docx/redline';
+import { diffParagraphEdits } from '@/utils/docx-text-diff';
 import {
   anchoredCommentIds,
   authorColor,
@@ -80,6 +92,7 @@ import type {
   DocxRun,
   GroupedRevision,
 } from '@/types/docx';
+import type { AuditEntry } from '@/types/audit';
 
 const SAVE_DEBOUNCE_MS = 1200;
 
@@ -108,6 +121,26 @@ interface DocxEditorProps {
    * use this; production wiring may ignore it.
    */
   onDocumentChange?: (doc: DocumentJson) => void;
+
+  // ---- A4: AI redline -----------------------------------------------------
+  /**
+   * The user's BYOK API keys (same shape the chat uses). When a valid key for
+   * the selected provider is present, the "Revise with AI" button is enabled.
+   * Omitted/empty => the button shows a tooltip telling the user to add a key.
+   */
+  apiKeys?: { provider: string; key: string; isValid: boolean }[];
+  /** AI provider for redline (defaults to 'anthropic'). */
+  aiProvider?: ChatProviderId;
+  /** Model id for redline (defaults to the provider's free-tier default). */
+  aiModel?: string;
+  /**
+   * Author name stamped on USER-authored tracked changes (the secondary
+   * track-changes-on path). Defaults to "You". AI edits are always attributed
+   * to "Keepance AI" regardless of this.
+   */
+  authorName?: string;
+  /** Optional audit hook — fired when an AI redline is applied. */
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 }
 
 type LoadState =
@@ -116,6 +149,14 @@ type LoadState =
   | { status: 'error'; message: string }
   | { status: 'unsupported' };
 
+/** A human summary of the last AI redline, shown in the results panel. */
+interface RedlineSummary {
+  instruction: string;
+  applied: number;
+  skipped: number;
+  items: { applied: boolean; reason: string; op: string; error?: string }[];
+}
+
 export function DocxEditor({
   filePath,
   fileName,
@@ -123,6 +164,11 @@ export function DocxEditor({
   className,
   onFirstEdit,
   onDocumentChange,
+  apiKeys = [],
+  aiProvider = 'anthropic',
+  aiModel,
+  authorName = 'You',
+  onAuditLog,
 }: DocxEditorProps) {
   const { t } = useTranslation();
 
@@ -138,6 +184,16 @@ export function DocxEditor({
   const [isDirty, setIsDirty] = useState(false);
   // The comment whose card is highlighted (clicked anchor <-> card linking).
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+
+  // ---- A4: AI redline state ----------------------------------------------
+  const [redlineOpen, setRedlineOpen] = useState(false);
+  const [redlineInstruction, setRedlineInstruction] = useState('');
+  const [redlineBusy, setRedlineBusy] = useState(false);
+  const [redlineError, setRedlineError] = useState<string | null>(null);
+  // A short summary of the last AI redline: the reasons + how many anchored.
+  const [redlineSummary, setRedlineSummary] = useState<RedlineSummary | null>(
+    null,
+  );
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstEditFiredRef = useRef(false);
@@ -269,10 +325,17 @@ export function DocxEditor({
   );
 
   /**
-   * Basic editing of NORMAL run text. Replaces the text of the run at
-   * `[blockIndex].inlines[inlineIndex]` (only plain runs are editable here —
-   * tracked-change text is read-only in this task; turning user edits INTO
-   * tracked changes is A4). Schedules a save.
+   * Editing of NORMAL run text.
+   *
+   * - When Reviewing (track-changes) is OFF: a direct plain-text replacement of
+   *   the run (the simple "just edit the doc" path).
+   * - When Reviewing is ON: A4 secondary — we DON'T overwrite. We diff the
+   *   paragraph's old vs new plain-run text and author the difference as tracked
+   *   insertion/deletion(s) attributed to the user (via the drift-safe batch
+   *   engine command), exactly like Word's "Track Changes: On".
+   *
+   * Note `newText` is the new text of a single run; the paragraph's full new
+   * plain-run text is the other runs' text with this run's text swapped in.
    */
   const handleRunEdit = useCallback(
     (blockIndex: number, inlineIndex: number, newText: string) => {
@@ -283,18 +346,143 @@ export function DocxEditor({
       if (!inline || inline.kind !== 'run') return;
       if (inline.text === newText) return;
 
-      // Structural clone so we never mutate the live object (keeps React happy
-      // and preserves the previous DOM for undo/redo later).
-      const next: DocumentJson = structuredCloneSafe(currentDoc);
-      const nextBlock = next.body[blockIndex] as DocxParagraph;
-      const nextInline = nextBlock.inlines[inlineIndex] as DocxRun & {
-        kind: 'run';
-      };
-      nextInline.text = newText;
-      applyResolvedDocument(next);
+      if (!reviewing) {
+        // Final view: plain replacement (no tracked change). Structural clone so
+        // we never mutate the live object.
+        const next: DocumentJson = structuredCloneSafe(currentDoc);
+        const nextBlock = next.body[blockIndex] as DocxParagraph;
+        const nextInline = nextBlock.inlines[inlineIndex] as DocxRun & {
+          kind: 'run';
+        };
+        nextInline.text = newText;
+        applyResolvedDocument(next);
+        return;
+      }
+
+      // Reviewing ON → author the diff as tracked change(s). Compute the
+      // paragraph index (count paragraphs up to blockIndex) and the old/new
+      // plain-run text of the paragraph.
+      let paragraphIndex = -1;
+      for (let i = 0; i <= blockIndex; i++) {
+        if (currentDoc.body[i]?.kind === 'paragraph') paragraphIndex += 1;
+      }
+      const oldPlain = paragraphPlainRunText(block);
+      // New plain text = old runs with this run's text swapped.
+      let newPlain = '';
+      block.inlines.forEach((inl, idx) => {
+        if (inl.kind === 'run') {
+          newPlain += idx === inlineIndex ? newText : inl.text;
+        }
+      });
+      const edits = diffParagraphEdits(paragraphIndex, oldPlain, newPlain);
+      if (edits.length === 0) return;
+
+      void (async () => {
+        try {
+          const { document: nextDoc } = await docxAuthorRevisions(
+            currentDoc,
+            edits,
+            { author: authorName },
+          );
+          applyResolvedDocument(nextDoc);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          setSaveError(message);
+          console.error('[DocxEditor] track-changes user edit failed:', err);
+        }
+      })();
     },
-    [currentDoc, applyResolvedDocument],
+    [currentDoc, reviewing, authorName, applyResolvedDocument],
   );
+
+  // ---- A4: AI redline ----------------------------------------------------
+  // The valid key for the selected provider, if any (enables the button).
+  const redlineKey = useMemo(
+    () => apiKeys.find((k) => k.provider === aiProvider && k.isValid)?.key,
+    [apiKeys, aiProvider],
+  );
+
+  /**
+   * Run an AI redline from the user's instruction. Builds a prompt from the
+   * current document, calls the user's chosen provider (BYOK, direct) for a
+   * structured edit list, and applies it as tracked changes via the drift-safe
+   * batch engine command. Surfaces a summary of what changed (the reasons).
+   */
+  const runRedline = useCallback(async () => {
+    const instruction = redlineInstruction.trim();
+    if (!instruction || !currentDoc || redlineBusy) return;
+    if (!redlineKey) {
+      setRedlineError(t('media.docx-editor.redline-need-key'));
+      return;
+    }
+    setRedlineBusy(true);
+    setRedlineError(null);
+    setRedlineSummary(null);
+    try {
+      const provider = createProvider({
+        provider: aiProvider,
+        apiKey: redlineKey,
+        ...(aiModel ? { model: aiModel } : {}),
+      });
+      const edits = await requestRedlineEdits(provider, instruction, currentDoc);
+      if (edits.length === 0) {
+        setRedlineSummary({ instruction, applied: 0, skipped: 0, items: [] });
+        setRedlineBusy(false);
+        return;
+      }
+      const { document: nextDoc, results } = await docxAuthorRevisions(
+        currentDoc,
+        edits,
+        { author: REDLINE_AUTHOR },
+      );
+
+      // Build the human summary: pair each edit's reason with whether it landed.
+      const items: RedlineSummary['items'] = results.map((r) => {
+        const edit = edits[r.index];
+        const item: RedlineSummary['items'][number] = {
+          applied: r.applied,
+          reason: edit?.reason ?? '',
+          op: edit?.op ?? 'edit',
+        };
+        if (r.error) item.error = r.error;
+        return item;
+      });
+      const applied = items.filter((i) => i.applied).length;
+      const skipped = items.length - applied;
+
+      applyResolvedDocument(nextDoc);
+      setRedlineSummary({ instruction, applied, skipped, items });
+      setRedlineInstruction('');
+      setRedlineOpen(false);
+
+      onAuditLog?.({
+        action: 'model_call',
+        description: `AI redline: ${instruction}`,
+        model: aiModel ?? aiProvider,
+        inputs: { instruction, editCount: edits.length, provider: aiProvider },
+        outputs: { applied, skipped },
+        userDecision: 'auto',
+        metadata: { feature: 'docx_redline', file: fileName },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setRedlineError(message);
+      console.error('[DocxEditor] AI redline failed:', err);
+    } finally {
+      setRedlineBusy(false);
+    }
+  }, [
+    redlineInstruction,
+    currentDoc,
+    redlineBusy,
+    redlineKey,
+    aiProvider,
+    aiModel,
+    fileName,
+    applyResolvedDocument,
+    onAuditLog,
+    t,
+  ]);
 
   const revisions = useMemo(
     () => (currentDoc ? groupRevisions(currentDoc) : []),
@@ -395,6 +583,32 @@ export function DocxEditor({
         </span>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* A4: AI redline entry point. */}
+          <Button
+            data-testid="docx-revise-with-ai"
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1.5 border-[#0A2540]/30 text-[#0A2540] hover:bg-[#0A2540]/5"
+            onClick={() => {
+              setRedlineOpen((v) => !v);
+              setRedlineError(null);
+            }}
+            disabled={redlineBusy}
+            aria-expanded={redlineOpen}
+            title={
+              redlineKey
+                ? t('media.docx-editor.revise-with-ai')
+                : t('media.docx-editor.redline-need-key')
+            }
+          >
+            {redlineBusy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Wand2 className="h-3.5 w-3.5" />
+            )}
+            {t('media.docx-editor.revise-with-ai')}
+          </Button>
+
           <AutoSaveIndicator
             isDirty={isDirty}
             isSaving={isSaving}
@@ -431,6 +645,27 @@ export function DocxEditor({
           </Button>
         </div>
       </div>
+
+      {/* A4: AI redline composer — a slim panel under the toolbar. */}
+      {redlineOpen && (
+        <RedlineComposer
+          instruction={redlineInstruction}
+          onInstructionChange={setRedlineInstruction}
+          busy={redlineBusy}
+          error={redlineError}
+          hasKey={Boolean(redlineKey)}
+          onRun={() => void runRedline()}
+          onClose={() => { setRedlineOpen(false); }}
+        />
+      )}
+
+      {/* A4: results summary of the last redline (why the AI changed things). */}
+      {redlineSummary && (
+        <RedlineSummaryPanel
+          summary={redlineSummary}
+          onDismiss={() => { setRedlineSummary(null); }}
+        />
+      )}
 
       {/* Body: document surface + optional review pane */}
       <div className="flex min-h-0 flex-1">
@@ -525,6 +760,183 @@ function ReviewingToggle({
       </span>
       {t('media.docx-editor.reviewing')}
     </button>
+  );
+}
+
+// ===========================================================================
+// A4: AI redline composer + results summary
+// ===========================================================================
+
+/**
+ * The instruction composer. A textarea + "Suggest changes" button. Cmd/Ctrl+Enter
+ * submits. Shows a key-required hint when no provider key is configured, and any
+ * provider error inline.
+ */
+function RedlineComposer({
+  instruction,
+  onInstructionChange,
+  busy,
+  error,
+  hasKey,
+  onRun,
+  onClose,
+}: {
+  instruction: string;
+  onInstructionChange: (v: string) => void;
+  busy: boolean;
+  error: string | null;
+  hasKey: boolean;
+  onRun: () => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div
+      data-testid="docx-redline-composer"
+      className="border-b bg-[#0A2540]/[0.03] px-3 py-2.5"
+    >
+      <div className="mx-auto flex max-w-[816px] flex-col gap-2">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-[#0A2540]">
+          <Sparkles className="h-3.5 w-3.5" />
+          {t('media.docx-editor.revise-with-ai')}
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-auto rounded p-0.5 text-muted-foreground hover:text-foreground"
+            aria-label={t('media.docx-editor.redline-close')}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <Textarea
+          data-testid="docx-redline-input"
+          value={instruction}
+          onChange={(e) => { onInstructionChange(e.target.value); }}
+          onKeyDown={(e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+              e.preventDefault();
+              onRun();
+            }
+          }}
+          placeholder={t('media.docx-editor.redline-placeholder')}
+          disabled={busy}
+          className="min-h-[60px] resize-y bg-background text-sm"
+        />
+        {!hasKey && (
+          <p
+            data-testid="docx-redline-need-key"
+            className="rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800"
+          >
+            {t('media.docx-editor.redline-need-key')}
+          </p>
+        )}
+        {error && (
+          <p
+            data-testid="docx-redline-error"
+            className="rounded bg-red-50 px-2 py-1 text-[11px] text-red-700"
+          >
+            {error}
+          </p>
+        )}
+        <div className="flex items-center justify-end gap-2">
+          <span className="mr-auto text-[10px] text-muted-foreground">
+            {t('media.docx-editor.redline-egress-note')}
+          </span>
+          <Button
+            data-testid="docx-redline-submit"
+            size="sm"
+            className="h-7 gap-1.5 bg-[#0A2540] text-xs hover:bg-[#0A2540]/90"
+            onClick={onRun}
+            disabled={busy || instruction.trim().length === 0 || !hasKey}
+          >
+            {busy ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Wand2 className="h-3.5 w-3.5" />
+            )}
+            {busy
+              ? t('media.docx-editor.redline-working')
+              : t('media.docx-editor.redline-submit')}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A compact summary of the last redline: a headline (N changes proposed) and a
+ * list of the AI's reasons, marking any edit whose anchor couldn't be located.
+ */
+function RedlineSummaryPanel({
+  summary,
+  onDismiss,
+}: {
+  summary: RedlineSummary;
+  onDismiss: () => void;
+}) {
+  const { t } = useTranslation();
+  const total = summary.applied + summary.skipped;
+  return (
+    <div
+      data-testid="docx-redline-summary"
+      className="border-b bg-emerald-50/60 px-3 py-2"
+    >
+      <div className="mx-auto max-w-[816px]">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-900">
+          <Sparkles className="h-3.5 w-3.5" />
+          {total === 0
+            ? t('media.docx-editor.redline-no-changes')
+            : t('media.docx-editor.redline-summary-headline', {
+                applied: summary.applied,
+              })}
+          {summary.skipped > 0 && (
+            <span className="font-normal text-amber-700">
+              {t('media.docx-editor.redline-skipped', { skipped: summary.skipped })}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="ml-auto rounded p-0.5 text-muted-foreground hover:text-foreground"
+            aria-label={t('media.docx-editor.redline-dismiss')}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        {summary.items.length > 0 && (
+          <ul
+            data-testid="docx-redline-reasons"
+            className="mt-1.5 space-y-1 text-[11px]"
+          >
+            {summary.items.map((item, i) => (
+              <li
+                key={i}
+                data-applied={item.applied ? 'true' : 'false'}
+                className="flex items-start gap-1.5"
+              >
+                {item.applied ? (
+                  <Check className="mt-0.5 h-3 w-3 shrink-0 text-emerald-600" />
+                ) : (
+                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-600" />
+                )}
+                <span
+                  className={cn(
+                    'flex-1',
+                    item.applied ? 'text-foreground/80' : 'text-amber-800',
+                  )}
+                >
+                  {item.reason || t(`media.docx-editor.redline-op-${item.op}`)}
+                  {!item.applied && item.error && (
+                    <span className="ml-1 text-amber-600">({item.error})</span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }
 

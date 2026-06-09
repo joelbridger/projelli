@@ -802,6 +802,8 @@ export function MainPanel({
                 src={tab.content}
                 fileName={tab.name}
                 onFirstEdit={() => writeBackupIfNeeded(tab.path)}
+                apiKeys={apiKeys}
+                {...(onAuditLog ? { onAuditLog } : {})}
               />
             </Suspense>
           );

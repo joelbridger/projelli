@@ -16,9 +16,26 @@ vi.mock('@tauri-apps/api/core', () => ({
   isTauri: () => true,
 }));
 
+// --- AI redline mocks: deterministic edit list + a no-op provider factory.
+// We mock the provider/network boundary so the test is hermetic; the engine
+// call (docx_author_revisions) still flows through the real invokeMock so we
+// assert the editor translates edits -> engine call correctly and renders the
+// resulting tracked changes.
+const requestRedlineEditsMock = vi.fn();
+vi.mock('@/modules/docx/redline', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/modules/docx/redline')>();
+  return {
+    ...actual,
+    requestRedlineEdits: (...args: unknown[]) => requestRedlineEditsMock(...args),
+  };
+});
+vi.mock('@/modules/models/providerFactory', () => ({
+  createProvider: vi.fn(() => ({ structuredOutput: vi.fn() })),
+}));
+
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { DocxEditor } from '@/components/media/DocxEditor';
-import type { DocumentJson } from '@/types/docx';
+import type { DocumentJson, DocxAiEdit } from '@/types/docx';
 
 function docWithRevisions(): DocumentJson {
   return {
@@ -280,6 +297,290 @@ describe('DocxEditor — accept / reject flow', () => {
     // No changes remain.
     await waitFor(() =>
       expect(screen.getByTestId('docx-no-changes')).toBeInTheDocument(),
+    );
+  });
+});
+
+describe('DocxEditor — AI redline (A4)', () => {
+  const VALID_KEYS = [
+    { provider: 'anthropic', key: 'sk-test', isValid: true },
+  ];
+
+  // A plain doc the AI will redline: one paragraph with two distinct phrases so
+  // we can land TWO edits in the SAME paragraph (the drift-safety case).
+  function plainDoc(): DocumentJson {
+    return {
+      formatVersion: 1,
+      body: [
+        {
+          kind: 'paragraph',
+          inlines: [
+            { kind: 'run', text: 'The Company shall indemnify the Client for all losses.' },
+          ],
+        },
+      ],
+      comments: {},
+    };
+  }
+
+  // The DOM the engine returns after applying the two edits: "Company"→"Vendor"
+  // (replace = del+ins sharing id 1) and "for all losses" deleted (id 2). This
+  // is what docx_author_revisions resolves to; the editor renders it + lists the
+  // tracked changes for accept/reject.
+  function redlinedDoc(): DocumentJson {
+    return {
+      formatVersion: 1,
+      body: [
+        {
+          kind: 'paragraph',
+          inlines: [
+            { kind: 'run', text: 'The ' },
+            {
+              kind: 'insertion',
+              meta: { id: '1', author: 'Keepance AI', date: '2026-06-09T00:00:00Z' },
+              runs: [{ text: 'Vendor' }],
+            },
+            {
+              kind: 'deletion',
+              meta: { id: '1', author: 'Keepance AI', date: '2026-06-09T00:00:00Z' },
+              runs: [{ text: 'Company' }],
+            },
+            { kind: 'run', text: ' shall indemnify the Client ' },
+            {
+              kind: 'deletion',
+              meta: { id: '2', author: 'Keepance AI', date: '2026-06-09T00:00:00Z' },
+              runs: [{ text: 'for all losses' }],
+            },
+            { kind: 'run', text: '.' },
+          ],
+        },
+      ],
+      comments: {},
+    };
+  }
+
+  const TWO_EDITS: DocxAiEdit[] = [
+    { op: 'replace', paragraphIndex: 0, anchorText: 'Company', newText: 'Vendor', reason: 'Use the defined term "Vendor".' },
+    { op: 'delete', paragraphIndex: 0, anchorText: 'for all losses', reason: 'Narrow the indemnity scope.' },
+  ];
+
+  beforeEach(() => {
+    invokeMock.mockReset();
+    requestRedlineEditsMock.mockReset();
+  });
+
+  function renderWithKeys() {
+    return render(
+      <TooltipProvider>
+        <DocxEditor
+          filePath="/ws/agreement.docx"
+          fileName="agreement.docx"
+          apiKeys={VALID_KEYS}
+          aiProvider="anthropic"
+        />
+      </TooltipProvider>,
+    );
+  }
+
+  it('applies AI edits as tracked changes via the batch engine command and surfaces them for accept/reject', async () => {
+    requestRedlineEditsMock.mockResolvedValue(TWO_EDITS);
+
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(plainDoc());
+      if (cmd === 'docx_author_revisions') {
+        // Drift-safe contract: the editor applies BOTH edits against the
+        // ORIGINAL doc in ONE engine call, attributed to Keepance AI.
+        expect(args?.['document']).toEqual(plainDoc());
+        expect(args?.['edits']).toEqual(TWO_EDITS);
+        expect(args?.['author']).toBe('Keepance AI');
+        return Promise.resolve({
+          document: redlinedDoc(),
+          results: [
+            { index: 0, applied: true, revisionId: '1', error: null },
+            { index: 1, applied: true, revisionId: '2', error: null },
+          ],
+        });
+      }
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    renderWithKeys();
+    await screen.findByTestId('docx-document-body');
+
+    // Open the composer and submit an instruction.
+    fireEvent.click(screen.getByTestId('docx-revise-with-ai'));
+    const input = await screen.findByTestId('docx-redline-input');
+    fireEvent.change(input, { target: { value: 'tighten the indemnity clause' } });
+    fireEvent.click(screen.getByTestId('docx-redline-submit'));
+
+    // The model boundary was called with the instruction + current doc.
+    await waitFor(() => expect(requestRedlineEditsMock).toHaveBeenCalledTimes(1));
+    expect(requestRedlineEditsMock.mock.calls[0]?.[1]).toBe('tighten the indemnity clause');
+
+    // The engine batch command was invoked (assertions inside the mock).
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        'docx_author_revisions',
+        expect.objectContaining({ author: 'Keepance AI' }),
+      ),
+    );
+
+    // The returned tracked changes now render + appear in the review pane for
+    // accept/reject (2 grouped revisions: id 1 = the replace, id 2 = delete).
+    await waitFor(() => {
+      const rows = within(
+        screen.getByTestId('docx-revision-list'),
+      ).getAllByTestId('docx-revision-row');
+      const ids = rows.map((r) => r.getAttribute('data-revision-id'));
+      expect(ids).toEqual(expect.arrayContaining(['1', '2']));
+    });
+    // The AI's insertion + deletions are attributed to Keepance AI.
+    expect(screen.getByTestId('docx-insertion')).toHaveAttribute('data-author', 'Keepance AI');
+    const dels = screen.getAllByTestId('docx-deletion');
+    expect(dels.length).toBeGreaterThanOrEqual(2);
+
+    // The results summary shows WHY (the reasons), so the lawyer sees rationale.
+    const summary = await screen.findByTestId('docx-redline-summary');
+    expect(summary).toHaveTextContent('Use the defined term "Vendor".');
+    expect(summary).toHaveTextContent('Narrow the indemnity scope.');
+
+    // Accept/reject still works: rejecting id 2 calls the resolve command.
+    invokeMock.mockImplementationOnce(() => Promise.resolve(plainDoc())); // for docx_resolve_revision
+    const row2 = within(screen.getByTestId('docx-revision-list'))
+      .getAllByTestId('docx-revision-row')
+      .find((r) => r.getAttribute('data-revision-id') === '2')!;
+    fireEvent.click(within(row2).getByTestId('docx-reject-one'));
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        'docx_resolve_revision',
+        expect.objectContaining({ revisionId: '2', action: 'reject' }),
+      ),
+    );
+  });
+
+  it('shows a no-changes summary and does NOT call the engine when the AI proposes nothing', async () => {
+    requestRedlineEditsMock.mockResolvedValue([]);
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'docx_open' ? Promise.resolve(plainDoc()) : Promise.resolve(undefined),
+    );
+
+    renderWithKeys();
+    await screen.findByTestId('docx-document-body');
+    fireEvent.click(screen.getByTestId('docx-revise-with-ai'));
+    fireEvent.change(await screen.findByTestId('docx-redline-input'), {
+      target: { value: 'no change needed' },
+    });
+    fireEvent.click(screen.getByTestId('docx-redline-submit'));
+
+    await waitFor(() => expect(requestRedlineEditsMock).toHaveBeenCalled());
+    // Engine batch command never fired (no edits to apply).
+    expect(
+      invokeMock.mock.calls.some((c) => c[0] === 'docx_author_revisions'),
+    ).toBe(false);
+    // The summary communicates "no changes".
+    expect(await screen.findByTestId('docx-redline-summary')).toBeInTheDocument();
+  });
+
+  it('disables the submit + shows a key hint when no provider key is configured', async () => {
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'docx_open' ? Promise.resolve(plainDoc()) : Promise.resolve(undefined),
+    );
+    render(
+      <TooltipProvider>
+        <DocxEditor filePath="/ws/agreement.docx" fileName="agreement.docx" apiKeys={[]} />
+      </TooltipProvider>,
+    );
+    await screen.findByTestId('docx-document-body');
+    fireEvent.click(screen.getByTestId('docx-revise-with-ai'));
+    fireEvent.change(await screen.findByTestId('docx-redline-input'), {
+      target: { value: 'do something' },
+    });
+    // Key hint visible; submit disabled.
+    expect(screen.getByTestId('docx-redline-need-key')).toBeInTheDocument();
+    expect(screen.getByTestId('docx-redline-submit')).toBeDisabled();
+  });
+});
+
+describe('DocxEditor — user edits become tracked changes when Reviewing (A4 secondary)', () => {
+  beforeEach(() => invokeMock.mockReset());
+
+  function oneRunDoc(): DocumentJson {
+    return {
+      formatVersion: 1,
+      body: [
+        { kind: 'paragraph', inlines: [{ kind: 'run', text: 'governed by Delaware law' }] },
+      ],
+      comments: {},
+    };
+  }
+
+  it('diffs the edit and authors it as a tracked change attributed to the user', async () => {
+    const authored: DocumentJson = {
+      formatVersion: 1,
+      body: [
+        {
+          kind: 'paragraph',
+          inlines: [
+            { kind: 'run', text: 'governed by ' },
+            {
+              kind: 'insertion',
+              meta: { id: '1', author: 'You', date: '2026-06-09T00:00:00Z' },
+              runs: [{ text: 'Nevada' }],
+            },
+            {
+              kind: 'deletion',
+              meta: { id: '1', author: 'You', date: '2026-06-09T00:00:00Z' },
+              runs: [{ text: 'Delaware' }],
+            },
+            { kind: 'run', text: ' law' },
+          ],
+        },
+      ],
+      comments: {},
+    };
+
+    invokeMock.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === 'docx_open') return Promise.resolve(oneRunDoc());
+      if (cmd === 'docx_author_revisions') {
+        // Reviewing is ON by default → user edit becomes tracked change(s)
+        // authored as "You", applied via the same drift-safe batch command.
+        expect(args?.['author']).toBe('You');
+        const edits = args?.['edits'] as DocxAiEdit[];
+        // Delaware -> Nevada is a single replace.
+        expect(edits).toEqual([
+          expect.objectContaining({ op: 'replace', anchorText: 'Delaware', newText: 'Nevada' }),
+        ]);
+        return Promise.resolve({
+          document: authored,
+          results: [{ index: 0, applied: true, revisionId: '1', error: null }],
+        });
+      }
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    render(
+      <TooltipProvider>
+        <DocxEditor filePath="/ws/x.docx" fileName="x.docx" authorName="You" />
+      </TooltipProvider>,
+    );
+
+    // Editing a run fires onBlur with the new text. Find the editable run and
+    // simulate the user changing "Delaware" -> "Nevada".
+    const run = await screen.findByTestId('docx-run');
+    run.textContent = 'governed by Nevada law';
+    fireEvent.blur(run);
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith(
+        'docx_author_revisions',
+        expect.objectContaining({ author: 'You' }),
+      ),
+    );
+    // The authored tracked change renders + is attributed to the user.
+    await waitFor(() =>
+      expect(screen.getByTestId('docx-insertion')).toHaveAttribute('data-author', 'You'),
     );
   });
 });

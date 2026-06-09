@@ -28,10 +28,12 @@
 use std::path::Path;
 
 use keepance_docx::author;
+use keepance_docx::author::{Edit, EditResult};
 use keepance_docx::{
     document_from_value, document_to_value, resolve_all, resolve_revision, serialize_docx_bytes,
     Document, OpenedDocument, ResolveAction,
 };
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// The document DOM as a JSON `Value` — the exact serde serialization of
@@ -131,6 +133,123 @@ pub fn author_revision_core(
     }
 
     document_to_value(&document).map_err(|e| e.to_string())
+}
+
+// ---------------------------------------------------------------------------
+// Batch AI redline (A4) — apply many edits drift-safely in one engine pass.
+// ---------------------------------------------------------------------------
+
+/// The wire shape of one AI-proposed edit, matching the structured-output schema
+/// the model returns (see `src/modules/docx/redline.ts`). `op` is
+/// `"insert"` | `"delete"` | `"replace"`. `anchorText` is the verbatim substring
+/// to locate (required for delete/replace; optional for insert — when omitted the
+/// insertion is appended at the paragraph end). `newText` carries the inserted /
+/// replacement text (required for insert/replace). `reason` is carried for the
+/// UI summary and ignored by the engine.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditInput {
+    pub op: String,
+    pub paragraph_index: usize,
+    #[serde(default)]
+    pub anchor_text: Option<String>,
+    #[serde(default)]
+    pub new_text: Option<String>,
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+/// The wire shape of one applied/skipped edit returned to the frontend, so the
+/// results panel can show which edits anchored and surface a precise reason for
+/// any that didn't.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditOutcome {
+    pub index: usize,
+    pub applied: bool,
+    pub revision_id: Option<String>,
+    pub error: Option<String>,
+}
+
+impl From<EditResult> for EditOutcome {
+    fn from(r: EditResult) -> Self {
+        EditOutcome {
+            index: r.index,
+            applied: r.applied,
+            revision_id: r.revision_id,
+            error: r.error,
+        }
+    }
+}
+
+/// The full result of a batch redline: the updated DOM plus per-edit outcomes.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthorRevisionsResult {
+    pub document: DocumentJson,
+    pub results: Vec<EditOutcome>,
+}
+
+/// Translate one wire [`EditInput`] into the engine's typed [`Edit`], validating
+/// required fields per op. Returns a user-facing error for a malformed edit.
+fn edit_input_to_edit(e: EditInput) -> Result<Edit, String> {
+    match e.op.as_str() {
+        "insert" => Ok(Edit::Insert {
+            paragraph_index: e.paragraph_index,
+            anchor_text: e.anchor_text,
+            new_text: e
+                .new_text
+                .ok_or("insert edit requires `newText`")?,
+        }),
+        "delete" => Ok(Edit::Delete {
+            paragraph_index: e.paragraph_index,
+            anchor_text: e
+                .anchor_text
+                .ok_or("delete edit requires `anchorText`")?,
+        }),
+        "replace" => Ok(Edit::Replace {
+            paragraph_index: e.paragraph_index,
+            anchor_text: e
+                .anchor_text
+                .ok_or("replace edit requires `anchorText`")?,
+            new_text: e
+                .new_text
+                .ok_or("replace edit requires `newText`")?,
+        }),
+        other => Err(format!("unknown edit op {other:?} (expected insert/delete/replace)")),
+    }
+}
+
+/// Apply a BATCH of AI-proposed edits to the DOM as tracked changes, drift-safe.
+/// All paragraph indices and anchors resolve against the ORIGINAL document (see
+/// [`author::apply_edits`]); edits are applied in one pass with fresh,
+/// non-colliding revision ids. Returns the updated DOM + per-edit outcomes.
+///
+/// An edit whose anchor can't be found is SKIPPED (reported in `results`), not
+/// fatal — partial success is the right behavior for an AI redline so a single
+/// mis-quoted anchor doesn't discard the whole proposal. A structurally
+/// malformed edit (bad op / missing required field) IS an error.
+pub fn author_revisions_core(
+    document_json: Value,
+    edits_json: Value,
+    author_name: &str,
+    date: &str,
+) -> Result<AuthorRevisionsResult, String> {
+    let inputs: Vec<EditInput> =
+        serde_json::from_value(edits_json).map_err(|e| format!("invalid edits payload: {e}"))?;
+    let mut edits: Vec<Edit> = Vec::with_capacity(inputs.len());
+    for input in inputs {
+        edits.push(edit_input_to_edit(input)?);
+    }
+
+    let mut document: Document =
+        document_from_value(document_json).map_err(|e| e.to_string())?;
+    let results = author::apply_edits(&mut document, &edits, author_name, date);
+    let document = document_to_value(&document).map_err(|e| e.to_string())?;
+    Ok(AuthorRevisionsResult {
+        document,
+        results: results.into_iter().map(EditOutcome::from).collect(),
+    })
 }
 
 /// Parse the loose `action` string the editor sends into a [`ResolveAction`],
@@ -234,6 +353,45 @@ pub async fn docx_author_revision(
             needle.as_deref(),
             &date,
         )
+    })
+    .await
+    .map_err(|e| format!("task join error: {e}"))?
+}
+
+/// Author a BATCH of AI-proposed tracked changes on the JSON DOM in one pass and
+/// return the updated DOM plus per-edit outcomes. This is the engine entry point
+/// for the A4 AI redliner: the React layer builds an edit list from the model's
+/// structured output and applies it here, where all anchors/paragraph indices
+/// resolve against the ORIGINAL document (drift-safe) and each edit gets a fresh
+/// non-colliding revision id.
+///
+/// Parameters:
+///   * `document` — the JSON DOM.
+///   * `edits` — a JSON array of `{ op, paragraphIndex, anchorText?, newText?,
+///     reason? }` (see [`EditInput`]).
+///   * `author` — the author string stamped on every revision (defaults to
+///     `"Keepance AI"` when empty).
+///   * `date` — ISO-8601 timestamp; defaults to now (UTC) when empty.
+///
+/// Anchors that can't be found are skipped and reported (not fatal); a malformed
+/// edit object is an error.
+#[tauri::command]
+pub async fn docx_author_revisions(
+    document: Value,
+    edits: Value,
+    author: Option<String>,
+    date: Option<String>,
+) -> Result<AuthorRevisionsResult, String> {
+    tokio::task::spawn_blocking(move || {
+        let author_name = match author {
+            Some(a) if !a.trim().is_empty() => a,
+            _ => keepance_docx::author::AI_AUTHOR.to_string(),
+        };
+        let date = match date {
+            Some(d) if !d.trim().is_empty() => d,
+            _ => keepance_docx::author::now_iso(),
+        };
+        author_revisions_core(document, edits, &author_name, &date)
     })
     .await
     .map_err(|e| format!("task join error: {e}"))?
@@ -347,6 +505,98 @@ mod tests {
             .any(|(m, k, runs)| m.author == "Keepance AI"
                 && *k == keepance_docx::RevisionKind::Deletion
                 && runs.iter().any(|r| r.text.contains("resolve all"))));
+    }
+
+    #[test]
+    fn author_revisions_batch_applies_replace_and_delete_drift_safe() {
+        // Build a doc with one paragraph of plain text spanning two runs.
+        let json = serde_json::json!({
+            "formatVersion": 1,
+            "body": [{
+                "kind": "paragraph",
+                "inlines": [
+                    { "kind": "run", "text": "The Company shall " },
+                    { "kind": "run", "text": "indemnify the Client for all losses." }
+                ]
+            }],
+            "comments": {}
+        });
+        let edits = serde_json::json!([
+            { "op": "replace", "paragraphIndex": 0, "anchorText": "Company", "newText": "Vendor", "reason": "naming" },
+            { "op": "delete", "paragraphIndex": 0, "anchorText": "for all losses", "reason": "scope" }
+        ]);
+        let out = author_revisions_core(json, edits, "Keepance AI", "2026-06-09T00:00:00Z")
+            .expect("batch author");
+        // Both edits applied.
+        assert_eq!(out.results.len(), 2);
+        assert!(out.results.iter().all(|r| r.applied), "all edits should apply");
+        // Distinct revision ids across the two edits.
+        assert_ne!(out.results[0].revision_id, out.results[1].revision_id);
+        // Reparse the DOM and confirm the tracked changes are present + attributed.
+        let doc = keepance_docx::document_from_value(out.document).unwrap();
+        let revs = doc.revisions();
+        // replace = del+ins (2) + delete (1) = 3 revision elements.
+        assert_eq!(revs.len(), 3);
+        assert!(revs.iter().all(|(m, _, _)| m.author == "Keepance AI"));
+        assert!(revs.iter().any(|(_, k, r)| *k == keepance_docx::RevisionKind::Insertion
+            && r.iter().any(|x| x.text.contains("Vendor"))));
+        assert!(revs.iter().any(|(_, k, r)| *k == keepance_docx::RevisionKind::Deletion
+            && r.iter().any(|x| x.text == "Company")));
+        assert!(revs.iter().any(|(_, k, r)| *k == keepance_docx::RevisionKind::Deletion
+            && r.iter().any(|x| x.text == "for all losses")));
+    }
+
+    #[test]
+    fn author_revisions_batch_skips_bad_anchor_but_keeps_others() {
+        let json = document_to_value(&build_fixture_model()).unwrap();
+        let edits = serde_json::json!([
+            { "op": "delete", "paragraphIndex": 0, "anchorText": "NONEXISTENT PHRASE" },
+            { "op": "insert", "paragraphIndex": 0, "newText": " Appended.", "reason": "add" }
+        ]);
+        let out = author_revisions_core(json, edits, "Keepance AI", "2026-06-09T00:00:00Z")
+            .expect("batch author");
+        assert!(!out.results[0].applied);
+        assert!(out.results[0].error.as_deref().unwrap().contains("not found"));
+        assert!(out.results[1].applied);
+    }
+
+    #[test]
+    fn author_revisions_batch_rejects_malformed_edit() {
+        let json = document_to_value(&build_fixture_model()).unwrap();
+        let edits = serde_json::json!([
+            { "op": "frobnicate", "paragraphIndex": 0 }
+        ]);
+        let err = author_revisions_core(json, edits, "X", "d").unwrap_err();
+        assert!(err.contains("unknown edit op"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn async_command_author_revisions_smoke() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("matter.docx");
+        let bytes = keepance_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        let path_str = path.to_string_lossy().to_string();
+
+        let json = super::docx_open(path_str.clone()).await.expect("open");
+        let edits = serde_json::json!([
+            { "op": "insert", "paragraphIndex": 0, "anchorText": "resolve all", "newText": " outstanding", "reason": "clarity" }
+        ]);
+        let result = super::docx_author_revisions(json, edits, Some("Keepance AI".into()), None)
+            .await
+            .expect("docx_author_revisions command");
+        assert_eq!(result.results.len(), 1);
+        assert!(result.results[0].applied);
+
+        // Save + reopen: the AI revision survives alongside the 2 originals.
+        super::docx_save(path_str.clone(), result.document)
+            .await
+            .expect("save");
+        let reopened = super::docx_open(path_str).await.expect("reopen");
+        let doc = keepance_docx::document_from_value(reopened).unwrap();
+        assert_eq!(doc.revisions().len(), 3, "2 originals + 1 AI insertion");
+        assert!(doc.revisions().iter().any(|(m, _, _)| m.author == "Keepance AI"));
+        assert!(doc.comments.contains_key("1"), "comment preserved");
     }
 
     #[test]
