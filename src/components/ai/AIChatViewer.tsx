@@ -18,7 +18,10 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { AIChatFile, ChatMessage, WorkspaceSource, TurnScope } from '@/types/ai';
-import type { AuditEntry } from '@/types/audit';
+import type { AuditEntry, AuditScope, CitationVerdict } from '@/types/audit';
+import { auditEventToEntry } from '@/modules/audit/AuditService';
+import { resolveEgress } from '@/modules/privacy/egress';
+import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import type { Provider, AttachmentBytes } from '@/modules/models/Provider';
 import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { OpenAIProvider } from '@/modules/models/OpenAIProvider';
@@ -877,6 +880,18 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const handleSendMessage = useCallback(async () => {
     if ((!inputValue.trim() && pendingAttachments.length === 0) || isLoading) return;
 
+    // Audit (3.0 provenance) — emit one `citation_verified` event per citation
+    // checked against the local store. Passed into `verifyCitations` so the
+    // verification loop stays in one place; a misquote / cross-matter / fabricated
+    // cite is recorded the moment it is caught.
+    const emitCitationVerified = (citationId: string, verdict: CitationVerdict) => {
+      onAuditLog?.(auditEventToEntry({
+        type: 'citation_verified',
+        timestamp: new Date().toISOString(),
+        payload: { citationId, verdict },
+      }));
+    };
+
     const rawContent = inputValue.trim();
     const parsed = parseWorkspaceCommand(rawContent);
     // M2 — retrieval triggers when the user explicitly tagged
@@ -956,6 +971,44 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           workspaceHint =
             "Workspace retrieval failed; this message wasn't workspace-aware.";
         }
+      }
+
+      // Audit (3.0 provenance) — record the scope this AI action ran under, the
+      // privilege decision (default: privileged sources excluded), and the
+      // retrieval result. These make the audit log a complete "defense file":
+      // exactly what was searched, which client matter it was confined to, and
+      // whether privileged material was held back. Only emitted when retrieval
+      // actually ran (memory on); a memory-off turn logs neither.
+      if (isMemoryEnabled()) {
+        const auditScope: AuditScope = activeMatter
+          ? { kind: 'matter', matterId: activeMatter.id, matterName: matterLabel(activeMatter) }
+          : { kind: 'allMatters' };
+        const topScore = retrievedSources.reduce<number | null>(
+          (max, s) => (max === null ? s.score : Math.max(max, s.score)),
+          null,
+        );
+        onAuditLog?.(auditEventToEntry({
+          type: 'scope_active',
+          timestamp: new Date().toISOString(),
+          payload: { scope: auditScope },
+        }));
+        onAuditLog?.(auditEventToEntry({
+          type: 'privilege_evaluated',
+          timestamp: new Date().toISOString(),
+          // `includePrivileged` is the user's explicit opt-in; the default
+          // (false) means privileged sources were EXCLUDED from this search.
+          payload: { excluded: !includePrivileged },
+        }));
+        onAuditLog?.(auditEventToEntry({
+          type: 'retrieval_executed',
+          timestamp: new Date().toISOString(),
+          payload: {
+            query: parsed.query || rawContent,
+            scope: auditScope,
+            hitCount: retrievedSources.length,
+            topScore,
+          },
+        }));
       }
     }
 
@@ -1040,6 +1093,31 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         if (!isLocal && !apiKey) {
           const providerNames: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' };
           throw new Error(`No valid ${providerNames[chatProvider] ?? chatProvider} API key found. Please add your API key in the settings.`);
+        }
+
+        // Audit (3.0 provenance) — record WHERE this AI request goes, from the
+        // egress source of truth (`resolveEgress`), the moment before it is
+        // sent: provider, the active confidentiality mode, the resolved
+        // destination (local / direct-to-provider / demo relay), and whether
+        // anything actually leaves the device. This is the egress half of the
+        // defense file and stays consistent with the on-screen egress chip
+        // because both derive from the same function.
+        {
+          const egress = resolveEgress({
+            provider: chatProvider,
+            mode: getConfidentialityMode(),
+            isDemo: IS_DEMO,
+          });
+          onAuditLog?.(auditEventToEntry({
+            type: 'egress',
+            timestamp: new Date().toISOString(),
+            payload: {
+              provider: egress.provider,
+              mode: getConfidentialityMode(),
+              destination: egress.destination,
+              dataLeaves: egress.dataLeaves,
+            },
+          }));
         }
 
         // Stream A1 — estimate image token overhead for cost meter.
@@ -1438,7 +1516,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           // verification flags so unverified citations are surfaced.
           const verifiedStreamSources =
             retrievedSources.length > 0
-              ? await verifyCitations(accumulated, retrievedSources)
+              ? await verifyCitations(accumulated, retrievedSources, emitCitationVerified)
               : retrievedSources;
 
           const finalStreamingMessage: ChatMessage = {
@@ -1472,7 +1550,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           // any citation that doesn't verify flags its source in the UI.
           const verifiedSources =
             retrievedSources.length > 0
-              ? await verifyCitations(response.content, retrievedSources)
+              ? await verifyCitations(response.content, retrievedSources, emitCitationVerified)
               : retrievedSources;
 
           const assistantMessage: ChatMessage = {

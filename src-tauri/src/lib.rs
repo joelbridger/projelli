@@ -44,6 +44,11 @@ pub fn run() {
             commands::keychain::keychain_set,
             commands::keychain::keychain_get,
             commands::keychain::keychain_delete,
+            // Keepance 3.0 — encrypted, append-only audit store (the "defense file").
+            commands::audit::audit_set_workspace,
+            commands::audit::audit_append,
+            commands::audit::audit_list,
+            commands::audit::audit_count,
             // Phase 3 M1 RAG (LanceDB + fastembed-rs + e5-small).
             commands::rag::rag_set_workspace,
             commands::rag::rag_index_file,
@@ -131,6 +136,8 @@ pub fn run() {
             commands::rag::manage_state(app);
             // Phase 1 email — manage mail state (active workspace + cancel flag).
             commands::mail::manage_state(app);
+            // Keepance 3.0 — manage encrypted audit-store state (active workspace).
+            commands::audit::manage_state(app);
             // Auto-updater stack. Desktop-only because the underlying
             // crates are gated to macOS / Windows / Linux in Cargo.toml.
             // The plugin reads endpoints + pubkey from tauri.conf.json so

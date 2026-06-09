@@ -53,7 +53,8 @@ import { createWebFSBackend } from '@/modules/workspace/WebFSBackend';
 import type { WorkflowTemplate, WorkflowExecution, InterviewQuestion } from '@/types/workflow';
 import type { TrashedItem } from '@/modules/history/TrashService';
 import type { SourceCard } from '@/types/research';
-import type { AuditEntry } from '@/types/audit';
+import type { AuditEntry, AuditScope } from '@/types/audit';
+import { AuditService, auditEventToEntry } from '@/modules/audit/AuditService';
 import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { MemoryService } from '@/modules/memory/MemoryService';
@@ -212,6 +213,14 @@ function App() {
   const [showWhatsNewModalDirect, setShowWhatsNewModalDirect] = useState(false);
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
+
+  // Keepance 3.0 — the audit "defense file" persistence layer. On the desktop
+  // this writes every AI-action audit entry to a SQLCipher-ENCRYPTED store at
+  // rest; in the browser it falls back to (unencrypted) localStorage. Created
+  // once and pointed at the active workspace in `handleWorkspaceSelected`. The
+  // `auditEntries` React state below is the live view; `addAuditEntry` both
+  // updates that state and persists through this service.
+  const auditServiceRef = useRef<AuditService>(new AuditService());
 
   // Stream C3 — PluginManager singleton scoped to the active workspace.
   // Constructed inside `handleWorkspaceSelected` once the workspace + backend
@@ -1083,6 +1092,25 @@ function App() {
       setRootPath(newRootPath);
     }
 
+    // Keepance 3.0 — point the encrypted audit store at this workspace and load
+    // any persisted "defense file" entries. On desktop this opens the SQLCipher
+    // store under `<workspace>/.keepance/audit-enc.db`; in the browser it is a
+    // no-op (localStorage already loaded). Seed the live view newest-first to
+    // match the AuditLog's prepend ordering. Best-effort: never block workspace
+    // selection on the audit store.
+    if (newRootPath) {
+      try {
+        await auditServiceRef.current.hydrate(newRootPath);
+        const loaded = auditServiceRef.current
+          .getAll()
+          .slice()
+          .reverse(); // store is oldest-first; UI shows newest-first
+        setAuditEntries(loaded);
+      } catch (err) {
+        console.warn('[App] Audit store hydrate failed:', err);
+      }
+    }
+
     // Stream C3 — tear down any previous workspace's PluginManager and
     // construct a fresh one for the newly-selected workspace. Each workspace
     // has its own install root under `.keepance/plugins`, so a per-workspace
@@ -1656,14 +1684,32 @@ function App() {
 
 
 
-  // Audit log helper - logs all AI actions to the audit log
+  // Audit log helper - logs all AI actions to the audit log.
+  //
+  // Persists through the AuditService (encrypted-at-rest on desktop,
+  // localStorage in the browser) AND mirrors the entry into the live React
+  // state the AuditLog renders. We let the service mint the id/timestamp so the
+  // persisted row and the on-screen row are identical. Append-only on both
+  // sides: we only ever prepend a new entry.
   const addAuditEntry = useCallback((entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
-    const newEntry: AuditEntry = {
-      ...entry,
-      id: `audit_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-      timestamp: new Date().toISOString(),
+    const newEntry = auditServiceRef.current.log(entry.action, entry.description, {
+      ...(entry.model !== undefined ? { model: entry.model } : {}),
+      inputs: entry.inputs,
+      outputs: entry.outputs,
+      ...(entry.userDecision !== undefined ? { userDecision: entry.userDecision } : {}),
+      metadata: entry.metadata,
+    });
+    // Preserve any cost/token/provider fields the caller set (the structured
+    // `log` API doesn't take them, but model-call entries carry them for the
+    // cost dashboard). Re-attach onto the persisted entry's identity.
+    const merged: AuditEntry = {
+      ...newEntry,
+      ...(entry.tokensIn !== undefined ? { tokensIn: entry.tokensIn } : {}),
+      ...(entry.tokensOut !== undefined ? { tokensOut: entry.tokensOut } : {}),
+      ...(entry.costUsd !== undefined ? { costUsd: entry.costUsd } : {}),
+      ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
     };
-    setAuditEntries((prev) => [newEntry, ...prev]);
+    setAuditEntries((prev) => [merged, ...prev]);
   }, []);
 
   // Handle create file at root
@@ -2425,12 +2471,47 @@ function App() {
           // shared structured-deliverable serializer.
           analyzeDeps: {
             getScope: (): RetrievalScope => getActiveScope() as RetrievalScope,
-            retrieve: (query, topK, scope) =>
-              MemoryService.retrieve(query, topK, scope),
+            retrieve: async (query, topK, scope) => {
+              const hits = await MemoryService.retrieve(query, topK, scope);
+              // Audit (3.0 provenance) — the litigation `analyze` step runs a
+              // matter-scoped, privilege-EXCLUDED retrieval (the safe default on
+              // MemoryService.retrieve). Record the scope, the privilege
+              // decision, and the result so the workflow's research is provable.
+              const auditScope: AuditScope =
+                scope.kind === 'matter'
+                  ? { kind: 'matter', matterId: scope.matterId }
+                  : { kind: 'allMatters' };
+              const topScore = hits.reduce<number | null>(
+                (max, h) => (max === null ? h.score : Math.max(max, h.score)),
+                null,
+              );
+              addAuditEntry(auditEventToEntry({
+                type: 'scope_active',
+                timestamp: new Date().toISOString(),
+                payload: { scope: auditScope },
+              }));
+              addAuditEntry(auditEventToEntry({
+                type: 'privilege_evaluated',
+                timestamp: new Date().toISOString(),
+                payload: { excluded: true },
+              }));
+              addAuditEntry(auditEventToEntry({
+                type: 'retrieval_executed',
+                timestamp: new Date().toISOString(),
+                payload: { query, scope: auditScope, hitCount: hits.length, topScore },
+              }));
+              return hits;
+            },
             verifyCitation: async (citationId, claimedMatterId, quotedText) => {
               const verdict = await ragVerifyCitation(citationId, claimedMatterId, quotedText);
               // CitationVerdict.verdict is one of verified|notFound|matterMismatch|
               // textMismatch — exactly the values the analysis pipeline records.
+              // Audit (3.0 provenance) — record the verdict for each cited source.
+              addAuditEntry(auditEventToEntry({
+                type: 'citation_verified',
+                timestamp: new Date().toISOString(),
+                payload: { citationId, verdict: verdict.verdict },
+              }));
               return verdict.verdict;
             },
             serializeContradictions: async (result, meta) => {
@@ -2532,7 +2613,7 @@ function App() {
         setActiveWorkflowFilePath(null);
       }
     },
-    [rootPath, setFileTree, completeRun, apiKeys, openTab]
+    [rootPath, setFileTree, completeRun, apiKeys, openTab, addAuditEntry]
   );
 
   // Handle interview form submission

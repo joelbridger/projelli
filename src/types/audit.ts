@@ -1,5 +1,9 @@
 // Audit Types
 
+// The egress event mirrors the egress source of truth. `egress.ts` is a pure,
+// dependency-free module, so importing its types here is safe (no cycle).
+import type { ConfidentialityMode, EgressDestination } from '@/modules/privacy/egress';
+
 /**
  * Types of audit actions
  */
@@ -14,7 +18,38 @@ export type AuditActionType =
   | 'workflow_fail'
   | 'model_call'
   | 'context_compressed'
-  | 'user_action';
+  | 'user_action'
+  // Keepance 3.0 provenance events. These mirror the new AuditEvent variants
+  // below; they are listed here too because `AuditService.append()` stores an
+  // event under `action = event.type`, and the audit-log UI keys its icon /
+  // label / colour maps off `AuditActionType`. Adding them keeps the log
+  // readable for the new events without a separate rendering path.
+  | 'retrieval_executed'
+  | 'citation_verified'
+  | 'privilege_evaluated'
+  | 'scope_active'
+  | 'egress';
+
+/**
+ * The verdict from citation verification (mirrors `CitationVerdict.verdict`
+ * from the RAG store: a cited source either matched, was not found, was filed
+ * under a different matter than claimed, or the quoted text did not match).
+ */
+export type CitationVerdict =
+  | 'verified'
+  | 'notFound'
+  | 'matterMismatch'
+  | 'textMismatch';
+
+/**
+ * The active confidentiality scope for an AI action: either a single client
+ * matter (id + display name) or the deliberate cross-matter ("all matters")
+ * scope. There is never a silent "everything" — the all-matters scope is an
+ * explicit choice, recorded as such.
+ */
+export type AuditScope =
+  | { kind: 'matter'; matterId: string; matterName?: string }
+  | { kind: 'allMatters' };
 
 /**
  * Single audit log entry
@@ -78,7 +113,82 @@ export type AuditEvent =
   | { type: 'template_uninstalled'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
   | { type: 'template_updated'; timestamp: string; payload: { templateId: string; version: string; fromVersion?: string; toVersion?: string; error?: string } }
   | { type: 'template_install_failed'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
-  | { type: 'language_changed'; timestamp: string; payload: { from: string; to: string } };
+  | { type: 'language_changed'; timestamp: string; payload: { from: string; to: string } }
+  // ───────────────────────────────────────────────────────────────────────
+  // Keepance 3.0 provenance events.
+  //
+  // These exist so the audit log is a complete "defense file": for every AI
+  // action that reaches into a client's files or out to a provider, the log
+  // records WHAT was searched, WHICH matter it was confined to, WHETHER
+  // privileged material was excluded, WHETHER each cited source actually
+  // checks out, and WHERE the request went. The provenance is for the user's
+  // own files and defense, not surveillance — the storage stays append-only
+  // and on the user's machine.
+  // ───────────────────────────────────────────────────────────────────────
+  /**
+   * A workspace/RAG retrieval ran for an AI action. Records the query, the
+   * confidentiality scope it was confined to (a single matter or the explicit
+   * all-matters scope), how many chunks came back, and the best similarity
+   * score (so a "nothing relevant" answer is provable after the fact).
+   */
+  | {
+      type: 'retrieval_executed';
+      timestamp: string;
+      payload: {
+        query: string;
+        scope: AuditScope;
+        hitCount: number;
+        /** Highest similarity score across hits, or null when there were none. */
+        topScore: number | null;
+      };
+    }
+  /**
+   * A citation in an AI answer was checked against the local store. Records the
+   * content-addressed citation id and the verdict, so a misquote / fabricated
+   * cite / cross-matter cite is recorded the moment it is caught.
+   */
+  | {
+      type: 'citation_verified';
+      timestamp: string;
+      payload: { citationId: string; verdict: CitationVerdict };
+    }
+  /**
+   * Privilege was evaluated for a retrieval. `excluded: true` is the default
+   * (attorney-client / work-product stays out); `excluded: false` records a
+   * deliberate, user-initiated query that opted privileged sources IN.
+   */
+  | {
+      type: 'privilege_evaluated';
+      timestamp: string;
+      payload: { excluded: boolean };
+    }
+  /**
+   * The active confidentiality scope for an AI action (which client matter, or
+   * the explicit all-matters scope). Logged at send time so history shows the
+   * boundary the action ran under, even if the matter is later renamed/deleted.
+   */
+  | {
+      type: 'scope_active';
+      timestamp: string;
+      payload: { scope: AuditScope };
+    }
+  /**
+   * Where an AI send actually went, taken from the egress source of truth
+   * (`resolveEgress`): the provider, the active confidentiality mode, and the
+   * resolved destination (on-machine local, direct to the provider with the
+   * user's key, or the browser-demo relay).
+   */
+  | {
+      type: 'egress';
+      timestamp: string;
+      payload: {
+        provider: string;
+        mode: ConfidentialityMode;
+        destination: EgressDestination;
+        /** Whether anything actually left the device for this send. */
+        dataLeaves: boolean;
+      };
+    };
 
 /**
  * Query options for filtering audit log

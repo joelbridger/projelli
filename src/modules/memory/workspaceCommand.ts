@@ -23,9 +23,13 @@
  *     rendered as clickable.
  */
 
-import type { RagHit } from '@/utils/tauri-commands';
+import type { RagHit, CitationVerdict } from '@/utils/tauri-commands';
 import { ragVerifyCitation } from '@/utils/tauri-commands';
 import type { WorkspaceSource } from '@/types/ai';
+
+/** The bare verdict string from citation verification (the `verdict` field of
+ *  the backend's discriminated `CitationVerdict`). */
+export type CitationVerdictValue = CitationVerdict['verdict'];
 
 /** Regex matching the `@workspace` token with word-ish boundaries. */
 const WORKSPACE_TAG_RE = /(^|[\s])@workspace(?=$|[\s\p{P}])/gu;
@@ -221,10 +225,17 @@ export function resolveCitationPath(
  *
  * This never throws; verification failures degrade to "unverified" so the
  * chat still renders. The caller decides how to present unverified citations.
+ *
+ * `onVerdict` (optional) is called once per citation that was actually checked
+ * against the store, with the content-addressed citation id and the raw
+ * verdict. The chat view uses this to emit a `citation_verified` audit event
+ * per citation, keeping the audit "defense file" complete without duplicating
+ * this verification loop at the call site.
  */
 export async function verifyCitations(
   content: string,
   sources: WorkspaceSource[],
+  onVerdict?: (citationId: string, verdict: CitationVerdictValue) => void,
 ): Promise<WorkspaceSource[]> {
   if (sources.length === 0) return sources;
   const citations = parseCitations(content);
@@ -254,6 +265,7 @@ export async function verifyCitations(
       );
       // Only `verified` is safe. Anything else flags the source.
       source.verified = verdict.verdict === 'verified';
+      onVerdict?.(source.id, verdict.verdict);
     } catch {
       // Browser/test mode or backend error — leave unverified (undefined).
     }

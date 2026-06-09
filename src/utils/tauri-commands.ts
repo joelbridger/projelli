@@ -460,3 +460,55 @@ export async function transcribeAudio(
     model,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Keepance 3.0 — encrypted, append-only audit store (the "defense file").
+//
+// On the desktop the AuditService persists to a SQLCipher-encrypted store
+// (`src-tauri/src/commands/audit/`). In the browser these wrappers short-circuit
+// (isTauri() === false) and the AuditService keeps its localStorage path, which
+// is labelled UNENCRYPTED in the UI — sensitive work belongs in the desktop app.
+// ---------------------------------------------------------------------------
+
+/** One audit entry as persisted by the encrypted store. `payloadJson` carries
+ *  the full renderer-side `AuditEntry` serialized to JSON so it round-trips
+ *  losslessly; the other columns are the queryable summary fields. */
+export interface AuditEntryRecord {
+  id: string;
+  timestamp: string;
+  action: string;
+  description: string;
+  payloadJson: string;
+}
+
+/** Point the encrypted audit store at a workspace. No-op in the browser. */
+export async function auditSetWorkspace(path: string): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('audit_set_workspace', { path });
+}
+
+/** Append one entry to the encrypted audit store (append-only). No-op in the
+ *  browser. Throws only on a real backend failure so callers can fall back. */
+export async function auditAppend(entry: AuditEntryRecord): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('audit_append', { entry });
+}
+
+/** List audit entries from the encrypted store in insertion order (oldest
+ *  first). Returns `[]` in the browser. */
+export async function auditList(
+  limit?: number,
+  offset?: number,
+): Promise<AuditEntryRecord[]> {
+  if (!isTauri()) return [];
+  return invoke<AuditEntryRecord[]>('audit_list', {
+    limit: limit ?? null,
+    offset: offset ?? null,
+  });
+}
+
+/** Count audit entries in the encrypted store. Returns 0 in the browser. */
+export async function auditCount(): Promise<number> {
+  if (!isTauri()) return 0;
+  return invoke<number>('audit_count');
+}

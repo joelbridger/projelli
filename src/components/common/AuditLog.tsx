@@ -30,6 +30,11 @@ import {
   Filter,
   X,
   Scissors,
+  Search as SearchIcon,
+  ShieldCheck,
+  Lock,
+  Target,
+  Send,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/types/audit';
 import { EmptyState } from './EmptyState';
@@ -39,6 +44,7 @@ import {
   filterEntries,
   uniqueModels,
 } from '@/utils/audit-export';
+import { isAuditEncrypted } from '@/modules/audit/AuditService';
 
 interface AuditLogProps {
   entries: AuditEntry[];
@@ -67,6 +73,12 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   model_call: Cpu,
   context_compressed: Scissors,
   user_action: User,
+  // Keepance 3.0 provenance events.
+  retrieval_executed: SearchIcon,
+  citation_verified: ShieldCheck,
+  privilege_evaluated: Lock,
+  scope_active: Target,
+  egress: Send,
 };
 
 const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -81,6 +93,12 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   model_call: 'Model Call',
   context_compressed: 'Context Compressed',
   user_action: 'User Action',
+  // Keepance 3.0 provenance events.
+  retrieval_executed: 'Files Searched',
+  citation_verified: 'Citation Checked',
+  privilege_evaluated: 'Privilege Checked',
+  scope_active: 'Active Matter',
+  egress: 'AI Request Sent',
 };
 
 const ACTION_COLORS: Record<AuditActionType, string> = {
@@ -95,6 +113,12 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   model_call: 'text-amber-600 dark:text-amber-400',
   context_compressed: 'text-orange-600 dark:text-orange-400',
   user_action: 'text-gray-600 dark:text-gray-400',
+  // Keepance 3.0 provenance events.
+  retrieval_executed: 'text-sky-600 dark:text-sky-400',
+  citation_verified: 'text-emerald-600 dark:text-emerald-400',
+  privilege_evaluated: 'text-indigo-600 dark:text-indigo-400',
+  scope_active: 'text-teal-600 dark:text-teal-400',
+  egress: 'text-violet-600 dark:text-violet-400',
 };
 
 export function AuditLog({
@@ -242,6 +266,41 @@ export function AuditLog({
           >
             CSV
           </Button>
+        </div>
+      </div>
+
+      {/* Protective framing — pre-empts the "surveillance" misread by naming
+          what this log is FOR: the user's own files and defense, kept on their
+          own machine. Light, reassuring, one line. (No em dashes.) The at-rest
+          line is honest about encryption: encrypted on the desktop app, and
+          clearly NOT encrypted in the browser (use the desktop app for
+          sensitive work). */}
+      <div
+        className="flex items-start gap-2 px-3 py-2 border-b bg-sky-50 text-sky-900"
+        data-testid="audit-log-protective-header"
+      >
+        <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0 text-sky-600" />
+        <div className="min-w-0">
+          <p className="text-xs leading-snug">
+            Your private record of every AI action, kept on your machine for your
+            files and your defense.
+          </p>
+          {isAuditEncrypted() ? (
+            <p
+              className="text-[11px] leading-snug text-sky-700 mt-0.5"
+              data-testid="audit-log-encrypted-note"
+            >
+              Encrypted at rest on this device.
+            </p>
+          ) : (
+            <p
+              className="text-[11px] leading-snug text-amber-700 mt-0.5"
+              data-testid="audit-log-unencrypted-note"
+            >
+              Stored in your browser and not encrypted. Use the desktop app for
+              confidential work.
+            </p>
+          )}
         </div>
       </div>
 

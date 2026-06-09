@@ -1,7 +1,77 @@
 // Audit Service
 // Append-only log of all AI actions and significant user operations
+//
+// PERSISTENCE (Keepance 3.0):
+//   - Desktop (Tauri): entries are persisted to a SQLCipher-ENCRYPTED,
+//     append-only store on disk (`src-tauri/src/commands/audit/`), keyed by a
+//     master key in the OS keychain. This is the audit "defense file" at rest.
+//     Each append pushes a single row to the encrypted store (best-effort,
+//     non-blocking); the in-memory array stays the synchronous read model.
+//   - Browser: there is no native keychain or SQLCipher, so entries persist to
+//     localStorage UNENCRYPTED. The audit UI says so plainly and points the
+//     user at the desktop app for confidential work. (See `isAuditEncrypted`.)
+//
+// The public API stays synchronous and append-only so every existing caller
+// (plugins, TTS, marketplace) is unchanged; desktop encryption is transparent.
 
 import type { AuditEntry, AuditActionType, AuditEvent, AuditQueryOptions } from '@/types/audit';
+import {
+  auditAppend,
+  auditList,
+  auditSetWorkspace,
+  type AuditEntryRecord,
+} from '@/utils/tauri-commands';
+import { isTauri } from '@tauri-apps/api/core';
+
+/**
+ * True when the audit log is encrypted at rest (the desktop app). False in the
+ * browser, where it lives in localStorage unencrypted. The UI uses this to show
+ * an honest at-rest note.
+ */
+export function isAuditEncrypted(): boolean {
+  return isTauri();
+}
+
+/** Serialize a flat entry to the encrypted-store record shape. The full entry
+ *  is preserved verbatim in `payloadJson` so it round-trips losslessly. */
+function entryToRecord(entry: AuditEntry): AuditEntryRecord {
+  return {
+    id: entry.id,
+    timestamp: entry.timestamp,
+    action: entry.action,
+    description: entry.description,
+    payloadJson: JSON.stringify(entry),
+  };
+}
+
+/** Parse an encrypted-store record back into a flat entry. Falls back to a
+ *  minimal entry if the JSON payload is somehow unreadable (never throws). */
+function recordToEntry(rec: AuditEntryRecord): AuditEntry {
+  try {
+    const parsed = JSON.parse(rec.payloadJson) as AuditEntry;
+    // Trust the summary columns for the indexed fields in case the payload is
+    // an older/partial shape.
+    return {
+      ...parsed,
+      id: rec.id,
+      timestamp: rec.timestamp,
+      action: rec.action as AuditActionType,
+      description: rec.description,
+    };
+  } catch {
+    return {
+      id: rec.id,
+      timestamp: rec.timestamp,
+      action: rec.action as AuditActionType,
+      description: rec.description,
+      model: undefined,
+      inputs: {},
+      outputs: {},
+      userDecision: undefined,
+      metadata: {},
+    };
+  }
+}
 
 /**
  * AuditService provides append-only logging of actions
@@ -9,10 +79,43 @@ import type { AuditEntry, AuditActionType, AuditEvent, AuditQueryOptions } from 
 export class AuditService {
   private entries: AuditEntry[] = [];
   private readonly storageKey: string;
+  /** Desktop only: persist appends to the encrypted Tauri store. */
+  private readonly encrypted: boolean;
 
   constructor(workspaceId: string = 'default') {
     this.storageKey = `audit_log_${workspaceId}`;
-    this.load();
+    this.encrypted = isAuditEncrypted();
+    // Browser: hydrate synchronously from localStorage (unchanged behaviour).
+    // Desktop: the in-memory list starts empty and is hydrated via the async
+    // `hydrate()` once the workspace is set (the encrypted store needs a path).
+    if (!this.encrypted) {
+      this.load();
+    }
+  }
+
+  /**
+   * Desktop: point the encrypted audit store at the active workspace, then load
+   * any persisted entries into memory. No-op-safe in the browser (resolves
+   * after the synchronous localStorage load already done in the constructor).
+   * Call this when the workspace is opened/changed.
+   */
+  async hydrate(workspacePath?: string): Promise<void> {
+    if (!this.encrypted) return; // browser already loaded from localStorage
+    if (workspacePath) {
+      try {
+        await auditSetWorkspace(workspacePath);
+      } catch {
+        // If we can't set the workspace, leave the in-memory log as-is.
+        return;
+      }
+    }
+    try {
+      const records = await auditList();
+      this.entries = records.map(recordToEntry);
+    } catch {
+      // Best-effort hydrate; an unreadable store leaves the session log empty
+      // rather than crashing the app.
+    }
   }
 
   /**
@@ -36,7 +139,7 @@ export class AuditService {
       metadata: event.payload as Record<string, unknown>,
     };
     this.entries.push(entry);
-    this.persist();
+    this.record(entry);
   }
 
   /**
@@ -66,7 +169,7 @@ export class AuditService {
     };
 
     this.entries.push(entry);
-    this.persist();
+    this.record(entry);
 
     return entry;
   }
@@ -292,7 +395,30 @@ export class AuditService {
   }
 
   /**
-   * Persist to localStorage
+   * Persist ONE newly-appended entry to the active backend.
+   *   - Desktop: append the single row to the SQLCipher-encrypted store
+   *     (append-only; fire-and-forget so the synchronous API stays sync).
+   *   - Browser: rewrite the localStorage blob (unencrypted; the only option
+   *     the web platform offers without a native keychain).
+   * Append-only is preserved either way: we only ever add entries, never
+   * mutate or remove existing ones.
+   */
+  private record(entry: AuditEntry): void {
+    if (this.encrypted) {
+      // Fire-and-forget; a transient backend error must not break logging. The
+      // in-memory list already holds the entry for this session, and a reopen
+      // re-hydrates from the store.
+      void auditAppend(entryToRecord(entry)).catch(() => {
+        /* best-effort: encrypted-store append failed; entry stays in memory */
+      });
+      return;
+    }
+    this.persist();
+  }
+
+  /**
+   * Persist the full in-memory log to localStorage (browser only). Unencrypted
+   * by necessity on the web platform; the desktop app uses the encrypted store.
    */
   private persist(): void {
     if (typeof localStorage === 'undefined') return;
@@ -302,6 +428,73 @@ export class AuditService {
     } catch {
       // Ignore storage errors
     }
+  }
+}
+
+/**
+ * Convert a structured {@link AuditEvent} into the flat
+ * `Omit<AuditEntry, 'id' | 'timestamp'>` shape expected by the `onAuditLog`
+ * callback used throughout the UI (which appends to React state + the encrypted
+ * store). This is the single place that maps an event's `type`/`payload` onto
+ * the legacy entry fields, so every 3.0 provenance event renders consistently
+ * in the audit log and stays append-only.
+ *
+ * The event `type` is stamped into `metadata.auditEventType` (matching the
+ * existing attachment events), and the full `payload` is preserved under
+ * `metadata` so nothing is lost. Where a payload has a natural
+ * input/output/model split, we surface it so the log row + detail view read
+ * well without bespoke per-event code.
+ */
+export function auditEventToEntry(
+  event: AuditEvent
+): Omit<AuditEntry, 'id' | 'timestamp'> {
+  const payload = event.payload as Record<string, unknown>;
+  const base: Omit<AuditEntry, 'id' | 'timestamp'> = {
+    action: event.type as AuditActionType,
+    description: describeAuditEvent(event),
+    model: undefined,
+    inputs: {},
+    outputs: {},
+    userDecision: 'auto',
+    metadata: { auditEventType: event.type, ...payload },
+  };
+  return base;
+}
+
+/**
+ * Human-readable one-liner for a structured event, used as the audit-row
+ * description. Kept protective and plain (no jargon, no em dashes).
+ */
+function describeAuditEvent(event: AuditEvent): string {
+  switch (event.type) {
+    case 'retrieval_executed': {
+      const scope =
+        event.payload.scope.kind === 'matter'
+          ? `matter ${event.payload.scope.matterName ?? event.payload.scope.matterId}`
+          : 'all matters';
+      return `Searched your files (${scope}): ${event.payload.hitCount} result${event.payload.hitCount === 1 ? '' : 's'}`;
+    }
+    case 'citation_verified':
+      return `Citation checked against your files: ${event.payload.verdict}`;
+    case 'privilege_evaluated':
+      return event.payload.excluded
+        ? 'Privileged material excluded from this search'
+        : 'Privileged material explicitly included for this search';
+    case 'scope_active':
+      return event.payload.scope.kind === 'matter'
+        ? `Active matter: ${event.payload.scope.matterName ?? event.payload.scope.matterId}`
+        : 'Active scope: all matters';
+    case 'egress': {
+      const where =
+        event.payload.destination === 'local'
+          ? 'on your machine (nothing left)'
+          : event.payload.destination === 'demo-proxy'
+            ? 'the browser demo relay'
+            : `${event.payload.provider} with your key`;
+      return `AI request sent to ${where}`;
+    }
+    default:
+      return event.type;
   }
 }
 
