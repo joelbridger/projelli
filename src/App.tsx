@@ -1889,6 +1889,38 @@ function App() {
     }
   }, [rootPath, setFileTree, openFile, prompt]);
 
+  // Keepance 3.0 (WS-A / A5): the "New Document" primary action. Word (.docx)
+  // is the canonical document format, so unless the user has changed the
+  // "Default New Document Type" setting, a new document is a real `.docx`
+  // opened in the Word editor. Markdown / plain text / rich text remain
+  // available for quick notes via the same setting and the File menu.
+  const handleCreateDefaultDocument = useCallback(async () => {
+    const kind = useSettingsStore
+      .getState()
+      .getSetting<string>('defaultNewFileType');
+    switch (kind) {
+      case 'markdown':
+        await handleCreateMarkdownAtRoot();
+        break;
+      case 'plaintext':
+        await handleCreateTextFileAtRoot();
+        break;
+      case 'richtext':
+        await handleCreateRichTextFileAtRoot();
+        break;
+      case 'docx':
+      default:
+        // Canonical default.
+        await handleCreateDocxAtRoot();
+        break;
+    }
+  }, [
+    handleCreateMarkdownAtRoot,
+    handleCreateTextFileAtRoot,
+    handleCreateRichTextFileAtRoot,
+    handleCreateDocxAtRoot,
+  ]);
+
   // Handle create blank .pptx file at root (goes to docs folder)
   const handleCreatePptxAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
@@ -2832,6 +2864,17 @@ This file contains rules and guidelines for AI assistants in this workspace.
     const baseCommands = getDefaultCommands({});
     const appCommands: PaletteCommand[] = [
       {
+        // WS-A / A5: canonical "New Document" — creates the user's default new
+        // document type (Word .docx unless changed in Settings).
+        id: 'file.new-document',
+        label: 'New Document',
+        shortcut: 'Ctrl+N',
+        category: 'file',
+        action: () => {
+          void handleCreateDefaultDocument();
+        },
+      },
+      {
         id: 'file.save',
         label: 'Save File',
         shortcut: 'Ctrl+S',
@@ -2956,7 +2999,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
     }
 
     return [...appCommands, ...pluginPaletteCommands, ...baseCommands];
-  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, handleOpenBrowserTab, pluginCommandsMap, installedPluginInstances]);
+  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, pluginCommandsMap, installedPluginInstances]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -3279,6 +3322,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onMove={handleMove}
               onDownload={handleDownload}
               onCreateFileAtRoot={handleCreateFileAtRoot}
+              onCreateDefaultDocument={handleCreateDefaultDocument}
               onCreateMarkdownAtRoot={handleCreateMarkdownAtRoot}
               onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
               onCreateRichTextFileAtRoot={handleCreateRichTextFileAtRoot}

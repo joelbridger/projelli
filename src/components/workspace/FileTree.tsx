@@ -52,6 +52,11 @@ interface FileTreeProps {
   onMove?: (sourcePath: string, targetPath: string) => Promise<void>;
   onDownload?: (path: string, name: string) => void;
   onCreateFileAtRoot?: (extension?: string) => void;
+  /**
+   * WS-A / A5: create the user's DEFAULT new document type (Word .docx unless
+   * changed in Settings). Used by the empty-state primary CTA.
+   */
+  onCreateDefaultDocument?: () => void;
   onCreateMarkdownAtRoot?: () => void;
   onCreateTextFileAtRoot?: () => void;
   onCreateRichTextFileAtRoot?: () => void;
@@ -97,6 +102,7 @@ export function FileTree({
   onDelete,
   onMove,
   onDownload,
+  onCreateDefaultDocument,
   onCreateMarkdownAtRoot,
   onCreateTextFileAtRoot,
   onCreateRichTextFileAtRoot,
@@ -289,6 +295,18 @@ export function FileTree({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-48">
+            {/* WS-A / A5: Word (.docx) is the canonical document format, so it
+                leads the menu. Markdown / text / rich text follow for notes. */}
+            {onCreateDocxAtRoot && (
+              <DropdownMenuItem
+                data-testid="new-file-type-docx"
+                onClick={onCreateDocxAtRoot}
+              >
+                <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
+                {t('workspace.file-tree.new.word-document')}
+              </DropdownMenuItem>
+            )}
+            {onCreateDocxAtRoot && <DropdownMenuSeparator />}
             <DropdownMenuItem
               data-testid="new-file-type-markdown"
               onClick={onCreateMarkdownAtRoot}
@@ -304,15 +322,6 @@ export function FileTree({
               <FileText className="h-3.5 w-3.5 mr-2 text-indigo-500" />
               {t('workspace.file-tree.new.rich-text')}
             </DropdownMenuItem>
-            {onCreateDocxAtRoot && (
-              <DropdownMenuItem
-                data-testid="new-file-type-docx"
-                onClick={onCreateDocxAtRoot}
-              >
-                <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
-                {t('workspace.file-tree.new.word-document')}
-              </DropdownMenuItem>
-            )}
             {onCreatePptxAtRoot && (
               <DropdownMenuItem
                 data-testid="new-file-type-pptx"
@@ -452,11 +461,13 @@ export function FileTree({
           panelName="files"
           icon={FilePlus}
           title="No files yet"
-          description="Create a file from the toolbar above, drop files in from your desktop, or start a new Markdown note to get going. Press Ctrl+P to quickly open any file by name."
+          description="Create a document from the toolbar above, drop files in from your desktop, or start a new note to get going. Press Ctrl+P to quickly open any file by name."
           shortcut="Ctrl+N / Ctrl+P"
-          {...(onCreateMarkdownAtRoot
-            ? { cta: { label: 'New Markdown file', onClick: onCreateMarkdownAtRoot } }
-            : {})}
+          {...(onCreateDefaultDocument
+            ? { cta: { label: 'New document', onClick: onCreateDefaultDocument } }
+            : onCreateMarkdownAtRoot
+              ? { cta: { label: 'New Markdown file', onClick: onCreateMarkdownAtRoot } }
+              : {})}
         />
       ) : (
         <div

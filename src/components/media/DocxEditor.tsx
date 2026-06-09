@@ -131,6 +131,12 @@ interface DocxEditorProps {
    */
   onFirstEdit?: () => Promise<void> | void;
   /**
+   * WS-A / A5: fired after each successful save to disk so the parent can take a
+   * binary-safe version snapshot of the just-written `.docx`. The `author`
+   * distinguishes a routine user save from an AI redline save. Optional.
+   */
+  onAfterSave?: (info: { filePath: string; author: 'user' | 'ai' }) => Promise<void> | void;
+  /**
    * Observe the live DOM after any change (edit / accept / reject). A4 + tests
    * use this; production wiring may ignore it.
    */
@@ -177,6 +183,7 @@ export function DocxEditor({
   src,
   className,
   onFirstEdit,
+  onAfterSave,
   onDocumentChange,
   apiKeys = [],
   aiProvider = 'anthropic',
@@ -219,10 +226,24 @@ export function DocxEditor({
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstEditFiredRef = useRef(false);
+  // WS-A / A5: author of the next save (for the version snapshot). User edits
+  // leave it 'user'; an AI redline flips it to 'ai' before scheduling its save.
+  const pendingSaveAuthorRef = useRef<'user' | 'ai'>('user');
+  // WS-A / A5: mirror of `isDirty` for the persist closure — we only take a
+  // version snapshot when there were ACTUAL changes, so re-saving a clean doc
+  // (e.g. the flush before an export) doesn't spam the history.
+  const isDirtyRef = useRef(false);
   const onDocumentChangeRef = useRef(onDocumentChange);
+  const onAfterSaveRef = useRef(onAfterSave);
   useEffect(() => {
     onDocumentChangeRef.current = onDocumentChange;
   }, [onDocumentChange]);
+  useEffect(() => {
+    onAfterSaveRef.current = onAfterSave;
+  }, [onAfterSave]);
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
 
   const canEdit = Boolean(filePath) && isDocxEngineAvailable();
 
@@ -274,9 +295,23 @@ export function DocxEditor({
             console.warn('[DocxEditor] onFirstEdit failed:', err);
           }
         }
+        const wasDirty = isDirtyRef.current;
         await docxSave(filePath, doc);
         setLastSavedAt(Date.now());
         setIsDirty(false);
+        // WS-A / A5: take a binary-safe version snapshot of the just-written
+        // `.docx` — but only when there were real changes, so re-saving a clean
+        // doc (the flush before an export) doesn't add an empty version. Consume
+        // the pending author flag (reset to 'user' after).
+        const author = pendingSaveAuthorRef.current;
+        pendingSaveAuthorRef.current = 'user';
+        if (wasDirty) {
+          try {
+            await onAfterSaveRef.current?.({ filePath, author });
+          } catch (verr) {
+            console.warn('[DocxEditor] onAfterSave (version snapshot) failed:', verr);
+          }
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         setSaveError(message);
@@ -593,6 +628,8 @@ export function DocxEditor({
       const applied = items.filter((i) => i.applied).length;
       const skipped = items.length - applied;
 
+      // WS-A / A5: attribute the resulting version snapshot to the AI.
+      pendingSaveAuthorRef.current = 'ai';
       applyResolvedDocument(nextDoc);
       setRedlineSummary({ instruction, applied, skipped, items });
       setRedlineInstruction('');

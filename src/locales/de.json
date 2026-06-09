@@ -1132,10 +1132,25 @@
   },
   "version": {
     "history": {
+      "title": "Versionsverlauf",
       "empty-title": "Noch kein Versionsverlauf",
       "empty-title__sourceHash": "6f605e52117cec1241ad8748dc31659f46554bda410742c04122f709a212f519",
       "empty-description": "Versionen werden automatisch gespeichert, wenn Sie die Datei bearbeiten und speichern",
-      "empty-description__sourceHash": "0e85f5c77cb7cf9373bf39d0e1840c8e7de27a546c38a9f660e97031d59a9c1c"
+      "empty-description__sourceHash": "0e85f5c77cb7cf9373bf39d0e1840c8e7de27a546c38a9f660e97031d59a9c1c",
+      "latest": "Neueste",
+      "version": "Version",
+      "versions": "Versionen",
+      "author-user": "Sie",
+      "author-ai": "Keepance AI",
+      "preview": "Vorschau",
+      "this-version": "Diese Version",
+      "current": "Aktuell",
+      "restore-action": "Wiederherstellen",
+      "restore-title": "Version wiederherstellen",
+      "restore-confirm": "Die Datei auf die Version vom {{date}} wiederherstellen? Ihre aktuelle Version wird zuerst gespeichert, es geht also nichts verloren.",
+      "diff-loading": "Vergleich wird erstellt...",
+      "docx-text-diff-note": "Es wird ein Textvergleich angezeigt. Word-Formatierung und Details zu nachverfolgten Änderungen werden hier als reiner Text verglichen.",
+      "docx-diff-desktop-only": "Der Vergleich von Word-Dokumenten erfordert die Keepance-Desktop-App."
     }
   },
   "updater": {

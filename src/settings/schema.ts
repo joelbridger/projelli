@@ -397,11 +397,13 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'defaultNewFileType',
     category: 'files',
-    label: 'Default New File Type',
-    description: 'File format used when creating a new file from the toolbar.',
+    label: 'Default New Document Type',
+    description:
+      'Format used when you create a new document. Word (.docx) is the canonical document format; choose Markdown or Plain Text for quick notes.',
     type: 'select',
-    defaultValue: 'markdown',
+    defaultValue: 'docx',
     options: [
+      { value: 'docx', label: 'Word Document (.docx)' },
       { value: 'markdown', label: 'Markdown' },
       { value: 'plaintext', label: 'Plain Text' },
       { value: 'richtext', label: 'Rich Text' },

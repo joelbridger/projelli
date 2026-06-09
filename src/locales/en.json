@@ -700,8 +700,23 @@
   },
   "version": {
     "history": {
+      "title": "Version History",
       "empty-title": "No version history yet",
-      "empty-description": "Versions are saved automatically when you edit and save the file"
+      "empty-description": "Versions are saved automatically when you edit and save the file",
+      "latest": "Latest",
+      "version": "Version",
+      "versions": "versions",
+      "author-user": "You",
+      "author-ai": "Keepance AI",
+      "preview": "Preview",
+      "this-version": "This version",
+      "current": "Current",
+      "restore-action": "Restore",
+      "restore-title": "Restore Version",
+      "restore-confirm": "Restore the file to the version from {{date}}? Your current version is saved first, so nothing is lost.",
+      "diff-loading": "Building diff...",
+      "docx-text-diff-note": "Showing a text comparison. Word formatting and tracked-change detail are compared as plain text here.",
+      "docx-diff-desktop-only": "Comparing Word documents needs the Keepance desktop app."
     }
   },
   "updater": {

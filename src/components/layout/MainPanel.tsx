@@ -47,6 +47,7 @@ import { AIChatViewer } from '@/components/ai/AIChatViewer';
 import { FileGridView } from '@/components/workspace/FileGridView';
 import { WaveformEditor } from '@/components/audio/WaveformEditor';
 import { VersionHistoryPanel } from '@/components/version/VersionHistoryPanel';
+import { BinaryVersionHistoryPanel } from '@/components/version/BinaryVersionHistoryPanel';
 import { BrowserPanel } from '@/components/workflow/BrowserPanel';
 import { WorkflowExecutionTab } from '@/components/workflow/WorkflowExecutionTab';
 import { EmailViewer } from '@/components/mail/EmailViewer';
@@ -56,6 +57,7 @@ import {
   parseWorkflowFile,
 } from '@/modules/workflow/workflowFile';
 import { getVersionService } from '@/modules/versioning/VersionService';
+import { getBinaryVersionService } from '@/modules/versioning';
 import { useEditorStore } from '@/stores/editorStore';
 import {
   useFileBackupStore,
@@ -112,8 +114,14 @@ function getFileExtension(path: string): string | undefined {
 function shouldVersionFile(extension: string | undefined): boolean {
   if (!extension) return false;
   const ext = extension.toLowerCase();
-  // Version text-based editable files
-  return ext === 'md' || ext === 'txt' || ext === 'json' || ext === 'source' || ext === 'aichat' || ext === 'whiteboard';
+  // Version text-based editable files + the canonical `.docx` document format
+  // (WS-A / A5 — binary-safe, on-disk snapshots for `.docx`).
+  return ext === 'md' || ext === 'txt' || ext === 'json' || ext === 'source' || ext === 'aichat' || ext === 'whiteboard' || ext === 'docx';
+}
+
+/** True when version history for this file lives on disk (binary-safe). */
+function isDiskVersioned(path: string): boolean {
+  return path.toLowerCase().endsWith('.docx');
 }
 
 /**
@@ -363,6 +371,9 @@ export function MainPanel({
   // Version history state
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const versionService = getVersionService();
+  // WS-A / A5: bump to force the DocxEditor to remount and re-open from disk
+  // after a `.docx` version is restored (the engine reads by path on mount).
+  const [docxReloadNonce, setDocxReloadNonce] = useState(0);
 
   // UX-24: auto-close the version-history panel when the active file
   // switches to a non-versioned type (e.g. a .xlsx). Keeps the panel from
@@ -834,10 +845,12 @@ export function MainPanel({
               {/* WS-C honesty — in Local-only mode the redline runs on the
                   local model (Ollama) so nothing leaves the machine. */}
               <DocxEditor
+                key={`docx-${tab.path}-${docxReloadNonce}`}
                 filePath={tab.path}
                 src={tab.content}
                 fileName={tab.name}
                 onFirstEdit={() => writeBackupIfNeeded(tab.path)}
+                onAfterSave={handleDocxAfterSave}
                 apiKeys={apiKeys}
                 {...(redlineLocalOnly ? { aiProvider: 'ollama' as const } : {})}
                 {...(redlineLocalOnly && redlineOllamaModel ? { aiModel: redlineOllamaModel } : {})}
@@ -1032,6 +1045,33 @@ export function MainPanel({
     },
     [activeTabPath, updateContent, versionService]
   );
+
+  // WS-A / A5: after DocxEditor saves a `.docx` to disk via the engine, take a
+  // binary-safe version snapshot into the workspace `.versions/` area. The
+  // editor owns its own save (the tab never goes dirty), so this is the only
+  // snapshot hook for `.docx`.
+  const handleDocxAfterSave = useCallback(
+    async ({ filePath, author }: { filePath: string; author: 'user' | 'ai' }) => {
+      const vs = getBinaryVersionService(workspaceServiceRef?.current ?? null);
+      if (!vs) return;
+      try {
+        await vs.saveVersion(filePath, {
+          author,
+          message: author === 'ai' ? 'AI redline' : 'Auto-saved version',
+        });
+      } catch (err) {
+        console.warn('[MainPanel] docx version snapshot failed for', filePath, err);
+      }
+    },
+    [workspaceServiceRef]
+  );
+
+  // WS-A / A5: after a `.docx` version is restored on disk, remount the editor
+  // so it re-opens the (now restored) file via the engine.
+  const handleDocxRestored = useCallback(() => {
+    setDocxReloadNonce((n) => n + 1);
+    onFileTreeChange?.();
+  }, [onFileTreeChange]);
 
   // UX-13: export handlers live at render-top so both the inline toolbar
   // button and the overflow menu can share them.
@@ -1364,14 +1404,25 @@ export function MainPanel({
                 />
               )}
               {showVersionHistory && activeTab && (
-                <VersionHistoryPanel
-                  filePath={activeTab.path}
-                  fileName={activeTab.name}
-                  currentContent={activeTab.content}
-                  onRestore={handleRestoreVersion}
-                  onClose={() => setShowVersionHistory(false)}
-                  className="h-full"
-                />
+                isDiskVersioned(activeTab.path) ? (
+                  <BinaryVersionHistoryPanel
+                    filePath={activeTab.path}
+                    fileName={activeTab.name}
+                    fs={workspaceServiceRef?.current ?? null}
+                    onRestored={handleDocxRestored}
+                    onClose={() => setShowVersionHistory(false)}
+                    className="h-full"
+                  />
+                ) : (
+                  <VersionHistoryPanel
+                    filePath={activeTab.path}
+                    fileName={activeTab.name}
+                    currentContent={activeTab.content}
+                    onRestore={handleRestoreVersion}
+                    onClose={() => setShowVersionHistory(false)}
+                    className="h-full"
+                  />
+                )
               )}
             </div>
             {/* Panel tabs at bottom */}

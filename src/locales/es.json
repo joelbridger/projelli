@@ -1132,10 +1132,25 @@
   },
   "version": {
     "history": {
+      "title": "Historial de versiones",
       "empty-title": "Aún no hay historial de versiones",
       "empty-title__sourceHash": "6f605e52117cec1241ad8748dc31659f46554bda410742c04122f709a212f519",
       "empty-description": "Las versiones se guardan automáticamente al editar y guardar el archivo",
-      "empty-description__sourceHash": "0e85f5c77cb7cf9373bf39d0e1840c8e7de27a546c38a9f660e97031d59a9c1c"
+      "empty-description__sourceHash": "0e85f5c77cb7cf9373bf39d0e1840c8e7de27a546c38a9f660e97031d59a9c1c",
+      "latest": "Más reciente",
+      "version": "Versión",
+      "versions": "versiones",
+      "author-user": "Tú",
+      "author-ai": "Keepance AI",
+      "preview": "Vista previa",
+      "this-version": "Esta versión",
+      "current": "Actual",
+      "restore-action": "Restaurar",
+      "restore-title": "Restaurar versión",
+      "restore-confirm": "¿Restaurar el archivo a la versión del {{date}}? Tu versión actual se guarda primero, así que no se pierde nada.",
+      "diff-loading": "Generando comparación...",
+      "docx-text-diff-note": "Mostrando una comparación de texto. El formato de Word y el detalle de los cambios registrados se comparan aquí como texto sin formato.",
+      "docx-diff-desktop-only": "Comparar documentos de Word requiere la aplicación de escritorio de Keepance."
     }
   },
   "updater": {
