@@ -87,13 +87,41 @@ function resolveSeatKeys(): { privateKey: KeyObject; publicKey: KeyObject; publi
 }
 
 const seat = resolveSeatKeys();
+// Resolve the auth secret exactly once so the managed-key fallback derives from
+// the SAME value the rest of the app uses (resolveAuthSecret generates a random
+// per-boot secret when unset — calling it twice would diverge).
+const authSecretResolved = resolveAuthSecret();
+
+// ---- Managed-key master secret (assured proxy org provider keys, chunk 3) --
+// Master key under which org-level managed provider API keys are encrypted at
+// rest (HKDF-derived AES-256-GCM; see crypto.encryptSecret). A dedicated secret
+// is preferred in production so rotating it is independent of AUTH_SECRET; if
+// unset we derive from AUTH_SECRET (fine for dev/tests). It is only ever used to
+// wrap/unwrap provider keys — never logged, never returned.
+function resolveManagedKeySecret(): string {
+  const fromEnv = process.env.MANAGED_KEY_SECRET;
+  if (fromEnv && fromEnv.trim().length >= 32) return fromEnv.trim();
+  if (fromEnv && fromEnv.trim().length > 0) {
+    throw new Error("config: MANAGED_KEY_SECRET is set but too short — use at least 32 chars (try `openssl rand -hex 48`).");
+  }
+  if (!IS_TEST) {
+    console.warn(
+      "[config] WARNING: MANAGED_KEY_SECRET not set — deriving the managed-key master from AUTH_SECRET. " +
+        "Set a dedicated MANAGED_KEY_SECRET in production so it can be rotated independently.",
+    );
+  }
+  return `managed-key::${authSecretResolved}`;
+}
 
 export const config = {
   host: str("HOST", "127.0.0.1"),
   // 0 is valid: Bun.serve binds an ephemeral port (used by the HTTP test).
   port: num("PORT", 5190, { min: 0 }),
 
-  authSecret: resolveAuthSecret(),
+  authSecret: authSecretResolved,
+
+  /** Master secret for wrapping org managed provider keys at rest (chunk 3). */
+  managedKeySecret: resolveManagedKeySecret(),
 
   seatPrivateKey: seat.privateKey,
   seatPublicKey: seat.publicKey,
@@ -115,6 +143,17 @@ export const config = {
   // so it gets its own, more generous per-IP+bucket window. Still bounds abuse.
   relayRateLimitMax: num("RELAY_RATE_LIMIT_MAX", 600),
   relayRateLimitWindowSeconds: num("RELAY_RATE_LIMIT_WINDOW_SECONDS", 60),
+
+  // Assured inference proxy (chunk 3). Per-IP request cap + an upstream timeout.
+  // The cap bounds abuse; the timeout severs a hung provider connection so a
+  // stuck request can't pin server memory indefinitely (nothing is buffered, but
+  // an open socket still costs a connection).
+  assuredRateLimitMax: num("ASSURED_RATE_LIMIT_MAX", 120),
+  assuredRateLimitWindowSeconds: num("ASSURED_RATE_LIMIT_WINDOW_SECONDS", 60),
+  assuredUpstreamTimeoutMs: num("ASSURED_UPSTREAM_TIMEOUT_MS", 120_000),
+  /** Hard cap on a forwarded inference request body (the prompt). Streams through;
+   *  never buffered. Generous for long privileged documents, still bounded. */
+  assuredMaxRequestBytes: num("ASSURED_MAX_REQUEST_BYTES", 8 * 1024 * 1024),
 
   /** JWT issuer claim. Kept identical to the legacy validator's audience so the
    *  client treats tokens uniformly; the seat-token issuer is the firm host. */

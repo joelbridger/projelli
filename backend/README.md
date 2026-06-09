@@ -6,14 +6,15 @@ per-machine license check (a JWT in `localStorage`, with a `seats` number nobody
 counted) with org-scoped, signed, revocable **seat tokens** under a
 server-enforced `seat_limit`.
 
-This implements **chunks 1 + 2 of 3** of the firm backend defined in
+This implements **all 3 chunks** of the firm backend defined in
 [`../spikes/firm-sync/DECISION.md`](../spikes/firm-sync/DECISION.md):
 
 1. **Identity + licensing** ← built
-2. **Matter ACL + ethical walls + E2EE CRDT sync relay** ← built (this is the
-   chunk-2 addition; see [§4](#matter-acl--ethical-walls-decisionmd-4) +
+2. **Matter ACL + ethical walls + E2EE CRDT sync relay** ← built (see
+   [§4](#matter-acl--ethical-walls-decisionmd-4) +
    [the relay](#e2ee-sync-relay-decisionmd-1) below)
-3. Assured zero-retention inference proxy — later (design only, DECISION.md §5)
+3. **Assured zero-retention inference proxy** ← built (the firm managed-inference
+   + DPA option; see [the assured proxy](#assured-zero-retention-inference-proxy-decisionmd-5) below)
 
 > **Solo/local mode is unaffected.** The accountless, local-first, BYOK
 > experience is still the default and **never talks to this server.** Everything
@@ -218,6 +219,17 @@ field name for drop-in compatibility with today's `/validate`.
 accepts the short-lived access JWT via `?access_token=` **only on the relay
 endpoints** (`authenticateRelay`). The HTTP relay keeps using the header.
 
+### Assured zero-retention inference proxy (chunk 3; DECISION.md §5)
+| Method · Path | Auth | Body / Headers | Returns |
+|---|---|---|---|
+| `POST /assured/infer` | Bearer + `X-Seat-Token` | Headers: `X-Provider`, `X-Model`, `X-Stream?`. **Body = provider-native payload** | the provider response **streamed back verbatim** + `X-Keepance-No-Retention: true` + `X-Keepance-Request-Id` · **401** bad/missing seat · **409** no managed key · **502/504** upstream error/timeout |
+| `POST /assured/keys/set` | Bearer · `admin` | `{ provider, api_key }` | `{ ok, provider, key_last4 }` (key encrypted at rest; never returned) |
+| `POST /assured/keys/list` | Bearer · `admin` | — | `{ keys:[{provider, key_last4, updated_at, updated_by}] }` |
+| `POST /assured/keys/delete` | Bearer · `admin` | `{ provider }` | `{ ok, provider, deleted }` |
+| `POST /assured/billing` | Bearer · `admin` | — | `{ rows: BillingMeta[] }` — **metadata only** (ids, model, token counts, status, latency, ts) |
+
+See [the assured proxy section](#assured-zero-retention-inference-proxy-decisionmd-5) below for how the zero-retention guarantee is enforced + proven.
+
 **The relay is a dumb pipe (DECISION.md §1).** It stores `{matter_id, blob_id,
 ciphertext, author_seat, key_epoch, created_at}` — **opaque bytes it never
 parses, decodes, hashes, or logs.** `ciphertext_b64` is a client-encrypted Yjs
@@ -286,6 +298,96 @@ crypto is the desktop task's job.
 
 ---
 
+## Assured zero-retention inference proxy (DECISION.md §5)
+
+The **firm option** for managed AI inference + a DPA, as an alternative to pure
+BYOK. A firm seat sends a provider-native inference request; the proxy attaches
+the **org's managed provider key** (one per org+provider, encrypted at rest),
+forwards the request body **straight to the provider as an opaque pass-through**,
+and **streams the response back** — persisting only non-content metadata. BYOK
+stays the default and the strongest story; this is the "one bill + a DPA +
+we-operate-it" path for firms that want it.
+
+### How the no-body-persistence guarantee is enforced (by construction)
+
+The whole value is that the proxy is *architecturally incapable* of persisting
+prompts/completions. That's enforced in code, not by discipline:
+
+1. **`OpaqueBody` (a newtype with no content accessor).** The prompt bytes are
+   wrapped in `src/lib/assured-types.ts → OpaqueBody`. It holds the bytes in a
+   true `#private` field, exposes **no** `.text()`/`.json()`, and its
+   `toString`/`toJSON`/`util.inspect` hooks all return
+   `"[OpaqueBody <redacted: zero-retention>]"`. So if anyone ever hands a body to
+   a logger or `JSON.stringify`, they get a redaction marker — never the prompt.
+   The only egress is `take()`, one-shot, straight into the upstream `fetch`.
+2. **Token counts come from the provider, not the body.** `src/lib/assured.ts →
+   scanUsage` reads a **tee'd** copy of the *response* stream, extracts only the
+   provider's integer `usage` counts (Anthropic/OpenAI/Google shapes), and
+   discards every chunk of text. We never read the prompt or completion to count
+   tokens.
+3. **The only durable write is metadata.** `BillingMeta` (and the
+   `inference_billing` table) have **no field/column** capable of holding a body
+   — just `{request_id, org_id, seat_id, provider, model, input_tokens,
+   output_tokens, status, latency_ms, ts}`. There is deliberately no
+   `store.save(body)` and no `console.log(body)` anywhere on the path; failures
+   log only `redactTarget()` (provider + endpoint, never the key, never the body).
+
+> **Transient-memory note (honest).** The prompt bytes are read into memory for
+> the duration of one request (the irreducible minimum §5 describes), wrapped in
+> `OpaqueBody`, and dropped when the upstream request completes. We buffer rather
+> than re-stream the inbound upload purely for runtime robustness (a streamed
+> upload whose upstream aborts mid-flight can wedge the response in this Bun
+> version); it is the same transient RAM, never written anywhere. The **response**
+> is a true pass-through stream.
+
+### How the guarantee is PROVEN (the falsifiable guard test)
+
+`test/assured-proxy.test.ts` runs a full round-trip against a **local fake
+provider** (no real API calls) and asserts:
+
+- A unique high-entropy **sentinel** string is fed as the prompt and echoed back
+  in the completion. After the request completes, the sentinel appears in
+  **neither the DB** (every table/column, including BLOBs + hex, is dumped and
+  scanned) **nor any captured server log** (all `console.*` are intercepted for
+  the request's duration, including the fire-and-forget usage scan + billing
+  write). The billing row exists and is **metadata-only** (asserted key set).
+- A **static** check that the data-path source never calls `req.text()`/
+  `req.json()` on the inference body, carries it only via `OpaqueBody` →
+  `take()`, and has no body-interpolating `console.*` call.
+
+The guard is *meaningful*: deliberately adding a `console.log(prompt)` makes the
+sentinel test fail (verified). This is the "here is the code; there is no write
+path for bodies, and here's the test that proves it" artifact §5 calls for — a
+firm's IT can run `bun test` themselves.
+
+### Managed keys + billing
+
+- **One managed key per (org, provider)**, set by an admin via
+  `POST /assured/keys/set`. Stored **encrypted at rest** (AES-256-GCM under a
+  server master key derived from `MANAGED_KEY_SECRET` via HKDF — see
+  `crypto.encryptSecret`). The plaintext is encrypted before it touches storage,
+  **never returned** (only `key_last4`), and **never logged**. Decrypted into
+  transient memory only to attach the provider auth header for one request.
+- **Auth + limits:** valid access JWT **+** active, org-bound seat (reuses
+  chunk-1 `verifyActiveSeat` — a leaked seat alone can't be used cross-user). A
+  seat can only use **its own org's** managed key. Per-IP rate limit; an upstream
+  **timeout** severs a hung provider (→ 504); client **abort** propagates upstream
+  (streaming abort supported). Every inference is audited (`assured.infer` /
+  `assured.infer.rejected`) — metadata only.
+
+### Caveat the firm must understand (inherent to any proxy)
+
+The **upstream provider still receives the prompt in plaintext** — that is
+unavoidable for a proxy that has to speak to the model at all. Our guarantee is
+that *Keepance* retains nothing. For end-to-end zero retention the firm must also
+configure **provider-side ZDR / no-training** on the managed account (Anthropic
+ZDR, OpenAI ZDR/no-train, Google no-train), backed by the **DPA**. The proxy
+stamps `X-Keepance-No-Retention: true` per response as a customer-verifiable
+signal. A firm that won't accept *any* plaintext exposure should use BYOK-direct
+with their own provider DPA — and we say so.
+
+---
+
 ## What the next chunks + the desktop wiring need
 
 **Desktop client wiring (a later task):**
@@ -316,9 +418,10 @@ crypto is the desktop task's job.
   bump. Define admin escrow (a firm admin recovers a matter if an attorney
   leaves — escrow the matter key to an org master key) here too (R9).
 
-**Chunk 3 — assured zero-retention proxy (not built; design only, §5):**
-authenticate firm seats (reuse this service's tokens + `verifyActiveSeat` from
-`src/lib/matters.ts`), attach the firm's provider credential, stream through with
-**no body write path** (type-enforced), metadata-only billing logs. Same trust
-class as the relay (ciphertext/transient only). Reuses the org/seat identity
-established here.
+- **Assured-proxy client (chunk 3 — now built server-side):** for firms on the
+  managed-inference tier, route the existing provider calls through
+  `POST /assured/infer` instead of calling the provider directly. Send the access
+  JWT + `X-Seat-Token` + `X-Provider`/`X-Model` headers and the provider-native
+  body; stream the response back as today. BYOK-direct stays the default; this is
+  opt-in. An **admin UI** sets the org's managed keys via `/assured/keys/*` and
+  reviews usage via `/assured/billing`. Types are in `src/contract.ts`.

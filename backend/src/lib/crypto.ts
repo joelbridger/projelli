@@ -18,7 +18,16 @@
  * desktop client's existing decoder keeps working.
  */
 
-import { sign as edSign, verify as edVerify, createHmac, timingSafeEqual, randomBytes } from "node:crypto";
+import {
+  sign as edSign,
+  verify as edVerify,
+  createHmac,
+  timingSafeEqual,
+  randomBytes,
+  createCipheriv,
+  createDecipheriv,
+  hkdfSync,
+} from "node:crypto";
 import type { KeyObject } from "node:crypto";
 import { config } from "./config.ts";
 
@@ -180,4 +189,61 @@ export function generateLicenseKey(): string {
     return s;
   };
   return `KEEP-${group()}-${group()}-${group()}-${group()}`;
+}
+
+// ---------------------------------------------------------------------------
+// At-rest secret encryption — AES-256-GCM under a server MASTER key (chunk 3).
+//
+// Used for the org-level MANAGED provider keys in the assured inference proxy
+// (DECISION.md §5: "the firm's provider credential, held only in the proxy's
+// secret manager"). A provider key is encrypted at rest under a master key
+// derived from MANAGED_KEY_SECRET (HKDF-SHA256), and decrypted into transient
+// memory only for the moment a request is forwarded. The plaintext key is NEVER
+// logged, NEVER returned over the API, and NEVER stored alongside its ciphertext.
+//
+// Format (string, colon-separated, all base64url): "v1:<iv>:<ciphertext+tag>".
+// AES-GCM gives confidentiality + integrity (a tampered blob fails to decrypt).
+// ---------------------------------------------------------------------------
+
+/** Domain-separated 32-byte AES key derived from the master secret via HKDF. */
+function managedAesKey(): Buffer {
+  return Buffer.from(
+    hkdfSync("sha256", config.managedKeySecret, "keepance-managed-key-salt", "managed-provider-key-aes256gcm-v1", 32),
+  );
+}
+
+/**
+ * Encrypt a plaintext secret (e.g. an org's provider API key) for at-rest
+ * storage. Returns an opaque self-describing string. The plaintext is consumed
+ * here and never retained by this function.
+ */
+export function encryptSecret(plaintext: string): string {
+  const iv = randomBytes(12); // 96-bit nonce, the AES-GCM standard.
+  const cipher = createCipheriv("aes-256-gcm", managedAesKey(), iv);
+  const ct = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `v1:${base64urlEncode(iv)}:${base64urlEncode(Buffer.concat([ct, tag]))}`;
+}
+
+/**
+ * Decrypt a secret produced by `encryptSecret`. Returns null on any failure
+ * (malformed, wrong version, bad auth tag) — callers must treat null as "no
+ * usable key" and fail closed. The returned plaintext is the caller's to use
+ * transiently and discard; it must never be logged or persisted.
+ */
+export function decryptSecret(blob: string): string | null {
+  try {
+    const parts = blob.split(":");
+    if (parts.length !== 3 || parts[0] !== "v1") return null;
+    const iv = base64urlDecode(parts[1]!);
+    const body = base64urlDecode(parts[2]!);
+    if (body.length < 17) return null; // need at least 1 byte ct + 16 byte tag
+    const tag = body.subarray(body.length - 16);
+    const ct = body.subarray(0, body.length - 16);
+    const decipher = createDecipheriv("aes-256-gcm", managedAesKey(), iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
+  } catch {
+    return null;
+  }
 }

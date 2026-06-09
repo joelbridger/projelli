@@ -35,6 +35,7 @@ import type {
   EthicalWall,
   MatterUpdate,
 } from "./types.ts";
+import type { AssuredProvider, BillingMeta, ManagedProviderKey } from "./assured-types.ts";
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS orgs (
@@ -183,6 +184,47 @@ CREATE TABLE IF NOT EXISTS matter_updates (
 );
 CREATE INDEX IF NOT EXISTS idx_matter_updates_matter ON matter_updates(matter_id, id);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_matter_updates_blob ON matter_updates(matter_id, blob_id);
+
+-- =====================================================================
+-- Chunk 3: Assured zero-retention inference proxy (DECISION.md §5).
+--
+-- org_provider_keys: ONE managed provider key per (org, provider), stored
+-- ENCRYPTED AT REST (AES-256-GCM under the server master key). The plaintext
+-- key is never stored, never returned, never logged — only key_last4 (a
+-- non-secret hint) is surfaced to admins. Set via the admin endpoint.
+--
+-- inference_billing: append-only, METADATA-ONLY usage log. CRITICAL: this
+-- table has NO column capable of holding a prompt or completion. Columns are
+-- ids + provider/model + token counts (from the provider's usage response) +
+-- status/latency/ts. The zero-retention guard test asserts a sentinel prompt
+-- string appears in NONE of these rows. Do NOT add a body/prompt/content column.
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS org_provider_keys (
+  org_id         TEXT NOT NULL REFERENCES orgs(org_id),
+  provider       TEXT NOT NULL,                 -- anthropic | openai | google
+  key_ciphertext TEXT NOT NULL,                 -- AES-256-GCM blob; opaque, never logged/returned
+  key_last4      TEXT NOT NULL,                 -- non-secret display hint
+  updated_at     TEXT NOT NULL,
+  updated_by     TEXT NOT NULL,                 -- admin user_id who set it
+  PRIMARY KEY (org_id, provider)
+);
+
+CREATE TABLE IF NOT EXISTS inference_billing (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  request_id    TEXT NOT NULL,
+  org_id        TEXT NOT NULL,
+  seat_id       TEXT NOT NULL,
+  provider      TEXT NOT NULL,
+  model         TEXT NOT NULL,
+  input_tokens  INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  status        INTEGER NOT NULL DEFAULT 0,     -- upstream HTTP status
+  latency_ms    INTEGER NOT NULL DEFAULT 0,
+  ts            TEXT NOT NULL
+  -- NO prompt / completion / body / content column. By design. See guard test.
+);
+CREATE INDEX IF NOT EXISTS idx_inference_billing_org ON inference_billing(org_id, id);
 `;
 
 // ---------------------------------------------------------------------------
@@ -992,6 +1034,120 @@ export class Store {
       .query(`SELECT MAX(id) AS m FROM matter_updates WHERE matter_id = ?`)
       .get(matterId) as { m: number | null };
     return r.m ?? 0;
+  }
+
+  // ===========================================================================
+  // Assured zero-retention inference proxy (DECISION.md §5)
+  // ===========================================================================
+
+  /**
+   * Upsert the org's managed key for a provider. The CIPHERTEXT is supplied by
+   * the caller (already AES-GCM-encrypted via crypto.encryptSecret); this layer
+   * never sees or stores plaintext. One key per (org, provider).
+   */
+  setOrgProviderKey(input: {
+    org_id: string;
+    provider: AssuredProvider;
+    key_ciphertext: string;
+    key_last4: string;
+    updated_by: string;
+  }): void {
+    this.db
+      .query(
+        `INSERT INTO org_provider_keys (org_id, provider, key_ciphertext, key_last4, updated_at, updated_by)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(org_id, provider) DO UPDATE SET
+           key_ciphertext = excluded.key_ciphertext,
+           key_last4      = excluded.key_last4,
+           updated_at     = excluded.updated_at,
+           updated_by     = excluded.updated_by`,
+      )
+      .run(input.org_id, input.provider, input.key_ciphertext, input.key_last4, this.nowIso(), input.updated_by);
+  }
+
+  /** Fetch a stored managed key row (ciphertext + metadata) for (org, provider). */
+  getOrgProviderKey(orgId: string, provider: AssuredProvider): ManagedProviderKey | null {
+    const r = this.db
+      .query(`SELECT * FROM org_provider_keys WHERE org_id = ? AND provider = ?`)
+      .get(orgId, provider) as
+      | { org_id: string; provider: string; key_ciphertext: string; key_last4: string; updated_at: string; updated_by: string }
+      | null;
+    if (!r) return null;
+    return { ...r, provider: r.provider as AssuredProvider };
+  }
+
+  /** List which providers an org has a managed key for (metadata only, no secrets). */
+  listOrgProviderKeys(orgId: string): Array<{ provider: AssuredProvider; key_last4: string; updated_at: string; updated_by: string }> {
+    const rows = this.db
+      .query(`SELECT provider, key_last4, updated_at, updated_by FROM org_provider_keys WHERE org_id = ? ORDER BY provider ASC`)
+      .all(orgId) as Array<{ provider: string; key_last4: string; updated_at: string; updated_by: string }>;
+    return rows.map((r) => ({ ...r, provider: r.provider as AssuredProvider }));
+  }
+
+  /** Remove an org's managed key for a provider. Returns true if a row was deleted. */
+  deleteOrgProviderKey(orgId: string, provider: AssuredProvider): boolean {
+    const res = this.db.query(`DELETE FROM org_provider_keys WHERE org_id = ? AND provider = ?`).run(orgId, provider);
+    return res.changes > 0;
+  }
+
+  /**
+   * Append a METADATA-ONLY billing row. This is the only per-request write on
+   * the assured path. The `BillingMeta` type has no body field, and this INSERT
+   * lists only metadata columns — there is structurally no way for prompt or
+   * completion text to land here.
+   */
+  recordInference(meta: BillingMeta): void {
+    this.db
+      .query(
+        `INSERT INTO inference_billing (request_id, org_id, seat_id, provider, model, input_tokens, output_tokens, status, latency_ms, ts)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        meta.request_id,
+        meta.org_id,
+        meta.seat_id,
+        meta.provider,
+        meta.model,
+        meta.input_tokens,
+        meta.output_tokens,
+        meta.status,
+        meta.latency_ms,
+        meta.ts,
+      );
+  }
+
+  /** List the org's inference billing rows (newest first). Metadata only. */
+  listInferenceBilling(orgId: string, limit = 200): BillingMeta[] {
+    const rows = this.db
+      .query(`SELECT * FROM inference_billing WHERE org_id = ? ORDER BY id DESC LIMIT ?`)
+      .all(orgId, limit) as Array<{
+      request_id: string;
+      org_id: string;
+      seat_id: string;
+      provider: string;
+      model: string;
+      input_tokens: number;
+      output_tokens: number;
+      status: number;
+      latency_ms: number;
+      ts: string;
+    }>;
+    // Map to the BillingMeta shape explicitly (drop the internal autoincrement
+    // `id` column) so the API surface is exactly the documented metadata fields.
+    return rows.map(
+      (r): BillingMeta => ({
+        request_id: r.request_id,
+        org_id: r.org_id,
+        seat_id: r.seat_id,
+        provider: r.provider as AssuredProvider,
+        model: r.model,
+        input_tokens: r.input_tokens,
+        output_tokens: r.output_tokens,
+        status: r.status,
+        latency_ms: r.latency_ms,
+        ts: r.ts,
+      }),
+    );
   }
 }
 

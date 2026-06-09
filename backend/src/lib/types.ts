@@ -81,7 +81,12 @@ export type AuditAction =
   | "matter.wall.clear"
   | "matter.key.rotate" // key_epoch bump — desktop key-release service rotates the matter key here
   | "matter.access.granted" // a push/pull/connect that passed the access gate
-  | "matter.access.denied"; // a push/pull/connect rejected (non-member, walled, cross-org)
+  | "matter.access.denied" // a push/pull/connect rejected (non-member, walled, cross-org)
+  // ---- chunk 3: assured zero-retention inference proxy (DECISION.md §5) -------
+  | "assured.key.set" // admin set/rotated an org managed provider key (metadata only)
+  | "assured.key.delete" // admin removed an org managed provider key
+  | "assured.infer" // a forwarded inference (metadata only — NEVER prompt/completion)
+  | "assured.infer.rejected"; // a rejected inference (bad seat, no key, provider error)
 
 export interface AuditEvent {
   id: number;

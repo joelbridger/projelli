@@ -309,6 +309,77 @@ export interface SyncUpdateFrame {
 }
 
 // ---------------------------------------------------------------------------
+// Chunk 3 — Assured zero-retention inference proxy (DECISION.md §5)
+//
+// The FIRM option (vs. pure BYOK): managed inference + a DPA. A firm seat sends
+// a provider-native inference request; the proxy attaches the org's MANAGED key
+// (encrypted at rest, never returned), forwards the body STRAIGHT to the
+// provider as an opaque stream, and streams the response back — persisting only
+// non-content metadata for billing. The prompt/completion are NEVER written to
+// disk, DB, or logs (enforced by construction; see backend/src/lib/assured.ts).
+//
+// /assured/infer is unusual: its control fields ride in HEADERS, not a JSON
+// envelope, because the BODY is the provider-native payload that must pass
+// through untouched. Each response carries `X-Keepance-No-Retention: true`.
+// ---------------------------------------------------------------------------
+
+export type AssuredProvider = "anthropic" | "openai" | "google";
+
+/**
+ * POST /assured/infer — headers, not a JSON wrapper, carry the control fields:
+ *   Authorization: Bearer <access_token>
+ *   X-Seat-Token:  <a valid, active seat token>
+ *   X-Provider:    anthropic | openai | google
+ *   X-Model:       <provider model id>
+ *   X-Stream:      "1" (default) | "0"
+ * Body: the PROVIDER-NATIVE request payload (Anthropic /v1/messages, OpenAI
+ *       /v1/chat/completions, Google :generateContent). Piped upstream verbatim.
+ * Response: the provider's response streamed back verbatim (SSE when streaming),
+ *           plus `X-Keepance-No-Retention: true` and `X-Keepance-Request-Id`.
+ */
+export interface AssuredInferHeaders {
+  "X-Seat-Token": string;
+  "X-Provider": AssuredProvider;
+  "X-Model": string;
+  "X-Stream"?: "1" | "0";
+}
+
+/** POST /assured/keys/set  (admin) — store/rotate the org's managed provider key. */
+export interface SetProviderKeyRequest {
+  provider: AssuredProvider;
+  api_key: string; // encrypted at rest immediately; never stored/returned in plaintext
+}
+export interface SetProviderKeyResponse {
+  ok: true;
+  provider: AssuredProvider;
+  key_last4: string; // non-secret display hint
+}
+/** POST /assured/keys/list (admin) — providers with a managed key (no secrets). */
+export interface ListProviderKeysResponse {
+  keys: Array<{ provider: AssuredProvider; key_last4: string; updated_at: string; updated_by: string }>;
+}
+/** POST /assured/keys/delete (admin) { provider } */
+export interface DeleteProviderKeyRequest {
+  provider: AssuredProvider;
+}
+/** POST /assured/billing (admin) — METADATA-ONLY usage rows (no prompt/completion). */
+export interface InferenceBillingRow {
+  request_id: string;
+  org_id: string;
+  seat_id: string;
+  provider: AssuredProvider;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  status: number;
+  latency_ms: number;
+  ts: string;
+}
+export interface InferenceBillingResponse {
+  rows: InferenceBillingRow[];
+}
+
+// ---------------------------------------------------------------------------
 // Errors (generic envelope used by 4xx/5xx that aren't a typed shape above)
 // ---------------------------------------------------------------------------
 export interface ApiError {
@@ -346,4 +417,10 @@ export const ENDPOINTS = {
   pushUpdate: { method: "POST", path: "/matter/:id/updates" },
   pullUpdates: { method: "GET", path: "/matter/:id/updates" },
   syncSocket: { method: "GET", path: "/matter/:id/sync" }, // WebSocket upgrade
+  // Chunk 3 — assured zero-retention inference proxy.
+  assuredInfer: { method: "POST", path: "/assured/infer" },
+  assuredKeySet: { method: "POST", path: "/assured/keys/set" },
+  assuredKeyList: { method: "POST", path: "/assured/keys/list" },
+  assuredKeyDelete: { method: "POST", path: "/assured/keys/delete" },
+  assuredBilling: { method: "POST", path: "/assured/billing" },
 } as const;

@@ -39,6 +39,13 @@ import {
   authorizeSyncConnect,
 } from "./routes/matters.ts";
 import { fanout, FanoutHub, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
+import {
+  handleAssuredInfer,
+  handleSetProviderKey,
+  handleListProviderKeys,
+  handleDeleteProviderKey,
+  handleInferenceBilling,
+} from "./routes/assured.ts";
 import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
 
@@ -140,6 +147,17 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/org/seats/transfer" && method === "POST") return await handleTransferSeat(req, store);
         if (path === "/org/users" && method === "POST") return await handleCreateUser(req, store);
         if (path === "/org/audit" && (method === "POST" || method === "GET")) return handleAudit(req, store);
+
+        // --- Assured zero-retention inference proxy (chunk 3, DECISION.md §5) ---
+        // The proxy endpoint takes the request BODY as an opaque stream and pipes
+        // it upstream untouched — it is handled directly with `req` and never
+        // routed through any body-reading/logging middleware.
+        if (path === "/assured/infer" && method === "POST") return await handleAssuredInfer(req, store, ip);
+        // Admin: managed provider keys + metadata-only billing.
+        if (path === "/assured/keys/set" && method === "POST") return await handleSetProviderKey(req, store);
+        if (path === "/assured/keys/list" && method === "POST") return handleListProviderKeys(req, store);
+        if (path === "/assured/keys/delete" && method === "POST") return await handleDeleteProviderKey(req, store);
+        if (path === "/assured/billing" && method === "POST") return handleInferenceBilling(req, store);
 
         // --- Provisioning (billing-driven; protect at network layer) ---
         if (path === "/admin/org" && method === "POST") return await handleCreateOrg(req, store);
