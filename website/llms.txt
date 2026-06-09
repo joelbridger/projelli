@@ -1,38 +1,59 @@
 # Keepance
 
-> Local-first AI workspace for professionals who handle confidential client work. Every chat with Claude, GPT, or Gemini becomes a real Markdown file on the user's machine. Documents and API keys stay on the user's machine; prompts go straight to the AI provider.
+> The private intelligence layer for a law practice. Find anything you have ever emailed or filed, instantly and privately, with cited answers. Draft and redline in real Word with tracked changes. A litigation associate that reads depositions and flags contradictions for you. Everything stays on the lawyer's machine, confidential by architecture.
 
 ## What Keepance is
 
-Keepance is a desktop application (Windows, macOS, Linux) that combines a Markdown editor, a workspace-aware AI chat, and profession-specific workflow template packs (Legal Practice, Tax Practice, Consulting Practice). Built with Tauri 2 + React + TypeScript. Approximately 25,000 lines of source.
+Keepance is a desktop application (Windows, macOS, Linux) that is the private place a lawyer's whole practice lives and answers back. It imports and privately indexes email, documents, prior matters, and deposition transcripts; answers plain-English questions over all of it with a clickable citation on every answer; runs a litigation associate (contradiction-finder, timeline builder, discovery triage, privilege-log drafter); and drafts, edits, and redlines real Word and PDF files with tracked changes intact. Built with Tauri 2 + React + TypeScript.
 
-Unlike chat-first AI tools (ChatGPT, Claude.ai, Gemini), Keepance treats files as first-class citizens. Every AI conversation produces a persistent `.aichat` file. Workflow runs save as `.workflow` files. Whiteboards, audio recordings, and research source cards all live as real files in a folder the user picks.
+The lawyer never sees Markdown. Documents they read, edit, and ship are real Word and PDF on their own letterhead. Any plain-text layer is an invisible internal detail, never the legal deliverable.
 
-Unlike workspace-first tools (Notion AI, Reflect, Tana, Mem.ai), Keepance is local-first. Data lives on the user's hard drive in standard formats. No cloud, no accounts, no telemetry, no server-side AI.
+Unlike cloud AI assistants (Microsoft 365 Copilot, ChatGPT, Claude.ai, Gemini), Keepance keeps client data on the user's machine. The user picks how private each matter is: a local model (nothing leaves the machine), bring-your-own-key direct to the provider (the prompt goes straight to Anthropic, OpenAI, or Google, never through Keepance servers), or, for firms, an assured zero-retention deployment with a signed DPA.
 
 ## Who Keepance is for
 
-Solo and small-firm attorneys, tax preparers and CPAs, independent consultants, and boutique agencies. Professionals who handle confidential client work and cannot pipe that work into a cloud service.
+The center of gravity is small and mid-size, litigation-heavy law firms, and litigation-heavy solos. The on-ramp is the confidentiality-anxious solo attorney. Keepance lands with the solo and grows into the firm.
 
-Keepance is not designed for enterprise teams, hobbyists, or users who want an all-in-one managed AI subscription.
+The same private architecture serves adjacent professions bound by NDA or professional confidentiality: tax preparers and CPAs (IRC 6713/7216), independent consultants and agencies, and financial advisors and RIAs. Law is the focus; these are adjacent markets the same engine serves.
 
-## Differentiation (the five message pillars)
+Keepance is not a general productivity tool, not a Notion or Obsidian competitor, not a practice-management replacement (it sits beside Clio), and not a legal-research substitute (it is not Westlaw or Lexis).
 
-1. **Local-first**: files stay on the user's machine. No cloud sync, no telemetry, no server-side database. Keepance never sees the user's work; AI requests go straight to the provider the user chose.
-2. **BYOK (Bring Your Own Key)**: users supply their own Anthropic, OpenAI, or Google AI Studio API key. Keepance never holds AI credentials and AI requests go directly from the user's machine to the AI provider.
-3. **Chat-as-files**: every AI conversation produces a real Markdown file the user can open, edit, version, back up, or delete with regular file system tools.
-4. **Profession-specific template packs**: workflow templates organized by practice type (Legal Practice, Tax Practice, Consulting Practice) covering the documents professionals actually produce for clients.
-5. **Confidential by architecture**: documents and API keys stay on the user's machine; prompts go straight to the AI provider, never through Keepance servers. $49 Personal (one-time) / $149/yr Professional (includes one profession pack) / $499/yr Practice (up to 5 seats).
+## The differentiators (the message pillars)
+
+1. **Find anything, privately**: confidential search and cited recall across the lawyer's email, documents, and past matters. Ask in plain English, get the exact source back with a citation, scoped to one matter so client files never cross.
+2. **The litigation associate**: deposition and discovery analysis. Surfaces contradictions across transcripts, statements, and emails; builds timelines; triages document productions; drafts privilege logs. It proposes, the lawyer decides, and every flag is pinned to a source.
+3. **Real deliverables, Office-native**: import, generate, edit, and redline real Word and PDF on the firm's letterhead, with tracked changes, comments, styles, numbering, and tables intact. The AI operates on the real document structure, not a flattened copy.
+4. **The trust and confidentiality layer**: the confidentiality spectrum (local, BYOK, assured), an egress indicator on every action, a one-screen plain-English data map, encryption at rest, an audit and provenance trail, and privilege tagging.
+5. **Honesty as the brand**: the whole truth about where data goes, told first. With a cloud key, the provider sees the prompt; Keepance says so plainly. Only a local model means nothing leaves the machine.
 
 ## Pricing
 
-| Tier | Price | What it includes |
-|---|---|---|
-| Personal | $49 one-time | Core editor, all 3 AI providers, unlimited workspaces, whiteboard, audio, research/citations, 1 year of updates |
-| Professional | $149/yr | Everything Personal has + one profession-specific template pack (Legal, Tax, or Consulting) + commercial use license |
-| Practice | $499/yr | Everything Professional has + up to 5 seats + all profession packs, kept current |
+Per seat, billed annually (headline price); month-to-month available at roughly a 25 to 30 percent premium. A 30-day free trial, no credit card, on all platforms.
 
-Sold via LemonSqueezy (merchant of record handles VAT, tax, refunds). 14-day refund window, no questions asked.
+| Tier | Annual (per seat) | Month-to-month | Who it is for | What it adds |
+|---|---|---|---|---|
+| Solo | $39/mo ($468/yr) | $49/mo | A single attorney | The complete confidential workspace: the Word-native editor, AI redlining with tracked changes, matter-scoped cited recall across email and documents, privilege controls, local/BYOK, the trust layer |
+| Professional | $79/mo ($948/yr) | $99/mo | The serious solo or small-firm litigator | Everything in Solo, plus the litigation associate (contradiction-finder, timelines, discovery triage, privilege-log drafter), version history, all practice packs, priority support |
+| Firm | $129/seat/mo ($1,548/seat/yr), min 3 seats | $159/seat/mo | Firms of roughly 5 to 50 attorneys | Everything in Professional, plus shared matters and collaboration, an admin console with SSO and ethical walls, the assured zero-retention option, and the assurance package (DPA, trust center, SOC 2 readiness) |
+
+Founding rate: the first cohort locks a 30 percent discount for the life of the subscription (Solo $27/mo, Professional $55/mo, Firm $90/seat/mo).
+
+**BYOK and total cost**: the user brings their own AI key and pays the provider directly, usually $5 to $15 a month for a solo. Keepance takes zero markup on AI usage. Run a local model with Ollama and pay nothing for AI. The subscription covers the platform, not the AI tokens.
+
+**Data ownership guarantee**: your files are always yours. They are real Word and PDF files in your own folders. If you ever cancel, you keep every document, email, and matter you have made. A lapsed subscription turns off the AI features and updates, not your data.
+
+**Grandfathering**: anyone who bought the old one-time Personal, Professional, or Practice license keeps exactly what they paid for. Keepance 3.0 is a new, repositioned product at new pricing, and never claws back what a buyer already owns.
+
+Sold via LemonSqueezy (merchant of record handles VAT, tax, refunds).
+
+## Where Keepance sits versus competitors
+
+- **Thomson Reuters CoCounsel Core**: $225/seat/mo (about $4,500/yr). Keepance Firm is roughly half to one-third the price.
+- **Westlaw + CoCounsel**: $428 to $639/seat/mo. Keepance Firm is one-third to one-fifth the price.
+- **Clio / MyCase (practice management)**: $39 to $149/seat/mo annual. Comparable, but Keepance is the private AI layer beside Clio, not a replacement.
+- **Microsoft 365 Copilot**: $21 to $30/mo add-on (needs base M365). Keepance Solo is at or above, with legal-specific depth, no required base subscription, and the one thing Copilot structurally cannot offer: the document and the AI both stay private.
+
+The story: a fraction of CoCounsel, and the only one where your client files never leave your control. (Pricing references are from the providers' published rates as of June 2026 and are for comparison only.)
 
 ## Platform support
 
@@ -40,16 +61,25 @@ Sold via LemonSqueezy (merchant of record handles VAT, tax, refunds). 14-day ref
 - macOS: Universal binary (Apple Silicon + Intel) signed by Apple Developer ID
 - Linux: AppImage and `.deb` packages
 
-Auto-updates land via GitHub Releases for v1.0.8 and later, with minisign-signed update bundles.
+Auto-updates land via GitHub Releases with minisign-signed update bundles.
 
 ## Architecture
 
 - Tauri 2 (Rust) shell, React 18 + TypeScript 5 + Vite 5 frontend
-- Zustand for state, shadcn/ui + Tailwind CSS for UI, CodeMirror 6 for text editing, TipTap for rich text
-- Three AI providers: Anthropic Claude, OpenAI, Google Gemini (BYOK, streaming, tool use)
-- File formats: `.md`, `.txt`, `.aichat`, `.workflow`, `.whiteboard`, `.source`, plus full read/write for `.docx`, `.xlsx`, `.csv`, `.rtf`, `.pdf`, `.pptx`
-- MCP server support: Keepance speaks the Model Context Protocol and can act as a client
+- In-house OOXML engine for real Word round-trip; Word-familiar editor with AI redline
+- Local embeddings index for private cited recall across email and documents
+- Three AI providers: Anthropic Claude, OpenAI, Google Gemini (BYOK, streaming, tool use), plus local models via Ollama
+- File formats: real read/write for `.docx`, `.xlsx`, `.csv`, `.rtf`, `.pdf`, `.pptx`; internal `.aichat`, `.workflow`, `.whiteboard`, `.source`
 - No server-side state. No telemetry. No tracking pixels. Plausible analytics on the marketing site only.
+
+## Privacy and security
+
+- No data collection from the desktop app, no telemetry
+- AI keys stored in the OS keychain (macOS), encrypted file fallback elsewhere
+- Email and documents encrypted at rest on the user's machine
+- An egress indicator shows where each action goes ("your machine only" or "Anthropic, directly from you")
+- With a local model, nothing leaves the machine; with a cloud key, the prompt goes directly to that provider and never through Keepance
+- See https://keepance.com/legal/privacy for the full Privacy Policy and https://keepance.com/security for data handling
 
 ## Documentation
 
@@ -59,23 +89,9 @@ Auto-updates land via GitHub Releases for v1.0.8 and later, with minisign-signed
 - Changelog: https://github.com/keepance/keepance/blob/master/CHANGELOG.md
 - Press Kit: https://keepance.com/press-kit
 
-## Privacy and security
+## Comparison pages
 
-- No data collection from the desktop app
-- No telemetry
-- API keys stored in OS keychain on macOS, encrypted file fallback elsewhere
-- All AI requests go directly from the user's machine to the AI provider
-- See https://keepance.com/legal/privacy for the full Privacy Policy
-
-## Comparison to alternatives
-
-- **Notion AI**: Notion is a cloud team workspace; Keepance is a local-first single-user tool. Notion AI is bundled at $20/month; Keepance uses the user's own API key; files stay on the user's machine and Keepance never sees them.
-- **Obsidian (with AI plugins)**: Obsidian is the closest spiritual cousin, also local-first and Markdown-based. Keepance adds first-class AI chat, profession-specific workflow template packs, and built-in BYOK; Obsidian users build this from plugins.
-- **ChatGPT Projects / Claude.ai Projects**: web-based, cloud-stored, locked to a single AI provider. Keepance is desktop, local, multi-provider, and the chat history is yours in Markdown.
-- **Reflect, Tana, Mem.ai**: AI-first cloud notes tools. Keepance is local-first.
-- **Cursor**: code editor with AI. Keepance is for non-code workflows (writing, planning, founder docs).
-
-For per-competitor comparison pages, see https://keepance.com/vs/
+Per-competitor comparison pages: https://keepance.com/vs/ (CoCounsel, Clio Duo, Microsoft 365 Copilot, Obsidian, Notion, ChatGPT, and more)
 
 ## Contact
 
@@ -85,4 +101,4 @@ For per-competitor comparison pages, see https://keepance.com/vs/
 
 ## Last updated
 
-2026-04-27. This file is refreshed after major releases and quarterly otherwise.
+2026-06-09. Repositioned for the Keepance 3.0 launch (the private intelligence layer for a law practice; subscription pricing). Refreshed after major releases and quarterly otherwise.
