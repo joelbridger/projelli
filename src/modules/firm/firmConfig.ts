@@ -6,12 +6,12 @@
  *   1. `VITE_FIRM_API_BASE` build/env override (used by tests + custom deploys).
  *   2. Dev (`import.meta.env.DEV`): the Vite proxy mount `/api/firm` (so the
  *      browser dev server can reach a locally-running backend without CORS).
- *   3. Production: `https://firm.keepance.com`.
+ *   3. Production: `https://api.keepance.com`.
  *
  * Solo/local mode never imports or calls any of this — it stays accountless.
  */
 
-const PROD_FIRM_API_BASE = 'https://firm.keepance.com';
+const PROD_FIRM_API_BASE = 'https://api.keepance.com';
 const DEV_FIRM_API_PROXY = '/api/firm';
 
 function envBase(): string | undefined {
