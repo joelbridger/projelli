@@ -1,3 +1,12 @@
+# Workspace: the Tauri host crate (`keepance`, this manifest) plus the in-house
+# OOXML document engine (`crates/keepance-docx`). Keeping the engine as a
+# workspace member — not a root-level workspace over the whole repo — means
+# `cargo test -p keepance-docx` runs fast and isolated (no tauri/lancedb/
+# fastembed in its graph) while sharing one lockfile and one (gitignored)
+# target/ dir with the host. The host depends on the engine via a path dep.
+[workspace]
+members = [".", "crates/keepance-docx"]
+
 [package]
 name = "keepance"
 version = "2.5.2"
@@ -28,6 +37,11 @@ path = "src/mcp_bin/main.rs"
 tauri-build = { version = "2.5.3", features = [] }
 
 [dependencies]
+# WS-A document engine. In-house OOXML (.docx) parse/serialize/package with
+# track-changes + comments + preserve-by-default. The `commands::docx` module
+# is a thin wrapper over this crate; all the real work lives here so it can be
+# tested in isolation. See crates/keepance-docx/.
+keepance-docx = { path = "crates/keepance-docx" }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"

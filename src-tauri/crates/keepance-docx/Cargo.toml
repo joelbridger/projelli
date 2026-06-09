@@ -1,0 +1,39 @@
+[package]
+name = "keepance-docx"
+version = "0.1.0"
+edition = "2021"
+description = "In-house OOXML (.docx) document engine for Keepance 3.0: parse/serialize/package with track-changes, comments, and preserve-by-default fidelity. No proprietary document SDK, no external service."
+license = "MIT"
+publish = false
+
+# This crate is the production promotion of spikes/docx-roundtrip. It is a
+# workspace member of src-tauri so `cargo test -p keepance-docx` runs FAST and
+# in isolation — the Tauri host (tauri, lancedb, fastembed, ...) is NOT in this
+# crate's dependency graph, so the engine test suite compiles in seconds.
+#
+# "In-house" constraint (board decision): only generic XML/ZIP/serde crates we
+# compile into our own binary. No proprietary OOXML/document SDK, no cloud or
+# SaaS document service ever touches the document.
+
+[dependencies]
+# Generic OOXML package container — a .docx is a ZIP of XML parts. `zip` gives
+# read + write with deflate.
+zip = "4"
+# Generic streaming XML reader/writer. Reader parses document.xml / comments.xml
+# preserving revision + comment markup; writer re-emits well-formed, escaped XML.
+quick-xml = "0.38"
+# JSON bridge for the React editor: the DOM (de)serializes via serde.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Stable, non-colliding ids for AI-authored revisions and new comments.
+uuid = { version = "1", features = ["v4"] }
+# Typed timestamps for w:date attributes on revisions and comments.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# Ergonomic error handling across zip/xml/io/serde error types.
+anyhow = "1"
+# Public, typed error enum the Tauri command layer can map to user-facing
+# strings without leaking internals.
+thiserror = "1"
+
+[dev-dependencies]
+tempfile = "3"

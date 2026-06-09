@@ -70,6 +70,12 @@ pub fn run() {
             // Stream C1 (v2.0): Templates Marketplace install pipeline.
             commands::checksum::sha256_file,
             commands::tarball::extract_tarball,
+            // WS-A / A1 (v3.0): in-house OOXML document engine. Open a .docx
+            // into the JSON DOM, save it back preserving unmodeled parts, and
+            // author AI tracked changes (the helper A4 calls).
+            commands::docx::docx_open,
+            commands::docx::docx_save,
+            commands::docx::docx_author_revision,
             // Phase 1 email — Microsoft 365 import.
             commands::mail::mail_set_workspace,
             commands::mail::mail_begin_login,
