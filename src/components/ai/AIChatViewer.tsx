@@ -42,6 +42,7 @@ import type { ExtractedContext } from '@/utils/ai-file-context';
 import { filterByScope } from '@/utils/client-boundary';
 import { ChatCostChip } from '@/components/ai/ChatCostChip';
 import { AIContextIndicator } from '@/components/ai/AIContextIndicator';
+import { EgressIndicator } from '@/components/privacy/EgressIndicator';
 import { ContextMeterBar } from '@/components/chat/ContextMeterBar';
 import { CompressedSegmentMarker } from '@/components/chat/CompressedSegmentMarker';
 import { CompressionConfirmModal } from '@/components/chat/CompressionConfirmModal';
@@ -2372,6 +2373,15 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             className="mb-2"
           />
         )}
+        {/* WS-C — egress indicator: states exactly where the NEXT send goes,
+             driven by the active provider + confidentiality mode. Always
+             visible right above the composer so the user can never send
+             without seeing the destination. */}
+        <EgressIndicator
+          provider={chatData.provider ?? 'anthropic'}
+          variant="full"
+          className="mb-2"
+        />
         {/* Stream A1 — ChatInputToolbar: paperclip, paste, drop, tiles, vision warning */}
         <ChatInputToolbar
           provider={chatData.provider ?? 'anthropic'}

@@ -20,6 +20,10 @@ import { useActiveMatter } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { BugReportDialog } from '@/components/common/BugReportDialog';
 import { TrialStatusChip } from '@/components/trial';
+// WS-C: compact egress mirror — shown when an AI chat is the active tab so the
+// "where does this go?" answer is visible even from the status bar.
+import { EgressIndicator } from '@/components/privacy/EgressIndicator';
+import type { EgressProvider } from '@/modules/privacy/egress';
 
 /**
  * Extract project name from full path
@@ -133,6 +137,21 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
   const [bugReportOpen, setBugReportOpen] = useState(false);
   // WS-B/C: which matter the AI is currently confined to (null = all matters).
   const activeMatter = useActiveMatter();
+
+  // WS-C: when the active tab is an AI chat, surface the compact egress mirror
+  // for that chat's provider. We parse the provider out of the chat file's JSON
+  // content (the same field AIChatViewer drives the indicator from), so the
+  // status-bar mirror reflects the REAL destination of the next send.
+  const activeChatProvider = useMemo<EgressProvider | null>(() => {
+    if (!activeTab || !activeTab.path.endsWith('.aichat')) return null;
+    try {
+      const parsed = JSON.parse(activeTab.content) as { provider?: string };
+      return (parsed.provider ?? 'anthropic') as EgressProvider;
+    } catch {
+      // Unparsed/empty chat file: still an AI chat, default to the app default.
+      return 'anthropic';
+    }
+  }, [activeTab]);
 
   const projectName = getProjectName(rootPath, t('layout.status-bar.no-workspace'));
 
@@ -299,6 +318,13 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
               </div>
             )}
           </>
+        )}
+
+        {/* WS-C: compact egress mirror. Only rendered when an AI chat is the
+            active tab, so the destination is visible from the status bar
+            without cluttering it during plain editing. */}
+        {activeChatProvider && (
+          <EgressIndicator provider={activeChatProvider} variant="compact" />
         )}
 
         {/* WS-B/C: active-matter scope indicator. Always visible so the user

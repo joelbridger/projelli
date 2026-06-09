@@ -1,0 +1,236 @@
+/**
+ * WS-C — egress indicator + confidentiality mode + data map.
+ *
+ * The data story is the load-bearing trust feature for the legal ICP, so these
+ * tests pin the ACCURACY of what we tell the user:
+ *
+ *   1. resolveEgress() returns the correct destination/severity/dataLeaves for
+ *      every provider × mode combination, including the browser-demo proxy
+ *      path (the one path that must warn).
+ *   2. EgressIndicator renders the matching label/severity:
+ *        - Ollama (or Local-only mode) => "nothing leaves", severity=safe.
+ *        - cloud provider, Direct mode  => "Direct to <Provider>" + the honest
+ *          provider-sees-the-prompt note, severity=direct.
+ *   3. Local-only mode disables the cloud new-chat buttons in the model picker.
+ *   4. The data map renders the accurate, plain-English claims.
+ */
+
+import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen } from '@testing-library/react';
+
+import {
+  resolveEgress,
+  CONFIDENTIALITY_MODE_SETTING_KEY,
+  DEFAULT_CONFIDENTIALITY_MODE,
+} from '@/modules/privacy/egress';
+import { EgressIndicator } from '@/components/privacy/EgressIndicator';
+import { DataMapDialog } from '@/components/privacy/DataMapDialog';
+import { AIAssistantPane } from '@/components/ai/AIAssistantPane';
+import { useSettingsStore } from '@/stores/settingsStore';
+import type { ConfidentialityMode } from '@/modules/privacy/egress';
+
+function setMode(mode: ConfidentialityMode) {
+  useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);
+}
+
+beforeEach(() => {
+  // Reset settings + BYOK demo flag between tests.
+  useSettingsStore.setState({ values: {} });
+  try {
+    localStorage.removeItem('byokKey');
+  } catch {
+    /* jsdom always has localStorage; tolerate anyway */
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 1. Pure logic
+// ---------------------------------------------------------------------------
+
+describe('resolveEgress (the single source of truth)', () => {
+  it('Ollama => nothing leaves the machine', () => {
+    const info = resolveEgress({ provider: 'ollama', mode: 'direct' });
+    expect(info.destination).toBe('local');
+    expect(info.severity).toBe('safe');
+    expect(info.dataLeaves).toBe(false);
+    expect(info.label).toMatch(/nothing leaves/i);
+  });
+
+  it('cloud provider in Direct mode => direct-to-provider, data leaves, honest note', () => {
+    for (const provider of ['anthropic', 'openai', 'google'] as const) {
+      const info = resolveEgress({ provider, mode: 'direct' });
+      expect(info.destination).toBe('provider-direct');
+      expect(info.severity).toBe('direct');
+      expect(info.dataLeaves).toBe(true);
+      // The label names the actual provider the user picked.
+      const expectedName = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' }[provider];
+      expect(info.label).toContain(expectedName);
+      expect(info.label).toMatch(/your account/i);
+      // The note is honest that the provider sees the prompt + that Keepance isn't in between.
+      expect(info.note).toMatch(/receives the prompt/i);
+      expect(info.note).toMatch(/Keepance is not in between/i);
+    }
+  });
+
+  it('Local-only mode forces local even when the chat stored a cloud provider', () => {
+    const info = resolveEgress({ provider: 'anthropic', mode: 'local-only' });
+    expect(info.destination).toBe('local');
+    expect(info.severity).toBe('safe');
+    expect(info.dataLeaves).toBe(false);
+  });
+
+  it('browser-demo build with NO personal key => shared-proxy WARNING', () => {
+    const info = resolveEgress({ provider: 'anthropic', mode: 'direct', isDemo: true, hasDemoByokKey: false });
+    expect(info.destination).toBe('demo-proxy');
+    expect(info.severity).toBe('warn');
+    expect(info.note).toMatch(/shared Keepance relay/i);
+    expect(info.label).toMatch(/do not use with client data/i);
+  });
+
+  it('browser-demo build WITH a personal key => direct to provider (no proxy)', () => {
+    const info = resolveEgress({ provider: 'anthropic', mode: 'direct', isDemo: true, hasDemoByokKey: true });
+    expect(info.destination).toBe('provider-direct');
+    expect(info.severity).toBe('direct');
+  });
+
+  it('the default mode is Direct (matches shipping behaviour)', () => {
+    expect(DEFAULT_CONFIDENTIALITY_MODE).toBe('direct');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 2. The indicator UI reflects the resolved destination
+// ---------------------------------------------------------------------------
+
+describe('EgressIndicator', () => {
+  it('shows "nothing leaves" (safe) for an Ollama chat', () => {
+    setMode('direct');
+    render(<EgressIndicator provider="ollama" />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('local');
+    expect(el.getAttribute('data-severity')).toBe('safe');
+    expect(el.getAttribute('data-data-leaves')).toBe('false');
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/nothing leaves/i);
+  });
+
+  it('shows "Direct to Anthropic" with the provider-sees-prompt note in Direct mode', () => {
+    setMode('direct');
+    render(<EgressIndicator provider="anthropic" />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('provider-direct');
+    expect(el.getAttribute('data-severity')).toBe('direct');
+    expect(el.getAttribute('data-data-leaves')).toBe('true');
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Direct to Anthropic/i);
+    expect(screen.getByTestId('egress-indicator-note').textContent).toMatch(/receives the prompt/i);
+  });
+
+  it('names OpenAI / Google correctly for those providers', () => {
+    setMode('direct');
+    const { rerender } = render(<EgressIndicator provider="openai" />);
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Direct to OpenAI/i);
+    rerender(<EgressIndicator provider="google" />);
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Direct to Google/i);
+  });
+
+  it('reflects Local-only mode: a cloud-provider chat shows nothing-leaves', () => {
+    setMode('local-only');
+    render(<EgressIndicator provider="anthropic" />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('local');
+    expect(el.getAttribute('data-severity')).toBe('safe');
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/nothing leaves/i);
+  });
+
+  it('compact variant carries the same destination/severity data attributes', () => {
+    setMode('direct');
+    render(<EgressIndicator provider="anthropic" variant="compact" />);
+    const el = screen.getByTestId('egress-indicator-compact');
+    expect(el.getAttribute('data-destination')).toBe('provider-direct');
+    expect(el.getAttribute('data-severity')).toBe('direct');
+    expect(el.textContent).toMatch(/Direct to Anthropic/i);
+  });
+
+  it('honors an explicit mode prop over the stored setting', () => {
+    setMode('direct');
+    render(<EgressIndicator provider="anthropic" mode="local-only" />);
+    expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe('local');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3. Local-only mode constrains the model picker
+// ---------------------------------------------------------------------------
+
+describe('AIAssistantPane confidentiality constraint', () => {
+  const baseProps = {
+    apiKeys: [
+      { provider: 'anthropic' as const, key: 'sk-ant-test', isValid: true },
+      { provider: 'openai' as const, key: 'sk-test', isValid: true },
+      { provider: 'google' as const, key: 'AIzatest', isValid: true },
+    ],
+    chatFiles: [],
+    onSaveApiKey: () => {},
+    onDeleteApiKey: () => {},
+    onCreateNewChat: () => {},
+    onOpenChat: () => {},
+    onDeleteChat: () => {},
+  };
+
+  it('Direct mode: cloud new-chat buttons are enabled (keys present)', () => {
+    setMode('direct');
+    render(<AIAssistantPane {...baseProps} />);
+    expect((screen.getByTestId('new-chat-anthropic') as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByTestId('new-chat-openai') as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByTestId('new-chat-google') as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByTestId('local-only-cloud-disabled-note')).toBeNull();
+  });
+
+  it('Local-only mode: every cloud new-chat button is disabled + explanation shown', () => {
+    setMode('local-only');
+    render(<AIAssistantPane {...baseProps} />);
+    expect((screen.getByTestId('new-chat-anthropic') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId('new-chat-openai') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId('new-chat-google') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId('local-only-cloud-disabled-note').textContent).toMatch(/nothing leaves your machine/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4. The data map content is accurate
+// ---------------------------------------------------------------------------
+
+describe('DataMapDialog', () => {
+  it('renders the accurate, plain-English claims', () => {
+    render(<DataMapDialog open onOpenChange={() => {}} />);
+    expect(screen.getByTestId('data-map-dialog')).toBeTruthy();
+
+    // Files stay local.
+    expect(screen.getByText(/stay on your machine/i)).toBeTruthy();
+    expect(screen.getByText(/no Keepance cloud holding copies/i)).toBeTruthy();
+
+    // Keys in the OS keychain.
+    expect(screen.getByText(/operating system keychain/i)).toBeTruthy();
+
+    // Cloud prompt goes direct to the provider, with the honest asterisk.
+    expect(screen.getByText(/directly from your machine to that provider/i)).toBeTruthy();
+    expect(screen.getByText(/honest asterisk/i)).toBeTruthy();
+    expect(screen.getByText(/used to train their models is governed by your account settings/i)).toBeTruthy();
+
+    // Local-only path for nothing-leaves.
+    expect(screen.getByText(/use a local model/i)).toBeTruthy();
+    expect(screen.getByText(/nothing is sent over the network at all/i)).toBeTruthy();
+
+    // Email encrypted locally.
+    expect(screen.getByText(/encrypted on your machine/i)).toBeTruthy();
+
+    // Keepance servers only see a licence check.
+    expect(screen.getByText(/only thing Keepance’s own servers ever see is a licence check/i)).toBeTruthy();
+
+    // Browser-demo caveat present in the footer.
+    expect(screen.getByText(/never be used with confidential or client/i)).toBeTruthy();
+
+    // Printable region + print control exist.
+    expect(document.getElementById('keepance-data-map-printable')).toBeTruthy();
+    expect(screen.getByTestId('data-map-print')).toBeTruthy();
+  });
+});

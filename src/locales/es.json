@@ -307,6 +307,11 @@
         "intro__sourceHash": "5374b77af50d1185509943d13c4764a7e072db9ad1de07b699dc1db0fa12d0a6",
         "unsub": "Para eliminarte de la lista, responde <c>UNSUB</c> a cualquier correo de Jameson; todos llegan directamente a él.",
         "unsub__sourceHash": "626d7ab8d08ee9e570934274be883f50b437a6400a8fa507f403f7298dedb40f"
+      },
+      "data-map": {
+        "title": "Where your data lives and who can see it",
+        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Keepance’s own servers see (only a licence check). You can print it or save it as a PDF to show a client.",
+        "cta": "Open the data map"
       }
     },
     "mcp": {
@@ -1158,6 +1163,22 @@
       "title__sourceHash": "81d74c4e98306e2430a44386962674ae6740188decf4e7ec3e6906079a3cfeeb",
       "description": "Responde las siguientes preguntas para continuar con el flujo de trabajo.",
       "description__sourceHash": "56d8e688d4d66c3398e32e089f17f37d934a8c0c8d179a83becd173733e3972a"
+    }
+  },
+  "privacy": {
+    "egress": {
+      "local": {
+        "label": "On your machine. Nothing leaves",
+        "note": "This runs on a local model (Ollama). No prompt or file is sent over the network."
+      },
+      "direct": {
+        "label": "Direct to {{provider}} (your account)",
+        "note": "Sent straight from your machine to {{provider}} with your own API key. Keepance is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
+      },
+      "demo": {
+        "label": "Browser demo. Do not use with client data",
+        "note": "In this online demo, messages pass through a shared Keepance relay. The desktop app never does this. Do not enter confidential or client information here."
+      }
     }
   }
 }

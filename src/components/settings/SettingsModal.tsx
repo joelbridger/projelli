@@ -38,6 +38,7 @@ import { CostMetrics } from '@/components/analysis/CostMetrics';
 import { TemplateModelSettings } from '@/components/settings/TemplateModelSettings';
 import { LicenseSettings } from '@/components/settings/LicenseSettings';
 import { PrivacySettings } from '@/components/settings/PrivacySettings';
+import { ConfidentialityModeSettings } from '@/components/settings/ConfidentialityModeSettings';
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
 import { MarketplaceTab } from '@/components/marketplace/MarketplaceTab';
 import { useTemplateUpdateCount } from '@/hooks/useTemplatesMarketplace';
@@ -772,15 +773,22 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
                 {activeCategory === 'voice' && (
                   <VoiceSettingsSection ttsEnabled={Boolean(getSetting('ttsEnabled'))} />
                 )}
-                {categorySettings.map((def) => (
-                  <SettingRow
-                    key={def.key}
-                    def={def}
-                    value={getSetting(def.key)}
-                    onChange={(v) => setSetting(def.key, v)}
-                    onAction={handleAction}
-                  />
-                ))}
+                {/* WS-C — the confidentiality spectrum gets a richer custom
+                    picker (cards + the data-map entry point) instead of the
+                    generic select row, so its row is rendered here and filtered
+                    out of the auto-rendered list below. */}
+                {activeCategory === 'ai' && <ConfidentialityModeSettings />}
+                {categorySettings
+                  .filter((def) => def.key !== 'confidentialityMode')
+                  .map((def) => (
+                    <SettingRow
+                      key={def.key}
+                      def={def}
+                      value={getSetting(def.key)}
+                      onChange={(v) => setSetting(def.key, v)}
+                      onAction={handleAction}
+                    />
+                  ))}
                 {activeCategory === 'ai' && (
                   <AIContextCapabilityWarning getSetting={getSetting} />
                 )}

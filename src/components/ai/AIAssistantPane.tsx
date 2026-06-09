@@ -27,6 +27,8 @@ import { getCorsSafeFetch, getProviderBaseUrl } from '@/modules/models/fetchUtil
 import { openExternal } from '@/utils/openExternal';
 import { getDefaultModelsForTier } from '@/utils/defaultModel';
 import { useLicense } from '@/hooks/useLicense';
+import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
+import { modeRestrictsToLocal } from '@/modules/privacy/egress';
 import type { AIChatFile } from '@/types/ai';
 import type { ModelInfo } from '@/modules/models/ModelListService';
 
@@ -116,6 +118,12 @@ export function AIAssistantPane({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedTab]);
+
+  // WS-C — confidentiality mode. In Local-only mode the cloud providers are
+  // disabled here so the only chats a user can start run on a local model
+  // (nothing leaves the machine). The egress indicator reflects the same mode.
+  const confidentialityMode = useConfidentialityMode();
+  const localOnly = modeRestrictsToLocal(confidentialityMode);
 
   // Model selection state.
   // Defaults resolve through `getDefaultModelsForTier` (Q9 — Wave 1.5) so free-tier
@@ -353,22 +361,40 @@ export function AIAssistantPane({
             {/* New chat buttons */}
             <div className="border-b p-3 shrink-0 bg-card sticky top-0 z-10">
               <div className="text-xs text-muted-foreground mb-2">{t('ai.assistant.start-new-chat')}</div>
+              {localOnly && (
+                <div
+                  data-testid="local-only-cloud-disabled-note"
+                  className="mb-2 px-2.5 py-2 rounded border border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200 text-[11px] leading-snug"
+                >
+                  Local-only mode is on, so cloud providers are disabled. Chats
+                  run on a local model and nothing leaves your machine. Change
+                  this in Settings → AI → Confidentiality mode.
+                </div>
+              )}
               <div className="flex flex-col gap-2">
-                {(['anthropic', 'openai', 'google'] as const).map(provider => (
-                  <Button
-                    key={provider}
-                    data-testid={`new-chat-${provider}`}
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs w-full justify-start"
-                    onClick={() => onCreateNewChat(provider, selectedModels[provider])}
-                    disabled={!hasApiKey(provider)}
-                    title={hasApiKey(provider) ? `New ${getProviderShortLabel(provider)} chat` : 'Add API key first'}
-                  >
-                    <Plus className="h-3 w-3 mr-2 shrink-0" />
-                    <span className="truncate">{getProviderLabel(provider)}</span>
-                  </Button>
-                ))}
+                {(['anthropic', 'openai', 'google'] as const).map(provider => {
+                  const disabled = localOnly || !hasApiKey(provider);
+                  const title = localOnly
+                    ? `Disabled in Local-only mode: ${getProviderShortLabel(provider)} is a cloud provider`
+                    : hasApiKey(provider)
+                      ? `New ${getProviderShortLabel(provider)} chat`
+                      : 'Add API key first';
+                  return (
+                    <Button
+                      key={provider}
+                      data-testid={`new-chat-${provider}`}
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs w-full justify-start"
+                      onClick={() => onCreateNewChat(provider, selectedModels[provider])}
+                      disabled={disabled}
+                      title={title}
+                    >
+                      <Plus className="h-3 w-3 mr-2 shrink-0" />
+                      <span className="truncate">{getProviderLabel(provider)}</span>
+                    </Button>
+                  );
+                })}
               </div>
             </div>
 

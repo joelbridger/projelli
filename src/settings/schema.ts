@@ -175,6 +175,20 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
 
   // ── AI ────────────────────────────────────────────────────────────────
   {
+    key: 'confidentialityMode',
+    category: 'ai',
+    label: 'Confidentiality mode',
+    description:
+      'Controls where AI requests are allowed to go. Local-only keeps everything on your machine (local models only). Direct (the default) sends prompts straight from your machine to your chosen provider with your own key. Assured is coming soon.',
+    type: 'select',
+    defaultValue: 'direct',
+    options: [
+      { value: 'local-only', label: 'Local-only (nothing leaves)' },
+      { value: 'direct', label: 'Direct (your key, your provider)' },
+      { value: 'assured', label: 'Assured (coming soon)' },
+    ],
+  },
+  {
     key: 'ambientFileContext',
     category: 'ai',
     label: 'Ambient File Context',

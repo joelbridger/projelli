@@ -11,14 +11,18 @@
  * pitch is "you control this, and we tell you exactly what's collected."
  */
 
+import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTelemetryConsent } from '@/hooks/useTelemetryConsent';
 import { getInstallId } from '@/utils/installId';
+import { DataMapDialog } from '@/components/privacy/DataMapDialog';
 
 export function PrivacySettings() {
   const { t } = useTranslation();
   const { consent, setConsent } = useTelemetryConsent();
+  const [dataMapOpen, setDataMapOpen] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -28,6 +32,29 @@ export function PrivacySettings() {
           {t('settings.privacy.description')}
         </p>
       </div>
+
+      {/* WS-C — the data map: a plain-English, printable account of where data
+          goes, reachable from Privacy (and from Settings → AI). */}
+      <div className="rounded-lg border border-border bg-card p-6 space-y-3">
+        <h3 className="text-base font-semibold">{t('settings.privacy.data-map.title')}</h3>
+        <p className="text-sm text-muted-foreground">
+          {t('settings.privacy.data-map.description')}
+        </p>
+        <Button
+          data-testid="privacy-open-data-map"
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={() => {
+            setDataMapOpen(true);
+          }}
+        >
+          <MapPin className="h-4 w-4" />
+          {t('settings.privacy.data-map.cta')}
+        </Button>
+      </div>
+
+      <DataMapDialog open={dataMapOpen} onOpenChange={setDataMapOpen} />
 
       {/* Telemetry opt-in */}
       <div className="rounded-lg border border-border bg-card p-6 space-y-4">
