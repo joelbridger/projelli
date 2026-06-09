@@ -9,8 +9,16 @@ import type {
   ToolCall,
   InterviewStepConfig,
   GenerateStepConfig,
+  AnalyzeStepConfig,
+  ContradictionAnalysisResult,
 } from '@/types/workflow';
 import type { Provider } from '@/modules/models/Provider';
+import type { RetrievalScope } from '@/utils/tauri-commands';
+import {
+  runContradictionAnalysis,
+  type RetrieveFn,
+  type VerifyCitationFn,
+} from './legalAnalysis';
 
 /**
  * Callback for interview step - receives questions, returns answers
@@ -21,11 +29,45 @@ export type InterviewHandler = (
 ) => Promise<Record<string, string>>;
 
 /**
- * Callback for file operations
+ * Callback for file operations.
+ *
+ * WS-D — `writeFileBinary` is how the engine emits a real Office document
+ * (`.docx` bytes) rather than markdown. It is optional so existing callers /
+ * tests that only pass `writeFile`/`readFile` keep working; the engine throws a
+ * clear error if a step needs binary output but no binary writer was supplied.
  */
 export interface FileOperations {
   writeFile: (path: string, content: string) => Promise<void>;
   readFile: (path: string) => Promise<string>;
+  writeFileBinary?: (path: string, bytes: Uint8Array) => Promise<void>;
+}
+
+/**
+ * WS-D — Litigation-associate dependencies for the `analyze` step. INJECTED so
+ * the engine stays UI- and Tauri-free and the step is fully testable with
+ * mocks. When omitted, an `analyze` step fails with a clear error rather than
+ * silently producing an ungrounded document.
+ *
+ *   - `getScope` returns the ACTIVE matter retrieval scope. The engine never
+ *     searches "everything" silently — the scope is always explicit.
+ *   - `retrieve` runs matter-scoped retrieval with privilege EXCLUDED.
+ *   - `verifyCitation` confirms a finding's citation against the local store.
+ *   - `serializeContradictions` renders the structured result to `.docx` bytes.
+ */
+export interface AnalyzeDeps {
+  getScope: () => RetrievalScope;
+  retrieve: RetrieveFn;
+  verifyCitation: VerifyCitationFn;
+  serializeContradictions: (
+    result: ContradictionAnalysisResult,
+    meta: {
+      title: string;
+      matterName?: string;
+      witnessName?: string;
+      depositionDate?: string;
+      verificationBanner: string;
+    },
+  ) => Promise<Uint8Array>;
 }
 
 /**
@@ -57,6 +99,13 @@ export interface WorkflowEngineOptions {
   builtInTemplates?: WorkflowTemplate[];
   /** Stream C1 — Source of marketplace-installed templates. */
   getCommunityTemplates?: CommunityTemplatesProvider;
+  /**
+   * WS-D — Dependencies for the litigation `analyze` step (matter-scoped
+   * retrieval, citation verification, Word rendering). Optional: engines
+   * constructed without it cannot run `analyze` steps and will fail those
+   * steps with a clear error rather than emitting an ungrounded document.
+   */
+  analyzeDeps?: AnalyzeDeps;
 }
 
 /**
@@ -67,6 +116,7 @@ export class WorkflowEngine {
   private toolCalls: ToolCall[] = [];
   private readonly builtInTemplates: WorkflowTemplate[];
   private readonly getCommunityTemplates: CommunityTemplatesProvider;
+  private readonly analyzeDeps: AnalyzeDeps | undefined;
 
   constructor(
     private readonly provider: Provider,
@@ -78,6 +128,7 @@ export class WorkflowEngine {
     this.builtInTemplates = options.builtInTemplates ?? [];
     this.getCommunityTemplates =
       options.getCommunityTemplates ?? (() => Promise.resolve([]));
+    this.analyzeDeps = options.analyzeDeps;
   }
 
   /**
@@ -176,6 +227,8 @@ export class WorkflowEngine {
         return this.executeGenerateStep(step);
       case 'review':
         return this.executeReviewStep(step);
+      case 'analyze':
+        return this.executeAnalyzeStep(step);
       default:
         throw new Error(`Unknown step type: ${step.type}`);
     }
@@ -224,8 +277,12 @@ export class WorkflowEngine {
       duration: Date.now() - callStart,
     });
 
-    // Write the output file
-    await this.fileOps.writeFile(config.outputFile, response.content);
+    // Write the output file. WS-D: when the template targets a `.docx`
+    // deliverable, render the model's markdown into a real Word document so it
+    // opens in the Word-familiar editor (not raw markdown). This establishes
+    // the workflow → Office pattern for every `generate` template; the legal
+    // flagship adds structured findings on top via the `analyze` step.
+    await this.writeDeliverable(config.outputFile, response.content);
 
     return {
       [`${step.id}_output`]: response.content,
@@ -233,6 +290,31 @@ export class WorkflowEngine {
       [`${step.id}_tokens`]: response.usage.totalTokens,
       [`${step.id}_cost`]: response.cost,
     };
+  }
+
+  /**
+   * WS-D — Write a workflow deliverable. If the target file is a `.docx`,
+   * render `markdownContent` to a real Word document and write the bytes via
+   * `writeFileBinary`; otherwise write the markdown as-is. Falls back to a
+   * markdown sibling when the path is `.docx` but no binary writer is wired
+   * (keeps browser/test callers that only supply `writeFile` working).
+   */
+  private async writeDeliverable(outputFile: string, markdownContent: string): Promise<void> {
+    const isDocx = outputFile.toLowerCase().endsWith('.docx');
+    if (isDocx && this.fileOps.writeFileBinary) {
+      const { markdownToDocxBytes } = await import('@/utils/docx-io');
+      const bytes = await markdownToDocxBytes(markdownContent, outputFile);
+      await this.fileOps.writeFileBinary(outputFile, bytes);
+      return;
+    }
+    if (isDocx) {
+      // No binary writer available — degrade to a markdown sibling so the run
+      // still produces a readable artifact rather than corrupt bytes.
+      const mdPath = outputFile.replace(/\.docx$/i, '.md');
+      await this.fileOps.writeFile(mdPath, markdownContent);
+      return;
+    }
+    await this.fileOps.writeFile(outputFile, markdownContent);
   }
 
   /**
@@ -278,6 +360,102 @@ export class WorkflowEngine {
       [`${step.id}_review`]: response.content,
       [`${step.id}_tokens`]: response.usage.totalTokens,
       [`${step.id}_cost`]: response.cost,
+    };
+  }
+
+  /**
+   * WS-D — Execute a litigation `analyze` step: matter-scoped, privilege-
+   * excluded retrieval → structured findings → per-finding citation
+   * verification → a structured Word (.docx) deliverable.
+   *
+   * The deliverable is written to the matter's workflow folder via
+   * `writeFileBinary`; the structured result (findings + verified/unverified
+   * counts) is returned into the run's outputs so the RunRecord captures what
+   * was flagged and what verified. Requires `analyzeDeps` + `writeFileBinary`
+   * to be wired; both throw a clear error if missing rather than emitting an
+   * ungrounded or markdown-only artifact.
+   */
+  private async executeAnalyzeStep(step: WorkflowStep): Promise<Record<string, unknown>> {
+    const config = step.config as AnalyzeStepConfig;
+
+    if (!this.analyzeDeps) {
+      throw new Error(
+        'This workflow needs matter-scoped retrieval, which is only available in the Keepance desktop app with an active matter.',
+      );
+    }
+    if (!this.fileOps.writeFileBinary) {
+      throw new Error('Cannot produce the Word deliverable: no binary file writer is available.');
+    }
+
+    const scope = this.analyzeDeps.getScope();
+    const inputs = this.execution!.inputs;
+
+    const callStart = Date.now();
+    const callId = this.generateCallId();
+
+    // Grounded, cited analysis. `analyzeKind` selects the pipeline; today the
+    // litigation flagship is `'contradictions'`.
+    const { result, chunks, retrievalQuery } = await runContradictionAnalysis({
+      provider: this.provider,
+      config,
+      inputs,
+      scope,
+      retrieve: this.analyzeDeps.retrieve,
+      verify: this.analyzeDeps.verifyCitation,
+      interpolate: (tpl, values) => this.interpolateTemplate(tpl, values),
+    });
+
+    // Render the structured findings to a real Word document. The matter +
+    // witness + date come from the interview inputs; the verification banner
+    // comes from the step config (falling back to the template's note).
+    const title = config.documentTitle
+      ? this.interpolateTemplate(config.documentTitle, inputs)
+      : step.name;
+    const meta = {
+      title,
+      verificationBanner:
+        config.verificationBanner ??
+        'Verify every flagged contradiction against the original source before relying on it.',
+      ...(typeof inputs['matterName'] === 'string' ? { matterName: inputs['matterName'] as string } : {}),
+      ...(typeof inputs['witnessName'] === 'string' ? { witnessName: inputs['witnessName'] as string } : {}),
+      ...(typeof inputs['depositionDate'] === 'string'
+        ? { depositionDate: inputs['depositionDate'] as string }
+        : {}),
+    };
+    const bytes = await this.analyzeDeps.serializeContradictions(result, meta);
+    await this.fileOps.writeFileBinary(config.outputFile, bytes);
+
+    // Record the analyze tool call. The scope + retrieval query + counts make
+    // the run auditable: what matter it was confined to, what it searched for,
+    // and how many findings verified.
+    this.toolCalls.push({
+      id: callId,
+      tool: 'analyze',
+      params: {
+        analyzeKind: config.analyzeKind,
+        retrievalQuery,
+        scope,
+        outputFile: config.outputFile,
+        retrievedChunks: chunks.length,
+      },
+      result: {
+        totalFindings: result.totalCount,
+        verifiedFindings: result.verifiedCount,
+        unverifiedFindings: result.unverifiedCount,
+      },
+      timestamp: new Date().toISOString(),
+      duration: Date.now() - callStart,
+    });
+
+    return {
+      [`${step.id}_findings`]: result.findings,
+      [`${step.id}_summary`]: {
+        total: result.totalCount,
+        verified: result.verifiedCount,
+        unverified: result.unverifiedCount,
+      },
+      [`${step.id}_file`]: config.outputFile,
+      [`${step.id}_scope`]: scope,
     };
   }
 

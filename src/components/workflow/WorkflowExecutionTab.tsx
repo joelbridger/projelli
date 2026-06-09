@@ -201,6 +201,25 @@ export function WorkflowExecutionTab({
     return null;
   })();
 
+  // WS-D — an `analyze` step produces a structured Word deliverable + verified/
+  // unverified counts rather than markdown. Surface a summary that makes the
+  // "flagged for you to verify" framing explicit and points at the .docx (which
+  // shows up in the file-links section below). Walk backwards for the last one.
+  const analyzeSummary = (() => {
+    if (!execution || execution.status !== 'completed') return null;
+    for (let i = template.steps.length - 1; i >= 0; i--) {
+      const step = template.steps[i];
+      if (step?.type === 'analyze') {
+        const summary = execution.inputs[`${step.id}_summary`] as
+          | { total: number; verified: number; unverified: number }
+          | undefined;
+        const file = execution.inputs[`${step.id}_file`] as string | undefined;
+        if (summary) return { summary, file };
+      }
+    }
+    return null;
+  })();
+
   const handleInterviewSubmit = useCallback(
     (answers: Record<string, string>) => {
       onInterviewSubmit(answers);
@@ -404,6 +423,38 @@ export function WorkflowExecutionTab({
             <span className="font-semibold">Verify before relying.</span>{' '}
             {template.verificationNote ?? 'This output was produced by AI. Check citations, math, and regulatory positions against primary sources before use in client matters.'}
           </div>
+        )}
+
+        {/* WS-D — Structured analyze deliverable summary (e.g. contradiction finder). */}
+        {isCompleted && analyzeSummary && (
+          <Card className="border-green-500/30" data-testid="workflow-analyze-summary">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <FileType className="h-4 w-4 text-blue-600" />
+                Word deliverable ready
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm space-y-2">
+              <p>
+                Flagged <span className="font-semibold">{analyzeSummary.summary.total}</span>{' '}
+                {analyzeSummary.summary.total === 1 ? 'candidate finding' : 'candidate findings'} for your
+                review.{' '}
+                <span className="font-semibold text-green-700">{analyzeSummary.summary.verified} verified</span>{' '}
+                against the matter record;{' '}
+                <span className="font-semibold text-amber-700">
+                  {analyzeSummary.summary.unverified} flagged unverified
+                </span>
+                .
+              </p>
+              {analyzeSummary.file && (
+                <p className="text-xs text-muted-foreground">
+                  Open <span className="font-medium">{analyzeSummary.file}</span> below to review the findings
+                  table in the Word editor. Every finding carries a citation. Verify each against the original
+                  before relying on it.
+                </p>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Final output */}

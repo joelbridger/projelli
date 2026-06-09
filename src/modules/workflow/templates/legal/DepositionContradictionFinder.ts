@@ -4,7 +4,7 @@
 // NOTE: `category: 'legal'` requires adding 'legal' to the WorkflowTemplate category
 // union in src/types/workflow.ts before this template is registered.
 
-import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '@/types/workflow';
+import type { WorkflowTemplate, InterviewStepConfig, AnalyzeStepConfig } from '@/types/workflow';
 
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
@@ -57,78 +57,52 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
 ];
 
-const contradictionFinderPrompt = `You are assisting a licensed attorney in analyzing a deposition transcript for internal inconsistencies and contradictions. You are not providing legal advice — you are helping the attorney organize the record for their own review and judgment.
+// WS-D — The retrieval query that pulls the matter's record (the deposition the
+// user is testing plus the matter's other documents/emails) from the local,
+// matter-scoped, privilege-excluded RAG store. The structured findings are
+// grounded ONLY in what comes back here plus the pasted excerpts.
+const retrievalQueryTemplate = `Testimony and statements by {{witnessName}} relevant to: {{keyClaimsToScrutinize}}. Deposition excerpts: {{depositionExcerpts}}. Prior statements: {{priorStatements}}`;
+
+// The analysis prompt. `{{retrievedContext}}` is the engine-supplied numbered
+// list of matter-scoped sources. The model must cite each statement by its
+// source NUMBER so the engine can recover a verifiable citation id and confirm
+// it against the store — the model never invents citation ids.
+const contradictionFinderPrompt = `You are a tireless first-year associate assisting a licensed attorney. You FLAG candidate contradictions for the attorney to verify. You do not render judgments and you never provide legal advice. Your job is to organize the record so the attorney can exercise their own judgment.
 
 Matter: {{matterName}}
 Witness: {{witnessName}}
 Deposition date: {{depositionDate}}
 
-Key claims to scrutinize:
+Key claims the attorney wants scrutinized:
 {{keyClaimsToScrutinize}}
 
-Deposition transcript excerpts:
+Deposition transcript excerpts the attorney pasted:
 {{depositionExcerpts}}
 
-Prior statements to compare against:
+Prior statements the attorney pasted to compare against:
 {{priorStatements}}
 
-Produce a Markdown analysis document structured as follows. At the top, include the draft notice. Then:
+Below is additional context retrieved from THIS MATTER's documents and emails. Each source is numbered [N]. When you quote a statement, cite the source NUMBER it came from.
 
-1. For each contradiction or inconsistency found, create a numbered entry under the relevant topic heading.
-2. Each entry must include:
-   - The specific quote(s) from the transcript (with page/line reference if provided)
-   - The conflicting statement (from another part of the transcript or from the prior statements)
-   - A brief plain-language description of why these are inconsistent
-   - Suggested follow-up deposition questions the attorney might consider
-3. Organize findings by topic, not by page order.
-4. If no meaningful inconsistencies are found for a topic, say so explicitly — do not invent contradictions.
-5. End with a "Themes to Watch" section: 2–4 observations about credibility patterns or areas where additional record development may be warranted.
+{{retrievedContext}}
 
-Format:
+Identify candidate contradictions between the witness's testimony and other statements (elsewhere in the testimony, in prior statements, or in the retrieved matter sources). For EACH candidate contradiction return a finding with:
+  - statementA: the first statement, with the exact quote and the source NUMBER [N] it came from.
+  - statementB: the conflicting statement, with the exact quote and the source NUMBER [N] it came from.
+  - conflictRationale: a plain-language explanation of why they conflict.
+  - topic: a short heading grouping the finding.
+  - followUpQuestions: optional follow-up deposition questions.
 
-> **Draft document** — Review and edit before use in any matter.
-
-# Deposition Contradiction Analysis
-**Matter:** {{matterName}}
-**Witness:** {{witnessName}}
-**Deposition date:** {{depositionDate}}
-**Prepared for attorney review:** [date]
-
----
-
-## Summary
-[2–3 sentence overview of what was found]
-
----
-
-## Findings by Topic
-
-### [Topic 1]
-**Contradiction 1:**
-- Transcript statement: "[quote]" (p. __:__)
-- Conflicting statement: "[quote]" (source)
-- Why this is inconsistent: [explanation]
-- Suggested follow-up questions:
-  - [Question 1]
-  - [Question 2]
-
-[Continue for each finding]
-
----
-
-## Themes to Watch
-- [Observation 1]
-- [Observation 2]
-
----
-
-*This analysis is a starting point for your review. Verify all page/line references against the actual transcript. Do not use this document in any filing without independent verification.*`;
+Rules:
+  - Only cite statements that actually appear in the material above. If a quote is not in any numbered source, set its sourceNumber to 0. Never fabricate a citation.
+  - Do NOT invent contradictions. If the record does not support a conflict, do not report one. An empty findings list is a valid, honest answer.
+  - Quote exactly; do not paraphrase inside the quote field.`;
 
 export const DepositionContradictionFinder: WorkflowTemplate = {
   id: 'legal-deposition-contradiction-finder',
   name: 'Deposition Contradiction Finder',
-  description: 'Analyze deposition transcript excerpts for internal inconsistencies, contradictions with prior testimony, and flagged line/page references. Produces a topic-organized analysis with suggested follow-up questions.',
-  version: '1.0.0',
+  description: 'Flag candidate contradictions between a witness\'s deposition testimony and the rest of the matter record (other documents, emails, prior statements). Grounded in matter-scoped retrieval; every finding carries a citation you verify. Produces a structured Word deliverable.',
+  version: '2.0.0',
   category: 'legal',
   requiresVerification: true,
   verificationNote: 'Verify every flagged contradiction against the original transcript before use. AI can misread nuance, context, or page breaks.',
@@ -143,19 +117,26 @@ export const DepositionContradictionFinder: WorkflowTemplate = {
       } as InterviewStepConfig,
     },
     {
-      id: 'generate-analysis',
-      type: 'generate',
-      name: 'Generate Contradiction Analysis',
-      description: 'Analyze the transcript for inconsistencies and contradictions',
+      id: 'analyze-contradictions',
+      type: 'analyze',
+      name: 'Flag Contradictions (cited)',
+      description: 'Retrieve the matter record, flag candidate contradictions, verify each citation, and produce a Word deliverable',
       config: {
-        outputFile: 'DEPOSITION_CONTRADICTION_ANALYSIS.md',
+        analyzeKind: 'contradictions',
+        outputFile: 'Deposition Contradiction Analysis.docx',
+        retrievalQueryTemplate,
+        topK: 12,
         promptTemplate: contradictionFinderPrompt,
-        systemPrompt: 'You are a legal research assistant helping a licensed attorney organize and analyze deposition testimony. You are methodical, precise, and citation-focused. You never provide legal advice and always frame your output as a starting point for the attorney\'s review. You do not speculate beyond what the record supports. If the transcript is ambiguous, you note the ambiguity rather than resolve it.',
-      } as GenerateStepConfig,
+        documentTitle: 'Deposition Contradiction Analysis: {{witnessName}}',
+        verificationBanner:
+          'Each finding below was flagged by an AI associate and carries a citation. Verify every quote and page/line reference against the original transcript and source before relying on it.',
+        systemPrompt:
+          'You are a methodical, citation-focused legal research assistant helping a licensed attorney organize and analyze deposition testimony. You never provide legal advice and always frame your output as a starting point for the attorney\'s review. You do not speculate beyond what the record supports, and you never fabricate a citation. If the record is ambiguous, you note the ambiguity rather than resolve it.',
+      } as AnalyzeStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['DEPOSITION_CONTRADICTION_ANALYSIS.md'],
+  outputs: ['Deposition Contradiction Analysis.docx'],
   namedOutputs: [
     { id: 'contradictions', name: 'Contradiction findings', schema: 'array' },
     { id: 'followup_questions', name: 'Suggested follow-up questions', schema: 'array' },

@@ -34,9 +34,16 @@ export interface RunRecord {
 }
 
 /**
- * Workflow template step types
+ * Workflow template step types.
+ *
+ * WS-D — `analyze` is the litigation-associate step: it pulls matter-scoped,
+ * privilege-excluded context from the local RAG store, asks the model for
+ * STRUCTURED findings (each finding carrying its source citations), verifies
+ * every citation against the store, and renders a structured Word (.docx)
+ * deliverable rather than free-form markdown. It is the proven flagship behind
+ * the Deposition Contradiction Finder; other legal templates can adopt it.
  */
-export type WorkflowStepType = 'interview' | 'generate' | 'review';
+export type WorkflowStepType = 'interview' | 'generate' | 'review' | 'analyze';
 
 /**
  * Interview question definition
@@ -77,6 +84,62 @@ export interface ReviewStepConfig {
 }
 
 /**
+ * WS-D — what kind of grounded analysis an `analyze` step performs. Drives
+ * the structured-findings schema, the Word rendering, and the verification
+ * framing. Currently the litigation flagship is `'contradictions'`; the union
+ * is open so the privilege-log / timeline / discovery-triage templates can add
+ * their own structured kinds and reuse the same retrieve → structure → verify →
+ * Word pipeline.
+ */
+export type AnalyzeKind = 'contradictions';
+
+/**
+ * WS-D — Configuration for an `analyze` step: matter-scoped grounded retrieval
+ * + structured findings + per-finding citation verification + a Word deliverable.
+ *
+ * The step interpolates `{{var}}` inputs the same way `generate` does, builds a
+ * retrieval query from `retrievalQueryTemplate`, and writes the rendered Word
+ * document to `outputFile` (which MUST end in `.docx`).
+ */
+export interface AnalyzeStepConfig {
+  /** Which structured analysis to run (selects schema + renderer + framing). */
+  analyzeKind: AnalyzeKind;
+  /**
+   * Output filename for the Word deliverable. MUST end in `.docx` — the engine
+   * writes binary OOXML here, not markdown.
+   */
+  outputFile: string;
+  /**
+   * Template for the matter-scoped retrieval query. Interpolated with the
+   * accumulated inputs (same `{{var}}` syntax as `promptTemplate`). The result
+   * is passed to the injected `retrieve(query, topK, scope)` with the ACTIVE
+   * matter scope and privilege EXCLUDED.
+   */
+  retrievalQueryTemplate: string;
+  /** How many context chunks to retrieve. Defaults to 12 when omitted. */
+  topK?: number;
+  /**
+   * The analysis prompt. Interpolated with inputs PLUS a `{{retrievedContext}}`
+   * variable holding the formatted, numbered source list. The model is asked to
+   * return findings conforming to the structured schema for `analyzeKind`.
+   */
+  promptTemplate: string;
+  /** Optional system prompt for the structured call. */
+  systemPrompt?: string;
+  /**
+   * Document title for the rendered Word file. Interpolated with inputs.
+   * Defaults to the step name when omitted.
+   */
+  documentTitle?: string;
+  /**
+   * Banner text rendered at the top of the Word deliverable reminding the
+   * attorney to verify every finding before relying on it. Defaults to the
+   * template's `verificationNote` (set by the caller) when omitted.
+   */
+  verificationBanner?: string;
+}
+
+/**
  * Single step in a workflow
  */
 export interface WorkflowStep {
@@ -84,7 +147,72 @@ export interface WorkflowStep {
   type: WorkflowStepType;
   name: string;
   description?: string;
-  config: InterviewStepConfig | GenerateStepConfig | ReviewStepConfig;
+  config: InterviewStepConfig | GenerateStepConfig | ReviewStepConfig | AnalyzeStepConfig;
+}
+
+/**
+ * WS-D — one source reference inside a structured finding: a citation to a
+ * retrieved chunk (its content-addressed `id` + matter), the human-readable
+ * locator (filename + paragraph/page), and the quoted text the finding relies
+ * on. `id` / `matterId` are absent only for sources the model could not ground
+ * in retrieval (a hallucinated reference) — such findings are marked unverified.
+ */
+export interface FindingSource {
+  /** Human-readable source label, e.g. `smith-depo.docx paragraph 42`. */
+  locator: string;
+  /** The exact quoted statement this side of the contradiction relies on. */
+  quote: string;
+  /** Content-addressed chunk id from retrieval (the citation key). */
+  citationId?: string;
+  /** The matter this chunk belongs to (the claimed scope for verification). */
+  matterId?: string;
+  /** Resolvable source id (file path or `mail:<id>`) for "open source". */
+  sourceId?: string;
+  /**
+   * Per-source verification verdict against the local RAG store. `'verified'`
+   * is the only safe value; anything else (or `'unverified'` when verification
+   * could not run) means the locator/quote must be checked against the original.
+   */
+  verdict?: 'verified' | 'notFound' | 'matterMismatch' | 'textMismatch' | 'unverified';
+}
+
+/**
+ * WS-D — a single candidate contradiction the associate flagged for the lawyer.
+ * Carries BOTH conflicting statements (each with its own citation + locator),
+ * why they conflict, and an optional topic + follow-up questions. `verified`
+ * is true only when BOTH sides verified against the store.
+ */
+export interface ContradictionFinding {
+  /** Topic / theme this finding sits under (for grouping in the deliverable). */
+  topic: string;
+  /** The first conflicting statement + its source. */
+  statementA: FindingSource;
+  /** The second conflicting statement + its source. */
+  statementB: FindingSource;
+  /** Plain-language explanation of why the two statements conflict. */
+  conflictRationale: string;
+  /** Suggested follow-up deposition questions (may be empty). */
+  followUpQuestions?: string[];
+  /**
+   * True only when BOTH `statementA` and `statementB` verified against the
+   * local store. A single unverified side flips this to false so the UI /
+   * document flags the whole finding for attorney verification.
+   */
+  verified: boolean;
+}
+
+/**
+ * WS-D — the structured result of a contradictions analyze step, persisted into
+ * the RunRecord outputs (under `<stepId>_findings`) and rendered to Word.
+ */
+export interface ContradictionAnalysisResult {
+  findings: ContradictionFinding[];
+  /** Total candidate findings produced by the model. */
+  totalCount: number;
+  /** How many findings had BOTH citations verified against the store. */
+  verifiedCount: number;
+  /** How many findings have at least one unverified side. */
+  unverifiedCount: number;
 }
 
 /**

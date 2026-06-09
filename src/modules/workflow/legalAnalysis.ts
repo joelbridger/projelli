@@ -1,0 +1,308 @@
+/**
+ * WS-D — Litigation associate analysis pipeline.
+ *
+ * This is the grounded, cited engine behind the `analyze` workflow step. The
+ * flagship is the Deposition Contradiction Finder, but the shape is generic so
+ * the other litigation templates (timeline builder, privilege-log drafter,
+ * discovery triage, …) can adopt the same retrieve → structure → verify → Word
+ * pipeline.
+ *
+ * Framing (load-bearing): the associate FLAGS candidate findings for the lawyer
+ * to verify. EVERY finding carries a citation. Findings whose citation does not
+ * verify against the local store are clearly marked unverified, never silently
+ * presented. This is an assistant that organizes the record, not an oracle.
+ *
+ * Dependencies (retrieval, citation verification) are INJECTED so this module
+ * stays free of Tauri imports and is fully unit-testable with mocks. The engine
+ * wires the real `MemoryService.retrieve` + `ragVerifyCitation` at the call
+ * site (see `App.tsx` / `WorkflowEngine`).
+ */
+
+import type { Provider, OutputSchema } from '@/modules/models/Provider';
+import type {
+  AnalyzeStepConfig,
+  ContradictionAnalysisResult,
+  ContradictionFinding,
+  FindingSource,
+} from '@/types/workflow';
+import type { RetrievalScope } from '@/utils/tauri-commands';
+
+/** A retrieved chunk, narrowed to the fields the analysis pipeline needs.
+ *  Structurally compatible with `RagHit` from `@/utils/tauri-commands`. */
+export interface RetrievedChunk {
+  path: string;
+  chunkText: string;
+  paragraphIndex: number;
+  id?: string;
+  matterId?: string;
+  sourceId?: string;
+  sourceType?: 'text' | 'pdf' | 'mail';
+  pageNumber?: number;
+}
+
+/** Inject the real RAG retrieval. Matter scope + privilege handling are the
+ *  caller's responsibility — the engine passes the ACTIVE matter scope and
+ *  leaves privilege EXCLUDED (the safe default). */
+export type RetrieveFn = (
+  query: string,
+  topK: number,
+  scope: RetrievalScope,
+) => Promise<RetrievedChunk[]>;
+
+/** A citation verdict, mirroring `CitationVerdict` from tauri-commands but
+ *  flattened to the `verdict` string the pipeline records on each source. */
+export type VerifyVerdict =
+  | 'verified'
+  | 'notFound'
+  | 'matterMismatch'
+  | 'textMismatch'
+  | 'unverified';
+
+/** Inject the real `ragVerifyCitation`. Returns `'unverified'` when verification
+ *  cannot run (browser/test mode); the pipeline treats that as not-safe. */
+export type VerifyCitationFn = (
+  citationId: string,
+  claimedMatterId: string,
+  quotedText: string,
+) => Promise<VerifyVerdict>;
+
+/** The model-side shape we ask `structuredOutput` to produce. We resolve the
+ *  model's `sourceLocator` back to a real retrieved chunk (by paragraph/page or
+ *  quote match) to recover the verifiable citation id — the model never invents
+ *  ids, it only points at the numbered sources we gave it. */
+interface RawFindingSource {
+  /** 1-based index into the numbered retrieved-context list, or 0 if none. */
+  sourceNumber: number;
+  /** The exact quoted statement this side relies on. */
+  quote: string;
+}
+
+interface RawContradictionFinding {
+  topic: string;
+  statementA: RawFindingSource;
+  statementB: RawFindingSource;
+  conflictRationale: string;
+  followUpQuestions?: string[];
+}
+
+interface RawContradictionResult {
+  findings: RawContradictionFinding[];
+}
+
+/** JSON schema we hand to `provider.structuredOutput`. Kept deliberately tight
+ *  so the model returns source POINTERS (numbers into the context list) rather
+ *  than free-form citations it could fabricate. */
+const CONTRADICTION_SCHEMA: OutputSchema = {
+  type: 'object',
+  required: ['findings'],
+  properties: {
+    findings: {
+      type: 'array',
+      description: 'Every candidate contradiction found. Empty array if none.',
+      items: {
+        type: 'object',
+        required: ['topic', 'statementA', 'statementB', 'conflictRationale'],
+        properties: {
+          topic: { type: 'string', description: 'Short topic/theme heading for this finding.' },
+          statementA: {
+            type: 'object',
+            required: ['sourceNumber', 'quote'],
+            properties: {
+              sourceNumber: {
+                type: 'number',
+                description:
+                  'The [N] number of the source in the provided context that this quote came from. Use 0 only if it genuinely is not in the context.',
+              },
+              quote: { type: 'string', description: 'The exact quoted statement.' },
+            },
+          },
+          statementB: {
+            type: 'object',
+            required: ['sourceNumber', 'quote'],
+            properties: {
+              sourceNumber: {
+                type: 'number',
+                description:
+                  'The [N] number of the source in the provided context that the conflicting quote came from. Use 0 only if it genuinely is not in the context.',
+              },
+              quote: { type: 'string', description: 'The exact conflicting quoted statement.' },
+            },
+          },
+          conflictRationale: {
+            type: 'string',
+            description: 'Plain-language explanation of why these two statements conflict.',
+          },
+          followUpQuestions: {
+            type: 'array',
+            description: 'Suggested follow-up deposition questions (may be omitted).',
+            items: { type: 'string' },
+          },
+        },
+      },
+    },
+  },
+};
+
+/** Build the numbered `<retrieved_context>` block injected into the prompt.
+ *  Mirrors the chat citation format so the model is primed to point at `[N]`. */
+export function buildRetrievedContextBlock(chunks: RetrievedChunk[]): string {
+  if (chunks.length === 0) {
+    return '<retrieved_context>\n(No matter documents were retrieved for this query.)\n</retrieved_context>';
+  }
+  const lines = chunks
+    .map((c, i) => {
+      const n = i + 1;
+      const locator = sourceLocator(c);
+      return `[${String(n)}] ${locator}\n${c.chunkText}`;
+    })
+    .join('\n\n');
+  return `<retrieved_context>\n${lines}\n</retrieved_context>`;
+}
+
+/** Human-readable locator label for a retrieved chunk. */
+function sourceLocator(c: RetrievedChunk): string {
+  const base = basename(c.path);
+  if (c.sourceType === 'pdf' && c.pageNumber != null) {
+    return `${base} page ${String(c.pageNumber)}`;
+  }
+  if (c.sourceType === 'mail') {
+    return `${base} (email)`;
+  }
+  return `${base} paragraph ${String(c.paragraphIndex)}`;
+}
+
+function basename(path: string): string {
+  const parts = path.split(/[\\/]/);
+  const last = parts[parts.length - 1];
+  return last && last.length > 0 ? last : path;
+}
+
+/** Resolve a model-returned source pointer back to a real retrieved chunk and
+ *  build a `FindingSource` carrying the verifiable citation id (when grounded). */
+function resolveSource(raw: RawFindingSource, chunks: RetrievedChunk[]): FindingSource {
+  // sourceNumber is 1-based; 0 (or out of range) means the model could not
+  // ground this side in the retrieved context — a hallucinated reference.
+  const idx = raw.sourceNumber - 1;
+  const chunk = idx >= 0 && idx < chunks.length ? chunks[idx] : undefined;
+  if (!chunk) {
+    return {
+      locator: 'Not grounded in retrieved record',
+      quote: raw.quote,
+      verdict: 'unverified',
+    };
+  }
+  const source: FindingSource = {
+    locator: sourceLocator(chunk),
+    quote: raw.quote,
+  };
+  if (chunk.id) source.citationId = chunk.id;
+  if (chunk.matterId) source.matterId = chunk.matterId;
+  if (chunk.sourceId) source.sourceId = chunk.sourceId;
+  return source;
+}
+
+/** Verify a single finding side against the local store. Mutates `verdict` in
+ *  place on the passed source and returns whether it is `'verified'`. */
+async function verifySource(source: FindingSource, verify: VerifyCitationFn): Promise<boolean> {
+  // A source the model could not ground (no citation id) is never verifiable.
+  if (!source.citationId || !source.matterId) {
+    source.verdict = 'unverified';
+    return false;
+  }
+  try {
+    const verdict = await verify(source.citationId, source.matterId, source.quote);
+    source.verdict = verdict;
+    return verdict === 'verified';
+  } catch {
+    // Browser/test mode or backend error — flag as unverified, never present.
+    source.verdict = 'unverified';
+    return false;
+  }
+}
+
+export interface RunContradictionAnalysisArgs {
+  provider: Provider;
+  config: AnalyzeStepConfig;
+  /** Inputs accumulated so far (interview answers + prior step outputs). */
+  inputs: Record<string, unknown>;
+  /** The ACTIVE matter retrieval scope (privilege excluded by the retrieve fn). */
+  scope: RetrievalScope;
+  retrieve: RetrieveFn;
+  verify: VerifyCitationFn;
+  /** Interpolate `{{var}}` against the inputs (engine supplies its own helper). */
+  interpolate: (template: string, values: Record<string, unknown>) => string;
+}
+
+/**
+ * Run the full contradiction analysis: matter-scoped retrieval → structured
+ * findings → per-source citation verification.
+ *
+ * Returns the structured result (findings each carrying a citation + verdict,
+ * plus verified/unverified counts) AND the retrieved chunks (so the engine can
+ * record what grounded the analysis). The Word rendering happens in the engine
+ * (via `serializeContradictionsDocx`) so this module stays import-light.
+ */
+export async function runContradictionAnalysis(
+  args: RunContradictionAnalysisArgs,
+): Promise<{ result: ContradictionAnalysisResult; chunks: RetrievedChunk[]; retrievalQuery: string }> {
+  const { provider, config, inputs, scope, retrieve, verify, interpolate } = args;
+
+  // 1) Matter-scoped retrieval (privilege excluded by the injected retrieve fn).
+  const retrievalQuery = interpolate(config.retrievalQueryTemplate, inputs).trim();
+  const topK = config.topK ?? 12;
+  const chunks = retrievalQuery ? await retrieve(retrievalQuery, topK, scope) : [];
+
+  // 2) Structured findings from the model, grounded in the numbered context.
+  const contextBlock = buildRetrievedContextBlock(chunks);
+  const prompt = interpolate(config.promptTemplate, {
+    ...inputs,
+    retrievedContext: contextBlock,
+  });
+
+  const structuredOpts = config.systemPrompt
+    ? { schema: CONTRADICTION_SCHEMA, systemPrompt: config.systemPrompt }
+    : { schema: CONTRADICTION_SCHEMA };
+  // Treat the model's structured output as UNTRUSTED: it may omit required
+  // fields despite the schema, so we re-validate at the boundary rather than
+  // trust the declared type.
+  const raw = (await provider.structuredOutput<RawContradictionResult>(
+    prompt,
+    structuredOpts,
+  )) as Partial<RawContradictionResult> | null | undefined;
+
+  const rawFindings: Partial<RawContradictionFinding>[] = Array.isArray(raw?.findings)
+    ? raw.findings
+    : [];
+
+  // 3) Resolve source pointers → verifiable citations, then verify each side.
+  const findings: ContradictionFinding[] = [];
+  for (const rf of rawFindings) {
+    const statementA = resolveSource(rf.statementA ?? { sourceNumber: 0, quote: '' }, chunks);
+    const statementB = resolveSource(rf.statementB ?? { sourceNumber: 0, quote: '' }, chunks);
+
+    const okA = await verifySource(statementA, verify);
+    const okB = await verifySource(statementB, verify);
+
+    const finding: ContradictionFinding = {
+      topic: rf.topic || 'Untitled',
+      statementA,
+      statementB,
+      conflictRationale: rf.conflictRationale || '',
+      verified: okA && okB,
+    };
+    if (Array.isArray(rf.followUpQuestions) && rf.followUpQuestions.length > 0) {
+      finding.followUpQuestions = rf.followUpQuestions;
+    }
+    findings.push(finding);
+  }
+
+  const verifiedCount = findings.filter((f) => f.verified).length;
+  const result: ContradictionAnalysisResult = {
+    findings,
+    totalCount: findings.length,
+    verifiedCount,
+    unverifiedCount: findings.length - verifiedCount,
+  };
+
+  return { result, chunks, retrievalQuery };
+}

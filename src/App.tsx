@@ -56,6 +56,9 @@ import type { SourceCard } from '@/types/research';
 import type { AuditEntry } from '@/types/audit';
 import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
+import { MemoryService } from '@/modules/memory/MemoryService';
+import { getActiveScope } from '@/stores/matterStore';
+import { ragVerifyCitation, type RetrievalScope } from '@/utils/tauri-commands';
 import {
   createTemplatesMarketplaceService,
   createPluginsMarketplaceService,
@@ -2346,6 +2349,24 @@ function App() {
             const fullPath = path.startsWith('/') ? path : `${workflowFolderPath}/${filename}`;
             return workspaceServiceRef.current!.readFile(fullPath);
           },
+          // WS-D — binary deliverables (the Word .docx a workflow produces) land
+          // in the same workflow folder under the active matter. Tracked as an
+          // artifact so the .workflow file records what the run produced.
+          writeFileBinary: async (path: string, bytes: Uint8Array) => {
+            const filename = path.split('/').pop() || path;
+            const fullPath = `${workflowFolderPath}/${filename}`;
+            // ArrayBuffer slice keeps TS happy regardless of the byte view's offset.
+            const buffer = bytes.buffer.slice(
+              bytes.byteOffset,
+              bytes.byteOffset + bytes.byteLength,
+            ) as ArrayBuffer;
+            await workspaceServiceRef.current!.writeFileBinary(fullPath, buffer);
+            if (!artifacts.includes(filename)) {
+              artifacts.push(filename);
+            }
+            const fileTree = await workspaceServiceRef.current!.getFileTree();
+            setFileTree(fileTree);
+          },
         },
         // Interview handler - shows dialog and waits for user answers
         async (_stepId, questions) => {
@@ -2396,6 +2417,33 @@ function App() {
             const svc = templatesMarketplaceServiceRef.current;
             if (!reader || !svc) return [];
             return reader.list(svc);
+          },
+          // WS-D — litigation `analyze` step dependencies. Retrieval is scoped to
+          // the ACTIVE matter and privilege is EXCLUDED (the safe default on
+          // MemoryService.retrieve). Every finding's citation is verified against
+          // the local store via rag_verify_citation. The Word renderer is the
+          // shared structured-deliverable serializer.
+          analyzeDeps: {
+            getScope: (): RetrievalScope => getActiveScope() as RetrievalScope,
+            retrieve: (query, topK, scope) =>
+              MemoryService.retrieve(query, topK, scope),
+            verifyCitation: async (citationId, claimedMatterId, quotedText) => {
+              const verdict = await ragVerifyCitation(citationId, claimedMatterId, quotedText);
+              // CitationVerdict.verdict is one of verified|notFound|matterMismatch|
+              // textMismatch — exactly the values the analysis pipeline records.
+              return verdict.verdict;
+            },
+            serializeContradictions: async (result, meta) => {
+              const { serializeContradictionsDocx } = await import('@/utils/docx-io');
+              const firmName = (() => {
+                try {
+                  return localStorage.getItem('keepance_firm_name') ?? '';
+                } catch {
+                  return '';
+                }
+              })();
+              return serializeContradictionsDocx(result, meta, { firmName });
+            },
           },
         }
       );

@@ -21,10 +21,17 @@ import {
   LevelFormat,
   Packer,
   Paragraph,
+  ShadingType,
+  Table,
+  TableCell,
+  TableRow,
   TextRun,
+  WidthType,
   type ISectionOptions,
   type ParagraphChild,
 } from 'docx';
+
+import type { ContradictionAnalysisResult, ContradictionFinding } from '@/types/workflow';
 
 import { dataUrlToArrayBuffer } from './spreadsheet-io';
 
@@ -693,6 +700,282 @@ export async function markdownToDocxBytes(
 ): Promise<Uint8Array> {
   const html = markdownToHtml(markdown);
   return serializeDocx(html, fileName, options);
+}
+
+// ---------------------------------------------------------------------------
+// WS-D — Structured litigation deliverable: contradictions table → .docx
+// ---------------------------------------------------------------------------
+//
+// The Deposition Contradiction Finder (and, by the same pattern, the other
+// litigation templates) produces STRUCTURED findings rather than free-form
+// markdown. We render those into a real Word document — a verification banner,
+// a short summary, then a findings table — so the lawyer reviews a familiar
+// deliverable in the Word editor. The framing is deliberate: a tireless
+// first-year associate that FLAGS findings for the lawyer to verify, with a
+// citation on every finding. Unverified findings are visually flagged.
+
+const FLAG_VERIFIED = '✓ Verified vs. source';
+const FLAG_UNVERIFIED = '⚠ UNVERIFIED. Check original';
+
+/** A small bold run for table header cells. */
+function headerCell(text: string): TableCell {
+  return new TableCell({
+    shading: { type: ShadingType.CLEAR, fill: 'EEF1F5', color: 'auto' },
+    children: [
+      new Paragraph({
+        children: [new TextRun({ text, bold: true, size: 20 })],
+      }),
+    ],
+  });
+}
+
+/** Render one finding's "statement" side (quote + locator + per-source flag). */
+function statementCellParagraphs(
+  label: string,
+  quote: string,
+  locator: string,
+  verdict: string | undefined,
+): Paragraph[] {
+  const verdictOk = verdict === 'verified';
+  return [
+    new Paragraph({
+      children: [new TextRun({ text: label, bold: true, size: 18, color: '555555' })],
+    }),
+    new Paragraph({
+      children: [new TextRun({ text: `“${quote}”`, italics: true, size: 20 })],
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({ text: `Source: ${locator}`, size: 18, color: '555555' }),
+      ],
+      spacing: { before: 40 },
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: verdictOk ? FLAG_VERIFIED : `${FLAG_UNVERIFIED} (${verdict ?? 'unverified'})`,
+          size: 16,
+          bold: !verdictOk,
+          color: verdictOk ? '2E7D32' : 'B23B00',
+        }),
+      ],
+      spacing: { before: 40 },
+    }),
+  ];
+}
+
+/** Build a single finding's table row. */
+function findingRow(finding: ContradictionFinding, index: number): TableRow {
+  const followUps = finding.followUpQuestions ?? [];
+  const detailParagraphs: Paragraph[] = [
+    new Paragraph({
+      children: [new TextRun({ text: 'Why they conflict', bold: true, size: 18, color: '555555' })],
+    }),
+    new Paragraph({ children: [new TextRun({ text: finding.conflictRationale, size: 20 })] }),
+  ];
+  if (followUps.length > 0) {
+    detailParagraphs.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'Suggested follow-up questions', bold: true, size: 18, color: '555555' })],
+        spacing: { before: 80 },
+      }),
+    );
+    for (const q of followUps) {
+      detailParagraphs.push(new Paragraph({ text: q, bullet: { level: 0 } }));
+    }
+  }
+
+  return new TableRow({
+    children: [
+      new TableCell({
+        width: { size: 6, type: WidthType.PERCENTAGE },
+        children: [new Paragraph({ children: [new TextRun({ text: String(index + 1), bold: true })] })],
+      }),
+      new TableCell({
+        width: { size: 18, type: WidthType.PERCENTAGE },
+        children: [new Paragraph({ children: [new TextRun({ text: finding.topic, size: 20 })] })],
+      }),
+      new TableCell({
+        width: { size: 30, type: WidthType.PERCENTAGE },
+        children: statementCellParagraphs(
+          'Statement A',
+          finding.statementA.quote,
+          finding.statementA.locator,
+          finding.statementA.verdict,
+        ),
+      }),
+      new TableCell({
+        width: { size: 30, type: WidthType.PERCENTAGE },
+        children: statementCellParagraphs(
+          'Statement B (conflicting)',
+          finding.statementB.quote,
+          finding.statementB.locator,
+          finding.statementB.verdict,
+        ),
+      }),
+      new TableCell({
+        width: { size: 16, type: WidthType.PERCENTAGE },
+        children: detailParagraphs,
+      }),
+    ],
+  });
+}
+
+/**
+ * Render a structured contradictions analysis into `.docx` bytes.
+ *
+ * Layout: a non-dismissable verification banner, a title + matter header, a
+ * one-line summary of how many findings verified, then a findings table. The
+ * banner and the per-finding flags make the "verify before relying" framing
+ * explicit in the output itself (not just the UI).
+ *
+ * Pass `options.firmName` to prepend the same branded letterhead the rest of
+ * the export path uses.
+ */
+export async function serializeContradictionsDocx(
+  result: ContradictionAnalysisResult,
+  meta: {
+    title: string;
+    matterName?: string;
+    witnessName?: string;
+    depositionDate?: string;
+    verificationBanner: string;
+  },
+  options: DocxExportOptions = {},
+): Promise<Uint8Array> {
+  const brandingHeader = buildBrandingHeader(options.firmName ?? '');
+  const preparedDate = new Date().toLocaleDateString();
+
+  const headerLines: Paragraph[] = [
+    // Verification banner — bold, boxed, always present.
+    new Paragraph({
+      shading: { type: ShadingType.CLEAR, fill: 'FFF4E5', color: 'auto' },
+      border: {
+        top: { color: 'B23B00', space: 6, style: BorderStyle.SINGLE, size: 6 },
+        bottom: { color: 'B23B00', space: 6, style: BorderStyle.SINGLE, size: 6 },
+        left: { color: 'B23B00', space: 6, style: BorderStyle.SINGLE, size: 6 },
+        right: { color: 'B23B00', space: 6, style: BorderStyle.SINGLE, size: 6 },
+      },
+      spacing: { after: 200 },
+      children: [
+        new TextRun({ text: 'DRAFT. VERIFY BEFORE RELYING. ', bold: true, size: 20, color: 'B23B00' }),
+        new TextRun({ text: meta.verificationBanner, size: 20, color: '7A2A00' }),
+      ],
+    }),
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: meta.title })] }),
+  ];
+
+  if (meta.matterName) {
+    headerLines.push(
+      new Paragraph({ children: [new TextRun({ text: `Matter: ${meta.matterName}`, bold: true, size: 22 })] }),
+    );
+  }
+  if (meta.witnessName) {
+    headerLines.push(
+      new Paragraph({ children: [new TextRun({ text: `Witness: ${meta.witnessName}`, size: 22 })] }),
+    );
+  }
+  if (meta.depositionDate) {
+    headerLines.push(
+      new Paragraph({ children: [new TextRun({ text: `Deposition date: ${meta.depositionDate}`, size: 22 })] }),
+    );
+  }
+  headerLines.push(
+    new Paragraph({
+      children: [new TextRun({ text: `Prepared for attorney review: ${preparedDate}`, size: 22 })],
+      spacing: { after: 160 },
+    }),
+  );
+
+  // Summary line.
+  headerLines.push(
+    new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: 'Summary' })] }),
+  );
+  headerLines.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text:
+            `Flagged ${String(result.totalCount)} candidate ` +
+            `${result.totalCount === 1 ? 'contradiction' : 'contradictions'} for your review. ` +
+            `${String(result.verifiedCount)} verified against the matter record; ` +
+            `${String(result.unverifiedCount)} could not be auto-verified and ${result.unverifiedCount === 1 ? 'is' : 'are'} flagged below. ` +
+            `Every finding is a starting point. Confirm each quote and citation against the original source before relying on it.`,
+          size: 22,
+        }),
+      ],
+      spacing: { after: 160 },
+    }),
+  );
+
+  const bodyChildren: (Paragraph | Table)[] = [...headerLines];
+
+  if (result.findings.length === 0) {
+    bodyChildren.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'No candidate contradictions were identified in the retrieved record. This is not a finding of consistency. Re-run with more targeted claims or a wider document set if you expected conflicts.',
+            size: 22,
+          }),
+        ],
+      }),
+    );
+  } else {
+    bodyChildren.push(
+      new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: 'Flagged contradictions' })] }),
+    );
+    const headerRow = new TableRow({
+      tableHeader: true,
+      children: [
+        headerCell('#'),
+        headerCell('Topic'),
+        headerCell('Statement A'),
+        headerCell('Statement B (conflicting)'),
+        headerCell('Why / follow-up'),
+      ],
+    });
+    const rows = result.findings.map((f, i) => findingRow(f, i));
+    bodyChildren.push(
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [headerRow, ...rows],
+      }),
+    );
+  }
+
+  // Closing reminder.
+  bodyChildren.push(
+    new Paragraph({
+      spacing: { before: 240 },
+      children: [
+        new TextRun({
+          text: 'This analysis was prepared by an AI assistant to organize the record. Verify all page/line references and quotations against the original transcript and documents. Do not use this document in any filing without independent verification.',
+          italics: true,
+          size: 18,
+          color: '555555',
+        }),
+      ],
+    }),
+  );
+
+  const sectionOptions: ISectionOptions = {
+    properties: {},
+    children: [...brandingHeader, ...bodyChildren],
+  };
+
+  const doc = new Document({
+    creator: 'Keepance',
+    description: 'Litigation contradiction analysis prepared in Keepance (draft. verify before relying)',
+    sections: [sectionOptions],
+  });
+
+  if (typeof Blob !== 'undefined') {
+    const blob = await Packer.toBlob(doc);
+    return new Uint8Array(await blob.arrayBuffer());
+  }
+  const nodeBuffer: Buffer = await Packer.toBuffer(doc);
+  return new Uint8Array(nodeBuffer);
 }
 
 /**
