@@ -57,6 +57,12 @@ export interface ChatMessage {
    */
   workspaceHint?: string;
   /**
+   * WS-B/C — the matter scope this turn was retrieved under. Stamped on both
+   * the user turn and the assistant reply so the UI can always show which
+   * matter (or "All matters") the answer was confined to.
+   */
+  scope?: TurnScope;
+  /**
    * Files attached to this message (images or PDFs).
    * Stored in the workspace under `media/<YYYY-MM>/` with SHA-256 dedup.
    */
@@ -104,6 +110,42 @@ export interface WorkspaceSource {
   sourceType?: 'text' | 'pdf' | 'mail';
   /** A3: 1-based page number for PDF chunks. Absent on pre-A3 rows. */
   pageNumber?: number;
+  /**
+   * WS-B/C: the content-addressed chunk id (the citation key). Passed to
+   * `rag_verify_citation` to confirm a cited claim is real before it is
+   * presented. Absent on pre-3.0 rows.
+   */
+  id?: string;
+  /**
+   * WS-B/C: the matter this chunk belongs to. Used both to scope the source
+   * and as the `claimedMatterId` when verifying a citation.
+   */
+  matterId?: string;
+  /**
+   * WS-B/C: the resolvable source id — a file path or `mail:<message-id>`.
+   * `mail:` sources open the email rather than a file in the editor.
+   */
+  sourceId?: string;
+  /**
+   * WS-B/C: result of `rag_verify_citation` for this source against the cited
+   * claim. `true` = verified (safe to present); `false` = a citation that
+   * pointed at this source did NOT verify (fabricated id, matter mismatch, or
+   * misquote) and must be flagged. `undefined` = not verified (no citation
+   * referenced it, or verification was skipped — e.g. browser/test mode).
+   */
+  verified?: boolean;
+}
+
+/**
+ * WS-B/C — the scope a chat turn was retrieved under, stamped onto the
+ * assistant message so the UI can show "Scoped to: <matter>" or
+ * "Scoped to: All matters". `matterName` is the human label captured at send
+ * time (the matter could be renamed/deleted later).
+ */
+export interface TurnScope {
+  kind: 'matter' | 'allMatters';
+  matterId?: string;
+  matterName?: string;
 }
 
 /**

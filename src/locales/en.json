@@ -723,5 +723,36 @@
       "title": "Workflow Questions",
       "description": "Please answer the following questions to continue the workflow."
     }
+  },
+  "matter": {
+    "scope": {
+      "all-matters": "All matters",
+      "all-matters-title": "Searching across all matters. This is the deliberate cross-matter mode; other clients' data can appear.",
+      "active-title": "Active matter: {{name}}. Questions are scoped to this matter only.",
+      "menu-label": "Scope questions to",
+      "no-matters": "No matters yet. Create one to scope your work to a single client.",
+      "manage": "Manage matters...",
+      "answer-scoped": "Scoped to {{name}}",
+      "answer-all-matters": "Scoped to all matters",
+      "this-matter": "this matter",
+      "answer-matter-title": "This answer was confined to the active matter. Other clients' data was not searched.",
+      "answer-all-matters-title": "This answer searched across every matter (cross-matter mode)."
+    },
+    "citation": {
+      "unverified-warning": "One or more citations could not be verified against the source. Open the source to confirm before relying on it."
+    },
+    "manager": {
+      "title": "Matters",
+      "description": "A matter groups one client's work under one or more workspace folders. Files in a matter's folders are scoped to that matter so other clients' data never appears.",
+      "matter-name": "Matter name",
+      "matter-name-placeholder": "e.g. Acme v. Beta",
+      "client-name": "Client",
+      "client-name-placeholder": "e.g. Acme Corp",
+      "create": "Create matter",
+      "delete": "Delete matter",
+      "empty": "No matters yet. Create your first matter above.",
+      "folders-label": "Folders in this matter",
+      "no-folders": "Open a workspace to map folders to this matter."
+    }
   }
 }

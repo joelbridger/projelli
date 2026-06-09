@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, FileText, ChevronDown, ChevronRight, Check, X, Pencil, Brain } from 'lucide-react';
+import { Send, Square, Download, Mic, MicOff, GripVertical, Sparkles, FileText, ChevronDown, ChevronRight, Check, X, Pencil, Brain, AlertTriangle, Briefcase, Globe } from 'lucide-react';
 import { ChatInputToolbar } from '@/components/chat/ChatInputToolbar';
 import { AttachmentService } from '@/modules/attachments/AttachmentService';
 import { SUPPORTED_IMAGE_MIMES, MAX_ATTACHMENT_BYTES, isVisionModel } from '@/modules/models/vision-capability';
@@ -17,7 +17,7 @@ import type { ChatAttachment } from '@/types/ai';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import type { AIChatFile, ChatMessage, WorkspaceSource } from '@/types/ai';
+import type { AIChatFile, ChatMessage, WorkspaceSource, TurnScope } from '@/types/ai';
 import type { AuditEntry } from '@/types/audit';
 import type { Provider, AttachmentBytes } from '@/modules/models/Provider';
 import { ClaudeProvider } from '@/modules/models/ClaudeProvider';
@@ -32,6 +32,11 @@ import { createDemoProvider } from '@/web-demo/demoAIProvider';
 import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/modules/models/fetchUtils';
 import { FILE_ACCESS_TOOLS } from '@/modules/tools/fileAccessTools';
 import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder } from '@/stores/aiChatStore';
+import { useActiveMatter } from '@/stores/matterStore';
+import { matterLabel } from '@/modules/memory/matterResolver';
+import { MatterScopeSelector } from '@/components/matter/MatterScopeSelector';
+import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
+import type { RetrievalScope } from '@/utils/tauri-commands';
 import { useFileContextStore } from '@/stores/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
 import { filterByScope } from '@/utils/client-boundary';
@@ -57,6 +62,7 @@ import {
   parseCitations,
   parseWorkspaceCommand,
   resolveCitationPath,
+  verifyCitations,
 } from '@/modules/memory/workspaceCommand';
 import {
   buildFactsMemoryBlock,
@@ -260,18 +266,33 @@ function renderMessageWithCitations(
     const resolved = resolveCitationPath(cite, sources ?? []);
     const label = `${cite.basename} §${cite.paragraphIndex}`;
     const testId = `chat-citation-${cite.basename}-${cite.paragraphIndex}`;
+    // WS-B/C — find the source this citation resolves to so we can reflect its
+    // verification state. `verified === false` means the citation did NOT
+    // verify against the local store (fabricated id / matter mismatch /
+    // misquote) and must be flagged. `true` is safe to present.
+    const matchedSource = (sources ?? []).find((s) => s.path === resolved);
+    const unverified = matchedSource?.verified === false;
     pieces.push(
       <button
         key={`cite-${idx}`}
         type="button"
         data-testid={testId}
-        className="inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded border border-primary/30 bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 align-baseline"
+        data-verified={
+          matchedSource?.verified === undefined
+            ? 'unknown'
+            : matchedSource.verified
+              ? 'true'
+              : 'false'
+        }
+        className={cn(
+          'inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded border text-xs font-medium align-baseline',
+          unverified
+            ? 'border-red-400/60 bg-red-50 text-red-700 hover:bg-red-100'
+            : 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20',
+        )}
         onClick={() => {
           if (resolved) {
             // A3: look up sourceType + pageNumber from the matched source.
-            const matchedSource = (sources ?? []).find(
-              (s) => s.path === resolved,
-            );
             onCitationClick(
               resolved,
               cite.paragraphIndex,
@@ -282,9 +303,19 @@ function renderMessageWithCitations(
             onMissingCitation(cite.basename);
           }
         }}
-        title={resolved ? `Open ${resolved}` : 'Source file not found'}
+        title={
+          unverified
+            ? `Unverified citation — could not confirm "${label}" against the source. Do not rely on this without checking.`
+            : resolved
+              ? `Open ${resolved}`
+              : 'Source file not found'
+        }
       >
-        <FileText className="h-3 w-3" />
+        {unverified ? (
+          <AlertTriangle className="h-3 w-3" />
+        ) : (
+          <FileText className="h-3 w-3" />
+        )}
         {label}
       </button>,
     );
@@ -538,15 +569,22 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // 30-day trial gate. Locks chat send + voice when expired and not paid.
   const trialGate = useTrialGate();
   // Use global store for chat state (persists across navigation)
-  const { sessions, initSession, addMessage, updateLastMessage, setLoading, setDraftInput, clearDraftInput, recordCost, setAskWorkspaceMode, setScopedFolder } = useAIChatStore();
+  const { sessions, initSession, addMessage, updateLastMessage, updateMessages, setLoading, setDraftInput, clearDraftInput, recordCost, setAskWorkspaceMode, setScopedFolder } = useAIChatStore();
   const chatId = chatData.id;
   const session = sessions[chatId];
   const askWorkspaceMode = useAskWorkspaceMode(chatId);
   // D1 — the active folder scope for this chat, or null when unrestricted.
   const scopedFolder = useScopedFolder(chatId);
+  // WS-B/C — the active matter is the confidentiality boundary for retrieval.
+  // When null, the chat searches across all matters (the explicit cross-matter
+  // capability). Switching the active matter changes retrieval scope.
+  const activeMatter = useActiveMatter();
   // M2 — surfaced inline beneath the input when a citation can't be
   // resolved. Cleared whenever the user interacts with the input again.
   const [missingSourceWarning, setMissingSourceWarning] = useState<string | null>(null);
+  // WS-B/C — matter manager dialog (create/map matters) opened from the
+  // scope selector's "Manage matters" item.
+  const [matterManagerOpen, setMatterManagerOpen] = useState(false);
   // M3 — proposed facts awaiting user approval. Keyed by chat so a
   // batch from one chat doesn't bleed into another if the user switches.
   type PendingProposal = ProposedFact & { key: string };
@@ -823,6 +861,15 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     const shouldRetrieve = parsed.hasCommand || askWorkspaceMode;
     let retrievedSources: WorkspaceSource[] = [];
     let workspaceHint: string | undefined;
+    // WS-B/C — resolve the retrieval scope from the active matter. Captured at
+    // send time so a later rename/delete of the matter doesn't rewrite history.
+    // A null active matter is the explicit cross-matter ("all matters") scope.
+    const retrievalScope: RetrievalScope = activeMatter
+      ? { kind: 'matter', matterId: activeMatter.id }
+      : { kind: 'allMatters' };
+    const turnScope: TurnScope = activeMatter
+      ? { kind: 'matter', matterId: activeMatter.id, matterName: matterLabel(activeMatter) }
+      : { kind: 'allMatters' };
     if (shouldRetrieve) {
       if (!isMemoryEnabled()) {
         workspaceHint =
@@ -842,9 +889,14 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           retrievalQuery = priorUserTurns || rawContent;
         }
         try {
+          // WS-B/C — scope retrieval to the ACTIVE matter. The backend
+          // prefilters by matter so other clients' chunks can never be
+          // returned. We never silently pass AllMatters when a matter is
+          // active; the scope object above is the single source of truth.
           const hits = await MemoryService.retrieve(
             retrievalQuery,
             DEFAULT_WORKSPACE_TOP_K,
+            retrievalScope,
           );
           // D1 — filter workspace retrieval results to the active folder scope
           // so @workspace searches don't surface documents from other client
@@ -864,6 +916,11 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             // PDF viewer at the correct page.
             ...(h.sourceType !== undefined ? { sourceType: h.sourceType } : {}),
             ...(h.pageNumber !== undefined ? { pageNumber: h.pageNumber } : {}),
+            // WS-B/C: carry the citation key, matter, and resolvable source id
+            // so citations can be verified + resolved (file vs email).
+            ...(h.id !== undefined ? { id: h.id } : {}),
+            ...(h.matterId !== undefined ? { matterId: h.matterId } : {}),
+            ...(h.sourceId !== undefined ? { sourceId: h.sourceId } : {}),
           }));
         } catch (err) {
           console.error('Workspace retrieval failed:', err);
@@ -906,6 +963,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       ...(messageAttachments ? { attachments: messageAttachments } : {}),
       ...(retrievedSources.length > 0 ? { sources: retrievedSources } : {}),
       ...(workspaceHint ? { workspaceHint } : {}),
+      // WS-B/C — stamp the scope the turn was retrieved under (only when
+      // retrieval actually ran, so non-workspace chat turns stay unchanged).
+      ...(shouldRetrieve ? { scope: turnScope } : {}),
     };
 
     // Stream A4 — check if context would exceed the configured limit before sending.
@@ -1251,6 +1311,8 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             ...(retrievedSources.length > 0
               ? { sources: retrievedSources }
               : {}),
+            // WS-B/C — stamp the scope this turn was retrieved under.
+            ...(shouldRetrieve ? { scope: turnScope } : {}),
           };
           addMessage(chatId, streamingMessage);
 
@@ -1311,7 +1373,24 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             });
           }
 
-          const finalMessages = clearExpandedFlags([...updatedMessages, { ...streamingMessage, content: accumulated }]);
+          // WS-B/C — verify citations against the local store now the full
+          // answer is in. Update the streamed message's sources with the
+          // verification flags so unverified citations are surfaced.
+          const verifiedStreamSources =
+            retrievedSources.length > 0
+              ? await verifyCitations(accumulated, retrievedSources)
+              : retrievedSources;
+
+          const finalStreamingMessage: ChatMessage = {
+            ...streamingMessage,
+            content: accumulated,
+            ...(verifiedStreamSources.length > 0
+              ? { sources: verifiedStreamSources }
+              : {}),
+          };
+          const finalMessages = clearExpandedFlags([...updatedMessages, finalStreamingMessage]);
+          // Reflect the verified sources in the live store as well.
+          updateMessages(chatId, finalMessages);
 
           if (onSave) {
             onSave({ ...chatData, updated: new Date().toISOString(), messages: finalMessages });
@@ -1328,15 +1407,26 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             ...(attachmentBytes ? { attachmentBytes } : {}),
           });
 
+          // WS-B/C — verify the citations in the answer against the local
+          // store BEFORE presenting them. Verified sources are marked safe;
+          // any citation that doesn't verify flags its source in the UI.
+          const verifiedSources =
+            retrievedSources.length > 0
+              ? await verifyCitations(response.content, retrievedSources)
+              : retrievedSources;
+
           const assistantMessage: ChatMessage = {
             role: 'assistant',
             content: response.content,
             timestamp: new Date().toISOString(),
             // M2 — attach retrieval sources so the accordion + citation
             // chips rendered below the bubble have data to resolve.
-            ...(retrievedSources.length > 0
-              ? { sources: retrievedSources }
+            ...(verifiedSources.length > 0
+              ? { sources: verifiedSources }
               : {}),
+            // WS-B/C — stamp the scope so the UI shows which matter the
+            // answer was confined to.
+            ...(shouldRetrieve ? { scope: turnScope } : {}),
           };
 
           addMessage(chatId, assistantMessage);
@@ -1430,7 +1520,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         setLoading(chatId, false);
       }
     })();
-  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode]);
+  }, [inputValue, pendingAttachments, previewUrls, messages, chatData, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter]);
 
   // Stream A2 — File selection handler (paperclip, paste, drag-drop).
   // Accepts images (A1) and PDFs (A2). For PDFs: runs extractPdfText to
@@ -1679,6 +1769,19 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       pageNumber?: number,
     ) => {
       setMissingSourceWarning(null);
+      // WS-B/C — email sources resolve to `mail:<message-id>`, not a file on
+      // disk. Open them via a decoupled custom event the mail viewer
+      // subscribes to, rather than the editor's file-open pipeline.
+      if (sourceType === 'mail' || path.startsWith('mail:')) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('keepance:open-email', {
+              detail: { sourceId: path },
+            }),
+          );
+        }
+        return;
+      }
       if (!onOpenFileAtPath) return;
       if (sourceType === 'pdf' && pageNumber != null) {
         // Open PDF viewer at the specific page using pageNumber as the
@@ -1845,6 +1948,15 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* WS-B/C — active-matter scope. Always visible so the user knows
+              which matter the next question is confined to. Switching it
+              changes retrieval scope; "All matters" is the explicit
+              cross-matter capability. */}
+          <MatterScopeSelector
+            onManageMatters={() => {
+              setMatterManagerOpen(true);
+            }}
+          />
           {/* M2 — Ask my workspace toggle. When ON, every message in
               this chat retrieves workspace context before calling the
               model. Persisted per-chat in aiChatStore so flipping it
@@ -1982,6 +2094,51 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
                 {msg.workspaceHint}
               </p>
             )}
+            {/* WS-B/C — scope indicator: shows which matter the answer was
+                confined to (or the explicit cross-matter mode). Rendered on
+                assistant messages whose turn was workspace-aware. */}
+            {msg.role === 'assistant' && msg.scope && (
+              <div
+                data-testid={`chat-message-${String(idx)}-scope`}
+                data-scope-kind={msg.scope.kind}
+                className={cn(
+                  'mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium',
+                  msg.scope.kind === 'allMatters'
+                    ? 'bg-amber-50 text-amber-800'
+                    : 'bg-primary/10 text-primary',
+                )}
+                title={
+                  msg.scope.kind === 'allMatters'
+                    ? t('matter.scope.answer-all-matters-title')
+                    : t('matter.scope.answer-matter-title')
+                }
+              >
+                {msg.scope.kind === 'allMatters' ? (
+                  <Globe className="h-3 w-3" />
+                ) : (
+                  <Briefcase className="h-3 w-3" />
+                )}
+                {msg.scope.kind === 'allMatters'
+                  ? t('matter.scope.answer-all-matters')
+                  : t('matter.scope.answer-scoped', {
+                      name: msg.scope.matterName ?? t('matter.scope.this-matter'),
+                    })}
+              </div>
+            )}
+            {/* WS-B/C — flag when any citation in this answer failed
+                verification so the user does not rely on an unverifiable
+                claim. Only `verified` sources are safe to present. */}
+            {msg.role === 'assistant' &&
+              msg.sources &&
+              msg.sources.some((s) => s.verified === false) && (
+                <div
+                  data-testid={`chat-message-${String(idx)}-unverified-warning`}
+                  className="mt-1 flex items-start gap-1.5 rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[11px] text-red-700 max-w-[85%]"
+                >
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>{t('matter.citation.unverified-warning')}</span>
+                </div>
+              )}
             {/* M2 — Sources accordion, only on assistant messages that
                 had workspace retrieval. */}
             {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
@@ -2063,6 +2220,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* WS-B/C — matter manager (create/rename/delete + folder mapping). */}
+      <MatterManagerDialog open={matterManagerOpen} onOpenChange={setMatterManagerOpen} />
 
       {/* Stream A4 — Compression confirmation modal */}
       <CompressionConfirmModal

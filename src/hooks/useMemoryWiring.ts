@@ -23,8 +23,11 @@ import {
   isPdfIndexingEnabled,
   MemoryService,
   setMemoryEnabledReader,
+  setMatterResolver,
   setPdfIndexingEnabledReader,
 } from '@/modules/memory/MemoryService';
+import { resolveMatterIdForPath, useMatterStore } from '@/stores/matterStore';
+import { isPathInFolder } from '@/modules/memory/matterResolver';
 import { createFactsService, type FactsStorage } from '@/modules/memory/FactsService';
 import {
   setFactsService,
@@ -84,6 +87,44 @@ function collectPdfPaths(nodes: FileNode[]): string[] {
   return out;
 }
 
+/** Collect every file path in a FileNode tree recursively. */
+function collectAllFilePaths(nodes: FileNode[]): string[] {
+  const out: string[] = [];
+  for (const node of nodes) {
+    if (node.type === 'file') {
+      out.push(node.path);
+    } else if (node.children) {
+      out.push(...collectAllFilePaths(node.children));
+    }
+  }
+  return out;
+}
+
+/**
+ * WS-B/C — diff two matter lists and return the set of folder paths whose
+ * matter assignment changed (added, removed, or moved between matters). When a
+ * mapping changes we re-index every file under the affected folders so their
+ * chunks pick up the right matter id.
+ */
+export function changedFolderPaths(
+  prev: Array<{ id: string; folderPaths: string[] }>,
+  next: Array<{ id: string; folderPaths: string[] }>,
+): string[] {
+  const before = new Map<string, string>(); // folder -> matterId
+  for (const m of prev) for (const f of m.folderPaths) before.set(f, m.id);
+  const after = new Map<string, string>();
+  for (const m of next) for (const f of m.folderPaths) after.set(f, m.id);
+
+  const changed = new Set<string>();
+  for (const [folder, id] of after) {
+    if (before.get(folder) !== id) changed.add(folder);
+  }
+  for (const [folder] of before) {
+    if (!after.has(folder)) changed.add(folder); // folder removed from a matter
+  }
+  return Array.from(changed);
+}
+
 /** Walk all .pdf files in the workspace and index them via MemoryService. */
 async function indexWorkspacePdfs(
   workspaceService: MemoryWiringWorkspaceService,
@@ -130,6 +171,9 @@ export function useMemoryWiring(
         useSettingsStore.getState().getSetting<boolean>('factsAutoAccept'),
       ),
     );
+    // WS-B/C — install the matter resolver so every indexed chunk is tagged
+    // with the matter the file belongs to (or "unassigned").
+    setMatterResolver((path) => resolveMatterIdForPath(path));
   }, []);
 
   // M3 — wire the facts service once the workspace is open so the
@@ -237,6 +281,50 @@ export function useMemoryWiring(
     });
     return unsubscribe;
   }, [rootPath, workspaceService]);
+
+  // WS-B/C — re-index when a matter's folder mapping changes. Files in a
+  // newly-mapped (or remapped/unmapped) folder need their chunks re-tagged
+  // with the correct matter id so retrieval scoping stays accurate. We diff
+  // the matters list on every change and re-index the files under any folder
+  // whose matter assignment moved. Best-effort and debounced by Zustand's
+  // single-notification-per-set semantics.
+  useEffect(() => {
+    if (!rootPath) return;
+    let prevMatters = useMatterStore.getState().matters.map((m) => ({
+      id: m.id,
+      folderPaths: m.folderPaths,
+    }));
+
+    const unsubscribe = useMatterStore.subscribe((state) => {
+      const nextMatters = state.matters.map((m) => ({
+        id: m.id,
+        folderPaths: m.folderPaths,
+      }));
+      const folders = changedFolderPaths(prevMatters, nextMatters);
+      prevMatters = nextMatters;
+      if (folders.length === 0) return;
+
+      // For each changed folder, re-index its files under their (now current)
+      // resolved matter id. resolveMatterIdForPath reflects the latest store.
+      const { fileTree } = useWorkspaceStore.getState();
+      const allPaths = collectAllFilePaths(fileTree);
+      const affected = allPaths.filter((p) =>
+        folders.some((folder) => isPathInFolder(p, folder)),
+      );
+      // Group by resolved matter id so we re-index in matter batches.
+      const byMatter = new Map<string, string[]>();
+      for (const p of affected) {
+        const id = resolveMatterIdForPath(p);
+        const list = byMatter.get(id) ?? [];
+        list.push(p);
+        byMatter.set(id, list);
+      }
+      for (const [matterId, paths] of byMatter) {
+        void MemoryService.reindexPaths(paths, matterId).catch(() => {});
+      }
+    });
+    return unsubscribe;
+  }, [rootPath]);
 }
 
 export default useMemoryWiring;

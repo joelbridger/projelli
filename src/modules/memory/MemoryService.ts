@@ -89,6 +89,39 @@ export function isPdfIndexingEnabled(): boolean {
   }
 }
 
+// WS-B/C — matter resolver. The indexer must tag every chunk with the matter
+// the file belongs to, so retrieval can prefilter by matter. Pluggable so
+// MemoryService stays free of the matter store (and tests can stub it).
+
+/** Resolve a file path -> matter id. */
+export type MatterResolver = (path: string) => string;
+
+/** Default: everything is unassigned until a real resolver is installed. */
+const DEFAULT_MATTER_RESOLVER: MatterResolver = () => 'unassigned';
+
+let matterResolver: MatterResolver = DEFAULT_MATTER_RESOLVER;
+
+/** Install the matter resolver. Called from `useMemoryWiring` with a closure
+ *  over `resolveMatterIdForPath` from the matter store. */
+export function setMatterResolver(resolver: MatterResolver): void {
+  matterResolver = resolver;
+}
+
+/** Reset to the always-unassigned default. Test helper. */
+export function resetMatterResolver(): void {
+  matterResolver = DEFAULT_MATTER_RESOLVER;
+}
+
+/** Resolve a path to its matter id via the installed resolver. Never throws —
+ *  falls back to the unassigned sentinel if the resolver misbehaves. */
+export function resolveMatterForPath(path: string): string {
+  try {
+    return matterResolver(path) || 'unassigned';
+  } catch {
+    return 'unassigned';
+  }
+}
+
 export const MemoryService = {
   /** Point the indexer at a workspace. Always runs even if disabled — the
    *  workspace handle is metadata, not user data. */
@@ -98,12 +131,42 @@ export const MemoryService = {
 
   async indexFile(path: string): Promise<void> {
     if (!isMemoryEnabled()) return;
-    await ragIndexFile(path);
+    // WS-B/C: tag the chunk with the matter this file belongs to so retrieval
+    // can prefilter by matter. Resolves to "unassigned" when the file is not
+    // under any matter's mapped folders.
+    await ragIndexFile(path, resolveMatterForPath(path));
   },
 
-  async indexWorkspace(): Promise<void> {
+  /**
+   * Index the entire active workspace. The Rust walker files every chunk under
+   * the single `matterId` passed here; since one workspace can span many
+   * matters, the default full walk uses the `unassigned` sentinel, and the
+   * per-file watcher (which calls `indexFile`) re-tags each file with its real
+   * matter as it is touched. To re-index ONE matter's folders under its id,
+   * pass `matterId` explicitly (see `reindexMatterFolders`).
+   */
+  async indexWorkspace(matterId?: string): Promise<void> {
     if (!isMemoryEnabled()) return;
-    await ragIndexWorkspace();
+    await ragIndexWorkspace(matterId);
+  },
+
+  /**
+   * WS-B/C — re-index a single matter's mapped folders under that matter id.
+   * Called when a matter's folder mapping changes so the files in the newly
+   * mapped (or remapped) folders are tagged with the correct matter. Walks the
+   * supplied file paths and re-indexes each via `rag_index_file` with the
+   * matter id. Best-effort: individual failures are swallowed so one bad file
+   * doesn't abort the batch.
+   */
+  async reindexPaths(paths: string[], matterId: string): Promise<void> {
+    if (!isMemoryEnabled()) return;
+    for (const path of paths) {
+      try {
+        await ragIndexFile(path, matterId);
+      } catch {
+        // Best-effort: skip and continue.
+      }
+    }
   },
 
   async cancelIndexing(): Promise<void> {
@@ -165,7 +228,13 @@ export const MemoryService = {
       return { indexed: false, pageCount: result.pageCount, reason: 'scanned' };
     }
 
-    const chunksStored = await ragIndexPdfChunks(path, result.pages, result.pageCount);
+    // WS-B/C: tag PDF chunks with the matter this file belongs to.
+    const chunksStored = await ragIndexPdfChunks(
+      path,
+      result.pages,
+      result.pageCount,
+      resolveMatterForPath(path),
+    );
     return {
       indexed: chunksStored > 0,
       pageCount: result.pageCount,

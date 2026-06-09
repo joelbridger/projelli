@@ -5,7 +5,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
-import { FolderOpen, File, Edit, ChevronRight, Bug } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { FolderOpen, File, Edit, ChevronRight, Bug, Briefcase, Globe } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +15,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 // M1 (v1.5) Memory: RAG indexer status badge.
 import { RagStatusBadge } from '@/components/memory/RagStatusBadge';
+// WS-B/C: active-matter (confidentiality scope) indicator.
+import { useActiveMatter } from '@/stores/matterStore';
+import { matterLabel } from '@/modules/memory/matterResolver';
 import { BugReportDialog } from '@/components/common/BugReportDialog';
 import { TrialStatusChip } from '@/components/trial';
 
@@ -127,6 +131,8 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
   const { openTabs, activeTabPath } = useEditorStore();
   const activeTab = openTabs.find((t) => t.path === activeTabPath);
   const [bugReportOpen, setBugReportOpen] = useState(false);
+  // WS-B/C: which matter the AI is currently confined to (null = all matters).
+  const activeMatter = useActiveMatter();
 
   const projectName = getProjectName(rootPath, t('layout.status-bar.no-workspace'));
 
@@ -294,6 +300,31 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
             )}
           </>
         )}
+
+        {/* WS-B/C: active-matter scope indicator. Always visible so the user
+            knows which matter the AI is confined to, even outside a chat. */}
+        <div
+          data-testid="status-bar-matter"
+          data-scope={activeMatter ? 'matter' : 'allMatters'}
+          className={cn(
+            'flex items-center gap-1 max-w-[200px]',
+            activeMatter ? 'text-primary' : 'text-amber-700',
+          )}
+          title={
+            activeMatter
+              ? t('matter.scope.active-title', { name: matterLabel(activeMatter) })
+              : t('matter.scope.all-matters-title')
+          }
+        >
+          {activeMatter ? (
+            <Briefcase className="h-3 w-3 shrink-0" />
+          ) : (
+            <Globe className="h-3 w-3 shrink-0" />
+          )}
+          <span className="truncate">
+            {activeMatter ? matterLabel(activeMatter) : t('matter.scope.all-matters')}
+          </span>
+        </div>
 
         <RagStatusBadge />
 

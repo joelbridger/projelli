@@ -99,7 +99,9 @@ describe('MemoryService toggle', () => {
   it('forwards indexFile to the Tauri command when enabled', async () => {
     setMemoryEnabledReader(() => true);
     await MemoryService.indexFile('/w/a.md');
-    expect(tauri.ragIndexFile).toHaveBeenCalledWith('/w/a.md');
+    // WS-B/C: indexing always tags the chunk with a matter id; with no matter
+    // resolver installed the default is the "unassigned" sentinel.
+    expect(tauri.ragIndexFile).toHaveBeenCalledWith('/w/a.md', 'unassigned');
   });
 
   it('short-circuits indexFile when disabled', async () => {

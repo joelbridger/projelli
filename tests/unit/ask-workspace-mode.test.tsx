@@ -181,9 +181,12 @@ describe('Ask-my-workspace chat mode (M2)', () => {
 
     expect(order[0]).toBe('retrieve');
     expect(order[1]).toBe('send');
+    // WS-B/C: retrieval now carries a scope. With no active matter the chat
+    // passes the explicit cross-matter ("all matters") scope.
     expect(mocks.retrieve).toHaveBeenCalledWith(
       'How did we price premium?',
       8,
+      { kind: 'allMatters' },
     );
   });
 

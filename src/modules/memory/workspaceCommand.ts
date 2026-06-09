@@ -24,6 +24,8 @@
  */
 
 import type { RagHit } from '@/utils/tauri-commands';
+import { ragVerifyCitation } from '@/utils/tauri-commands';
+import type { WorkspaceSource } from '@/types/ai';
 
 /** Regex matching the `@workspace` token with word-ish boundaries. */
 const WORKSPACE_TAG_RE = /(^|[\s])@workspace(?=$|[\s\p{P}])/gu;
@@ -198,6 +200,66 @@ export function resolveCitationPath(
     (h) => h.paragraphIndex === citation.paragraphIndex,
   );
   return (exact ?? byBasename[0])?.path ?? null;
+}
+
+/**
+ * WS-B/C — verify the citations in an assistant response against the local
+ * RAG store, returning the source list annotated with `verified`.
+ *
+ * For every inline `[filename paragraph N]` citation we find the source it
+ * resolves to (by basename + paragraph), then call `rag_verify_citation` with
+ * that source's content-addressed `id`, its `matterId` (the claimed scope),
+ * and its `chunkText` (the quoted text that was injected into the prompt).
+ *
+ * A source is marked:
+ *   - `verified: true`  when the verdict is `verified` — safe to present.
+ *   - `verified: false` when ANY citation that resolves to it does NOT verify
+ *     (fabricated id, matter mismatch, or misquote) — the UI flags it.
+ *   - left untouched (`undefined`) when no citation referenced the source, or
+ *     when the source has no `id` (pre-3.0 row), or when verification can't run
+ *     (browser/test mode — `ragVerifyCitation` throws and we swallow it).
+ *
+ * This never throws; verification failures degrade to "unverified" so the
+ * chat still renders. The caller decides how to present unverified citations.
+ */
+export async function verifyCitations(
+  content: string,
+  sources: WorkspaceSource[],
+): Promise<WorkspaceSource[]> {
+  if (sources.length === 0) return sources;
+  const citations = parseCitations(content);
+  if (citations.length === 0) return sources;
+
+  // Work on a shallow copy so we don't mutate the caller's array.
+  const annotated = sources.map((s) => ({ ...s }));
+
+  for (const cite of citations) {
+    const path = resolveCitationPath(cite, sources);
+    if (!path) continue;
+    // Find the matching source object (prefer exact paragraph match).
+    const candidates = annotated.filter(
+      (s) =>
+        citationBasename(s.path).toLowerCase() === cite.basename.toLowerCase(),
+    );
+    const source =
+      candidates.find((s) => s.paragraphIndex === cite.paragraphIndex) ??
+      candidates[0];
+    if (!source || !source.id || !source.matterId) continue;
+
+    try {
+      const verdict = await ragVerifyCitation(
+        source.id,
+        source.matterId,
+        source.chunkText,
+      );
+      // Only `verified` is safe. Anything else flags the source.
+      source.verified = verdict.verdict === 'verified';
+    } catch {
+      // Browser/test mode or backend error — leave unverified (undefined).
+    }
+  }
+
+  return annotated;
 }
 
 /**
