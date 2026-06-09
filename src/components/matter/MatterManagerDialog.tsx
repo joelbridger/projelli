@@ -13,7 +13,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Briefcase, FolderOpen, Mail, Plus, Trash2, Check } from 'lucide-react';
+import { Briefcase, FolderOpen, Mail, Plus, Trash2, Check, ShieldAlert } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -70,6 +70,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
     removeFolderPath,
     addMailFolderPath,
     removeMailFolderPath,
+    setMatterPrivileged,
   } = useMatterStore();
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const fileTree = useWorkspaceStore((s) => s.fileTree);
@@ -95,12 +96,14 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
 
   const [newName, setNewName] = useState('');
   const [newClient, setNewClient] = useState('');
+  const [newPrivileged, setNewPrivileged] = useState(false);
 
   const handleCreate = () => {
     if (!newName.trim() && !newClient.trim()) return;
-    createMatter({ name: newName, client: newClient });
+    createMatter({ name: newName, client: newClient, privileged: newPrivileged });
     setNewName('');
     setNewClient('');
+    setNewPrivileged(false);
   };
 
   return (
@@ -149,6 +152,28 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
               />
             </div>
           </div>
+          <label
+            className="mt-3 flex items-start gap-2 text-xs cursor-pointer select-none"
+            data-testid="matter-new-privileged"
+          >
+            <input
+              type="checkbox"
+              checked={newPrivileged}
+              onChange={(e) => {
+                setNewPrivileged(e.target.checked);
+              }}
+              className="mt-0.5 h-3.5 w-3.5 accent-rose-600"
+            />
+            <span>
+              <span className="inline-flex items-center gap-1 font-medium">
+                <ShieldAlert className="h-3.5 w-3.5 text-rose-600" aria-hidden />
+                {t('matter.manager.privileged-label')}
+              </span>
+              <span className="block text-muted-foreground">
+                {t('matter.manager.privileged-hint')}
+              </span>
+            </span>
+          </label>
           <Button
             data-testid="matter-create-button"
             size="sm"
@@ -209,6 +234,32 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                     </Button>
                   </div>
                 </div>
+
+                {/* Privileged-matter toggle */}
+                <label
+                  data-testid={`matter-privileged-${m.id}`}
+                  data-checked={m.privileged ? 'true' : 'false'}
+                  className="flex items-start gap-2 text-xs cursor-pointer select-none rounded-md border border-border/60 px-2 py-1.5"
+                >
+                  <input
+                    type="checkbox"
+                    checked={!!m.privileged}
+                    onChange={(e) => {
+                      setMatterPrivileged(m.id, e.target.checked);
+                    }}
+                    className="mt-0.5 h-3.5 w-3.5 accent-rose-600"
+                    aria-label={t('matter.manager.privileged-label')}
+                  />
+                  <span>
+                    <span className="inline-flex items-center gap-1 font-medium">
+                      <ShieldAlert className="h-3.5 w-3.5 text-rose-600" aria-hidden />
+                      {t('matter.manager.privileged-label')}
+                    </span>
+                    <span className="block text-muted-foreground">
+                      {t('matter.manager.privileged-hint')}
+                    </span>
+                  </span>
+                </label>
 
                 {/* Folder mapping */}
                 <div>

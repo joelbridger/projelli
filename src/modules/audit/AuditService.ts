@@ -493,6 +493,8 @@ function describeAuditEvent(event: AuditEvent): string {
             : `${event.payload.provider} with your key`;
       return `AI request sent to ${where}`;
     }
+    case 'mcp_blocked':
+      return `MCP write blocked by Privileged Matter Mode: ${event.payload.path}`;
     default:
       return event.type;
   }

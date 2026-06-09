@@ -19,8 +19,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { Download, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
+import { Download, CheckCircle2, AlertCircle, ExternalLink, ShieldOff } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { mcpBundlePath } from '@/utils/tauri-commands';
+import { usePrivilegedMatterModeActive } from '@/hooks/usePrivilegedMatterMode';
 
 export interface McpSettingsSectionProps {
   /** Test hook — override the bundle-path lookup so tests don't have to
@@ -30,13 +32,19 @@ export interface McpSettingsSectionProps {
    *  resolved bundle path. Default implementation opens the OS
    *  file-picker dialog via `@tauri-apps/plugin-dialog`. */
   onDownload?: (bundlePath: string) => Promise<void>;
+  /** Override Privileged Matter Mode (tests / surfaces that already hold it).
+   *  When omitted the live hook value is used. */
+  privilegedMatterMode?: boolean;
 }
 
 export function McpSettingsSection({
   onResolveBundlePath,
   onDownload,
+  privilegedMatterMode,
 }: McpSettingsSectionProps): React.ReactElement {
   const { t } = useTranslation();
+  const hookPrivileged = usePrivilegedMatterModeActive();
+  const privileged = privilegedMatterMode ?? hookPrivileged;
   const [bundlePath, setBundlePath] = useState<string | null | undefined>(
     undefined,
   );
@@ -82,6 +90,7 @@ export function McpSettingsSection({
   return (
     <div
       data-testid="mcp-settings-section"
+      data-privileged-disabled={privileged ? 'true' : 'false'}
       className="space-y-4"
     >
       <div>
@@ -91,6 +100,23 @@ export function McpSettingsSection({
         </p>
       </div>
 
+      {privileged && (
+        <div
+          data-testid="mcp-privileged-disabled"
+          className="flex items-start gap-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"
+        >
+          <ShieldOff className="h-4 w-4 mt-0.5 shrink-0" aria-hidden />
+          <span>
+            <span className="font-semibold">{t('settings.mcp.disabled-title')}</span>{' '}
+            {t('settings.mcp.disabled-body')}
+          </span>
+        </div>
+      )}
+
+      <div
+        className={cn(privileged && 'opacity-50 pointer-events-none select-none')}
+        aria-disabled={privileged}
+      >
       <div
         data-testid="mcp-server-status"
         data-status={
@@ -193,6 +219,7 @@ export function McpSettingsSection({
         <p className="pt-1">
           {t('settings.mcp.install.after-install')}
         </p>
+      </div>
       </div>
     </div>
   );

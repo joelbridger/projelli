@@ -98,7 +98,7 @@ export class PluginPermissions {
   composeHooks(hooks: PluginBridgeHooks = {}): PluginBridgeHooks {
     const userHook = hooks.onPermissionDenied;
     const composed: PluginBridgeHooks['onPermissionDenied'] = (info) => {
-      this.emitDenied(info.permission, info.method);
+      this.emitDenied(info.permission, info.method, info.reason);
       if (userHook) {
         try {
           userHook(info);
@@ -121,14 +121,16 @@ export class PluginPermissions {
    * that hold their own hook references.
    */
   buildAuditHook(): NonNullable<PluginBridgeHooks['onPermissionDenied']> {
-    return (info) => this.emitDenied(info.permission, info.method);
+    return (info) => this.emitDenied(info.permission, info.method, info.reason);
   }
 
   /**
    * Audit helper. Public so tests can assert the emission shape directly
-   * without wiring through the bridge.
+   * without wiring through the bridge. `reason` is set when the denial is a
+   * Privileged Matter Mode egress block (rather than a missing manifest grant),
+   * so the audit record is defensibly attributable.
    */
-  emitDenied(permission: PluginPermission, apiCall: string): void {
+  emitDenied(permission: PluginPermission, apiCall: string, reason?: string): void {
     this.auditService.append({
       type: 'plugin_permission_denied',
       timestamp: new Date().toISOString(),
@@ -136,6 +138,7 @@ export class PluginPermissions {
         id: this.pluginId,
         permission,
         apiCall,
+        ...(reason ? { reason } : {}),
       },
     });
   }

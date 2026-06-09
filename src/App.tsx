@@ -12,6 +12,7 @@ import { FileTree } from '@/components/workspace/FileTree';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { StatusBar } from '@/components/layout/StatusBar';
+import { McpApprovalGate } from '@/components/settings/McpApprovalGate';
 import { WorkflowPanel } from '@/components/workflow/WorkflowPanel';
 import { InterviewForm } from '@/components/workflow/InterviewForm';
 import { CommandPalette, getDefaultCommands, type PaletteCommand } from '@/components/common/CommandPalette';
@@ -3437,6 +3438,13 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
       {/* Status bar */}
       <StatusBar onOpenSettings={() => openSettings('license')} />
+
+      {/* MCP write-approval gate. Polls for sidecar write requests and renders
+          the approval modal. In Privileged Matter Mode it auto-denies every MCP
+          write and records each block in the audit log. */}
+      <McpApprovalGate
+        onAuditEvent={(event) => addAuditEntry(auditEventToEntry(event))}
+      />
 
       {/* Interview Dialog */}
       <Dialog open={showInterviewDialog} onOpenChange={setShowInterviewDialog}>

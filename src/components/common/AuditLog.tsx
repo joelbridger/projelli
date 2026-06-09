@@ -32,6 +32,7 @@ import {
   Scissors,
   Search as SearchIcon,
   ShieldCheck,
+  ShieldOff,
   Lock,
   Target,
   Send,
@@ -79,6 +80,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   privilege_evaluated: Lock,
   scope_active: Target,
   egress: Send,
+  mcp_blocked: ShieldOff,
 };
 
 const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -99,6 +101,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   privilege_evaluated: 'Privilege Checked',
   scope_active: 'Active Matter',
   egress: 'AI Request Sent',
+  mcp_blocked: 'MCP Write Blocked',
 };
 
 const ACTION_COLORS: Record<AuditActionType, string> = {
@@ -119,6 +122,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   privilege_evaluated: 'text-indigo-600 dark:text-indigo-400',
   scope_active: 'text-teal-600 dark:text-teal-400',
   egress: 'text-violet-600 dark:text-violet-400',
+  mcp_blocked: 'text-rose-600 dark:text-rose-400',
 };
 
 export function AuditLog({

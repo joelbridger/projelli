@@ -201,6 +201,8 @@
       },
       "download-cta": "Download .mcpb for Claude Desktop",
       "whats-mcp": "What's MCP?",
+      "disabled-title": "MCP is off in Privileged Matter Mode",
+      "disabled-body": "While a privileged matter is active (or Local-only is selected), MCP servers are disabled so confidential work cannot leave your machine through an outside AI client. Any write an MCP client attempts is blocked and recorded in your audit log. Turn off Privileged Matter Mode to use MCP again.",
       "install": {
         "heading": "How to install:",
         "step-download": "Click <b>Download .mcpb</b> above to copy the bundle path to your clipboard.",
@@ -220,7 +222,10 @@
       "more-queued_other": "{{count}} more writes queued after this one.",
       "deny": "Deny",
       "approve-all-session": "Approve all this session",
-      "approve-write": "Approve this write"
+      "approve-write": "Approve this write",
+      "privileged-blocked": "Privileged Matter Mode is on. MCP servers are disabled, so this write was blocked and nothing was changed on your machine.",
+      "privileged-auto-denied": "Blocked and recorded in your audit log. Turn off Privileged Matter Mode to allow MCP writes again.",
+      "title-blocked": "MCP write blocked"
     },
     "ollama": {
       "title": "Ollama (local models)",
@@ -774,7 +779,9 @@
       "no-folders": "Open a workspace to map folders to this matter.",
       "mail-label": "Email accounts in this matter",
       "no-mail-accounts": "Connect an email account in Settings to map it to this matter.",
-      "mail-account-hint": "Email from a mapped account is scoped to this matter."
+      "mail-account-hint": "Email from a mapped account is scoped to this matter.",
+      "privileged-label": "Privileged matter",
+      "privileged-hint": "When this matter is active, network plugins and MCP servers are turned off so confidential work cannot leave your machine through an extension."
     }
   },
   "privacy": {
@@ -791,6 +798,12 @@
         "label": "Browser demo. Do not use with client data",
         "note": "In this online demo, messages pass through a shared Keepance relay. The desktop app never does this. Do not enter confidential or client information here."
       }
+    },
+    "privileged-matter": {
+      "badge": "Privileged Matter Mode: network extensions disabled",
+      "title-manual": "Network plugins and MCP servers are disabled.",
+      "title-privileged-matter": "On because the active matter is privileged. Network plugins and MCP servers are disabled.",
+      "title-local-only": "On because Local-only is selected. Network plugins and MCP servers are disabled."
     }
   }
 }

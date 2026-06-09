@@ -46,6 +46,15 @@ export interface Matter {
    * persisted storage (a missing value is treated as an empty list).
    */
   mailFolderPaths?: string[];
+  /**
+   * Privileged-matter designation. When `true`, this matter holds
+   * attorney-client / work-product material and is treated as a confidentiality
+   * boundary that must never be exfiltrated through a network-capable extension.
+   * When this matter is the ACTIVE matter, Privileged Matter Mode is forced on
+   * (network plugins + MCP are disabled). Optional so matters created before
+   * this flag landed parse cleanly (a missing value is treated as `false`).
+   */
+  privileged?: boolean;
   /** ISO timestamp the matter was created. */
   createdAt: string;
 }

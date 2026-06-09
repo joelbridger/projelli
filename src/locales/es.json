@@ -346,7 +346,9 @@
         "step-pick-folder__sourceHash": "efe4c495cfe05f0905c9eea2a6d7f728f45b38a7d03f70b17c6a76d1704b3884",
         "after-install": "Tras la instalación, pregúntale a Claude «busca X en mi espacio de trabajo de Keepance» o «lee notes/plan.md» y observa cómo funciona.",
         "after-install__sourceHash": "346c4999e6e86b02f8996e0e75ac379eb8cb9d13e32b8b43cf9ef0055a0d27cc"
-      }
+      },
+      "disabled-title": "MCP está desactivado en el Modo de Asunto Privilegiado",
+      "disabled-body": "Mientras un asunto privilegiado esté activo (o esté seleccionado Solo local), los servidores MCP se desactivan para que el trabajo confidencial no pueda salir de tu equipo a través de un cliente de IA externo. Cualquier escritura que intente un cliente MCP se bloquea y se registra en tu registro de auditoría. Desactiva el Modo de Asunto Privilegiado para volver a usar MCP."
     },
     "mcp-approval": {
       "title": "Claude Desktop quiere escribir en tu espacio de trabajo",
@@ -368,7 +370,10 @@
       "approve-all-session": "Aprobar durante toda la sesión",
       "approve-all-session__sourceHash": "ee1a8b97130839f69f93cf02919399072a8599f9baf2e58a6bf3c8f467fc2001",
       "approve-write": "Aprobar esta escritura",
-      "approve-write__sourceHash": "299aa32fc88f798e636457e102e00fc07efa9914f3c7ec7b799108c057d0fda7"
+      "approve-write__sourceHash": "299aa32fc88f798e636457e102e00fc07efa9914f3c7ec7b799108c057d0fda7",
+      "privileged-blocked": "El Modo de Asunto Privilegiado está activado. Los servidores MCP están desactivados, así que esta escritura se bloqueó y no se cambió nada en tu equipo.",
+      "privileged-auto-denied": "Bloqueado y registrado en tu registro de auditoría. Desactiva el Modo de Asunto Privilegiado para permitir escrituras de MCP de nuevo.",
+      "title-blocked": "Escritura de MCP bloqueada"
     },
     "ollama": {
       "title": "Ollama (modelos locales)",
@@ -984,7 +989,9 @@
       "no-mail-accounts": "Conecta una cuenta de correo en Ajustes para asignarla a este asunto.",
       "no-mail-accounts__sourceHash": "f70cdbae3d15c210bed435039db2131924d653e252a9894ced3068cb495ece3f",
       "mail-account-hint": "El correo de una cuenta asignada queda acotado a este asunto.",
-      "mail-account-hint__sourceHash": "a15b0e3173e41645bc5d1cce02ad1d26d8bab3856b2202f65365a049f43a1829"
+      "mail-account-hint__sourceHash": "a15b0e3173e41645bc5d1cce02ad1d26d8bab3856b2202f65365a049f43a1829",
+      "privileged-label": "Asunto privilegiado",
+      "privileged-hint": "Cuando este asunto está activo, los complementos de red y los servidores MCP se desactivan para que el trabajo confidencial no pueda salir de tu equipo a través de una extensión."
     }
   },
   "media": {
@@ -1203,6 +1210,12 @@
         "label": "Browser demo. Do not use with client data",
         "note": "In this online demo, messages pass through a shared Keepance relay. The desktop app never does this. Do not enter confidential or client information here."
       }
+    },
+    "privileged-matter": {
+      "badge": "Modo de Asunto Privilegiado: extensiones de red desactivadas",
+      "title-manual": "Los complementos de red y los servidores MCP están desactivados.",
+      "title-privileged-matter": "Activado porque el asunto activo es privilegiado. Los complementos de red y los servidores MCP están desactivados.",
+      "title-local-only": "Activado porque está seleccionado Solo local. Los complementos de red y los servidores MCP están desactivados."
     }
   }
 }

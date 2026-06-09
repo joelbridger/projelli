@@ -25,7 +25,7 @@
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 
 import { useState } from 'react';
-import { Laptop, Cloud, ShieldCheck, MapPin, Check } from 'lucide-react';
+import { Laptop, Cloud, ShieldCheck, ShieldOff, MapPin, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,6 +34,10 @@ import {
 } from '@/hooks/useConfidentialityMode';
 import { modeIsComingSoon, type ConfidentialityMode } from '@/modules/privacy/egress';
 import { DataMapDialog } from '@/components/privacy/DataMapDialog';
+import {
+  usePrivilegedMatterMode,
+  useSetPrivilegedMatterMode,
+} from '@/hooks/usePrivilegedMatterMode';
 
 interface ModeCard {
   mode: ConfidentialityMode;
@@ -77,6 +81,8 @@ export function ConfidentialityModeSettings() {
   const active = useConfidentialityMode();
   const setMode = useSetConfidentialityMode();
   const [dataMapOpen, setDataMapOpen] = useState(false);
+  const privileged = usePrivilegedMatterMode();
+  const setPrivileged = useSetPrivilegedMatterMode();
 
   return (
     <div
@@ -155,6 +161,64 @@ export function ConfidentialityModeSettings() {
           Integrations).
         </p>
       )}
+
+      {/* Privileged Matter Mode toggle. Manual switch + an honest note about the
+          auto-on behaviour. When a privileged matter is active or Local-only is
+          selected, the mode is forced on and the switch is disabled (you cannot
+          allow network extensions on a privileged matter). */}
+      <div
+        data-testid="privileged-matter-mode-toggle"
+        data-active={privileged.active ? 'true' : 'false'}
+        data-forced={privileged.forced ? 'true' : 'false'}
+        className="mt-4 rounded-lg border border-rose-200 dark:border-rose-900/60 p-3"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium">
+              <ShieldOff className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />
+              Privileged Matter Mode
+            </span>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              Turns off network-capable extensions so confidential work cannot
+              leave your machine through one. Network plugins are blocked and MCP
+              servers are disabled. Everything else keeps working.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={privileged.active}
+            data-testid="privileged-matter-mode-switch"
+            disabled={privileged.forced}
+            onClick={() => {
+              if (!privileged.forced) setPrivileged(!privileged.manual);
+            }}
+            className={cn(
+              'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              privileged.active ? 'bg-rose-600' : 'bg-muted-foreground/30',
+              privileged.forced && 'opacity-70 cursor-not-allowed',
+            )}
+          >
+            <span
+              className={cn(
+                'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                privileged.active ? 'translate-x-4' : 'translate-x-0.5',
+              )}
+            />
+          </button>
+        </div>
+        {privileged.forced && (
+          <p
+            data-testid="privileged-matter-mode-forced-note"
+            className="mt-2 text-xs rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"
+          >
+            {privileged.trigger === 'privileged-matter'
+              ? 'On automatically because the active matter is privileged. It stays on until you switch to a non-privileged matter.'
+              : 'On automatically because Local-only is selected. It stays on while Local-only is the confidentiality mode.'}
+          </p>
+        )}
+      </div>
 
       <div className="mt-3">
         <Button

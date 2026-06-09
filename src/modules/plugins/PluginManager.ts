@@ -44,6 +44,7 @@
 import { invoke as tauriInvoke } from '@tauri-apps/api/core';
 
 import { AuditService } from '@/modules/audit/AuditService';
+import { getPrivilegedMatterModeActive } from '@/hooks/usePrivilegedMatterMode';
 import type { WorkspaceService } from '@/modules/workspace/WorkspaceService';
 import type { FSBackend } from '@/modules/workspace/types';
 import { usePluginManagerStore } from '@/stores/pluginManagerStore';
@@ -128,6 +129,13 @@ export interface PluginManagerOptions {
   auditService?: AuditService;
   /** Optional Tauri command surface override (tests). Defaults to the real Tauri invoke calls. */
   tauri?: PluginTauriCommands;
+  /**
+   * Privileged Matter Mode gate. Returns `true` when network-capable extensions
+   * must be blocked. Wired into every plugin bridge so a `network.fetch` call is
+   * rejected while the mode is on. Defaults to reading the live app state via
+   * `getPrivilegedMatterModeActive()`; tests inject a stub.
+   */
+  getNetworkEgressBlocked?: () => boolean;
 }
 
 // ----- Implementation -------------------------------------------------------
@@ -140,6 +148,8 @@ export class PluginManager {
   private readonly workerFactory: PluginWorkerFactory;
   private readonly auditService: AuditService;
   private readonly tauri: PluginTauriCommands;
+  /** Privileged Matter Mode gate; see `PluginManagerOptions.getNetworkEgressBlocked`. */
+  private readonly getNetworkEgressBlocked: () => boolean;
 
   // Hosts
   private readonly commandsHost: CommandsHost;
@@ -169,6 +179,8 @@ export class PluginManager {
     this.workerFactory = options.workerFactory;
     this.auditService = options.auditService ?? new AuditService('plugins');
     this.tauri = options.tauri ?? defaultTauriCommands;
+    this.getNetworkEgressBlocked =
+      options.getNetworkEgressBlocked ?? getPrivilegedMatterModeActive;
 
     // Construct hosts. Wave 1 + Wave 3 register on the router; Wave 2 wire to
     // bridge hooks per plugin (see `buildBridgeHooks`).
@@ -640,6 +652,9 @@ export class PluginManager {
     const id = manifest.id;
     return {
       dispatch: this.router.dispatch,
+      // Privileged Matter Mode gate. Evaluated on every `network.fetch` call so
+      // toggling the mode takes effect without restarting the plugin.
+      isNetworkEgressBlocked: () => this.getNetworkEgressBlocked(),
       onRegisterCommand: (commandId, meta) => {
         try {
           this.commandsHost.handleRegisterCommand(id, commandId, meta);

@@ -22,7 +22,7 @@
  * the Tauri event listeners.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Dialog,
@@ -31,7 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Check, X, FilePlus2, FilePen } from 'lucide-react';
+import { AlertTriangle, Check, X, FilePlus2, FilePen, ShieldOff } from 'lucide-react';
 import type { McpPendingApproval } from '@/utils/tauri-commands';
 
 export interface McpApprovalModalProps {
@@ -46,6 +46,17 @@ export interface McpApprovalModalProps {
    *  opted into session-wide approval — they still listen for requests
    *  but auto-respond rather than showing the modal). */
   sessionApproveAll?: boolean;
+  /**
+   * Privileged Matter Mode. When true, MCP servers are treated as disabled:
+   * every pending write is AUTO-DENIED (never prompted, never approved, even if
+   * `sessionApproveAll` is on), and the modal shows a "disabled" banner instead
+   * of the approve/deny actions. This is the enforceable MCP choke point:
+   * Keepance owns the write-approval channel, so denying every write is how an
+   * MCP server is made non-invocable from the app's side.
+   */
+  privilegedMatterMode?: boolean;
+  /** Audit callback fired once per write that the mode blocks (with the path). */
+  onMcpBlocked?: (path: string) => void;
 }
 
 /** Tiny inline diff preview. Shows the old and new content stacked with
@@ -95,23 +106,50 @@ export function McpApprovalModal({
   onRespond,
   onApproveAllSession,
   sessionApproveAll,
+  privilegedMatterMode = false,
+  onMcpBlocked,
 }: McpApprovalModalProps): React.ReactElement | null {
   const { t } = useTranslation();
-  // Auto-approve drains the queue when the session flag is on.
+
+  // Privileged Matter Mode takes precedence over everything: auto-DENY every
+  // pending write and audit each one. This must run before/instead of the
+  // auto-approve effect so a "session approve all" choice can never override
+  // the guardrail. We track tokens we've already denied so a token isn't
+  // double-denied / double-audited across re-renders while the poll lags.
+  const deniedTokens = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (!sessionApproveAll || approvals.length === 0) return;
+    if (!privilegedMatterMode || approvals.length === 0) return;
+    for (const a of approvals) {
+      if (deniedTokens.current.has(a.token)) continue;
+      deniedTokens.current.add(a.token);
+      onMcpBlocked?.(a.path);
+      // Fire-and-forget; a transient failure is retried next poll cycle (the
+      // token is re-added then because the request is still pending).
+      void onRespond(a.token, false).catch(() => {
+        deniedTokens.current.delete(a.token);
+      });
+    }
+  }, [approvals, privilegedMatterMode, onRespond, onMcpBlocked]);
+
+  // Auto-approve drains the queue when the session flag is on, but NEVER while
+  // Privileged Matter Mode is on (the deny effect above owns the queue then).
+  useEffect(() => {
+    if (privilegedMatterMode || !sessionApproveAll || approvals.length === 0) return;
     // Fire-and-forget; failures are surfaced the next poll cycle.
     for (const a of approvals) {
       void onRespond(a.token, true);
     }
-  }, [approvals, sessionApproveAll, onRespond]);
+  }, [approvals, sessionApproveAll, privilegedMatterMode, onRespond]);
 
   const [busy, setBusy] = useState(false);
 
   const topmost = useMemo(() => {
-    if (sessionApproveAll) return null;
+    // While the mode is on we still surface the modal (with a disabled banner)
+    // so the user sees that an MCP write was attempted and blocked, but we
+    // suppress it when there's nothing pending.
+    if (sessionApproveAll && !privilegedMatterMode) return null;
     return approvals[0] ?? null;
-  }, [approvals, sessionApproveAll]);
+  }, [approvals, sessionApproveAll, privilegedMatterMode]);
 
   if (!topmost) return null;
 
@@ -198,8 +236,31 @@ export function McpApprovalModal({
               {t('settings.mcp-approval.more-queued', { count: moreCount })}
             </p>
           )}
+
+          {privilegedMatterMode && (
+            <div
+              data-testid="mcp-approval-blocked-banner"
+              className="flex items-start gap-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"
+            >
+              <ShieldOff className="h-4 w-4 mt-0.5 shrink-0" aria-hidden />
+              <span>{t('settings.mcp-approval.privileged-blocked')}</span>
+            </div>
+          )}
         </div>
 
+        {privilegedMatterMode ? (
+          // Mode on: no approve path. The write was already auto-denied; the
+          // only action is to dismiss the notice. We deliberately do not offer
+          // an approve button so a privileged matter cannot be overridden here.
+          <div className="px-5 py-3 border-t flex items-center justify-end">
+            <span
+              data-testid="mcp-approval-blocked-note"
+              className="text-xs text-muted-foreground"
+            >
+              {t('settings.mcp-approval.privileged-auto-denied')}
+            </span>
+          </div>
+        ) : (
         <div className="px-5 py-3 border-t flex items-center justify-end gap-2">
           <Button
             data-testid="mcp-deny-write"
@@ -240,6 +301,7 @@ export function McpApprovalModal({
             {t('settings.mcp-approval.approve-write')}
           </Button>
         </div>
+        )}
       </DialogContent>
     </Dialog>
   );

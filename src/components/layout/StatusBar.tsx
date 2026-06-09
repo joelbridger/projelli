@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { cn } from '@/lib/utils';
-import { FolderOpen, File, Edit, ChevronRight, Bug, Briefcase, Globe } from 'lucide-react';
+import { FolderOpen, File, Edit, ChevronRight, Bug, Briefcase, Globe, ShieldOff } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +24,8 @@ import { TrialStatusChip } from '@/components/trial';
 // "where does this go?" answer is visible even from the status bar.
 import { EgressIndicator } from '@/components/privacy/EgressIndicator';
 import type { EgressProvider } from '@/modules/privacy/egress';
+// Privileged Matter Mode: persistent badge stating network extensions are off.
+import { usePrivilegedMatterMode } from '@/hooks/usePrivilegedMatterMode';
 
 /**
  * Extract project name from full path
@@ -137,6 +139,8 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
   const [bugReportOpen, setBugReportOpen] = useState(false);
   // WS-B/C: which matter the AI is currently confined to (null = all matters).
   const activeMatter = useActiveMatter();
+  // Privileged Matter Mode: when active, network plugins + MCP are disabled.
+  const privilegedMode = usePrivilegedMatterMode();
 
   // WS-C: when the active tab is an AI chat, surface the compact egress mirror
   // for that chat's provider. We parse the provider out of the chat file's JSON
@@ -318,6 +322,27 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
               </div>
             )}
           </>
+        )}
+
+        {/* Privileged Matter Mode badge. Persistent and always visible while
+            the mode is on, so the user can see at a glance that network
+            extensions (network plugins + MCP) are disabled. */}
+        {privilegedMode.active && (
+          <div
+            data-testid="privileged-matter-badge"
+            data-trigger={privilegedMode.trigger}
+            className="flex items-center gap-1 max-w-[280px] rounded px-1.5 py-0.5 border border-rose-300 bg-rose-50 text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"
+            title={
+              privilegedMode.trigger === 'privileged-matter'
+                ? t('privacy.privileged-matter.title-privileged-matter')
+                : privilegedMode.trigger === 'local-only'
+                  ? t('privacy.privileged-matter.title-local-only')
+                  : t('privacy.privileged-matter.title-manual')
+            }
+          >
+            <ShieldOff className="h-3 w-3 shrink-0" aria-hidden />
+            <span className="truncate">{t('privacy.privileged-matter.badge')}</span>
+          </div>
         )}
 
         {/* WS-C: compact egress mirror. Only rendered when an AI chat is the

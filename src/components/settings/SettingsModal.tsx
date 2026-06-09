@@ -779,7 +779,13 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
                     out of the auto-rendered list below. */}
                 {activeCategory === 'ai' && <ConfidentialityModeSettings />}
                 {categorySettings
-                  .filter((def) => def.key !== 'confidentialityMode')
+                  .filter(
+                    (def) =>
+                      def.key !== 'confidentialityMode' &&
+                      // Privileged Matter Mode gets a custom toggle inside the
+                      // confidentiality section (above), not the generic row.
+                      def.key !== 'privilegedMatterMode',
+                  )
                   .map((def) => (
                     <SettingRow
                       key={def.key}

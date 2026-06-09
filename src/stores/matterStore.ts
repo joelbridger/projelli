@@ -48,6 +48,8 @@ export interface CreateMatterInput {
   client: string;
   folderPaths?: string[];
   mailFolderPaths?: string[];
+  /** Mark the matter privileged at creation time (defaults to false). */
+  privileged?: boolean;
 }
 
 interface MatterState {
@@ -67,6 +69,11 @@ interface MatterState {
   addMailFolderPath: (id: string, mailFolderKey: string) => void;
   removeMailFolderPath: (id: string, mailFolderKey: string) => void;
 
+  // Privileged Matter Mode: per-matter privileged designation. When the active
+  // matter is privileged, network plugins + MCP are disabled (see
+  // `modules/privacy/privilegedMatterMode`).
+  setMatterPrivileged: (id: string, privileged: boolean) => void;
+
   // Active matter
   setActiveMatter: (id: string | null) => void;
 }
@@ -84,6 +91,7 @@ export const useMatterStore = create<MatterState>()(
           client: input.client.trim(),
           folderPaths: (input.folderPaths ?? []).map(normalizeFolder).filter(Boolean),
           mailFolderPaths: Array.from(new Set((input.mailFolderPaths ?? []).filter(Boolean))),
+          privileged: input.privileged ?? false,
           createdAt: new Date().toISOString(),
         };
         set((state) => ({ matters: [...state.matters, matter] }));
@@ -170,16 +178,25 @@ export const useMatterStore = create<MatterState>()(
         }));
       },
 
+      setMatterPrivileged: (id, privileged) => {
+        set((state) => ({
+          matters: state.matters.map((m) =>
+            m.id === id ? { ...m, privileged } : m,
+          ),
+        }));
+      },
+
       setActiveMatter: (id) => {
         set({ activeMatterId: id });
       },
     }),
     {
       name: 'keepance:matters',
-      version: 2,
-      // v1 -> v2: matters gained `mailFolderPaths`. Backfill an empty array so
-      // older persisted matters parse cleanly (a missing value is also tolerated
-      // by readers via `?? []`, but normalising here keeps the shape consistent).
+      version: 3,
+      // v1 -> v2: matters gained `mailFolderPaths`. v2 -> v3: matters gained the
+      // `privileged` flag. Backfill defaults so older persisted matters parse
+      // cleanly (missing values are also tolerated by readers via `?? false`,
+      // but normalising here keeps the shape consistent).
       migrate: (persisted, version) => {
         const state = persisted as Partial<MatterState> | undefined;
         if (!state || !Array.isArray(state.matters)) return state as MatterState;
@@ -189,9 +206,17 @@ export const useMatterStore = create<MatterState>()(
             mailFolderPaths: m.mailFolderPaths ?? [],
           }));
         }
+        if (version < 3) {
+          state.matters = state.matters.map((m) => ({
+            ...m,
+            privileged: m.privileged ?? false,
+          }));
+        }
         return state as MatterState;
       },
       partialize: (state) => ({
+        // `matters` carries `privileged` per matter, so the privileged
+        // designation persists across reloads.
         matters: state.matters,
         activeMatterId: state.activeMatterId,
       }),
@@ -211,6 +236,17 @@ export function getMatters(): Matter[] {
 /** Current active matter id (or null), read without subscribing. */
 export function getActiveMatterId(): string | null {
   return useMatterStore.getState().activeMatterId;
+}
+
+/**
+ * True when the ACTIVE matter is tagged privileged, read without subscribing.
+ * The all-matters scope (no active matter) is not itself privileged. Used by
+ * the non-reactive Privileged Matter Mode resolver (e.g. the bridge gate).
+ */
+export function isActiveMatterPrivileged(): boolean {
+  const { matters, activeMatterId } = useMatterStore.getState();
+  if (!activeMatterId) return false;
+  return !!findMatter(activeMatterId, matters)?.privileged;
 }
 
 /**
@@ -254,6 +290,14 @@ export function useActiveMatter(): Matter | null {
   return useMatterStore(
     useShallow((s) => findMatter(s.activeMatterId, s.matters) ?? null),
   );
+}
+
+/**
+ * Subscribe to whether the active matter is tagged privileged. Drives the
+ * auto-on behaviour of Privileged Matter Mode.
+ */
+export function useActiveMatterPrivileged(): boolean {
+  return useMatterStore((s) => !!findMatter(s.activeMatterId, s.matters)?.privileged);
 }
 
 /**

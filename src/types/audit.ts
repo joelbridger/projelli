@@ -28,7 +28,11 @@ export type AuditActionType =
   | 'citation_verified'
   | 'privilege_evaluated'
   | 'scope_active'
-  | 'egress';
+  | 'egress'
+  // Privileged Matter Mode: an MCP server write was blocked while the mode was
+  // on. Stored under `action = 'mcp_blocked'` so the audit log can label/filter
+  // it as a defensible "nothing exfiltrated" record.
+  | 'mcp_blocked';
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`
@@ -107,8 +111,17 @@ export type AuditEvent =
   | { type: 'plugin_uninstalled'; timestamp: string; payload: { id: string } }
   | { type: 'plugin_executed'; timestamp: string; payload: { id: string; command: string; durationMs: number } }
   | { type: 'plugin_crashed'; timestamp: string; payload: { id: string; version: string; error: string; stack?: string } }
-  | { type: 'plugin_permission_denied'; timestamp: string; payload: { id: string; permission: string; apiCall?: string } }
+  | { type: 'plugin_permission_denied'; timestamp: string; payload: { id: string; permission: string; apiCall?: string; reason?: string } }
   | { type: 'plugin_install_failed'; timestamp: string; payload: { id?: string; source: string; error: string } }
+  /**
+   * An MCP server write was blocked because Privileged Matter Mode is on. MCP
+   * servers run inside an external client (e.g. Claude Desktop) and reach the
+   * workspace through Keepance's write-approval channel; while the mode is on,
+   * every such write is auto-denied instead of prompted. Records the workspace
+   * path the MCP client tried to write so there is a defensible record that
+   * nothing was exfiltrated or modified by a network-capable MCP server.
+   */
+  | { type: 'mcp_blocked'; timestamp: string; payload: { path: string; reason: string } }
   | { type: 'template_installed_from_marketplace'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
   | { type: 'template_uninstalled'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
   | { type: 'template_updated'; timestamp: string; payload: { templateId: string; version: string; fromVersion?: string; toVersion?: string; error?: string } }

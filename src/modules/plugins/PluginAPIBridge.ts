@@ -42,6 +42,7 @@ import {
   type PluginToolbarRemoveMessage,
 } from './PluginMessageProtocol';
 import { requiredPermissionFor } from './permissionMap';
+import { PRIVILEGED_MATTER_BLOCK_REASON } from '@/modules/privacy/privilegedMatterMode';
 
 /**
  * Subset of the Worker DOM interface the bridge actually needs. Defined here
@@ -112,8 +113,32 @@ export interface PluginBridgeHooks {
    * Permission denial hook. Bridge fires this every time a gated `api-call`
    * is rejected because the plugin's manifest doesn't declare the required
    * permission. Group III's `PluginPermissions` audits via this callback.
+   *
+   * Privileged Matter Mode reuses this same hook: when a `network`-permissioned
+   * call is blocked by the global gate (`isNetworkEgressBlocked`), the bridge
+   * fires `onPermissionDenied` with `permission: 'network'` so the existing
+   * audit path records the denial as a defensible "nothing exfiltrated" record.
    */
-  onPermissionDenied?: (info: { permission: PluginPermission; method: string }) => void;
+  onPermissionDenied?: (info: {
+    permission: PluginPermission;
+    method: string;
+    /** Set when the denial is a Privileged Matter Mode egress block rather than
+     *  a missing manifest grant. Recorded in the audit event for a defensible
+     *  "blocked by Privileged Matter Mode" record. */
+    reason?: string;
+  }) => void;
+  /**
+   * Privileged Matter Mode gate. When supplied and it returns `true`, ANY
+   * `api-call` whose required permission is `network` is BLOCKED regardless of
+   * the plugin's granted permissions. This is an additional GLOBAL gate layered
+   * on top of the per-manifest permission check: a plugin that was legitimately
+   * granted `network` still cannot reach the network while the mode is on.
+   *
+   * Evaluated fresh on every call so toggling the mode (manually or via the
+   * auto-on triggers) takes effect immediately without rebuilding the bridge.
+   * Absent gate (tests, non-privileged contexts) means no extra restriction.
+   */
+  isNetworkEgressBlocked?: () => boolean;
   /** Worker-side error surfaced. */
   onError?: (error: PluginErrorPayload, inResponseTo?: string) => void;
   /**
@@ -288,6 +313,18 @@ export class PluginAPIBridge {
   private assertAlive(): void {
     if (this.terminated) {
       throw new Error(`PluginAPIBridge[${this.manifest.id}]: cannot use a terminated bridge`);
+    }
+  }
+
+  /** Evaluate the Privileged Matter Mode network gate. Defaults to not-blocked
+   *  when no gate is wired, and never throws (a faulty gate fails open to the
+   *  normal permission behaviour rather than crashing the call). */
+  private isNetworkEgressBlocked(): boolean {
+    if (!this.hooks.isNetworkEgressBlocked) return false;
+    try {
+      return this.hooks.isNetworkEgressBlocked();
+    } catch {
+      return false;
     }
   }
 
@@ -474,6 +511,27 @@ export class PluginAPIBridge {
       this.postError(msg.id, {
         code: 'permission-denied',
         message: `plugin '${this.manifest.id}' lacks permission '${required}' required by ${msg.method}`,
+      });
+      return;
+    }
+    // Privileged Matter Mode global egress gate. Layered ON TOP of the
+    // per-manifest check above: even a plugin that holds `network` is blocked
+    // while the mode is on. We reuse the permission-denied path (hook + error
+    // code) so the denial is audited and surfaced to the worker identically;
+    // the reason string tells the user WHY this differs from a missing grant.
+    if (required === 'network' && this.isNetworkEgressBlocked()) {
+      try {
+        this.hooks.onPermissionDenied?.({
+          permission: 'network',
+          method: msg.method,
+          reason: 'privileged-matter-mode',
+        });
+      } catch {
+        // ignore hook failure
+      }
+      this.postError(msg.id, {
+        code: 'permission-denied',
+        message: `${PRIVILEGED_MATTER_BLOCK_REASON} (plugin '${this.manifest.id}', ${msg.method})`,
       });
       return;
     }
