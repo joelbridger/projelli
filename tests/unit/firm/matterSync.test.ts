@@ -121,6 +121,13 @@ function fakeClient(relay: FakeRelay) {
         relay.push(blobId, ct, epoch ?? relay.keyEpoch),
     ),
     pullUpdates: vi.fn(async (_m: string, since: number) => relay.pull(since)),
+    // Mint a fake single-use ticket — what MatterSyncClient fetches before it
+    // opens the WS. The seat token is passed via the (mocked) HTTP call, not the
+    // URL; the test asserts the WS URL carries only the ticket.
+    createSyncTicket: vi.fn(async (_m: string, _seat: string) => ({
+      ticket: `tkt_${Math.random().toString(36).slice(2)}`,
+      expires_in_ms: 30_000,
+    })),
   } as unknown as import('@/modules/firm/FirmApiClient').FirmApiClient;
 }
 
@@ -184,6 +191,45 @@ describe('MatterSyncClient E2EE convergence', () => {
 
     a.stop();
     b.stop();
+  });
+
+  it('mints a ticket then opens the WS with ONLY the ticket (no token in the URL)', async () => {
+    const relay = new FakeRelay();
+    const keyB64 = await generateMatterKey();
+    const SEAT = 'SEAT_TOKEN_SECRET_value';
+    const ACCESS = 'ACCESS_TOKEN_SECRET_value';
+    const client = fakeClient(relay);
+
+    let wsUrl = '';
+    const c = new MatterSyncClient({
+      matterId: 'm1',
+      keyB64,
+      keyEpoch: 1,
+      seatToken: SEAT,
+      accessToken: ACCESS,
+      client,
+      socketFactory: (url: string) => {
+        wsUrl = url; // capture exactly what the WS is opened with
+        const s = new FakeSocket();
+        relay.connect(s);
+        return s;
+      },
+    });
+    await c.start();
+    await until(() => c.getStatus() === 'live');
+
+    // A ticket was minted over the (authed) HTTP client before the socket opened.
+    expect(client.createSyncTicket).toHaveBeenCalledTimes(1);
+    expect(client.createSyncTicket).toHaveBeenCalledWith('m1', SEAT);
+
+    // The WS URL carries the ticket and NOTHING sensitive.
+    expect(wsUrl).toContain('ticket=');
+    expect(wsUrl).not.toContain('seat_token');
+    expect(wsUrl).not.toContain('access_token');
+    expect(wsUrl).not.toContain(SEAT);
+    expect(wsUrl).not.toContain(ACCESS);
+
+    c.stop();
   });
 
   it('a fresh client catches up via pull (since=0) before going live', async () => {

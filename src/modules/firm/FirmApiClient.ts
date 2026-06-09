@@ -33,6 +33,7 @@ import {
   type ClearWallResponse,
   type PushUpdateResponse,
   type PullUpdatesResponse,
+  type SyncTicketResponse,
   type ListSeatsResponse,
   type ListProviderKeysResponse,
   type SetProviderKeyResponse,
@@ -90,13 +91,20 @@ export class FirmApiClient {
   // --- low-level fetch with optional auth + one refresh retry ---------------
   private async request<T>(
     path: string,
-    init: { method: string; body?: unknown; auth?: boolean; query?: Record<string, string> } = {
+    init: {
+      method: string;
+      body?: unknown;
+      auth?: boolean;
+      query?: Record<string, string>;
+      /** Extra request headers (e.g. X-Seat-Token — kept OUT of the URL). */
+      headers?: Record<string, string>;
+    } = {
       method: 'GET',
     },
   ): Promise<T> {
     const doFetch = async (accessToken: string | null): Promise<Response> => {
       const fetchFn = await getCorsSafeFetch();
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = { ...(init.headers ?? {}) };
       if (init.body !== undefined) headers['Content-Type'] = 'application/json';
       if (init.auth && accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
       let fullPath = path;
@@ -285,12 +293,32 @@ export class FirmApiClient {
   }
 
   pullUpdates(matterId: string, since: number, seatToken: string): Promise<PullUpdatesResponse> {
+    // Seat token rides in the X-Seat-Token header (matching the assured path),
+    // NEVER the query string — so it can't leak into access logs / history.
     return this.request<PullUpdatesResponse>(
       FIRM_ENDPOINTS.pullUpdates.replace(':id', encodeURIComponent(matterId)),
       {
         method: 'GET',
         auth: true,
-        query: { since: String(since), seat_token: seatToken },
+        query: { since: String(since) },
+        headers: { 'X-Seat-Token': seatToken },
+      },
+    );
+  }
+
+  /**
+   * Mint a single-use, short-lived ticket for the live-sync WebSocket. Authed
+   * (access JWT) + the seat token in the X-Seat-Token header — exactly like the
+   * HTTP relay. The returned ticket is the ONLY credential the client puts on the
+   * WS URL; the access/seat token never appears in a WebSocket URL.
+   */
+  createSyncTicket(matterId: string, seatToken: string): Promise<SyncTicketResponse> {
+    return this.request<SyncTicketResponse>(
+      FIRM_ENDPOINTS.syncTicket.replace(':id', encodeURIComponent(matterId)),
+      {
+        method: 'POST',
+        auth: true,
+        headers: { 'X-Seat-Token': seatToken },
       },
     );
   }

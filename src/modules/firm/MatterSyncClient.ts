@@ -71,8 +71,13 @@ export interface MatterSyncOptions {
   keyEpoch: number;
   /** A valid, active seat token (the relay credential). */
   seatToken: string;
-  /** Access token (rides as a query param on the WS; header on HTTP). */
-  accessToken: string;
+  /**
+   * Access token for the connecting identity. NOTE: it is never put on the WS
+   * URL — the client mints a single-use ticket over the authed HTTP API (whose
+   * access token comes from the FirmApiClient's TokenSource) and opens the WS
+   * with only that ticket. Kept here for the option shape / identity context.
+   */
+  accessToken?: string;
   client: FirmApiClient;
   doc?: Y.Doc;
   callbacks?: MatterSyncCallbacks;
@@ -98,7 +103,6 @@ export class MatterSyncClient {
   private readonly matterId: string;
   private readonly client: FirmApiClient;
   private readonly seatToken: string;
-  private readonly accessToken: string;
   private readonly callbacks: MatterSyncCallbacks;
   private readonly socketFactory: WebSocketFactory | undefined;
   private readonly maxCatchupPages: number;
@@ -120,7 +124,6 @@ export class MatterSyncClient {
     this.matterId = opts.matterId;
     this.client = opts.client;
     this.seatToken = opts.seatToken;
-    this.accessToken = opts.accessToken;
     this.callbacks = opts.callbacks ?? {};
     this.socketFactory = opts.socketFactory;
     this.maxCatchupPages = opts.maxCatchupPages ?? 1000;
@@ -185,7 +188,7 @@ export class MatterSyncClient {
     this.doc.on('update', this.updateHandler);
 
     await this.catchUp();
-    this.openSocket();
+    await this.openSocket();
   }
 
   /** Pull all updates after `cursor`, decrypt, apply. */
@@ -265,9 +268,25 @@ export class MatterSyncClient {
     }
   }
 
-  private openSocket(): void {
+  private async openSocket(): Promise<void> {
     this.setStatus('connecting');
-    const url = getMatterSyncSocketUrl(this.matterId, this.accessToken, this.seatToken);
+
+    // Mint a single-use WS ticket over the authed HTTP API. The access + seat
+    // tokens stay in headers on that request; ONLY the returned ticket rides on
+    // the WS URL (no credential in a WebSocket URL → nothing leaks to a log).
+    let ticket: string;
+    try {
+      const res = await this.client.createSyncTicket(this.matterId, this.seatToken);
+      ticket = res.ticket;
+    } catch {
+      // Couldn't get a ticket (offline / auth lapsed): stay in catch-up-only mode.
+      this.setStatus('offline');
+      return;
+    }
+    // A stop() during the await must not then open a socket.
+    if (!this.started) return;
+
+    const url = getMatterSyncSocketUrl(this.matterId, ticket);
     let ws: WebSocketLike;
     try {
       if (this.socketFactory) {

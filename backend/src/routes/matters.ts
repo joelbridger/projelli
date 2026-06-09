@@ -13,16 +13,23 @@
  * RELAY (any firm member, gated by access JWT + active seat + member∧¬walled):
  *   POST /matter/:id/updates                  { blob_id, ciphertext_b64, seat_token, key_epoch? }
  *       -> append one opaque encrypted CRDT update; fans out live to connected members.
- *   GET  /matter/:id/updates?since=<cursor>&seat_token=<t>
+ *   GET  /matter/:id/updates?since=<cursor>    (X-Seat-Token: <t> header)
  *       -> catch-up: updates strictly after the cursor, in order.
- *   (WS)  /matter/:id/sync?seat_token=<t>     -> live fan-out (upgrade handled in server.ts)
+ *   POST /matter/:id/sync-ticket               (Bearer access + X-Seat-Token header)
+ *       -> mint a short-lived, single-use ticket bound to {matter,user,seat,org}.
+ *   (WS)  /matter/:id/sync?ticket=<t>          -> live fan-out (upgrade handled in server.ts)
+ *
+ * SECRETS NEVER RIDE IN A URL. The seat token is a header on every HTTP relay
+ * call; the WS upgrade (which can't set headers) carries ONLY a single-use
+ * ticket minted by the authed `sync-ticket` endpoint — never the access/seat
+ * token. This keeps confidential credentials out of access logs / history.
  *
  * Every relay access runs through `gateMatterAccess`, which audits grant + deny.
  * The relay stores ciphertext bytes only; it never requires/accepts plaintext,
  * never decodes the blob, never logs it. A 1 MiB size cap is the only shape check.
  */
 
-import { json, error, readJson, isNonEmptyString, authenticate, authenticateRelay, rateLimit } from "../lib/http.ts";
+import { json, error, readJson, isNonEmptyString, authenticate, rateLimit } from "../lib/http.ts";
 import { config } from "../lib/config.ts";
 import {
   gateMatterAccess,
@@ -33,6 +40,7 @@ import {
   MAX_UPDATE_BYTES,
   type FanoutHub,
 } from "../lib/matters.ts";
+import { syncTickets, type SyncTicketStore } from "../lib/syncTickets.ts";
 import type { Store } from "../lib/db.ts";
 import type { AccessTokenClaims, MatterRole } from "../lib/types.ts";
 
@@ -198,7 +206,12 @@ export async function handleClearWall(req: Request, store: Store, matterId: stri
 // The E2EE sync relay
 // ===========================================================================
 
-/** Shared front gate for relay calls: access JWT + active seat + matter access. */
+/**
+ * Shared front gate for HTTP relay calls: access JWT (Authorization header) +
+ * active seat + matter access. The seat token rides in a header / body, never a
+ * query string (so it can't leak into access logs). The WS upgrade does NOT use
+ * this gate — it presents a single-use ticket instead (see authorizeSyncConnect).
+ */
 function relayGate(
   req: Request,
   store: Store,
@@ -208,9 +221,7 @@ function relayGate(
 ):
   | { ok: true; claims: AccessTokenClaims; seatId: string; matter: NonNullable<ReturnType<Store["getMatter"]>> }
   | { ok: false; resp: Response } {
-  // Relay accepts the access token via header OR (?access_token=) query param so
-  // the browser-initiated WebSocket upgrade — which can't set headers — works.
-  const auth = authenticateRelay(req);
+  const auth = authenticate(req);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
 
   if (!seatToken) return { ok: false, resp: error("seat_required", 401, "missing_seat_token") };
@@ -285,13 +296,14 @@ export async function handlePushUpdate(req: Request, store: Store, matterId: str
   return json({ ok: true, cursor: update.id, blob_id: update.blob_id, key_epoch: update.key_epoch, duplicate }, duplicate ? 200 : 201);
 }
 
-/** GET /matter/:id/updates?since=<cursor>&seat_token=<t> — cursor catch-up. */
+/** GET /matter/:id/updates?since=<cursor> — cursor catch-up. Seat token rides in
+ *  the `X-Seat-Token` header (never the query string, so it can't hit a log). */
 export function handlePullUpdates(req: Request, store: Store, matterId: string, ip: string): Response {
   const rl = rateLimit(ip, "relay_pull", { max: config.relayRateLimitMax, windowSeconds: config.relayRateLimitWindowSeconds });
   if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
 
   const url = new URL(req.url);
-  const seatToken = url.searchParams.get("seat_token");
+  const seatToken = req.headers.get("x-seat-token");
   const gate = relayGate(req, store, matterId, seatToken, "pull");
   if (!gate.ok) return gate.resp;
 
@@ -321,22 +333,74 @@ export function handlePullUpdates(req: Request, store: Store, matterId: string, 
 }
 
 /**
- * Authorize a WebSocket sync connection BEFORE upgrade. Returns the data the
- * server attaches to the socket on success, or an error Response to send instead
- * of upgrading. Same gate as the HTTP relay (access JWT + active seat + access).
+ * POST /matter/:id/sync-ticket — mint a short-lived, single-use ticket the
+ * client puts on the WS upgrade URL (`/matter/:id/sync?ticket=<t>`) instead of
+ * the access/seat token. This is an ORDINARY authed HTTPS request: it runs the
+ * EXACT same access gate as the relay (access JWT + active seat + member∧¬walled,
+ * correct org), then records the grant against {matter,user,seat,org}. The ticket
+ * is opaque (256-bit), expires in seconds, and is redeemed exactly once. No token
+ * is ever written to a URL, so nothing sensitive can land in an access log.
+ */
+export function handleSyncTicket(
+  req: Request,
+  store: Store,
+  matterId: string,
+  ip: string,
+  tickets: SyncTicketStore = syncTickets,
+): Response {
+  const rl = rateLimit(ip, "relay_ticket", { max: config.relayRateLimitMax, windowSeconds: config.relayRateLimitWindowSeconds });
+  if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
+
+  // Seat token in the header (same convention as pull / assured) — never a query.
+  const seatToken = req.headers.get("x-seat-token");
+  const gate = relayGate(req, store, matterId, seatToken, "ticket");
+  if (!gate.ok) return gate.resp;
+
+  const { ticket, expiresInMs } = tickets.mint({
+    matterId,
+    orgId: gate.claims.org_id,
+    userId: gate.claims.sub,
+    seatId: gate.seatId,
+    role: gate.claims.role,
+  });
+  return json({ ticket, expires_in_ms: expiresInMs });
+}
+
+/**
+ * Authorize a WebSocket sync connection BEFORE upgrade. The browser WebSocket
+ * API can't set headers, so it presents a SINGLE-USE TICKET (`?ticket=<t>`) that
+ * was minted by the authed `sync-ticket` endpoint above — NOT the access or seat
+ * token. We redeem the ticket (one-time; expired/replayed tickets fail), require
+ * it to be bound to THIS matter, and run the socket as the ticket's identity.
+ * The full access gate already ran at mint time, so a walled / non-member /
+ * cross-org caller never holds a valid ticket for this matter.
  */
 export function authorizeSyncConnect(
   req: Request,
   store: Store,
   matterId: string,
+  tickets: SyncTicketStore = syncTickets,
 ):
   | { ok: true; data: { matterId: string; orgId: string; userId: string; seatId: string } }
   | { ok: false; resp: Response } {
   const url = new URL(req.url);
-  const seatToken = url.searchParams.get("seat_token");
-  const gate = relayGate(req, store, matterId, seatToken, "connect");
-  if (!gate.ok) return { ok: false, resp: gate.resp };
-  return { ok: true, data: { matterId, orgId: gate.claims.org_id, userId: gate.claims.sub, seatId: gate.seatId } };
+  const ticket = url.searchParams.get("ticket");
+  if (!ticket) return { ok: false, resp: error("unauthorized", 401, "missing_ticket") };
+
+  const binding = tickets.redeem(ticket);
+  // Invalid / expired / already-used ticket, or one minted for a different matter.
+  if (!binding || binding.matterId !== matterId) {
+    return { ok: false, resp: error("unauthorized", 401, "invalid_ticket") };
+  }
+  // Defense in depth: re-confirm access at connect time too. A wall/removal that
+  // landed in the <=30s window between mint and connect must still slam the door.
+  // Use the role captured at mint time so an org admin's (non-membership) access
+  // path is preserved, while a wall still denies regardless of role.
+  const access = resolveAccess(store, { orgId: binding.orgId, userId: binding.userId, role: binding.role }, matterId);
+  if (!access.allowed) {
+    return { ok: false, resp: error("forbidden", 403, access.reason) };
+  }
+  return { ok: true, data: { matterId, orgId: binding.orgId, userId: binding.userId, seatId: binding.seatId } };
 }
 
 // ---------------------------------------------------------------------------

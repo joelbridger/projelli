@@ -30,9 +30,24 @@ const hub = new FanoutHub();
 const srv = Bun.serve<SyncSocketData>(buildServeOptions(store, hub));
 const BASE = () => `http://${srv.hostname}:${srv.port}`;
 // The browser WebSocket API can't set an Authorization header, so the relay
-// accepts the access token via ?access_token= on the upgrade (see authenticateRelay).
-const WS = (matterId: string, seatToken: string, accessToken: string) =>
-  `ws://${srv.hostname}:${srv.port}/matter/${matterId}/sync?seat_token=${encodeURIComponent(seatToken)}&access_token=${encodeURIComponent(accessToken)}`;
+// authenticates the upgrade with a SINGLE-USE TICKET on the URL (?ticket=<t>) —
+// never the access/seat token. Mint the ticket over an authed HTTP request, then
+// open the socket with only the ticket.
+async function mintTicket(matterId: string, bearer: string, seatToken: string) {
+  const res = await fetch(`${BASE()}/matter/${matterId}/sync-ticket`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${bearer}`, "x-seat-token": seatToken },
+  });
+  return { status: res.status, json: (await res.json().catch(() => ({}))) as Record<string, any> };
+}
+const wsUrlForTicket = (matterId: string, ticket: string) =>
+  `ws://${srv.hostname}:${srv.port}/matter/${matterId}/sync?ticket=${encodeURIComponent(ticket)}`;
+/** Mint a ticket and return the WS URL (the common path the client takes). */
+async function wsUrl(matterId: string, bearer: string, seatToken: string): Promise<string> {
+  const t = await mintTicket(matterId, bearer, seatToken);
+  if (t.status !== 200 || !t.json.ticket) throw new Error(`ticket mint failed (${t.status}): ${JSON.stringify(t.json)}`);
+  return wsUrlForTicket(matterId, t.json.ticket as string);
+}
 
 afterAll(() => srv.stop(true));
 
@@ -49,9 +64,10 @@ async function pushUpdate(matterId: string, bearer: string, seatToken: string, b
   return post(`/matter/${matterId}/updates`, { blob_id: blobId, ciphertext_b64: Buffer.from(ciphertext).toString("base64"), seat_token: seatToken }, bearer);
 }
 
+// Pull carries the seat token in the X-Seat-Token header (never the query string).
 async function pullUpdates(matterId: string, bearer: string, seatToken: string, since = 0) {
-  const res = await fetch(`${BASE()}/matter/${matterId}/updates?since=${since}&seat_token=${encodeURIComponent(seatToken)}`, {
-    headers: { authorization: `Bearer ${bearer}` },
+  const res = await fetch(`${BASE()}/matter/${matterId}/updates?since=${since}`, {
+    headers: { authorization: `Bearer ${bearer}`, "x-seat-token": seatToken },
   });
   return { status: res.status, json: (await res.json().catch(() => ({}))) as Record<string, any> };
 }
@@ -238,7 +254,7 @@ describe("E2EE sync relay — E2E over HTTP + WebSocket", () => {
   });
 
   test("a live WebSocket subscriber (member) receives a newly pushed update", async () => {
-    const ws = await openSocket(WS(matterId, bobSeat, bobAccess));
+    const ws = await openSocket(await wsUrl(matterId, bobAccess, bobSeat));
     try {
       const buf = bufferUpdates(ws);
       // Let the socket settle (it's already subscribed pre-broadcast), then push.
@@ -261,7 +277,12 @@ describe("E2EE sync relay — E2E over HTTP + WebSocket", () => {
     expect(wall.status).toBe(200);
     expect(wall.json.key_epoch).toBeGreaterThan(1); // key rotated on wall-set
 
-    await expect(openSocket(WS(matterId, bobSeat, bobAccess))).rejects.toThrow();
+    // A walled user can't even MINT a ticket (the gate runs at mint time), so the
+    // socket is unreachable: there is no credential to put on the URL.
+    const ticket = await mintTicket(matterId, bobAccess, bobSeat);
+    expect(ticket.status).toBe(403);
+    // Even a forged/guessed ?ticket= value is refused at the upgrade.
+    await expect(openSocket(wsUrlForTicket(matterId, "deadbeef".repeat(8)))).rejects.toThrow();
 
     // And the walled member is rejected on push + pull too (deny-overrides-allow).
     const push = await pushUpdate(matterId, bobAccess, bobSeat, "after-wall", new Uint8Array([1]));
@@ -272,7 +293,7 @@ describe("E2EE sync relay — E2E over HTTP + WebSocket", () => {
     // Alice (still a member, not walled) connects and DOES receive a live fan-out
     // of a fresh push — while Bob (walled) could not even open a socket. This is
     // the "delivered to a member, not to a walled user" guarantee, end to end.
-    const alistream = await openSocket(WS(matterId, aliceSeat, aliceAccess));
+    const alistream = await openSocket(await wsUrl(matterId, aliceAccess, aliceSeat));
     try {
       const buf = bufferUpdates(alistream);
       await new Promise((r) => setTimeout(r, 50));
@@ -319,8 +340,109 @@ describe("E2EE sync relay — E2E over HTTP + WebSocket", () => {
   });
 
   test("relay requires authentication (no access token → 401)", async () => {
-    const res = await fetch(`${BASE()}/matter/${matterId}/updates?since=0&seat_token=${encodeURIComponent(aliceSeat)}`);
+    // Seat token present (header), but no Authorization header → still 401.
+    const res = await fetch(`${BASE()}/matter/${matterId}/updates?since=0`, {
+      headers: { "x-seat-token": aliceSeat },
+    });
     expect(res.status).toBe(401);
+  });
+
+  // === WS connect tickets (Finding 1: no token in the WS URL) ===============
+  test("sync-ticket requires the access JWT (no Authorization → 401)", async () => {
+    const res = await fetch(`${BASE()}/matter/${matterId}/sync-ticket`, {
+      method: "POST",
+      headers: { "x-seat-token": aliceSeat }, // seat but no bearer
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("sync-ticket requires a valid seat (missing X-Seat-Token → 401)", async () => {
+    const res = await fetch(`${BASE()}/matter/${matterId}/sync-ticket`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${aliceAccess}` }, // bearer but no seat header
+    });
+    expect(res.status).toBe(401);
+  });
+
+  test("sync-ticket enforces matter access: a NON-member is rejected (403)", async () => {
+    // Fresh seated member who is NOT on the matter.
+    const email = `tixout-${crypto.randomUUID()}@acme.test`;
+    await post("/org/users", { email, password: "outsider-pw-123" }, adminAccess);
+    const login = await post("/auth/login", { email, password: "outsider-pw-123" });
+    const access = login.json.access_token;
+    const act = await post("/org/activate", { license_key: licenseKey, machine_id: `m-${crypto.randomUUID()}` }, access);
+    const seat = act.json.seat_token;
+    const res = await mintTicket(matterId, access, seat);
+    expect(res.status).toBe(403);
+  });
+
+  test("a minted ticket opens the WS exactly ONCE and is rejected on reuse", async () => {
+    const t = await mintTicket(matterId, aliceAccess, aliceSeat);
+    expect(t.status).toBe(200);
+    const ticket = t.json.ticket as string;
+    expect(typeof ticket).toBe("string");
+    expect(ticket.length).toBeGreaterThanOrEqual(32);
+
+    // First use: opens.
+    const ws = await openSocket(wsUrlForTicket(matterId, ticket));
+    ws.close();
+    // Second use of the SAME ticket: rejected (single-use; redeemed + deleted).
+    await expect(openSocket(wsUrlForTicket(matterId, ticket))).rejects.toThrow();
+  });
+
+  test("the WS URL carries ONLY the ticket — no seat/access token substring", async () => {
+    const t = await mintTicket(matterId, aliceAccess, aliceSeat);
+    const url = wsUrlForTicket(matterId, t.json.ticket as string);
+    expect(url).toContain("ticket=");
+    expect(url).not.toContain("seat_token");
+    expect(url).not.toContain("access_token");
+    // The actual secrets never appear in the URL.
+    expect(url).not.toContain(aliceSeat);
+    expect(url).not.toContain(aliceAccess);
+  });
+
+  test("an expired ticket is rejected (TTL)", async () => {
+    // Drive the ticket store directly with a tiny TTL to prove expiry, then feed
+    // the expired ticket through the real authorize path.
+    const { SyncTicketStore } = await import("../src/lib/syncTickets.ts");
+    const { authorizeSyncConnect } = await import("../src/routes/matters.ts");
+    const tickets = new SyncTicketStore(5); // 5ms TTL
+    const m = await post("/org/matters", { client_name: "Expiry Matter" }, adminAccess);
+    const mId = m.json.matter.matter_id as string;
+    await post(`/matter/${mId}/members/add`, { user_id: aliceId, role: "editor" }, adminAccess);
+    const { ticket } = tickets.mint({ matterId: mId, orgId: "o", userId: aliceId, seatId: "s", role: "member" });
+    await new Promise((r) => setTimeout(r, 20)); // let it expire
+    const req = new Request(`http://x/matter/${mId}/sync?ticket=${ticket}`, { headers: { upgrade: "websocket" } });
+    const res = authorizeSyncConnect(req, store, mId, tickets);
+    expect(res.ok).toBe(false);
+  });
+
+  test("a ticket minted for matter A cannot open matter B's socket", async () => {
+    const t = await mintTicket(matterId, aliceAccess, aliceSeat);
+    // Point the ticket at the cross-org matter id — must be refused.
+    await expect(openSocket(wsUrlForTicket(orgBMatterId, t.json.ticket as string))).rejects.toThrow();
+  });
+
+  // === Pull via header (Finding 2) =========================================
+  test("pull authenticates via the X-Seat-Token header and rejects when it is missing", async () => {
+    // Header present → 200.
+    const withHeader = await fetch(`${BASE()}/matter/${matterId}/updates?since=0`, {
+      headers: { authorization: `Bearer ${aliceAccess}`, "x-seat-token": aliceSeat },
+    });
+    expect(withHeader.status).toBe(200);
+
+    // No X-Seat-Token header (and none in the query) → seat_required 401.
+    const noHeader = await fetch(`${BASE()}/matter/${matterId}/updates?since=0`, {
+      headers: { authorization: `Bearer ${aliceAccess}` },
+    });
+    expect(noHeader.status).toBe(401);
+
+    // A seat_token in the QUERY must NOT authenticate (we read the header only).
+    const queryOnly = await fetch(
+      `${BASE()}/matter/${matterId}/updates?since=0&seat_token=${encodeURIComponent(aliceSeat)}`,
+      { headers: { authorization: `Bearer ${aliceAccess}` } },
+    );
+    expect(queryOnly.status).toBe(401);
   });
 
   test("normal relay use is not throttled (limiter does not false-positive)", async () => {

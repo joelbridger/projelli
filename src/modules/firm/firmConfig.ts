@@ -38,16 +38,16 @@ export function getFirmApiBase(): string {
 }
 
 /**
- * Build the WebSocket URL for the live matter-sync fan-out. The browser
- * `WebSocket` API cannot set an Authorization header, so the access token +
- * seat token ride as query params (the relay accepts them only on this
- * endpoint — see backend `authenticateRelay`).
+ * Build the WebSocket URL for the live matter-sync fan-out.
+ *
+ * The browser `WebSocket` API cannot set an Authorization header, so historically
+ * the access + seat tokens rode as query params — which leaks long-lived secrets
+ * into access logs and history. Instead the caller first mints a SINGLE-USE,
+ * short-lived TICKET over an authed HTTP request (`POST /matter/:id/sync-ticket`),
+ * and ONLY that ticket rides on the WS URL. No access or seat token ever appears
+ * in a WebSocket URL.
  */
-export function getMatterSyncSocketUrl(
-  matterId: string,
-  accessToken: string,
-  seatToken: string,
-): string {
+export function getMatterSyncSocketUrl(matterId: string, ticket: string): string {
   const base = getFirmApiBase();
   // Resolve to an absolute URL first (handles the dev proxy-relative base).
   let httpUrl: string;
@@ -60,8 +60,7 @@ export function getMatterSyncSocketUrl(
   }
   const wsBase = httpUrl.replace(/^http/i, 'ws').replace(/\/+$/, '');
   const path = `/matter/${encodeURIComponent(matterId)}/sync`;
-  const qs = `?seat_token=${encodeURIComponent(seatToken)}&access_token=${encodeURIComponent(accessToken)}`;
-  return `${wsBase}${path}${qs}`;
+  return `${wsBase}${path}?ticket=${encodeURIComponent(ticket)}`;
 }
 
 /** App version sent on activation (kept in sync with the licensing hook). */

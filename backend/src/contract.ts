@@ -263,9 +263,10 @@ export interface PushUpdateResponse {
   duplicate: boolean;
 }
 /**
- * GET /matter/:id/updates?since=<cursor>&seat_token=<t>  — cursor catch-up.
+ * GET /matter/:id/updates?since=<cursor>  — cursor catch-up.
  * Returns updates strictly AFTER `since`, ascending. `since=0` = full history.
- * (Access JWT via Authorization header; seat_token via query.)
+ * (Access JWT via Authorization header; seat token via the X-Seat-Token header —
+ * never the query string, so no credential lands in an access log.)
  */
 export interface PullUpdatesResponse {
   matter_id: string;
@@ -284,12 +285,24 @@ export interface PullUpdatesResponse {
   }>;
 }
 /**
- * WS /matter/:id/sync?seat_token=<t>&access_token=<a>  — live fan-out.
- * The browser WebSocket can't set headers, so the access token rides as
- * `access_token` here (header is also accepted on the HTTP relay). On open the
- * server sends `{ type:"ready", backlog, latest_cursor }` then the backlog as
- * `update` frames, then live `update` frames as peers push. Inbound frames are
- * ignored — writes go through the audited HTTP POST. Frame shape:
+ * POST /matter/:id/sync-ticket — mint a short-lived, single-use ticket for the
+ * WS upgrade. Authed exactly like the HTTP relay (Authorization: Bearer access
+ * JWT + X-Seat-Token header), runs the same matter-access gate, and returns an
+ * opaque ticket bound to {matter,user,seat,org}. The client puts ONLY this ticket
+ * on the WS URL (`?ticket=<t>`) — never the access/seat token.
+ */
+export interface SyncTicketResponse {
+  ticket: string;
+  expires_in_ms: number;
+}
+/**
+ * WS /matter/:id/sync?ticket=<t>  — live fan-out.
+ * The browser WebSocket can't set headers, so the upgrade carries a SINGLE-USE
+ * TICKET (minted by POST /matter/:id/sync-ticket) — never the access/seat token,
+ * so no credential lands in an access log. On open the server sends
+ * `{ type:"ready", backlog, latest_cursor }` then the backlog as `update` frames,
+ * then live `update` frames as peers push. Inbound frames are ignored — writes
+ * go through the audited HTTP POST. Frame shape:
  */
 export interface SyncReadyFrame {
   type: "ready";
@@ -415,8 +428,9 @@ export const ENDPOINTS = {
   setWall: { method: "POST", path: "/matter/:id/wall/set" },
   clearWall: { method: "POST", path: "/matter/:id/wall/clear" },
   pushUpdate: { method: "POST", path: "/matter/:id/updates" },
-  pullUpdates: { method: "GET", path: "/matter/:id/updates" },
-  syncSocket: { method: "GET", path: "/matter/:id/sync" }, // WebSocket upgrade
+  pullUpdates: { method: "GET", path: "/matter/:id/updates" }, // X-Seat-Token header
+  syncTicket: { method: "POST", path: "/matter/:id/sync-ticket" }, // mint WS ticket
+  syncSocket: { method: "GET", path: "/matter/:id/sync" }, // WebSocket upgrade (?ticket=)
   // Chunk 3 — assured zero-retention inference proxy.
   assuredInfer: { method: "POST", path: "/assured/infer" },
   assuredKeySet: { method: "POST", path: "/assured/keys/set" },

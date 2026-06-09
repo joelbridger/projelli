@@ -145,18 +145,8 @@ export function authenticate(req: Request): AuthResult {
   return verifyAccess(token);
 }
 
-/**
- * Like `authenticate`, but also accepts the access token via an `access_token`
- * query param. ONLY for the sync-relay endpoints, where the WebSocket upgrade
- * request is initiated by the browser `WebSocket` API which cannot set an
- * Authorization header. The token is still a short-lived signed JWT; it is never
- * logged (we never log relay request URLs with their query string). HTTP relay
- * callers keep using the header; the query-param path is the WS escape hatch.
- */
-export function authenticateRelay(req: Request): AuthResult {
-  const header = getBearer(req);
-  if (header) return verifyAccess(header);
-  const qp = new URL(req.url).searchParams.get("access_token");
-  if (qp) return verifyAccess(qp.trim());
-  return { ok: false, reason: "missing_token" };
-}
+// NOTE: relay endpoints used to accept the access token via an `?access_token=`
+// query param so the browser WebSocket upgrade (which can't set headers) could
+// authenticate. That leaked a credential into URLs (access logs / history), so
+// it was removed: HTTP relay calls use the Authorization header + an X-Seat-Token
+// header, and the WS upgrade carries only a single-use ticket (see syncTickets).

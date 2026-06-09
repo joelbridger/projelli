@@ -230,6 +230,15 @@ export interface PullUpdatesResponse {
   has_more: boolean;
   updates: PulledUpdate[];
 }
+/**
+ * Response of `POST /matter/:id/sync-ticket`: a short-lived, single-use ticket
+ * for the WS upgrade. Authed like the HTTP relay (Bearer access + X-Seat-Token
+ * header). The client puts ONLY this ticket on the WS URL — never a token.
+ */
+export interface SyncTicketResponse {
+  ticket: string;
+  expires_in_ms: number;
+}
 export interface SyncReadyFrame {
   type: 'ready';
   matter_id: string;
@@ -308,6 +317,7 @@ export const FIRM_ENDPOINTS = {
   clearWall: '/matter/:id/wall/clear',
   pushUpdate: '/matter/:id/updates',
   pullUpdates: '/matter/:id/updates',
+  syncTicket: '/matter/:id/sync-ticket',
   syncSocket: '/matter/:id/sync',
   assuredInfer: '/assured/infer',
   assuredKeySet: '/assured/keys/set',

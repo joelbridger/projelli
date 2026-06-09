@@ -36,9 +36,11 @@ import {
   handleClearWall,
   handlePushUpdate,
   handlePullUpdates,
+  handleSyncTicket,
   authorizeSyncConnect,
 } from "./routes/matters.ts";
 import { fanout, FanoutHub, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
+import { startSyncTicketGc } from "./lib/syncTickets.ts";
 import {
   handleAssuredInfer,
   handleSetProviderKey,
@@ -97,7 +99,11 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         // live fan-out shares the same access gate as the HTTP endpoints.
         const mm = matchMatter(path);
         if (mm) {
-          // Live sync socket: GET /matter/:id/sync (Upgrade: websocket).
+          // Mint a single-use WS connect ticket (authed; runs the relay gate).
+          if (mm.rest === "sync-ticket" && method === "POST") return handleSyncTicket(req, store, mm.id, ip);
+          // Live sync socket: GET /matter/:id/sync?ticket=<t> (Upgrade: websocket).
+          // The upgrade carries ONLY a single-use ticket — never the access/seat
+          // token — so no credential can land in an access log or browser history.
           if (mm.rest === "sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
             const authz = authorizeSyncConnect(req, store, mm.id);
             if (!authz.ok) return authz.resp;
@@ -164,6 +170,10 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
 
         return error("not_found", 404);
       } catch (err) {
+        // Log the method + PATH only — never `req.url` / the query string. Even
+        // though credentials no longer ride in any relay URL, scrubbing the query
+        // is defense in depth so a stray token (or a future param) can't reach a
+        // log file. `path` is `url.pathname` (no query) by construction.
         console.error(`[error] ${method} ${path}:`, err);
         return error("internal_error", 500);
       }
@@ -216,6 +226,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
 const store = getStore();
 maybeBootstrap(store);
 startRateLimitGc();
+startSyncTicketGc();
 
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, fanout));
 
