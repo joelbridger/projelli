@@ -25,6 +25,7 @@ import {
   ragRetrieve,
   ragSetWorkspace,
   type RagHit,
+  type RetrievalScope,
 } from '@/utils/tauri-commands';
 
 /** How the toggle is read. Pluggable so tests can pass a stub. */
@@ -114,10 +115,21 @@ export const MemoryService = {
     await ragDeletePath(path);
   },
 
-  async retrieve(query: string, topK: number): Promise<RagHit[]> {
+  /** Retrieve from the local RAG store.
+   *
+   *  WS-B/C: `scope` is the confidentiality boundary. It defaults to an explicit
+   *  cross-matter (`allMatters`) search to preserve the pre-3.0 whole-workspace
+   *  behaviour until the matter-assignment UI lands and passes a real
+   *  `{ kind: 'matter', matterId }` scope here. There is no silent "everything"
+   *  path: the underlying command requires a named scope. */
+  async retrieve(
+    query: string,
+    topK: number,
+    scope: RetrievalScope = { kind: 'allMatters' },
+  ): Promise<RagHit[]> {
     if (!isMemoryEnabled()) return [];
     if (!query.trim() || topK <= 0) return [];
-    return ragRetrieve(query, topK);
+    return ragRetrieve(query, topK, scope);
   },
 
   /** Index a single PDF file into the RAG store. Reads bytes via the

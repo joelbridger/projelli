@@ -47,6 +47,8 @@ pub fn run() {
             commands::rag::rag_index_file,
             commands::rag::rag_index_workspace,
             commands::rag::rag_retrieve,
+            // WS-B/C — citation verification (refuse answers whose citation doesn't verify).
+            commands::rag::rag_verify_citation,
             commands::rag::rag_cancel_indexing,
             commands::rag::rag_delete_path,
             // A3 — PDF RAG indexing bridge (JS extracts, Rust embeds+stores).

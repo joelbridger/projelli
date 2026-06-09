@@ -350,11 +350,17 @@ async fn fresh_gmail_access_token() -> Result<String, String> {
 /// `path_key` is already formatted as "mail:<doc_id>" by the caller.
 /// Encrypts chunk text before storing in LanceDB. Idempotent (deletes stale
 /// rows first). Returns Ok(0) if plaintext is empty. Errors are logged by caller.
+///
+/// WS-B/C: `matter_id` is the confidentiality scope this email is filed under.
+/// The matter model / assignment UI is a separate upcoming task; until an email
+/// is assigned to a matter, callers pass `store::UNASSIGNED_MATTER` so the chunk
+/// is scopeable and never silently leaks into a real matter.
 async fn index_mail_text_internal(
     workspace: &std::path::Path,
     path_key: &str,
     plaintext: &str,
     key: &[u8; 32],
+    matter_id: &str,
 ) -> anyhow::Result<u32> {
     use anyhow::Context;
     if plaintext.trim().is_empty() {
@@ -385,7 +391,7 @@ async fn index_mail_text_internal(
     let rows: Vec<(crate::commands::rag::chunker::Chunk, Vec<f32>)> =
         chunks.into_iter().zip(vectors).collect();
 
-    let batch = crate::commands::rag::store::build_batch_mail(&rows, key)
+    let batch = crate::commands::rag::store::build_batch_mail(&rows, key, matter_id)
         .context("build mail batch")?;
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;
@@ -508,7 +514,7 @@ async fn mail_sync_all_inner(
             let key = enc_key_for_index;
             // Fire-and-forget RAG indexing (G4).
             let _ = tokio::task::spawn(async move {
-                if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key).await {
+                if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key, crate::commands::rag::store::UNASSIGNED_MATTER).await {
                     log::warn!("G4 mail index failed for {}: {}", path_key, e);
                 }
             });
@@ -606,7 +612,7 @@ async fn mail_sync_all_inner(
                 let key = enc_key_for_index;
                 // Fire-and-forget RAG indexing (G4).
                 let _ = tokio::task::spawn(async move {
-                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key).await {
+                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key, crate::commands::rag::store::UNASSIGNED_MATTER).await {
                         log::warn!("G4 mail index failed for {}: {}", path_key, e);
                     }
                 });
@@ -703,7 +709,7 @@ async fn mail_sync_all_inner(
                 let key = enc_key_for_index;
                 // Fire-and-forget RAG indexing (G4).
                 let _ = tokio::task::spawn(async move {
-                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key).await {
+                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key, crate::commands::rag::store::UNASSIGNED_MATTER).await {
                         log::warn!("G4 mail index failed for {}: {}", path_key, e);
                     }
                 });

@@ -80,19 +80,47 @@ export interface KeychainError {
   message: string;
 }
 
-/** A single retrieval hit returned by `rag_retrieve`. Shape is frozen in
- *  Phase 2 so the frontend can wire UI before M1 lands the implementation.
- *  A3 adds optional sourceType and pageNumber for PDF chunks. */
+/** A single retrieval hit returned by `rag_retrieve`.
+ *  A3 adds optional sourceType and pageNumber for PDF chunks.
+ *  WS-B/C (3.0) adds `id` (the content-addressed citation key), `matterId`
+ *  (the confidentiality scope the chunk belongs to), and `sourceId` (the
+ *  resolvable originating source: a file path or `mail:<message-id>`). */
 export interface RagHit {
   path: string;
   chunkText: string;
   score: number;
   paragraphIndex: number;
-  /** A3: discriminates text vs PDF chunks. Absent on pre-A3 rows. */
-  sourceType?: 'text' | 'pdf';
+  /** WS-B/C: content-addressed chunk id — pass to `ragVerifyCitation`. */
+  id?: string;
+  /** WS-B/C: the matter this chunk belongs to. Present post-3.0. */
+  matterId?: string;
+  /** WS-B/C: resolvable source (`/path/to/file` or `mail:<id>`). */
+  sourceId?: string;
+  /** A3: discriminates text vs PDF vs mail chunks. Absent on pre-A3 rows. */
+  sourceType?: 'text' | 'pdf' | 'mail';
   /** A3: 1-based page number for PDF chunks. Absent on pre-A3 rows. */
   pageNumber?: number;
 }
+
+/** WS-B/C — the REQUIRED retrieval scope. A caller cannot omit scope and
+ *  silently search every matter; it must name `matter` or `allMatters`.
+ *  Mirrors `RetrievalScope` in `src-tauri/src/commands/rag/mod.rs`.
+ *
+ *  - `{ kind: 'matter', matterId }` — scope to ONE matter (LanceDB prefilter).
+ *  - `{ kind: 'allMatters' }`       — explicit, audited cross-matter search.
+ */
+export type RetrievalScope =
+  | { kind: 'matter'; matterId: string }
+  | { kind: 'allMatters' };
+
+/** WS-B/C — verdict from `ragVerifyCitation`. The app must refuse to present
+ *  any answer whose citation does not return `{ verdict: 'verified' }`.
+ *  Mirrors `Verdict` in `src-tauri/src/commands/rag/mod.rs`. */
+export type CitationVerdict =
+  | { verdict: 'verified' }
+  | { verdict: 'notFound' }
+  | { verdict: 'matterMismatch'; actualMatter: string }
+  | { verdict: 'textMismatch' };
 
 /** RAG indexer status emitted on the `rag-indexing-progress` Tauri event.
  *  Mirror of `IndexingStatus` in `src-tauri/src/commands/rag/mod.rs`. */
@@ -184,22 +212,29 @@ export async function ragSetWorkspace(path: string): Promise<void> {
 /** Index a single file into the local RAG store. Idempotent — re-running
  *  for the same path replaces stale chunks. Returns immediately for
  *  unsupported file types (silently). */
-export async function ragIndexFile(path: string): Promise<void> {
+export async function ragIndexFile(
+  path: string,
+  matterId?: string,
+): Promise<void> {
   if (!isTauri()) {
     throw new Error('RAG is only available in the desktop app.');
   }
-  return invoke<void>('rag_index_file', { path });
+  // WS-B/C: omitting matterId indexes under the "unassigned" sentinel (never
+  // null). The matter-assignment UI passes a real id here.
+  return invoke<void>('rag_index_file', { path, matterId });
 }
 
 /** Index the entire active workspace. Walks every supported file under the
  *  workspace root, emits `rag-indexing-progress` events as it goes, and
  *  honours `ragCancelIndexing()` between files. Resolves once indexing
  *  completes (or is cancelled). */
-export async function ragIndexWorkspace(): Promise<void> {
+export async function ragIndexWorkspace(matterId?: string): Promise<void> {
   if (!isTauri()) {
     throw new Error('RAG is only available in the desktop app.');
   }
-  return invoke<void>('rag_index_workspace');
+  // WS-B/C: also runs the one-time pre-3.0 migration (re-index under matter
+  // scope). Omitting matterId files everything under the "unassigned" sentinel.
+  return invoke<void>('rag_index_workspace', { matterId });
 }
 
 /** Cancel the currently-running workspace indexer. Safe to call when no
@@ -227,24 +262,55 @@ export async function ragIndexPdfChunks(
   path: string,
   pages: string[],
   pageCount: number,
+  matterId?: string,
 ): Promise<number> {
   if (!isTauri()) {
     throw new Error('RAG PDF indexing is only available in the desktop app.');
   }
-  return invoke<number>('rag_index_pdf_chunks', { path, pages, pageCount });
+  return invoke<number>('rag_index_pdf_chunks', { path, pages, pageCount, matterId });
 }
 
-/** Query the local RAG store. Returns up to `topK` hits sorted by score
- *  (descending). Empty query or `topK = 0` returns `[]` without invoking
- *  the embedder. */
+/** Query the local RAG store, scoped to a matter. Returns up to `topK` hits
+ *  sorted by score (descending). Empty query or `topK = 0` returns `[]` without
+ *  invoking the embedder.
+ *
+ *  WS-B/C: `scope` is REQUIRED — confidentiality is enforced here. Pass
+ *  `{ kind: 'matter', matterId }` for normal client work (prefiltered to that
+ *  matter), or the explicit `{ kind: 'allMatters' }` for a deliberate
+ *  cross-matter search. There is no "search everything" default. */
 export async function ragRetrieve(
   query: string,
   topK: number,
+  scope: RetrievalScope,
 ): Promise<RagHit[]> {
   if (!isTauri()) {
     throw new Error('RAG is only available in the desktop app.');
   }
-  return invoke<RagHit[]>('rag_retrieve', { query, topK });
+  return invoke<RagHit[]>('rag_retrieve', { query, topK, scope });
+}
+
+/** WS-B/C — verify a citation against the local store so the app can REFUSE to
+ *  present an answer whose citation does not verify. Looks up the chunk by its
+ *  content-addressed `id` SCOPED to `claimedMatterId`, then asserts the stored
+ *  chunk text contains `quotedText` (whitespace-normalized).
+ *
+ *  Returns one of: `verified` (present it), `notFound` (fabricated/stale id),
+ *  `matterMismatch` (the chunk exists under a DIFFERENT matter — a scope lie),
+ *  or `textMismatch` (the answer misquoted the source / mail could not be
+ *  decrypted). Only `verified` is safe to surface. */
+export async function ragVerifyCitation(
+  id: string,
+  claimedMatterId: string,
+  quotedText: string,
+): Promise<CitationVerdict> {
+  if (!isTauri()) {
+    throw new Error('RAG is only available in the desktop app.');
+  }
+  return invoke<CitationVerdict>('rag_verify_citation', {
+    id,
+    claimedMatterId,
+    quotedText,
+  });
 }
 
 /** Start (or replace) the workspace file watcher. Only one watcher is

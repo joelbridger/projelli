@@ -68,7 +68,8 @@ pub fn build_pdf_chunks(path: &str, pages: &[String]) -> Vec<Chunk> {
 ///
 /// `pages` is the already-extracted text for each page (from PDF.js via the
 /// JS bridge). `page_count` is the total page count from the PDF metadata
-/// (metadata only, not used for chunking).
+/// (metadata only, not used for chunking). `matter_id` is the confidentiality
+/// scope the PDF belongs to (WS-B/C); pass `UNASSIGNED_MATTER` when unknown.
 ///
 /// Returns the number of chunks successfully stored, or 0 if all pages were
 /// empty / skipped (stale rows are cleaned up either way).
@@ -77,6 +78,7 @@ pub async fn index_pdf_chunks(
     path: &str,
     pages: &[String],
     page_count: u32,
+    matter_id: &str,
 ) -> Result<usize> {
     let _ = page_count; // stored in metadata; not needed for chunking logic
 
@@ -129,7 +131,7 @@ pub async fn index_pdf_chunks(
     use super::store::build_batch;
     let mut batches: Vec<Result<arrow_array::RecordBatch, ArrowError>> = Vec::new();
     for (page_num, rows) in &grouped {
-        let batch = build_batch(rows, SourceType::Pdf { page_number: *page_num })
+        let batch = build_batch(rows, SourceType::Pdf { page_number: *page_num }, matter_id)
             .map_err(|e| ArrowError::ExternalError(e.into()))?;
         batches.push(Ok(batch));
     }

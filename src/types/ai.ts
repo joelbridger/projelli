@@ -100,8 +100,8 @@ export interface WorkspaceSource {
   chunkText: string;
   score: number;
   paragraphIndex: number;
-  /** A3: 'text' | 'pdf'. Absent on pre-A3 rows. */
-  sourceType?: 'text' | 'pdf';
+  /** A3: 'text' | 'pdf'; G4 adds 'mail'. Absent on pre-A3 rows. */
+  sourceType?: 'text' | 'pdf' | 'mail';
   /** A3: 1-based page number for PDF chunks. Absent on pre-A3 rows. */
   pageNumber?: number;
 }

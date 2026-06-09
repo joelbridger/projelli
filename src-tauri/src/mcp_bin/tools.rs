@@ -310,7 +310,12 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
     let qvec = embedder::embed_query(query)
         .await
         .map_err(|e| JsonRpcError::internal(format!("embed query: {e}")))?;
-    let raw = store::nearest(&table, &qvec, top_k)
+    // WS-B/C: the MCP server is the read-only workspace-search surface exposed to
+    // external MCP clients; matter scoping is an in-app (Tauri) concept and the
+    // client/matter UI is a separate task. Pass `None` (no matter prefilter) to
+    // preserve the existing whole-workspace search behaviour here. When matter
+    // scoping is surfaced to MCP clients, thread a `RetrievalScope` through.
+    let raw = store::nearest(&table, &qvec, top_k, None)
         .await
         .map_err(|e| JsonRpcError::internal(format!("nearest: {e}")))?;
 

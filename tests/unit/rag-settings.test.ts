@@ -56,9 +56,23 @@ describe('MemoryService toggle', () => {
       { path: '/a.md', chunkText: 'hello', score: 0.9, paragraphIndex: 0 },
     ]);
     const hits = await MemoryService.retrieve('hello', 5);
-    expect(tauri.ragRetrieve).toHaveBeenCalledWith('hello', 5);
+    // WS-B/C: retrieve defaults to an explicit cross-matter scope (no silent
+    // "everything" — the command requires a named scope).
+    expect(tauri.ragRetrieve).toHaveBeenCalledWith('hello', 5, {
+      kind: 'allMatters',
+    });
     expect(hits).toHaveLength(1);
     expect(hits[0]?.chunkText).toBe('hello');
+  });
+
+  it('forwards an explicit matter scope to the Tauri command', async () => {
+    setMemoryEnabledReader(() => true);
+    (tauri.ragRetrieve as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    await MemoryService.retrieve('hello', 5, { kind: 'matter', matterId: 'm-1' });
+    expect(tauri.ragRetrieve).toHaveBeenCalledWith('hello', 5, {
+      kind: 'matter',
+      matterId: 'm-1',
+    });
   });
 
   it('short-circuits retrieve with [] when disabled (no Tauri call)', async () => {
