@@ -77,6 +77,7 @@ import {
   isDocxEngineAvailable,
 } from '@/utils/docx-commands';
 import { createProvider, isLocalProviderId, type ChatProviderId } from '@/modules/models/providerFactory';
+import { useTrialGate } from '@/hooks/useTrial';
 import {
   REDLINE_AUTHOR,
   paragraphPlainRunText,
@@ -207,6 +208,11 @@ export function DocxEditor({
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
 
   // ---- A4: AI redline state ----------------------------------------------
+  // Entitlement gate: AI redline is an AI feature, so it is gated off for a
+  // lapsed subscription or an expired trial. The DOCUMENT itself stays fully
+  // open, editable, and exportable regardless (data-ownership guarantee) — only
+  // the AI redline action is paused, with a calm "resubscribe" message.
+  const { isLocked: aiGated } = useTrialGate();
   const [redlineOpen, setRedlineOpen] = useState(false);
   const [redlineInstruction, setRedlineInstruction] = useState('');
   const [redlineBusy, setRedlineBusy] = useState(false);
@@ -585,6 +591,13 @@ export function DocxEditor({
   const runRedline = useCallback(async () => {
     const instruction = redlineInstruction.trim();
     if (!instruction || !currentDoc || redlineBusy) return;
+    // Entitlement gate: AI features are paused on a lapsed subscription or an
+    // expired trial. Never a lockout — the document is still fully editable and
+    // exportable; only this AI action is unavailable until they resubscribe.
+    if (aiGated) {
+      setRedlineError(t('media.docx-editor.redline-ai-paused'));
+      return;
+    }
     // Cloud providers require a key; a local (Ollama) provider does not.
     if (!isLocalRedline && !redlineKey) {
       setRedlineError(t('media.docx-editor.redline-need-key'));
@@ -669,6 +682,7 @@ export function DocxEditor({
     fileName,
     applyResolvedDocument,
     onAuditLog,
+    aiGated,
     t,
   ]);
 
@@ -911,6 +925,7 @@ export function DocxEditor({
           busy={redlineBusy}
           error={redlineError}
           hasKey={redlineReady}
+          aiPaused={aiGated}
           onRun={() => void runRedline()}
           onClose={() => { setRedlineOpen(false); }}
         />
@@ -1065,6 +1080,7 @@ function RedlineComposer({
   busy,
   error,
   hasKey,
+  aiPaused,
   onRun,
   onClose,
 }: {
@@ -1073,6 +1089,8 @@ function RedlineComposer({
   busy: boolean;
   error: string | null;
   hasKey: boolean;
+  /** True when AI features are paused (lapsed subscription / expired trial). */
+  aiPaused: boolean;
   onRun: () => void;
   onClose: () => void;
 }) {
@@ -1102,14 +1120,22 @@ function RedlineComposer({
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
               e.preventDefault();
-              onRun();
+              if (!aiPaused) onRun();
             }
           }}
           placeholder={t('media.docx-editor.redline-placeholder')}
-          disabled={busy}
+          disabled={busy || aiPaused}
           className="min-h-[60px] resize-y bg-background text-sm"
         />
-        {!hasKey && (
+        {aiPaused && (
+          <p
+            data-testid="docx-redline-ai-paused"
+            className="rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800"
+          >
+            {t('media.docx-editor.redline-ai-paused')}
+          </p>
+        )}
+        {!aiPaused && !hasKey && (
           <p
             data-testid="docx-redline-need-key"
             className="rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800"
@@ -1134,7 +1160,7 @@ function RedlineComposer({
             size="sm"
             className="h-7 gap-1.5 bg-[#0A2540] text-xs hover:bg-[#0A2540]/90"
             onClick={onRun}
-            disabled={busy || instruction.trim().length === 0 || !hasKey}
+            disabled={busy || instruction.trim().length === 0 || !hasKey || aiPaused}
           >
             {busy ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

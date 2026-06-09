@@ -47,12 +47,77 @@ export interface LicenseState {
   isActivated: boolean;
   expiresAt: Date | null;
   error: string | null;
+  /**
+   * License/subscription status as last understood (from the server's validate
+   * response or the JWT). Feeds the entitlement layer; `undefined` is treated
+   * conservatively (legacy payloads => "active if not expired").
+   */
+  status?: string | undefined;
+  /**
+   * The kind of license: old one-time product codes vs the 3.0 'subscription'
+   * / 'trial'. Used to detect a pre-3.0 buyer for grandfathering.
+   */
+  type?: string | undefined;
+  /** ISO purchase date, used as one grandfather signal (bought before 3.0). */
+  purchasedAt: Date | null;
+  /** Explicit perpetual/lifetime flag — the strongest grandfather signal. */
+  perpetual?: boolean | undefined;
+  /**
+   * True when the most recent attempt to reach the license server FAILED. The
+   * entitlement layer uses this to honor last-known-good during an outage so a
+   * network blip never bricks a paying user.
+   */
+  isOffline: boolean;
+  /**
+   * ISO timestamp of the last time the server CONFIRMED this license valid
+   * (last-known-good). Persisted so offline grace survives relaunches.
+   */
+  lastKnownGoodAt: Date | null;
 }
 
 const STORAGE_KEY = 'keepance_license_token';
 const MACHINE_ID_KEY = 'keepance_machine_id';
+const LAST_GOOD_KEY = 'keepance_license_last_good_at';
 const LICENSE_API_BASE = 'https://licenses.keepance.com';
 const APP_VERSION = '2.1.0';
+
+/**
+ * Shape of the license validator's /activate and /validate JSON responses.
+ * The server is dependency-free (see backend/src/contract.ts); we type the
+ * fields we read so the entitlement plumbing is not built on `any`. Every field
+ * is optional because legacy/error payloads may omit them.
+ */
+interface LicenseServerResponse {
+  token?: string;
+  tier?: LicenseTier;
+  packs?: ProfessionPack[];
+  seats?: number;
+  expires_at?: string | null;
+  purchased_at?: string | null;
+  status?: string;
+  type?: string;
+  license_type?: string;
+  perpetual?: boolean;
+  valid?: boolean;
+  reason?: string;
+  detail?: string;
+  error?: string;
+}
+
+/** Read the persisted last-known-good validation timestamp, if any. */
+function readLastKnownGood(): Date | null {
+  if (typeof localStorage === 'undefined') return null;
+  const raw = localStorage.getItem(LAST_GOOD_KEY);
+  if (!raw) return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Persist the last-known-good validation timestamp. */
+function writeLastKnownGood(when: Date): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem(LAST_GOOD_KEY, when.toISOString());
+}
 
 /**
  * Generate or retrieve a stable machine ID. Stored in localStorage.
@@ -72,7 +137,7 @@ function getMachineId(): string {
  * Decode a JWT payload without signature verification.
  * (Real verification happens server-side via /validate.)
  */
-function decodeJwtPayload(token: string): { tier?: LicenseTier; packs?: ProfessionPack[]; seats?: number; exp?: number; sub?: string } | null {
+function decodeJwtPayload(token: string): { tier?: LicenseTier; packs?: ProfessionPack[]; seats?: number; exp?: number; sub?: string; status?: string; type?: string; license_type?: string; purchased_at?: string; perpetual?: boolean } | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
@@ -110,24 +175,26 @@ function readFakeLicense(): { tier: LicenseTier; packs: ProfessionPack[] } | nul
 
 export function useLicense() {
   const [state, setState] = useState<LicenseState>(() => {
+    const lastKnownGoodAt = readLastKnownGood();
     const fake = readFakeLicense();
     if (fake) {
-      return { tier: fake.tier, packs: fake.packs, seats: 1, isLoading: false, isActivated: true, expiresAt: null, error: null };
+      return { tier: fake.tier, packs: fake.packs, seats: 1, isLoading: false, isActivated: true, expiresAt: null, error: null, purchasedAt: null, isOffline: false, lastKnownGoodAt };
     }
     const token = localStorage.getItem(STORAGE_KEY);
     if (!token) {
-      return { tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: null };
+      return { tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: null, purchasedAt: null, isOffline: false, lastKnownGoodAt };
     }
     const payload = decodeJwtPayload(token);
     if (!payload || !payload.exp) {
-      return { tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: null };
+      return { tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: null, purchasedAt: null, isOffline: false, lastKnownGoodAt };
     }
     const expiresAt = new Date(payload.exp * 1000);
-    if (expiresAt < new Date()) {
-      // Token expired — clear it and fall back to free tier
-      localStorage.removeItem(STORAGE_KEY);
-      return { tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: 'Token expired. Please re-activate.' };
-    }
+    const purchasedAt = payload.purchased_at ? new Date(payload.purchased_at) : null;
+    // A grandfathered/perpetual license never expires by date. For a normal
+    // subscription, an expired JWT just means we need to re-validate; we do NOT
+    // wipe the token or hard-drop to free here, because the entitlement layer
+    // will degrade gracefully (data stays accessible) and a refresh can restore
+    // it. We only fall back to free if there's genuinely nothing usable.
     return {
       tier: payload.tier ?? 'free',
       packs: payload.packs ?? [],
@@ -136,6 +203,12 @@ export function useLicense() {
       isActivated: true,
       expiresAt,
       error: null,
+      status: payload.status,
+      type: payload.type ?? payload.license_type,
+      purchasedAt: purchasedAt && !Number.isNaN(purchasedAt.getTime()) ? purchasedAt : null,
+      perpetual: payload.perpetual,
+      isOffline: false,
+      lastKnownGoodAt,
     };
   });
 
@@ -154,21 +227,35 @@ export function useLicense() {
           app_version: APP_VERSION,
         }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as LicenseServerResponse;
       if (!res.ok) {
         const errorMsg = data.detail ?? data.error ?? 'Activation failed';
         setState((s) => ({ ...s, isLoading: false, error: errorMsg }));
         return { success: false, error: errorMsg };
       }
+      if (!data.token) {
+        const errorMsg = 'Activation failed: no token returned';
+        setState((s) => ({ ...s, isLoading: false, error: errorMsg }));
+        return { success: false, error: errorMsg };
+      }
       localStorage.setItem(STORAGE_KEY, data.token);
+      const now = new Date();
+      writeLastKnownGood(now);
+      const purchasedAt = data.purchased_at ? new Date(data.purchased_at) : null;
       setState({
-        tier: data.tier as LicenseTier,
-        packs: (data.packs ?? []) as ProfessionPack[],
+        tier: data.tier ?? 'free',
+        packs: data.packs ?? [],
         seats: data.seats ?? 1,
         isLoading: false,
         isActivated: true,
-        expiresAt: new Date(data.expires_at),
+        expiresAt: data.expires_at ? new Date(data.expires_at) : null,
         error: null,
+        status: data.status,
+        type: data.type ?? data.license_type,
+        purchasedAt: purchasedAt && !Number.isNaN(purchasedAt.getTime()) ? purchasedAt : null,
+        perpetual: data.perpetual,
+        isOffline: false,
+        lastKnownGoodAt: now,
       });
       // Anonymous funnel: someone successfully activated. Sent only if
       // the user opted into telemetry.
@@ -186,7 +273,8 @@ export function useLicense() {
    */
   const deactivate = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
-    setState({ tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: null });
+    localStorage.removeItem(LAST_GOOD_KEY);
+    setState({ tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: null, purchasedAt: null, isOffline: false, lastKnownGoodAt: null });
     void sendEvent('license_deactivated');
   }, []);
 
@@ -203,27 +291,57 @@ export function useLicense() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),
       });
-      const data = await res.json();
+      const data = (await res.json()) as LicenseServerResponse;
       if (!data.valid) {
-        // Token rejected by server — likely revoked
-        localStorage.removeItem(STORAGE_KEY);
-        setState({ tier: 'free', packs: [], seats: 1, isLoading: false, isActivated: false, expiresAt: null, error: `License invalid: ${data.reason}` });
-        return { valid: false, reason: data.reason };
+        // The server rejected the token (e.g. a refund/revocation, or an
+        // expired subscription). We record the status so the entitlement layer
+        // can DEGRADE GRACEFULLY — AI + updates off, but the user's data, email,
+        // matters, and EXPORT stay fully usable. We do NOT wipe the token here:
+        // wiping it would also drop a grandfathered/perpetual buyer if the
+        // server ever mis-reports, and the data-ownership guarantee means a
+        // lapsed/revoked state must never become a hard lockout. The token is
+        // only cleared when the user explicitly deactivates.
+        setState((s) => ({
+          ...s,
+          isLoading: false,
+          // Keep `isActivated` so the app still treats this as a known (if
+          // lapsed) license rather than snapping back to an unactivated/trial
+          // surface. The entitlement layer turns features off, not data.
+          isActivated: true,
+          status: data.reason ?? 'lapsed',
+          isOffline: false,
+          error: null,
+        }));
+        return { valid: false, reason: data.reason ?? 'invalid' };
       }
-      // Token still valid; refresh the local state to mirror server's view
-      setState({
-        tier: data.tier as LicenseTier,
-        packs: (data.packs ?? []) as ProfessionPack[],
+      // Token still valid; refresh the local state to mirror server's view and
+      // stamp last-known-good so offline grace has a fresh anchor.
+      const now = new Date();
+      writeLastKnownGood(now);
+      const purchasedAt = data.purchased_at ? new Date(data.purchased_at) : null;
+      setState((s) => ({
+        ...s,
+        tier: data.tier ?? s.tier,
+        packs: data.packs ?? [],
         seats: data.seats ?? 1,
         isLoading: false,
         isActivated: true,
         expiresAt: data.expires_at ? new Date(data.expires_at) : null,
         error: null,
-      });
+        status: data.status ?? 'active',
+        type: data.type ?? data.license_type ?? s.type,
+        purchasedAt: purchasedAt && !Number.isNaN(purchasedAt.getTime()) ? purchasedAt : s.purchasedAt,
+        perpetual: data.perpetual ?? s.perpetual,
+        isOffline: false,
+        lastKnownGoodAt: now,
+      }));
       return { valid: true };
     } catch (err) {
-      // Network error during validation — keep current state, don't lock the user out
+      // Network error during validation — the license server is unreachable.
+      // Mark offline so the entitlement layer honors last-known-good within the
+      // grace window. NEVER lock the user out on a network failure.
       console.warn('License re-validation failed (network):', err);
+      setState((s) => ({ ...s, isOffline: true, isLoading: false }));
       return { valid: false, reason: 'network' };
     }
   }, []);

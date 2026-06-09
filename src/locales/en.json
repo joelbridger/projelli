@@ -648,6 +648,7 @@
       "redline-submit": "Suggest changes",
       "redline-working": "Thinking…",
       "redline-need-key": "Add an API key for your AI provider (AI Assistant → Keys) to use AI redline.",
+      "redline-ai-paused": "AI redlining is paused while your subscription is inactive. You can still open, edit, and export this document. Resubscribe to turn AI features back on.",
       "redline-error": "AI redline failed",
       "redline-close": "Close",
       "redline-dismiss": "Dismiss",

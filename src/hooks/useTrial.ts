@@ -24,7 +24,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useLicense } from './useLicense';
+import { useEntitlement } from './useEntitlement';
 import { sendEventOnce } from '@/utils/telemetry';
 
 const FIRST_LAUNCH_KEY = 'keepance_first_launch_at';
@@ -104,17 +104,23 @@ export function useTrial(): TrialState {
 }
 
 /**
- * The combined gate: "should we lock features right now?"
+ * The combined gate: "should AI features be disabled right now?"
  *
- * Returns true when the trial is expired AND the user has not activated
- * a paid license. Use this at the call site of any feature you want to
- * gate (AI send, workflow run, new file write, etc.).
+ * This now delegates to the central entitlement layer (`useEntitlement` ->
+ * `decideEntitlement`). `isLocked` means "the AI features (chat, redline, cited
+ * recall, the associate) are gated off" — NOT "the app is locked" and NEVER
+ * "the user's data is locked". A lapsed subscription, an expired trial, and an
+ * unreachable license server all gate AI off here while data stays fully
+ * accessible (open / edit / EXPORT), per the data-ownership guarantee.
  *
- * Co-locates the trial check + the license check so individual UI
- * components don't have to know both hooks exist.
+ * Call sites that gate AI send / workflow run read `isLocked`. Anything that
+ * opens, reads, edits, or exports the user's files MUST NOT gate on this.
+ *
+ * Co-locates the trial countdown + the entitlement decision so individual UI
+ * components don't have to know multiple hooks exist.
  */
 export function useTrialGate(): {
-  /** True when features should be disabled. */
+  /** True when AI features should be disabled (data is still fully accessible). */
   isLocked: boolean;
   /** Days remaining in the trial (when not yet expired). */
   daysRemaining: number;
@@ -126,12 +132,15 @@ export function useTrialGate(): {
   trialDays: number;
 } {
   const trial = useTrial();
-  const { isActivated } = useLicense();
+  const entitlement = useEntitlement();
   return {
-    isLocked: trial.isExpired && !isActivated,
+    // AI is gated off exactly when the entitlement says so. Data is never gated.
+    isLocked: !entitlement.aiEnabled,
     daysRemaining: trial.daysRemaining,
     isTrialExpired: trial.isExpired,
-    isActivated,
+    // "Has a paying/known license OR is in an active trial" — i.e. not the
+    // brand-new-no-license case. Used by UI to choose trial vs license copy.
+    isActivated: entitlement.state !== 'unlicensed' && entitlement.state !== 'trial-expired',
     trialDays: trial.trialDays,
   };
 }

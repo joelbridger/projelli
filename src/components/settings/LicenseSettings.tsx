@@ -13,6 +13,8 @@ import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useLicense } from '@/hooks/useLicense';
 import { useTrial } from '@/hooks/useTrial';
+import { useEntitlement } from '@/hooks/useEntitlement';
+import { entitlementMessage } from '@/modules/licensing';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,8 +26,17 @@ export function LicenseSettings() {
   const { t } = useTranslation();
   const { tier, packs, seats, isLoading, isActivated, expiresAt, error, activate, deactivate, refresh } = useLicense();
   const trial = useTrial();
+  const entitlement = useEntitlement();
   const [licenseKeyInput, setLicenseKeyInput] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // A calm, non-alarming status line driven by the central entitlement layer.
+  // Surfaced for grandfathered, lapsed/degraded, and offline-grace states so
+  // the user always sees, in plain language, that their files stay theirs.
+  const entMsg = entitlementMessage(entitlement);
+  const showDegradedNotice =
+    entitlement.state === 'subscription-lapsed' || entitlement.state === 'offline-grace';
+  const showGrandfatheredNotice = entitlement.isGrandfathered;
 
   const handleActivate = async () => {
     if (!licenseKeyInput.trim()) return;
@@ -64,6 +75,32 @@ export function LicenseSettings() {
         </p>
       </div>
 
+      {/* Degraded notice: a lapsed subscription or an offline-grace state. AI
+          features are paused, but the data-ownership guarantee holds — the user
+          can still open, edit, and export everything. Calm tone, clear CTA. */}
+      {showDegradedNotice && (
+        <div
+          data-testid="license-degraded-notice"
+          data-entitlement-state={entitlement.state}
+          className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30"
+        >
+          <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">{entMsg.headline}</p>
+          <p className="mt-1 text-sm text-amber-900/90 dark:text-amber-200/90">{entMsg.body}</p>
+          {entitlement.state === 'subscription-lapsed' && (
+            <Button asChild size="sm" className="mt-3">
+              <a
+                href="https://keepance.com/#pricing"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="license-resubscribe-button"
+              >
+                {t('settings.license.get-license-cta')}
+              </a>
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Activated state */}
       {isActivated && (
         <div className="rounded-lg border border-border bg-card p-6 space-y-4">
@@ -98,9 +135,19 @@ export function LicenseSettings() {
                   {t('settings.license.seats', { count: seats })}
                 </p>
               )}
-              {expiresAt && (
+              {/* A grandfathered (perpetual / pre-3.0) license never expires,
+                  so we never show a misleading expiry date for it. */}
+              {expiresAt && !entitlement.isGrandfathered && (
                 <p className="text-sm text-muted-foreground mt-1">
                   {t('settings.license.valid-until', { date: expiresAt.toLocaleDateString() })}
+                </p>
+              )}
+              {showGrandfatheredNotice && (
+                <p
+                  className="text-sm text-emerald-700 dark:text-emerald-400 mt-2 font-medium"
+                  data-testid="license-grandfathered-notice"
+                >
+                  {entMsg.body}
                 </p>
               )}
               <p className="text-sm text-muted-foreground mt-1" data-testid="license-ownership-guarantee">

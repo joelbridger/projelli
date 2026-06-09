@@ -31,3 +31,14 @@ export {
   useTrialGate,
   type TrialState,
 } from './useTrial';
+
+export { useEntitlement } from './useEntitlement';
+
+export {
+  decideEntitlement,
+  isGrandfatheredLicense,
+  entitlementMessage,
+  type Entitlement,
+  type EntitlementState,
+  type LicenseRecord,
+} from '@/modules/licensing';

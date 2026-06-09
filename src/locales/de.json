@@ -1069,6 +1069,7 @@
       "redline-submit": "Änderungen vorschlagen",
       "redline-working": "Denkt nach…",
       "redline-need-key": "Fügen Sie einen API-Schlüssel für Ihren KI-Anbieter hinzu (KI-Assistent → Schlüssel), um die KI-Überarbeitung zu nutzen.",
+      "redline-ai-paused": "Die KI-Überarbeitung ist pausiert, solange Ihr Abonnement inaktiv ist. Sie können dieses Dokument weiterhin öffnen, bearbeiten und exportieren. Abonnieren Sie erneut, um die KI-Funktionen wieder zu aktivieren.",
       "redline-error": "KI-Überarbeitung fehlgeschlagen",
       "redline-close": "Schließen",
       "redline-dismiss": "Verwerfen",

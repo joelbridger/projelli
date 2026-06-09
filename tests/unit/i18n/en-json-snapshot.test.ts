@@ -54,7 +54,7 @@ describe('en.json structure snapshot', () => {
         "layout": 39,
         "marketplace": 14,
         "matter": 28,
-        "media": 72,
+        "media": 73,
         "memory": 2,
         "onboarding": 60,
         "plugins": 4,
@@ -77,7 +77,7 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    expect(flat.length).toBe(540);
+    expect(flat.length).toBe(541);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
