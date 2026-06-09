@@ -1062,7 +1062,21 @@
       "redline-op-insert": "Eingefügter Text",
       "redline-op-delete": "Gelöschter Text",
       "redline-op-replace": "Ersetzter Text",
-      "redline-op-edit": "Bearbeiteter Text"
+      "redline-op-edit": "Bearbeiteter Text",
+      "export": "Exportieren",
+      "export-as": "Exportieren als",
+      "export-word": "Word (.docx)",
+      "export-pdf": "PDF",
+      "export-clean-section": "Datenschutzsicher",
+      "export-clean": "Bereinigte Kopie (versteckte Daten entfernen)",
+      "export-clean-hint": "Entfernt Autor, Firma und Bearbeitungsverlauf. Behält Änderungsverfolgung und Kommentare.",
+      "export-clean-final": "Bereinigte Kopie, alle Änderungen annehmen",
+      "export-clean-final-hint": "Nimmt zusätzlich alle nachverfolgten Änderungen an und entfernt Kommentare. Sendet ein endgültiges Dokument.",
+      "export-saved-word": "Word-Kopie gespeichert.",
+      "export-saved-pdf": "PDF-Kopie gespeichert.",
+      "export-saved-clean": "Bereinigte Kopie ohne versteckte Metadaten gespeichert.",
+      "export-saved-clean-final": "Bereinigte endgültige Kopie gespeichert: Änderungen angenommen, Kommentare und versteckte Metadaten entfernt.",
+      "export-dismiss": "Schließen"
     },
     "docx-viewer": {
       "could-not-open": "{{fileName}} konnte nicht geöffnet werden",

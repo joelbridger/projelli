@@ -37,6 +37,23 @@ vi.mock('@/modules/models/providerFactory', () => ({
   isLocalProviderId: (provider: string) => provider === 'ollama',
 }));
 
+// --- A6 export mocks: the save dialog, the fs reader (for PDF), and the
+// cross-platform saveFile helper. The DocxEditor export handlers dynamically
+// import these; the mocks let us assert the right engine/conversion commands
+// are called with a chosen destination, without a real OS dialog or filesystem.
+const saveDialogMock = vi.fn();
+vi.mock('@tauri-apps/plugin-dialog', () => ({
+  save: (...args: unknown[]) => saveDialogMock(...args),
+}));
+const readFileMock = vi.fn();
+vi.mock('@tauri-apps/plugin-fs', () => ({
+  readFile: (...args: unknown[]) => readFileMock(...args),
+}));
+const saveFileMock = vi.fn();
+vi.mock('@/utils/saveFile', () => ({
+  saveFile: (...args: unknown[]) => saveFileMock(...args),
+}));
+
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { DocxEditor } from '@/components/media/DocxEditor';
 import type { DocumentJson, DocxAiEdit } from '@/types/docx';
@@ -622,5 +639,164 @@ describe('DocxEditor — reviewing toggle', () => {
     expect(body.getByText(/hereby/)).toBeInTheDocument();
     // Deleted text no longer present in the document.
     expect(body.queryByText(/reluctantly/)).toBeNull();
+  });
+});
+
+describe('DocxEditor — Export (A6)', () => {
+  beforeEach(() => {
+    invokeMock.mockReset();
+    saveDialogMock.mockReset();
+    readFileMock.mockReset();
+    saveFileMock.mockReset();
+  });
+
+  // Base invoke behavior: open returns a doc, save is observable, and the export
+  // commands resolve. Individual tests assert which command fired.
+  function wireInvoke() {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(docWithRevisions());
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      if (cmd === 'docx_export_copy') return Promise.resolve(undefined);
+      if (cmd === 'docx_export_clean_copy') return Promise.resolve(undefined);
+      if (cmd === 'convert_docx_to_pdf') return Promise.resolve('/tmp/agreement.pdf');
+      return Promise.resolve(undefined);
+    });
+  }
+
+  async function openExportMenu() {
+    const trigger = await screen.findByTestId('docx-export');
+    fireEvent.pointerDown(
+      trigger,
+      new MouseEvent('pointerdown', { bubbles: true }),
+    );
+    fireEvent.click(trigger);
+    // Both format options + the privilege-safe clean copies are present.
+    await screen.findByTestId('docx-export-word');
+  }
+
+  it('renders the Export control with Word, PDF, and clean-copy options', async () => {
+    wireInvoke();
+    renderEditor();
+    await openExportMenu();
+
+    expect(screen.getByTestId('docx-export-word')).toBeInTheDocument();
+    expect(screen.getByTestId('docx-export-pdf')).toBeInTheDocument();
+    expect(screen.getByTestId('docx-export-clean')).toBeInTheDocument();
+    expect(screen.getByTestId('docx-export-clean-final')).toBeInTheDocument();
+  });
+
+  it('Word export saves a copy to the chosen path via docx_export_copy', async () => {
+    wireInvoke();
+    saveDialogMock.mockResolvedValue('/out/agreement.docx');
+    renderEditor();
+    await openExportMenu();
+
+    fireEvent.click(screen.getByTestId('docx-export-word'));
+
+    // Flushes the current DOM to disk first, then writes the faithful copy.
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith('docx_export_copy', {
+        srcPath: '/ws/agreement.docx',
+        destPath: '/out/agreement.docx',
+      }),
+    );
+    // The PDF/clean paths were NOT taken.
+    expect(invokeMock).not.toHaveBeenCalledWith(
+      'convert_docx_to_pdf',
+      expect.anything(),
+    );
+  });
+
+  it('PDF export converts the saved .docx then saves the PDF bytes', async () => {
+    wireInvoke();
+    readFileMock.mockResolvedValue(new Uint8Array([1, 2, 3]));
+    saveFileMock.mockResolvedValue('/out/agreement.pdf');
+    renderEditor();
+    await openExportMenu();
+
+    fireEvent.click(screen.getByTestId('docx-export-pdf'));
+
+    // Conversion command called with the saved source path.
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith('convert_docx_to_pdf', {
+        inputPath: '/ws/agreement.docx',
+      }),
+    );
+    // The produced PDF was read and offered to the user via saveFile.
+    await waitFor(() => expect(readFileMock).toHaveBeenCalledWith('/tmp/agreement.pdf'));
+    await waitFor(() => expect(saveFileMock).toHaveBeenCalledTimes(1));
+  });
+
+  it('shows a friendly notice when LibreOffice is missing for PDF', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(docWithRevisions());
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      if (cmd === 'convert_docx_to_pdf') {
+        return Promise.reject(
+          new Error('LibreOffice is required to export a PDF, but it was not found'),
+        );
+      }
+      return Promise.resolve(undefined);
+    });
+    renderEditor();
+    await openExportMenu();
+
+    fireEvent.click(screen.getByTestId('docx-export-pdf'));
+
+    const notice = await screen.findByTestId('docx-export-notice');
+    expect(notice).toHaveAttribute('data-kind', 'error');
+    expect(notice).toHaveTextContent(/LibreOffice/);
+    // saveFile never reached (nothing to save).
+    expect(saveFileMock).not.toHaveBeenCalled();
+  });
+
+  it('Clean copy export calls docx_export_clean_copy with acceptAllChanges=false', async () => {
+    wireInvoke();
+    saveDialogMock.mockResolvedValue('/out/agreement-clean.docx');
+    renderEditor();
+    await openExportMenu();
+
+    fireEvent.click(screen.getByTestId('docx-export-clean'));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith('docx_export_clean_copy', {
+        srcPath: '/ws/agreement.docx',
+        destPath: '/out/agreement-clean.docx',
+        acceptAllChanges: false,
+      }),
+    );
+  });
+
+  it('Clean final copy export passes acceptAllChanges=true', async () => {
+    wireInvoke();
+    saveDialogMock.mockResolvedValue('/out/agreement-final.docx');
+    renderEditor();
+    await openExportMenu();
+
+    fireEvent.click(screen.getByTestId('docx-export-clean-final'));
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith('docx_export_clean_copy', {
+        srcPath: '/ws/agreement.docx',
+        destPath: '/out/agreement-final.docx',
+        acceptAllChanges: true,
+      }),
+    );
+  });
+
+  it('cancelling the save dialog does not call the export command', async () => {
+    wireInvoke();
+    saveDialogMock.mockResolvedValue(null); // user cancelled
+    renderEditor();
+    await openExportMenu();
+
+    fireEvent.click(screen.getByTestId('docx-export-word'));
+
+    // Give the handler a tick; docx_export_copy must NOT have been invoked.
+    await waitFor(() => expect(saveDialogMock).toHaveBeenCalled());
+    expect(invokeMock).not.toHaveBeenCalledWith(
+      'docx_export_copy',
+      expect.anything(),
+    );
   });
 });

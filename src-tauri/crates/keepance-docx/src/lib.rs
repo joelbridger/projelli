@@ -36,6 +36,7 @@ pub mod model;
 pub mod package;
 pub mod parse;
 pub mod resolve;
+pub mod scrub;
 pub mod serialize;
 pub mod validate;
 
@@ -52,6 +53,7 @@ pub use model::{
 };
 pub use package::Package;
 pub use resolve::{resolve_all, resolve_revision, ResolveAction};
+pub use scrub::{clean_copy_bytes, scrub_package_metadata, ScrubOptions};
 
 /// A document opened from `.docx` bytes, carrying both the typed [`Document`]
 /// DOM and the *original* [`Package`] it came from.
@@ -93,6 +95,15 @@ impl OpenedDocument {
     pub fn save_bytes(&self) -> Result<Vec<u8>> {
         let pkg = serialize::serialize_into_package(&self.document, &self.package)?;
         pkg.write_to_bytes()
+    }
+
+    /// Serialize a privilege-safe **clean copy** to `.docx` bytes: strip hidden
+    /// identifying metadata (`docProps/core.xml` + `docProps/app.xml`) and,
+    /// optionally, accept all tracked changes and drop comments. Preserves every
+    /// other unmodeled part byte-for-byte. Does not mutate `self`. See
+    /// [`scrub::clean_copy_bytes`].
+    pub fn clean_copy_bytes(&self, options: scrub::ScrubOptions) -> Result<Vec<u8>> {
+        scrub::clean_copy_bytes(self, options)
     }
 }
 

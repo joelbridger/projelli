@@ -422,3 +422,145 @@ pub fn convert_ppt_to_pdf(input_path: String) -> Result<String, String> {
 
     Ok(cached_pdf.display().to_string())
 }
+
+/// Convert a Word document (`.docx`) to PDF using LibreOffice in headless mode,
+/// caching the result in the OS temp dir so re-exporting an unchanged file is
+/// instant.
+///
+/// This is the PDF half of the document editor's Export control. The Word
+/// (`.docx`) half is the in-house engine's own serialize (no LibreOffice
+/// needed); only PDF requires a real Office renderer, which on user machines is
+/// the bundled / expected LibreOffice. Mirrors [`convert_ppt_to_pdf`] exactly —
+/// same cache strategy (`<djb2(canonical_path)>_<mtime>` keyed PDF under
+/// `<tempdir>/keepance-docx-pdf-cache/`), same headless `soffice --convert-to
+/// pdf` invocation — differing only in the accepted input extension and the
+/// cache directory name.
+///
+/// Returns `Err` if:
+/// - LibreOffice isn't installed (`detect_libreoffice()` returns `None`) — the
+///   caller surfaces a friendly "install LibreOffice" message; we never fail
+///   silently.
+/// - the input path doesn't exist, isn't a file, or isn't a `.docx`
+/// - the soffice process exits non-zero (stderr is included in the message)
+/// - the expected output file wasn't produced / couldn't be moved
+#[tauri::command]
+pub fn convert_docx_to_pdf(input_path: String) -> Result<String, String> {
+    let soffice = detect_libreoffice()?.ok_or_else(|| {
+        "LibreOffice is required to export a PDF, but it was not found on this system. \
+         Install LibreOffice (libreoffice.org) and try again. Your Word (.docx) export does \
+         not need it."
+            .to_string()
+    })?;
+
+    let input = Path::new(&input_path);
+    if !input.exists() {
+        return Err(format!("Input file does not exist: {}", input.display()));
+    }
+    if !input.is_file() {
+        return Err(format!("Input path is not a file: {}", input.display()));
+    }
+
+    // Case-insensitive `.docx` check.
+    let ext_ok = input
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("docx"))
+        .unwrap_or(false);
+    if !ext_ok {
+        return Err(format!("Expected a .docx file, got: {}", input.display()));
+    }
+
+    // Canonicalize so the cache key is stable across how the file was opened.
+    let canonical = input
+        .canonicalize()
+        .map_err(|e| format!("Could not canonicalize input path: {}", e))?;
+
+    let mtime_secs: u64 = canonical
+        .metadata()
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    let path_hash = djb2_hash(canonical.to_string_lossy().as_bytes());
+    let cache_key = format!("{:016x}_{}", path_hash, mtime_secs);
+
+    let mut cache_dir: PathBuf = std::env::temp_dir();
+    cache_dir.push("keepance-docx-pdf-cache");
+    if !cache_dir.exists() {
+        std::fs::create_dir_all(&cache_dir)
+            .map_err(|e| format!("Failed to create cache dir: {}", e))?;
+    }
+
+    let mut cached_pdf: PathBuf = cache_dir.clone();
+    cached_pdf.push(format!("{}.pdf", cache_key));
+
+    // Fast path: cached file exists and is at least as new as the source.
+    if cached_pdf.exists() {
+        let cached_mtime = cached_pdf
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        if cached_mtime >= mtime_secs {
+            return Ok(cached_pdf.display().to_string());
+        }
+    }
+
+    // Slow path: run LibreOffice. `--outdir` is the cache dir; the produced file
+    // is named after the input's stem, which we then move into place.
+    let output = std::process::Command::new(&soffice)
+        .arg("--headless")
+        .arg("--convert-to")
+        .arg("pdf")
+        .arg("--outdir")
+        .arg(&cache_dir)
+        .arg(&canonical)
+        .output()
+        .map_err(|e| format!("Failed to spawn LibreOffice: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() {
+            stderr
+        } else if !stdout.is_empty() {
+            stdout
+        } else {
+            format!("exit status {}", output.status)
+        };
+        return Err(format!("LibreOffice conversion failed: {}", detail));
+    }
+
+    let stem = canonical
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| format!("Could not determine file stem of {}", canonical.display()))?;
+    let mut produced: PathBuf = cache_dir.clone();
+    produced.push(format!("{}.pdf", stem));
+
+    if !produced.exists() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(format!(
+            "LibreOffice reported success but no .pdf was produced at {}{}",
+            produced.display(),
+            if stderr.is_empty() {
+                String::new()
+            } else {
+                format!(" (stderr: {})", stderr)
+            }
+        ));
+    }
+
+    // Overwrite a stale cache entry if present (rename fails on Windows otherwise).
+    if cached_pdf.exists() {
+        let _ = std::fs::remove_file(&cached_pdf);
+    }
+    std::fs::rename(&produced, &cached_pdf)
+        .map_err(|e| format!("Failed to move converted PDF into cache: {}", e))?;
+
+    Ok(cached_pdf.display().to_string())
+}

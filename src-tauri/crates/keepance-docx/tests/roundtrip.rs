@@ -1362,3 +1362,229 @@ fn test_r_resolve_preserves_unmodeled_parts_via_opened_document() {
     // The accepted deletion removed "Lead text " from the normal flow.
     assert!(!body_plain_text(&reparsed).contains("Lead text"));
 }
+
+// ===========================================================================
+// CLEAN COPY / SCRUB METADATA (privilege-safe export)
+//
+// A .docx carries hidden authorship/origin metadata in docProps/core.xml and
+// docProps/app.xml that travels with the file. The "clean copy" export strips
+// it before the document leaves the user's machine (inadvertent metadata
+// disclosure is a real legal risk). These tests lock in:
+//   * the metadata-only scrub removes core/app identifying fields,
+//   * the scrubbed result still ROUND-TRIPS to a valid .docx, with the visible
+//     content + tracked changes + comments intact (author attribution kept),
+//   * the stronger "final clean" mode (accept-all + strip-comments) yields a
+//     document with NO revisions and NO comments,
+//   * preserve-by-default still holds for every non-metadata part.
+// ===========================================================================
+
+use keepance_docx::scrub::{
+    app_props_are_clean, clean_copy_bytes, core_props_are_clean, scrub_package_metadata,
+    ScrubOptions, APP_PROPS_PART, CORE_PROPS_PART,
+};
+
+/// A docProps/core.xml carrying identifying authorship metadata (the exact kind
+/// a firm must not leak to opposing counsel).
+const DIRTY_CORE_XML: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:creator>Jane Partner</dc:creator><cp:lastModifiedBy>Associate Smith</cp:lastModifiedBy><cp:revision>17</cp:revision><dcterms:created xsi:type="dcterms:W3CDTF">2026-01-01T09:00:00Z</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">2026-02-02T17:30:00Z</dcterms:modified><dc:title>Settlement Agreement</dc:title></cp:coreProperties>"#;
+
+/// A docProps/app.xml carrying a company + manager (firm-identifying).
+const DIRTY_APP_XML: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Microsoft Office Word</Application><Company>Big Law LLP</Company><Manager>Managing Partner</Manager><TotalTime>420</TotalTime><Template>FirmLetterhead.dotx</Template></Properties>"#;
+
+/// Build a package that has BOTH metadata parts (dirty) AND a real redlined,
+/// commented body (the fixture's), plus an unmodeled part to prove
+/// preserve-by-default survives the scrub. Returns ready-to-open .docx bytes.
+fn build_package_with_metadata_and_revisions() -> Vec<u8> {
+    // Start from the fixture (has an insertion, a deletion, and a comment), then
+    // inject docProps parts + an unmodeled styles.xml + the manifests/overrides.
+    let doc = build_fixture_model();
+    let document_xml = keepance_docx::serialize::serialize_document(&doc).expect("serialize body");
+    let comments_xml = keepance_docx::serialize::serialize_comments(&doc).expect("serialize comments");
+
+    let content_types = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>"#;
+    let root_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>"#;
+    let doc_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/></Relationships>"#;
+    let styles_xml = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="BodyText"><w:name w:val="Body Text"/></w:style></w:styles>"#;
+
+    let mut pkg = Package::new();
+    pkg.insert("[Content_Types].xml", content_types.as_bytes().to_vec());
+    pkg.insert("_rels/.rels", root_rels.as_bytes().to_vec());
+    pkg.insert("word/_rels/document.xml.rels", doc_rels.as_bytes().to_vec());
+    pkg.insert("word/document.xml", document_xml.into_bytes());
+    pkg.insert("word/comments.xml", comments_xml.into_bytes());
+    pkg.insert("word/styles.xml", styles_xml.as_bytes().to_vec());
+    pkg.insert(CORE_PROPS_PART, DIRTY_CORE_XML.as_bytes().to_vec());
+    pkg.insert(APP_PROPS_PART, DIRTY_APP_XML.as_bytes().to_vec());
+    pkg.write_to_bytes().expect("zip package with metadata")
+}
+
+#[test]
+fn test_scrub_package_metadata_removes_core_and_app_fields() {
+    // Sanity: the dirty inputs really do carry the identifying fields...
+    assert!(!core_props_are_clean(DIRTY_CORE_XML), "fixture core not dirty");
+    assert!(!app_props_are_clean(DIRTY_APP_XML), "fixture app not dirty");
+
+    let mut pkg = Package::read_from_bytes(&build_package_with_metadata_and_revisions()).unwrap();
+    scrub_package_metadata(&mut pkg);
+
+    let core = pkg.get_str(CORE_PROPS_PART).expect("core part still present");
+    let app = pkg.get_str(APP_PROPS_PART).expect("app part still present");
+
+    // No author / lastModifiedBy / revision / timestamps survive.
+    assert!(core_props_are_clean(&core), "core.xml still identifying: {core}");
+    assert!(!core.contains("Jane Partner"), "author leaked");
+    assert!(!core.contains("Associate Smith"), "lastModifiedBy leaked");
+    assert!(!core.contains("17"), "revision count leaked");
+    assert!(!core.contains("2026-01-01"), "created timestamp leaked");
+
+    // Company + Manager + template removed from app.xml.
+    assert!(app_props_are_clean(&app), "app.xml still identifying: {app}");
+    assert!(!app.contains("Big Law LLP"), "company leaked");
+    assert!(!app.contains("Managing Partner"), "manager leaked");
+    assert!(!app.contains("FirmLetterhead"), "template leaked");
+}
+
+#[test]
+fn test_scrub_only_rewrites_metadata_parts() {
+    // The scrub must touch ONLY docProps/core.xml + docProps/app.xml; every
+    // other part (document.xml, comments.xml, styles.xml, manifests) stays
+    // byte-for-byte identical.
+    let original = build_package_with_metadata_and_revisions();
+    let orig_pkg = Package::read_from_bytes(&original).unwrap();
+    let mut scrubbed = orig_pkg.clone();
+    scrub_package_metadata(&mut scrubbed);
+
+    for part in [
+        "word/document.xml",
+        "word/comments.xml",
+        "word/styles.xml",
+        "[Content_Types].xml",
+        "_rels/.rels",
+        "word/_rels/document.xml.rels",
+    ] {
+        assert_eq!(
+            orig_pkg.get(part),
+            scrubbed.get(part),
+            "scrub changed a non-metadata part: {part}"
+        );
+    }
+    // The two metadata parts DID change.
+    assert_ne!(orig_pkg.get(CORE_PROPS_PART), scrubbed.get(CORE_PROPS_PART));
+    assert_ne!(orig_pkg.get(APP_PROPS_PART), scrubbed.get(APP_PROPS_PART));
+}
+
+#[test]
+fn test_scrub_is_a_noop_when_no_metadata_parts() {
+    // A package with no docProps must be left exactly as-is (we never ADD a
+    // metadata part the producer chose not to include).
+    let original = build_rich_package_bytes(); // has no docProps
+    let orig_pkg = Package::read_from_bytes(&original).unwrap();
+    let mut pkg = orig_pkg.clone();
+    scrub_package_metadata(&mut pkg);
+    assert!(!pkg.contains(CORE_PROPS_PART), "scrub wrongly added core.xml");
+    assert!(!pkg.contains(APP_PROPS_PART), "scrub wrongly added app.xml");
+    // Nothing else moved either.
+    assert_eq!(orig_pkg.parts, pkg.parts, "scrub mutated a metadata-free package");
+}
+
+#[test]
+fn test_clean_copy_metadata_only_keeps_revisions_and_comments() {
+    // The DEFAULT clean copy strips metadata but keeps the tracked changes
+    // (their author attribution is deliberate) and the comment.
+    let original = build_package_with_metadata_and_revisions();
+    let opened = open_docx_bytes(&original).expect("open");
+
+    let bytes = clean_copy_bytes(&opened, ScrubOptions::metadata_only()).expect("clean copy");
+
+    // Result is a valid, well-formed .docx.
+    let pkg = Package::read_from_bytes(&bytes).expect("clean copy is valid zip");
+    assert!(
+        validate_package(&pkg).ok(),
+        "clean copy invalid: {:?}",
+        validate_package(&pkg).errors
+    );
+
+    // Metadata scrubbed.
+    assert!(core_props_are_clean(&pkg.get_str(CORE_PROPS_PART).unwrap()));
+    assert!(app_props_are_clean(&pkg.get_str(APP_PROPS_PART).unwrap()));
+
+    // Content + revisions + comment all survived (re-parse and assert).
+    let reparsed = parse_docx_bytes(&bytes).expect("reparse clean copy");
+    let revs = reparsed.revisions();
+    assert_eq!(revs.len(), 2, "tracked changes must be preserved in metadata-only mode");
+    assert!(revs.iter().any(|(m, k, _)| *k == RevisionKind::Insertion && m.author == OPPOSING_COUNSEL));
+    assert!(reparsed.comments.contains_key(FIXTURE_COMMENT_ID), "comment dropped in metadata-only mode");
+
+    // Original document is untouched (clean copy is non-destructive).
+    assert_eq!(opened.document.revisions().len(), 2, "source doc mutated by clean copy");
+}
+
+#[test]
+fn test_clean_copy_final_mode_has_no_revisions_or_comments() {
+    // The STRONGER mode accepts every tracked change and removes every comment:
+    // the recipient gets a flat final document with no review history.
+    let original = build_package_with_metadata_and_revisions();
+    let opened = open_docx_bytes(&original).expect("open");
+
+    let bytes = clean_copy_bytes(&opened, ScrubOptions::final_clean()).expect("final clean copy");
+
+    let pkg = Package::read_from_bytes(&bytes).expect("final clean copy is valid zip");
+    assert!(
+        validate_package(&pkg).ok(),
+        "final clean copy invalid: {:?}",
+        validate_package(&pkg).errors
+    );
+
+    // Metadata scrubbed.
+    assert!(core_props_are_clean(&pkg.get_str(CORE_PROPS_PART).unwrap()));
+    assert!(app_props_are_clean(&pkg.get_str(APP_PROPS_PART).unwrap()));
+
+    let reparsed = parse_docx_bytes(&bytes).expect("reparse final clean copy");
+    // No revisions left.
+    assert!(reparsed.revisions().is_empty(), "tracked changes survived final-clean mode");
+    // No comments left, and no comment anchors in the body.
+    assert!(reparsed.comments.is_empty(), "comments survived final-clean mode");
+    let anchors = count_inline(&reparsed, |i| {
+        matches!(
+            i,
+            Inline::CommentRangeStart { .. }
+                | Inline::CommentRangeEnd { .. }
+                | Inline::CommentReference { .. }
+        )
+    });
+    assert_eq!(anchors, 0, "comment anchors left dangling after final-clean strip");
+
+    // The visible text of the ACCEPTED changes is present: the insertion
+    // "promptly " is kept; the deletion "minor " is gone.
+    let plain = body_plain_text(&reparsed);
+    assert!(plain.contains("promptly"), "accepted insertion text missing");
+    assert!(!plain.contains("minor"), "accepted deletion text not removed");
+
+    // Idempotent: serializing the clean copy again is byte-stable.
+    let again = roundtrip_bytes(&bytes).expect("roundtrip clean copy");
+    let again2 = roundtrip_bytes(&again).expect("roundtrip 2");
+    assert_eq!(again, again2, "clean copy round-trip not idempotent");
+}
+
+#[test]
+fn test_clean_copy_preserves_unmodeled_parts() {
+    // Preserve-by-default still holds through a clean copy: the unmodeled
+    // styles.xml passes through byte-for-byte (only docProps changed).
+    let original = build_package_with_metadata_and_revisions();
+    let opened = open_docx_bytes(&original).expect("open");
+    let orig_pkg = Package::read_from_bytes(&original).unwrap();
+
+    let bytes = clean_copy_bytes(&opened, ScrubOptions::metadata_only()).expect("clean copy");
+    let pkg = Package::read_from_bytes(&bytes).unwrap();
+
+    assert_eq!(
+        orig_pkg.get("word/styles.xml"),
+        pkg.get("word/styles.xml"),
+        "unmodeled styles.xml must survive a clean copy byte-for-byte"
+    );
+}

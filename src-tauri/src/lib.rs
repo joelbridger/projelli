@@ -35,6 +35,8 @@ pub fn run() {
             commands::fs::detect_libreoffice,
             commands::fs::convert_doc_to_docx,
             commands::fs::convert_ppt_to_pdf,
+            // A6: PDF export from the document editor (saved .docx -> PDF via LibreOffice).
+            commands::fs::convert_docx_to_pdf,
             // Phase 2 Rust foundation for v1.5 (M1-M6 enable, Q7/Q12 real).
             commands::http::fetch_url_title,
             commands::http::ollama_list_models,
@@ -85,6 +87,10 @@ pub fn run() {
             // Editor (A3) accept/reject tracked changes — one revision or all.
             commands::docx::docx_resolve_revision,
             commands::docx::docx_resolve_all,
+            // A6: discoverable Export — faithful Word (.docx) copy + privilege-safe
+            // "clean copy" (strip hidden metadata, optionally accept-all + drop comments).
+            commands::docx::docx_export_copy,
+            commands::docx::docx_export_clean_copy,
             // Phase 1 email — Microsoft 365 import.
             commands::mail::mail_set_workspace,
             commands::mail::mail_begin_login,

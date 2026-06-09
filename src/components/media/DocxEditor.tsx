@@ -33,11 +33,14 @@ import {
   AlertTriangle,
   Check,
   CheckCheck,
+  Download,
+  FileText,
   FileType,
   Loader2,
   MessageSquare,
   PanelRightClose,
   PanelRightOpen,
+  ShieldCheck,
   Sparkles,
   Wand2,
   X,
@@ -46,6 +49,14 @@ import {
 
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Tooltip,
   TooltipContent,
@@ -56,6 +67,9 @@ import { AutoSaveIndicator } from '@/components/editor/AutoSaveIndicator';
 import { DocxViewer } from '@/components/media/DocxViewer';
 import {
   docxAuthorRevisions,
+  docxConvertToPdf,
+  docxExportCleanCopy,
+  docxExportCopy,
   docxOpen,
   docxResolveAll,
   docxResolveRevision,
@@ -195,6 +209,14 @@ export function DocxEditor({
     null,
   );
 
+  // ---- A6: Export state ---------------------------------------------------
+  // A transient status line under the toolbar after an export (success or a
+  // friendly error, e.g. LibreOffice missing for PDF). `busy` disables the menu.
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportNotice, setExportNotice] = useState<
+    { kind: 'success' | 'error'; message: string } | null
+  >(null);
+
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstEditFiredRef = useRef(false);
   const onDocumentChangeRef = useRef(onDocumentChange);
@@ -292,6 +314,116 @@ export function DocxEditor({
   );
 
   const currentDoc = load.status === 'ready' ? load.doc : null;
+
+  // ---- A6: Export --------------------------------------------------------
+  // Every export reads the on-disk `.docx` at `filePath`, so we first flush any
+  // pending debounced save (and write the current DOM synchronously) to be sure
+  // the file reflects what the user sees. Returns false if there's nothing to
+  // export (no path / no doc).
+  const flushSaveBeforeExport = useCallback(async (): Promise<boolean> => {
+    if (!filePath || !currentDoc) return false;
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    // Persist synchronously so the on-disk bytes are current for the engine.
+    await persist(currentDoc);
+    return true;
+  }, [filePath, currentDoc, persist]);
+
+  /**
+   * Show the OS save dialog for a chosen-location export and return the picked
+   * path (or undefined if cancelled). Lives here (not in saveFile.ts) because
+   * the Rust export commands write the file themselves — we only need the path.
+   */
+  const pickSavePath = useCallback(
+    async (suggestedName: string, ext: string): Promise<string | undefined> => {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const picked = await save({
+        defaultPath: suggestedName,
+        filters: [{ name: ext.toUpperCase(), extensions: [ext] }],
+      });
+      return picked ?? undefined;
+    },
+    [],
+  );
+
+  // The export file name stem (drop a trailing .docx from the tab name).
+  const exportStem = useMemo(
+    () => fileName.replace(/\.docx$/i, ''),
+    [fileName],
+  );
+
+  const runExport = useCallback(
+    async (work: (srcPath: string) => Promise<string | null>) => {
+      if (exportBusy) return;
+      setExportBusy(true);
+      setExportNotice(null);
+      try {
+        const ok = await flushSaveBeforeExport();
+        if (!ok || !filePath) {
+          setExportBusy(false);
+          return;
+        }
+        const successMsg = await work(filePath);
+        // `null` => the user cancelled the save dialog (no notice).
+        if (successMsg !== null) {
+          setExportNotice({ kind: 'success', message: successMsg });
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        setExportNotice({ kind: 'error', message });
+        console.error('[DocxEditor] export failed:', err);
+      } finally {
+        setExportBusy(false);
+      }
+    },
+    [exportBusy, flushSaveBeforeExport, filePath],
+  );
+
+  const handleExportWord = useCallback(() => {
+    void runExport(async (srcPath) => {
+      const dest = await pickSavePath(`${exportStem}.docx`, 'docx');
+      if (!dest) return null;
+      await docxExportCopy(srcPath, dest);
+      return t('media.docx-editor.export-saved-word');
+    });
+  }, [runExport, pickSavePath, exportStem, t]);
+
+  const handleExportPdf = useCallback(() => {
+    void runExport(async (srcPath) => {
+      // Convert the saved .docx to PDF (LibreOffice) -> temp path, then let the
+      // user choose where to save the PDF (read bytes, write via saveFile).
+      const pdfPath = await docxConvertToPdf(srcPath);
+      const { readFile } = await import('@tauri-apps/plugin-fs');
+      const bytes = await readFile(pdfPath);
+      const { saveFile } = await import('@/utils/saveFile');
+      const saved = await saveFile(bytes, {
+        suggestedName: `${exportStem}.pdf`,
+        types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }],
+      });
+      // In Tauri, `saved` is the path (undefined => cancelled).
+      if (saved === undefined) return null;
+      return t('media.docx-editor.export-saved-pdf');
+    });
+  }, [runExport, exportStem, t]);
+
+  const handleExportCleanCopy = useCallback(
+    (acceptAllChanges: boolean) => {
+      void runExport(async (srcPath) => {
+        const dest = await pickSavePath(
+          `${exportStem}${acceptAllChanges ? '-final' : '-clean'}.docx`,
+          'docx',
+        );
+        if (!dest) return null;
+        await docxExportCleanCopy(srcPath, dest, acceptAllChanges);
+        return acceptAllChanges
+          ? t('media.docx-editor.export-saved-clean-final')
+          : t('media.docx-editor.export-saved-clean');
+      });
+    },
+    [runExport, pickSavePath, exportStem, t],
+  );
 
   // ---- Accept / reject ---------------------------------------------------
   const handleResolveOne = useCallback(
@@ -602,6 +734,75 @@ export function DocxEditor({
         </span>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* A6: discoverable Export — a clearly-labeled menu (not a bare icon)
+              offering Word, PDF, and a privilege-safe clean copy. */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                data-testid="docx-export"
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 border-[#0A2540]/30 text-[#0A2540] hover:bg-[#0A2540]/5"
+                disabled={exportBusy || !canEdit}
+                title={t('media.docx-editor.export')}
+              >
+                {exportBusy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Download className="h-3.5 w-3.5" />
+                )}
+                {t('media.docx-editor.export')}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel>
+                {t('media.docx-editor.export-as')}
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                data-testid="docx-export-word"
+                onSelect={handleExportWord}
+              >
+                <FileType className="mr-2 h-4 w-4 text-blue-600" />
+                {t('media.docx-editor.export-word')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="docx-export-pdf"
+                onSelect={handleExportPdf}
+              >
+                <FileText className="mr-2 h-4 w-4 text-red-600" />
+                {t('media.docx-editor.export-pdf')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[#0A2540]">
+                {t('media.docx-editor.export-clean-section')}
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                data-testid="docx-export-clean"
+                onSelect={() => { handleExportCleanCopy(false); }}
+              >
+                <ShieldCheck className="mr-2 h-4 w-4 text-emerald-600" />
+                <span className="flex flex-col">
+                  <span>{t('media.docx-editor.export-clean')}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {t('media.docx-editor.export-clean-hint')}
+                  </span>
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="docx-export-clean-final"
+                onSelect={() => { handleExportCleanCopy(true); }}
+              >
+                <ShieldCheck className="mr-2 h-4 w-4 text-emerald-700" />
+                <span className="flex flex-col">
+                  <span>{t('media.docx-editor.export-clean-final')}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {t('media.docx-editor.export-clean-final-hint')}
+                  </span>
+                </span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {/* A4: AI redline entry point. */}
           <Button
             data-testid="docx-revise-with-ai"
@@ -684,6 +885,36 @@ export function DocxEditor({
           summary={redlineSummary}
           onDismiss={() => { setRedlineSummary(null); }}
         />
+      )}
+
+      {/* A6: export result (success or a friendly error, e.g. LibreOffice
+          missing for PDF). Light theme; dismissible. */}
+      {exportNotice && (
+        <div
+          data-testid="docx-export-notice"
+          data-kind={exportNotice.kind}
+          className={cn(
+            'flex items-start gap-2 border-b px-3 py-2 text-xs',
+            exportNotice.kind === 'success'
+              ? 'bg-emerald-50/70 text-emerald-900'
+              : 'bg-amber-50 text-amber-900',
+          )}
+        >
+          {exportNotice.kind === 'success' ? (
+            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+          ) : (
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+          )}
+          <p className="mx-auto max-w-[816px] flex-1">{exportNotice.message}</p>
+          <button
+            type="button"
+            onClick={() => { setExportNotice(null); }}
+            className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+            aria-label={t('media.docx-editor.export-dismiss')}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       )}
 
       {/* Body: document surface + optional review pane */}

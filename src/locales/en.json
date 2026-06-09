@@ -653,7 +653,21 @@
       "redline-op-insert": "Inserted text",
       "redline-op-delete": "Deleted text",
       "redline-op-replace": "Replaced text",
-      "redline-op-edit": "Edited text"
+      "redline-op-edit": "Edited text",
+      "export": "Export",
+      "export-as": "Export as",
+      "export-word": "Word (.docx)",
+      "export-pdf": "PDF",
+      "export-clean-section": "Privilege-safe",
+      "export-clean": "Clean copy (remove hidden data)",
+      "export-clean-hint": "Strips author, company, and edit history. Keeps tracked changes and comments.",
+      "export-clean-final": "Clean copy, accept all changes",
+      "export-clean-final-hint": "Also accepts every tracked change and removes comments. Sends a flat final document.",
+      "export-saved-word": "Saved a Word copy.",
+      "export-saved-pdf": "Saved a PDF copy.",
+      "export-saved-clean": "Saved a clean copy with hidden metadata removed.",
+      "export-saved-clean-final": "Saved a clean final copy: changes accepted, comments and hidden metadata removed.",
+      "export-dismiss": "Dismiss"
     },
     "docx-viewer": {
       "could-not-open": "Couldn't open {{fileName}}",

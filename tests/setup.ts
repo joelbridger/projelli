@@ -82,6 +82,21 @@ if (typeof window !== 'undefined' && !Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = function () { /* noop */ };
 }
 
+// jsdom doesn't implement Pointer Capture. Radix UI primitives (DropdownMenu,
+// Select, ...) call these during their open/close pointer handling, so without
+// them the menu never opens under fireEvent in tests. Polyfill as no-ops.
+if (typeof window !== 'undefined') {
+  if (!Element.prototype.hasPointerCapture) {
+    Element.prototype.hasPointerCapture = function () { return false; };
+  }
+  if (!Element.prototype.setPointerCapture) {
+    Element.prototype.setPointerCapture = function () { /* noop */ };
+  }
+  if (!Element.prototype.releasePointerCapture) {
+    Element.prototype.releasePointerCapture = function () { /* noop */ };
+  }
+}
+
 // jsdom's Blob doesn't implement .arrayBuffer(). Production environments
 // (modern browsers + Tauri's WebView) have it natively. The `docx`
 // library's Packer.toBlob output needs arrayBuffer() to round-trip

@@ -144,3 +144,56 @@ export async function docxAuthorRevisions(
     date: opts.date ?? null,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Export (A6) — the editor's discoverable Export control.
+//
+// All three export paths read the on-disk `.docx` at `srcPath` (the editor keeps
+// it current via autosave), so the exported copy always matches what the user
+// sees. Word + clean copy go through the in-house engine (no LibreOffice); PDF
+// uses LibreOffice via `convert_docx_to_pdf`.
+// ---------------------------------------------------------------------------
+
+/**
+ * Export a faithful Word (`.docx`) copy of `srcPath` to `destPath`, preserving
+ * every unmodeled part of the source package (styles, theme, numbering, media).
+ * This is "save a copy as .docx" — NOT a lossy re-synthesis.
+ */
+export async function docxExportCopy(
+  srcPath: string,
+  destPath: string,
+): Promise<void> {
+  if (!isTauri()) throw new Error(BROWSER_ERROR);
+  await invoke('docx_export_copy', { srcPath, destPath });
+}
+
+/**
+ * Export a privilege-safe **clean copy** of `srcPath` to `destPath`: strip hidden
+ * identifying metadata (`docProps/core.xml` author/lastModifiedBy/company/...,
+ * `docProps/app.xml` company/manager). When `acceptAllChanges` is true, also
+ * accept every tracked change and remove all comments (a flat final document
+ * with no review history). Preserves every other unmodeled part byte-for-byte.
+ */
+export async function docxExportCleanCopy(
+  srcPath: string,
+  destPath: string,
+  acceptAllChanges: boolean,
+): Promise<void> {
+  if (!isTauri()) throw new Error(BROWSER_ERROR);
+  await invoke('docx_export_clean_copy', {
+    srcPath,
+    destPath,
+    acceptAllChanges,
+  });
+}
+
+/**
+ * Convert the saved `.docx` at `srcPath` to PDF via LibreOffice and return the
+ * path of the produced PDF (cached in the OS temp dir). Throws a friendly
+ * "install LibreOffice" message if `soffice` is not found — PDF is the only
+ * export that needs it; Word + clean copy do not.
+ */
+export async function docxConvertToPdf(srcPath: string): Promise<string> {
+  if (!isTauri()) throw new Error(BROWSER_ERROR);
+  return invoke<string>('convert_docx_to_pdf', { inputPath: srcPath });
+}

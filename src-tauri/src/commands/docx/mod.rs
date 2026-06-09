@@ -434,6 +434,89 @@ pub async fn docx_resolve_all(document: Value, action: String) -> Result<Documen
         .map_err(|e| format!("task join error: {e}"))?
 }
 
+// ---------------------------------------------------------------------------
+// Export (the discoverable Export control in the editor — A6).
+//
+// All three export paths operate on the on-disk `.docx` at `src_path` (which the
+// editor keeps current via its debounced autosave), so the exported copy always
+// reflects what the user sees:
+//
+//   * Word (.docx)   -> `docx_export_copy`        — a faithful copy that
+//                       preserves every unmodeled part of the source package
+//                       (styles, theme, numbering, media). This is NOT a
+//                       lossy re-synthesis: we open the source and re-save it
+//                       to `dest_path` through the same preserve-by-default path
+//                       `docx_save` uses, so the chosen-location copy is
+//                       byte-faithful for everything the engine doesn't model.
+//   * Clean copy     -> `docx_export_clean_copy`  — same, but scrubs hidden
+//                       identifying metadata (docProps/core.xml + app.xml) and,
+//                       optionally, accepts all tracked changes + removes
+//                       comments (privilege-safe export).
+//   * PDF            -> handled by `commands::fs::convert_docx_to_pdf` (the
+//                       editor saves first, then converts the saved source).
+// ---------------------------------------------------------------------------
+
+/// Read the `.docx` at `src`, re-serialize it preserving every unmodeled part,
+/// and return the bytes to write to a new location. This is the faithful "save a
+/// copy as .docx" path — distinct from synthesizing a fresh package, which would
+/// drop the source's styles/theme/numbering.
+pub fn export_copy_bytes(src: &Path) -> Result<Vec<u8>, String> {
+    let bytes = std::fs::read(src).map_err(|e| format!("read {}: {e}", src.display()))?;
+    let opened = OpenedDocument::open_bytes(&bytes).map_err(|e| e.to_string())?;
+    opened.save_bytes().map_err(|e| e.to_string())
+}
+
+/// Read the `.docx` at `src` and return privilege-safe **clean copy** bytes:
+/// hidden identifying metadata stripped, and (when `accept_all_changes`) all
+/// tracked changes accepted + comments removed. Preserves every other unmodeled
+/// part byte-for-byte.
+pub fn export_clean_copy_bytes(src: &Path, accept_all_changes: bool) -> Result<Vec<u8>, String> {
+    let bytes = std::fs::read(src).map_err(|e| format!("read {}: {e}", src.display()))?;
+    let opened = OpenedDocument::open_bytes(&bytes).map_err(|e| e.to_string())?;
+    let options = keepance_docx::ScrubOptions {
+        strip_document_metadata: true,
+        accept_all_changes,
+    };
+    opened
+        .clean_copy_bytes(options)
+        .map_err(|e| e.to_string())
+}
+
+/// Export a faithful Word (`.docx`) copy of the document at `src_path` to
+/// `dest_path`, preserving every unmodeled part of the source package. Used by
+/// the editor's Export → Word control to "save a copy as .docx" to a chosen
+/// location.
+#[tauri::command]
+pub async fn docx_export_copy(src_path: String, dest_path: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let bytes = export_copy_bytes(Path::new(&src_path))?;
+        std::fs::write(&dest_path, bytes)
+            .map_err(|e| format!("write {dest_path}: {e}"))
+    })
+    .await
+    .map_err(|e| format!("task join error: {e}"))?
+}
+
+/// Export a privilege-safe **clean copy** of the document at `src_path` to
+/// `dest_path`: strip hidden identifying metadata (`docProps/core.xml` +
+/// `docProps/app.xml`) and, when `accept_all_changes` is true, also accept every
+/// tracked change and remove all comments (a flat final document with no review
+/// history). Preserves every other unmodeled part byte-for-byte.
+#[tauri::command]
+pub async fn docx_export_clean_copy(
+    src_path: String,
+    dest_path: String,
+    accept_all_changes: bool,
+) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let bytes = export_clean_copy_bytes(Path::new(&src_path), accept_all_changes)?;
+        std::fs::write(&dest_path, bytes)
+            .map_err(|e| format!("write {dest_path}: {e}"))
+    })
+    .await
+    .map_err(|e| format!("task join error: {e}"))?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -767,5 +850,37 @@ mod tests {
         let json = document_to_value(&build_fixture_model()).unwrap();
         let res = super::docx_resolve_all(json, "frobnicate".to_string()).await;
         assert!(res.is_err(), "bad action must error");
+    }
+
+    /// A6 export cores: a faithful Word copy preserves the document (revisions +
+    /// comment survive), while the clean-copy-final core yields a flat document
+    /// with no revisions or comments. Exercises the exact code the
+    /// `docx_export_copy` / `docx_export_clean_copy` commands call.
+    #[test]
+    fn export_copy_and_clean_copy_cores() {
+        use keepance_docx::parse_docx_bytes;
+
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("matter.docx");
+        let bytes = keepance_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
+        std::fs::write(&src, &bytes).unwrap();
+
+        // Faithful Word copy: revisions + comment preserved.
+        let copy = export_copy_bytes(&src).expect("export copy");
+        let copy_doc = parse_docx_bytes(&copy).expect("parse copy");
+        assert_eq!(copy_doc.revisions().len(), 2, "Word copy must keep tracked changes");
+        assert!(copy_doc.comments.contains_key("1"), "Word copy dropped the comment");
+
+        // Clean copy (metadata-only): still keeps revisions + comment.
+        let clean = export_clean_copy_bytes(&src, false).expect("clean copy");
+        let clean_doc = parse_docx_bytes(&clean).expect("parse clean");
+        assert_eq!(clean_doc.revisions().len(), 2, "metadata-only clean copy must keep changes");
+        assert!(clean_doc.comments.contains_key("1"));
+
+        // Clean copy final (accept-all + strip comments): flat document.
+        let final_clean = export_clean_copy_bytes(&src, true).expect("final clean copy");
+        let final_doc = parse_docx_bytes(&final_clean).expect("parse final clean");
+        assert!(final_doc.revisions().is_empty(), "final clean copy must accept all changes");
+        assert!(final_doc.comments.is_empty(), "final clean copy must remove comments");
     }
 }
