@@ -32,8 +32,8 @@ import { UpdateManager, manualUpdateCheck } from '@/components/updater/UpdateMan
 import { openExternal } from '@/utils/openExternal';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { TrialBanner } from '@/components/trial';
-import { WelcomeOnboardingDialog } from '@/components/onboarding';
-import { useOnboardingCompleted } from '@/hooks/useOnboarding';
+import { FirstRunWizard, hasCompletedOnboarding } from '@/components/onboarding';
+import { createKeychainService } from '@/modules/models/KeychainService';
 import { sendEvent } from '@/utils/telemetry';
 import { FeatureTour } from '@/components/onboarding/FeatureTour';
 import { useFeatureTour } from '@/hooks/useFeatureTour';
@@ -151,11 +151,14 @@ function App() {
   const [tourOpen, setTourOpen] = useState(false);
   const featureTour = useFeatureTour();
 
-  // First-launch onboarding: ask once whether the user wants email
-  // updates and/or anonymous telemetry. Both default-OFF; "Skip" is
-  // first-class. Once dismissed (any way) it never re-prompts.
-  const onboarding = useOnboardingCompleted();
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  // First-run onboarding: the rebuilt FirstRunWizard is the live first-run
+  // surface (welcome -> profession -> workspace -> data map -> AI setup ->
+  // demo -> done). It supersedes the old WelcomeOnboardingDialog, which had
+  // only the email/telemetry consent step — the wizard now owns the welcome
+  // moment. Triggered when there is no completed-onboarding flag AND no recent
+  // workspace (matching the wizard's documented first-run condition), and
+  // suppressed in test/demo modes. `?forceOnboarding=true` forces it for QA.
+  const [showFirstRun, setShowFirstRun] = useState(false);
 
   // Anonymous telemetry: emit one app_launch event per session, gated
   // by user consent. Other lifecycle events (trial_start, trial_end,
@@ -163,16 +166,22 @@ function App() {
   // hooks so they fire from the source of the state change.
   useEffect(() => {
     void sendEvent('app_launch');
-    // Mount the onboarding dialog after a tiny delay so the workspace
-    // gets to render first — the consent question shouldn't be the
-    // user's literal first visual impression of the app.
+    // Mount the wizard after a tiny delay so the workspace selector gets to
+    // render first — the wizard then layers over it as a full-screen overlay,
+    // honoring the existing path-input vs file-picker flow underneath.
     const forceOnboarding =
       typeof window !== 'undefined' &&
       window.location.search.includes('forceOnboarding=true');
+    const noRecentWorkspaces =
+      useWorkspaceStore.getState().recentWorkspaces.length === 0;
     const shouldShow =
-      (!onboarding.completed && !IS_TEST_MODE && !IS_DEMO_MODE) || forceOnboarding;
+      (!hasCompletedOnboarding() &&
+        noRecentWorkspaces &&
+        !IS_TEST_MODE &&
+        !IS_DEMO_MODE) ||
+      forceOnboarding;
     if (shouldShow) {
-      const id = setTimeout(() => setShowOnboarding(true), 1200);
+      const id = setTimeout(() => setShowFirstRun(true), 1200);
       return () => clearTimeout(id);
     }
     return undefined;
@@ -364,6 +373,25 @@ function App() {
       clearProvider(provider);
     },
     [rawDeleteApiKey, clearProvider]
+  );
+
+  // Shared KeychainService for the first-run wizard's "connect an AI" step.
+  // This is the same secure-storage path ApiKeySettings/ApiKeyWizard use
+  // (KeychainService.setKey: OS keychain in Tauri, obfuscated localStorage in
+  // the browser). Created once for the app lifetime.
+  const keychainRef = useRef(createKeychainService());
+
+  // Persist a key entered during onboarding through the canonical keychain
+  // path, then mirror it into the live API-key state + model list so the AI
+  // pane sees the connected provider immediately (no parallel state — we reuse
+  // both the keychain and the existing handleSaveApiKey wiring). A bad-format
+  // key throws here so the wizard's AI step surfaces the error and stays put.
+  const handleSaveOnboardingApiKey = useCallback(
+    async (provider: 'anthropic' | 'openai' | 'google', key: string) => {
+      await keychainRef.current.setKey(provider, key);
+      handleSaveApiKey(provider, key);
+    },
+    [handleSaveApiKey]
   );
 
   // Trash management
@@ -2958,15 +2986,47 @@ This file contains rules and guidelines for AI assistants in this workspace.
   }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, setFileTree, handleFileOpen, handleRestoreFromTrash, openAIAssistantTab]);
 
   // Show workspace selector if no workspace is open (unless in test mode).
+  // Keepance 3.0: the rebuilt first-run wizard is the live first-run surface.
+  // It renders as a full-screen overlay (fixed inset-0 z-50) layered OVER
+  // whatever is behind it — most often the WorkspaceSelector, since first run
+  // happens before a workspace is chosen — so the existing path-input vs
+  // file-picker flow is preserved underneath. We build it once here and render
+  // it in both the WorkspaceSelector branch and the main app branch so it shows
+  // regardless of which one is active (e.g. ?forceOnboarding with a workspace
+  // already open). It supersedes the old WelcomeOnboardingDialog, which only
+  // had the email/telemetry consent step; the wizard owns the welcome moment
+  // now. `onComplete` (the wizard's markComplete) sets
+  // `keepance_onboarding_complete`; on skip we set the same flag so first-run
+  // never re-prompts. The Feature Tour then auto-shows as it does today.
+  const firstRunOverlay = showFirstRun ? (
+    <FirstRunWizard
+      {...(workspaceServiceRef.current
+        ? { workspace: workspaceServiceRef.current }
+        : {})}
+      onSaveApiKey={handleSaveOnboardingApiKey}
+      onComplete={() => { setShowFirstRun(false); }}
+      onSkip={() => {
+        // The wizard's top-right "Skip for now" doesn't set the completed flag
+        // itself. Mark it here so a skipped first run doesn't re-prompt on every
+        // launch (mirrors the prior dialog's skip-is-final UX).
+        localStorage.setItem('keepance_onboarding_complete', 'true');
+        setShowFirstRun(false);
+      }}
+    />
+  ) : null;
+
   // The WorkspaceSelector is now a full-viewport branded page — no wrapper needed.
   if (!IS_TEST_MODE && (showWorkspaceSelector || !rootPath) && !(IS_DEMO_MODE && !demoOpenFailed)) {
     const canDismiss = Boolean(rootPath);
     return (
-      <WorkspaceSelector
-        open={true}
-        onWorkspaceSelected={handleWorkspaceSelected}
-        onDismiss={canDismiss ? () => setShowWorkspaceSelector(false) : undefined}
-      />
+      <>
+        <WorkspaceSelector
+          open={true}
+          onWorkspaceSelected={handleWorkspaceSelected}
+          onDismiss={canDismiss ? () => setShowWorkspaceSelector(false) : undefined}
+        />
+        {firstRunOverlay}
+      </>
     );
   }
 
@@ -3296,13 +3356,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
         }}
       />
 
-      {/* v1.7.2: First-launch onboarding — opt-in for email updates +
-          anonymous telemetry. Both default-OFF; "Skip" closes without
-          enabling either. Once dismissed any way, never re-prompts. */}
-      <WelcomeOnboardingDialog
-        open={showOnboarding}
-        onOpenChange={setShowOnboarding}
-      />
+      {/* Keepance 3.0: rebuilt first-run wizard — the live first-run surface.
+          Built above as `firstRunOverlay` so it also renders over the
+          WorkspaceSelector branch (where first run usually happens). */}
+      {firstRunOverlay}
 
       {/* v1.6: 5-step Feature Tour (auto-shows on first launch) */}
       <FeatureTour
