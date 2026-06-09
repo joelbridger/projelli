@@ -1,0 +1,34 @@
+[package]
+name = "firm-sync"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "DE-RISKING SPIKE: prove conflict-free collaborative editing of a shared matter document (Keepance 3.0 WS-F / P0 gate 3)."
+
+# STANDALONE spike crate, deliberately NOT wired into the Tauri build so
+# `cargo test` here is fast and isolated. The proven approach is intended to
+# move into the real WS-F collaboration engine (a `yrs`-backed CRDT layer
+# under the OOXML-DOM document model from Spike 1).
+#
+# "In-house" constraint (board decision): no SaaS in the confidential data
+# path. `yrs` is the Rust port of Yjs — a proven OSS CRDT library we compile
+# into our own binary. It is a *library we control*, not a hosted service.
+# The sync transport (who relays update bytes between replicas) is a separate,
+# dumb pipe that never needs to understand or decrypt the payload; the spike
+# models that relay as a plain in-memory byte exchange to prove that
+# convergence needs NO central coordinator.
+
+[dependencies]
+# Conflict-free replicated data types. `yrs` gives us:
+#   - a Yjs-compatible document model (Map / Array / Text / XmlFragment) that
+#     maps directly onto our paragraphs -> inlines OOXML-DOM tree,
+#   - `transact_mut_with(Origin)` so every edit carries an author (the hook for
+#     track-change attribution surviving concurrent merges),
+#   - `encode_state_as_update_v1` / `encode_diff_v1(state_vector)` /
+#     `apply_update` — the offline-then-merge sync primitive, no server needed.
+yrs = "0.27"
+# Typed timestamps for tracked-change `date` attribution (same role as in the
+# docx spike's revisions). default-features off + clock to stay lean.
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# Stable ids for revisions/authors in the tracked-change demo.
+uuid = { version = "1", features = ["v4"] }
