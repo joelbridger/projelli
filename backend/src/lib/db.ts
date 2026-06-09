@@ -1,0 +1,686 @@
+/**
+ * SQLite storage layer (Bun's built-in `bun:sqlite`, zero external deps).
+ *
+ * Tables map 1:1 to the DECISION.md §3 data model: Org, User, Seat, LicenseKey,
+ * Revocation, and an append-only AuditEvent log. Production would run this on
+ * Postgres (see README) — the SQL here is intentionally vanilla so the port is
+ * mechanical, and all access goes through the typed helpers below rather than
+ * raw queries scattered across route handlers.
+ *
+ * Concurrency: WAL mode + a busy_timeout so concurrent activations/heartbeats
+ * don't trip SQLITE_BUSY. Seat-limit enforcement is done inside an IMMEDIATE
+ * transaction so two simultaneous activations can't both slip past the limit.
+ */
+
+import { Database } from "bun:sqlite";
+import { randomUUID } from "node:crypto";
+import { config } from "./config.ts";
+import type {
+  Org,
+  User,
+  Seat,
+  LicenseKey,
+  AuditEvent,
+  AuditAction,
+  Plan,
+  ProfessionPack,
+  OrgStatus,
+  UserRole,
+  UserStatus,
+  SeatStatus,
+} from "./types.ts";
+
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS orgs (
+  org_id              TEXT PRIMARY KEY,
+  name                TEXT NOT NULL,
+  billing_customer_id TEXT,
+  plan                TEXT NOT NULL,
+  packs               TEXT NOT NULL DEFAULT '[]',   -- JSON array
+  seat_limit          INTEGER NOT NULL,
+  status              TEXT NOT NULL DEFAULT 'active',
+  created_at          TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  user_id       TEXT PRIMARY KEY,
+  org_id        TEXT NOT NULL REFERENCES orgs(org_id),
+  email         TEXT NOT NULL,
+  email_norm    TEXT NOT NULL,                 -- lowercased, for unique + lookup
+  password_hash TEXT NOT NULL,
+  role          TEXT NOT NULL DEFAULT 'member',
+  status        TEXT NOT NULL DEFAULT 'active',
+  created_at    TEXT NOT NULL
+);
+-- Email is unique per org (an email can belong to at most one org here).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_norm ON users(email_norm);
+CREATE INDEX IF NOT EXISTS idx_users_org ON users(org_id);
+
+CREATE TABLE IF NOT EXISTS seats (
+  seat_id        TEXT PRIMARY KEY,
+  org_id         TEXT NOT NULL REFERENCES orgs(org_id),
+  user_id        TEXT NOT NULL REFERENCES users(user_id),
+  machine_id     TEXT NOT NULL,
+  machine_label  TEXT,
+  status         TEXT NOT NULL DEFAULT 'active',
+  bound_at       TEXT NOT NULL,
+  last_seen      TEXT NOT NULL,
+  revoked_at     TEXT,
+  revoked_reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_seats_org ON seats(org_id);
+CREATE INDEX IF NOT EXISTS idx_seats_user ON seats(user_id);
+-- A given (user, machine) pair maps to a single seat row; re-activation reuses it.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_seats_user_machine ON seats(user_id, machine_id);
+
+CREATE TABLE IF NOT EXISTS license_keys (
+  key_id     TEXT PRIMARY KEY,
+  org_id     TEXT NOT NULL REFERENCES orgs(org_id),
+  key_hash   TEXT NOT NULL UNIQUE,
+  plan       TEXT NOT NULL,
+  packs      TEXT NOT NULL DEFAULT '[]',
+  seat_limit INTEGER NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'active',
+  issued_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_license_keys_org ON license_keys(org_id);
+
+-- Refresh tokens: stored as keyed hashes, rotated on use, revocable.
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  token_id     TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL REFERENCES users(user_id),
+  token_hash   TEXT NOT NULL UNIQUE,
+  issued_at    TEXT NOT NULL,
+  expires_at   TEXT NOT NULL,
+  revoked_at   TEXT,
+  rotated_to   TEXT                            -- token_id that superseded this one
+);
+CREATE INDEX IF NOT EXISTS idx_refresh_user ON refresh_tokens(user_id);
+
+-- Explicit revocation tombstones for seats (the seat row also carries status,
+-- but a dedicated append-only-ish list mirrors DECISION.md and keeps the reason
+-- queryable even after a seat is reused/transferred).
+CREATE TABLE IF NOT EXISTS revocations (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  seat_id    TEXT NOT NULL,
+  org_id     TEXT NOT NULL,
+  reason     TEXT,
+  revoked_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_revocations_seat ON revocations(seat_id);
+
+-- Append-only license/identity audit log. Never updated or deleted in code.
+CREATE TABLE IF NOT EXISTS audit_events (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  org_id         TEXT NOT NULL,
+  actor_user_id  TEXT,
+  action         TEXT NOT NULL,
+  target         TEXT,
+  detail         TEXT,
+  ts             TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_audit_org ON audit_events(org_id);
+`;
+
+// ---------------------------------------------------------------------------
+// Row → domain mappers
+// ---------------------------------------------------------------------------
+function parsePacks(json: string): ProfessionPack[] {
+  try {
+    const arr = JSON.parse(json);
+    return Array.isArray(arr) ? (arr as ProfessionPack[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+interface OrgRow {
+  org_id: string;
+  name: string;
+  billing_customer_id: string | null;
+  plan: string;
+  packs: string;
+  seat_limit: number;
+  status: string;
+  created_at: string;
+}
+function toOrg(r: OrgRow): Org {
+  return {
+    org_id: r.org_id,
+    name: r.name,
+    billing_customer_id: r.billing_customer_id,
+    plan: r.plan as Plan,
+    packs: parsePacks(r.packs),
+    seat_limit: r.seat_limit,
+    status: r.status as OrgStatus,
+    created_at: r.created_at,
+  };
+}
+
+interface UserRow {
+  user_id: string;
+  org_id: string;
+  email: string;
+  email_norm: string;
+  password_hash: string;
+  role: string;
+  status: string;
+  created_at: string;
+}
+function toUser(r: UserRow): User {
+  return {
+    user_id: r.user_id,
+    org_id: r.org_id,
+    email: r.email,
+    role: r.role as UserRole,
+    status: r.status as UserStatus,
+    created_at: r.created_at,
+  };
+}
+
+interface SeatRow {
+  seat_id: string;
+  org_id: string;
+  user_id: string;
+  machine_id: string;
+  machine_label: string | null;
+  status: string;
+  bound_at: string;
+  last_seen: string;
+  revoked_at: string | null;
+  revoked_reason: string | null;
+}
+function toSeat(r: SeatRow): Seat {
+  return {
+    seat_id: r.seat_id,
+    org_id: r.org_id,
+    user_id: r.user_id,
+    machine_id: r.machine_id,
+    machine_label: r.machine_label,
+    status: r.status as SeatStatus,
+    bound_at: r.bound_at,
+    last_seen: r.last_seen,
+    revoked_at: r.revoked_at,
+    revoked_reason: r.revoked_reason,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The store
+// ---------------------------------------------------------------------------
+export class Store {
+  readonly db: Database;
+
+  constructor(path: string) {
+    this.db = new Database(path, { create: true });
+    // Durability + concurrency pragmas. WAL lets readers (validate/heartbeat)
+    // run while a writer (activate) commits.
+    this.db.exec("PRAGMA journal_mode = WAL;");
+    this.db.exec("PRAGMA foreign_keys = ON;");
+    this.db.exec("PRAGMA busy_timeout = 5000;");
+    this.db.exec("PRAGMA synchronous = NORMAL;");
+    this.db.exec(SCHEMA);
+  }
+
+  close(): void {
+    this.db.close();
+  }
+
+  private nowIso(): string {
+    return new Date().toISOString();
+  }
+
+  // ---- Orgs ----------------------------------------------------------------
+  createOrg(input: {
+    name: string;
+    plan: Plan;
+    packs: ProfessionPack[];
+    seat_limit: number;
+    billing_customer_id?: string | null;
+  }): Org {
+    const org: Org = {
+      org_id: randomUUID(),
+      name: input.name,
+      billing_customer_id: input.billing_customer_id ?? null,
+      plan: input.plan,
+      packs: input.packs,
+      seat_limit: input.seat_limit,
+      status: "active",
+      created_at: this.nowIso(),
+    };
+    this.db
+      .query(
+        `INSERT INTO orgs (org_id, name, billing_customer_id, plan, packs, seat_limit, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        org.org_id,
+        org.name,
+        org.billing_customer_id,
+        org.plan,
+        JSON.stringify(org.packs),
+        org.seat_limit,
+        org.status,
+        org.created_at,
+      );
+    return org;
+  }
+
+  getOrg(orgId: string): Org | null {
+    const r = this.db.query(`SELECT * FROM orgs WHERE org_id = ?`).get(orgId) as OrgRow | null;
+    return r ? toOrg(r) : null;
+  }
+
+  findOrgByName(name: string): Org | null {
+    const r = this.db.query(`SELECT * FROM orgs WHERE name = ?`).get(name) as OrgRow | null;
+    return r ? toOrg(r) : null;
+  }
+
+  setOrgStatus(orgId: string, status: OrgStatus): void {
+    this.db.query(`UPDATE orgs SET status = ? WHERE org_id = ?`).run(status, orgId);
+  }
+
+  // ---- Users ---------------------------------------------------------------
+  createUser(input: {
+    org_id: string;
+    email: string;
+    password_hash: string;
+    role: UserRole;
+  }): User {
+    const user: User = {
+      user_id: randomUUID(),
+      org_id: input.org_id,
+      email: input.email,
+      role: input.role,
+      status: "active",
+      created_at: this.nowIso(),
+    };
+    this.db
+      .query(
+        `INSERT INTO users (user_id, org_id, email, email_norm, password_hash, role, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        user.user_id,
+        user.org_id,
+        user.email,
+        user.email.trim().toLowerCase(),
+        input.password_hash,
+        user.role,
+        user.status,
+        user.created_at,
+      );
+    return user;
+  }
+
+  getUser(userId: string): User | null {
+    const r = this.db.query(`SELECT * FROM users WHERE user_id = ?`).get(userId) as UserRow | null;
+    return r ? toUser(r) : null;
+  }
+
+  /** Returns the user plus their password hash for credential verification. */
+  getUserByEmailWithHash(email: string): (User & { password_hash: string }) | null {
+    const r = this.db
+      .query(`SELECT * FROM users WHERE email_norm = ?`)
+      .get(email.trim().toLowerCase()) as UserRow | null;
+    if (!r) return null;
+    return { ...toUser(r), password_hash: r.password_hash };
+  }
+
+  setUserStatus(userId: string, status: UserStatus): void {
+    this.db.query(`UPDATE users SET status = ? WHERE user_id = ?`).run(status, userId);
+  }
+
+  // ---- License keys --------------------------------------------------------
+  createLicenseKey(input: {
+    org_id: string;
+    key_hash: string;
+    plan: Plan;
+    packs: ProfessionPack[];
+    seat_limit: number;
+  }): LicenseKey {
+    const key: LicenseKey = {
+      key_id: randomUUID(),
+      org_id: input.org_id,
+      key_hash: input.key_hash,
+      plan: input.plan,
+      packs: input.packs,
+      seat_limit: input.seat_limit,
+      issued_at: this.nowIso(),
+      status: "active",
+    };
+    this.db
+      .query(
+        `INSERT INTO license_keys (key_id, org_id, key_hash, plan, packs, seat_limit, status, issued_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        key.key_id,
+        key.org_id,
+        key.key_hash,
+        key.plan,
+        JSON.stringify(key.packs),
+        key.seat_limit,
+        key.status,
+        key.issued_at,
+      );
+    return key;
+  }
+
+  getLicenseKeyByHash(keyHash: string): LicenseKey | null {
+    const r = this.db.query(`SELECT * FROM license_keys WHERE key_hash = ?`).get(keyHash) as
+      | (Omit<LicenseKey, "packs"> & { packs: string })
+      | null;
+    if (!r) return null;
+    return { ...r, packs: parsePacks(r.packs) };
+  }
+
+  // ---- Seats ---------------------------------------------------------------
+  getSeat(seatId: string): Seat | null {
+    const r = this.db.query(`SELECT * FROM seats WHERE seat_id = ?`).get(seatId) as SeatRow | null;
+    return r ? toSeat(r) : null;
+  }
+
+  getSeatByUserMachine(userId: string, machineId: string): Seat | null {
+    const r = this.db
+      .query(`SELECT * FROM seats WHERE user_id = ? AND machine_id = ?`)
+      .get(userId, machineId) as SeatRow | null;
+    return r ? toSeat(r) : null;
+  }
+
+  listSeats(orgId: string): Seat[] {
+    const rows = this.db
+      .query(`SELECT * FROM seats WHERE org_id = ? ORDER BY bound_at ASC`)
+      .all(orgId) as SeatRow[];
+    return rows.map(toSeat);
+  }
+
+  countActiveSeats(orgId: string): number {
+    const r = this.db
+      .query(`SELECT COUNT(*) AS n FROM seats WHERE org_id = ? AND status = 'active'`)
+      .get(orgId) as { n: number };
+    return r.n;
+  }
+
+  /**
+   * Bind a seat for (user, machine), enforcing seat_limit atomically.
+   *
+   * Behaviour:
+   *   - If an ACTIVE seat already exists for (user, machine): reuse it (idempotent
+   *     re-activation), refresh last_seen, return { seat, reused: true }.
+   *   - If a REVOKED seat exists for (user, machine): re-activate it only if there
+   *     is headroom; otherwise reject.
+   *   - Otherwise: create a new seat iff active count < seat_limit, else reject.
+   *
+   * Runs in an IMMEDIATE transaction so two concurrent activations cannot both
+   * observe headroom and both insert (the classic N+1 race).
+   */
+  activateSeat(input: {
+    org_id: string;
+    user_id: string;
+    machine_id: string;
+    machine_label: string | null;
+    seat_limit: number;
+  }): { ok: true; seat: Seat; reused: boolean } | { ok: false; reason: "seat_limit_exceeded" } {
+    const now = this.nowIso();
+    const txn = this.db.transaction(() => {
+      const existing = this.getSeatByUserMachine(input.user_id, input.machine_id);
+
+      if (existing && existing.status === "active") {
+        this.db.query(`UPDATE seats SET last_seen = ? WHERE seat_id = ?`).run(now, existing.seat_id);
+        return { ok: true as const, seat: { ...existing, last_seen: now }, reused: true };
+      }
+
+      // Need headroom for a brand-new or re-activated (was-revoked) seat.
+      const active = this.countActiveSeats(input.org_id);
+      if (active >= input.seat_limit) {
+        return { ok: false as const, reason: "seat_limit_exceeded" as const };
+      }
+
+      if (existing && existing.status === "revoked") {
+        this.db
+          .query(
+            `UPDATE seats SET status = 'active', machine_label = ?, bound_at = ?, last_seen = ?,
+                              revoked_at = NULL, revoked_reason = NULL
+             WHERE seat_id = ?`,
+          )
+          .run(input.machine_label, now, now, existing.seat_id);
+        return {
+          ok: true as const,
+          seat: { ...existing, status: "active", machine_label: input.machine_label, bound_at: now, last_seen: now, revoked_at: null, revoked_reason: null },
+          reused: false,
+        };
+      }
+
+      const seat: Seat = {
+        seat_id: randomUUID(),
+        org_id: input.org_id,
+        user_id: input.user_id,
+        machine_id: input.machine_id,
+        machine_label: input.machine_label,
+        status: "active",
+        bound_at: now,
+        last_seen: now,
+        revoked_at: null,
+        revoked_reason: null,
+      };
+      this.db
+        .query(
+          `INSERT INTO seats (seat_id, org_id, user_id, machine_id, machine_label, status, bound_at, last_seen)
+           VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`,
+        )
+        .run(seat.seat_id, seat.org_id, seat.user_id, seat.machine_id, seat.machine_label, now, now);
+      return { ok: true as const, seat, reused: false };
+    });
+    // IMMEDIATE: take the write lock at BEGIN so the COUNT→INSERT is serialized.
+    return txn.immediate() as ReturnType<typeof this.activateSeat>;
+  }
+
+  touchSeat(seatId: string): void {
+    this.db.query(`UPDATE seats SET last_seen = ? WHERE seat_id = ?`).run(this.nowIso(), seatId);
+  }
+
+  revokeSeat(seatId: string, reason: string | null): boolean {
+    const now = this.nowIso();
+    const seat = this.getSeat(seatId);
+    if (!seat || seat.status === "revoked") return false;
+    this.db
+      .query(`UPDATE seats SET status = 'revoked', revoked_at = ?, revoked_reason = ? WHERE seat_id = ?`)
+      .run(now, reason, seatId);
+    this.db
+      .query(`INSERT INTO revocations (seat_id, org_id, reason, revoked_at) VALUES (?, ?, ?, ?)`)
+      .run(seatId, seat.org_id, reason, now);
+    return true;
+  }
+
+  /** Revoke every active seat for a user (used by deprovision). Returns count. */
+  revokeAllSeatsForUser(userId: string, reason: string): number {
+    const seats = this.db
+      .query(`SELECT * FROM seats WHERE user_id = ? AND status = 'active'`)
+      .all(userId) as SeatRow[];
+    let n = 0;
+    const txn = this.db.transaction(() => {
+      for (const r of seats) {
+        if (this.revokeSeat(r.seat_id, reason)) n++;
+      }
+    });
+    txn();
+    return n;
+  }
+
+  /**
+   * Transfer a seat to a (possibly different) user + new machine. Revokes the
+   * old binding and creates a fresh active seat for the target, all atomically,
+   * so the seat count is conserved. Fails if the target (user,machine) already
+   * holds an active seat (would double-bind).
+   */
+  transferSeat(input: {
+    from_seat_id: string;
+    to_user_id: string;
+    to_machine_id: string;
+    to_machine_label: string | null;
+  }):
+    | { ok: true; seat: Seat }
+    | { ok: false; reason: "from_seat_not_found" | "from_seat_not_active" | "target_already_bound" } {
+    const now = this.nowIso();
+    const txn = this.db.transaction(() => {
+      const from = this.getSeat(input.from_seat_id);
+      if (!from) return { ok: false as const, reason: "from_seat_not_found" as const };
+      if (from.status !== "active") return { ok: false as const, reason: "from_seat_not_active" as const };
+
+      const targetExisting = this.getSeatByUserMachine(input.to_user_id, input.to_machine_id);
+      if (targetExisting && targetExisting.status === "active") {
+        return { ok: false as const, reason: "target_already_bound" as const };
+      }
+
+      // Free the old machine.
+      this.db
+        .query(`UPDATE seats SET status = 'revoked', revoked_at = ?, revoked_reason = 'transferred' WHERE seat_id = ?`)
+        .run(now, from.seat_id);
+      this.db
+        .query(`INSERT INTO revocations (seat_id, org_id, reason, revoked_at) VALUES (?, ?, 'transferred', ?)`)
+        .run(from.seat_id, from.org_id, now);
+
+      // Bind (or re-activate) the target.
+      if (targetExisting) {
+        this.db
+          .query(
+            `UPDATE seats SET status = 'active', machine_label = ?, bound_at = ?, last_seen = ?,
+                              revoked_at = NULL, revoked_reason = NULL
+             WHERE seat_id = ?`,
+          )
+          .run(input.to_machine_label, now, now, targetExisting.seat_id);
+        return {
+          ok: true as const,
+          seat: { ...targetExisting, status: "active", machine_label: input.to_machine_label, bound_at: now, last_seen: now, revoked_at: null, revoked_reason: null },
+        };
+      }
+      const seat: Seat = {
+        seat_id: randomUUID(),
+        org_id: from.org_id,
+        user_id: input.to_user_id,
+        machine_id: input.to_machine_id,
+        machine_label: input.to_machine_label,
+        status: "active",
+        bound_at: now,
+        last_seen: now,
+        revoked_at: null,
+        revoked_reason: null,
+      };
+      this.db
+        .query(
+          `INSERT INTO seats (seat_id, org_id, user_id, machine_id, machine_label, status, bound_at, last_seen)
+           VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`,
+        )
+        .run(seat.seat_id, seat.org_id, seat.user_id, seat.machine_id, seat.machine_label, now, now);
+      return { ok: true as const, seat };
+    });
+    return txn.immediate() as ReturnType<typeof this.transferSeat>;
+  }
+
+  // ---- Refresh tokens ------------------------------------------------------
+  createRefreshToken(input: { user_id: string; token_hash: string; expires_at: string }): string {
+    const tokenId = randomUUID();
+    this.db
+      .query(
+        `INSERT INTO refresh_tokens (token_id, user_id, token_hash, issued_at, expires_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(tokenId, input.user_id, input.token_hash, this.nowIso(), input.expires_at);
+    return tokenId;
+  }
+
+  getRefreshTokenByHash(tokenHash: string): {
+    token_id: string;
+    user_id: string;
+    expires_at: string;
+    revoked_at: string | null;
+    rotated_to: string | null;
+  } | null {
+    return this.db.query(`SELECT token_id, user_id, expires_at, revoked_at, rotated_to FROM refresh_tokens WHERE token_hash = ?`).get(tokenHash) as
+      | { token_id: string; user_id: string; expires_at: string; revoked_at: string | null; rotated_to: string | null }
+      | null;
+  }
+
+  /** Rotate: revoke the presented token, mint a new one, link them. */
+  rotateRefreshToken(input: {
+    old_token_id: string;
+    user_id: string;
+    new_token_hash: string;
+    expires_at: string;
+  }): string {
+    const newId = randomUUID();
+    const now = this.nowIso();
+    const txn = this.db.transaction(() => {
+      this.db
+        .query(
+          `INSERT INTO refresh_tokens (token_id, user_id, token_hash, issued_at, expires_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(newId, input.user_id, input.new_token_hash, now, input.expires_at);
+      this.db
+        .query(`UPDATE refresh_tokens SET revoked_at = ?, rotated_to = ? WHERE token_id = ?`)
+        .run(now, newId, input.old_token_id);
+    });
+    txn();
+    return newId;
+  }
+
+  revokeRefreshToken(tokenId: string): void {
+    this.db.query(`UPDATE refresh_tokens SET revoked_at = ? WHERE token_id = ? AND revoked_at IS NULL`).run(this.nowIso(), tokenId);
+  }
+
+  revokeAllRefreshTokensForUser(userId: string): void {
+    this.db.query(`UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`).run(this.nowIso(), userId);
+  }
+
+  // ---- Audit (append-only) -------------------------------------------------
+  audit(input: {
+    org_id: string;
+    actor_user_id: string | null;
+    action: AuditAction;
+    target?: string | null;
+    detail?: Record<string, unknown> | null;
+  }): void {
+    this.db
+      .query(`INSERT INTO audit_events (org_id, actor_user_id, action, target, detail, ts) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(
+        input.org_id,
+        input.actor_user_id,
+        input.action,
+        input.target ?? null,
+        input.detail ? JSON.stringify(input.detail) : null,
+        this.nowIso(),
+      );
+  }
+
+  listAudit(orgId: string, limit = 200): AuditEvent[] {
+    const rows = this.db
+      .query(`SELECT * FROM audit_events WHERE org_id = ? ORDER BY id DESC LIMIT ?`)
+      .all(orgId, limit) as Array<{
+      id: number;
+      org_id: string;
+      actor_user_id: string | null;
+      action: string;
+      target: string | null;
+      detail: string | null;
+      ts: string;
+    }>;
+    return rows.map((r) => ({
+      id: r.id,
+      org_id: r.org_id,
+      actor_user_id: r.actor_user_id,
+      action: r.action as AuditAction,
+      target: r.target,
+      detail: r.detail,
+      ts: r.ts,
+    }));
+  }
+}
+
+/** Process-wide store, opened from config. Tests construct their own Store(":memory:"). */
+let _store: Store | null = null;
+export function getStore(): Store {
+  if (!_store) _store = new Store(config.dbPath);
+  return _store;
+}

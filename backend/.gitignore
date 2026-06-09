@@ -1,0 +1,23 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Local SQLite data (WAL siblings included)
+data/*.sqlite
+data/*.sqlite-wal
+data/*.sqlite-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.db
+
+# Seat-signing keys, if ever written to files locally
+keys/
+*.pem
+
+# Deps
+node_modules
+
+# keep the empty dir
+!data/.gitkeep

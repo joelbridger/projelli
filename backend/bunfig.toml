@@ -1,0 +1,4 @@
+[test]
+# Preload sets a deterministic env (secret + seat keypair + in-memory DB)
+# before any source module reads `config`.
+preload = ["./test/setup.ts"]

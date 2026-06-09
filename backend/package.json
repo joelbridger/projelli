@@ -1,0 +1,19 @@
+{
+  "name": "keepance-firm-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Keepance 3.0 firm platform backend — user identity/auth + per-org licensing (chunk 1 of 3).",
+  "scripts": {
+    "start": "bun run src/server.ts",
+    "dev": "bun --watch run src/server.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "keygen": "bun run src/lib/keygen.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {}
+}
