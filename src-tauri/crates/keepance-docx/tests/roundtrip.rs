@@ -17,7 +17,7 @@ use keepance_docx::fixture::{
     build_fixture_model, FIXTURE_COMMENT_ID, OPPOSING_COUNSEL, OPPOSING_DATE,
 };
 use keepance_docx::model::{BlockContent, Inline, RevisionKind};
-use keepance_docx::package::Package;
+use keepance_docx::package::{Limits, Package};
 use keepance_docx::validate::validate_package;
 use keepance_docx::{
     document_from_json, document_to_json, open_docx_bytes, parse_docx_bytes, roundtrip_bytes,
@@ -619,4 +619,588 @@ fn test_run_with_unmodeled_child_is_preserved() {
     let br_idx = out.find("<w:br").unwrap();
     let after_idx = out.find("after").unwrap();
     assert!(br_idx < after_idx, "run child order not preserved (<w:br> after text)");
+}
+
+// ===========================================================================
+// COMMENT BYTE-STABILITY — an UNEDITED commented doc must pass comments.xml
+// through byte-for-byte (preserve-by-default for comments), not regenerate it.
+// ===========================================================================
+
+/// Build a commented package whose comments.xml uses a DIFFERENT (but valid)
+/// root-element shape than our synthesizer would emit: extra namespace decls,
+/// different attribute order, and surrounding whitespace. If the engine
+/// regenerated comments.xml it would normalize all of this and the bytes would
+/// differ — so this is the precise probe for "preserve, don't regenerate".
+fn build_commented_package_with_distinctive_comments() -> Vec<u8> {
+    let document_xml = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:commentRangeStart w:id="1"/><w:r><w:t>clause</w:t></w:r><w:commentRangeEnd w:id="1"/><w:r><w:rPr><w:rStyle w:val="CommentReference"/></w:rPr><w:commentReference w:id="1"/></w:r></w:p></w:body></w:document>"#;
+    // Note the distinctive root: w15 namespace decl + a leading newline inside.
+    let comments_xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\r\n<w:comments xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:w15=\"http://schemas.microsoft.com/office/word/2012/wordml\" mc:Ignorable=\"w15\" xmlns:mc=\"http://schemas.openxmlformats.org/markup-compatibility/2006\">\n<w:comment w:author=\"Reviewer\" w:date=\"2026-03-01T00:00:00Z\" w:initials=\"RV\" w:id=\"1\"><w:p><w:r><w:t>A note.</w:t></w:r></w:p></w:comment>\n</w:comments>";
+    let content_types = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/></Types>"#;
+    let root_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#;
+    let doc_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/></Relationships>"#;
+
+    let mut pkg = Package::new();
+    pkg.insert("[Content_Types].xml", content_types.as_bytes().to_vec());
+    pkg.insert("_rels/.rels", root_rels.as_bytes().to_vec());
+    pkg.insert("word/_rels/document.xml.rels", doc_rels.as_bytes().to_vec());
+    pkg.insert("word/document.xml", document_xml.as_bytes().to_vec());
+    pkg.insert("word/comments.xml", comments_xml.as_bytes().to_vec());
+    pkg.write_to_bytes().expect("zip commented package")
+}
+
+#[test]
+fn test_comments_xml_byte_identical_when_unedited() {
+    let original = build_commented_package_with_distinctive_comments();
+    let orig_pkg = Package::read_from_bytes(&original).unwrap();
+    let orig_comments = orig_pkg.get("word/comments.xml").unwrap().to_vec();
+
+    // Open -> save with NO edits to comments. comments.xml must pass through
+    // byte-for-byte (the distinctive root + whitespace survive).
+    let round = roundtrip_bytes(&original).expect("roundtrip commented");
+    let round_pkg = Package::read_from_bytes(&round).unwrap();
+    let round_comments = round_pkg.get("word/comments.xml").unwrap().to_vec();
+
+    assert_eq!(
+        orig_comments, round_comments,
+        "comments.xml was regenerated/normalized on an unedited round-trip \
+         (preserve-by-default for comments violated)"
+    );
+}
+
+#[test]
+fn test_roundtrip_idempotent_on_commented_doc() {
+    let original = build_commented_package_with_distinctive_comments();
+    let round1 = roundtrip_bytes(&original).expect("roundtrip 1");
+    let round2 = roundtrip_bytes(&round1).expect("roundtrip 2");
+    assert_eq!(round1, round2, "commented-doc round-trip not idempotent");
+}
+
+#[test]
+fn test_edited_comment_is_regenerated() {
+    // When the comment set ACTUALLY changes, we regenerate (no stale preserve).
+    let original = build_commented_package_with_distinctive_comments();
+    let mut opened = open_docx_bytes(&original).expect("open commented");
+
+    // Add a brand-new comment to the model (anchored ids not required for this
+    // serialization check; we only assert the comment body is emitted). Use the
+    // existing comment id space; add id "2".
+    use keepance_docx::model::Comment;
+    opened.document.comments.insert(
+        "2".to_string(),
+        Comment {
+            id: "2".to_string(),
+            author: "Keepance AI".to_string(),
+            date: "2026-06-09T00:00:00Z".to_string(),
+            initials: None,
+            text: "Newly authored comment.".to_string(),
+            body_xml: None,
+        },
+    );
+    // Anchor the new comment so the dangling-ref guard (item 3) is satisfied.
+    if let BlockContent::Paragraph(p) = &mut opened.document.body[0] {
+        p.inlines.push(Inline::CommentRangeStart { id: "2".into() });
+        p.inlines.push(Inline::CommentRangeEnd { id: "2".into() });
+        p.inlines.push(Inline::CommentReference { id: "2".into() });
+    }
+
+    let saved = opened.save_bytes().expect("save edited comments");
+    let saved_pkg = Package::read_from_bytes(&saved).unwrap();
+    let comments = saved_pkg.get_str("word/comments.xml").unwrap();
+    assert!(
+        comments.contains("Newly authored comment."),
+        "edited comment set was not regenerated"
+    );
+    // The original comment is still present too.
+    assert!(comments.contains("A note."), "original comment lost on regen");
+}
+
+// ===========================================================================
+// rPr BYTE-EXACT PRESERVATION — a run's <w:rPr> must round-trip byte-for-byte,
+// the same way <w:pPr> does. The fix slices rPr from source rather than
+// re-serializing it through the XML writer (which would normalize attribute
+// order / whitespace / quoting).
+// ===========================================================================
+
+#[test]
+fn test_rpr_is_byte_exact_across_roundtrip() {
+    // Distinctive rPr spans the XML writer would likely normalize: single-quoted
+    // attribute values, multiple attributes, and interior whitespace. We place
+    // such rPr in BOTH a plain run and inside an <w:ins> run (the two capture
+    // paths the fix unified).
+    let document_xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:r><w:rPr><w:rFonts w:ascii='Calibri'  w:hAnsi='Calibri'/><w:b/><w:color w:val='1F497D'/></w:rPr><w:t>plain</w:t></w:r><w:ins w:id=\"3\" w:author=\"C\" w:date=\"2026-01-01T00:00:00Z\"><w:r><w:rPr><w:i/><w:sz w:val='24'/></w:rPr><w:t>added</w:t></w:r></w:ins></w:p><w:sectPr/></w:body></w:document>";
+    let content_types = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#;
+    let root_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#;
+
+    let mut pkg = Package::new();
+    pkg.insert("[Content_Types].xml", content_types.as_bytes().to_vec());
+    pkg.insert("_rels/.rels", root_rels.as_bytes().to_vec());
+    pkg.insert("word/document.xml", document_xml.as_bytes().to_vec());
+    let bytes = pkg.write_to_bytes().unwrap();
+
+    // Parse and confirm both rPr spans were captured VERBATIM (single quotes and
+    // the double space survive — proof they were sliced, not re-serialized).
+    let doc = parse_docx_bytes(&bytes).expect("parse");
+    let para = doc
+        .body
+        .iter()
+        .find_map(|b| match b {
+            BlockContent::Paragraph(p) => Some(p),
+            _ => None,
+        })
+        .unwrap();
+
+    let plain_rpr = para.inlines.iter().find_map(|i| match i {
+        Inline::Run(r) => r.properties_xml.clone(),
+        _ => None,
+    });
+    let plain_rpr = plain_rpr.expect("plain run rPr captured");
+    assert!(
+        plain_rpr.contains("w:ascii='Calibri'  w:hAnsi='Calibri'"),
+        "plain rPr was normalized (not byte-exact): {plain_rpr}"
+    );
+
+    let ins_rpr = para.inlines.iter().find_map(|i| match i {
+        Inline::Insertion { runs, .. } => runs.first().and_then(|r| r.properties_xml.clone()),
+        _ => None,
+    });
+    let ins_rpr = ins_rpr.expect("ins run rPr captured");
+    assert!(
+        ins_rpr.contains("<w:sz w:val='24'/>"),
+        "ins rPr was normalized (not byte-exact): {ins_rpr}"
+    );
+
+    // The serialized document.xml must contain the rPr spans verbatim.
+    let round = roundtrip_bytes(&bytes).expect("roundtrip");
+    let round_pkg = Package::read_from_bytes(&round).unwrap();
+    let out_xml = round_pkg.get_str("word/document.xml").unwrap();
+    assert!(
+        out_xml.contains("w:ascii='Calibri'  w:hAnsi='Calibri'"),
+        "plain rPr not byte-exact in output: ...{}",
+        &out_xml[..out_xml.len().min(400)]
+    );
+    assert!(
+        out_xml.contains("<w:sz w:val='24'/>"),
+        "ins rPr not byte-exact in output"
+    );
+
+    // Idempotent round-trip (stable diffs for version history — the reason this
+    // matters before the version-history task).
+    let round2 = roundtrip_bytes(&round).expect("roundtrip 2");
+    assert_eq!(round, round2, "rPr-bearing doc round-trip not idempotent");
+}
+
+// ===========================================================================
+// MANIFEST HANDLING — content-type + relationship manifests must be parsed
+// precisely (anchored PartName, quote/space-tolerant ids, non-rId ids handled),
+// not via loose substring scans.
+// ===========================================================================
+
+#[test]
+fn test_ensure_comments_content_type_anchors_on_partname() {
+    // A content-types manifest that mentions the comments content-type ONLY in a
+    // Default for a different part (a contrived but legal way the loose substring
+    // check would false-positive). With precise anchoring on
+    // PartName="/word/comments.xml", we must still add the Override.
+    let ct = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#;
+    let mut pkg = Package::new();
+    pkg.insert("[Content_Types].xml", ct.as_bytes().to_vec());
+    pkg.ensure_comments_content_type();
+    let out = pkg.get_str("[Content_Types].xml").unwrap();
+    assert!(
+        out.contains("PartName=\"/word/comments.xml\""),
+        "comments Override not added (precise PartName anchoring failed): {out}"
+    );
+    // Idempotent: a second call must not add a duplicate Override.
+    pkg.ensure_comments_content_type();
+    let out2 = pkg.get_str("[Content_Types].xml").unwrap();
+    assert_eq!(
+        out2.matches("PartName=\"/word/comments.xml\"").count(),
+        1,
+        "duplicate comments Override added"
+    );
+}
+
+#[test]
+fn test_ensure_comments_content_type_idempotent_when_present() {
+    let ct = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/></Types>"#;
+    let mut pkg = Package::new();
+    pkg.insert("[Content_Types].xml", ct.as_bytes().to_vec());
+    pkg.ensure_comments_content_type();
+    let out = pkg.get_str("[Content_Types].xml").unwrap();
+    assert_eq!(out, ct, "manifest mutated though comments already declared");
+}
+
+#[test]
+fn test_next_rel_id_handles_quote_space_and_non_rid_ids() {
+    // Relationships with single quotes, extra spaces, and a NON-rId id. The next
+    // id must be rId(max+1) over the rId-prefixed numeric ids only (here max=7).
+    let rels = "<?xml version=\"1.0\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id='rId3' Type='t' Target='a'/><Relationship  Id = \"rId7\"  Type=\"t\" Target=\"b\"/><Relationship Id=\"docRel\" Type=\"t\" Target=\"c\"/></Relationships>";
+    let mut pkg = Package::new();
+    pkg.insert("[Content_Types].xml", b"<Types/>".to_vec());
+    pkg.insert("word/_rels/document.xml.rels", rels.as_bytes().to_vec());
+    pkg.ensure_comments_relationship();
+    let out = pkg.get_str("word/_rels/document.xml.rels").unwrap();
+    // New relationship must use rId8 (max rId was 7; non-rId "docRel" ignored).
+    assert!(
+        out.contains("Id=\"rId8\""),
+        "next_rel_id did not pick rId8 over quote/space/non-rId variants: {out}"
+    );
+    assert!(out.contains("/relationships/comments"), "comments rel not added");
+}
+
+#[test]
+fn test_ensure_comments_relationship_idempotent() {
+    let rels = r#"<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="comments.xml"/></Relationships>"#;
+    let mut pkg = Package::new();
+    pkg.insert("word/_rels/document.xml.rels", rels.as_bytes().to_vec());
+    pkg.ensure_comments_relationship();
+    let out = pkg.get_str("word/_rels/document.xml.rels").unwrap();
+    assert_eq!(out, rels, "rels mutated though comments rel already present");
+}
+
+// ===========================================================================
+// BODY-LEVEL sectPr DETECTION — a paragraph-level <w:sectPr> (inside a pPr), or
+// the literal substring "sectPr" elsewhere, must NOT suppress the required
+// trailing body-level <w:sectPr>. Detection keys on the last body child being a
+// sectPr element, not a substring scan.
+// ===========================================================================
+
+/// True if the serialized document.xml ends its body with a body-level sectPr
+/// element (the final child before `</w:body>` is a `<w:sectPr>` open or empty
+/// tag), which is what makes the body structurally complete.
+fn body_ends_with_sectpr(doc_xml: &str) -> bool {
+    let body_close = doc_xml.rfind("</w:body>").expect("has </w:body>");
+    let before = doc_xml[..body_close].trim_end();
+    before.ends_with("<w:sectPr/>") || before.ends_with("</w:sectPr>")
+}
+
+#[test]
+fn test_paragraph_level_sectpr_does_not_suppress_body_sectpr() {
+    use keepance_docx::model::{BlockContent as BC, Inline as IL, Paragraph, Run};
+    // A document whose ONLY "sectPr" is paragraph-level: the last paragraph's
+    // pPr carries a <w:sectPr> (this is how Word stores per-section breaks). The
+    // body itself has NO trailing body-level sectPr block.
+    let para = Paragraph {
+        properties_xml: Some(
+            "<w:pPr><w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/></w:sectPr></w:pPr>".to_string(),
+        ),
+        inlines: vec![IL::Run(Run::new("section one"))],
+    };
+    let doc = Document {
+        format_version: keepance_docx::model::DOM_FORMAT_VERSION,
+        body: vec![BC::Paragraph(para)],
+        comments: Default::default(),
+    };
+
+    // Serialize from scratch and read back the document.xml.
+    let bytes = serialize_docx_bytes(&doc).expect("serialize");
+    let pkg = Package::read_from_bytes(&bytes).unwrap();
+    let doc_xml = pkg.get_str("word/document.xml").unwrap();
+
+    // The paragraph-level sectPr is preserved inside the pPr...
+    assert!(doc_xml.contains("<w:pPr><w:sectPr>"), "paragraph sectPr lost");
+    // ...AND a body-level sectPr is still emitted as the final body child, so the
+    // body is structurally complete (the old substring scan would have wrongly
+    // suppressed it because "sectPr" appears in the paragraph pPr).
+    assert!(
+        body_ends_with_sectpr(&doc_xml),
+        "body did not end with a body-level sectPr: ...{}",
+        &doc_xml[doc_xml.len().saturating_sub(80)..]
+    );
+}
+
+#[test]
+fn test_imported_body_level_sectpr_not_duplicated() {
+    // The rich package HAS a real body-level <w:sectPr> block. Round-trip must
+    // NOT add a second one.
+    let original = build_rich_package_bytes();
+    let round = roundtrip_bytes(&original).expect("roundtrip rich");
+    let round_pkg = Package::read_from_bytes(&round).unwrap();
+    let doc_xml = round_pkg.get_str("word/document.xml").unwrap();
+    // Exactly one body-level sectPr (the imported one), not a synthesized extra.
+    assert_eq!(
+        doc_xml.matches("<w:sectPr>").count(),
+        1,
+        "body-level sectPr duplicated on round-trip"
+    );
+}
+
+// ===========================================================================
+// DANGLING COMMENT-REFERENCE GUARD — save must reject a document whose body
+// references a comment id that has no <w:comment> (or vice-versa), which Word
+// treats as corrupt.
+// ===========================================================================
+
+#[test]
+fn test_save_rejects_dangling_comment_reference() {
+    // A body that references comment id "99" with NO matching comment.
+    let mut doc = build_fixture_model();
+    if let BlockContent::Paragraph(p) = &mut doc.body[0] {
+        p.inlines.push(Inline::CommentReference { id: "99".into() });
+    }
+    // serialize_docx_bytes -> serialize_new_package must reject it.
+    let res = serialize_docx_bytes(&doc);
+    assert!(res.is_err(), "dangling commentReference was not rejected");
+    assert!(
+        format!("{}", res.unwrap_err()).contains("dangling comment"),
+        "wrong error for dangling reference"
+    );
+}
+
+#[test]
+fn test_save_rejects_dangling_comment_range_start() {
+    let mut doc = build_fixture_model();
+    if let BlockContent::Paragraph(p) = &mut doc.body[0] {
+        p.inlines.push(Inline::CommentRangeStart { id: "77".into() });
+    }
+    let res = serialize_docx_bytes(&doc);
+    assert!(res.is_err(), "dangling commentRangeStart was not rejected");
+}
+
+#[test]
+fn test_save_rejects_orphaned_comment() {
+    // A comment with NO body reference is orphaned and must be rejected.
+    use keepance_docx::model::Comment;
+    let mut doc = build_fixture_model();
+    doc.comments.insert(
+        "42".to_string(),
+        Comment {
+            id: "42".to_string(),
+            author: "X".to_string(),
+            date: "2026-06-09T00:00:00Z".to_string(),
+            initials: None,
+            text: "unanchored".to_string(),
+            body_xml: None,
+        },
+    );
+    let res = serialize_docx_bytes(&doc);
+    assert!(res.is_err(), "orphaned comment was not rejected");
+    assert!(format!("{}", res.unwrap_err()).contains("orphaned comment"));
+}
+
+#[test]
+fn test_save_accepts_balanced_comments() {
+    // Sanity: the fixture (balanced comment graph) still saves fine — the guard
+    // is not over-eager.
+    let doc = build_fixture_model();
+    assert!(serialize_docx_bytes(&doc).is_ok(), "balanced doc wrongly rejected");
+}
+
+// ===========================================================================
+// ADVERSARIAL / NEGATIVE TESTS
+//
+// The engine reads attacker-controlled `.docx` bytes (a ZIP of XML). These
+// tests lock in the security + robustness properties dependent tasks rely on:
+//   * decompression-bomb caps fire instead of allocating gigabytes,
+//   * malformed input (truncated XML, not-a-zip, missing document.xml) returns
+//     Err rather than hanging or panicking,
+//   * XML entity expansion (billion-laughs) does NOT occur — quick-xml does not
+//     expand general entities; this test would catch a future dep regression.
+// ===========================================================================
+
+/// A minimal, well-formed `word/document.xml` for crafted-package tests.
+const MINIMAL_DOCUMENT_XML: &str = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>hi</w:t></w:r></w:p></w:body></w:document>"#;
+
+/// Build a ZIP in memory from `(name, bytes)` entries using deflate, with no
+/// engine-side sanitization — lets these tests hand the reader genuinely
+/// hostile archives (e.g. a highly compressible bomb entry).
+fn build_zip(entries: &[(&str, Vec<u8>)]) -> Vec<u8> {
+    use std::io::{Cursor, Write};
+    use zip::write::SimpleFileOptions;
+    use zip::{CompressionMethod, ZipWriter};
+
+    let mut out = Cursor::new(Vec::new());
+    {
+        let mut zip = ZipWriter::new(&mut out);
+        let opts = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+        for (name, data) in entries {
+            zip.start_file(*name, opts).expect("start_file");
+            zip.write_all(data).expect("write entry");
+        }
+        zip.finish().expect("finish zip");
+    }
+    out.into_inner()
+}
+
+#[test]
+fn test_zip_bomb_total_budget_is_capped() {
+    // 4 MiB of zeros compresses to a few KiB but decompresses past a 1 MiB cap.
+    // The guard must reject it WITHOUT allocating the full payload (we bound the
+    // read at budget+1). Includes a valid document.xml so the failure is the
+    // size cap, not the missing-document check.
+    let bomb = vec![0u8; 4 * 1024 * 1024];
+    let bytes = build_zip(&[
+        ("word/document.xml", MINIMAL_DOCUMENT_XML.as_bytes().to_vec()),
+        ("word/bomb.bin", bomb),
+    ]);
+    // Compressed size must be tiny (proves it's a real "bomb": small in, big out).
+    assert!(
+        bytes.len() < 1024 * 1024,
+        "compressed bomb unexpectedly large: {} bytes",
+        bytes.len()
+    );
+
+    let limits = Limits {
+        max_total_decompressed: 1024 * 1024, // 1 MiB total cap
+        max_entry_decompressed: 1024 * 1024,
+        max_entry_count: 10_000,
+    };
+    let res = Package::read_from_bytes_with_limits(&bytes, limits);
+    assert!(res.is_err(), "decompression bomb was not rejected: {res:?}");
+    let msg = format!("{}", res.unwrap_err());
+    assert!(
+        msg.contains("decompression-bomb") || msg.contains("size limit"),
+        "unexpected error for zip bomb: {msg}"
+    );
+}
+
+#[test]
+fn test_zip_bomb_per_entry_cap_fires() {
+    // A single entry larger than the per-entry cap (but under the generous total
+    // cap) must still be rejected.
+    let big = vec![0u8; 3 * 1024 * 1024];
+    let bytes = build_zip(&[
+        ("word/document.xml", MINIMAL_DOCUMENT_XML.as_bytes().to_vec()),
+        ("word/big.bin", big),
+    ]);
+    let limits = Limits {
+        max_total_decompressed: 64 * 1024 * 1024,
+        max_entry_decompressed: 1024 * 1024, // 1 MiB per-entry cap
+        max_entry_count: 10_000,
+    };
+    let res = Package::read_from_bytes_with_limits(&bytes, limits);
+    assert!(res.is_err(), "oversized entry not rejected: {res:?}");
+}
+
+#[test]
+fn test_zip_entry_count_cap_fires() {
+    let mut entries: Vec<(&str, Vec<u8>)> =
+        vec![("word/document.xml", MINIMAL_DOCUMENT_XML.as_bytes().to_vec())];
+    // Build many tiny entries. Leak the names so they live for build_zip's &str.
+    let names: Vec<String> = (0..50).map(|i| format!("word/n{i}.bin")).collect();
+    for n in &names {
+        entries.push((n.as_str(), vec![0u8; 4]));
+    }
+    let limits = Limits {
+        max_total_decompressed: 64 * 1024 * 1024,
+        max_entry_decompressed: 1024 * 1024,
+        max_entry_count: 10, // far below the 51 entries
+    };
+    let bytes = build_zip(&entries);
+    let res = Package::read_from_bytes_with_limits(&bytes, limits);
+    assert!(res.is_err(), "entry-count cap not enforced: {res:?}");
+    assert!(format!("{}", res.unwrap_err()).contains("too many entries"));
+}
+
+#[test]
+fn test_within_limits_still_reads() {
+    // A legitimate small package must still read fine under default limits — the
+    // guard must not be over-eager.
+    let bytes = fixture_bytes();
+    let pkg = Package::read_from_bytes(&bytes).expect("legit doc reads under default limits");
+    assert!(pkg.contains("word/document.xml"));
+}
+
+#[test]
+fn test_not_a_zip_returns_err() {
+    let res = Package::read_from_bytes(b"this is definitely not a zip file");
+    assert!(res.is_err(), "non-zip bytes must error");
+    // And the higher-level open path also errors (does not panic).
+    assert!(parse_docx_bytes(b"\x00\x01\x02not a zip").is_err());
+}
+
+#[test]
+fn test_zip_missing_document_xml_returns_err() {
+    // A valid ZIP that lacks word/document.xml is not a Word document.
+    let bytes = build_zip(&[
+        ("[Content_Types].xml", b"<Types/>".to_vec()),
+        ("word/styles.xml", b"<w:styles/>".to_vec()),
+    ]);
+    let res = Package::read_from_bytes(&bytes);
+    assert!(res.is_err(), "missing document.xml must error");
+    assert!(format!("{}", res.unwrap_err()).contains("document.xml"));
+    assert!(parse_docx_bytes(&bytes).is_err());
+}
+
+#[test]
+fn test_truncated_document_xml_returns_err_and_does_not_hang() {
+    // document.xml cut off mid-element. The parser must return Err (EOF inside
+    // an element), not loop forever. The parse loops are iterative + EOF-guarded,
+    // so this completes promptly.
+    let truncated = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>unterminated text"#;
+    let content_types = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#;
+    let root_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#;
+
+    let bytes = build_zip(&[
+        ("[Content_Types].xml", content_types.as_bytes().to_vec()),
+        ("_rels/.rels", root_rels.as_bytes().to_vec()),
+        ("word/document.xml", truncated.as_bytes().to_vec()),
+    ]);
+    // Reading the package succeeds (valid zip); parsing the malformed XML errors.
+    let res = parse_docx_bytes(&bytes);
+    assert!(res.is_err(), "truncated document.xml must error, got {res:?}");
+}
+
+#[test]
+fn test_doctype_entity_is_not_expanded_billion_laughs() {
+    // Billion-laughs: a DOCTYPE defining a recursively-expanding entity. quick-xml
+    // does NOT expand general entities, so this must NOT blow up memory. We assert
+    // the engine either errors or, if it parses, the bomb entity text is NOT
+    // expanded into the document (it stays inert). This locks in billion-laughs
+    // immunity so a future quick-xml bump can't silently regress it.
+    let lols = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!DOCTYPE w:document [
+  <!ENTITY lol "lol">
+  <!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">
+  <!ENTITY lol3 "&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;">
+  <!ENTITY lol4 "&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;&lol3;">
+]>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>&lol4;</w:t></w:r></w:p></w:body></w:document>"#;
+    let content_types = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#;
+    let root_rels = r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#;
+
+    let bytes = build_zip(&[
+        ("[Content_Types].xml", content_types.as_bytes().to_vec()),
+        ("_rels/.rels", root_rels.as_bytes().to_vec()),
+        ("word/document.xml", lols.as_bytes().to_vec()),
+    ]);
+
+    match parse_docx_bytes(&bytes) {
+        Ok(doc) => {
+            // If it parsed, the entity must NOT have expanded into thousands of
+            // "lol"s. Collect all run text and assert the bomb did not detonate.
+            let mut all_text = String::new();
+            for block in &doc.body {
+                if let BlockContent::Paragraph(p) = block {
+                    for inline in &p.inlines {
+                        if let Inline::Run(r) = inline {
+                            all_text.push_str(&r.text);
+                        }
+                    }
+                }
+            }
+            assert!(
+                all_text.matches("lol").count() < 100,
+                "entity expansion detonated (billion-laughs not inert): {} lols",
+                all_text.matches("lol").count()
+            );
+        }
+        Err(_) => {
+            // Erroring on the DOCTYPE/entity is also acceptable (and inert).
+        }
+    }
 }

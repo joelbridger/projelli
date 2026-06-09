@@ -23,6 +23,48 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
 use crate::error::{DocxError, Result};
 
+// Decompression-bomb defenses for untrusted .docx input. A .docx is an
+// attacker-controllable ZIP; its per-entry uncompressed-size header is NOT
+// trustworthy, so we never allocate or read based on it alone. We cap (a) the
+// number of entries, (b) any single entry's decompressed size, and (c) the
+// total decompressed bytes across all entries as a running budget. This mirrors
+// the rigor of `src-tauri/src/commands/tarball.rs` for untrusted archives. See
+// also `read_from_bytes_with_limits`.
+
+/// Maximum total decompressed bytes across every entry in one package. A
+/// generous ceiling for real legal documents (large embedded media + many
+/// parts) while bounding a zip bomb to a fixed, recoverable allocation.
+pub const MAX_TOTAL_DECOMPRESSED: u64 = 512 * 1024 * 1024; // 512 MiB
+/// Maximum decompressed bytes for any single entry.
+pub const MAX_ENTRY_DECOMPRESSED: u64 = 256 * 1024 * 1024; // 256 MiB
+/// Maximum number of entries in one package (defends against a zip with
+/// millions of tiny entries exhausting memory / time).
+pub const MAX_ENTRY_COUNT: usize = 10_000;
+
+/// Caps applied while decompressing an untrusted package. Use
+/// [`Limits::default`] (production ceilings) for real input;
+/// [`Package::read_from_bytes_with_limits`] lets tests assert the guard fires
+/// with small caps, without allocating gigabytes.
+#[derive(Debug, Clone, Copy)]
+pub struct Limits {
+    /// Cap on total decompressed bytes summed across all entries.
+    pub max_total_decompressed: u64,
+    /// Cap on any one entry's decompressed bytes.
+    pub max_entry_decompressed: u64,
+    /// Cap on the number of (non-directory) entries.
+    pub max_entry_count: usize,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Limits {
+            max_total_decompressed: MAX_TOTAL_DECOMPRESSED,
+            max_entry_decompressed: MAX_ENTRY_DECOMPRESSED,
+            max_entry_count: MAX_ENTRY_COUNT,
+        }
+    }
+}
+
 /// The main document part name.
 pub const DOCUMENT_PART: &str = "word/document.xml";
 /// The comments part name.
@@ -72,11 +114,41 @@ impl Package {
     /// Read a .docx from raw bytes into a `Package`, decompressing every part.
     /// Every part — modeled or not — is retained, which is the foundation of
     /// preserve-by-default.
+    ///
+    /// Decompression-bomb safe: the bytes are untrusted, so production
+    /// [`Limits`] bound the entry count, per-entry size, and total decompressed
+    /// size. We never trust the ZIP's `uncompressed_size` header for allocation
+    /// or reading — see [`read_from_bytes_with_limits`](Self::read_from_bytes_with_limits).
     pub fn read_from_bytes(bytes: &[u8]) -> Result<Self> {
+        Self::read_from_bytes_with_limits(bytes, Limits::default())
+    }
+
+    /// Like [`read_from_bytes`](Self::read_from_bytes) but with explicit
+    /// [`Limits`]. Tests use small caps to prove the decompression-bomb guard
+    /// fires without allocating gigabytes; production uses [`Limits::default`].
+    ///
+    /// RELIED-UPON PROPERTY: `zip` only decompresses on read, and we read each
+    /// entry through `Read::take(budget)`, so a lying uncompressed-size header
+    /// cannot make us allocate or read more than the running budget. The
+    /// `with_capacity` hint is clamped to the budget for the same reason.
+    pub fn read_from_bytes_with_limits(bytes: &[u8], limits: Limits) -> Result<Self> {
         let reader = Cursor::new(bytes);
         let mut archive =
             ZipArchive::new(reader).map_err(|e| DocxError::Package(format!("open zip: {e}")))?;
+
+        if archive.len() > limits.max_entry_count {
+            return Err(DocxError::Package(format!(
+                "too many entries: {} (max {})",
+                archive.len(),
+                limits.max_entry_count
+            )));
+        }
+
         let mut parts = BTreeMap::new();
+        // Running budget of total decompressed bytes still allowed across all
+        // remaining entries. Starts at the total cap and is debited per entry.
+        let mut total_remaining = limits.max_total_decompressed;
+
         for i in 0..archive.len() {
             let mut file = archive
                 .by_index(i)
@@ -85,11 +157,37 @@ impl Package {
                 continue;
             }
             let name = file.name().to_string();
-            let mut buf = Vec::with_capacity(file.size() as usize);
-            file.read_to_end(&mut buf)
-                .map_err(|e| DocxError::Package(format!("read part {name}: {e}")))?;
+
+            // Per-entry budget: the smaller of the per-entry cap and whatever
+            // total budget is left. We read at most `budget + 1` bytes so that
+            // an entry which would exactly fill (or overflow) the budget is
+            // detected rather than silently truncated.
+            let entry_budget = limits.max_entry_decompressed.min(total_remaining);
+            // Clamp the allocation hint: never trust the (attacker-controlled)
+            // uncompressed-size header — cap it at the budget.
+            let cap_hint = file.size().min(entry_budget).min(usize::MAX as u64) as usize;
+            let mut buf = Vec::with_capacity(cap_hint);
+
+            // `take` bounds the read regardless of the declared size.
+            let read = (&mut file)
+                .take(entry_budget.saturating_add(1))
+                .read_to_end(&mut buf)
+                .map_err(|e| DocxError::Package(format!("read part {name}: {e}")))?
+                as u64;
+
+            if read > entry_budget {
+                return Err(DocxError::Package(format!(
+                    "decompression-bomb guard: entry {name} exceeds size limit \
+                     (per-entry {} bytes, remaining total budget {} bytes)",
+                    limits.max_entry_decompressed, total_remaining
+                )));
+            }
+            // Debit the running total budget (read <= entry_budget <= total_remaining).
+            total_remaining -= read;
+
             parts.insert(name, buf);
         }
+
         if !parts.contains_key(DOCUMENT_PART) {
             return Err(DocxError::Package(format!(
                 "not a Word document: missing {DOCUMENT_PART}"
@@ -133,42 +231,50 @@ impl Package {
         Ok(out.into_inner())
     }
 
-    /// Ensure `[Content_Types].xml` declares an Override for a comments part.
+    /// Ensure `[Content_Types].xml` declares an Override for the comments part.
     /// Used when we add a `comments.xml` to a document that previously had
     /// none, so Word recognizes the new part. No-op if already declared or if
     /// there is no content-types part to patch.
+    ///
+    /// The "already declared" check is ANCHORED on an `<Override>` whose
+    /// `PartName` is exactly `/word/comments.xml` (parsed with quick-xml), not a
+    /// loose substring of the content-type string — so an unrelated mention of
+    /// the comments MIME type can't cause us to skip a needed Override.
     pub fn ensure_comments_content_type(&mut self) {
-        let needle = "wordprocessingml.comments+xml";
         let override_xml = "<Override PartName=\"/word/comments.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml\"/>";
-        if let Some(ct) = self.get_str(CONTENT_TYPES_PART) {
-            if ct.contains(needle) {
-                return;
-            }
-            if let Some(idx) = ct.rfind("</Types>") {
-                let mut patched = String::with_capacity(ct.len() + override_xml.len());
-                patched.push_str(&ct[..idx]);
-                patched.push_str(override_xml);
-                patched.push_str(&ct[idx..]);
-                self.insert(CONTENT_TYPES_PART, patched.into_bytes());
-            }
+        let Some(ct) = self.get_str(CONTENT_TYPES_PART) else {
+            return;
+        };
+        if content_types_has_override(&ct, "/word/comments.xml") {
+            return;
+        }
+        if let Some(idx) = ct.rfind("</Types>") {
+            let mut patched = String::with_capacity(ct.len() + override_xml.len());
+            patched.push_str(&ct[..idx]);
+            patched.push_str(override_xml);
+            patched.push_str(&ct[idx..]);
+            self.insert(CONTENT_TYPES_PART, patched.into_bytes());
         }
     }
 
     /// Ensure `word/_rels/document.xml.rels` relates the main document to
     /// `comments.xml`. Used when adding comments to a document that had none.
     /// Allocates a fresh relationship id. No-op if already related.
+    ///
+    /// The "already related" check is anchored on a `<Relationship>` whose
+    /// `Type` is exactly the comments relationship type (parsed with quick-xml),
+    /// and the new id is computed by [`next_rel_id`] which tolerates quote/space
+    /// variants and ignores non-`rId` ids.
     pub fn ensure_comments_relationship(&mut self) {
         let rels_target = "comments.xml";
         let comments_rel_type =
             "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments";
 
-        let existing = self.get_str(DOCUMENT_RELS_PART);
-        match existing {
+        match self.get_str(DOCUMENT_RELS_PART) {
             Some(rels) => {
-                if rels.contains(comments_rel_type) {
+                if rels_has_relationship_type(&rels, comments_rel_type) {
                     return;
                 }
-                // Allocate an id not already used (rIdN). Scan existing ids.
                 let next_id = next_rel_id(&rels);
                 let rel = format!(
                     "<Relationship Id=\"{next_id}\" Type=\"{comments_rel_type}\" Target=\"{rels_target}\"/>"
@@ -192,19 +298,103 @@ impl Package {
     }
 }
 
-/// Find the next free `rIdN` given an existing rels XML blob.
-fn next_rel_id(rels_xml: &str) -> String {
-    let mut max = 0u32;
-    let mut rest = rels_xml;
-    while let Some(pos) = rest.find("Id=\"rId") {
-        let after = &rest[pos + "Id=\"rId".len()..];
-        let digits: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
-        if let Ok(n) = digits.parse::<u32>() {
-            if n > max {
-                max = n;
-            }
+/// Local name (after any `:` prefix) of a raw qualified-name byte slice.
+fn local_of_bytes(b: &[u8]) -> &str {
+    let l = match b.iter().position(|&c| c == b':') {
+        Some(i) => &b[i + 1..],
+        None => b,
+    };
+    std::str::from_utf8(l).unwrap_or("")
+}
+
+/// Read an attribute value by its (prefix-insensitive) local name from a start
+/// tag. Quote style and surrounding whitespace are handled by the XML parser.
+fn attr_value(e: &quick_xml::events::BytesStart, want_local: &str) -> Option<String> {
+    e.attributes().with_checks(false).flatten().find_map(|a| {
+        if local_of_bytes(a.key.as_ref()) == want_local {
+            Some(String::from_utf8_lossy(&a.value).into_owned())
+        } else {
+            None
         }
-        rest = &after[digits.len()..];
+    })
+}
+
+/// True if `[Content_Types].xml` contains an `<Override>` whose `PartName`
+/// equals `part_name` exactly. Parsed (not substring-matched) so it is robust to
+/// attribute order, quote style, and incidental mentions of the MIME type.
+fn content_types_has_override(ct_xml: &str, part_name: &str) -> bool {
+    use quick_xml::events::Event;
+    use quick_xml::reader::Reader;
+    let mut reader = Reader::from_str(ct_xml);
+    reader.config_mut().trim_text(false);
+    loop {
+        match reader.read_event() {
+            Ok(Event::Empty(e)) | Ok(Event::Start(e))
+                if local_of_bytes(e.name().as_ref()) == "Override" =>
+            {
+                if attr_value(&e, "PartName").as_deref() == Some(part_name) {
+                    return true;
+                }
+            }
+            Ok(Event::Eof) => return false,
+            Ok(_) => {}
+            Err(_) => return false,
+        }
+    }
+}
+
+/// True if a `.rels` manifest contains a `<Relationship>` whose `Type` equals
+/// `rel_type` exactly. Parsed rather than substring-matched.
+fn rels_has_relationship_type(rels_xml: &str, rel_type: &str) -> bool {
+    use quick_xml::events::Event;
+    use quick_xml::reader::Reader;
+    let mut reader = Reader::from_str(rels_xml);
+    reader.config_mut().trim_text(false);
+    loop {
+        match reader.read_event() {
+            Ok(Event::Empty(e)) | Ok(Event::Start(e))
+                if local_of_bytes(e.name().as_ref()) == "Relationship" =>
+            {
+                if attr_value(&e, "Type").as_deref() == Some(rel_type) {
+                    return true;
+                }
+            }
+            Ok(Event::Eof) => return false,
+            Ok(_) => {}
+            Err(_) => return false,
+        }
+    }
+}
+
+/// Find the next free `rIdN` given an existing `.rels` XML blob.
+///
+/// Parses each `<Relationship Id="...">` with quick-xml (so quote/space variants
+/// are handled by the parser), takes only ids of the form `rId<digits>`,
+/// ignoring non-`rId` ids (e.g. GUID-style ids some producers use), and returns
+/// `rId(max+1)`. If no `rId<digits>` id is present, returns `rId1`.
+fn next_rel_id(rels_xml: &str) -> String {
+    use quick_xml::events::Event;
+    use quick_xml::reader::Reader;
+    let mut reader = Reader::from_str(rels_xml);
+    reader.config_mut().trim_text(false);
+    let mut max = 0u32;
+    loop {
+        match reader.read_event() {
+            Ok(Event::Empty(e)) | Ok(Event::Start(e))
+                if local_of_bytes(e.name().as_ref()) == "Relationship" =>
+            {
+                if let Some(id) = attr_value(&e, "Id") {
+                    if let Some(digits) = id.strip_prefix("rId") {
+                        if let Ok(n) = digits.parse::<u32>() {
+                            max = max.max(n);
+                        }
+                    }
+                }
+            }
+            Ok(Event::Eof) => break,
+            Ok(_) => {}
+            Err(_) => break,
+        }
     }
     format!("rId{}", max + 1)
 }

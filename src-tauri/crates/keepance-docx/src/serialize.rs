@@ -132,25 +132,56 @@ pub fn serialize_document(doc: &Document) -> Result<String> {
     out.push_str(XML_DECL);
     out.push_str(&format!("<w:document xmlns:w=\"{W_NS}\"><w:body>"));
 
-    let mut saw_sectpr = false;
     for block in &doc.body {
         match block {
             BlockContent::Paragraph(p) => write_paragraph(&mut out, p),
-            BlockContent::Raw { xml } => {
-                if xml.contains("sectPr") {
-                    saw_sectpr = true;
-                }
-                out.push_str(xml);
-            }
+            BlockContent::Raw { xml } => out.push_str(xml),
         }
     }
 
-    if !saw_sectpr {
+    // A valid body ends with exactly one body-level <w:sectPr>. We synthesize a
+    // trailing one ONLY when the body does not already end with a body-level
+    // sectPr block. We key on whether the FINAL body child is a sectPr element
+    // (its root local-name), NOT a substring scan: a paragraph-level
+    // <w:sectPr> (inside a pPr) or the literal text "sectPr" appearing anywhere
+    // else must not suppress the required body-level one.
+    if !body_ends_with_sectpr(&doc.body) {
         out.push_str("<w:sectPr/>");
     }
 
     out.push_str("</w:body></w:document>");
     Ok(out)
+}
+
+/// True when the document body's FINAL child is a raw block whose root element's
+/// local name is `sectPr` (i.e. a body-level section-properties element). This
+/// is the precise replacement for the old `xml.contains("sectPr")` scan.
+fn body_ends_with_sectpr(body: &[BlockContent]) -> bool {
+    match body.last() {
+        Some(BlockContent::Raw { xml }) => root_local_name_is(xml, "sectPr"),
+        _ => false,
+    }
+}
+
+/// Parse just the first element start of `xml` and test whether its LOCAL name
+/// equals `want`. Robust to the namespace prefix and to leading whitespace /
+/// XML declarations. Returns false if `xml` has no element start.
+fn root_local_name_is(xml: &str, want: &str) -> bool {
+    use quick_xml::events::Event;
+    use quick_xml::reader::Reader;
+
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(false);
+    loop {
+        match reader.read_event() {
+            Ok(Event::Start(e)) | Ok(Event::Empty(e)) => {
+                return local_of_bytes(e.name().as_ref()) == want;
+            }
+            Ok(Event::Eof) => return false,
+            Ok(_) => {}
+            Err(_) => return false,
+        }
+    }
 }
 
 fn write_comment(out: &mut String, c: &Comment) {
@@ -181,7 +212,9 @@ fn write_comment(out: &mut String, c: &Comment) {
     out.push_str("</w:comment>");
 }
 
-/// Serialize all comments to a full `word/comments.xml` string.
+/// Serialize all comments to a full `word/comments.xml` string, synthesizing a
+/// minimal `<w:comments>` root. Used only when there is no original
+/// comments.xml to take the root from (a brand-new document).
 pub fn serialize_comments(doc: &Document) -> Result<String> {
     let mut out = String::with_capacity(1024);
     out.push_str(XML_DECL);
@@ -193,21 +226,126 @@ pub fn serialize_comments(doc: &Document) -> Result<String> {
     Ok(out)
 }
 
+/// Serialize comments while PRESERVING the original `<w:comments ...>` root
+/// element (its attributes + namespace declarations such as `w15` /
+/// `mc:Ignorable`) verbatim, replacing only the comment children. Used when the
+/// comment set changed but we still want the producer's root to survive (so
+/// namespaces referenced by comment bodies aren't dropped). Falls back to the
+/// synthesized root if the original root can't be located.
+fn serialize_comments_preserving_root(doc: &Document, original_xml: &str) -> Result<String> {
+    let Some((decl_and_open, close_tag)) = split_root(original_xml, "comments") else {
+        return serialize_comments(doc);
+    };
+    let mut out = String::with_capacity(original_xml.len().max(1024));
+    out.push_str(&decl_and_open);
+    for c in doc.comments.values() {
+        write_comment(&mut out, c);
+    }
+    out.push_str(&close_tag);
+    Ok(out)
+}
+
+/// Given an XML document, return `(everything up to and including the root start
+/// tag, the root end tag verbatim)` for a root whose LOCAL name is `local`.
+/// Returns `None` if the structure can't be parsed (caller falls back).
+///
+/// We preserve the XML prolog + the exact `<w:comments ...>` open tag (with all
+/// attrs/namespaces) and the exact `</w:comments>` close tag from the source,
+/// substituting only the children. This keeps the producer's root verbatim.
+fn split_root(xml: &str, local: &str) -> Option<(String, String)> {
+    use quick_xml::events::Event;
+    use quick_xml::reader::Reader;
+
+    let mut reader = Reader::from_str(xml);
+    reader.config_mut().trim_text(false);
+
+    let mut open_end: Option<usize> = None; // byte index just after the root start tag
+    let mut close_start: Option<usize> = None; // byte index of the root end tag start
+
+    loop {
+        let pos_before = reader.buffer_position() as usize;
+        match reader.read_event() {
+            Ok(Event::Start(e)) if local_of_bytes(e.name().as_ref()) == local => {
+                if open_end.is_none() {
+                    open_end = Some(reader.buffer_position() as usize);
+                }
+            }
+            Ok(Event::End(e)) if local_of_bytes(e.name().as_ref()) == local => {
+                close_start = Some(pos_before);
+                // do not break: take the LAST matching close (there is only one
+                // root, but being defensive is cheap).
+            }
+            Ok(Event::Eof) => break,
+            Ok(_) => {}
+            Err(_) => return None,
+        }
+    }
+
+    let open_end = open_end?;
+    let close_start = close_start?;
+    if close_start < open_end || close_start > xml.len() || open_end > xml.len() {
+        return None;
+    }
+    let decl_and_open = xml[..open_end].to_string();
+    let close_tag = xml[close_start..].to_string();
+    Some((decl_and_open, close_tag))
+}
+
+/// Local name (after any `:` prefix) of a raw qualified-name byte slice.
+fn local_of_bytes(b: &[u8]) -> &str {
+    let l = match b.iter().position(|&c| c == b':') {
+        Some(i) => &b[i + 1..],
+        None => b,
+    };
+    std::str::from_utf8(l).unwrap_or("")
+}
+
 /// Serialize the document INTO an existing package, replacing only the parts we
 /// own and preserving everything else byte-for-byte. This is the production
 /// path used on save: `original` is the package the document was parsed from.
+///
+/// Comments are PRESERVE-BY-DEFAULT like every other unmodeled part: we only
+/// regenerate `comments.xml` when the comment set actually changed versus what
+/// was parsed from `original`. An unedited commented document therefore keeps
+/// its `comments.xml` byte-for-byte (stable diffs / idempotent round-trip),
+/// rather than being normalized by the synthesizer.
 pub fn serialize_into_package(doc: &Document, original: &Package) -> Result<Package> {
+    // INVARIANT: reject dangling comment references before producing any bytes,
+    // so we never write a document Word would treat as corrupt.
+    check_comment_refs(doc)?;
+
     let mut pkg = original.clone();
     pkg.insert(DOCUMENT_PART, serialize_document(doc)?.into_bytes());
 
-    if doc.comments.is_empty() {
-        // No comments to write. We deliberately leave any pre-existing
-        // comments.xml + its content-type/rel in place rather than mutate the
-        // manifests — removing a part cleanly is out of scope for A1 and risks
-        // dangling references. (In practice an imported doc with comments keeps
-        // them; a doc that never had comments has no part to leave.)
+    // What comments did the ORIGINAL package carry? (Empty if it had none.)
+    let original_comments_xml = original.get_str(COMMENTS_PART);
+    let original_comments = match &original_comments_xml {
+        Some(xml) => crate::parse::parse_comments(xml)?,
+        None => Default::default(),
+    };
+
+    let unchanged = doc.comments == original_comments;
+
+    if unchanged {
+        // No change to the comment set. If the original had a comments.xml, it is
+        // already in `pkg` (cloned from `original`) byte-for-byte — leave it. If
+        // it had none, there is nothing to write. Either way we do NOT touch the
+        // manifests. This is the comment-level preserve-by-default path.
+    } else if doc.comments.is_empty() {
+        // The document's comments were all removed. We deliberately leave any
+        // pre-existing comments.xml + its content-type/rel in place rather than
+        // mutate the manifests — removing a part cleanly (and pruning its
+        // content-type/rel) is out of scope for A1. The dangling-ref guard above
+        // already ensured the body carries no orphaned comment markers.
     } else {
-        pkg.insert(COMMENTS_PART, serialize_comments(doc)?.into_bytes());
+        // The comment set changed (added / edited / removed-some). Regenerate
+        // comments.xml, but PRESERVE the original `<w:comments>` root element
+        // (its namespaces/attrs) verbatim when we have one to take it from.
+        let comments_xml = match &original_comments_xml {
+            Some(orig) => serialize_comments_preserving_root(doc, orig)?,
+            None => serialize_comments(doc)?,
+        };
+        pkg.insert(COMMENTS_PART, comments_xml.into_bytes());
         // Make sure the package declares + relates the comments part, in case
         // we are adding comments to a document that previously had none.
         pkg.ensure_comments_content_type();
@@ -217,11 +355,64 @@ pub fn serialize_into_package(doc: &Document, original: &Package) -> Result<Pack
     Ok(pkg)
 }
 
+/// Document invariant: every comment-range/reference id used in the body must
+/// resolve to a `<w:comment>` in `doc.comments`, and every comment must be
+/// referenced by the body. A dangling id (either direction) is what Word treats
+/// as a corrupt comment graph, so we reject it on the save path BEFORE emitting
+/// bytes. Returns `Err(DocxError::Xml(..))` describing the first dangling id.
+///
+/// Note: `commentRangeStart`/`End`/`Reference` all point at a comment id; we
+/// require each referenced id to exist, and each existing comment to be pointed
+/// at by at least one of those markers.
+pub fn check_comment_refs(doc: &Document) -> Result<()> {
+    use crate::model::{BlockContent, Inline};
+    use std::collections::BTreeSet;
+
+    let mut referenced: BTreeSet<&str> = BTreeSet::new();
+    for block in &doc.body {
+        if let BlockContent::Paragraph(p) = block {
+            for inline in &p.inlines {
+                match inline {
+                    Inline::CommentRangeStart { id }
+                    | Inline::CommentRangeEnd { id }
+                    | Inline::CommentReference { id } => {
+                        referenced.insert(id.as_str());
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    // Every referenced id must have a matching comment.
+    for id in &referenced {
+        if !doc.comments.contains_key(*id) {
+            return Err(crate::error::DocxError::Xml(format!(
+                "dangling comment reference: id {id:?} is used in the body but has \
+                 no <w:comment> in comments"
+            )));
+        }
+    }
+    // Every comment must be referenced somewhere in the body.
+    for id in doc.comments.keys() {
+        if !referenced.contains(id.as_str()) {
+            return Err(crate::error::DocxError::Xml(format!(
+                "orphaned comment: id {id:?} has a <w:comment> but is never \
+                 referenced (commentRangeStart/End/Reference) in the body"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Build a brand-new package from a document that has no source package (e.g.
 /// a document created from scratch). Synthesizes minimal, spec-correct plumbing
 /// parts. Imported documents should use [`serialize_into_package`] instead so
 /// their original parts are preserved.
 pub fn serialize_new_package(doc: &Document) -> Result<Package> {
+    // Same invariant as the preserve path: never emit a dangling comment graph.
+    check_comment_refs(doc)?;
+
     let mut pkg = Package::new();
     pkg.insert(
         crate::package::CONTENT_TYPES_PART,

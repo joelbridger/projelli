@@ -4565,14 +4565,12 @@ dependencies = [
 name = "keepance-docx"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "chrono",
  "quick-xml",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 1.0.69",
- "uuid",
  "zip",
 ]
 

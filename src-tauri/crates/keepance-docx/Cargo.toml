@@ -25,12 +25,8 @@ quick-xml = "0.38"
 # JSON bridge for the React editor: the DOM (de)serializes via serde.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# Stable, non-colliding ids for AI-authored revisions and new comments.
-uuid = { version = "1", features = ["v4"] }
 # Typed timestamps for w:date attributes on revisions and comments.
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-# Ergonomic error handling across zip/xml/io/serde error types.
-anyhow = "1"
 # Public, typed error enum the Tauri command layer can map to user-facing
 # strings without leaking internals.
 thiserror = "1"

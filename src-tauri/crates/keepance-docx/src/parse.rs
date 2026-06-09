@@ -22,6 +22,16 @@
 //!     verbatim into `properties_xml` so styles/numbering/bold/italic/color
 //!     survive even though the engine does not interpret them.
 
+// SECURITY — relied-upon properties (a quick-xml bump must not regress these):
+//   1. quick-xml does NOT expand general/DTD entities, so a `<!DOCTYPE ...>`
+//      with recursive entities (billion-laughs / XXE) is inert here — it is
+//      never expanded into document content. Locked in by
+//      `tests/roundtrip.rs::test_doctype_entity_is_not_expanded_billion_laughs`.
+//   2. Every parse loop below is ITERATIVE (no recursion on document depth) and
+//      has an explicit `Event::Eof` arm that returns/breaks, so truncated or
+//      adversarial input terminates promptly instead of hanging or overflowing
+//      the stack. Locked in by `test_truncated_document_xml_returns_err_*`.
+
 use quick_xml::events::{BytesEnd, BytesStart, Event};
 use quick_xml::name::QName;
 use quick_xml::reader::Reader;
@@ -197,12 +207,12 @@ fn parse_paragraph(reader: &mut SliceReader, source: &str) -> Result<Paragraph> 
                 }
                 "ins" => {
                     let meta = revision_meta(&e);
-                    let runs = parse_runs_until(reader, "ins", false)?;
+                    let runs = parse_runs_until(reader, source, "ins", false)?;
                     para.inlines.push(Inline::Insertion { meta, runs });
                 }
                 "del" => {
                     let meta = revision_meta(&e);
-                    let runs = parse_runs_until(reader, "del", true)?;
+                    let runs = parse_runs_until(reader, source, "del", true)?;
                     para.inlines.push(Inline::Deletion { meta, runs });
                 }
                 "r" => {
@@ -251,14 +261,21 @@ fn parse_paragraph(reader: &mut SliceReader, source: &str) -> Result<Paragraph> 
 }
 
 /// Parse a sequence of `<w:r>` runs until the named closing wrapper
-/// (`ins`/`del`). When `is_del`, run text lives in `<w:delText>`.
-fn parse_runs_until(reader: &mut SliceReader, wrapper: &str, is_del: bool) -> Result<Vec<Run>> {
+/// (`ins`/`del`). When `is_del`, run text lives in `<w:delText>`. `source` is
+/// the full document.xml so `rPr` can be sliced VERBATIM from it (byte-exact),
+/// the same way `pPr` is, instead of re-serialized through the XML writer.
+fn parse_runs_until(
+    reader: &mut SliceReader,
+    source: &str,
+    wrapper: &str,
+    is_del: bool,
+) -> Result<Vec<Run>> {
     let mut runs: Vec<Run> = Vec::new();
     // We must capture rPr inside the run; do a position-aware walk per run.
     loop {
         match reader.read_event().map_err(xml_err)? {
             Event::Start(e) if local_name(&e) == "r" => {
-                if let Some(run) = parse_run_inner(reader, is_del)? {
+                if let Some(run) = parse_run_inner(reader, source, is_del)? {
                     runs.push(run);
                 }
             }
@@ -273,24 +290,25 @@ fn parse_runs_until(reader: &mut SliceReader, wrapper: &str, is_del: bool) -> Re
 }
 
 /// Parse a single `<w:r>` inside an ins/del wrapper. Captures `<w:rPr>`
-/// verbatim and the text from `<w:t>` or `<w:delText>`. Returns None if the run
-/// had no text node. The reader is positioned just after the `<w:r>` start.
-fn parse_run_inner(reader: &mut SliceReader, is_del: bool) -> Result<Option<Run>> {
+/// verbatim (sliced from `source`) and the text from `<w:t>` or `<w:delText>`.
+/// Returns None if the run had no text node. The reader is positioned just after
+/// the `<w:r>` start.
+fn parse_run_inner(reader: &mut SliceReader, source: &str, is_del: bool) -> Result<Option<Run>> {
     let text_tag = if is_del { "delText" } else { "t" };
     let mut text = String::new();
     let mut saw_text = false;
     let mut preserve = false;
     let mut rpr: Option<String> = None;
 
-    // `rPr` is preserved verbatim by re-serializing its event subtree (the
-    // slice reader does not expose the underlying source string on this path,
-    // so we reproduce the markup from events; quick-xml's writer keeps
-    // attributes + escaping faithful, which is sufficient for preservation of
-    // inert properties).
+    // `rPr` is preserved VERBATIM by slicing the source span (identical
+    // treatment to `pPr`), so attribute order / whitespace / namespaces survive
+    // byte-for-byte rather than being normalized by an XML round-trip.
     loop {
+        let pos = reader.buffer_position() as usize;
         match reader.read_event().map_err(xml_err)? {
             Event::Start(e) if local_name(&e) == "rPr" => {
-                rpr = Some(capture_subtree_as_xml(reader, &e)?);
+                let end = e.to_end().into_owned();
+                rpr = Some(capture_element(reader, source, pos, &end)?);
             }
             Event::Start(e) if local_name(&e) == text_tag => {
                 saw_text = true;
@@ -342,10 +360,14 @@ fn parse_plain_run(
     let mut has_unmodeled = false;
 
     loop {
+        let pos = reader.buffer_position() as usize;
         match reader.read_event().map_err(xml_err)? {
             Event::Start(e) => match local_name(&e).as_str() {
                 "rPr" => {
-                    rpr = Some(capture_subtree_as_xml(reader, &e)?);
+                    // Slice rPr VERBATIM from source (byte-exact), unified with
+                    // how pPr is captured — no XML-writer normalization.
+                    let end = e.to_end().into_owned();
+                    rpr = Some(capture_element(reader, source, pos, &end)?);
                 }
                 "t" => {
                     saw_text = true;
@@ -424,67 +446,17 @@ fn read_text_content(reader: &mut SliceReader, tag: &str, out: &mut String) -> R
     Ok(())
 }
 
-/// Re-serialize a subtree (the element whose Start event `start` was just read,
-/// plus all its descendants and its end tag) back to XML. Used to preserve
-/// `<w:rPr>` and unmodeled run children verbatim.
-///
-/// We re-serialize from events (rather than slice the source) here because this
-/// path is reached without the source string in scope; quick-xml's writer
-/// reproduces attributes and escaping faithfully, which is sufficient for
-/// preservation of properties and inert markup.
-fn capture_subtree_as_xml(reader: &mut SliceReader, start: &BytesStart) -> Result<String> {
-    use quick_xml::writer::Writer;
-    use std::io::Cursor;
-
-    let mut writer = Writer::new(Cursor::new(Vec::new()));
-    let name = start.name().as_ref().to_vec();
-    writer
-        .write_event(Event::Start(start.clone()))
-        .map_err(xml_err)?;
-    let mut depth = 1usize;
-    loop {
-        match reader.read_event().map_err(xml_err)? {
-            Event::Start(e) => {
-                if e.name().as_ref() == name.as_slice() {
-                    depth += 1;
-                }
-                writer.write_event(Event::Start(e)).map_err(xml_err)?;
-            }
-            Event::End(e) => {
-                let is_match = e.name().as_ref() == name.as_slice();
-                writer.write_event(Event::End(e)).map_err(xml_err)?;
-                if is_match {
-                    depth -= 1;
-                    if depth == 0 {
-                        break;
-                    }
-                }
-            }
-            Event::Empty(e) => {
-                writer.write_event(Event::Empty(e)).map_err(xml_err)?;
-            }
-            Event::Text(t) => {
-                writer.write_event(Event::Text(t)).map_err(xml_err)?;
-            }
-            Event::CData(c) => {
-                writer.write_event(Event::CData(c)).map_err(xml_err)?;
-            }
-            Event::Comment(c) => {
-                writer.write_event(Event::Comment(c)).map_err(xml_err)?;
-            }
-            Event::Eof => return Err(DocxError::Xml("EOF capturing subtree".into())),
-            _ => {}
-        }
-    }
-    String::from_utf8(writer.into_inner().into_inner())
-        .map_err(|e| DocxError::Xml(format!("utf8: {e}")))
-}
+// (Removed `capture_subtree_as_xml`: both `rPr` capture sites now slice the
+// source verbatim via `capture_element`, identical to how `pPr` is preserved,
+// so there is no longer an XML-writer round-trip that could normalize markup.)
 
 // ---------------------------------------------------------------------------
 // comments.xml
 // ---------------------------------------------------------------------------
 
-fn parse_comments(xml: &str) -> Result<std::collections::BTreeMap<String, Comment>> {
+pub(crate) fn parse_comments(
+    xml: &str,
+) -> Result<std::collections::BTreeMap<String, Comment>> {
     let mut reader = Reader::from_str(xml);
     reader.config_mut().trim_text(false);
 

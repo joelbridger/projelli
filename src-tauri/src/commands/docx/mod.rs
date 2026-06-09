@@ -28,8 +28,10 @@ use keepance_docx::{
 };
 use serde_json::Value;
 
-/// Result of opening a document: the JSON DOM plus a flag the editor can use to
-/// decide whether comments/revisions are present (cheap to compute here).
+/// The document DOM as a JSON `Value` — the exact serde serialization of
+/// `keepance_docx::Document` (camelCase, tag-discriminated). This is what the
+/// `docx_*` commands hand to / take from the React editor; the engine crate
+/// owns the authoritative schema.
 pub type DocumentJson = Value;
 
 // ---------------------------------------------------------------------------
@@ -284,5 +286,62 @@ mod tests {
         // It parses back as a valid document with the fixture's content.
         let doc = parse_docx_bytes(&bytes).expect("parse new");
         assert_eq!(doc.revisions().len(), 2);
+    }
+
+    /// Smoke test the ACTUAL `#[tauri::command]` async surface (not just the
+    /// core fns): docx_open -> docx_author_revision -> docx_save, end to end,
+    /// through a tokio runtime. These commands take plain `String`/`Value`
+    /// arguments (no Tauri `State`/`Window`), so they are directly callable in a
+    /// test — this guards the async/spawn_blocking shell + arg marshalling.
+    #[tokio::test]
+    async fn async_command_surface_open_author_save_smoke() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("matter.docx");
+        let bytes = keepance_docx::serialize_docx_bytes(&build_fixture_model()).unwrap();
+        std::fs::write(&path, &bytes).unwrap();
+        let path_str = path.to_string_lossy().to_string();
+
+        // 1. docx_open (async command) returns the JSON DOM.
+        let json = super::docx_open(path_str.clone())
+            .await
+            .expect("docx_open command");
+        assert_eq!(json["formatVersion"], 1);
+
+        // 2. docx_author_revision (async command) adds an AI insertion.
+        let authored = super::docx_author_revision(
+            json,
+            "insertion".to_string(),
+            Some("Keepance AI".to_string()),
+            0,
+            Some(" Authored via async command.".to_string()),
+            None,
+            Some("2026-06-09T00:00:00Z".to_string()),
+        )
+        .await
+        .expect("docx_author_revision command");
+
+        // 3. docx_save (async command) writes it back to disk.
+        super::docx_save(path_str.clone(), authored)
+            .await
+            .expect("docx_save command");
+
+        // 4. Re-open and confirm originals + the new AI revision survived.
+        let reopened = super::docx_open(path_str).await.expect("reopen");
+        let doc = keepance_docx::document_from_value(reopened).unwrap();
+        let revs = doc.revisions();
+        assert_eq!(revs.len(), 3, "expected 2 originals + 1 authored");
+        assert!(revs.iter().any(|(m, _, _)| m.author == "Keepance AI"));
+        assert!(doc.comments.contains_key("1"), "comment preserved");
+    }
+
+    /// The async command surface must surface errors (not panic) for bad input:
+    /// opening a path that is not a .docx returns Err.
+    #[tokio::test]
+    async fn async_command_open_rejects_non_docx() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("garbage.docx");
+        std::fs::write(&path, b"not a zip at all").unwrap();
+        let res = super::docx_open(path.to_string_lossy().to_string()).await;
+        assert!(res.is_err(), "opening non-docx must error");
     }
 }
