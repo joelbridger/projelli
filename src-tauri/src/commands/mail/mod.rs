@@ -570,13 +570,18 @@ async fn index_mail_text_internal(
     workspace: &std::path::Path,
     path_key: &str,
     plaintext: &str,
-    key: &[u8; 32],
     matter_id: &str,
 ) -> anyhow::Result<u32> {
     use anyhow::Context;
     if plaintext.trim().is_empty() {
         return Ok(0);
     }
+    // WS-VEC: the RAG-index copy of the mail text is encrypted at rest under the
+    // dedicated VECTOR-STORE key (not the mail-body key), so the whole `chunks`
+    // table decrypts under one key. The canonical encrypted mail body lives in
+    // the mail store under the mail key; this is a derived copy.
+    let key = crate::commands::rag::crypto::get_or_create_master_key()
+        .context("vectors master key for mail RAG index")?;
     let conn = crate::commands::rag::store::open_connection(workspace)
         .await
         .context("open lancedb for mail indexing")?;
@@ -609,7 +614,7 @@ async fn index_mail_text_internal(
     // matter is assigned after indexing, not at sync time).
     let batch = crate::commands::rag::store::build_batch_mail(
         &rows,
-        key,
+        &key,
         matter_id,
         crate::commands::rag::store::PRIVILEGE_NONE,
     )
@@ -736,20 +741,20 @@ async fn mail_sync_all_inner(
         //      decrypted text into MiniSearch in-memory (G5). The plaintext
         //      never touches disk — it lives only in renderer-process memory.
         let workspace_for_index = workspace.clone();
-        let enc_key_for_index = enc_key;
         let app3 = app.clone();
         let index_callback = move |id: &str, text: &str, matter_id: &str| {
             let path_key = format!("mail:{}", id);
             let text_owned = text.to_string();
             let ws = workspace_for_index.clone();
-            let key = enc_key_for_index;
             // WS-B/C: the matter resolved for this folder is tagged on the chunk
             // at index time (UNASSIGNED_MATTER when the folder is not mapped).
+            // WS-VEC: index_mail_text_internal fetches the vector-store key itself
+            // (the RAG copy is encrypted at rest under that key, not the mail key).
             let matter = matter_id.to_string();
-            // Fire-and-forget RAG indexing (G4).
+            // Fire-and-forget RAG indexing.
             let _ = tokio::task::spawn(async move {
-                if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key, &matter).await {
-                    log::warn!("G4 mail index failed for {}: {}", path_key, e);
+                if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &matter).await {
+                    log::warn!("mail RAG index failed for {}: {}", path_key, e);
                 }
             });
             // G5: pull the subject from the frontmatter (scoped to the fenced
@@ -838,18 +843,17 @@ async fn mail_sync_all_inner(
                 );
             };
             let workspace_for_index = workspace.clone();
-            let enc_key_for_index = enc_key;
             let app3 = app.clone();
             let index_callback = move |id: &str, text: &str, matter_id: &str| {
                 let path_key = format!("mail:{}", id);
                 let text_owned = text.to_string();
                 let ws = workspace_for_index.clone();
-                let key = enc_key_for_index;
+                // WS-VEC: index_mail_text_internal fetches the vector-store key.
                 let matter = matter_id.to_string();
-                // Fire-and-forget RAG indexing (G4).
+                // Fire-and-forget RAG indexing.
                 let _ = tokio::task::spawn(async move {
-                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key, &matter).await {
-                        log::warn!("G4 mail index failed for {}: {}", path_key, e);
+                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &matter).await {
+                        log::warn!("mail RAG index failed for {}: {}", path_key, e);
                     }
                 });
                 // G5: pull the subject from the frontmatter (scoped to the fenced
@@ -937,18 +941,17 @@ async fn mail_sync_all_inner(
                 );
             };
             let workspace_for_index = workspace.clone();
-            let enc_key_for_index = enc_key;
             let app3 = app.clone();
             let index_callback = move |id: &str, text: &str, matter_id: &str| {
                 let path_key = format!("mail:{}", id);
                 let text_owned = text.to_string();
                 let ws = workspace_for_index.clone();
-                let key = enc_key_for_index;
+                // WS-VEC: index_mail_text_internal fetches the vector-store key.
                 let matter = matter_id.to_string();
-                // Fire-and-forget RAG indexing (G4).
+                // Fire-and-forget RAG indexing.
                 let _ = tokio::task::spawn(async move {
-                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &key, &matter).await {
-                        log::warn!("G4 mail index failed for {}: {}", path_key, e);
+                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &matter).await {
+                        log::warn!("mail RAG index failed for {}: {}", path_key, e);
                     }
                 });
                 // G5: pull the subject from the frontmatter (scoped to the fenced

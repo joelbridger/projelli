@@ -4,9 +4,15 @@
 //!
 //! These are integration tests over the real engine: they build an on-disk
 //! LanceDB `chunks` table in a tempdir via the production store functions
-//! (`build_batch` / `build_batch_mail` with the new `matter_id` column), embed a
+//! (`build_batch` / `build_batch_mail` with the `matter_id` column), embed a
 //! mixed (documents + email) two-matter corpus with a deliberately CONFUSABLE
-//! cross-matter "closing date" pair, and assert the three gate properties:
+//! cross-matter "closing date" pair, and assert the gate properties below.
+//!
+//! WS-VEC: the `text` column is encrypted at rest for EVERY source type (the
+//! store returns the raw hex-encoded ciphertext; the Tauri command decrypts in
+//! memory — these tests mirror that by decrypting via `decrypt_hit` before any
+//! content assertion). So a sensitive chunk string never appears in the on-disk
+//! LanceDB files (see `vec_chunk_text_is_encrypted_on_disk`).
 //!
 //!   Property 1 — exact-source cited retrieval over a MIXED corpus.
 //!   Property 2 — matter ISOLATION (prefilter), incl. the adversarial confusable
@@ -35,9 +41,21 @@ use tokio::sync::OnceCell;
 
 const MATTER_ACME: &str = "matter-acme";
 const MATTER_GLOBEX: &str = "matter-globex";
-/// Fixed key for the one encrypted (mail) row, so the test never touches the
-/// OS keychain. The store layer treats mail text as ciphertext regardless.
-const MAIL_KEY: [u8; 32] = [0x5Au8; 32];
+/// Fixed vector-store key for ALL rows (documents + mail), so the tests never
+/// touch the OS keychain. WS-VEC: every chunk's `text` column is AES-256-GCM
+/// ciphertext under this key; the store returns it raw, callers decrypt.
+const VEC_KEY: [u8; 32] = [0x5Au8; 32];
+
+/// Decrypt a `StoredHit`'s `text` (hex-encoded AES-256-GCM ciphertext) back to
+/// plaintext, mirroring what the `rag_retrieve` command does on read. Every
+/// content assertion in these tests goes through this — the store layer itself
+/// returns ciphertext (it never persists or returns plaintext at rest).
+fn decrypt_hit(h: &store::StoredHit) -> String {
+    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    let blob = hex::decode(&h.text).expect("hit text must be hex ciphertext (WS-VEC)");
+    String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt hit text"))
+        .expect("utf8 plaintext")
+}
 
 /// One source in the test corpus before chunking.
 struct Source {
@@ -159,9 +177,9 @@ struct Fixture {
 static FIXTURE: OnceCell<Arc<Fixture>> = OnceCell::const_new();
 
 /// Build the production `chunks` table once: chunk → embed (e5-small) → write
-/// each source's chunks with its matter_id. Documents go through `build_batch`
-/// (plaintext); the email sources go through `build_batch_mail` (encrypted text
-/// column) — both stamp `matter_id` + `source_id`.
+/// each source's chunks with its matter_id. WS-VEC: documents go through
+/// `build_batch` and email through `build_batch_mail`; BOTH encrypt the text
+/// column under `VEC_KEY` and stamp `matter_id` + `source_id`.
 async fn fixture() -> Arc<Fixture> {
     FIXTURE
         .get_or_init(|| async {
@@ -182,10 +200,10 @@ async fn fixture() -> Arc<Fixture> {
                 let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
 
                 let batch = if src.source_type == "mail" {
-                    store::build_batch_mail(&rows, &MAIL_KEY, src.matter_id, src.privilege)
+                    store::build_batch_mail(&rows, &VEC_KEY, src.matter_id, src.privilege)
                         .expect("build mail batch")
                 } else {
-                    store::build_batch(&rows, SourceType::Text, src.matter_id, src.privilege)
+                    store::build_batch(&rows, SourceType::Text, src.matter_id, src.privilege, &VEC_KEY)
                         .expect("build batch")
                 };
                 let schema = batch.schema();
@@ -223,7 +241,8 @@ async fn p1_document_query_returns_exact_source_with_citation() {
     let top = &hits[0];
     assert_eq!(top.source_id.as_deref(), Some("/acme/acme-spa.md"));
     assert_eq!(top.matter_id.as_deref(), Some(MATTER_ACME));
-    assert!(top.text.contains("4,200,000"), "retrieved chunk must contain the cited fact");
+    // WS-VEC: the store returns ciphertext; decrypt (as the command does) to read the fact.
+    assert!(decrypt_hit(top).contains("4,200,000"), "retrieved chunk must contain the cited fact");
     // The citation key is content-addressed and reproducible from (path, para).
     assert_eq!(top.id, store::chunk_id("/acme/acme-spa.md", top.paragraph_index));
 }
@@ -300,7 +319,7 @@ async fn p2_adversarial_confusable_term_does_not_leak_across_matters() {
         .iter()
         .find(|h| h.source_id.as_deref() == Some("/acme/acme-spa.md"))
         .expect("Acme closing should be present under Acme scope");
-    assert!(acme.text.contains("March 14, 2026"));
+    assert!(decrypt_hit(acme).contains("March 14, 2026"));
 
     // Symmetric: scope to Globex → only Globex, September date.
     let scoped_g = nearest(&f.table, &q, 8, Some(MATTER_GLOBEX), false).await.unwrap();
@@ -348,13 +367,20 @@ async fn p2_scope_is_required_at_the_type_level() {
 // ===========================================================================
 
 /// Mirror of the command's verdict logic at the store layer (the command also
-/// decrypts mail + validates input; here we exercise the scoped point-lookup
-/// against plaintext document chunks so the test never needs the keychain).
+/// validates input). WS-VEC: the stored chunk text is encrypted at rest, so we
+/// decrypt the looked-up record's text (exactly as `rag_verify_citation` does)
+/// before the whitespace-normalized containment check, using `VEC_KEY`.
 async fn verify(table: &lancedb::Table, id: &str, claimed: &str, quoted: &str) -> Verdict {
+    use keepance_lib::commands::mail::crypto::decrypt_with_key;
     let normalize = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let decrypt = |hex_text: &str| -> String {
+        let blob = hex::decode(hex_text).expect("record text must be hex ciphertext (WS-VEC)");
+        String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt record text")).expect("utf8")
+    };
     match lookup_by_id(table, id, Some(claimed)).await.unwrap() {
         Some(rec) => {
-            if normalize(&rec.text).contains(&normalize(quoted)) && !normalize(quoted).is_empty() {
+            let plaintext = decrypt(&rec.text);
+            if normalize(&plaintext).contains(&normalize(quoted)) && !normalize(quoted).is_empty() {
                 Verdict::Verified
             } else {
                 Verdict::TextMismatch
@@ -525,7 +551,7 @@ async fn unassigned_sentinel_is_scopeable() {
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
     let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
-    let batch = store::build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE).unwrap();
+    let batch = store::build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, &VEC_KEY).unwrap();
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;
     table.add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema))).execute().await.unwrap();
@@ -721,7 +747,7 @@ async fn priv_retag_flips_exclusion_in_place() {
     let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
     // Index initially as non-privileged.
-    let batch = store::build_batch(&rows, SourceType::Text, MATTER_ACME, PRIVILEGE_NONE).unwrap();
+    let batch = store::build_batch(&rows, SourceType::Text, MATTER_ACME, PRIVILEGE_NONE, &VEC_KEY).unwrap();
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;
     table.add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema))).execute().await.unwrap();
@@ -753,4 +779,80 @@ async fn priv_retag_flips_exclusion_in_place() {
         .find(|h| h.source_id.as_deref() == Some(path))
         .expect("re-tagged doc must be retrievable with include_privileged = true");
     assert_eq!(hit.privilege.as_deref(), Some(PRIVILEGE_ATTORNEY_CLIENT));
+}
+
+// ===========================================================================
+// WS-VEC — chunk-text encryption at rest.
+// ===========================================================================
+
+/// THE on-disk confidentiality test (mirrors the audit store's
+/// `payload_plaintext_does_not_appear_on_disk`): a sensitive DOCUMENT chunk
+/// string must NOT be readable in the raw LanceDB files on disk. Documents were
+/// plaintext before WS-VEC; this is the regression guard that they are now
+/// encrypted at rest. We scan EVERY file under the dataset dir (LanceDB writes
+/// data into .lance fragment files), recursively, for the secret bytes.
+#[tokio::test]
+async fn vec_chunk_text_is_encrypted_on_disk() {
+    let dir = tempfile::tempdir().unwrap();
+    let conn = store::open_connection(dir.path()).await.unwrap();
+    let table = store::open_or_create_table(&conn).await.unwrap();
+
+    // A distinctive sensitive string that does not occur elsewhere in the schema.
+    let secret = "CONFIDENTIAL_SETTLEMENT_FIGURE_8675309_acme_merger";
+    let doc = format!(
+        "Privileged deal terms. The agreed settlement figure is {secret}, payable at closing."
+    );
+    let path = "/acme/secret-terms.md";
+    let chunks = keepance_lib::commands::rag::chunker::chunk_text(path, &doc);
+    let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
+    let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
+    // DOCUMENT path (build_batch) — the formerly-plaintext path.
+    let batch = store::build_batch(&rows, SourceType::Text, MATTER_ACME, PRIVILEGE_NONE, &VEC_KEY).unwrap();
+    let schema = batch.schema();
+    use arrow_array::RecordBatchIterator;
+    table.add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema))).execute().await.unwrap();
+    drop(table);
+    drop(conn);
+
+    // Recursively read every file under the vectors dataset dir and assert the
+    // secret bytes appear in NONE of them (it lives only inside the AES-GCM blob).
+    let dataset_dir = store::dataset_path(dir.path());
+    let mut files_scanned = 0usize;
+    for entry in walkdir::WalkDir::new(&dataset_dir).into_iter().filter_map(|e| e.ok()) {
+        if entry.file_type().is_file() {
+            let bytes = std::fs::read(entry.path()).unwrap_or_default();
+            files_scanned += 1;
+            assert!(
+                !bytes.windows(secret.len()).any(|w| w == secret.as_bytes()),
+                "WS-VEC LEAK: plaintext chunk text found in {:?}",
+                entry.path()
+            );
+        }
+    }
+    assert!(files_scanned > 0, "expected to scan at least one on-disk LanceDB file");
+}
+
+/// Retrieval returns the correct DECRYPTED chunk text for a DOCUMENT chunk:
+/// the store returns ciphertext (asserted), and decrypting it (as the command
+/// does) yields the exact original plaintext fact.
+#[tokio::test]
+async fn vec_retrieval_returns_correct_decrypted_text() {
+    let f = fixture().await;
+    let q = embed("what is the purchase price in the share purchase agreement").await;
+    let hits = nearest(&f.table, &q, 5, Some(MATTER_ACME), false).await.unwrap();
+    let top = hits
+        .iter()
+        .find(|h| h.source_id.as_deref() == Some("/acme/acme-spa.md"))
+        .expect("acme spa chunk");
+    // Store layer: the raw text is encrypted (hex ciphertext, not the plaintext).
+    assert!(top.encrypted, "WS-VEC: every chunk must be marked encrypted at the store layer");
+    assert!(
+        !top.text.contains("4,200,000") && !top.text.contains("Closing Date"),
+        "WS-VEC: the store must return ciphertext, never plaintext"
+    );
+    // Decrypting (as rag_retrieve does) recovers the exact fact verbatim.
+    let plaintext = decrypt_hit(top);
+    assert!(plaintext.contains("Four Million Two Hundred Thousand Dollars ($4,200,000)"));
+    assert!(plaintext.contains("closing date of the transactions"));
 }

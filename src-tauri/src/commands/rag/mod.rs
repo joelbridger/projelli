@@ -23,6 +23,7 @@
 // `Hit` is the frozen wire format from Phase 2; do NOT change its shape.
 
 pub mod chunker;
+pub mod crypto;
 pub mod embedder;
 pub mod extractor;
 pub mod pdf_indexer;
@@ -225,7 +226,10 @@ pub async fn rag_index_file(
         .await
         .map_err(|e| format!("open table: {e}"))?;
 
-    index_one_file(&table, &file_path, &matter, &privilege)
+    // WS-VEC: the vector-store master key — chunk text is encrypted at rest.
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+
+    index_one_file(&table, &file_path, &matter, &privilege, &key)
         .await
         .map_err(|e| format!("index_file failed: {e}"))?;
     Ok(())
@@ -267,6 +271,7 @@ async fn index_one_file(
     file_path: &Path,
     matter_id: &str,
     privilege: &str,
+    key: &[u8; 32],
 ) -> anyhow::Result<()> {
     let path_str = file_path.to_string_lossy().to_string();
     let Some(text) = extractor::read_text(file_path) else {
@@ -290,6 +295,7 @@ async fn index_one_file(
         store::SourceType::Text,
         matter_id,
         privilege,
+        key,
     )
     .await?;
     Ok(())
@@ -330,6 +336,9 @@ pub async fn rag_index_workspace(
     let table = store::open_or_create_table(&conn)
         .await
         .map_err(|e| format!("open table: {e}"))?;
+
+    // WS-VEC: the vector-store master key — chunk text is encrypted at rest.
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
 
     // Phase 1: walk the tree.
     let files: Vec<PathBuf> = walkdir::WalkDir::new(&workspace)
@@ -384,7 +393,7 @@ pub async fn rag_index_workspace(
         // privileged), applied via the privilege store + `rag_retag_privilege`
         // after indexing — mirroring how per-file matter assignment re-tags on top
         // of the unassigned full walk.
-        if let Err(e) = index_one_file(&table, file, &matter, store::PRIVILEGE_NONE).await {
+        if let Err(e) = index_one_file(&table, file, &matter, store::PRIVILEGE_NONE, &key).await {
             // Don't abort the whole walk on a single bad file — log and move on.
             log::warn!(
                 "rag_index_workspace: failed to index {}: {}",
@@ -430,10 +439,11 @@ pub async fn rag_index_workspace(
 /// composes into the SAME prefilter — never a silent default. Default retrieval
 /// therefore never returns privileged content.
 ///
-/// G4: mail chunks have encrypted text columns. This function decrypts them
-/// in memory before returning. If decryption fails (key unavailable, tampered
-/// data), the chunk is returned as "[mail content unavailable]" — retrieval
-/// never panics or fails due to a bad mail chunk.
+/// WS-VEC: every chunk's `text` column is encrypted at rest under the vector-
+/// store key. This function decrypts in memory before returning; plaintext is
+/// never persisted. If decryption fails (key unavailable, tampered data), the
+/// chunk text is returned as "[content unavailable]" — retrieval never panics or
+/// fails due to a single bad chunk.
 #[tauri::command]
 pub async fn rag_retrieve(
     state: State<'_, RagState>,
@@ -493,17 +503,17 @@ pub async fn rag_retrieve(
     .await
     .map_err(|e| format!("nearest: {e}"))?;
 
-    // G4: try to get the master key once for the whole batch.
-    // If the keychain is unavailable, enc_key is None and encrypted chunks
-    // will fall through to the "[mail content unavailable — keychain locked]"
-    // placeholder — retrieval continues normally for plaintext chunks.
-    let enc_key = crate::commands::mail::crypto::get_or_create_master_key().ok();
+    // WS-VEC: get the vector-store master key once for the whole batch.
+    // If the keychain is unavailable, enc_key is None and encrypted chunks fall
+    // through to the "[content unavailable — keychain locked]" placeholder —
+    // retrieval continues normally for any (pre-WS-VEC) plaintext rows.
+    let enc_key = crypto::get_or_create_master_key().ok();
 
     let mut hits: Vec<Hit> = raw
         .into_iter()
         .map(|h| {
             let chunk_text = if h.encrypted {
-                // G4: Mail chunk — decrypt hex-encoded ciphertext.
+                // WS-VEC: decrypt the hex-encoded ciphertext in memory.
                 // On any failure (bad key, tampered, keychain locked): return
                 // a placeholder string — do NOT crash or skip the chunk.
                 if let Some(ref k) = enc_key {
@@ -513,12 +523,12 @@ pub async fn rag_retrieve(
                             crate::commands::mail::crypto::decrypt_with_key(&bytes, k).ok()
                         })
                         .and_then(|v| String::from_utf8(v).ok())
-                        .unwrap_or_else(|| "[mail content unavailable]".to_string())
+                        .unwrap_or_else(|| "[content unavailable]".to_string())
                 } else {
-                    "[mail content unavailable — keychain locked]".to_string()
+                    "[content unavailable — keychain locked]".to_string()
                 }
             } else {
-                // Text / PDF chunk (or pre-G4 row): return as-is. No change from pre-G4.
+                // Pre-WS-VEC plaintext row (migration re-indexes these): as-is.
                 h.text
             };
             Hit {
@@ -558,11 +568,11 @@ pub async fn rag_retrieve(
 ///   2. If not found there, look up by `id` alone to distinguish a fabricated id
 ///      (`NotFound`) from one that exists under a DIFFERENT matter
 ///      (`MatterMismatch { actual_matter }` — a confidentiality lie).
-///   3. If found in the claimed matter, decrypt mail text if needed, then assert
-///      the stored chunk text CONTAINS `quoted_text` (whitespace-normalized).
-///      Pass → `Verified`; fail → `TextMismatch`.
+///   3. If found in the claimed matter, decrypt the stored text (WS-VEC: chunk
+///      text is encrypted at rest), then assert it CONTAINS `quoted_text`
+///      (whitespace-normalized). Pass → `Verified`; fail → `TextMismatch`.
 ///
-/// FAIL-CLOSED: if a mail chunk's text cannot be decrypted (keychain locked,
+/// FAIL-CLOSED: if a chunk's text cannot be decrypted (keychain locked,
 /// tampered), verification returns `TextMismatch` (treat as unverifiable, do not
 /// pass) rather than falsely verifying.
 #[tauri::command]
@@ -614,10 +624,10 @@ pub async fn rag_verify_citation(
         });
     };
 
-    // 3. Found in the claimed matter — resolve the stored text (decrypt mail).
+    // 3. Found in the claimed matter — resolve the stored text (WS-VEC: decrypt).
     let stored_text = if record.encrypted {
-        // FAIL-CLOSED: a mail chunk we cannot decrypt is unverifiable.
-        let Some(key) = crate::commands::mail::crypto::get_or_create_master_key().ok() else {
+        // FAIL-CLOSED: a chunk we cannot decrypt is unverifiable.
+        let Some(key) = crypto::get_or_create_master_key().ok() else {
             return Ok(Verdict::TextMismatch);
         };
         let decrypted = hex::decode(&record.text)
@@ -732,7 +742,10 @@ pub async fn rag_index_pdf_chunks(
         .await
         .map_err(|e| format!("open table: {e}"))?;
 
-    let count = pdf_indexer::index_pdf_chunks(&table, &path, &pages, page_count, &matter, &privilege)
+    // WS-VEC: the vector-store master key — chunk text is encrypted at rest.
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+
+    let count = pdf_indexer::index_pdf_chunks(&table, &path, &pages, page_count, &matter, &privilege, &key)
         .await
         .map_err(|e| format!("index_pdf_chunks: {e}"))?;
     Ok(count as u32)

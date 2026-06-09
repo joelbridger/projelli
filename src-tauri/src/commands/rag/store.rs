@@ -8,14 +8,33 @@
 //   source_id       : Utf8 NOT NULL  — originating source: file path (docs/pdf)
 //                                      or "mail:<message-id>" (email). WS-B/C.
 //   paragraph_index : UInt32         — chunk index inside the source
-//   text            : Utf8           — verbatim chunk text (returned to UI)
-//   vector          : FixedSizeList<Float32, 384>
+//   text            : Utf8           — chunk text AT REST. Encrypted-at-rest
+//                                      (WS-VEC): hex-encoded AES-256-GCM blob
+//                                      (nonce‖ciphertext‖tag). Decrypted in
+//                                      memory on read; NEVER written to disk in
+//                                      plaintext. See `encrypted` below + crypto.rs.
+//   vector          : FixedSizeList<Float32, 384>  — PLAINTEXT (similarity needs it)
 //   indexed_at      : Int64          — unix epoch seconds, debug only
 //   source_type     : Utf8 (nullable) — "text" | "pdf" | "mail"; null for pre-A3 rows
 //   page_number     : UInt32 (nullable) — 1-based page # for PDF, 0 for text
 //   encrypted       : Boolean (nullable) — true => `text` holds AES-256-GCM ciphertext
 //   privilege       : Utf8 NOT NULL  — privilege status (WS-PRIV). One of
 //                                      "none" | "attorney-client" | "work-product".
+//
+// WS-VEC — chunk text is a CONFIDENTIALITY GUARANTEE at rest. The `text` column
+// is encrypted with AES-256-GCM under the dedicated vector-store master key
+// (`crypto.rs`, keychain service "keepance-vectors-enc") for EVERY source type
+// (text / pdf / mail). Reads decrypt in memory; plaintext is never persisted.
+//   - `matter_id` and `privilege` stay PLAINTEXT and queryable ON PURPOSE — the
+//     retrieval isolation guarantee depends on them running as a LanceDB
+//     PREFILTER (`only_if`) BEFORE the vector search. Encrypting them would force
+//     postfiltering, which is both slower and leaks (it runs the vector search
+//     over out-of-scope rows). They are intentionally NOT encrypted here.
+//   - The `vector` column stays plaintext (similarity needs it); a leaked vector
+//     reveals only fuzzy, non-reversible semantics.
+//   - DOCUMENTED RESIDUAL (out of scope): `source_id` / `path` (file paths) and
+//     `matter_id` values, being queryable, still reveal the client/matter map to
+//     a disk reader. Opaque-id-ifying them is a separate follow-up.
 //
 // `id` is content-addressed by `(path, paragraph_index)` so re-indexing a
 // file is idempotent — we delete `path = ?` first and then append, avoiding
@@ -120,7 +139,15 @@ pub const UNASSIGNED_MATTER: &str = "unassigned";
 /// safety hazard the same way a null matter is a confidentiality hazard), so the
 /// migration drops + re-indexes, defaulting every row to `PRIVILEGE_NONE` and
 /// then re-tagging from the privilege store.
-pub const INDEX_VERSION: u32 = 4;
+///
+/// WS-VEC: bumped 4 → 5. Versions ≤ 4 stored text/pdf chunk `text` as PLAINTEXT
+/// (only mail was encrypted under the G4 scheme). Encrypting `text` at rest for
+/// all source types is a confidentiality guarantee, so a pre-5 table holds
+/// plaintext chunk text on disk. We never leave that behind: the migration drops
+/// + re-indexes, re-encrypting every chunk's text under the dedicated vector-store
+/// key. (Re-indexing also re-encrypts the formerly mail-key'd mail chunks under
+/// the vector-store key, unifying the decryption key for the whole table.)
+pub const INDEX_VERSION: u32 = 5;
 
 /// Filename (under the vectors dir) holding the integer `INDEX_VERSION` the
 /// current `chunks` table was built with.
@@ -211,9 +238,11 @@ pub fn build_schema() -> SchemaRef {
         // A3: 1-based page number for PDF chunks; 0 for text chunks.
         // Nullable for pre-A3 rows.
         Field::new("page_number", DataType::UInt32, true),
-        // G4: true for mail chunks whose text column holds hex-encoded AES-256-GCM ciphertext.
-        // false for text/pdf chunks (plaintext). Nullable so pre-G4 rows (no column) default
-        // to null → treated as false by the retrieval layer.
+        // WS-VEC: true for EVERY chunk written at version ≥ 5 — the text column
+        // holds a hex-encoded AES-256-GCM blob (vector-store key). Nullable so a
+        // stray pre-5 row (no column / false) is still readable; the version-5
+        // migration drops + re-indexes such rows so nothing stays plaintext.
+        // (Historically G4 set this only for mail; now all source types set it.)
         Field::new("encrypted", DataType::Boolean, true),
         // WS-PRIV: privilege status. NON-NULL — every chunk carries one of
         // "none" | "attorney-client" | "work-product". Privileged values are
@@ -264,13 +293,18 @@ pub async fn open_or_create_table(conn: &Connection) -> Result<Table> {
 /// Pass `SourceType::Pdf { page_number }` for PDF chunks where page_number
 /// is derived from `chunk.paragraph_index / MAX_CHUNKS_PER_PAGE + 1`.
 ///
-/// G4: `encrypted` is always false for Text and Pdf — the text column holds
-/// the original plaintext, byte-for-byte unchanged. Mail chunks use
-/// `build_batch_mail` instead, which encrypts the text column.
+/// WS-VEC: the `text` column is encrypted at rest with AES-256-GCM under the
+/// vector-store master `key` (hex-encoded nonce‖ciphertext‖tag), and `encrypted`
+/// is always true. This applies to Text and Pdf chunks; Mail chunks go through
+/// `build_batch_mail` (same encryption, source_type = "mail"). Plaintext chunk
+/// text is NEVER written to disk for any source type. (Pre-WS-VEC this function
+/// stored plaintext with encrypted=false; the version-5 migration re-indexes
+/// such tables so nothing stays plaintext.)
 ///
 /// WS-B/C: `matter_id` is the confidentiality scope key written to every row
 /// (NON-NULL). `source_id` is set to the chunk's `path` (docs/pdf path), which
-/// is the resolvable originating source for the citation contract.
+/// is the resolvable originating source for the citation contract. matter_id and
+/// privilege stay PLAINTEXT — retrieval isolation prefilters on them.
 ///
 /// WS-PRIV: `privilege` is the litigation-safety status written to every row
 /// (NON-NULL — one of "none" | "attorney-client" | "work-product"). Privileged
@@ -280,7 +314,10 @@ pub fn build_batch(
     source_type: SourceType,
     matter_id: &str,
     privilege: &str,
+    key: &[u8; 32],
 ) -> Result<RecordBatch> {
+    use crate::commands::mail::crypto::encrypt_with_key;
+
     let schema = build_schema();
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -293,8 +330,19 @@ pub fn build_batch(
         .collect();
     let paths: Vec<&str> = rows.iter().map(|(c, _)| c.path.as_str()).collect();
     let para_idx: Vec<u32> = rows.iter().map(|(c, _)| c.paragraph_index).collect();
-    let texts: Vec<&str> = rows.iter().map(|(c, _)| c.text.as_str()).collect();
     let timestamps: Vec<i64> = vec![now; rows.len()];
+
+    // WS-VEC: encrypt each chunk's text at rest; store as a hex blob in the text
+    // column. Embeddings (the `vector` column) are computed from plaintext by the
+    // caller and stay unencrypted — similarity needs them. Propagate encrypt
+    // errors (never silently store an empty string with encrypted=true, which
+    // would be a permanently-unrecoverable chunk).
+    let mut encrypted_texts: Vec<String> = Vec::with_capacity(rows.len());
+    for (c, _) in rows.iter() {
+        let blob = encrypt_with_key(c.text.as_bytes(), key)
+            .map_err(|e| anyhow::anyhow!("encrypt chunk {}: {e}", c.path))?;
+        encrypted_texts.push(hex::encode(&blob));
+    }
 
     let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
         rows.iter()
@@ -308,24 +356,23 @@ pub fn build_batch(
     let matter_arr = StringArray::from(vec![matter_id; rows.len()]);
     let src_arr = StringArray::from_iter_values(paths.iter().copied());
     let pi_arr = UInt32Array::from(para_idx);
-    let text_arr = StringArray::from_iter_values(texts.iter().copied());
+    let text_arr = StringArray::from_iter_values(encrypted_texts.iter().map(|s| s.as_str()));
     let ts_arr = Int64Array::from(timestamps);
 
     // A3 columns — source_type and page_number.
     let (st_str, pn_val): (&str, u32) = match source_type {
         SourceType::Text => ("text", 0),
         SourceType::Pdf { page_number } => ("pdf", page_number),
-        // Mail chunks MUST go through build_batch_mail (which encrypts the text
-        // column). build_batch always writes encrypted=false, so routing mail
-        // here would silently persist plaintext. Fail loudly instead — this is
-        // a programmer error on a code-chosen enum, never data-driven.
+        // Mail chunks MUST go through build_batch_mail so source_type = "mail".
+        // Fail loudly — this is a programmer error on a code-chosen enum, never
+        // data-driven.
         SourceType::Mail => unreachable!("mail chunks must use build_batch_mail, not build_batch"),
     };
     let st_arr = StringArray::from(vec![st_str; rows.len()]);
     let pn_arr = UInt32Array::from(vec![pn_val; rows.len()]);
 
-    // G4: encrypted = false for text/pdf rows. Text column is plaintext.
-    let enc_arr = arrow_array::BooleanArray::from(vec![false; rows.len()]);
+    // WS-VEC: encrypted = true — the text column holds ciphertext, not plaintext.
+    let enc_arr = arrow_array::BooleanArray::from(vec![true; rows.len()]);
 
     // WS-PRIV: validate the privilege value (defence-in-depth) before it is
     // written to every row. An invalid value fails the build loudly rather than
@@ -358,9 +405,12 @@ pub fn build_batch(
 /// hex-encoded AES-256-GCM ciphertext (encrypt_with_key). Embeddings are
 /// computed from plaintext (already passed in as `rows`). `encrypted = true`.
 ///
-/// G4: This is the ONLY function that writes encrypted text to the store.
-/// `build_batch` for Text/Pdf always writes plaintext — this separation
-/// ensures the document/PDF code paths cannot accidentally encrypt.
+/// WS-VEC: `key` is the dedicated vector-store master key (`crypto.rs`), the
+/// SAME key `build_batch` uses for text/pdf chunks — so the whole `chunks` table
+/// decrypts under one key. (Pre-WS-VEC this was the mail key and only mail was
+/// encrypted; the version-5 migration re-indexes mail chunks under the vector
+/// key.) The mail BODY's canonical encrypted copy still lives in the mail store
+/// under the mail key; this is the RAG-derived copy.
 ///
 /// WS-B/C: `matter_id` is the confidentiality scope key (NON-NULL) written to
 /// every row. `source_id` is the chunk's `path` — for mail this is the
@@ -461,6 +511,7 @@ pub async fn upsert_chunks_for_path(
     source_type: SourceType,
     matter_id: &str,
     privilege: &str,
+    key: &[u8; 32],
 ) -> Result<()> {
     // Always delete first — even if `rows` is empty (the file may have
     // been emptied by the user) we want to drop stale chunks.
@@ -474,7 +525,8 @@ pub async fn upsert_chunks_for_path(
         return Ok(());
     }
 
-    let batch = build_batch(&rows, source_type, matter_id, privilege)?;
+    // WS-VEC: build_batch encrypts the text column under the vector-store key.
+    let batch = build_batch(&rows, source_type, matter_id, privilege, key)?;
     let schema = batch.schema();
     let iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
     table
@@ -948,6 +1000,22 @@ pub async fn drop_table(conn: &Connection) -> Result<()> {
 mod tests {
     use super::*;
 
+    /// Fixed 32-byte key for tests (bypasses the keychain). WS-VEC: every chunk's
+    /// text column is now AES-256-GCM ciphertext, so tests must supply a key to
+    /// `build_batch` and decrypt the column to read back the plaintext.
+    const TEST_KEY: [u8; 32] = [0x42u8; 32];
+
+    /// Decrypt the hex-encoded ciphertext stored in the `text` column at row `i`
+    /// back to its plaintext String, using `key`. Mirrors what `rag_retrieve` and
+    /// `rag_verify_citation` do on read.
+    fn decrypt_text_col(batch: &RecordBatch, i: usize, key: &[u8; 32]) -> String {
+        use arrow_array::cast::AsArray;
+        use crate::commands::mail::crypto::decrypt_with_key;
+        let stored_hex = batch.column_by_name("text").expect("text col").as_string::<i32>().value(i);
+        let blob = hex::decode(stored_hex).expect("hex decode text column");
+        String::from_utf8(decrypt_with_key(&blob, key).expect("decrypt text column")).expect("utf8")
+    }
+
     #[test]
     fn dataset_path_lives_under_dot_keepance() {
         let p = dataset_path(Path::new("/tmp/work"));
@@ -1046,7 +1114,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_WORK_PRODUCT)
+        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_WORK_PRODUCT, &TEST_KEY)
             .expect("build_batch");
         let priv_col = batch
             .column_by_name("privilege")
@@ -1069,7 +1137,7 @@ mod tests {
         )];
         // A bad privilege value fails the build loudly rather than persisting an
         // unscopeable row.
-        assert!(build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, "bogus").is_err());
+        assert!(build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, "bogus", &TEST_KEY).is_err());
     }
 
     // ---- build_retrieval_predicate: the single place matter AND privilege compose.
@@ -1150,7 +1218,7 @@ mod tests {
                 vec![0.2f32; EMBEDDING_DIM],
             ),
         ];
-        let batch = build_batch(&chunks, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE)
+        let batch = build_batch(&chunks, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
             .expect("build_batch");
         assert_eq!(batch.num_rows(), 2);
         // 12 columns: id, path, matter_id, source_id, paragraph_index, text,
@@ -1171,7 +1239,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_NONE).expect("build_batch");
+        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_NONE, &TEST_KEY).expect("build_batch");
         let matter_col = batch.column_by_name("matter_id").expect("matter_id col").as_string::<i32>();
         assert_eq!(matter_col.value(0), "matter-acme");
         // source_id mirrors the path (the resolvable originating source).
@@ -1192,7 +1260,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE).expect("build_batch text");
+        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY).expect("build_batch text");
         let st_col = batch
             .column_by_name("source_type")
             .expect("source_type column missing")
@@ -1218,7 +1286,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE)
+        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
             .expect("build_batch pdf");
         let st_col = batch
             .column_by_name("source_type")
@@ -1233,70 +1301,75 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // G4 regression tests: text/pdf rows must be UNCHANGED after schema extension.
-    // Mail rows must store ciphertext + encrypted=true.
+    // WS-VEC regression tests: EVERY source type (text / pdf / mail) must store
+    // ciphertext in the text column + encrypted=true. Plaintext chunk text must
+    // never land in the column. (Pre-WS-VEC these tests asserted text/pdf were
+    // plaintext; that invariant is intentionally inverted now.)
     // -----------------------------------------------------------------------
 
     #[test]
-    fn build_batch_text_source_type_unchanged_after_g4_schema() {
+    fn build_batch_text_source_encrypts_text_column_ws_vec() {
         use arrow_array::cast::AsArray;
+        let plaintext = "hello world";
         let rows = vec![(
             Chunk {
                 path: "/a.md".into(),
                 paragraph_index: 0,
-                text: "hello world".into(),
+                text: plaintext.into(),
                 start_offset: 0,
                 end_offset: 11,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE).expect("build_batch text");
-        // text column must contain the original plaintext (not encrypted).
+        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY).expect("build_batch text");
+        // WS-VEC: the text column must NOT contain the plaintext.
         let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
-        assert_eq!(
-            text_col.value(0),
-            "hello world",
-            "text-source text column must be plaintext after G4 schema change"
+        assert!(
+            !text_col.value(0).contains(plaintext),
+            "text-source text column must be ciphertext (WS-VEC), not plaintext"
         );
+        // But it must decrypt back to the original plaintext.
+        assert_eq!(decrypt_text_col(&batch, 0, &TEST_KEY), plaintext);
         // source_type must still be "text".
         let st_col = batch.column_by_name("source_type").expect("st col").as_string::<i32>();
         assert_eq!(st_col.value(0), "text");
-        // encrypted column must be false for text rows.
+        // WS-VEC: encrypted column must be true for text rows now.
         let enc_col = batch
             .column_by_name("encrypted")
             .expect("encrypted column must exist")
             .as_boolean();
-        assert!(!enc_col.value(0), "text rows must have encrypted=false");
+        assert!(enc_col.value(0), "WS-VEC: text rows must have encrypted=true");
     }
 
     #[test]
-    fn build_batch_pdf_source_type_unchanged_after_g4_schema() {
+    fn build_batch_pdf_source_encrypts_text_column_ws_vec() {
         use arrow_array::cast::AsArray;
+        let plaintext = "page text";
         let rows = vec![(
             Chunk {
                 path: "/a.pdf".into(),
                 paragraph_index: 0,
-                text: "page text".into(),
+                text: plaintext.into(),
                 start_offset: 0,
                 end_offset: 9,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE)
+        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
             .expect("build_batch pdf");
         let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
-        assert_eq!(
-            text_col.value(0),
-            "page text",
-            "pdf-source text column must be plaintext after G4 schema change"
+        assert!(
+            !text_col.value(0).contains(plaintext),
+            "pdf-source text column must be ciphertext (WS-VEC), not plaintext"
         );
+        assert_eq!(decrypt_text_col(&batch, 0, &TEST_KEY), plaintext);
         let st_col = batch.column_by_name("source_type").expect("st col").as_string::<i32>();
         assert_eq!(st_col.value(0), "pdf");
         let enc_col = batch
             .column_by_name("encrypted")
             .expect("encrypted column must exist")
             .as_boolean();
-        assert!(!enc_col.value(0), "pdf rows must have encrypted=false");
+        assert!(enc_col.value(0), "WS-VEC: pdf rows must have encrypted=true");
     }
 
     #[test]
