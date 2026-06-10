@@ -1,0 +1,21 @@
+SUPPLY AGREEMENT
+Acme Corporation and Road Runner Logistics LLC
+Effective January 1, 2025
+
+1. PARTIES. Acme Corporation ("Buyer") and Road Runner Logistics LLC ("Supplier").
+
+2. SERVICES. Supplier shall deliver 500 units of Widget Model X per month,
+   on or before the 5th business day of each month.
+
+3. PRICE. Buyer shall pay $48,000 per monthly shipment, net 30 days.
+
+4. LIQUIDATED DAMAGES. For each day of delay beyond the delivery deadline,
+   Supplier shall pay $2,400 as liquidated damages (not a penalty).
+
+5. TERM. Twenty-four (24) months from the Effective Date.
+
+6. GOVERNING LAW. State of Nevada.
+
+SIGNED:
+Acme Corporation: _______________
+Road Runner Logistics LLC: _______________

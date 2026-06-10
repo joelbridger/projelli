@@ -1,0 +1,8 @@
+# runs/ is scratch (Playwright artifacts: traces, videos, Playwright-managed screenshots)
+# Do NOT commit these — they are regenerated on each campaign run.
+runs/
+report/
+
+# screenshots/ is intentionally committed: these are the canonical campaign
+# visual captures saved explicitly by snap() with CAMPAIGN_KEEP_SHOTS=1.
+# Do NOT add screenshots/ here.

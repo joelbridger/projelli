@@ -1,0 +1,206 @@
+IN THE UNITED STATES DISTRICT COURT
+FOR THE SOUTHERN DISTRICT OF NEW YORK
+
+-------------------------------------------------------
+IN RE: JOHNSON v. NEXUS DYNAMICS CORP.
+Case No. 26-CV-0412 (S.D.N.Y.)
+-------------------------------------------------------
+
+DEPOSITION OF MARCUS JOHNSON
+Taken on May 14, 2026 at 9:00 a.m.
+Offices of Marchetti & Associates LLP
+1200 Commerce Drive, Suite 400, New York, NY 10001
+
+-------------------------------------------------------
+APPEARANCES:
+  FOR THE PLAINTIFF:   Diane Marchetti, Esq.
+  FOR THE DEFENDANT:   Kevin Hartley, Esq. (Nexus Dynamics Corp.)
+  COURT REPORTER:      Sandra Price, RPR
+-------------------------------------------------------
+
+EXAMINATION BY MS. MARCHETTI:
+
+PAGE 1
+
+Q. Please state your full name for the record.
+A. Marcus Raymond Johnson.
+
+Q. And your current address?
+A. 47 Riverside Drive, Apartment 12B, New York, New York 10024.
+
+Q. Mr. Johnson, how long were you employed by Nexus Dynamics Corp.?
+A. Six years and three months. I started in February 2020.
+
+Q. What was your title at the time of your termination?
+A. Senior Product Manager, Cloud Infrastructure Division.
+
+Q. And when were you terminated?
+A. November 12, 2025.
+
+Q. Did you receive any written notice of the termination?
+A. No. They called me into HR and told me verbally.
+
+Q. Who was present in that meeting?
+A. Sandra Liu from HR, and my direct manager, Tom Weston.
+
+Q. Did Mr. Weston say anything about the reason for your termination?
+A. He said it was a "restructuring," but he didn't give specifics.
+
+Q. Had you received any performance reviews in the six months prior?
+A. Yes, my last review was in August 2025. I received a "Meets Expectations" rating.
+
+Q. Was there any mention of performance concerns?
+A. No. My August review had no written performance concerns.
+
+PAGE 2
+
+Q. Let me direct your attention to September 2025. Were you aware of
+   an internal investigation by Nexus Dynamics at that time?
+A. No, I was not aware of any investigation involving me.
+
+Q. Do you recall receiving an email from Compliance on September 8, 2025?
+A. I receive many emails. I don't specifically recall one from Compliance
+   in September.
+
+Q. I am going to show you what has been marked as Plaintiff's Exhibit 3.
+   Is this an email you received?
+A. Yes, that appears to be an email to me from the Compliance department.
+
+Q. And what is the date on that email?
+A. September 8, 2025.
+
+Q. And what does it say?
+A. It says there is a review of expense reports from Q2 2025 and asks
+   me to preserve all related documents.
+
+Q. Did you preserve those documents?
+A. I believe I did. I forwarded them to my personal email for safekeeping.
+   [CONTRADICTION-1: Transcript says he forwarded to personal email for
+   safekeeping. The incident summary states he did NOT forward any documents
+   outside company systems and all materials remained on company servers only.]
+
+Q. When exactly did you forward those documents?
+A. I think it was September 9 or 10. Within a day or two of receiving
+   the Compliance email.
+
+Q. Did anyone from Nexus Dynamics ever tell you that forwarding documents
+   to personal email was a policy violation?
+A. Not explicitly. I was not aware of any policy against it.
+
+PAGE 3
+
+Q. Let me turn to the incident of October 3, 2025. Were you in the
+   office that day?
+A. Yes.
+
+Q. Do you recall a meeting with Mr. Weston at approximately 2:00 p.m.?
+A. Yes, I recall a meeting.
+
+Q. What was the meeting about?
+A. Tom told me the Q2 expense review had found some discrepancies and
+   that I would need to submit a written explanation.
+
+Q. How did you respond?
+A. I told him I was happy to cooperate and that I had already saved
+   all the relevant documentation.
+
+Q. Did Mr. Weston tell you a deadline for submitting the explanation?
+A. He said I had until October 17, 2025 to submit my written response.
+   [CONTRADICTION-2: Transcript records the deadline as October 17, 2025.
+   The incident summary states the deadline given to Johnson was October 10, 2025.]
+
+Q. Did you meet that deadline?
+A. I submitted my response on October 15, 2025, two days before the deadline.
+
+Q. Let's talk about your relationship with Mr. Weston. Would you describe
+   it as positive?
+A. Mostly yes. We had occasional disagreements about project priorities,
+   but nothing serious.
+
+PAGE 4
+
+Q. In the eighteen months before your termination, did you ever raise any
+   concerns about Nexus Dynamics' business practices?
+A. Yes. In March 2025 I raised concerns about billing irregularities I
+   had noticed in vendor invoices.
+
+Q. Who did you raise those concerns with?
+A. I sent an email to the ethics hotline and also spoke directly with
+   Sandra Liu in HR.
+
+Q. And what response did you receive?
+A. Sandra said she would look into it. I never received a written follow-up.
+
+Q. Did you keep a copy of that email?
+A. Yes, I have that email.
+
+Q. After you raised those concerns, did you notice any change in how
+   Mr. Weston treated you?
+A. Yes. Starting in April 2025, Tom began excluding me from key meetings
+   that I had previously attended. My responsibilities were also reduced.
+
+Q. How many meetings do you estimate you were excluded from between
+   April and October 2025?
+A. I would say at least fifteen to twenty significant meetings.
+
+PAGE 5
+
+Q. Mr. Johnson, I want to ask you about your compensation. What was your
+   base salary at the time of termination?
+A. $185,000 per year.
+
+Q. Did you receive any bonuses in 2024?
+A. Yes. I received my standard annual bonus of $22,000 in March 2024.
+
+Q. And for 2025?
+A. I did not receive a bonus for 2025. I was told bonuses were suspended
+   company-wide due to budget constraints.
+
+Q. Were you aware of other employees receiving bonuses in 2025?
+A. Yes. I learned from colleagues that two other product managers received
+   retention bonuses in September 2025.
+
+Q. Do you know the names of those colleagues?
+A. I'd prefer not to put their names on record, but yes, I know who they are.
+
+Q. At the time of your termination, did anyone at Nexus Dynamics explain
+   the severance package being offered?
+A. Sandra Liu gave me a document describing a four-week severance.
+   [CONTRADICTION-3: Transcript says he was offered four weeks of severance.
+   The incident summary states the offer was for eight weeks of severance per
+   company policy for employees with more than five years of service.]
+
+Q. Did you sign any severance agreement?
+A. No. I declined to sign because I wanted to consult with an attorney first.
+
+Q. Is there anything else you believe is important for the record at
+   this time?
+A. Only that I believe my termination was directly connected to my
+   raising concerns about vendor billing in March 2025.
+
+MS. MARCHETTI: Thank you, Mr. Johnson. No further questions at this time.
+
+EXAMINATION BY MR. HARTLEY:
+
+Q. Mr. Johnson, you mentioned forwarding documents to your personal email.
+   Were you aware that Nexus Dynamics' IT policy requires all work documents
+   to remain on company-managed systems?
+A. I may have seen something about that policy, but I didn't consider it
+   relevant to preserving documents for a compliance review.
+
+Q. And regarding the October meeting with Mr. Weston — you said the
+   deadline was October 17. Do you have any written confirmation of that date?
+A. Tom told me verbally. I didn't receive it in writing.
+
+MR. HARTLEY: No further questions.
+
+MS. MARCHETTI: We'll reserve the right to re-examine.
+
+-------------------------------------------------------
+CERTIFICATE OF REPORTER
+I, Sandra Price, RPR, Certified Court Reporter, do hereby certify that
+the foregoing is a true and accurate transcript of the deposition of
+Marcus Johnson taken on May 14, 2026.
+
+Sandra Price, RPR
+-------------------------------------------------------
