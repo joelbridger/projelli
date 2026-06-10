@@ -2,6 +2,8 @@
 
 **Date:** 2026-06-10 · **Owner:** autonomous build (Claude) + Jameson where marked · **Status:** approved direction, workstreams execute in sequence below
 
+**Board decision 2026-06-10 (Jameson, recorded as Q7 in `KEEPANCE_BUSINESS_PLAN.md`):** target is **100% completion of the vision document**. SSO and the real encrypted vault are COMMITTED builds (moved out of demand-gated; "functional to sell"). Clio/DMS/add-ins stay deferred until a design partner asks. This version of the plan reflects that decision.
+
 **What this is.** The full plan for closing every gap in the North-Star Vision Coverage Audit (`docs/quality/2026-06-10-v3-usability-campaign/VISION-COVERAGE-AUDIT.md`). Each workstream names the audit gap it closes, the approach, how we verify it, a relative size (S/M/L), and dependencies. Detailed per-workstream implementation plans (file-level, TDD) get written at build time under `docs/superpowers/plans/`, the same way Option B was planned.
 
 **The audit in one line:** about two-thirds of the vision is real and proven (and it is the hard two-thirds: the Word engine, cited retrieval + verification, refuse-rather-than-hallucinate, encryption at rest, the E2EE firm tier). The unproven third is concentrated in five places: the wedge has never been observed end to end on a real machine, scanned PDFs are invisible to search, two website claims outran the product, and the social-proof moat is empty.
@@ -42,7 +44,7 @@
 - After Option B lands: on this Linux rig, run the full happy path against a populated index: ingest the campaign's fixture corpus (docs + PDFs + the planted-contradiction deposition fixtures), ask natural-language questions, assert a cited answer renders, the citation verifies, and click-through opens the right passage. Script it as a repeatable e2e harness (Playwright against the dev build with the real model already cached on this rig) so it runs in every future campaign instead of being a one-off.
 - Matter isolation assertion in the same harness: a Matter-A query never returns Matter-B content (the roadmap's own exit gate).
 - The real-Windows half is Jameson's existing 5-minute spot check (VG-7), now made meaningful because Option B removes the first-run stall that blocked it.
-**Verify.** Harness green on the rig + Jameson's Windows spot check returns a clickable citation.
+**Verify.** Harness green on the rig + Jameson's Windows spot check returns a clickable citation. The harness also picks up two small unverified-in-campaign items for 100% coverage: an xlsx/pptx round-trip assertion, and confirmation that live audit events are captured on a real (keychain-bearing) machine as part of the Windows spot check.
 **Size.** M. **Depends on:** Option B complete.
 
 ### VG-2: OCR for scanned PDFs (audit gap #2)
@@ -88,8 +90,8 @@
 **Approach.**
 - (a) Key-handshake auto-publish (F-123/F-010 remainder): when a member registers a device, notify the admin client (or poll on the admin console) and auto-republish wrapped keys, so the member's wait state usually resolves without a human dance. The honest waiting state stays as the fallback.
 - (b) Exercise Assured mode end to end against the LIVE backend (org with a managed key, chat routed through the zero-retention proxy, egress indicator showing Assured, sentinel guard verified). It is the differentiating rung of the confidentiality spectrum and has never been run for real. Also remove the stale "Coming soon" comment.
-- (c) OIDC SSO against the firm backend, BUILD-BEFORE-RECLAIM: standard OIDC code flow, per-org IdP config, exchanged into the existing seat-token session. Recommendation: build when the first firm prospect asks for it (it is a sales-conversation feature); the site stays silent about SSO until this ships. Not before VG-1/VG-2.
-- (d) Encrypted vault, staged: v1 now = make the disk-encryption reality unmissable (onboarding step + data map line: "your document files rely on your computer's disk encryption; here is how to check it is on", with the OS-specific check). v2 = a real optional encrypted vault for workspace files; LARGE, has data-loss failure modes, and the audit's own evidence is that OS FDE plus honest disclosure is defensible. Recommendation: v1 now, v2 only on firm-tier demand. Decision noted for Jameson but defaulting to the recommendation.
+- (c) **SSO, COMMITTED (board 2026-06-10): build it now, functional to sell.** OIDC authorization-code flow against the firm backend: per-org identity-provider configuration in the firm admin console (Microsoft Entra ID first because law firms live on M365, Google Workspace second, generic OIDC third; SAML explicitly out of v1), member sign-in through the system browser, exchanged into the existing Ed25519 seat-token session, walls/seat semantics unchanged. Verified against a self-hosted test IdP (Authentik on this server) plus a real Entra ID tenant when available. The site and pricing re-claim "SSO" ONLY in the release that ships it (the honesty rule that got us here).
+- (d) **Encrypted workspace vault, COMMITTED (board 2026-06-10): build the real thing.** Two stages, both committed: v1 immediately = unmissable disk-encryption guidance (onboarding step + data map line with the OS-specific "check it is on" instructions) so users are protected while v2 is built. v2 = optional per-workspace encrypted vault: document files encrypted at rest (AES-256-GCM, the same primitives the mail store already uses), master key in the OS keychain, an explicit recovery phrase generated at vault creation (with a "Keepance cannot recover this for you" ceremony), firm-tier admin escrow reusing the existing ECDH escrow machinery, transparent open/edit through the app, and a decrypt-everything escape hatch so "your files are always yours" stays true. LARGE and data-loss-sensitive: gets its own brainstormed design doc + implementation plan + a destructive-failure test suite (kill the app mid-write, wrong key, lost keychain) before any code ships.
 - (e) Vector-store residual hardening: encrypt the remaining plaintext columns (`path`, `source_id`) the same way `chunk_text` already is, and document the embedding-vector residual in the data map (vectors are not meaningfully reversible but the data map should say they exist). Closes the re-identification note honestly.
 **Verify.** (a) two-client test extends the existing 8/8 convergence suite; (b) a scripted live-backend session with artifacts; (c) OIDC against a test IdP (Authentik on this server) + a live IdP when a firm appears; (d) onboarding + data map tests; (e) store tests + a raw-sqlite inspection assertion.
 **Size.** (a) M, (b) S, (c) L, (d) S now / L later, (e) S-M. **Depends on:** nothing technical; (c) and (d)-v2 are demand-gated.
@@ -103,9 +105,9 @@
 4. Live email import on a real mailbox (your Outlook; needs your interactive sign-in approval once; I drive the rest).
 5. The slow leg, sequenced: formed legal entity → executed DPA capability → SOC 2 engagement → named attorney advocates (design partners) → CLE/content presence. The entity gates the instruments; the briefs for DPA/SOC 2 already exist in `docs/legal/` and `docs/trust/`. The financial repository's milestone framework (`~/financial/08-recommendations/minimum-viable-launch.md`) is the template for sequencing this without overcommitting.
 
-### Deliberately deferred (named so they stop haunting audits)
+### Deliberately deferred (named so they stop haunting audits; ratified by the board 2026-06-10)
+- **Clio connector, DMS (NetDocuments/iManage), Word/Outlook add-ins (roadmap WS-H):** deferred until a design partner asks (Jameson's explicit call for Clio; same logic extended to the rest of WS-H). The honest positioning (VG-5d) covers coexistence claims meanwhile. These are the ONLY vision items outside the 100% target, and each has a named re-entry trigger.
 - **Live multi-user .docx co-editing:** stays gated on design-partner validation per `spikes/firm-sync/DECISION.md`. Shared matter notes converge today; that is the shipped story.
-- **Clio connector, DMS (NetDocuments/iManage), Word/Outlook add-ins (roadmap WS-H):** not until design partners ask; the honest positioning (VG-5d) covers coexistence claims meanwhile.
 - **Bundling the embedder model in installers:** rejected by decision 2026-06-10 (Option B instead).
 
 ---
@@ -115,20 +117,22 @@
 ```
 NOW (in flight)     v3.1.0 publish + site deploy ........ closes #3, #4 live
                     Option B visible model download ...... closes #1 (path)
-NEXT BUILD WAVE     VG-1 wedge proof harness ............. the audit's top ask
+WAVE 1              VG-1 wedge proof harness ............. the audit's top ask
 (after Option B)    VG-3a/b finder run + honest fallback
                     VG-4a PDF detect-and-explain
                     VG-5 trust polish batch (a-d)
                     VG-6a handshake auto-publish
-THEN                VG-2 OCR (the big build)
+                    VG-6d-v1 disk-encryption guidance
+WAVE 2              VG-2 OCR (the big ingest build)
                     VG-3c transcript-aware citations
                     VG-6b Assured exercised live
                     VG-6e vector-store hardening
                     VG-4c letterhead, VG-3d issue spotter
-DEMAND-GATED        VG-6c OIDC SSO (first firm prospect)
-                    VG-6d-v2 encrypted vault
-                    WS-H integrations (design partners)
+WAVE 3 (firm-sale   VG-6c SSO (OIDC: Entra ID, Google, generic)
+ builds, committed) VG-6d-v2 encrypted workspace vault
+                    -> site re-claims SSO + vault claims ONLY when shipped
+DESIGN-PARTNER-GATED  WS-H integrations (Clio/DMS/add-ins), .docx co-editing
 PARALLEL (Jameson)  VG-7 items 1-5, any order; entity unlocks the instruments
 ```
 
-Each wave gets its own implementation plan + subagent-driven execution + verification artifacts under `docs/quality/`, and the coverage ledger gets updated rows so the next audit diffs cleanly against this one.
+Waves 2 and 3 touch disjoint subsystems (ingest vs firm backend/auth), so Wave 3 may start while Wave 2 is in flight if orchestration capacity allows; the order above is the default. Each wave gets its own implementation plan + subagent-driven execution + verification artifacts under `docs/quality/`, and the coverage ledger gets updated rows so the next audit diffs cleanly against this one. **Definition of done for this plan: a re-run of the vision coverage audit returns 100% of in-scope commitments BUILT + verified, with the three design-partner-gated items as the only named exceptions.**

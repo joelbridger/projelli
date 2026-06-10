@@ -50,7 +50,7 @@
 - Create: `src-tauri/src/commands/rag/model_download.rs`
 - Modify: `src-tauri/src/commands/rag/mod.rs` (module declaration block, lines 25–30)
 
-- [ ] **Step 1: Add the hf-hub dependency**
+- [x] **Step 1: Add the hf-hub dependency**
 
 In `src-tauri/Cargo.toml`, directly under `fastembed = "4"`:
 
@@ -61,7 +61,7 @@ In `src-tauri/Cargo.toml`, directly under `fastembed = "4"`:
 hf-hub = { version = "0.4.3", default-features = false, features = ["ureq", "native-tls"] }
 ```
 
-- [ ] **Step 2: Declare the module**
+- [x] **Step 2: Declare the module**
 
 In `src-tauri/src/commands/rag/mod.rs`, add to the module block (alphabetical, after `extractor`):
 
@@ -69,7 +69,7 @@ In `src-tauri/src/commands/rag/mod.rs`, add to the module block (alphabetical, a
 pub mod model_download;
 ```
 
-- [ ] **Step 3: Write the module skeleton with failing tests**
+- [x] **Step 3: Write the module skeleton with failing tests**
 
 Create `src-tauri/src/commands/rag/model_download.rs`:
 
@@ -238,7 +238,7 @@ mod tests {
 }
 ```
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 ```bash
 cd ~/keepance/src-tauri && cargo test --lib model_download 2>&1 | tail -15
@@ -248,7 +248,7 @@ Expected: first compile pulls nothing new (hf-hub already in tree); all 5 tests 
 
 Note: `DOWNLOADING` is `#[allow(dead_code)]`-free but unused until Task 2 — if the compiler warns, add `#[allow(dead_code)]` on it temporarily and remove in Task 2.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/keepance && git add src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/src/commands/rag/model_download.rs src-tauri/src/commands/rag/mod.rs
@@ -261,7 +261,104 @@ git commit -m "feat(rag): model_download module — presence check, progress pay
 
 **Files:**
 - Modify: `src-tauri/src/commands/rag/model_download.rs`
+- Modify: `src-tauri/src/commands/rag/embedder.rs` (`resolve_cache_dir` convergence + `warm_init`)
 - Modify: `src-tauri/src/lib.rs` (invoke_handler list, lines ~53–66)
+
+- [ ] **Step 0: CRITICAL (amendment from Task 1 quality review) — converge the two cache-dir functions**
+
+Why: every CI build bundles `resources/embeddings/.gitkeep` (tauri.conf.json bundles `resources/**/*`), so `<exe_dir>/resources/embeddings/` EXISTS in every production install while containing no model (the bundle-prefetch is deliberately off). `resolve_cache_dir()`'s `cand.is_dir()` check therefore returns that empty, read-only install dir in production. Without this fix the Task 2/3 wiring loops forever: `model_ensure` downloads into the writable dir, the readiness gate re-checks the empty bundled dir, verification "fails", the error arm wipes the good download, Resume repeats. (The same ghost dir pointing fastembed's cache at a read-only install dir is the likely root cause of the original fragile first-run download.)
+
+In `src-tauri/src/commands/rag/embedder.rs`, replace the entire body of `resolve_cache_dir()` with:
+
+```rust
+pub fn resolve_cache_dir() -> PathBuf {
+    // 1. Bundled copy adjacent to the executable (production). Tauri puts
+    //    `bundle.resources` next to the binary — check `<exe_dir>/resources/embeddings`
+    //    and `<exe_dir>/../Resources/embeddings` (macOS .app layout).
+    //
+    //    IMPORTANT: existence is NOT enough. Every CI build ships
+    //    `resources/embeddings/.gitkeep`, so this dir exists in all installs
+    //    while the model ships in none (the bundle-prefetch is deliberately
+    //    off). Only treat the bundle as the cache when it actually CONTAINS
+    //    the model files; otherwise fall through to the user-writable dir
+    //    that `model_download::model_ensure` downloads into.
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            let candidates = [
+                exe_dir.join("resources").join("embeddings"),
+                exe_dir.join("..").join("Resources").join("embeddings"),
+            ];
+            for cand in candidates {
+                if super::model_download::model_files_cached(&cand) {
+                    return cand;
+                }
+            }
+        }
+    }
+
+    // 2./3. The single user-writable location, defined once in model_download.
+    super::model_download::writable_cache_dir()
+}
+```
+
+In `model_download.rs`, promote the test fixture helper out of the private `tests` module to module level so embedder's tests can reuse it (tests keep working via `use super::*`):
+
+```rust
+/// Test support: build a minimal valid hf-hub cache layout containing the
+/// given repo-relative files (refs/main + snapshots/<rev>/<file>). Shared
+/// with embedder.rs's resolve_cache_dir tests.
+#[cfg(test)]
+pub(crate) fn write_fake_layout(root: &Path, files: &[&str]) {
+    let repo_dir = root.join(format!("models--{}", MODEL_REPO.replace('/', "--")));
+    let rev = "deadbeef";
+    std::fs::create_dir_all(repo_dir.join("refs")).unwrap();
+    std::fs::write(repo_dir.join("refs").join("main"), rev).unwrap();
+    for f in files {
+        let p = repo_dir.join("snapshots").join(rev).join(f);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, b"x").unwrap();
+    }
+}
+```
+
+Fix the now-misleading doc comment on `writable_cache_dir()` to:
+
+```rust
+/// Where downloads land: ALWAYS the user-writable data dir. The bundled
+/// resources dir can exist in every install while holding only a .gitkeep
+/// (the bundle-prefetch is deliberately off), so it is never a download
+/// target; `resolve_cache_dir()` selects it only when it actually contains
+/// the model.
+```
+
+Add the variant-naming guard on the enum's serde attribute:
+
+```rust
+#[serde(rename_all = "lowercase")] // single-word variants only; switch to kebab-case before adding multi-word ones
+```
+
+In `embedder.rs` tests: (a) update `resolve_cache_dir_prefers_bundled_path_when_present` to POPULATE the bundled dir via `super::model_download::write_fake_layout(&bundled, &super::model_download::REQUIRED_FILES)` instead of just creating the empty dir (empty no longer wins); (b) update `resolve_cache_dir_falls_back_when_no_bundled_dir`'s skip-guard from `bundled.is_dir()` to `super::model_download::model_files_cached(&bundled)`; (c) add the agreement invariant:
+
+```rust
+    /// The agreement invariant that kills the drift risk: with no populated
+    /// bundle next to the exe, the read path and the download path are the
+    /// SAME directory.
+    #[test]
+    fn resolve_cache_dir_agrees_with_writable_cache_dir_without_bundle() {
+        let exe = std::env::current_exe().expect("current_exe");
+        let exe_dir = exe.parent().expect("exe has parent");
+        let bundled = exe_dir.join("resources").join("embeddings");
+        if super::model_download::model_files_cached(&bundled) {
+            return; // a real populated bundle is adjacent; invariant doesn't apply
+        }
+        assert_eq!(
+            resolve_cache_dir(),
+            super::model_download::writable_cache_dir()
+        );
+    }
+```
+
+Run: `cd ~/keepance/src-tauri && cargo test --lib 2>&1 | tail -5` → green before moving on.
 
 - [ ] **Step 1: Add the download engine to `model_download.rs`**
 
