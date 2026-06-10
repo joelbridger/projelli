@@ -158,14 +158,14 @@ export const EvidenceGapAnalyzer: WorkflowTemplate = {
       name: 'Generate Evidence Gap Analysis',
       description: 'Identify evidence gaps and prioritize discovery targets',
       config: {
-        outputFile: 'EVIDENCE_GAP_ANALYSIS.md',
+        outputFile: 'EVIDENCE_GAP_ANALYSIS.docx',
         promptTemplate: evidenceGapPrompt,
         systemPrompt: 'You are a legal research assistant helping a licensed attorney map the evidentiary landscape of a matter. You think in terms of elements, burdens, and proof — but you never give legal advice and always frame your output as a starting point for the attorney\'s judgment. You are specific about what is missing and practical about where to look. If the practice area affects the analysis meaningfully, acknowledge how.\n\nEVIDENCE GROUNDING DISCIPLINE: Identify gaps and strengths based on the documents, facts, and evidence the attorney has described. Do not assert that a piece of evidence definitively exists or does not exist without a document basis from the information provided. When you reference legal standards, case law, or statutory requirements to frame the analysis, note that these references must be verified against primary authority before relying on them. Clearly distinguish between observations grounded in the provided record versus general legal knowledge from your training data.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['EVIDENCE_GAP_ANALYSIS.md'],
+  outputs: ['EVIDENCE_GAP_ANALYSIS.docx'],
   namedOutputs: [
     { id: 'evidence_gaps', name: 'Evidence gaps by category', schema: 'array' },
     { id: 'discovery_priorities', name: 'Discovery priorities', schema: 'array' },

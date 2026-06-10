@@ -183,14 +183,14 @@ export const CitationFormatter: WorkflowTemplate = {
       name: 'Format Citations and Generate TOA',
       description: 'Produce Bluebook-formatted citations and optional Table of Authorities',
       config: {
-        outputFile: 'CITATIONS_AND_TOA.md',
+        outputFile: 'CITATIONS_AND_TOA.docx',
         promptTemplate: citationFormatterPrompt,
         systemPrompt: 'You are a legal citation formatting assistant helping a licensed attorney format citations into Bluebook style. You apply Bluebook rules carefully for the document type specified (practitioner format for briefs/memos; law review format for academic articles). For each citation: produce the formatted version, note what information was missing from the raw input, and flag any element the attorney should independently verify (reporter abbreviation, page number, year, court, edition). You are aware that AI citation formatting is error-prone — especially for older cases, secondary sources with specific edition requirements, administrative materials, and foreign citations. Always flag these prominently. Never omit a verification note. If generating a TOA, organize by standard category and include page number placeholders. Avoid em dashes. Be precise and direct.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['CITATIONS_AND_TOA.md'],
+  outputs: ['CITATIONS_AND_TOA.docx'],
   namedOutputs: [
     { id: 'formatted_citations', name: 'Bluebook-formatted citations', schema: 'array' },
     { id: 'table_of_authorities', name: 'Table of Authorities draft', schema: 'string' },

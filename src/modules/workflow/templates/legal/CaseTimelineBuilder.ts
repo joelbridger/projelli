@@ -149,14 +149,14 @@ export const CaseTimelineBuilder: WorkflowTemplate = {
       name: 'Generate Case Timeline',
       description: 'Build a structured chronological timeline organized by phase',
       config: {
-        outputFile: 'CASE_TIMELINE.md',
+        outputFile: 'CASE_TIMELINE.docx',
         promptTemplate: caseTimelinePrompt,
         systemPrompt: 'You are a legal research assistant helping a licensed attorney build a working case timeline. You are precise with dates, careful about what you flag as legally significant, and explicit about what requires verification. You never provide legal advice. When statute of limitations or procedural deadlines are involved, you surface the issue and direct the attorney to verify — you do not provide a definitive answer.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['CASE_TIMELINE.md'],
+  outputs: ['CASE_TIMELINE.docx'],
   namedOutputs: [
     { id: 'timeline_events', name: 'Chronological events', schema: 'array' },
     { id: 'sol_flags', name: 'Statute of limitations flags', schema: 'array' },

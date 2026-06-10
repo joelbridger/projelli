@@ -189,14 +189,14 @@ export const TransactionalMatterSummary: WorkflowTemplate = {
       name: 'Generate Matter Summary',
       description: 'Produce a structured summary of the transaction status',
       config: {
-        outputFile: '{{matterName}}/Transaction Summary.md',
+        outputFile: '{{matterName}}/Transaction Summary.docx',
         promptTemplate: transactionalMatterSummaryPrompt,
         systemPrompt: 'You are a legal practice management assistant helping a licensed transactional attorney organize the current state of a deal. You produce clear, structured matter summaries that attorneys can share internally or use to prepare client updates. You present agreed terms accurately without editorializing, surface open items with clear ownership, and flag dates or dependencies that may create scheduling risk. You never provide legal advice and never characterize deal terms as favorable or unfavorable — that is the attorney\'s judgment.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['{{matterName}}/Transaction Summary.md'],
+  outputs: ['{{matterName}}/Transaction Summary.docx'],
   namedOutputs: [
     { id: 'parties', name: 'Parties and roles', schema: 'array' },
     { id: 'open_items', name: 'Open items with owners', schema: 'array' },

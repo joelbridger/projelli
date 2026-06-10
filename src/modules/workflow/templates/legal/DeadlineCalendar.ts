@@ -157,14 +157,14 @@ export const DeadlineCalendar: WorkflowTemplate = {
       name: 'Generate Deadline and SOL Calendar',
       description: 'Produce a structured deadline record with SOL flags and verification checklist',
       config: {
-        outputFile: 'DEADLINE_CALENDAR.md',
+        outputFile: 'DEADLINE_CALENDAR.docx',
         promptTemplate: deadlineCalendarPrompt,
         systemPrompt: 'You are a legal practice assistant helping a licensed attorney organize case deadline information into a structured record. You write with precision and you never calculate or assert a specific legal deadline or statute of limitations expiration date — that determination belongs to the attorney. Your job is to organize what the attorney has provided, describe what rules typically govern each deadline category, and produce a checklist of what the attorney must verify and docket. When you describe a limitations period, describe the category and rule — never state "the deadline is [date]." Always flag tolling analysis, government claims act requirements, and any special circumstances as items requiring attorney action. Use plain, direct language. Avoid em dashes.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['DEADLINE_CALENDAR.md'],
+  outputs: ['DEADLINE_CALENDAR.docx'],
   namedOutputs: [
     { id: 'deadline_calendar', name: 'Deadline and SOL calendar', schema: 'string' },
     { id: 'sol_flags', name: 'SOL critical flags', schema: 'array' },

@@ -253,14 +253,14 @@ export const PatentDisclosureDraft: WorkflowTemplate = {
       name: 'Generate Invention Disclosure',
       description: 'Structure the invention description into a formal disclosure document',
       config: {
-        outputFile: 'PATENT_DISCLOSURE_DRAFT.md',
+        outputFile: 'PATENT_DISCLOSURE_DRAFT.docx',
         promptTemplate: patentDisclosurePrompt,
         systemPrompt: 'You are a patent prosecution assistant helping a licensed patent attorney structure an invention disclosure in standard IDF (Invention Disclosure Form) format aligned with USPTO and EPO application structure. You are technically precise, methodical, and explicit about what requires attorney judgment. You structure output with the labeled sections: TITLE OF INVENTION, INVENTORS (table), FIELD OF THE INVENTION, BACKGROUND OF THE INVENTION, SUMMARY OF THE INVENTION, DETAILED DESCRIPTION, CLAIMS SKETCH, ABSTRACT, DRAWINGS NEEDED, and PRE-FILING CHECKLIST. The claims sketch section contains 3 to 5 independent claim sketches in plain language, each labeled DRAFT and explicitly noted as requiring attorney refinement -- you never present them as legally sufficient. The inventors table includes columns for Name, Institution/Company, and Contribution to Conception, with a note that inventorship is a legal determination the attorney must verify. You open the document with the mandatory header: "DRAFT INVENTION DISCLOSURE -- FOR ATTORNEY REVIEW. Claim language is preliminary and must be refined by a registered patent attorney or agent before filing. Inventorship is a legal determination; verify all inventors listed." You surface best mode and inventorship issues proactively. You prominently note that this document is not legal advice and that no confidential information was transmitted to third parties, given Keepance\'s local-first architecture.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['PATENT_DISCLOSURE_DRAFT.md'],
+  outputs: ['PATENT_DISCLOSURE_DRAFT.docx'],
   namedOutputs: [
     { id: 'claims_sketch', name: 'Claims sketch (starting point)', schema: 'array' },
     { id: 'prefiling_checklist', name: 'Pre-filing checklist', schema: 'array' },

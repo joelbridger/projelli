@@ -274,23 +274,91 @@ interface TextFormatting {
 }
 
 /**
- * Parse TipTap HTML into a flat list of docx top-level children
- * (Paragraphs). Uses DOMParser in the browser — Keepance's editors are
- * client-only, so this is safe.
+ * Parse TipTap HTML (or markdown-converted HTML) into a flat list of docx
+ * top-level children (Paragraphs and Tables). Uses DOMParser in the browser —
+ * Keepance's editors are client-only, so this is safe.
  */
-function htmlToDocxChildren(html: string): Paragraph[] {
+function htmlToDocxChildren(html: string): (Paragraph | Table)[] {
   const doc = new DOMParser().parseFromString(
     `<!doctype html><html><body>${html}</body></html>`,
     'text/html'
   );
   const body = doc.body;
-  const out: Paragraph[] = [];
+  const out: (Paragraph | Table)[] = [];
 
   for (const node of Array.from(body.childNodes)) {
-    out.push(...blockToParagraphs(node, {}));
+    out.push(...blockToChildren(node, {}));
   }
 
   return out;
+}
+
+/**
+ * Build a Table from an HTML <table> element. Header cells come from <thead>
+ * <th> elements; body rows come from <tbody> <tr> elements. Falls back
+ * gracefully if thead/tbody are absent (uses first row as header, rest as body).
+ */
+function htmlTableToDocxTable(el: HTMLElement): Table {
+  // Collect all <tr> elements in document order, regardless of thead/tbody.
+  const allRows = Array.from(el.querySelectorAll('tr'));
+
+  if (allRows.length === 0) {
+    // Empty table: return a 1×1 table with an empty cell.
+    return new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun('')] })],
+            }),
+          ],
+        }),
+      ],
+    });
+  }
+
+  const buildCell = (tdEl: Element, isHeader: boolean): TableCell => {
+    const text = tdEl.textContent ?? '';
+    const runOpts = isHeader
+      ? { text, bold: true, size: 20 as const }
+      : { text };
+    const runs: ParagraphChild[] = text ? [new TextRun(runOpts)] : [new TextRun('')];
+    if (isHeader) {
+      return new TableCell({
+        shading: { type: ShadingType.CLEAR, fill: 'EEF1F5', color: 'auto' },
+        children: [new Paragraph({ children: runs })],
+      });
+    }
+    return new TableCell({
+      children: [new Paragraph({ children: runs })],
+    });
+  };
+
+  const rows: TableRow[] = allRows.map((trEl, rowIndex) => {
+    const isHeaderRow = rowIndex === 0 && trEl.closest('thead') !== null;
+    const cellEls = Array.from(trEl.querySelectorAll('th, td'));
+    const cells = cellEls.map((td) => buildCell(td, isHeaderRow || td.tagName.toLowerCase() === 'th'));
+    return new TableRow({
+      tableHeader: isHeaderRow,
+      children: cells.length > 0 ? cells : [new TableCell({ children: [new Paragraph({})] })],
+    });
+  });
+
+  return new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows,
+  });
+}
+
+function blockToChildren(node: Node, inheritedFmt: TextFormatting): (Paragraph | Table)[] {
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    const el = node as HTMLElement;
+    if (el.tagName.toLowerCase() === 'table') {
+      return [htmlTableToDocxTable(el)];
+    }
+  }
+  return blockToParagraphs(node, inheritedFmt);
 }
 
 function blockToParagraphs(node: Node, inheritedFmt: TextFormatting): Paragraph[] {
@@ -654,6 +722,80 @@ function renderInline(line: string): string {
 }
 
 /**
+ * Return true if the line looks like a GFM pipe-table row or separator.
+ * Accepts both `| a | b |` (outer pipes) and `a | b` (no outer pipes).
+ */
+function isPipeTableLine(line: string): boolean {
+  const t = line.trim();
+  // Separator row: cells are only dashes, colons, and spaces.
+  if (/^[|\s:*-][|\s:*-]+$/.test(t) && t.includes('|') && /[-]/.test(t)) return true;
+  // Data row: contains at least one pipe character.
+  return t.includes('|');
+}
+
+/**
+ * Split a pipe-table row into cell strings. Handles both outer-pipe and
+ * no-outer-pipe styles. Strips leading/trailing whitespace from each cell.
+ */
+function splitTableRow(line: string): string[] {
+  const t = line.trim();
+  // Strip optional leading and trailing pipes then split on `|`.
+  const stripped = t.startsWith('|') ? t.slice(1) : t;
+  const finalStripped = stripped.endsWith('|') ? stripped.slice(0, -1) : stripped;
+  return finalStripped.split('|').map((c) => c.trim());
+}
+
+/**
+ * Given a block of adjacent pipe-table lines (header row, separator row, body
+ * rows), produce a `<table>` HTML string with `<thead>` and `<tbody>`.
+ * Ragged rows are padded with empty cells or truncated to the column count
+ * established by the header row.
+ */
+function tableLinesToHtml(tableLines: string[]): string {
+  if (tableLines.length < 2) return '';
+
+  const headerCells = splitTableRow(tableLines[0]!);
+  const colCount = headerCells.length;
+
+  // Find the separator row (all dashes/colons/pipes). Skip it for body rows.
+  let separatorIndex = -1;
+  for (let i = 1; i < tableLines.length; i++) {
+    const t = tableLines[i]!.trim();
+    // A separator row contains only |, -, :, and whitespace.
+    if (/^[|\s:-]+$/.test(t) && t.includes('-')) {
+      separatorIndex = i;
+      break;
+    }
+  }
+
+  const bodyLines =
+    separatorIndex >= 0
+      ? tableLines.slice(separatorIndex + 1)
+      : tableLines.slice(1);
+
+  /** Pad/truncate a cell array to exactly colCount entries. */
+  const normalizeRow = (cells: string[]): string[] => {
+    const out = cells.slice(0, colCount);
+    while (out.length < colCount) out.push('');
+    return out;
+  };
+
+  const thHtml = normalizeRow(headerCells)
+    .map((c) => `<th>${renderInline(c)}</th>`)
+    .join('');
+
+  const tbodyHtml = bodyLines
+    .map((line) => {
+      const cells = normalizeRow(splitTableRow(line));
+      const tdHtml = cells.map((c) => `<td>${renderInline(c)}</td>`).join('');
+      return `<tr>${tdHtml}</tr>`;
+    })
+    .join('');
+
+  return `<table><thead><tr>${thHtml}</tr></thead><tbody>${tbodyHtml}</tbody></table>`;
+}
+
+/**
  * Convert a markdown string into HTML suitable for feeding to `serializeDocx`.
  *
  * Block-level constructs handled:
@@ -662,6 +804,7 @@ function renderInline(line: string): string {
  *  - `- `, `* `, `+ ` prefixed lines to `<ul><li>`
  *  - `N. ` prefixed lines to `<ol><li>`
  *  - `---`, `***`, `___` on their own line to `<hr>`
+ *  - GFM pipe tables (`| col | col |` / `|---|---|`) to `<table>`
  */
 export function markdownToHtml(markdown: string): string {
   const lines = markdown.replace(/\r\n/g, '\n').split('\n');
@@ -670,6 +813,7 @@ export function markdownToHtml(markdown: string): string {
   type ListState = { kind: 'ul' | 'ol' } | null;
   let list: ListState = null;
   let paraBuffer: string[] = [];
+  let tableBuffer: string[] = [];
 
   const closeList = () => {
     if (list) {
@@ -686,8 +830,29 @@ export function markdownToHtml(markdown: string): string {
     }
   };
 
+  const flushTable = () => {
+    if (tableBuffer.length > 0) {
+      const html = tableLinesToHtml(tableBuffer);
+      if (html) out.push(html);
+      tableBuffer = [];
+    }
+  };
+
   for (const raw of lines) {
     const line = raw.trimEnd();
+
+    // ── GFM pipe-table accumulation ────────────────────────────────────────
+    if (isPipeTableLine(line)) {
+      flushParagraph();
+      closeList();
+      tableBuffer.push(line);
+      continue;
+    }
+
+    // Non-table line: flush any accumulated table rows first.
+    if (tableBuffer.length > 0) {
+      flushTable();
+    }
 
     if (line.trim() === '') {
       flushParagraph();
@@ -743,6 +908,7 @@ export function markdownToHtml(markdown: string): string {
   }
 
   flushParagraph();
+  flushTable();
   closeList();
 
   return out.join('\n');

@@ -136,14 +136,14 @@ export const DiscoveryDrafter: WorkflowTemplate = {
       name: 'Generate Discovery Requests',
       description: 'Draft numbered discovery requests with strategic notes',
       config: {
-        outputFile: 'DISCOVERY_DRAFT.md',
+        outputFile: 'DISCOVERY_DRAFT.docx',
         promptTemplate: discoveryDrafterPrompt,
         systemPrompt: 'You are a litigation support assistant helping a licensed attorney draft discovery requests. You write numbered, properly formatted discovery requests that are specific, unambiguous, and proportionate to the needs of the case. For each request, add a brief strategic note explaining what it targets and why. For interrogatories: cover background, facts, damages, and document identification. For RFPs: organize by topic and cover communications, documents, and ESI. For RFAs: focus on single, undisputable facts and authenticity. Always note when requests may be subject to a numerical limit and flag court-rule compliance issues for attorney verification. Avoid compound questions in RFAs. Avoid em dashes. Be precise and direct.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['DISCOVERY_DRAFT.md'],
+  outputs: ['DISCOVERY_DRAFT.docx'],
   namedOutputs: [
     { id: 'discovery_requests', name: 'Discovery requests draft', schema: 'string' },
     { id: 'strategic_notes', name: 'Strategic notes per request', schema: 'array' },

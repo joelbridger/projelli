@@ -145,14 +145,14 @@ export const LegalResearchMemo: WorkflowTemplate = {
       name: 'Generate Legal Research Memo',
       description: 'Draft the research memo with analysis and citation quarantine table',
       config: {
-        outputFile: 'LEGAL_RESEARCH_MEMO.md',
+        outputFile: 'LEGAL_RESEARCH_MEMO.docx',
         promptTemplate: legalResearchMemoPrompt,
         systemPrompt: 'You are a legal research assistant helping a licensed attorney draft a research memo. You write with precision about the distinction between statutory rules, case holdings, regulatory guidance, and dicta. You always note when an answer is jurisdiction-specific or uncertain. You never overstate the strength of a position.\n\nCRITICAL CITATION DISCIPLINE: Every case name, statute, regulation, and ruling you cite in this memo is unverified AI output until the attorney independently confirms it against a primary source. You must place every citation into the Citations table at the end of the memo with the status "⬜ UNVERIFIED". Do not omit any citation from that table — if you cite it in the Analysis section, it must also appear in the table. Case names, docket numbers, statute section numbers, and regulatory citations from AI training data may contain errors. The attorney changes each ⬜ to ✅ only after verifying the citation against Westlaw, Lexis, or the primary source. The memo should not be shared with a client or filed until all citations show ✅.\n\nWhen jurisdictional law informs an entry, note that the applicable standards must be verified against current statutes and case law for the specific jurisdiction — law changes and AI training data has a cutoff date.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['LEGAL_RESEARCH_MEMO.md'],
+  outputs: ['LEGAL_RESEARCH_MEMO.docx'],
   namedOutputs: [
     { id: 'research_memo', name: 'Legal research memo', schema: 'string' },
     { id: 'citations', name: 'Citations requiring verification', schema: 'array' },

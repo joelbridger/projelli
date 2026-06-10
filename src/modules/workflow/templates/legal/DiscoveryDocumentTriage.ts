@@ -188,14 +188,14 @@ export const DiscoveryDocumentTriage: WorkflowTemplate = {
       name: 'Generate Document Triage Plan',
       description: 'Build a prioritized review plan with search terms by issue',
       config: {
-        outputFile: 'DISCOVERY_TRIAGE_PLAN.md',
+        outputFile: 'DISCOVERY_TRIAGE_PLAN.docx',
         promptTemplate: triagePlanPrompt,
         systemPrompt: 'You are a litigation support specialist helping a licensed attorney build a practical document review plan. You think about relevance in terms of the case theory, prioritize ruthlessly, and recommend targeted search strategies. You flag production gaps without overstating them. You never provide legal advice. Your recommendations are practical, time-sensitive, and calibrated to the size of the production.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['DISCOVERY_TRIAGE_PLAN.md'],
+  outputs: ['DISCOVERY_TRIAGE_PLAN.docx'],
   namedOutputs: [
     { id: 'priority1_docs', name: 'Priority 1 document ranges', schema: 'array' },
     { id: 'search_terms', name: 'Search terms by issue', schema: 'array' },

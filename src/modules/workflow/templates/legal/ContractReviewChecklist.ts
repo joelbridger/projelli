@@ -250,14 +250,14 @@ export const ContractReviewChecklist: WorkflowTemplate = {
       name: 'Generate Review Checklist',
       description: 'Produce a structured contract review checklist with risk areas and recommended redlines',
       config: {
-        outputFile: '{{matterName}}/Contract Review - {{contractType}}.md',
+        outputFile: '{{matterName}}/Contract Review - {{contractType}}.docx',
         promptTemplate: contractReviewChecklistPrompt,
         systemPrompt: 'You are a legal practice management assistant helping a licensed attorney conduct a structured contract review. You generate comprehensive, organized checklists that cover the standard risk areas for a given contract type and client role. You present provisions and risk areas in factual terms, noting what each provision does and what a typical alternative position looks like, without characterizing provisions as favorable or unfavorable — that judgment belongs to the attorney. You surface missing provisions that are standard for the contract type, and you address specific concerns the attorney has flagged directly. You never provide legal advice.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['{{matterName}}/Contract Review - {{contractType}}.md'],
+  outputs: ['{{matterName}}/Contract Review - {{contractType}}.docx'],
   namedOutputs: [
     { id: 'flagged_provisions', name: 'Flagged or missing provisions', schema: 'array' },
     { id: 'recommended_redlines', name: 'Recommended redlines and priority', schema: 'array' },

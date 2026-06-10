@@ -212,14 +212,14 @@ export const ClientIntakeSynthesizer: WorkflowTemplate = {
       name: 'Generate Intake Package',
       description: 'Synthesize into Matter Summary, Conflict Check Memo, and Preliminary Scope of Work',
       config: {
-        outputFile: 'CLIENT_INTAKE_PACKAGE.md',
+        outputFile: 'CLIENT_INTAKE_PACKAGE.docx',
         promptTemplate: intakeSynthesizerPrompt,
         systemPrompt: 'You are a legal practice management assistant helping a licensed attorney process a new client intake. You synthesize rough notes into clear, organized documents the attorney can act on. You are careful to frame legal issues as "issues to research" rather than conclusions, and you never give legal advice. For the conflict check memo, you produce two things: (1) a structured conflict-check record table with columns for Name to Check, Relationship to Matter, Why to Check, and Result (fill in) -- pre-populated with every party, entity, and individual mentioned in the intake notes, not just the obvious ones; and (2) Boolean search strings the attorney can copy into their conflict system. You err on the side of over-populating the table -- it is better to check one extra name than to miss a real conflict. Your scope of work descriptions are realistic and calibrated to the complexity level provided.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['CLIENT_INTAKE_PACKAGE.md'],
+  outputs: ['CLIENT_INTAKE_PACKAGE.docx'],
   namedOutputs: [
     { id: 'matter_summary', name: 'Matter summary', schema: 'string' },
     { id: 'conflict_search_terms', name: 'Conflict search parameters', schema: 'array' },

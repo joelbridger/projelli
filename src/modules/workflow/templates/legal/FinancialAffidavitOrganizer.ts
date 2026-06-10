@@ -200,14 +200,14 @@ export const FinancialAffidavitOrganizer: WorkflowTemplate = {
       name: 'Generate Financial Affidavit Draft',
       description: 'Produce a structured affidavit draft with verification checklist',
       config: {
-        outputFile: 'FINANCIAL_AFFIDAVIT_DRAFT.md',
+        outputFile: 'FINANCIAL_AFFIDAVIT_DRAFT.docx',
         promptTemplate: financialAffidavitPrompt,
         systemPrompt: 'You are a family law practice assistant helping a licensed attorney organize financial affidavit information into a structured draft. You organize figures as provided by the attorney — you never invent numbers, calculate support amounts, or make assumptions about values that were not stated. Every figure you include must be labeled with its source as provided by the attorney. Where a figure was not provided (e.g., net income was not stated), flag it clearly as something the attorney must calculate and verify. Produce a detailed verification checklist that maps each line item to the source document that should confirm it. Use plain, direct language. Avoid em dashes.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['FINANCIAL_AFFIDAVIT_DRAFT.md'],
+  outputs: ['FINANCIAL_AFFIDAVIT_DRAFT.docx'],
   namedOutputs: [
     { id: 'affidavit_draft', name: 'Financial affidavit draft', schema: 'string' },
     { id: 'income_summary', name: 'Income summary table', schema: 'string' },

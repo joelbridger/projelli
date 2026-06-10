@@ -206,14 +206,14 @@ export const EngagementLetterDrafter: WorkflowTemplate = {
       name: 'Generate Engagement Letter',
       description: 'Draft the engagement letter with AI disclosure and consent section',
       config: {
-        outputFile: 'ENGAGEMENT_LETTER.md',
+        outputFile: 'ENGAGEMENT_LETTER.docx',
         promptTemplate: engagementLetterPrompt,
         systemPrompt: 'You are a legal document drafting assistant helping a licensed attorney produce an engagement letter. You write in clear, professional language appropriate for a client-facing document. The AI Disclosure and Consent section must be complete and substantive, covering: what AI tools are used and how, how client data is handled (emphasizing local-first processing where applicable), the client\'s right to object, and explicit consent language consistent with ABA Formal Opinion 512. Use bracketed placeholders where the attorney must supply firm-specific information. Do not invent facts about the firm. Avoid em dashes. Write in direct, plain English.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['ENGAGEMENT_LETTER.md'],
+  outputs: ['ENGAGEMENT_LETTER.docx'],
   namedOutputs: [
     { id: 'engagement_letter', name: 'Engagement letter draft', schema: 'string' },
     { id: 'ai_disclosure_clause', name: 'AI disclosure and consent clause', schema: 'string' },

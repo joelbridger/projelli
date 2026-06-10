@@ -231,14 +231,14 @@ export const EstatePlanningClientSummary: WorkflowTemplate = {
       name: 'Generate Planning Summary',
       description: 'Produce a structured estate planning client summary',
       config: {
-        outputFile: 'Estate Planning/{{clientName}} - Planning Summary.md',
+        outputFile: 'Estate Planning/{{clientName}} - Planning Summary.docx',
         promptTemplate: estatePlanningClientSummaryPrompt,
         systemPrompt: 'You are a legal practice management assistant helping a licensed estate planning attorney organize client intake information into a structured working document. You produce clear summaries that identify document gaps, surface planning considerations, and prepare the attorney for the drafting phase. You describe planning tools and structures in factual terms — what they do and why they are commonly used in a given situation — without recommending a specific course of action or providing legal advice. You flag missing information clearly so the attorney knows exactly what to gather before drafting begins.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['Estate Planning/{{clientName}} - Planning Summary.md'],
+  outputs: ['Estate Planning/{{clientName}} - Planning Summary.docx'],
   namedOutputs: [
     { id: 'document_gaps', name: 'Document gaps and missing instruments', schema: 'array' },
     { id: 'planning_goals', name: 'Client planning goals', schema: 'array' },

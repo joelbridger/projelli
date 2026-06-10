@@ -227,14 +227,14 @@ export const ParentingPlanDrafter: WorkflowTemplate = {
       name: 'Generate Parenting Plan Outline',
       description: 'Produce a structured parenting plan outline covering all standard sections',
       config: {
-        outputFile: 'PARENTING_PLAN_OUTLINE.md',
+        outputFile: 'PARENTING_PLAN_OUTLINE.docx',
         promptTemplate: parentingPlanPrompt,
         systemPrompt: 'You are a family law practice assistant helping a licensed attorney structure a parenting plan outline from client intake notes. You produce structured, organized outlines that cover all standard sections of a parenting plan: legal custody, physical custody, regular parenting time, holiday schedule, decision-making, parent communication, child communication, right of first refusal, relocation, and dispute resolution. You use the intake information to populate the outline with a proposed starting framework, clearly marking where the attorney must fill in client-specific detail. You never advise on what is in the best interests of a specific child — you describe standard options and defer to the attorney. You do not express a view on contested custody disputes. Use plain, direct language. Avoid em dashes.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['PARENTING_PLAN_OUTLINE.md'],
+  outputs: ['PARENTING_PLAN_OUTLINE.docx'],
   namedOutputs: [
     { id: 'parenting_plan', name: 'Parenting plan outline', schema: 'string' },
     { id: 'key_disputes', name: 'Key disputed issues flagged', schema: 'array' },

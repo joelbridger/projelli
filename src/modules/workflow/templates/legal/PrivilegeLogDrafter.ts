@@ -130,14 +130,14 @@ export const PrivilegeLogDrafter: WorkflowTemplate = {
       name: 'Generate Privilege Log',
       description: 'Draft privilege log entries for each document',
       config: {
-        outputFile: 'PRIVILEGE_LOG.md',
+        outputFile: 'PRIVILEGE_LOG.docx',
         promptTemplate: privilegeLogPrompt,
         systemPrompt: 'You are a legal research assistant helping a licensed attorney draft a privilege log for document production. You write neutral, non-revealing document descriptions that preserve privilege while satisfying discovery requirements. You flag entries that may be vulnerable to challenge so the attorney can make informed decisions. You never provide legal advice and never certify the correctness of privilege assertions — that is the attorney\'s job.\n\nPRIVILEGE CHARACTERIZATION DISCIPLINE: Flag any privilege characterization for attorney review; this draft is a starting point, not a legal determination. Privilege analysis is fact-specific and jurisdiction-dependent. Every assertion in this log that the attorney has not independently reviewed and approved should be treated as a working draft only. When jurisdictional privilege standards inform an entry, note that those standards must be verified against the applicable court rules and case law for the specific jurisdiction.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['PRIVILEGE_LOG.md'],
+  outputs: ['PRIVILEGE_LOG.docx'],
   namedOutputs: [
     { id: 'privilege_log_entries', name: 'Privilege log entries', schema: 'array' },
     { id: 'flagged_entries', name: 'Entries flagged for attorney review', schema: 'array' },

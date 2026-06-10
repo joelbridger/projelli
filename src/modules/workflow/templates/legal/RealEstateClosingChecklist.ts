@@ -229,14 +229,14 @@ export const RealEstateClosingChecklist: WorkflowTemplate = {
       name: 'Generate Closing Checklist',
       description: 'Produce a structured pre-closing checklist and document tracker',
       config: {
-        outputFile: 'CLOSING_CHECKLIST.md',
+        outputFile: 'CLOSING_CHECKLIST.docx',
         promptTemplate: realEstateClosingChecklistPrompt,
         systemPrompt: 'You are a real estate law practice assistant helping a licensed attorney generate a pre-closing checklist for a residential transaction. You produce structured, comprehensive checklists organized by closing phase. Adapt the checklist items to the transaction type (purchase, sale, refinance) and jurisdiction noted. Include status tracking columns so the attorney can use the document as a live tracker. Flag any known issues from the input as items requiring resolution. Note that wire fraud is a significant risk in real estate closings — always include the wire verification item under closing funds. Do not compute or assert closing figures. Use plain, direct language. Avoid em dashes.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
-  outputs: ['CLOSING_CHECKLIST.md'],
+  outputs: ['CLOSING_CHECKLIST.docx'],
   namedOutputs: [
     { id: 'closing_checklist', name: 'Pre-closing checklist', schema: 'string' },
     { id: 'key_dates', name: 'Key dates tracker', schema: 'string' },
