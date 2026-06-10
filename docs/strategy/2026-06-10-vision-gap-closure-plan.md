@@ -47,6 +47,12 @@
 **Verify.** Harness green on the rig + Jameson's Windows spot check returns a clickable citation. The harness also picks up two small unverified-in-campaign items for 100% coverage: an xlsx/pptx round-trip assertion, and confirmation that live audit events are captured on a real (keychain-bearing) machine as part of the Windows spot check.
 **Size.** M. **Depends on:** Option B complete.
 
+### VG-2b: Office-document content into the search index (NEW gap, found 2026-06-10 during VG-1 plan verification — blocks-the-wedge, peer of OCR)
+**Why.** The Rust indexer extracts text formats only (`src-tauri/src/commands/rag/extractor.rs:19`: md/txt/json/csv/etc; `.docx`/`.xlsx`/`.pptx`/`.rtf` are an explicit "M1-followup" TODO). PDFs and email have their own paths, but a lawyer's Word documents, the product's first-class format, are invisible to AI recall today (full-text search sees them via the frontend; cited AI answers do not). The audit's Pillar 1 "documents indexed" wording masked this. For the ICP this is at least as load-bearing as OCR.
+**Approach.** Wire the existing in-house extractors into the indexing path: the `keepance-docx` crate already parses OOXML in Rust (plain-text extraction from the parsed tree is a contained addition); xlsx/pptx/rtf via the same pattern or by routing through the existing TS extractors at index time (decide at implementation-plan time; prefer Rust-side for the watcher path). Page/paragraph metadata preserved so citations stay precise.
+**Verify.** The VG-1 harness gains fixture assertions: a question answered from `contract-services-agreement.docx` content with a verifying citation; the leg-1 corpus loader stops special-casing office files.
+**Size.** M. **Depends on:** nothing; slots into Wave 2 alongside OCR (same "ingest everything" wave).
+
 ### VG-2: OCR for scanned PDFs (audit gap #2)
 **Why.** Litigation runs on scanned paper: court-stamped filings, faxed exhibits, service copies. Today `src/lib/pdf-extract.ts:23` detects a scanned PDF and then ignores it, so it is invisible to search. The vision names OCR explicitly; this is the biggest remaining build.
 **Approach.**
