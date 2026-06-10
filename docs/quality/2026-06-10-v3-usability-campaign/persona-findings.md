@@ -9,6 +9,36 @@
 
 | ID | Sev | Type | Surface | Title |
 |----|-----|------|---------|-------|
+| F-106 | P0 | bug | Workflow completion | No-key workflows silently run MockProvider and present "This is a mock response." as a green "Complete" |
+| F-107 | P0 | inconsistency | Workflow provider resolution | Workflows cannot use Ollama; local-pinned template falls back to a cloud key if present (egress risk) |
+| F-108 | P1 | bug | markdownToDocxBytes | Markdown tables export to .docx as raw pipe/dash text (no Word table) |
+| F-113 | P1 | inconsistency | Settings → Integrations | Desktop-only requirement disclosed on Gmail card only; M365/IMAP take a password then fail |
+| F-116 | P1 | bug | AI "Ask my workspace" | RAG fails in browser, then silently answers ungrounded with a small warning and no citations |
+| F-117 | P1 | ux-improvement | AI answers | AI answers lack click-through citations (Search has them; the welcome promises them) |
+| F-119 | P1 | copy | Privacy/telemetry/unsub | Customer-facing copy leaks the developer's real name "Jameson" (all locales) |
+| F-122 | P1 | ux-improvement | Matter management | Matters buried inside the AI chat; no sidebar entry (F-009 confirmed) |
+| F-123 | P1 | ux-improvement | Firm member first-open | Encryption key-handshake is silent; member's first open looks broken (404) until admin republishes |
+| F-126 | P1 | bug | Deposition Contradiction Finder | Hard-fails in browser (desktop-only RAG) instead of using pasted excerpts; 0 contradictions surface |
+| F-101 | P2 | ux-improvement | FirstRunWizard | "Pick a workspace folder" step doesn't pick a folder — split across two screens |
+| F-104 | P2 | copy | Status bar | "Privileged Matter Mode: network extensions disabled" is network-engineer jargon |
+| F-105 | P2 | ux-improvement | BYOK key steps | Provider key walkthrough never mentions the training/retention opt-out |
+| F-109 | P2 | copy | Workflow estimate | Always shows a dollar cost "billed by your provider" even for mock/local ($0) runs |
+| F-110 | P2 | bug | WorkflowExecutionTab | Shows "Generating…" while actually idle, waiting for interview answers |
+| F-111 | P2 | inconsistency | Interview surfaces | Two live InterviewForms for one step (App dialog over the exec-tab form) |
+| F-112 | P2 | inconsistency | Legal pack deliverables | 17/18 legal templates write SCREAMING_SNAKE .md, not .docx (vs 3.0 Word-native) |
+| F-114 | P2 | copy | IMAP app-password help | App-password link is Gmail-only; no Outlook/M365 guidance for the target segment |
+| F-115 | P2 | copy | MCP integration card | Leaks dev command "Run node scripts/build-mcpb.mjs first" into end-user Settings |
+| F-118 | P2 | ux-improvement | Privileged Matter Mode | Auto-on explanation lives only in Settings, not where the cryptic status pill shows |
+| F-120 | P2 | ux-improvement | Status bar egress | No positive cloud-egress signal in Direct mode (safe state loud, egress state = silence) |
+| F-121 | P2 | ux-improvement | Privilege enforcement | "Privileged" must demonstrably exclude from retrieval, not just label (firm condition) |
+| F-124 | P2 | copy | Firm admin console | Crypto jargon + unreadable ids ("epoch 1", "Unnamed device", no matter name) |
+| F-127 | P2 | ux-improvement | DocxEditor (browser) | Tracked-changes editing desktop-only; redline round-trip undemonstrable in web trial |
+| F-102 | P3 | copy | WorkspaceSelector | "docs/ research/ templates/" developer idiom on the first-run screen |
+| F-103 | P3 | inconsistency | DataMapDialog | British "licence" ×3 vs American "license" everywhere else |
+| F-125 | P3 | ux-improvement | Shared-matter title | Raw matter-id suffix leaks into the shared-notes tab/title |
+| F-128 | P3 | ux-improvement | Trial → pricing | "Upgrade" lands on a key-entry panel before the pricing tiers |
+
+**Counts:** P0 = 2 · P1 = 8 · P2 = 14 · P3 = 4 · **total = 28.** Capability-vs-communication: ~8 capability/boundary (F-107 partial, F-108, F-116, F-117, F-122, F-123, F-126, F-127), the rest communication/copy/UX. Both P0s are "wrong belief / silent failure" class (the protocol's severity-4 trigger).
 
 <!-- FINDINGS-APPEND-POINT: detailed findings appended per task below -->
 
@@ -202,3 +232,117 @@
 - **Adoption verdict captured (primary strategic finding):** solo-on-local = "real matter tomorrow"; firm = conditional on (1) enforceable privilege, (2) a company identity replacing "Jameson", (3) clickable citations, (4) named attorney references + DPA/SOC2 answers. Audit+versions judged "enough for 95%" of her work; harder evidence-grade (hashes) only for contested-fabrication edge cases.
 
 ---
+
+## Task 6 findings — firm scenario (two contexts)
+
+### F-122 · P1 · ux-improvement · Matter management is buried inside the AI chat (also the F-009 probe)
+**Title:** The only path to create/share/open a matter is: open an AI chat → click the matter-scope control in the chat header → "Manage matters." Matters — the spine of a legal practice — have no sidebar entry of their own.
+**Repro:** testMode → there is no "Matters" sidebar tab; matter manager reachable only via `matter-scope-selector` → `matter-scope-manage` inside AIChatViewer (or Ctrl+Shift+A).
+**Screenshot:** `persona/t6-03-matter-manager.png`
+**Diane:** "Matters should be a thing in the sidebar, not buried inside the AI chat. I'd never have found this without being shown."
+**Label:** capability/navigation. Directly answers the F-009 probe: she could NOT find matter management unaided (see Extended Checks for the cold-find attempt).
+
+### F-123 · P1 · ux-improvement · Encryption key-handshake on member first-open is silent (looks broken)
+**Title:** A member's first attempt to open a shared matter fails (device key not yet published); it only works after the admin clicks "Re-publish keys to all member devices." Neither side is told this is expected or what to do — the member sees a failure and a console 404.
+**Repro:** Two contexts; member opens shared matter pre-publish → `firm-open-error` + console "404 Not Found"; admin must `firm-republish-keys`; member retries → links.
+**Screenshot:** `persona/t6-11-member-remote-matters.png`, `persona/t6-12-member-after-open.png`
+**Diane:** "She'd have called me saying 'it's broken'… we'd have both decided the firm feature is flaky. The security model is excellent; the choreography is invisible at exactly the moment two non-technical people need it explained."
+**Label:** communication around a (good) capability. Suggested: auto-prompt the admin to publish on invite, and show the member a "waiting for the firm admin to grant your device access" state instead of an error. The 404 should not reach the console as an unhandled error.
+
+### F-124 · P2 · copy · Firm admin console exposes crypto jargon + unreadable identifiers
+**Title:** The admin console lists matters as "[client name] [matter-id-suffix] epoch N" (no matter NAME; "epoch 1" is cryptographer jargon), and seats as "Unnamed device [hex]" — a firm admin auditing access cannot read what she's governing. Two distinct matters both displayed as "Teresa Okafor" were indistinguishable.
+**Repro:** Admin → Settings → Firm → matter list + Seats list. Source: `FirmAdminConsole.tsx` (`epoch-label`, matter row, seat rows).
+**Screenshot:** `persona/t6-15-admin-sees-reply.png`, `persona/t6-08-member-invited.png`
+**Diane:** "'Unnamed device' and 'epoch 1' are exactly the words that make me nervous, because I can't audit what I can't read."
+**Label:** communication (show matter name; relabel "epoch" as "access version" or hide it; let devices be named). Pairs with the firm-adoption / risk-committee axis.
+
+### F-125 · P3 · ux-improvement · Shared-matter tab/title carries the raw matter-id suffix
+**Title:** The shared-notes tab and document title read "Teresa Okafor mq834p1f: Shared notes" — the internal id fragment leaks into the title both lawyers see.
+**Repro:** Open shared matter notes (either context); tab + breadcrumb show "[client] [id-suffix]: Shared notes".
+**Screenshot:** `persona/t6-13-member-sees-admin-text.png`
+**Diane:** "What is 'mq834p1f'?"
+**Label:** communication.
+
+**Task 6 positives logged for summary (the firm story is real and differentiated):**
+- **Genuine end-to-end encrypted, live-converging shared notes between two solo-grade users** — admin↔member bidirectional convergence verified on content. She explicitly said she "didn't think this existed for a two-lawyer shop."
+- **Ethical wall as a first-class admin action** enforced by key-epoch rotation (not UI hiding) — lands hard with her conflicts-screen instinct ("an ethical wall as a button… whoever built this has done a conflicts check").
+- **The server-holds-only-ciphertext model** is the answer she'd take to a risk committee ("better than my current 'we're careful'").
+- **Seat model** reads as familiar enterprise (Clio-like), login + license-key separation understood.
+- The friction is packaging (hidden matters door, silent key handshake, jargon), NOT the underlying capability — an important strategic read: the hard cryptographic engineering works; the last-mile explanation doesn't.
+
+---
+
+## Task 7 findings — extended spot checks
+
+### F-126 · P1 · bug · Deposition Contradiction Finder hard-fails in browser instead of using pasted inputs
+**Title:** The flagship litigation workflow's analyze step depends on desktop-only RAG ("Retrieve the matter record…") and throws "RAG is only available in the desktop app," failing the whole run — even though the user pasted the full transcript + prior statements directly into the workflow's own textareas. The 3 planted contradictions never surface; no citations produced.
+**Repro:** `?testMode=true` → Workflows → Deposition Contradiction Finder → paste `deposition-transcript-johnson.txt` into depositionExcerpts + `incident-summary-johnson.md` into priorStatements → run → "Failed: RAG is only available in the desktop app." (analyze step, `MemoryService.retrieve`).
+**Screenshot:** `persona/t7c-02-result.png`
+**Diane:** "I handed it the transcript and my summary on a silver platter, and it just… failed. If the headline litigation feature silently dies in the trial I'm evaluating, I'd never know it was the crown jewel."
+**Label:** capability (browser RAG) + defect: a workflow given sufficient inline inputs should not hard-require RAG; it should use the pasted excerpts or refuse before the user does the work. Most damaging because it's the Professional-tier marquee feature (per the pricing page).
+
+### F-127 · P2 · ux-improvement · Tracked-changes editing is desktop-only with no in-context "why / what you're missing"
+**Title:** In the browser build the DocxEditor is read-only ("Editing Word documents with tracked changes is only available in the Keepance desktop app"), with no tracked-change rendering and no review pane — so a prospect cannot experience accept/reject redlining, a core sell, anywhere in the trial-able web build.
+**Repro:** Open any tracked-changes .docx (fixture `engagement-letter-tracked.docx`) in the browser build → read-only banner; 0 insertion/deletion marks; no `docx-review-pane`.
+**Screenshot:** `persona/t7b-01-docx-loaded.png`
+**Diane:** "Accepting and rejecting redlines IS my job on an engagement letter. I can't judge that from a read-only preview."
+**Label:** capability boundary (desktop-only) — flagged as a go-to-market gap: the redline round-trip and contradiction finder (F-126) are the two features she'd pay for, and neither is demonstrable in the web build. The committed Rust `campaign_fixtures.rs` validates the engine; the in-app UX round-trip needs desktop verification.
+
+### F-128 · P3 · ux-improvement · Trial chip → pricing is good; "Upgrade" lands on a key-entry License panel, not the tiers, on first click
+**Title:** Clicking the status-bar "Upgrade" chip opens the License panel ("Activate Keepance with a license key purchased at keepance.com") with the pricing tiers below; a buyer who hasn't purchased sees an activation field first. Minor ordering nit — pricing/value should lead for a not-yet-customer.
+**Repro:** Status bar "Free trial · 30 days left · Upgrade" → License settings; pricing-tiers render but below the activation copy.
+**Screenshot:** `persona/t7f-01-license-settings.png`, `persona/t7f-02-pricing-tiers.png`
+**Diane:** "Honest pricing once I scroll to it; just lead with what I get, not with a key box for a key I don't have yet."
+**Label:** communication (minor).
+
+**Task 7 BLOCKED (desktop-only, recorded not failed):** privilege retrieval-exclusion enforcement (7A), tracked-change accept/reject round-trip (7B), contradiction-finder analysis (7C, also F-126), trash/restore full cycle (7E, empty-state only). Pattern: the RAG/OOXML-edit layer is desktop-gated; the browser build a prospect trials cannot demonstrate the three highest-value AI features.
+
+**Task 7 positives logged for summary:**
+- **Version history (7D)** — timestamped versions, per-version restore, byte deltas, total size; "better than anything I have today," ties to her evidence-grade defense need. Clean Success.
+- **Trial → pricing (7F)** — honest annual/monthly pricing, no "contact sales," tier feature lists in her language; Professional correctly positioned as the litigator tier. No dark patterns.
+- **Privilege "Include privileged" toggle (7A)** exists at the point of asking, defaulting privileged content OUT of queries — the right default.
+- **Soft-delete Trash (7E)** exists as a safety net (lowers her anxiety even unexercised).
+- **F-009 (7G)** definitively answered: NO "Matters" sidebar entry; matter management undiscoverable unaided (reinforces F-122 to P1).
+
+---
+
+---
+
+## Diane's overall verdict
+
+"Here's my honest read after an hour. The *story* this product tells is the best I have ever seen in legal software — it knows my bleeding wound is Outlook search, it tells me the truth about where my data goes including the parts that aren't in its favor, and it gives me a printable page I'd staple to an engagement letter. The full-text **search** and the live **'nothing leaves your machine'** signal are, by themselves, worth the price of admission — the search alone would give me back a Saturday a month, and for the first time in two years I could point at the screen and *prove* my client's question didn't leave the building.
+
+But there's a gap between the story and the thing I actually got my hands on. The first workflow I ran handed me five words of nothing under a green checkmark. The AI answer that should clinch it gave me page numbers I can't click and a tiny note admitting it didn't really look — which is exactly the Avianca trap I'm terrified of. The two features I'd most pay for — redlining tracked changes and the contradiction-finder — I couldn't even test in the version you gave me; one was read-only, the other failed outright. And in your own privacy screen, the thing meant to make me trust you, it says 'email Jameson' — which tells my risk committee this is one guy, not a company.
+
+So: **for just me, on my own laptop, on the local model — I'd put a real, low-stakes matter on this next week**, because the search and the privacy posture earn that much trust. **For my firm, not yet.** Fix the silent failures so I always know whether the AI actually did the work, make every AI answer hand me a citation I can click like Search does, put a company's name where 'Jameson' is, and show me three lawyers I respect who already trust it. Do those, and this stops being the most promising thing I've seen and becomes the first AI tool I'd actually adopt for client work. You are closer than anyone else. You are not done."
+
+**Adoption verdict (structured):**
+- **Solo / own laptop / local model:** *Would adopt now* for a real low-stakes matter — driven by Search + egress trust.
+- **Firm / risk committee:** *Conditional.* Named conditions: (1) no silent AI failures — always signal mock/degraded/desktop-only; (2) click-through citations on every AI answer; (3) a company identity replacing "Jameson"; (4) enforceable (not cosmetic) privilege/ethical-wall with an auditable trail; (5) named attorney references + DPA/SOC-2 answers.
+- **The one fix that most changes her answer:** make the AI's grounded, cited answer work end-to-end (F-116/F-117) — "a citation I can click is the difference between the AI I'm scared of and the AI I'd use."
+
+## Top 5 delights
+1. **Full-text Search across the matter** — "I typed two words and it handed me the sentence. This is what Outlook can't do." The single strongest moment; drew the target "oh wow / finally." (Task 4)
+2. **Live egress indicator** — "On your machine. Nothing leaves," shown at the exact moment she sends a prompt. Resolved two years of AI privacy anxiety in one green bar. (Task 4)
+3. **The honesty of the data story** — onboarding data map + the printable Data Map ("printable so you can show a client") + against-interest cloud-retention/training-opt-out disclosure. "The first vendor privacy page I'd actually believe." (Tasks 1, 5)
+4. **Real encrypted firm collaboration** with an ethical-wall button enforced by key rotation — "I didn't think this existed for a two-lawyer shop." (Task 6)
+5. **Version history + audit log framed as 'your defense'** — "better than anything I have today" for the who-changed-what anxiety. (Tasks 5, 7D)
+
+## Top 5 frictions
+1. **Silent mock/degraded AI** — workflow "Complete" = "This is a mock response." (F-106); AI ask degrades to ungrounded with a buried warning (F-116). Wrong-belief class; her #1 trust-killer.
+2. **The two pay-for features undemonstrable/broken in the trial build** — contradiction finder hard-fails (F-126); tracked-change redlining is read-only (F-127).
+3. **AI answers without click-through citations** (F-117) — "the Avianca trap"; sends her back to Search.
+4. **"Jameson" in the privacy/trust copy** (F-119) — "this stops being a vendor and becomes some guy"; a firm-sale blocker hiding in the trust surface.
+5. **Matter management hidden inside the AI chat** (F-122 / F-009) — the practice's organizing concept has no front door; undiscoverable unaided.
+
+## Comprehension-probe quotes (verbatim)
+- **Task 1 — "where are your files now, who can see them?"** *(PASS)*: "On this computer, in a folder I picked. Real files, Word-friendly. Keepance the company never sees them; the only thing their server ever hears is 'is her licence paid.' If I use the cloud AI, the question I type goes to that AI company directly — which is why there's a local mode where nothing leaves at all. I'd put the privileged matters on local mode."
+- **Task 3 — "where did your email go? could Keepance read it? the AI?"** *(PASS on copy)*: "Keepance pulls a copy of my mailbox onto THIS computer and scrambles it — encrypted, on my machine. Keepance the company never has it; the only thing their server hears is whether I paid. The AI sees a piece of mail only when I ask about it — and on the local model, even that never leaves the building."
+- **Task 3 — storage-at-rest**: "The mail's encrypted. My documents are regular Word files in a regular folder, so whoever has the laptop has them unless the disk itself is locked — and I don't know if my office machine's disk is. If your product knows it isn't, that's a thing I'd want it to nag me about."
+- **Task 4 — egress "where did your question go?"** *(PASS, with certainty)*: "On my machine. The green bar said so while I typed it — local model, nothing over the network. Nobody could read it. And I'm certain because the software told me at the right moment, not in a help article."
+
+## Coverage-ledger surfaces touched (informational — ledger owned by another agent)
+This study exercised, at minimum: FirstRunWizard (welcome, profession, workspace, data-map, AI-setup BYOK + local), WorkspaceSelector, DataMapDialog (onboarding + Settings→Privacy, L-169-ish), Sidebar tabs files/search/workflows/ai-assistant/audit/trash, SearchPanel, AIAssistantPane (local-only picker, new-chat-ollama, api-keys/models tabs), AIChatViewer (ask-workspace, include-privileged, egress indicator, sources), EgressIndicator, ConfidentialityModeSettings (local/direct/assured + privileged-matter), StatusBar (trial chip, privileged pill, breadcrumb), WorkflowPanel + estimate modal + execution tab + InterviewForm (Client Intake Synthesizer L-062, Deposition Contradiction Finder L-065), markdownToDocxBytes export, editor Export-as menu, MainPanel docx viewer/editor (read-only browser path), version history (toolbar-history), TrashPanel, Settings categories (License/Firm/AI/Privacy/Integrations/Cost&Usage/Templates), MailImapConnect + MailConnect + MailGmailConnect + MCP/Ollama integration cards, PricingTiers, AuditLog, TemplateModelSettings, FirmSignIn + seat activation + FirmAdminConsole (invite, republish-keys, ethical-wall, members, seats), MatterManagerDialog + matter-scope-selector, MatterNotesEditor (two-context live convergence). Ledger rows plausibly implicated include L-060/L-062/L-065, L-110, L-121, L-167/L-169, L-171–L-176. **Not edited here** — flagged for the ledger-owning agent.
+
+## Harness boundaries (honest BLOCKED list for a desktop follow-up)
+The browser build cannot exercise the Tauri-only mail engine and the desktop-only RAG/OOXML-edit layer. BLOCKED and needing a desktop (Tauri + WebDriver) pass: email device-code sign-in + bounded import + sync progress + encrypted-store + FDE nudge (Task 3); "Ask my workspace" grounded citations (Task 4, F-116); tracked-change accept/reject round-trip (Task 7B, F-127); Deposition Contradiction Finder analysis (Task 7C, F-126); privilege retrieval-exclusion enforcement (Task 7A); trash/restore full cycle (Task 7E). The native folder picker (Task 1) is a browser limitation, not a defect.

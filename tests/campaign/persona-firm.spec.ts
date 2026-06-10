@@ -113,13 +113,27 @@ async function inviteMember(page: Page, fMatterId: string, memberEmail: string):
     await firmAdminConsole.waitFor({ state: 'visible', timeout: 8000 });
   }
   await page.getByTestId('firm-matter-list').waitFor({ state: 'visible', timeout: 8000 });
+  // The just-shared matter can take a beat to appear in listMatters; poll.
   let matterBtn = page.getByTestId(`firm-matter-${fMatterId}`);
+  await page.waitForFunction((id) => {
+    const specific = document.querySelector(`[data-testid="firm-matter-${id}"]`);
+    const any = document.querySelector('[data-testid^="firm-matter-"]');
+    return !!(specific || any);
+  }, fMatterId, { timeout: 10000 }).catch(() => {});
   if (!(await matterBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
     matterBtn = page.locator('[data-testid^="firm-matter-"]').first();
     await matterBtn.waitFor({ state: 'visible', timeout: 5000 });
   }
+  const mattersDump = await page.getByTestId('firm-matter-list').innerText().catch(() => '(none)');
+  console.log(`PERSONA-NOTE: admin console matters = "${mattersDump.replace(/\n/g, ' / ')}"`);
   await matterBtn.click();
-  await page.getByTestId('firm-member-email').waitFor({ state: 'visible', timeout: 6000 });
+  await page.waitForTimeout(800);
+  const emailField = page.getByTestId('firm-member-email');
+  if (!(await emailField.isVisible({ timeout: 6000 }).catch(() => false))) {
+    console.log('PERSONA-NOTE: firm-member-email not visible after matter click; console text follows');
+    console.log((await page.getByTestId('firm-admin-console').innerText().catch(() => '(no console)')).slice(0, 600));
+    throw new Error('firm-member-email did not appear');
+  }
   await page.getByTestId('firm-member-email').fill(memberEmail);
   await page.getByTestId('firm-add-member').click();
   await Promise.race([
