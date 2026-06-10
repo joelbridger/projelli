@@ -244,3 +244,194 @@ async fn c1_summary_side_company_servers_only_retrieves_and_verifies() {
     )
     .await;
 }
+
+// ===========================================================================
+// CONTRADICTION-2 — deadline October 17 (transcript) vs October 10 (summary).
+// ONE query, both sides in the result set: the passages are semantically
+// near-identical, the corpus is small, and nearest() is an exact scan here,
+// so this is deterministic. Both sides retrievable = the contradiction is
+// FINDABLE by the layer above.
+// ===========================================================================
+
+#[tokio::test]
+async fn c2_deadline_both_sides_retrievable_each_with_verifying_citation() {
+    let f = fixture().await;
+    let q = embed("what deadline was Johnson given to submit his written response about the expense review").await;
+    let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
+
+    let transcript = hit_containing(&hits, "until October 17, 2025 to submit my written response");
+    assert_eq!(
+        transcript.source_id.as_deref(),
+        Some("/matter-corpus/deposition-transcript-johnson.txt")
+    );
+    let v1 = verify(&f.table, &transcript.id, MATTER_JOHNSON, "October 17, 2025").await;
+    assert_eq!(v1, Verdict::Verified);
+
+    // Needle is the summary's fixture-exact phrase incl. its ** bold markers
+    // (incident-summary-johnson.md:41). The bare date "October 10, 2025" is
+    // NOT unique to the summary: the transcript's inline [CONTRADICTION-2]
+    // annotation (deposition-transcript-johnson.txt:110) quotes the same date
+    // inside the SAME chunk as the Oct-17 answer, so a first-match on the
+    // bare date mis-attributes the source.
+    let summary = hit_containing(&hits, "a deadline of **October 10, 2025**");
+    assert_eq!(
+        summary.source_id.as_deref(),
+        Some("/matter-corpus/incident-summary-johnson.md")
+    );
+    let v2 = verify(&f.table, &summary.id, MATTER_JOHNSON, "October 10, 2025").await;
+    assert_eq!(v2, Verdict::Verified);
+}
+
+// ===========================================================================
+// CONTRADICTION-3 — four-week severance (transcript) vs eight weeks (summary).
+// ===========================================================================
+
+#[tokio::test]
+async fn c3_severance_both_sides_retrievable_each_with_verifying_citation() {
+    let f = fixture().await;
+    let q = embed("how many weeks of severance was Johnson offered when he was terminated").await;
+    let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
+
+    let transcript = hit_containing(&hits, "a document describing a four-week severance");
+    assert_eq!(
+        transcript.source_id.as_deref(),
+        Some("/matter-corpus/deposition-transcript-johnson.txt")
+    );
+    let v1 = verify(&f.table, &transcript.id, MATTER_JOHNSON, "four-week severance").await;
+    assert_eq!(v1, Verdict::Verified);
+
+    let summary = hit_containing(&hits, "eight (8) weeks of base salary continuation");
+    assert_eq!(
+        summary.source_id.as_deref(),
+        Some("/matter-corpus/incident-summary-johnson.md")
+    );
+    let v2 = verify(
+        &f.table,
+        &summary.id,
+        MATTER_JOHNSON,
+        "eight (8) weeks of base salary continuation",
+    )
+    .await;
+    assert_eq!(v2, Verdict::Verified);
+}
+
+// ===========================================================================
+// ISOLATION — Matter B (Acme) never bleeds into Johnson queries or vice
+// versa. README invariant: Acme files contain no "Johnson"/"Nexus Dynamics"/
+// "Marchetti" — re-asserted here over the DECRYPTED retrieved text so a
+// future fixture edit cannot silently break the isolation proof.
+// ===========================================================================
+
+#[tokio::test]
+async fn johnson_contradiction_queries_scoped_to_acme_return_no_johnson_content() {
+    let f = fixture().await;
+    for query in [
+        "did Johnson forward any documents to his personal email",
+        "what deadline was Johnson given to submit his written response about the expense review",
+        "how many weeks of severance was Johnson offered when he was terminated",
+    ] {
+        let q = embed(query).await;
+        let hits = nearest(&f.table, &q, 8, Some(MATTER_ACME_B), false).await.unwrap();
+        for h in &hits {
+            assert_eq!(
+                h.matter_id.as_deref(),
+                Some(MATTER_ACME_B),
+                "LEAK: {:?} returned under Acme scope for {query:?}",
+                h.source_id
+            );
+            let text = decrypt_hit(h);
+            for forbidden in ["Johnson", "Nexus Dynamics", "Marchetti"] {
+                assert!(
+                    !text.contains(forbidden),
+                    "LEAK: Acme-scoped hit {:?} contains {forbidden:?}",
+                    h.source_id
+                );
+            }
+        }
+    }
+}
+
+#[tokio::test]
+async fn acme_query_scoped_to_johnson_returns_no_acme_content() {
+    let f = fixture().await;
+    let q = embed("how many units of Widget Model X must the supplier deliver each month").await;
+    let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
+    for h in &hits {
+        assert_eq!(h.matter_id.as_deref(), Some(MATTER_JOHNSON), "LEAK: {:?}", h.source_id);
+        assert_ne!(
+            h.source_id.as_deref(),
+            Some("/matter-corpus/matter-b-acme/acme-supply-agreement.txt"),
+            "LEAK: Acme supply agreement surfaced under Johnson scope"
+        );
+    }
+}
+
+// ===========================================================================
+// FINDER FEED — the DepositionContradictionFinder's own retrieval query, at
+// its own topK = 12, surfaces both sides of all three contradictions. The
+// query string below is retrievalQueryTemplate
+// (DepositionContradictionFinder.ts:64) interpolated with the EXACT interview
+// inputs the leg-3 runbook uses (keep the two in sync — the runbook cites
+// this test). Failure here is a PRODUCT finding (the finder's retrieval feed
+// is insufficient), never a test to tune.
+// ===========================================================================
+
+/// Mirrors the leg-3 interview answers. Excerpts are the clean Q/A lines
+/// (the [CONTRADICTION-N] fixture annotations are NOT pasted — the LLM must
+/// not be handed the answer through the interview; the indexed files still
+/// contain them, which is a documented fixture caveat).
+const FINDER_QUERY: &str = "Testimony and statements by Marcus Johnson relevant to: \
+Whether Johnson forwarded documents to his personal email or all materials stayed on company servers. \
+The deadline he was given for his written response to the compliance review. \
+How many weeks of severance he was offered.. \
+Deposition excerpts: Q. Did you preserve those documents? A. I believe I did. I forwarded them to my personal email for safekeeping. \
+Q. Did Mr. Weston tell you a deadline for submitting the explanation? A. He said I had until October 17, 2025 to submit my written response. \
+Q. At the time of your termination, did anyone at Nexus Dynamics explain the severance package being offered? A. Sandra Liu gave me a document describing a four-week severance.. \
+Prior statements: ";
+
+#[tokio::test]
+async fn finder_retrieval_query_at_top_k_12_feeds_both_sides_of_all_three_contradictions() {
+    let f = fixture().await;
+    let q = embed(FINDER_QUERY).await;
+    // topK 12 = the template's own setting (DepositionContradictionFinder.ts:128).
+    let hits = nearest(&f.table, &q, 12, Some(MATTER_JOHNSON), false).await.unwrap();
+    assert!(!hits.is_empty());
+
+    // Scope hygiene inside the feed.
+    for h in &hits {
+        assert_eq!(h.matter_id.as_deref(), Some(MATTER_JOHNSON), "LEAK: {:?}", h.source_id);
+    }
+
+    // Both source documents are present in the feed…
+    let sources: std::collections::HashSet<_> =
+        hits.iter().filter_map(|h| h.source_id.clone()).collect();
+    assert!(
+        sources.contains("/matter-corpus/deposition-transcript-johnson.txt"),
+        "finder feed missing the deposition; got {sources:?}"
+    );
+    assert!(
+        sources.contains("/matter-corpus/incident-summary-johnson.md"),
+        "finder feed missing the incident summary; got {sources:?}"
+    );
+
+    // …and the union of retrieved text covers BOTH sides of ALL THREE
+    // contradictions — the necessary condition for the LLM step to be able
+    // to flag them with real citations.
+    let joined = hits.iter().map(|h| decrypt_hit(h)).collect::<Vec<_>>().join("\n---\n");
+    for needle in [
+        "I forwarded them to my personal email for safekeeping", // C1 transcript
+        // C1 summary — fixture-exact incl. the hard line wrap
+        // (incident-summary-johnson.md:29-30; same correction as the C1 test).
+        "all relevant documents\nremained on company servers only",
+        "October 17, 2025",  // C2 transcript
+        "October 10, 2025",  // C2 summary
+        "four-week severance", // C3 transcript
+        "eight (8) weeks",   // C3 summary
+    ] {
+        assert!(
+            joined.contains(needle),
+            "FINDING: finder feed (topK 12) does not contain {needle:?} — \
+             the finder cannot cite this side of the contradiction"
+        );
+    }
+}
