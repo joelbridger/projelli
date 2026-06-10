@@ -1,7 +1,7 @@
 # LemonSqueezy 3.0: products created live + the one blocker
 
 **Date:** 2026-06-10
-**Status:** The 3 subscription products are CREATED and LIVE on the Keepance store and verified on the public storefront. One critical pre-existing blocker found (test-mode validator API key) must be fixed before real sales work end to end. Buy buttons are intentionally NOT yet wired (they would take money that cannot be validated until the key is fixed).
+**Status (updated 2026-06-10):** The 3 subscription products are CREATED, LIVE, and verified. The test-mode validator API key blocker is **RESOLVED** (a live key was created, verified against live orders, and swapped into the validator). The webhook was already live. Solo + Professional **subscribe links are wired into the website pricing cards and deployed**. Remaining: the founding coupon products (so the FOUNDING code applies to the 3.0 tiers), Firm multi-seat, and a real test purchase. See the UPDATE section at the bottom.
 
 ## What was done (live, verified)
 
@@ -34,6 +34,18 @@ Either Jameson does this, or grants explicit go for me to regenerate + swap the 
 - **Founding coupons** (not yet created; the LS API is test-mode so they must be made in the dashboard, or via a live API key): `FOUNDING` 30% recurring, cap 100, for Solo + Professional; `FOUNDINGFIRM` 30% recurring, cap 10, for Firm (the separate-coupon option, per the recommendation).
 - **Firm per-seat / minimum 3 seats:** the base form has no quantity control; per-seat quantity (min 3) is a variant-level setting, and the LS subscription quantity must drive the firm backend org `seat_limit` (`POST /admin/org`). Until then Firm is purchasable as a single $1,548 seat. Solo + Professional are single-seat and fully functional once the key is fixed.
 - **Final real test purchase** (Jameson's real-money gate): buy Solo with a real card, confirm the license activates Keepance end to end.
+
+## UPDATE 2026-06-10: validator live key swapped + subscribe links wired
+
+Jameson said "swap it yourself," so:
+- **Live API key created + verified + installed.** Created `keepance-validator-live` in LemonSqueezy (Live mode), verified it sees the real live orders ($52.65 refunded + $21.48 paid, `test_mode:false`) that the old test key could not, backed up `/etc/license-validator.env` to `.bak-<epoch>`, swapped `LEMONSQUEEZY_API_KEY` to the live key (perms preserved root:jameson 640), restarted `license-validator` (active, `/healthz` ok). Real purchases now validate. The old test key (`keepance-validator-2`) is still in the LS account, unused now (can be deleted later).
+- **Webhook confirmed live.** `licenses.projelli.com/webhook` (served by the same validator via Caddy alias) has 9 events and a successful (green) delivery of the live order on 1 Jun, so revocation/renewal already works.
+- **Website subscribe links wired + deployed.** Solo + Professional pricing cards now link directly to their checkout (the in-app subscribe flow opens `keepance.com/#pricing`, so those cards are the conversion landing point). Trial stays the primary CTA. Deployed to keepance.com.
+
+### Still remaining
+- **Founding coupon products.** The existing `FOUNDING` coupon is restricted to the OLD "Professional" product. I switched its amount to 30% in the editor but the LS product-restriction picker would not open via automation, so I cancelled (left it untouched). The website founding note now says "email support@keepance.com to lock it in" (honest, manual for the founding cohort). To make it self-serve: edit FOUNDING → Percentage 30% → set Products to Keepance Solo + Professional (+ Firm) → ensure "applies forever" → redemption limit 100. ~2 minutes in the dashboard.
+- **Firm multi-seat.** Firm is a single-seat $1,548 product; per-seat quantity (min 3) is variant-level, and the quantity must drive the firm backend org `seat_limit`. Firm card stays "Talk to us" until then.
+- **Real test purchase (Jameson, real money):** buy Solo with a real card, confirm the license activates Keepance end to end. This is the only remaining proof.
 
 ## Reference
 Spec: `docs/operations/2026-06-09-lemonsqueezy-3.0-setup.md`. Pricing: `docs/strategy/2026-06-09-keepance-3.0-pricing.md`.
