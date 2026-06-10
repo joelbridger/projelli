@@ -31,6 +31,12 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from '@/components/ui/accordion';
+import {
   Laptop,
   Cloud,
   KeyRound,
@@ -224,50 +230,110 @@ export function DataMapDialog({ open, onOpenChange }: DataMapDialogProps) {
  * reused verbatim outside the dialog (e.g. as a step in first-run onboarding)
  * without duplicating the legally-precise copy. The wording lives in exactly
  * one place: `DATA_MAP_ROWS` and the surrounding prose here.
+ *
+ * variant="expanded" (default) — all sections fully visible, no collapse
+ * interaction. Used by DataMapDialog (the Settings trust document) so every
+ * claim is readable in place and captured when the user prints or saves a PDF.
+ *
+ * variant="accordion" — collapsed by default, single-open. Used by the
+ * first-run onboarding wizard so the list is scannable at any window height
+ * and the continue button stays in the viewport.
  */
-export function DataMapContent({ printableId }: { printableId?: string }) {
+export function DataMapContent({
+  printableId,
+  variant = 'expanded',
+}: {
+  printableId?: string;
+  variant?: 'accordion' | 'expanded';
+}) {
   return (
     <div id={printableId} data-testid="data-map-content">
       <h1 className="text-lg font-semibold mb-1">
         Where your data lives and who can see it
       </h1>
-      <p className="sub text-sm text-muted-foreground mb-6">
+      <p className="sub text-sm text-muted-foreground mb-4">
         How Keepance handles your information, in plain language. The short
         version: your work stays on your computer, your AI requests go straight
         to the provider you chose (not through us), and you can run entirely on
         your own machine when you need to.
       </p>
 
-      <div className="space-y-0">
-        {DATA_MAP_ROWS.map((row, i) => {
-          const Icon = row.icon;
-          return (
-            <div
-              key={i}
-              data-testid={`data-map-row-${String(i)}`}
-              className="row flex gap-3 py-4 border-b border-border/60 last:border-b-0"
-            >
-              <div
-                className={`shrink-0 h-8 w-8 rounded-md flex items-center justify-center ${row.tone}`}
-                aria-hidden
+      {variant === 'accordion' ? (
+        <Accordion className="space-y-0">
+          {DATA_MAP_ROWS.map((row, i) => {
+            const Icon = row.icon;
+            return (
+              <AccordionItem
+                key={i}
+                value={String(i)}
+                data-testid="data-map-section"
               >
-                <Icon className="h-4 w-4" />
+                <AccordionTrigger
+                  data-testid="data-map-section-trigger"
+                  className="gap-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div
+                      className={`shrink-0 h-7 w-7 rounded-md flex items-center justify-center ${row.tone}`}
+                      aria-hidden
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </div>
+                    <span className="text-left text-sm font-semibold">{row.title}</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="pl-10">
+                  <p className="text-sm text-muted-foreground">{row.body}</p>
+                  {row.caveat && (
+                    <p className="caveat mt-2 text-xs rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                      {row.caveat}
+                    </p>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
+      ) : (
+        <div className="space-y-0">
+          {DATA_MAP_ROWS.map((row, i) => {
+            const Icon = row.icon;
+            return (
+              // PRINT: the `.row` class is required by handlePrint's CSS selectors.
+              // `.row h2` styles the section title; `.row p` styles the body.
+              // Do not change these to spans or wrapper-less divs without
+              // updating the print CSS accordingly.
+              <div
+                key={i}
+                data-testid="data-map-section"
+                className="row border-b border-border/60 last:border-b-0 py-3"
+              >
+                <div className="flex items-center gap-3 min-w-0 mb-2">
+                  <div
+                    className={`shrink-0 h-7 w-7 rounded-md flex items-center justify-center ${row.tone}`}
+                    aria-hidden
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                  </div>
+                  {/* PRINT: must be <h2> so `.row h2` in handlePrint CSS applies. */}
+                  <h2 className="text-sm font-semibold m-0">{row.title}</h2>
+                </div>
+                <div className="pl-10">
+                  {/* PRINT: must be <p> so `.row p` in handlePrint CSS applies. */}
+                  <p className="text-sm text-muted-foreground m-0">{row.body}</p>
+                  {row.caveat && (
+                    <p className="caveat mt-2 text-xs rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                      {row.caveat}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="min-w-0">
-                <h2 className="text-sm font-semibold mb-1">{row.title}</h2>
-                <p className="text-sm text-muted-foreground">{row.body}</p>
-                {row.caveat && (
-                  <p className="caveat mt-2 text-xs rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                    {row.caveat}
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
-      <p className="foot mt-6 text-xs text-muted-foreground">
+      <p className="foot mt-4 text-xs text-muted-foreground">
         This describes the Keepance desktop app. The online browser demo is
         different: it can route messages through a shared Keepance relay, so the
         demo should never be used with confidential or client information.

@@ -1,3 +1,11 @@
+export {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+  type AccordionProps,
+  type AccordionItemProps,
+} from './accordion';
 export { Button, buttonVariants, type ButtonProps } from './button';
 export { Input, type InputProps } from './input';
 export {

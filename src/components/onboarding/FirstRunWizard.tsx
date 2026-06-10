@@ -208,7 +208,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                 </div>
               }
               actions={
-                <Button onClick={() => setStep('profession')} size="lg">
+                <Button data-testid="onboarding-next" onClick={() => setStep('profession')} size="lg">
                   {t('onboarding.first-run.welcome.cta')}
                 </Button>
               }
@@ -247,7 +247,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                   <Button variant="outline" onClick={() => setStep('welcome')}>
                     {t('onboarding.first-run.back')}
                   </Button>
-                  <Button onClick={() => setStep('workspace')} size="lg">
+                  <Button data-testid="onboarding-next" onClick={() => setStep('workspace')} size="lg">
                     {profession
                       ? t('onboarding.first-run.workspace.cta')
                       : t('onboarding.first-run.skip-for-now')}
@@ -290,7 +290,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                   <Button variant="outline" onClick={() => setStep('profession')}>
                     {t('onboarding.first-run.back')}
                   </Button>
-                  <Button onClick={() => setStep('data')} size="lg">
+                  <Button data-testid="onboarding-workspace-next" onClick={() => setStep('data')} size="lg">
                     {t('onboarding.first-run.workspace.cta')}
                   </Button>
                 </div>
@@ -299,14 +299,16 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
           )}
 
           {/* Data step: the user finishes onboarding able to explain where their
-              data lives. Reuses the exact, legally-precise DataMapContent. */}
+              data lives. Reuses the exact, legally-precise DataMapContent.
+              The body is scrollable so the footer (continue button) is always
+              reachable at common window heights (1366x720+). */}
           {step === 'data' && (
-            <Pane
+            <PaneScrollable
               title="Where your data goes"
               subtitle="Before we connect an AI, here is the whole picture in plain language."
               body={
-                <div data-testid="onboarding-data-step" className="space-y-4">
-                  <DataMapContent />
+                <div data-testid="onboarding-data-step">
+                  <DataMapContent variant="accordion" />
                 </div>
               }
               actions={
@@ -314,7 +316,11 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                   <Button variant="outline" onClick={() => setStep('workspace')}>
                     {t('onboarding.first-run.back')}
                   </Button>
-                  <Button onClick={() => setStep('ai-setup')} size="lg">
+                  <Button
+                    data-testid="onboarding-data-continue"
+                    onClick={() => setStep('ai-setup')}
+                    size="lg"
+                  >
                     {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
                     Got it, connect an AI
                   </Button>
@@ -360,7 +366,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                   </p>
                   <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-2 text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold">
+                      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary font-semibold leading-none text-primary-foreground">
                         1
                       </span>
                       <Trans
@@ -369,7 +375,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold">
+                      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary font-semibold leading-none text-primary-foreground">
                         2
                       </span>
                       <Trans
@@ -378,7 +384,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-semibold">
+                      <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary font-semibold leading-none text-primary-foreground">
                         3
                       </span>
                       <Trans
@@ -454,6 +460,24 @@ function Pane({ title, subtitle, body, actions }: PaneProps) {
       </div>
       <div>{body}</div>
       <div className="flex justify-end pt-4 border-t border-border">{actions}</div>
+    </div>
+  );
+}
+
+/**
+ * PaneScrollable — variant of Pane where the body area is flex-scroll-bounded
+ * so the footer (actions) is always visible without page scrolling.
+ * Used for the data-map step which has a long list of sections.
+ */
+function PaneScrollable({ title, subtitle, body, actions }: PaneProps) {
+  return (
+    <div className="flex flex-col" style={{ maxHeight: 'calc(85vh - 120px)' }}>
+      <div className="shrink-0 mb-4">
+        <h2 className="text-3xl font-bold tracking-tight">{title}</h2>
+        {subtitle && <p className="text-base text-muted-foreground mt-1">{subtitle}</p>}
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1">{body}</div>
+      <div className="shrink-0 flex justify-end pt-4 border-t border-border mt-4">{actions}</div>
     </div>
   );
 }
