@@ -1,0 +1,16 @@
+# Keepance 3.0 Quality Campaign — Findings Log
+
+Severity: P0 ship-blocker / P1 fix before release / P2 fix soon / P3 polish.
+Type: bug / inconsistency / copy / ux-improvement.
+Status: open / fixed / wontfix / needs-verify.
+
+| ID | Sev | Type | Status | Finding | Evidence | Notes |
+|---|---|---|---|---|---|---|
+| F-001 | P2 | inconsistency | open | Website + public/ favicons still OLD Projelli brand (`website/android-chrome-512x512.png`, `public/favicon-256x256.png`) while the app now ships the Keepance K-shield. Brand mismatch between site and app. | Worker E visual audit 2026-06-10 | Fix in the website pass of the fix wave; needs site deploy (Jameson gate bundles it). |
+| F-002 | P3 | bug | needs-verify | Possible es/de locale loss on relative navigation in the e2e harness (`?lang=es` reported dropped, app falls back to English). Full Playwright locale projects pass, so this may be invocation-specific; if real in-app, locale switching may not survive navigation. | Fix-agent report 2026-06-10; contradicted by green locale-matrix runs | Verify during mechanical sweep (Phase 5) with an in-app language-switch journey. |
+| F-003 | P2 | bug | open | macOS `.icns` was stale Projelli since June 3 icon pass; now regenerated via `tauri icon` (fixed alongside Bug 1), but NO automated guard exists for `.icns` brand drift (hash test covers `.ico` only). | `src-tauri/icons/icon.icns` regenerated 2026-06-10 | Extend `tests/unit/branding-icons.test.ts` with an icns hash guard during fix wave. |
+| F-004 | P3 | ux-improvement | open | Workflow overflow e2e detector cannot reproduce the Windows clip in headless Chromium (body clips overflow differently than the Tauri WebView), so the regression spec guards document-level overflow only. The founder's screenshot scenario (workflow tab + adjacent split pane squeezed off-screen) should be re-verified in the native pass. | Worker D report 2026-06-10 | Add split-pane + workflow-tab scenario at 1366px to native pass checklist (Phase 6). |
+| F-005 | P3 | ux-improvement | open | Accordion primitive lacks aria-controls/region linkage and arrow-key navigation; AccordionItem outside an Accordion silently no-ops. | Quality review 2026-06-10 (#14) | Fold into fix wave; also covered by the Phase 5 axe scan. |
+| F-006 | P3 | bug | open | PaneScrollable duplicates Pane header/footer markup (drift risk) and uses an unexplained inline maxHeight calc(85vh - 120px). | Quality review 2026-06-10 (#10) | Consolidate via a scrollable prop on Pane during fix wave. |
+| F-007 | P3 | ux-improvement | open | Two onboarding steps share data-testid="onboarding-next" while workspace uses its own id; cross-step re-query can mask a failed click in specs. | Quality review 2026-06-10 (#11) | Per-step testids during fix wave. |
+| F-008 | P3 | inconsistency | open | tests/unit/open-in-explorer-path.test.ts header overclaims ("guards the actual logic"): the resolver is production-bound but the handler wiring/selection flow is untested. | Quality review 2026-06-10 (#8) | Soften comment or add a handler-level test during fix wave. |
