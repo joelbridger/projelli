@@ -38,10 +38,54 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { EmptyState } from '@/components/common/EmptyState';
 import { AI_MESSAGE_MIME } from '@/utils/fileDrop';
+import { isAbsolutePath } from '@/modules/workspace/pathResolve';
 import { cn } from '@/lib/utils';
 import { PrivilegeMenuItems } from '@/components/privilege/PrivilegeMenuItems';
 import { PrivilegeIndicator } from '@/components/privilege/PrivilegeIndicator';
 import { usePrivilegeForSource } from '@/stores/privilegeStore';
+
+/**
+ * Resolve a workspace-relative `selectedPath` to an absolute path suitable for
+ * the OS file explorer, using the separator convention encoded in `rootPath`.
+ *
+ * Rules:
+ *   - If `selectedPath` is null, return `rootPath` unchanged.
+ *   - If the resolved path is already absolute (POSIX "/", Windows "X:\" / "X:/",
+ *     or UNC "\\\\server\\share"), return it unchanged.
+ *   - Otherwise join `rootPath` + native separator + `selectedPath`.
+ *   - On Windows (rootPath contains "\"), normalise any forward slashes in the
+ *     relative portion to backslashes so the final path uses a uniform separator.
+ *
+ * SEPARATOR NOTE: unlike resolveWorkspacePath in pathResolve.ts (which uses
+ * forward-slash joins for native command / std::fs paths), this function MUST
+ * use OS-native separators because the result is passed to explorer.exe / open
+ * / xdg-open, which require platform-native paths.
+ *
+ * Uses `isAbsolutePath` from pathResolve.ts as the single absolute-detection
+ * source of truth so UNC paths (\\\\server\\share) pass through correctly.
+ *
+ * This is the single source of truth called by `handleOpenInExplorer`; the unit
+ * tests import it directly so they guard the REAL logic, not a copy.
+ */
+export function resolveExplorerPath(rootPath: string, selectedPath: string | null): string {
+  const pathToOpen = selectedPath || rootPath;
+  // Already absolute: POSIX, Windows drive-rooted, or UNC (\\server\share).
+  // Use isAbsolutePath from pathResolve.ts as the canonical check.
+  if (isAbsolutePath(pathToOpen)) {
+    return pathToOpen;
+  }
+  // Detect separator from rootPath
+  const sep = rootPath.includes('\\') ? '\\' : '/';
+  // Strip any trailing separator from rootPath to avoid doubles
+  const root = rootPath.replace(/[/\\]+$/, '');
+  // Strip any leading separator from relative path
+  let rel = pathToOpen.replace(/^[/\\]+/, '');
+  // On Windows, normalise forward slashes in the relative portion to backslashes
+  if (sep === '\\') {
+    rel = rel.replace(/\//g, '\\');
+  }
+  return `${root}${sep}${rel}`;
+}
 
 interface FileTreeProps {
   onFileOpen: (path: string, name: string) => Promise<void>;
@@ -203,16 +247,10 @@ export function FileTree({
       // Check if we're in Tauri environment
       if (typeof window !== 'undefined' && '__TAURI__' in window) {
         // Use custom Tauri command to open in system file explorer.
-        // The selectedPath may be workspace-relative (e.g. "docs/file.csv"),
-        // but the Rust command calls path.exists() from the Tauri process CWD,
-        // which is NOT the workspace root. Resolve to an absolute path first.
+        // Delegate to the exported resolveExplorerPath helper so the unit
+        // tests exercise the exact code the handler runs.
         const { invoke } = await import('@tauri-apps/api/core');
-        let pathToOpen = selectedPath || rootPath;
-        // If the path is relative (doesn't start with / on Unix or X:\ on Windows),
-        // prepend the workspace rootPath.
-        if (pathToOpen && !pathToOpen.startsWith('/') && !/^[A-Za-z]:[/\\]/.test(pathToOpen)) {
-          pathToOpen = `${rootPath}/${pathToOpen}`;
-        }
+        const pathToOpen = resolveExplorerPath(rootPath, selectedPath);
         await invoke('open_in_explorer', { path: pathToOpen });
       } else {
         // Fallback for browser - just show an alert
@@ -220,7 +258,7 @@ export function FileTree({
       }
     } catch (error) {
       console.error('Failed to open in explorer:', error);
-      alert(`Failed to open folder: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(`Failed to open folder: ${String(error)}`);
     }
   }, [rootPath, selectedPath]);
 

@@ -41,47 +41,156 @@ pub fn get_home_dir() -> Result<String, String> {
         .ok_or_else(|| "Could not determine home directory".to_string())
 }
 
-/// Open a folder in the system file explorer
+/// Open a path in the system file explorer.
+///
+/// Behaviour by entry type:
+///   - **Directory**: opens the directory itself in the explorer/Finder/file
+///     manager so the user sees its contents.
+///   - **File**: on Windows uses `explorer /select,<path>` to open the parent
+///     folder with the file highlighted; on macOS uses `open -R <path>` for
+///     the same effect; on Linux passes the file path to `xdg-open` which
+///     opens the parent application (most file managers handle this).
+///
+/// Returns `Err` with a clear message if the path does not exist. There is
+/// no silent fallback: a bad path produces an error that callers surface as
+/// a toast, rather than silently opening the user's home or Documents folder.
+
+/// Validate that `path` exists on disk before we attempt to open it in the
+/// file explorer. Extracted so tests can exercise the guard directly without
+/// spawning a real system command (which has side effects and is
+/// platform-specific).
+///
+/// Returns `Ok(is_file)` when the path exists, or `Err(message)` when it does not.
+fn validate_explorer_path(path: &std::path::Path) -> Result<bool, String> {
+    if !path.exists() {
+        return Err(format!(
+            "I could not find the path \"{}\" on disk. Make sure the workspace folder still exists.",
+            path.display()
+        ));
+    }
+    Ok(path.is_file())
+}
+
 #[tauri::command]
 pub fn open_in_explorer(path: &str) -> Result<(), String> {
     let path = std::path::Path::new(path);
 
-    if !path.exists() {
-        return Err(format!("Path does not exist: {}", path.display()));
-    }
-
-    let path_to_open = if path.is_file() {
-        // If it's a file, open its parent directory
-        path.parent().ok_or_else(|| "Could not get parent directory".to_string())?
-    } else {
-        path
-    };
+    // Delegate to the extracted validation fn so it is also exercised by tests.
+    // `is_file` is used only in the Windows and macOS branches; allow unused
+    // on Linux where xdg-open accepts both files and directories uniformly.
+    #[allow(unused_variables)]
+    let is_file = validate_explorer_path(path)?;
 
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("explorer")
-            .arg(path_to_open)
-            .spawn()
-            .map_err(|e| format!("Failed to open explorer: {}", e))?;
+        if is_file {
+            // /select,<path> opens the parent folder with the file highlighted.
+            // Plain `explorer <path>` on a file path is unreliable and may open
+            // Documents when the path has mixed separators.
+            let select_arg = format!("/select,{}", path.display());
+            std::process::Command::new("explorer")
+                .arg(&select_arg)
+                .spawn()
+                .map_err(|e| format!("I could not open File Explorer: {}", e))?;
+        } else {
+            std::process::Command::new("explorer")
+                .arg(path)
+                .spawn()
+                .map_err(|e| format!("I could not open File Explorer: {}", e))?;
+        }
     }
 
     #[cfg(target_os = "macos")]
     {
-        std::process::Command::new("open")
-            .arg(path_to_open)
-            .spawn()
-            .map_err(|e| format!("Failed to open finder: {}", e))?;
+        if is_file {
+            // -R reveals (selects) the item in Finder rather than opening it.
+            std::process::Command::new("open")
+                .arg("-R")
+                .arg(path)
+                .spawn()
+                .map_err(|e| format!("I could not open Finder: {}", e))?;
+        } else {
+            std::process::Command::new("open")
+                .arg(path)
+                .spawn()
+                .map_err(|e| format!("I could not open Finder: {}", e))?;
+        }
     }
 
     #[cfg(target_os = "linux")]
     {
+        // xdg-open on a file opens the associated application; on a directory
+        // it opens the file manager. Both behaviours are correct here.
         std::process::Command::new("xdg-open")
-            .arg(path_to_open)
+            .arg(path)
             .spawn()
-            .map_err(|e| format!("Failed to open file manager: {}", e))?;
+            .map_err(|e| format!("I could not open the file manager: {}", e))?;
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod open_in_explorer_tests {
+    use super::{open_in_explorer, validate_explorer_path};
+
+    /// Verify the path-existence guard via the REAL `validate_explorer_path` fn
+    /// that `open_in_explorer` calls — NOT an inline copy. This ensures a
+    /// regression in the production guard is caught here.
+    #[test]
+    fn nonexistent_path_returns_err_not_default() {
+        let p = std::path::Path::new("/this/path/absolutely/does/not/exist/keepance-test-9f8a");
+        let result = validate_explorer_path(p);
+        assert!(result.is_err(), "expected Err for missing path, got Ok");
+        let msg = result.unwrap_err();
+        // The message must name the path so the user knows what went wrong.
+        assert!(
+            msg.contains("could not find"),
+            "error message should say what went wrong, got: {msg}"
+        );
+        // Must name the path.
+        assert!(
+            msg.contains("keepance-test-9f8a"),
+            "error message should include the path, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn existing_directory_returns_ok_is_not_file() {
+        // Use the system temp dir which is guaranteed to exist.
+        let tmp = std::env::temp_dir();
+        let result = validate_explorer_path(&tmp);
+        assert!(result.is_ok(), "expected Ok for existing dir, got Err");
+        assert!(!result.unwrap(), "temp dir should not be reported as a file");
+    }
+
+    #[test]
+    fn existing_file_returns_ok_is_file() {
+        // Create a real temp file so we can assert is_file == true.
+        use std::io::Write;
+        let mut tmp = std::env::temp_dir();
+        tmp.push("keepance-open-explorer-test.tmp");
+        {
+            let mut f = std::fs::File::create(&tmp).expect("could not create temp file");
+            f.write_all(b"test").expect("could not write temp file");
+        }
+        let result = validate_explorer_path(&tmp);
+        let _ = std::fs::remove_file(&tmp); // clean up regardless of outcome
+        assert!(result.is_ok(), "expected Ok for existing file, got Err");
+        assert!(result.unwrap(), "existing file should be reported as is_file=true");
+    }
+
+    /// Call the REAL `open_in_explorer` Tauri command with a nonexistent path:
+    /// it must return Err and never spawn a system process.
+    /// Safe: `open_in_explorer` returns before any `Command::spawn()` when the
+    /// path does not exist (the `validate_explorer_path` guard fires first).
+    #[test]
+    fn open_in_explorer_with_nonexistent_path_returns_err() {
+        let result = open_in_explorer("/this/does/not/exist/keepance-explorer-guard");
+        assert!(result.is_err(), "open_in_explorer must Err for missing path");
+        let msg = result.unwrap_err();
+        assert!(msg.contains("could not find"), "got: {msg}");
+    }
 }
 
 /// Detect whether LibreOffice (`soffice`) is installed on the user's system.
