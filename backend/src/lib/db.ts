@@ -954,6 +954,44 @@ export class Store {
     return rows.map((r) => ({ ...r, role: r.role as MatterRole }));
   }
 
+  /**
+   * List matter members with their email addresses joined from the users table.
+   * Same-org data; callers must have already verified org scoping. Returns email
+   * only when a matching user row exists (it always should, but the join is LEFT
+   * so a dangling member row doesn't crash the handler).
+   */
+  listMatterMembersWithEmail(matterId: string): Array<MatterMember & { email: string | null }> {
+    const rows = this.db
+      .query(
+        `SELECT mm.matter_id, mm.user_id, mm.org_id, mm.role, mm.created_at, u.email
+         FROM matter_members mm
+         LEFT JOIN users u ON u.user_id = mm.user_id
+         WHERE mm.matter_id = ?
+         ORDER BY mm.created_at ASC`,
+      )
+      .all(matterId) as Array<{ matter_id: string; user_id: string; org_id: string; role: string; created_at: string; email: string | null }>;
+    return rows.map((r) => ({ ...r, role: r.role as MatterRole, email: r.email ?? null }));
+  }
+
+  /**
+   * List all active users in an org. Admin-only endpoint: returns user_id, email,
+   * role, and status so the admin console can resolve user_ids to emails and the
+   * wall-by-email flow can look up users without requiring a create-first pattern.
+   */
+  listOrgUsers(orgId: string): Array<{ user_id: string; email: string; role: UserRole; status: UserStatus }> {
+    const rows = this.db
+      .query(
+        `SELECT user_id, email, role, status FROM users WHERE org_id = ? ORDER BY email ASC`,
+      )
+      .all(orgId) as Array<{ user_id: string; email: string; role: string; status: string }>;
+    return rows.map((r) => ({
+      user_id: r.user_id,
+      email: r.email,
+      role: r.role as UserRole,
+      status: r.status as UserStatus,
+    }));
+  }
+
   // ---- Ethical walls (explicit DENY, deny-overrides-allow) -----------------
   setEthicalWall(input: { matter_id: string; user_id: string; org_id: string; reason: string | null; created_by: string }): EthicalWall {
     const w: EthicalWall = {

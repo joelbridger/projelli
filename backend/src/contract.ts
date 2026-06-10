@@ -225,8 +225,21 @@ export interface RemoveMatterMemberRequest {
 export interface MatterMembersResponse {
   matter_id: string;
   key_epoch: number;
-  members: Array<{ matter_id: string; user_id: string; org_id: string; role: MatterRole; created_at: string }>;
+  /** Members with email included (joined from users table; same-org, admin-visible). */
+  members: Array<{ matter_id: string; user_id: string; org_id: string; role: MatterRole; created_at: string; email: string | null }>;
   walls: Array<{ matter_id: string; user_id: string; org_id: string; reason: string | null; created_by: string; created_at: string }>;
+}
+
+// ---- Admin: list org users (role=admin; Authorization: Bearer <access_token>) --
+/** POST /org/users/list  (admin only) -> org users with email+role+status */
+export interface OrgUserEntry {
+  user_id: string;
+  email: string;
+  role: UserRole;
+  status: "active" | "deprovisioned";
+}
+export interface ListOrgUsersResponse {
+  users: OrgUserEntry[];
 }
 
 // ---- Admin: ethical walls (explicit DENY; deny-overrides-allow) -------------
@@ -416,6 +429,7 @@ export const ENDPOINTS = {
   deprovisionUser: { method: "POST", path: "/org/user/deprovision" },
   transferSeat: { method: "POST", path: "/org/seats/transfer" },
   createUser: { method: "POST", path: "/org/users" },
+  listOrgUsers: { method: "POST", path: "/org/users/list" },
   audit: { method: "POST", path: "/org/audit" },
   createOrg: { method: "POST", path: "/admin/org" },
   // Chunk 2 — matters / ethical walls / E2EE sync relay. `:id` = matter_id.

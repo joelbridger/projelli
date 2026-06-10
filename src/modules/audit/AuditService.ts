@@ -501,6 +501,18 @@ function describeAuditEvent(event: AuditEvent): string {
     }
     case 'mcp_blocked':
       return `MCP write blocked by Privileged Matter Mode: ${event.payload.path}`;
+    case 'matter_shared':
+      return `Matter shared with firm${event.payload.detail ? `: ${event.payload.detail}` : ''}`;
+    case 'matter_unshared':
+      return `Matter unshared from firm${event.payload.detail ? `: ${event.payload.detail}` : ''}`;
+    case 'member_invited':
+      return `Member invited to matter${event.payload.detail ? `: ${event.payload.detail}` : ` (user ${event.payload.target_user_id.slice(0, 8)})`}`;
+    case 'member_removed':
+      return `Member removed from matter${event.payload.detail ? `: ${event.payload.detail}` : ` (user ${event.payload.target_user_id.slice(0, 8)})`}`;
+    case 'wall_set_from_manager':
+      return `Ethical wall set${event.payload.detail ? `: ${event.payload.detail}` : ` for user ${event.payload.target_user_id.slice(0, 8)}`}`;
+    case 'key_published':
+      return `Matter key published to members${event.payload.detail ? `: ${event.payload.detail}` : ''}`;
     default:
       return event.type;
   }

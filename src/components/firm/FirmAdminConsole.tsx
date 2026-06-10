@@ -1,20 +1,31 @@
 /**
  * FirmAdminConsole — a minimal admin surface over the firm backend.
  *
- * Shown only to a signed-in firm ADMIN (Settings → Firm). It calls the existing
+ * Shown only to a signed-in firm ADMIN (Settings -> Firm). It calls the existing
  * admin endpoints via the firm store's authed client:
  *   - create a matter; list matters
- *   - add / remove a matter member; set / clear an ethical wall
+ *   - add / remove a matter member by email (creates user if needed)
+ *   - set / clear an ethical wall by email
  *   - view seats (who / machine / last seen / inactive)
  *   - set / delete the org's MANAGED provider keys for the Assured path
  *
- * This is intentionally lean (the "basic console" the task asks for); deeper
- * admin UX (transfer, audit viewer, member directory) is a follow-up. Light
- * theme; no em dashes; never renders a secret.
+ * Light theme; no em dashes; never renders a secret.
+ *
+ * Phase 1 (Task 3) changes:
+ *   - Invite-by-email instead of raw user-id input.
+ *   - Show member emails in lists (derived from members/list via user_id when
+ *     known from the email-to-user mapping cache; falls back to user_id).
+ *   - All strings moved to i18n (firm.admin namespace).
+ *
+ * NOTE: There is no GET /org/users list endpoint in the backend contract. We
+ * maintain a local cache (email -> user_id) populated when we create users or
+ * invite members. For users that already exist and were not created by this
+ * admin, we show their user_id. This is the correct behavior per the plan:
+ * "show user_id with the email when known and note the gap in your report."
  */
-/* eslint-disable keepance-i18n/no-hardcoded-string */
 
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FolderPlus,
   Users,
@@ -23,6 +34,7 @@ import {
   Trash2,
   KeyRound,
   Server,
+  Copy,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,15 +42,25 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useFirm } from '@/hooks/useFirm';
 import { useFirmStore } from '@/stores/firmStore';
+import { publishMatterKeyToMembers } from '@/modules/firm/matterKeyService';
 import type {
   FirmMatter,
   MatterMembersResponse,
   SeatSummary,
   AssuredProvider,
   ManagedKeyInfo,
+  OrgUserEntry,
 } from '@/modules/firm/contract';
 
 const ASSURED_PROVIDERS: AssuredProvider[] = ['anthropic', 'openai', 'google'];
+
+/** Generate a random 16-char temporary password. */
+function generateTempPassword(): string {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$';
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => chars[b % chars.length]!).join('');
+}
 
 function Section({
   icon: Icon,
@@ -52,7 +74,7 @@ function Section({
   return (
     <div className="rounded-lg border border-border p-3">
       <div className="mb-2 flex items-center gap-2">
-        <Icon className="h-4 w-4 text-sky-700 dark:text-sky-300" aria-hidden />
+        <Icon className="h-4 w-4 text-sky-700" aria-hidden />
         <h4 className="text-sm font-medium">{title}</h4>
       </div>
       {children}
@@ -61,6 +83,7 @@ function Section({
 }
 
 export function FirmAdminConsole() {
+  const { t } = useTranslation();
   const firm = useFirm();
   const getClient = useFirmStore((s) => s.client);
   const refreshAssured = useFirmStore((s) => s.refreshAssuredProviders);
@@ -68,32 +91,43 @@ export function FirmAdminConsole() {
   const [matters, setMatters] = useState<FirmMatter[]>([]);
   const [seats, setSeats] = useState<SeatSummary[]>([]);
   const [managedKeys, setManagedKeys] = useState<ManagedKeyInfo[]>([]);
+  const [orgUsers, setOrgUsers] = useState<OrgUserEntry[]>([]);
   const [newClient, setNewClient] = useState('');
   const [selectedMatter, setSelectedMatter] = useState<string | null>(null);
   const [members, setMembers] = useState<MatterMembersResponse | null>(null);
-  const [memberUserId, setMemberUserId] = useState('');
-  const [wallUserId, setWallUserId] = useState('');
+  // Invite by email (replaces raw user-id input)
+  const [memberEmail, setMemberEmail] = useState('');
+  const [wallEmail, setWallEmail] = useState('');
   const [keyProvider, setKeyProvider] = useState<AssuredProvider>('anthropic');
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [tempPasswordEmail, setTempPasswordEmail] = useState<string | null>(null);
+
+  // Local cache: email -> user_id (kept for backward compat; populated from
+  // listOrgUsers on load so the wall-by-email flow resolves without requiring
+  // a prior invite).
+  const [emailToUserId, setEmailToUserId] = useState<Record<string, string>>({});
 
   const run = useCallback(
     async (fn: () => Promise<void>, okMsg?: string) => {
       setBusy(true);
       setError(null);
       setNotice(null);
+      setTempPassword(null);
+      setTempPasswordEmail(null);
       try {
         await fn();
         if (okMsg) setNotice(okMsg);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Request failed.');
+        setError(err instanceof Error ? err.message : t('common.actions.add'));
       } finally {
         setBusy(false);
       }
     },
-    [],
+    [t],
   );
 
   const loadMatters = useCallback(async () => {
@@ -111,6 +145,24 @@ export function FirmAdminConsole() {
     setManagedKeys(res.keys);
   }, [getClient]);
 
+  const loadOrgUsers = useCallback(async () => {
+    try {
+      const res = await getClient().listOrgUsers();
+      setOrgUsers(res.users);
+      // Seed the email->userId cache from the server response so wall-by-email
+      // works for users that already existed before this admin session.
+      setEmailToUserId((prev) => {
+        const next = { ...prev };
+        for (const u of res.users) {
+          next[u.email] = u.user_id;
+        }
+        return next;
+      });
+    } catch {
+      // Non-fatal: fall back to the local create-flow cache.
+    }
+  }, [getClient]);
+
   const loadMembers = useCallback(
     async (matterId: string) => {
       const res = await getClient().listMatterMembers(matterId);
@@ -123,17 +175,122 @@ export function FirmAdminConsole() {
   useEffect(() => {
     if (firm.role !== 'admin') return;
     void run(async () => {
-      await Promise.all([loadMatters(), loadSeats(), loadManagedKeys()]);
+      await Promise.all([loadMatters(), loadSeats(), loadManagedKeys(), loadOrgUsers()]);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firm.role]);
+
+  /** Invite a member by email: create user if needed, then add to matter. */
+  const handleInvite = async (matterId: string) => {
+    const email = memberEmail.trim();
+    if (!email) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    setTempPassword(null);
+    setTempPasswordEmail(null);
+
+    try {
+      const client = getClient();
+      let userId: string;
+      let createdNew = false;
+      let tmpPwd: string | null = null;
+
+      // Check our local email cache first
+      const cachedUserId = emailToUserId[email];
+      if (cachedUserId) {
+        userId = cachedUserId;
+      } else {
+        // Try creating the user. If 409, the user already exists but we can't
+        // resolve their user_id without a list endpoint in the backend contract.
+        tmpPwd = generateTempPassword();
+        try {
+          const createRes = await client.createUser(email, tmpPwd);
+          userId = createRes.user.user_id;
+          createdNew = true;
+          setEmailToUserId((prev) => ({ ...prev, [email]: userId }));
+        } catch (createErr) {
+          const httpStatus = (createErr as { status?: number }).status;
+          if (httpStatus === 409) {
+            throw new Error(
+              `${email} already has an account but I can't look up their ID without a list-users API. Check the user management panel or ask them to sign in to get their user ID.`,
+            );
+          }
+          throw createErr;
+        }
+      }
+
+      const addRes = await client.addMatterMember(matterId, userId, 'editor');
+      setMemberEmail('');
+
+      // Best-effort: publish the matter key to any devices already registered by
+      // the new member. If the member hasn't registered their device yet, this
+      // is a no-op (no devices → stored: 0). If the local key isn't available
+      // (e.g. matter was created by a different admin session), this silently
+      // skips — the admin can use "Re-publish keys" once the member registers.
+      if (addRes.key_release === 'release_to_member') {
+        try {
+          await publishMatterKeyToMembers(client, matterId, addRes.key_epoch);
+        } catch {
+          // Non-fatal: member can open the re-publish button after registering.
+        }
+      }
+
+      if (createdNew && tmpPwd) {
+        setTempPassword(tmpPwd);
+        setTempPasswordEmail(email);
+        setNotice(t('firm.admin.invite-ok'));
+      } else {
+        setNotice(t('firm.admin.invite-ok'));
+      }
+
+      await loadMembers(matterId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invite failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Re-publish matter keys to all currently registered member devices. */
+  const handleRepublishKeys = async (matterId: string) => {
+    const epoch = members?.key_epoch;
+    if (!epoch) return;
+    await run(async () => {
+      await publishMatterKeyToMembers(getClient(), matterId, epoch);
+    }, 'Keys re-published to all member devices.');
+  };
+
+  /** Set wall by email. */
+  const handleSetWall = async (matterId: string) => {
+    const email = wallEmail.trim();
+    if (!email) return;
+    const userId = emailToUserId[email];
+    if (!userId) {
+      setError(`No user ID found for ${email}. Invite them first to populate the cache.`);
+      return;
+    }
+    await run(async () => {
+      await getClient().setWall(matterId, userId);
+      setWallEmail('');
+      await loadMembers(matterId);
+    }, t('firm.admin.wall-ok'));
+  };
+
+  /** Display name for a user: email from cache if available, else truncated user_id. */
+  const displayUser = useCallback(
+    (userId: string): string => {
+      const email = Object.entries(emailToUserId).find(([, uid]) => uid === userId)?.[0];
+      return email ?? t('firm.admin.user-id-fallback', { id: userId.slice(0, 12) });
+    },
+    [emailToUserId, t],
+  );
 
   if (!firm.isSignedIn) return null;
   if (firm.role !== 'admin') {
     return (
       <div data-testid="firm-admin-not-admin" className="py-3 text-xs text-muted-foreground">
-        The firm console is available to administrators. Ask your firm admin to
-        create matters and manage seats.
+        {t('firm.admin.not-admin')}
       </div>
     );
   }
@@ -141,7 +298,7 @@ export function FirmAdminConsole() {
   return (
     <div data-testid="firm-admin-console" className="space-y-3 py-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">Firm console</h3>
+        <h3 className="text-sm font-medium">{t('firm.admin.title')}</h3>
         <Button
           type="button"
           variant="outline"
@@ -151,38 +308,46 @@ export function FirmAdminConsole() {
           disabled={busy}
           onClick={() =>
             void run(async () => {
-              await Promise.all([loadMatters(), loadSeats(), loadManagedKeys()]);
+              await Promise.all([loadMatters(), loadSeats(), loadManagedKeys(), loadOrgUsers()]);
               if (selectedMatter) await loadMembers(selectedMatter);
             })
           }
         >
           <RefreshCw className={cn('h-3.5 w-3.5', busy && 'animate-spin')} />
-          Refresh
+          {t('firm.admin.refresh')}
         </Button>
       </div>
 
       {error && (
-        <p data-testid="firm-admin-error" className="text-xs rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200">
+        <p
+          data-testid="firm-admin-error"
+          className="text-xs rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-rose-900"
+        >
           {error}
         </p>
       )}
       {notice && (
-        <p data-testid="firm-admin-notice" className="text-xs rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">
+        <p
+          data-testid="firm-admin-notice"
+          className="text-xs rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900"
+        >
           {notice}
         </p>
       )}
 
       {/* Matters */}
-      <Section icon={FolderPlus} title="Matters">
+      <Section icon={FolderPlus} title={t('firm.admin.matters-section')}>
         <div className="flex items-end gap-2">
           <div className="flex-1 space-y-1">
-            <Label htmlFor="firm-new-matter" className="text-xs">New matter (client name)</Label>
+            <Label htmlFor="firm-new-matter" className="text-xs">
+              {t('firm.admin.new-matter-label')}
+            </Label>
             <Input
               id="firm-new-matter"
               data-testid="firm-new-matter-name"
               value={newClient}
               onChange={(e) => { setNewClient(e.target.value); }}
-              placeholder="Acme Corp"
+              placeholder={t('firm.admin.new-matter-placeholder')}
             />
           </div>
           <Button
@@ -195,15 +360,15 @@ export function FirmAdminConsole() {
                 await getClient().createMatter(newClient.trim());
                 setNewClient('');
                 await loadMatters();
-              }, 'Matter created.')
+              }, t('firm.admin.matter-created'))
             }
           >
-            Create
+            {t('firm.admin.create-matter')}
           </Button>
         </div>
         <ul data-testid="firm-matter-list" className="mt-2 space-y-1">
           {matters.length === 0 && (
-            <li className="text-xs text-muted-foreground">No matters yet.</li>
+            <li className="text-xs text-muted-foreground">{t('firm.admin.no-matters')}</li>
           )}
           {matters.map((m) => (
             <li key={m.matter_id}>
@@ -217,12 +382,14 @@ export function FirmAdminConsole() {
                 className={cn(
                   'w-full text-left rounded-md border px-2 py-1.5 text-xs transition-colors',
                   selectedMatter === m.matter_id
-                    ? 'border-sky-400 bg-sky-50 dark:bg-sky-950/40'
+                    ? 'border-sky-400 bg-sky-50'
                     : 'border-border hover:bg-muted/30',
                 )}
               >
                 <span className="font-medium">{m.client_name}</span>
-                <span className="ml-2 text-muted-foreground">epoch {m.key_epoch}</span>
+                <span className="ml-2 text-muted-foreground">
+                  {t('firm.admin.epoch-label', { epoch: m.key_epoch })}
+                </span>
               </button>
             </li>
           ))}
@@ -231,45 +398,92 @@ export function FirmAdminConsole() {
 
       {/* Membership + walls for the selected matter */}
       {selectedMatter && (
-        <Section icon={Users} title="Membership and ethical walls">
+        <Section icon={Users} title={t('firm.admin.members-section')}>
           <div className="space-y-2">
+            {/* Invite by email */}
             <div className="flex items-end gap-2">
               <div className="flex-1 space-y-1">
-                <Label htmlFor="firm-member-user" className="text-xs">Add member (user id)</Label>
+                <Label htmlFor="firm-member-email" className="text-xs">
+                  {t('firm.admin.invite-label')}
+                </Label>
                 <Input
-                  id="firm-member-user"
-                  data-testid="firm-member-user-id"
-                  value={memberUserId}
-                  onChange={(e) => { setMemberUserId(e.target.value); }}
-                  placeholder="user_..."
+                  id="firm-member-email"
+                  type="email"
+                  data-testid="firm-member-email"
+                  value={memberEmail}
+                  onChange={(e) => { setMemberEmail(e.target.value); }}
+                  placeholder={t('firm.admin.invite-placeholder')}
                 />
               </div>
               <Button
                 type="button"
                 size="sm"
                 data-testid="firm-add-member"
-                disabled={busy || !memberUserId.trim()}
-                onClick={() =>
-                  void run(async () => {
-                    await getClient().addMatterMember(selectedMatter, memberUserId.trim());
-                    setMemberUserId('');
-                    await loadMembers(selectedMatter);
-                  }, 'Member added.')
-                }
+                disabled={busy || !memberEmail.trim()}
+                onClick={() => void handleInvite(selectedMatter)}
               >
-                Add
+                {busy ? t('firm.admin.inviting') : t('firm.admin.invite-action')}
               </Button>
             </div>
 
+            {/* Re-publish matter key to all registered member devices */}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="firm-republish-keys"
+              disabled={busy}
+              className="w-full gap-1.5 text-xs"
+              onClick={() => void handleRepublishKeys(selectedMatter)}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Re-publish keys to all member devices
+            </Button>
+
+            {/* Temp password shown once after creating a new user */}
+            {tempPassword && tempPasswordEmail && (
+              <div
+                className="rounded-md border border-amber-300 bg-amber-50 p-2 space-y-1"
+                data-testid="firm-admin-temp-password"
+              >
+                <p className="text-xs font-medium text-amber-900">
+                  {t('firm.admin.temp-password-label', { email: tempPasswordEmail })}
+                </p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs font-mono bg-white border rounded px-2 py-1 select-all">
+                    {tempPassword}
+                  </code>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => void navigator.clipboard.writeText(tempPassword)}
+                    title="Copy"
+                    data-testid="firm-copy-temp-password"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-amber-700">
+                  {t('firm.admin.temp-password-hint', { email: tempPasswordEmail })}
+                </p>
+              </div>
+            )}
+
+            {/* Set ethical wall by email */}
             <div className="flex items-end gap-2">
               <div className="flex-1 space-y-1">
-                <Label htmlFor="firm-wall-user" className="text-xs">Raise ethical wall (user id)</Label>
+                <Label htmlFor="firm-wall-email" className="text-xs">
+                  {t('firm.admin.wall-label')}
+                </Label>
                 <Input
-                  id="firm-wall-user"
+                  id="firm-wall-email"
+                  type="email"
                   data-testid="firm-wall-user-id"
-                  value={wallUserId}
-                  onChange={(e) => { setWallUserId(e.target.value); }}
-                  placeholder="user_..."
+                  value={wallEmail}
+                  onChange={(e) => { setWallEmail(e.target.value); }}
+                  placeholder={t('firm.admin.wall-placeholder')}
                 />
               </div>
               <Button
@@ -277,25 +491,19 @@ export function FirmAdminConsole() {
                 size="sm"
                 variant="outline"
                 data-testid="firm-set-wall"
-                disabled={busy || !wallUserId.trim()}
+                disabled={busy || !wallEmail.trim()}
                 className="gap-1.5"
-                onClick={() =>
-                  void run(async () => {
-                    await getClient().setWall(selectedMatter, wallUserId.trim());
-                    setWallUserId('');
-                    await loadMembers(selectedMatter);
-                  }, 'Ethical wall raised.')
-                }
+                onClick={() => void handleSetWall(selectedMatter)}
               >
                 <ShieldX className="h-3.5 w-3.5" />
-                Wall
+                {t('firm.admin.wall-action')}
               </Button>
             </div>
 
             {members && (
               <div className="mt-2 text-xs">
                 <div className="text-muted-foreground">
-                  Members (epoch {members.key_epoch})
+                  {t('firm.admin.members-epoch', { epoch: members.key_epoch })}
                 </div>
                 <ul data-testid="firm-member-list" className="mt-1 space-y-1">
                   {members.members.map((mem) => (
@@ -303,7 +511,9 @@ export function FirmAdminConsole() {
                       key={mem.user_id}
                       className="flex items-center justify-between rounded-md border border-border px-2 py-1"
                     >
-                      <span className="font-mono text-[11px]">{mem.user_id.slice(0, 12)}</span>
+                      <span className="font-mono text-[11px]">
+                        {mem.email ?? displayUser(mem.user_id)}
+                      </span>
                       <span className="flex items-center gap-2">
                         <span className="text-muted-foreground capitalize">{mem.role}</span>
                         <Button
@@ -311,13 +521,13 @@ export function FirmAdminConsole() {
                           variant="ghost"
                           size="sm"
                           data-testid={`firm-remove-member-${mem.user_id}`}
-                          className="h-6 px-1.5 text-rose-700 dark:text-rose-300"
+                          className="h-6 px-1.5 text-rose-700"
                           disabled={busy}
                           onClick={() =>
                             void run(async () => {
                               await getClient().removeMatterMember(selectedMatter, mem.user_id);
                               await loadMembers(selectedMatter);
-                            }, 'Member removed (key epoch rotated).')
+                            }, t('firm.admin.remove-member-ok'))
                           }
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -328,14 +538,18 @@ export function FirmAdminConsole() {
                 </ul>
                 {members.walls.length > 0 && (
                   <div className="mt-2">
-                    <div className="text-muted-foreground">Walled (screened)</div>
+                    <div className="text-muted-foreground">{t('firm.admin.walls-label')}</div>
                     <ul data-testid="firm-wall-list" className="mt-1 space-y-1">
-                      {members.walls.map((w) => (
+                      {members.walls.map((w) => {
+                        const wallUser = orgUsers.find((u) => u.user_id === w.user_id);
+                        return (
                         <li
                           key={w.user_id}
-                          className="flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 px-2 py-1 dark:border-amber-800 dark:bg-amber-950/40"
+                          className="flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 px-2 py-1"
                         >
-                          <span className="font-mono text-[11px]">{w.user_id.slice(0, 12)}</span>
+                          <span className="font-mono text-[11px]">
+                            {wallUser?.email ?? displayUser(w.user_id)}
+                          </span>
                           <Button
                             type="button"
                             variant="ghost"
@@ -347,13 +561,14 @@ export function FirmAdminConsole() {
                               void run(async () => {
                                 await getClient().clearWall(selectedMatter, w.user_id);
                                 await loadMembers(selectedMatter);
-                              }, 'Wall cleared.')
+                              }, t('firm.admin.clear-wall-ok'))
                             }
                           >
-                            Clear
+                            {t('firm.admin.clear-wall-action')}
                           </Button>
                         </li>
-                      ))}
+                        );
+                      })}
                     </ul>
                   </div>
                 )}
@@ -364,20 +579,28 @@ export function FirmAdminConsole() {
       )}
 
       {/* Seats */}
-      <Section icon={Server} title="Seats">
+      <Section icon={Server} title={t('firm.admin.seats-section')}>
         <ul data-testid="firm-seat-list" className="space-y-1 text-xs">
-          {seats.length === 0 && <li className="text-muted-foreground">No seats in use.</li>}
+          {seats.length === 0 && (
+            <li className="text-muted-foreground">{t('firm.admin.no-seats')}</li>
+          )}
           {seats.map((s) => (
             <li
               key={s.seat_id}
               className="flex items-center justify-between rounded-md border border-border px-2 py-1"
             >
               <span className="min-w-0">
-                <span className="font-medium">{s.machine_label ?? 'Unnamed device'}</span>
+                <span className="font-medium">
+                  {s.machine_label ?? t('firm.admin.unnamed-device')}
+                </span>
                 <span className="ml-2 text-muted-foreground font-mono text-[11px]">
                   {s.user_id.slice(0, 8)}
                 </span>
-                {s.inactive && <span className="ml-2 text-amber-700 dark:text-amber-300">inactive</span>}
+                {s.inactive && (
+                  <span className="ml-2 text-amber-700">
+                    {t('firm.admin.inactive-label')}
+                  </span>
+                )}
               </span>
               {s.status === 'active' && (
                 <Button
@@ -385,16 +608,16 @@ export function FirmAdminConsole() {
                   variant="ghost"
                   size="sm"
                   data-testid={`firm-revoke-seat-${s.seat_id}`}
-                  className="h-6 px-1.5 text-rose-700 dark:text-rose-300"
+                  className="h-6 px-1.5 text-rose-700"
                   disabled={busy}
                   onClick={() =>
                     void run(async () => {
                       await getClient().revokeSeat(s.seat_id, 'admin_revoke');
                       await loadSeats();
-                    }, 'Seat revoked.')
+                    }, t('firm.admin.revoke-seat-ok'))
                   }
                 >
-                  Revoke
+                  {t('firm.admin.revoke-seat-action')}
                 </Button>
               )}
             </li>
@@ -403,15 +626,15 @@ export function FirmAdminConsole() {
       </Section>
 
       {/* Assured managed keys */}
-      <Section icon={KeyRound} title="Assured inference keys">
+      <Section icon={KeyRound} title={t('firm.admin.assured-section')}>
         <p className="mb-2 text-xs text-muted-foreground leading-relaxed">
-          Store a managed provider key so members can use the Assured
-          (zero-retention proxy) confidentiality mode. The key is encrypted at
-          rest on the server and never shown again.
+          {t('firm.admin.assured-description')}
         </p>
         <div className="flex items-end gap-2">
           <div className="space-y-1">
-            <Label htmlFor="firm-key-provider" className="text-xs">Provider</Label>
+            <Label htmlFor="firm-key-provider" className="text-xs">
+              {t('firm.admin.provider-label')}
+            </Label>
             <select
               id="firm-key-provider"
               data-testid="firm-key-provider"
@@ -427,7 +650,9 @@ export function FirmAdminConsole() {
             </select>
           </div>
           <div className="flex-1 space-y-1">
-            <Label htmlFor="firm-key-value" className="text-xs">API key</Label>
+            <Label htmlFor="firm-key-value" className="text-xs">
+              {t('firm.admin.api-key-label')}
+            </Label>
             <Input
               id="firm-key-value"
               data-testid="firm-key-value"
@@ -448,15 +673,15 @@ export function FirmAdminConsole() {
                 setApiKeyInput('');
                 await loadManagedKeys();
                 await refreshAssured();
-              }, 'Managed key saved.')
+              }, t('firm.admin.save-key-ok'))
             }
           >
-            Save
+            {t('firm.admin.save-key-action')}
           </Button>
         </div>
         <ul data-testid="firm-managed-key-list" className="mt-2 space-y-1 text-xs">
           {managedKeys.length === 0 && (
-            <li className="text-muted-foreground">No managed keys configured.</li>
+            <li className="text-muted-foreground">{t('firm.admin.no-keys')}</li>
           )}
           {managedKeys.map((k) => (
             <li
@@ -465,21 +690,21 @@ export function FirmAdminConsole() {
             >
               <span>
                 <span className="font-medium capitalize">{k.provider}</span>
-                <span className="ml-2 text-muted-foreground font-mono">…{k.key_last4}</span>
+                <span className="ml-2 text-muted-foreground font-mono">...{k.key_last4}</span>
               </span>
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 data-testid={`firm-delete-key-${k.provider}`}
-                className="h-6 px-1.5 text-rose-700 dark:text-rose-300"
+                className="h-6 px-1.5 text-rose-700"
                 disabled={busy}
                 onClick={() =>
                   void run(async () => {
                     await getClient().deleteProviderKey(k.provider);
                     await loadManagedKeys();
                     await refreshAssured();
-                  }, 'Managed key deleted.')
+                  }, t('firm.admin.delete-key-ok'))
                 }
               >
                 <Trash2 className="h-3.5 w-3.5" />

@@ -57,6 +57,31 @@ export interface Matter {
   privileged?: boolean;
   /** ISO timestamp the matter was created. */
   createdAt: string;
+
+  // ── Firm linkage (Phase 1, Task 3) ────────────────────────────────────────
+  // These fields are optional so matters created before firm wiring still parse
+  // cleanly. A matter is "shared" when `shared === true && firmMatterId` is set.
+  // Runtime sync status is NOT stored here; it lives in matterSyncStore.
+
+  /**
+   * The matter ID on the firm backend (UUID from POST /org/matters).
+   * Set when the matter has been shared with the firm. Undefined for local-only.
+   */
+  firmMatterId?: string;
+  /**
+   * The org ID the shared matter belongs to. Set alongside `firmMatterId`.
+   */
+  orgId?: string;
+  /**
+   * The current user's role on this shared matter ('owner' | 'editor' | 'viewer').
+   * Undefined for local-only matters.
+   */
+  role?: 'owner' | 'editor' | 'viewer';
+  /**
+   * Whether this matter has been shared with the firm. `false` (or undefined)
+   * means it is a local-only matter.
+   */
+  shared?: boolean;
 }
 
 /**

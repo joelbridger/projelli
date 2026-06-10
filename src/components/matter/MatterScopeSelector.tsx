@@ -10,6 +10,11 @@
  * Design: light theme, navy (primary) accent for the active-matter state, an
  * amber accent for the explicit all-matters state so the cross-matter mode is
  * never mistaken for normal single-client work.
+ *
+ * Phase 1 (Task 3) addition: when the active matter is shared with the firm,
+ * a small sync badge is shown reading from matterSyncStore. The sync client
+ * (Task 4) drives the actual status; this component just renders it.
+ * Default 'idle' renders nothing (no badge).
  */
 
 import { useTranslation } from 'react-i18next';
@@ -24,12 +29,82 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
+import { useMatterSyncStatus } from '@/stores/matterSyncStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
+import type { MatterSyncStatus } from '@/stores/matterSyncStore';
 
 export interface MatterScopeSelectorProps {
   /** Opens the matter manager dialog so the user can create/map matters. */
   onManageMatters?: () => void;
   className?: string;
+}
+
+/** Sync badge dot rendered inside the scope selector trigger. */
+function SyncBadge({
+  status,
+  matterId,
+}: {
+  status: MatterSyncStatus;
+  matterId: string;
+}) {
+  const { t } = useTranslation();
+
+  if (status === 'idle') return null;
+
+  const { dotClass, tooltip } = {
+    live: {
+      dotClass: 'bg-emerald-500',
+      tooltip: t('matter.sync.live-tooltip'),
+    },
+    offline: {
+      dotClass: 'bg-gray-400',
+      tooltip: t('matter.sync.offline-tooltip'),
+    },
+    error: {
+      dotClass: 'bg-rose-500',
+      tooltip: t('matter.sync.error-tooltip'),
+    },
+    connecting: {
+      dotClass: 'bg-amber-400 animate-pulse',
+      tooltip: t('matter.sync.connecting-tooltip'),
+    },
+    'catching-up': {
+      dotClass: 'bg-sky-400 animate-pulse',
+      tooltip: t('matter.sync.catching-up-tooltip'),
+    },
+  }[status] ?? { dotClass: 'bg-gray-400', tooltip: '' };
+
+  return (
+    <span
+      data-testid={`sync-badge-${matterId}`}
+      data-status={status}
+      className={cn(
+        'inline-block h-2 w-2 shrink-0 rounded-full',
+        dotClass,
+      )}
+      title={tooltip}
+      aria-label={tooltip}
+    />
+  );
+}
+
+/** Inner component that reads the sync status for the given matterId. */
+function ActiveMatterTriggerContent({
+  matterId,
+  label,
+}: {
+  matterId: string;
+  label: string;
+}) {
+  const syncStatus = useMatterSyncStatus(matterId);
+  return (
+    <>
+      <Briefcase className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">{label}</span>
+      <SyncBadge status={syncStatus} matterId={matterId} />
+      <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
+    </>
+  );
 }
 
 export function MatterScopeSelector({
@@ -70,12 +145,14 @@ export function MatterScopeSelector({
           )}
         >
           {isAllMatters ? (
-            <Globe className="h-3.5 w-3.5 shrink-0" />
+            <>
+              <Globe className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{triggerLabel}</span>
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
+            </>
           ) : (
-            <Briefcase className="h-3.5 w-3.5 shrink-0" />
+            <ActiveMatterTriggerContent matterId={active.id} label={triggerLabel} />
           )}
-          <span className="truncate">{triggerLabel}</span>
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">

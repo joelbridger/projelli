@@ -50,6 +50,11 @@ export interface CreateMatterInput {
   mailFolderPaths?: string[];
   /** Mark the matter privileged at creation time (defaults to false). */
   privileged?: boolean;
+  /** Optionally link the matter to the firm backend at creation time. */
+  firmMatterId?: string;
+  orgId?: string;
+  role?: 'owner' | 'editor' | 'viewer';
+  shared?: boolean;
 }
 
 interface MatterState {
@@ -76,6 +81,16 @@ interface MatterState {
 
   // Active matter
   setActiveMatter: (id: string | null) => void;
+
+  // Firm linkage (Task 3) — link a local matter to a firm backend matter.
+  linkFirmMatter: (
+    id: string,
+    linkage: { firmMatterId: string; orgId: string; role: 'owner' | 'editor' | 'viewer' },
+  ) => void;
+  /** Unlink a matter from the firm backend (keep local files intact). */
+  unlinkFirmMatter: (id: string) => void;
+  /** Update the user's role on a shared matter (e.g. after a members/list refresh). */
+  setMatterRole: (id: string, role: 'owner' | 'editor' | 'viewer') => void;
 }
 
 export const useMatterStore = create<MatterState>()(
@@ -93,6 +108,10 @@ export const useMatterStore = create<MatterState>()(
           mailFolderPaths: Array.from(new Set((input.mailFolderPaths ?? []).filter(Boolean))),
           privileged: input.privileged ?? false,
           createdAt: new Date().toISOString(),
+          ...(input.firmMatterId !== undefined ? { firmMatterId: input.firmMatterId } : {}),
+          ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
+          ...(input.role !== undefined ? { role: input.role } : {}),
+          ...(input.shared !== undefined ? { shared: input.shared } : {}),
         };
         set((state) => ({ matters: [...state.matters, matter] }));
         return matter;
@@ -189,14 +208,45 @@ export const useMatterStore = create<MatterState>()(
       setActiveMatter: (id) => {
         set({ activeMatterId: id });
       },
+
+      linkFirmMatter: (id, { firmMatterId, orgId, role }) => {
+        set((state) => ({
+          matters: state.matters.map((m) =>
+            m.id === id
+              ? { ...m, firmMatterId, orgId, role, shared: true }
+              : m,
+          ),
+        }));
+      },
+
+      unlinkFirmMatter: (id) => {
+        set((state) => ({
+          matters: state.matters.map((m): Matter => {
+            if (m.id !== id) return m;
+            // Use destructuring to drop the optional fields
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { firmMatterId: _a, orgId: _b, role: _c, ...rest } = m;
+            return { ...rest, shared: false };
+          }),
+        }));
+      },
+
+      setMatterRole: (id, role) => {
+        set((state) => ({
+          matters: state.matters.map((m) =>
+            m.id === id ? { ...m, role } : m,
+          ),
+        }));
+      },
     }),
     {
       name: 'keepance:matters',
-      version: 3,
+      version: 4,
       // v1 -> v2: matters gained `mailFolderPaths`. v2 -> v3: matters gained the
-      // `privileged` flag. Backfill defaults so older persisted matters parse
-      // cleanly (missing values are also tolerated by readers via `?? false`,
-      // but normalising here keeps the shape consistent).
+      // `privileged` flag. v3 -> v4: matters gained firm linkage fields
+      // (firmMatterId, orgId, role, shared). Backfill defaults so older persisted
+      // matters parse cleanly (missing values are tolerated by readers, but
+      // normalising here keeps the shape consistent).
       migrate: (persisted, version) => {
         const state = persisted as Partial<MatterState> | undefined;
         if (!state || !Array.isArray(state.matters)) return state as MatterState;
@@ -211,6 +261,19 @@ export const useMatterStore = create<MatterState>()(
             ...m,
             privileged: m.privileged ?? false,
           }));
+        }
+        if (version < 4) {
+          // Firm linkage fields are optional — missing values are treated as
+          // undefined (local-only). Guard against stale `shared: true` without
+          // `firmMatterId` by normalising shared to false when firmMatterId is absent.
+          state.matters = state.matters.map((m) => {
+            if (!m.firmMatterId) {
+              // Drop any stale shared flag; don't set other firm fields.
+              const { shared: _shared, ...rest } = m;
+              return { ...rest, shared: false };
+            }
+            return { ...m, shared: m.shared ?? false };
+          });
         }
         return state as MatterState;
       },

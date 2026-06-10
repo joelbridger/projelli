@@ -24,6 +24,7 @@ import {
   handleCreateUser,
   handleAudit,
   handleCreateOrg,
+  handleListOrgUsers,
 } from "./routes/admin.ts";
 import {
   handleCreateMatter,
@@ -161,6 +162,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/org/user/deprovision" && method === "POST") return await handleDeprovisionUser(req, store);
         if (path === "/org/seats/transfer" && method === "POST") return await handleTransferSeat(req, store);
         if (path === "/org/users" && method === "POST") return await handleCreateUser(req, store);
+        if (path === "/org/users/list" && method === "POST") return handleListOrgUsers(req, store);
         if (path === "/org/audit" && (method === "POST" || method === "GET")) return handleAudit(req, store);
 
         // --- Assured zero-retention inference proxy (chunk 3, DECISION.md §5) ---

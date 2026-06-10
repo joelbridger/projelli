@@ -40,6 +40,7 @@ import type {
   ProfessionPack,
   SeatLimitExceededResponse,
   AssuredProvider,
+  OrgClaimResponse,
 } from '@/modules/firm/contract';
 
 /** Stable per-machine id, shared with the licensing hook's convention. */
@@ -95,6 +96,18 @@ interface FirmState {
 
   // actions
   signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Claim an unclaimed org with the license key the buyer received from
+   * LemonSqueezy. On success the session is populated exactly like signIn
+   * (tokens persisted to keychain, org + user in store). The prefilled license
+   * key is returned so the caller can pre-fill the activation form.
+   */
+  claimOrg: (
+    licenseKey: string,
+    email: string,
+    password: string,
+    orgName?: string,
+  ) => Promise<{ ok: boolean; error?: string; claimedLicenseKey?: string }>;
   activateSeat: (
     licenseKey: string,
     machineLabel?: string,
@@ -210,6 +223,52 @@ export const useFirmStore = create<FirmState>()(
               : err instanceof Error
                 ? err.message
                 : 'Sign-in failed';
+          set({ isLoading: false, error: message, isOffline: !(err instanceof FirmApiError) });
+          return { ok: false, error: message };
+        }
+      },
+
+      claimOrg: async (licenseKey, email, password, orgName) => {
+        set({ isLoading: true, error: null });
+        try {
+          const bare = new FirmApiClient();
+          const res: OrgClaimResponse = await bare.orgClaim(licenseKey, email, password, orgName);
+          const user: PublicUser = res.user;
+          await storeAuthTokens(user.user_id, res.access_token, res.refresh_token);
+
+          // Fetch the seat public key for offline verification (non-fatal).
+          let seatPublicKeyPem: string | null = get().seatPublicKeyPem;
+          try {
+            seatPublicKeyPem = await new FirmApiClient().getSeatPublicKey();
+          } catch { /* non-fatal */ }
+
+          set({
+            accessToken: res.access_token,
+            session: {
+              userId: user.user_id,
+              email: user.email,
+              role: user.role,
+              org: res.org,
+              seatId: null,
+              tier: null,
+              packs: [],
+              seats: 1,
+              lastValidatedAt: null,
+              activated: false,
+            },
+            seatPublicKeyPem,
+            isLoading: false,
+            error: null,
+            isOffline: false,
+          });
+          return { ok: true, claimedLicenseKey: licenseKey.trim() };
+        } catch (err) {
+          const message =
+            err instanceof FirmApiError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : 'Claim failed';
           set({ isLoading: false, error: message, isOffline: !(err instanceof FirmApiError) });
           return { ok: false, error: message };
         }

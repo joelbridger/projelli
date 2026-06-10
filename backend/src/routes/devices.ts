@@ -116,7 +116,9 @@ export async function handleListUsersDevices(req: Request, store: Store): Promis
     devices: devices.map((d) => ({
       user_id: d.user_id,
       device_id: d.device_id,
-      pubkey_jwk: d.pubkey_jwk,
+      // pubkey_jwk is stored in the DB as a JSON string; parse it to an object
+      // so callers receive a JsonWebKey object as expected by the contract.
+      pubkey_jwk: typeof d.pubkey_jwk === "string" ? JSON.parse(d.pubkey_jwk) : d.pubkey_jwk,
       label: d.label,
     })),
   });

@@ -170,6 +170,7 @@ export async function publishMatterKeyToMembers(
 export async function obtainMatterKey(
   client: FirmApiClient,
   matterId: string,
+  seatToken: string,
 ): Promise<string | null> {
   // 1. Local keychain hit.
   const cached = await loadMatterKey(matterId);
@@ -180,7 +181,7 @@ export async function obtainMatterKey(
 
   let fetchResp: { epoch: number; wrapped_key_b64: string };
   try {
-    fetchResp = await client.fetchMatterKeys(matterId, deviceId);
+    fetchResp = await client.fetchMatterKeys(matterId, deviceId, seatToken);
   } catch (err) {
     if (err instanceof FirmApiError && (err.status === 403 || err.status === 404)) {
       // Fail closed: no key stored, return null.

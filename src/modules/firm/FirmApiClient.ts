@@ -49,6 +49,7 @@ import {
   type ListOrgAdminsResponse,
   type MatterMineResponse,
   type PublicUser,
+  type ListOrgUsersResponse,
 } from './contract';
 
 export class FirmApiError extends Error {
@@ -324,6 +325,18 @@ export class FirmApiClient {
     });
   }
 
+  /**
+   * List all users in the caller's org (admin only). Returns user_id, email,
+   * role, and status so the admin console can resolve user_ids to emails without
+   * requiring a create-first pattern or a local cache.
+   */
+  listOrgUsers(): Promise<ListOrgUsersResponse> {
+    return this.request<ListOrgUsersResponse>(FIRM_ENDPOINTS.listOrgUsers, {
+      method: 'POST',
+      auth: true,
+    });
+  }
+
   publishMatterKeys(
     matterId: string,
     payload: PublishMatterKeysRequest,
@@ -334,10 +347,10 @@ export class FirmApiClient {
     );
   }
 
-  fetchMatterKeys(matterId: string, deviceId: string): Promise<FetchMatterKeysResponse> {
+  fetchMatterKeys(matterId: string, deviceId: string, seatToken: string): Promise<FetchMatterKeysResponse> {
     return this.request<FetchMatterKeysResponse>(
       FIRM_ENDPOINTS.fetchMatterKeys.replace(':id', encodeURIComponent(matterId)),
-      { method: 'POST', auth: true, body: { device_id: deviceId } },
+      { method: 'POST', auth: true, body: { device_id: deviceId }, headers: { 'X-Seat-Token': seatToken } },
     );
   }
 
@@ -424,6 +437,33 @@ export class FirmApiClient {
       method: 'POST',
       auth: true,
       body: { email, password, ...(role ? { role } : {}) },
+    });
+  }
+
+  // --- org claim (self-serve purchase -> provision) ---------------------------
+  /**
+   * POST /org/claim — claim a provisioned-but-unclaimed org.
+   *
+   * Called from the "I just bought Keepance Firm" path in FirmSignIn. No auth
+   * required: the license key IS the credential that proves purchase.
+   * Returns full auth tokens + org + user on success.
+   * Throws FirmApiError with status 409 (code 'already_claimed') or 404 (code
+   * 'license_key_not_found') on the two expected failure modes.
+   */
+  orgClaim(
+    licenseKey: string,
+    email: string,
+    password: string,
+    orgName?: string,
+  ): Promise<import('./contract').OrgClaimResponse> {
+    return this.request<import('./contract').OrgClaimResponse>(FIRM_ENDPOINTS.orgClaim, {
+      method: 'POST',
+      body: {
+        license_key: licenseKey.trim(),
+        email: email.trim(),
+        password,
+        ...(orgName?.trim() ? { org_name: orgName.trim() } : {}),
+      },
     });
   }
 

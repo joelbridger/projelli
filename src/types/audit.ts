@@ -32,7 +32,14 @@ export type AuditActionType =
   // Privileged Matter Mode: an MCP server write was blocked while the mode was
   // on. Stored under `action = 'mcp_blocked'` so the audit log can label/filter
   // it as a defensible "nothing exfiltrated" record.
-  | 'mcp_blocked';
+  | 'mcp_blocked'
+  // Firm Phase 1 (Task 3) — matter sharing and member management.
+  | 'matter_shared'
+  | 'matter_unshared'
+  | 'member_invited'
+  | 'member_removed'
+  | 'wall_set_from_manager'
+  | 'key_published';
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`
@@ -122,6 +129,98 @@ export type AuditEvent =
    * nothing was exfiltrated or modified by a network-capable MCP server.
    */
   | { type: 'mcp_blocked'; timestamp: string; payload: { path: string; reason: string } }
+  // ───────────────────────────────────────────────────────────────────────
+  // Firm Phase 1 (Task 3) — matter sharing and member governance events.
+  //
+  // These are first-class variants so the audit log is a legally accurate
+  // record of who shared what with whom, who was invited or removed, and
+  // when an ethical wall was raised or a key was published to a new epoch.
+  // The event payload carries the firm matter id, the org id where
+  // applicable, and the target user id so every governance action is
+  // unambiguously attributable. The detail field holds a short plain-
+  // English summary for display in the audit log detail pane.
+  // ───────────────────────────────────────────────────────────────────────
+  /**
+   * A local matter was linked to a firm matter (shared with the firm).
+   * Records the local matter id and the resulting firm matter id.
+   */
+  | {
+      type: 'matter_shared';
+      timestamp: string;
+      payload: {
+        matter_id: string;
+        firm_matter_id: string;
+        org_id?: string;
+        detail?: string;
+      };
+    }
+  /**
+   * A matter was unlinked from the firm (unshared / left).
+   */
+  | {
+      type: 'matter_unshared';
+      timestamp: string;
+      payload: {
+        matter_id: string;
+        firm_matter_id?: string;
+        detail?: string;
+      };
+    }
+  /**
+   * A user was invited to a firm matter as a member.
+   */
+  | {
+      type: 'member_invited';
+      timestamp: string;
+      payload: {
+        matter_id: string;
+        firm_matter_id: string;
+        target_user_id: string;
+        org_id?: string;
+        detail?: string;
+      };
+    }
+  /**
+   * A user was removed from a firm matter.
+   */
+  | {
+      type: 'member_removed';
+      timestamp: string;
+      payload: {
+        matter_id: string;
+        firm_matter_id: string;
+        target_user_id: string;
+        org_id?: string;
+        detail?: string;
+      };
+    }
+  /**
+   * An ethical wall was set for a user on a matter (via the Matter Manager).
+   */
+  | {
+      type: 'wall_set_from_manager';
+      timestamp: string;
+      payload: {
+        matter_id: string;
+        firm_matter_id: string;
+        target_user_id: string;
+        org_id?: string;
+        detail?: string;
+      };
+    }
+  /**
+   * The per-matter content key was published to members at the current epoch.
+   */
+  | {
+      type: 'key_published';
+      timestamp: string;
+      payload: {
+        matter_id: string;
+        firm_matter_id: string;
+        org_id?: string;
+        detail?: string;
+      };
+    }
   | { type: 'template_installed_from_marketplace'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
   | { type: 'template_uninstalled'; timestamp: string; payload: { templateId: string; version: string; error?: string } }
   | { type: 'template_updated'; timestamp: string; payload: { templateId: string; version: string; fromVersion?: string; toVersion?: string; error?: string } }

@@ -36,6 +36,9 @@ import {
   Lock,
   Target,
   Send,
+  Share2,
+  Users2,
+  KeyRound as KeyIcon,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/types/audit';
 import { EmptyState } from './EmptyState';
@@ -81,6 +84,13 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   scope_active: Target,
   egress: Send,
   mcp_blocked: ShieldOff,
+  // Firm Phase 1 (Task 3) — matter sharing and member management.
+  matter_shared: Share2,
+  matter_unshared: Share2,
+  member_invited: Users2,
+  member_removed: Users2,
+  wall_set_from_manager: ShieldOff,
+  key_published: KeyIcon,
 };
 
 const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -102,6 +112,13 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   scope_active: 'Active Matter',
   egress: 'AI Request Sent',
   mcp_blocked: 'MCP Write Blocked',
+  // Firm Phase 1 (Task 3)
+  matter_shared: 'Matter Shared',
+  matter_unshared: 'Matter Unshared',
+  member_invited: 'Member Invited',
+  member_removed: 'Member Removed',
+  wall_set_from_manager: 'Ethical Wall Set',
+  key_published: 'Key Published',
 };
 
 const ACTION_COLORS: Record<AuditActionType, string> = {
@@ -123,6 +140,13 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   scope_active: 'text-teal-600 dark:text-teal-400',
   egress: 'text-violet-600 dark:text-violet-400',
   mcp_blocked: 'text-rose-600 dark:text-rose-400',
+  // Firm Phase 1 (Task 3)
+  matter_shared: 'text-primary',
+  matter_unshared: 'text-muted-foreground',
+  member_invited: 'text-emerald-600',
+  member_removed: 'text-orange-600',
+  wall_set_from_manager: 'text-amber-700',
+  key_published: 'text-sky-600',
 };
 
 export function AuditLog({
@@ -637,6 +661,46 @@ function AuditEntryDetails({ entry, formatTimestamp }: AuditEntryDetailsProps) {
           </pre>
         </div>
       )}
+
+      {/* Firm governance fields (matter_id, firm_matter_id, target_user_id) shown
+          as readable labels when present, so the detail pane reads as a human
+          record rather than a raw JSON blob. The full metadata is still shown
+          below for completeness. */}
+      {(() => {
+        const fmid = entry.metadata['firm_matter_id'];
+        const mid = entry.metadata['matter_id'];
+        const tuid = entry.metadata['target_user_id'];
+        const oid = entry.metadata['org_id'];
+        if (!mid && !fmid && !tuid) return null;
+        return (
+          <div className="rounded-md border border-border px-3 py-2 space-y-1 text-sm">
+            {fmid != null && (
+              <div className="flex gap-2">
+                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Firm matter</span>
+                <span className="font-mono text-xs break-all">{String(fmid)}</span>
+              </div>
+            )}
+            {mid != null && mid !== fmid && (
+              <div className="flex gap-2">
+                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Local matter</span>
+                <span className="font-mono text-xs break-all">{String(mid)}</span>
+              </div>
+            )}
+            {tuid != null && (
+              <div className="flex gap-2">
+                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Target user</span>
+                <span className="font-mono text-xs break-all">{String(tuid)}</span>
+              </div>
+            )}
+            {oid != null && (
+              <div className="flex gap-2">
+                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Org</span>
+                <span className="font-mono text-xs break-all">{String(oid)}</span>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Metadata */}
       {Object.keys(entry.metadata).length > 0 && (

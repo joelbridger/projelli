@@ -163,7 +163,7 @@ export function handleListMatterMembers(req: Request, store: Store, matterId: st
   return json({
     matter_id: matterId,
     key_epoch: m.matter.key_epoch,
-    members: store.listMatterMembers(matterId),
+    members: store.listMatterMembersWithEmail(matterId),
     walls: store.listEthicalWalls(matterId),
   });
 }

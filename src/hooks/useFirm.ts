@@ -37,6 +37,12 @@ export interface UseFirmResult {
   error: string | null;
   assuredProviders: AssuredProvider[];
   signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  claimOrg: (
+    licenseKey: string,
+    email: string,
+    password: string,
+    orgName?: string,
+  ) => Promise<{ ok: boolean; error?: string; claimedLicenseKey?: string }>;
   activateSeat: (
     licenseKey: string,
     machineLabel?: string,
@@ -57,6 +63,7 @@ export function useFirm(): UseFirmResult {
     })),
   );
   const signIn = useFirmStore((s) => s.signIn);
+  const claimOrg = useFirmStore((s) => s.claimOrg);
   const activateSeat = useFirmStore((s) => s.activateSeat);
   const signOut = useFirmStore((s) => s.signOut);
   const hydrate = useFirmStore((s) => s.hydrate);
@@ -101,6 +108,7 @@ export function useFirm(): UseFirmResult {
     error: store.error,
     assuredProviders: store.assuredProviders,
     signIn,
+    claimOrg,
     activateSeat,
     signOut: doSignOut,
   };

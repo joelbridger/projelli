@@ -876,3 +876,120 @@ describe("POST /webhooks/lemonsqueezy", () => {
     } finally { server.stop(true); }
   });
 });
+
+// ---------------------------------------------------------------------------
+// 8. POST /matter/:id/members/list — includes email (Gap 2)
+// ---------------------------------------------------------------------------
+
+describe("POST /matter/:id/members/list — members response includes email", () => {
+  test("members/list includes email field for each member", async () => {
+    const store = makeStore();
+    const { org, admin, member } = seedOrg(store);
+    const matter = store.createMatter({ org_id: org.org_id, client_name: "Email Test Matter" });
+    store.addMatterMember({ matter_id: matter.matter_id, user_id: member.user_id, org_id: org.org_id, role: "editor" });
+    const server = bootServer(store);
+    try {
+      const resp = await post(server, `/matter/${matter.matter_id}/members/list`, {},
+        { authorization: `Bearer ${adminBearer(store, admin)}` });
+      expect(resp.status).toBe(200);
+      const members = resp.body.members as Array<Record<string, unknown>>;
+      expect(members.length).toBeGreaterThan(0);
+      // Every member entry must carry an email field (string or null)
+      for (const m of members) {
+        expect("email" in m).toBe(true);
+      }
+      // The seeded member has a real email
+      const memberRow = members.find((m) => m.user_id === member.user_id);
+      expect(memberRow).toBeDefined();
+      expect(memberRow!.email).toBe("member@firm.test");
+    } finally { server.stop(true); }
+  });
+
+  test("members/list returns all three org members with email when all are added", async () => {
+    const store = makeStore();
+    const { org, admin, member, member2 } = seedOrg(store);
+    const matter = store.createMatter({ org_id: org.org_id, client_name: "Multi-member Test" });
+    store.addMatterMember({ matter_id: matter.matter_id, user_id: member.user_id, org_id: org.org_id, role: "editor" });
+    store.addMatterMember({ matter_id: matter.matter_id, user_id: member2.user_id, org_id: org.org_id, role: "viewer" });
+    const server = bootServer(store);
+    try {
+      const resp = await post(server, `/matter/${matter.matter_id}/members/list`, {},
+        { authorization: `Bearer ${adminBearer(store, admin)}` });
+      expect(resp.status).toBe(200);
+      const members = resp.body.members as Array<Record<string, unknown>>;
+      expect(members.length).toBe(2);
+      const emails = members.map((m) => m.email as string).sort();
+      expect(emails).toContain("member@firm.test");
+      expect(emails).toContain("member2@firm.test");
+    } finally { server.stop(true); }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. POST /org/users/list — admin-only + cross-org isolation (Gap 2)
+// ---------------------------------------------------------------------------
+
+describe("POST /org/users/list", () => {
+  test("admin gets all own-org users with email+role+status", async () => {
+    const store = makeStore();
+    const { org, admin, member, member2 } = seedOrg(store);
+    const server = bootServer(store);
+    try {
+      const resp = await post(server, "/org/users/list", {},
+        { authorization: `Bearer ${adminBearer(store, admin)}` });
+      expect(resp.status).toBe(200);
+      const users = resp.body.users as Array<Record<string, unknown>>;
+      // admin + member + member2 = 3 users in the org
+      expect(users.length).toBe(3);
+      const emails = users.map((u) => u.email as string).sort();
+      expect(emails).toContain(admin.email);
+      expect(emails).toContain(member.email);
+      expect(emails).toContain(member2.email);
+      // Each entry has the expected shape
+      for (const u of users) {
+        expect(typeof u.user_id).toBe("string");
+        expect(typeof u.email).toBe("string");
+        expect(typeof u.role).toBe("string");
+        expect(typeof u.status).toBe("string");
+      }
+    } finally { server.stop(true); }
+  });
+
+  test("ADVERSARIAL: member (non-admin) gets 403", async () => {
+    const store = makeStore();
+    const { member } = seedOrg(store);
+    const server = bootServer(store);
+    try {
+      const resp = await post(server, "/org/users/list", {},
+        { authorization: `Bearer ${memberBearer(store, member)}` });
+      expect(resp.status).toBe(403);
+    } finally { server.stop(true); }
+  });
+
+  test("ADVERSARIAL: cross-org isolation — admin of org A does not see org B users", async () => {
+    const store = makeStore();
+    const { admin } = seedOrg(store); // org A
+    const orgB = store.createOrg({ name: "Other Firm", plan: "practice", packs: [], seat_limit: 3 });
+    store.createUser({ org_id: orgB.org_id, email: "otherb@other.test", password_hash: "x", role: "member" });
+    const server = bootServer(store);
+    try {
+      const resp = await post(server, "/org/users/list", {},
+        { authorization: `Bearer ${adminBearer(store, admin)}` });
+      expect(resp.status).toBe(200);
+      const users = resp.body.users as Array<Record<string, unknown>>;
+      // Must not include org B's user
+      const orgBUser = users.find((u) => u.email === "otherb@other.test");
+      expect(orgBUser).toBeUndefined();
+    } finally { server.stop(true); }
+  });
+
+  test("unauthenticated → 401", async () => {
+    const store = makeStore();
+    seedOrg(store);
+    const server = bootServer(store);
+    try {
+      const resp = await post(server, "/org/users/list", {}, {});
+      expect(resp.status).toBe(401);
+    } finally { server.stop(true); }
+  });
+});

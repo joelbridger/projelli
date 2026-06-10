@@ -45,7 +45,7 @@ export async function unwrapMatterKey(wrappedB64: string, epoch: number): Promis
 
 // src/modules/firm/matterKeyService.ts  (additions; existing API unchanged)
 export async function publishMatterKeyToMembers(client, matterId, epoch): Promise<{ published: number; skippedWalled: number }>; // wraps current local key to every allowed member device (incl. all org admins = escrow) and POSTs keys/publish
-export async function obtainMatterKey(client, matterId): Promise<string | null>; // local keychain first, else keys/fetch + unwrap + store; null if 403/404 (caller shows "ask your admin to share access")
+export async function obtainMatterKey(client, matterId, seatToken): Promise<string | null>; // local keychain first, else keys/fetch + unwrap + store; null if 403/404 (caller shows "ask your admin to share access"). AMENDED 2026-06-10: gained the seatToken param because keys/fetch requires X-Seat-Token (this contract section originally contradicted the endpoint contract above).
 ```
 
 ### Matter linkage (T3; type change reviewed by all)

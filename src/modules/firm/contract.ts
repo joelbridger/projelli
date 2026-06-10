@@ -166,12 +166,15 @@ export interface RemoveMatterMemberResponse {
 export interface MatterMembersResponse {
   matter_id: string;
   key_epoch: number;
+  /** Members with email included (joined from users table; same-org, admin-visible). */
   members: Array<{
     matter_id: string;
     user_id: string;
     org_id: string;
     role: MatterRole;
     created_at: string;
+    /** Email from the users table. Present when the backend returns it (firm wiring v2). */
+    email?: string | null;
   }>;
   walls: Array<{
     matter_id: string;
@@ -181,6 +184,17 @@ export interface MatterMembersResponse {
     created_by: string;
     created_at: string;
   }>;
+}
+
+// --- Org users list (admin only) -------------------------------------------
+export interface OrgUserEntry {
+  user_id: string;
+  email: string;
+  role: UserRole;
+  status: 'active' | 'deprovisioned';
+}
+export interface ListOrgUsersResponse {
+  users: OrgUserEntry[];
 }
 export interface SetWallRequest {
   user_id: string;
@@ -412,6 +426,7 @@ export const FIRM_ENDPOINTS = {
   revokeSeat: '/org/seat/revoke',
   deprovisionUser: '/org/user/deprovision',
   createUser: '/org/users',
+  listOrgUsers: '/org/users/list',
   createMatter: '/org/matters',
   listMatters: '/org/matters/list',
   archiveMatter: '/matter/:id/archive',

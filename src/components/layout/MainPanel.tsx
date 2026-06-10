@@ -51,6 +51,7 @@ import { BinaryVersionHistoryPanel } from '@/components/version/BinaryVersionHis
 import { BrowserPanel } from '@/components/workflow/BrowserPanel';
 import { WorkflowExecutionTab } from '@/components/workflow/WorkflowExecutionTab';
 import { EmailViewer } from '@/components/mail/EmailViewer';
+import { MatterNotesEditorWrapper } from '@/components/matter/MatterNotesEditorWrapper';
 import {
   fileDataToExecution,
   isWorkflowFilePath,
@@ -633,6 +634,18 @@ export function MainPanel({
       if (tab.type === 'email') {
         const sourceId = tab.metadata?.mailSourceId ?? tab.path;
         return <EmailViewer sourceId={sourceId} className="h-full" />;
+      }
+      // Firm shared-matter notes tab. Path is `matter-notes:/<localMatterId>`.
+      // MatterNotesEditorWrapper resolves the matter + boots the sync client.
+      if (tab.path.startsWith('matter-notes:/')) {
+        const localMatterId = tab.path.slice('matter-notes:/'.length);
+        return (
+          <MatterNotesEditorWrapper
+            localMatterId={localMatterId}
+            workspaceService={workspaceServiceRef?.current ?? null}
+            className="h-full min-w-0"
+          />
+        );
       }
       // Workflow execution tab — dispatched purely by the `.workflow`
       // extension so the same renderer covers (a) a freshly-opened live run

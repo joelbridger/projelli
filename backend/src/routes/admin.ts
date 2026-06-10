@@ -149,6 +149,21 @@ export function handleAudit(req: Request, store: Store): Response {
 }
 
 /**
+ * POST /org/users/list (admin only) — returns every user in the admin's org
+ * with their user_id, email, role, and status. Admins use this to resolve
+ * user_ids to emails in the admin console and to look up existing users before
+ * inviting them to a matter (avoiding the create-then-409 pattern).
+ *
+ * Access: role=admin in the same org. Never crosses org boundaries.
+ */
+export function handleListOrgUsers(req: Request, store: Store): Response {
+  const a = requireAdmin(req);
+  if (!a.ok) return a.resp;
+  const users = store.listOrgUsers(a.claims.org_id);
+  return json({ users });
+}
+
+/**
  * Provision a brand-new org + admin + initial license key. Billing-driven in
  * production (protect at the network layer — see README). Returns the license
  * key plaintext exactly once.

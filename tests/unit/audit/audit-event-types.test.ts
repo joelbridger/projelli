@@ -46,4 +46,59 @@ describe('AuditEvent v2.0 additions', () => {
     };
     expect(e.type).toBe('context_compressed');
   });
+
+  // Firm Phase 1 (Task 3) governance events
+  it('accepts matter_shared', () => {
+    const e: AuditEvent = {
+      type: 'matter_shared',
+      timestamp: new Date().toISOString(),
+      payload: { matter_id: 'local-1', firm_matter_id: 'firm-1', org_id: 'org-1', detail: 'shared' },
+    };
+    expect(e.type).toBe('matter_shared');
+  });
+
+  it('accepts matter_unshared', () => {
+    const e: AuditEvent = {
+      type: 'matter_unshared',
+      timestamp: new Date().toISOString(),
+      payload: { matter_id: 'local-1', firm_matter_id: 'firm-1' },
+    };
+    expect(e.type).toBe('matter_unshared');
+  });
+
+  it('accepts member_invited', () => {
+    const e: AuditEvent = {
+      type: 'member_invited',
+      timestamp: new Date().toISOString(),
+      payload: { matter_id: 'local-1', firm_matter_id: 'firm-1', target_user_id: 'user-42' },
+    };
+    expect(e.type).toBe('member_invited');
+  });
+
+  it('accepts member_removed', () => {
+    const e: AuditEvent = {
+      type: 'member_removed',
+      timestamp: new Date().toISOString(),
+      payload: { matter_id: 'local-1', firm_matter_id: 'firm-1', target_user_id: 'user-42' },
+    };
+    expect(e.type).toBe('member_removed');
+  });
+
+  it('accepts wall_set_from_manager', () => {
+    const e: AuditEvent = {
+      type: 'wall_set_from_manager',
+      timestamp: new Date().toISOString(),
+      payload: { matter_id: 'local-1', firm_matter_id: 'firm-1', target_user_id: 'user-42', detail: 'lateral conflict' },
+    };
+    expect(e.type).toBe('wall_set_from_manager');
+  });
+
+  it('accepts key_published', () => {
+    const e: AuditEvent = {
+      type: 'key_published',
+      timestamp: new Date().toISOString(),
+      payload: { matter_id: 'local-1', firm_matter_id: 'firm-1', org_id: 'org-1' },
+    };
+    expect(e.type).toBe('key_published');
+  });
 });
