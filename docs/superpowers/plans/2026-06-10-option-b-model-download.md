@@ -1625,11 +1625,11 @@ git commit -m "feat(rag): defer first index until the model is ready; honest AI 
 - Modify: `CHANGELOG.md` (`[Unreleased]` section at the top)
 - Optionally modify: `src-tauri/src/commands/rag/model_download.rs` (hardening below)
 
-- [ ] **Step 0 (optional hardening from the Task 2 quality review; do if quick, skip without guilt):** (a) wrap the `DOWNLOADING` clear in `model_ensure` in a small RAII Drop guard (mirrors `IndexingGuard` in `mod.rs`) so a panic between the CAS and the store can never wedge status at "downloading"; (b) move the `resolve_cache_dir()` calls inside the existing `spawn_blocking` closures in `model_status`/`model_ensure` (it does a dozen fs syscalls; cosmetic). Neither blocks anything.
+- [x] **Step 0 (optional hardening from the Task 2 quality review; do if quick, skip without guilt):** (a) wrap the `DOWNLOADING` clear in `model_ensure` in a small RAII Drop guard (mirrors `IndexingGuard` in `mod.rs`) so a panic between the CAS and the store can never wedge status at "downloading"; (b) move the `resolve_cache_dir()` calls inside the existing `spawn_blocking` closures in `model_status`/`model_ensure` (it does a dozen fs syscalls; cosmetic). Neither blocks anything.
 
-- [ ] **Step 0b (verification note from the Task 5 quality review):** in the dev-build sanity pass, confirm the ready handoff has no dead gap: the moment the download card vanishes (Ready), the deferred index kicks and the rag indexing banner appears — the rag banner provides the visible closure, which is why the card has no "done" flash of its own. Also confirm the card renders on BOTH the workspace-selector screen and the main shell (the first-run mount fix).
+- [x] **Step 0b (verification note from the Task 5 quality review):** in the dev-build sanity pass, confirm the ready handoff has no dead gap: the moment the download card vanishes (Ready), the deferred index kicks and the rag indexing banner appears — the rag banner provides the visible closure, which is why the card has no "done" flash of its own. Also confirm the card renders on BOTH the workspace-selector screen and the main shell (the first-run mount fix).
 
-- [ ] **Step 1: Full gates**
+- [x] **Step 1: Full gates**
 
 ```bash
 cd ~/keepance && npx tsc --noEmit && npm run test 2>&1 | tail -6
@@ -1638,7 +1638,7 @@ cd ~/keepance/src-tauri && cargo test 2>&1 | tail -8
 
 Expected: tsc clean; vitest fully green (2747+ tests at handoff plus the new ones); cargo green.
 
-- [ ] **Step 2: Run the REAL download integration test once (network, ~465 MB)**
+- [x] **Step 2: Run the REAL download integration test once (network, ~465 MB)**
 
 ```bash
 cd ~/keepance/src-tauri && cargo test --release real_model_download -- --ignored --nocapture 2>&1 | tail -15
@@ -1646,7 +1646,7 @@ cd ~/keepance/src-tauri && cargo test --release real_model_download -- --ignored
 
 Expected: progress lines streaming, then `test ... ok`. This proves the exact production code path (our file list → hf-hub download → cache layout → offline fastembed init) end to end on real infrastructure. If the rig lacks bandwidth right now, note it and flag in the final report instead of skipping silently.
 
-- [ ] **Step 3: CHANGELOG entry**
+- [x] **Step 3: CHANGELOG entry**
 
 Under `## [Unreleased]` in `CHANGELOG.md`:
 
@@ -1655,7 +1655,7 @@ Under `## [Unreleased]` in `CHANGELOG.md`:
 - **The one-time search engine download is now visible, resumable, and honest.** On first run Keepance shows a "Setting up private search" banner with live progress while it downloads its embedding model (about 465 MB, one time, from Hugging Face) instead of silently stalling the first search or index. A dropped connection shows a clear message with a Resume button that continues where it stopped (HTTP range resume). Until the model is present, workspace indexing defers itself and the AI says plainly that search isn't ready yet rather than failing cryptically; both start automatically the moment the download completes. Files: `src-tauri/src/commands/rag/model_download.rs`, `src-tauri/src/commands/rag/embedder.rs`, `src/hooks/useModelStatus.ts`, `src/components/memory/ModelDownloadCard.tsx`, `src/hooks/useMemoryWiring.ts`, `src/components/ai/AIChatViewer.tsx`.
 ```
 
-- [ ] **Step 4: Commit + push**
+- [x] **Step 4: Commit + push**
 
 ```bash
 cd ~/keepance && git add CHANGELOG.md && git commit -m "docs: changelog for the visible resumable model download" && git push origin keepance-3.0
