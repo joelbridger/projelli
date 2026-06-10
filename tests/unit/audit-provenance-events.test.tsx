@@ -173,8 +173,13 @@ describe('Keepance 3.0 audit provenance events', () => {
   });
 
   it('logs privilege_evaluated with excluded:true by default (privileged held back)', async () => {
-    seedMatter();
-    mocks.retrieve.mockResolvedValue([]);
+    const m = seedMatter();
+    // Supply a real result so the turn proceeds through to sendMessage.
+    // privilege_evaluated fires before the model call so it is logged
+    // regardless, but the sendWorkspaceMessage helper waits on sendMessage.
+    mocks.retrieve.mockResolvedValue([
+      { path: 'Acme/pricing.md', chunkText: 'Premium tier.', score: 0.85, paragraphIndex: 1, id: 'chunk-p', matterId: m.id, sourceId: '/ws/Acme/pricing.md' },
+    ]);
 
     const logged: LoggedEntry[] = [];
     await sendWorkspaceMessage((e) => logged.push(e));
@@ -185,8 +190,11 @@ describe('Keepance 3.0 audit provenance events', () => {
   });
 
   it('logs all-matters scope when no matter is active', async () => {
-    // no seedMatter — activeMatterId stays null
-    mocks.retrieve.mockResolvedValue([]);
+    // no seedMatter — activeMatterId stays null.
+    // Supply a real result so the turn proceeds (sendWorkspaceMessage waits on sendMessage).
+    mocks.retrieve.mockResolvedValue([
+      { path: 'general/notes.md', chunkText: 'Some note.', score: 0.7, paragraphIndex: 0, id: 'chunk-am' },
+    ]);
     const logged: LoggedEntry[] = [];
     await sendWorkspaceMessage((e) => logged.push(e));
 
@@ -198,8 +206,11 @@ describe('Keepance 3.0 audit provenance events', () => {
   });
 
   it('logs egress with the provider-direct destination for a cloud BYOK send', async () => {
-    seedMatter();
-    mocks.retrieve.mockResolvedValue([]);
+    const m = seedMatter();
+    // Supply a real result so data is sent to the provider and egress is logged.
+    mocks.retrieve.mockResolvedValue([
+      { path: 'Acme/pricing.md', chunkText: 'Premium tier priced at $49.', score: 0.88, paragraphIndex: 2, id: 'chunk-e', matterId: m.id, sourceId: '/ws/Acme/pricing.md' },
+    ]);
 
     const logged: LoggedEntry[] = [];
     await sendWorkspaceMessage((e) => logged.push(e));

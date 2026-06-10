@@ -69,6 +69,7 @@ import {
 } from '@/modules/marketplace';
 import {
   resolveTemplateModel,
+  resolveWorkflowProvider,
   TEMPLATE_MODEL_OVERRIDES_KEY,
   type TemplateModelOverride,
 } from '@/modules/workflow/resolveTemplateModel';
@@ -84,6 +85,7 @@ import { createMockProvider } from '@/modules/models/MockProvider';
 import { createClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { createOpenAIProvider } from '@/modules/models/OpenAIProvider';
 import { createGeminiProvider } from '@/modules/models/GeminiProvider';
+import { OllamaProvider, detectOllama, OLLAMA_DEFAULT_MODEL } from '@/modules/models/OllamaProvider';
 import { FileSystemWatcher, createFileTreeSnapshot } from '@/modules/workspace/FileSystemWatcher';
 import { resolveWorkspacePath } from '@/modules/workspace/pathResolve';
 import {
@@ -265,6 +267,9 @@ function App() {
   // sidebar "Current Execution" link and by debounced write-back so the
   // file on disk stays in sync with the running engine.
   const [activeWorkflowFilePath, setActiveWorkflowFilePath] = useState<string | null>(null);
+  // F-106/F-107 — when set, the last workflow run was blocked before starting
+  // because no usable AI provider was available. Cleared on the next successful run.
+  const [workflowProviderError, setWorkflowProviderError] = useState<'needs-provider' | 'ollama-unreachable' | null>(null);
 
   // Sidebar state
   const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins'>('files');
@@ -2255,14 +2260,104 @@ function App() {
     async (template: WorkflowTemplate) => {
       if (!workspaceServiceRef.current || !rootPath) return;
 
-      // Create workflow folder with timestamp
+      // Fix 4 — clear any error from a previous blocked run so that the
+      // currently-active tab (which may be a completed workflow) is not
+      // rendered as a blocking screen while this new attempt is in flight.
+      // The error is scoped to this invocation and set/cleared only here.
+      setWorkflowProviderError(null);
+
+      // Compute the folder path early so we can derive the run metadata.
+      // The folder itself is NOT created yet — we wait until provider
+      // resolution succeeds so a blocked run leaves nothing on disk (Fix 3).
       const startTime = new Date();
       const timestamp = startTime.toISOString().replace(/:/g, '-').replace(/\..+/, '').replace('T', '_');
       const workflowFolderName = `${template.name} - ${timestamp}`;
       const workflowFolderPath = `${rootPath}/${workflowFolderName}`;
 
+      // Load AI Rules if available — needed before resolution so it can be
+      // threaded into the provider constructor below.
+      let aiRulesContent: string | undefined;
       try {
-        // Create the workflow folder
+        const rulesPath = `${rootPath}/ai-rules.md`;
+        const exists = await workspaceServiceRef.current.exists(rulesPath);
+        if (exists) {
+          aiRulesContent = await workspaceServiceRef.current.readFile(rulesPath);
+        }
+      } catch (error) {
+        console.debug('No AI rules file found:', error);
+      }
+
+      // F-106/F-107 — Provider resolution for workflows.
+      //
+      // Resolution order (highest priority first):
+      //   1. Explicit per-template override (user pinned in Settings > Templates)
+      //   2. Template's own defaultProvider / defaultModel
+      //   3. Global default (first available cloud key)
+      //
+      // Safety invariants (enforced by the pure resolveWorkflowProvider helper
+      // which is unit-tested in tests/unit/workflow/):
+      //   - ollama-pinned + unreachable  → 'ollama-unreachable' (NEVER 'cloud')
+      //   - no key + !testMode           → 'needs-provider'     (NEVER 'mock')
+      //   - no key + testMode            → 'mock'
+      const anthropicKey = apiKeys.find((k) => k.provider === 'anthropic')?.key;
+      const openaiKey = apiKeys.find((k) => k.provider === 'openai')?.key;
+      const googleKey = apiKeys.find((k) => k.provider === 'google')?.key;
+
+      // Q8 — honor the template's own default provider/model plus any
+      // per-template override the user pinned in Settings.
+      const overrides =
+        (useSettingsStore.getState().getSetting<
+          Record<string, TemplateModelOverride> | undefined
+        >(TEMPLATE_MODEL_OVERRIDES_KEY) ?? {});
+      const globalProvider: TemplateProviderId = anthropicKey
+        ? 'claude'
+        : openaiKey
+          ? 'openai'
+          : googleKey
+            ? 'gemini'
+            : 'claude';
+      const resolution = resolveTemplateModel({
+        template,
+        overrides,
+        globalDefault: { provider: globalProvider, model: '' },
+      });
+
+      const pickedProvider = resolution.provider;
+      const pickedModel = resolution.model || undefined;
+
+      // F-107 — probe Ollama reachability when the template is pinned to it.
+      // We pass the result into the pure helper rather than doing the async
+      // check inside it, keeping resolveWorkflowProvider synchronous/testable.
+      let ollamaReachable = false;
+      if (pickedProvider === 'ollama') {
+        const ollamaStatus = await detectOllama();
+        ollamaReachable = ollamaStatus.reachable;
+      }
+
+      // Pure resolution — decides kind, never creates providers or side-effects.
+      const providerResolution = resolveWorkflowProvider({
+        pickedProvider,
+        pickedModel,
+        anthropicKey,
+        openaiKey,
+        googleKey,
+        ollamaReachable,
+        isTestMode: IS_TEST_MODE,
+      });
+
+      // Handle the two early-return blocking cases BEFORE creating the folder
+      // (Fix 3 — no empty folder litter on blocked runs).
+      if (providerResolution.kind === 'needs-provider') {
+        setWorkflowProviderError('needs-provider');
+        return;
+      }
+      if (providerResolution.kind === 'ollama-unreachable') {
+        setWorkflowProviderError('ollama-unreachable');
+        return;
+      }
+
+      // Provider resolution succeeded — create the workflow folder now.
+      try {
         await workspaceServiceRef.current.mkdir(workflowFolderPath);
         console.log(`Created workflow folder: ${workflowFolderName}`);
       } catch (error) {
@@ -2322,95 +2417,56 @@ function App() {
         }, 1500);
       };
 
-      // Load AI Rules if available
-      let aiRulesContent: string | undefined;
-      try {
-        const rulesPath = `${rootPath}/ai-rules.md`;
-        const exists = await workspaceServiceRef.current.exists(rulesPath);
-        if (exists) {
-          aiRulesContent = await workspaceServiceRef.current.readFile(rulesPath);
-        }
-      } catch (error) {
-        console.debug('No AI rules file found:', error);
-      }
-
-      // Use real AI provider if API key is available, otherwise use mock
-      const anthropicKey = apiKeys.find((k) => k.provider === 'anthropic')?.key;
-      const openaiKey = apiKeys.find((k) => k.provider === 'openai')?.key;
-      const googleKey = apiKeys.find((k) => k.provider === 'google')?.key;
-
-      // Q8 — honor the template's own default provider/model plus any
-      // per-template override the user pinned in Settings.
-      const overrides =
-        (useSettingsStore.getState().getSetting<
-          Record<string, TemplateModelOverride> | undefined
-        >(TEMPLATE_MODEL_OVERRIDES_KEY) ?? {});
-      const globalProvider: TemplateProviderId = anthropicKey
-        ? 'claude'
-        : openaiKey
-          ? 'openai'
-          : googleKey
-            ? 'gemini'
-            : 'claude';
-      const resolution = resolveTemplateModel({
-        template,
-        overrides,
-        globalDefault: { provider: globalProvider, model: '' },
-      });
-
+      // Provider assignment — construct the concrete Provider instance from
+      // the resolution result. All blocking cases already returned above.
       let provider;
-      const pickedProvider = resolution.provider;
-      const pickedModel = resolution.model || undefined;
-      if (pickedProvider === 'claude' && anthropicKey) {
-        provider = createClaudeProvider({
-          apiKey: anthropicKey,
-          dangerouslySkipPermissions: true,
-          ...(pickedModel ? { model: pickedModel } : {}),
+      if (providerResolution.kind === 'ollama') {
+        // F-107 — Ollama branch. Reachability confirmed above; construct the
+        // local provider. Zero cost, zero network egress.
+        provider = new OllamaProvider({
+          model: providerResolution.model ?? OLLAMA_DEFAULT_MODEL,
           ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
         });
         console.log(
-          `Using Claude API (${pickedModel ?? 'default'}) for workflow generation [source=${resolution.source}]`
+          `Using Ollama (${providerResolution.model ?? OLLAMA_DEFAULT_MODEL}) for workflow generation [source=${resolution.source}]`
         );
-      } else if (pickedProvider === 'openai' && openaiKey) {
-        provider = createOpenAIProvider({
-          apiKey: openaiKey,
-          ...(pickedModel ? { model: pickedModel } : {}),
-          ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
-        });
-        console.log(
-          `Using OpenAI API (${pickedModel ?? 'default'}) for workflow generation [source=${resolution.source}]`
-        );
-      } else if (pickedProvider === 'gemini' && googleKey) {
-        provider = createGeminiProvider({
-          apiKey: googleKey,
-          ...(pickedModel ? { model: pickedModel } : {}),
-          ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
-        });
-        console.log(
-          `Using Gemini API (${pickedModel ?? 'default'}) for workflow generation [source=${resolution.source}]`
-        );
-      } else if (anthropicKey) {
-        provider = createClaudeProvider({
-          apiKey: anthropicKey,
-          dangerouslySkipPermissions: true,
-          ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
-        });
-        console.log('Using Claude API for workflow generation (fallback — picked provider has no key)');
-      } else if (openaiKey) {
-        provider = createOpenAIProvider({
-          apiKey: openaiKey,
-          ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
-        });
-        console.log('Using OpenAI API for workflow generation (fallback)');
-      } else if (googleKey) {
-        provider = createGeminiProvider({
-          apiKey: googleKey,
-          ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
-        });
-        console.log('Using Gemini API for workflow generation (fallback)');
+      } else if (providerResolution.kind === 'cloud') {
+        const { provider: cloudProvider, model: cloudModel, key } = providerResolution;
+        if (cloudProvider === 'claude') {
+          provider = createClaudeProvider({
+            apiKey: key,
+            dangerouslySkipPermissions: true,
+            ...(cloudModel ? { model: cloudModel } : {}),
+            ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
+          });
+          console.log(
+            `Using Claude API (${cloudModel ?? 'default'}) for workflow generation [source=${resolution.source}]`
+          );
+        } else if (cloudProvider === 'openai') {
+          provider = createOpenAIProvider({
+            apiKey: key,
+            ...(cloudModel ? { model: cloudModel } : {}),
+            ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
+          });
+          console.log(
+            `Using OpenAI API (${cloudModel ?? 'default'}) for workflow generation [source=${resolution.source}]`
+          );
+        } else {
+          // gemini
+          provider = createGeminiProvider({
+            apiKey: key,
+            ...(cloudModel ? { model: cloudModel } : {}),
+            ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
+          });
+          console.log(
+            `Using Gemini API (${cloudModel ?? 'default'}) for workflow generation [source=${resolution.source}]`
+          );
+        }
       } else {
+        // mock — IS_TEST_MODE only; resolveWorkflowProvider guarantees
+        // we never reach this outside testMode.
         provider = createMockProvider();
-        console.log('No API key configured - using mock provider (documents will contain placeholder content)');
+        console.log('testMode: using mock provider (no real keys configured)');
       }
 
       const engine = createWorkflowEngine(
@@ -3471,6 +3527,8 @@ This file contains rules and guidelines for AI assistants in this workspace.
           onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
           onWorkflowExportDocx={handleWorkflowExportDocx}
           onWorkflowExportPptx={handleWorkflowExportPptx}
+          workflowProviderError={workflowProviderError}
+          onOpenSettings={() => openSettings('ai')}
           onActiveEditorChange={(ref) => {
             activeEditorRefRef.current = ref;
             const manager = pluginManagerRef.current;

@@ -603,7 +603,13 @@
       "recommended-next": "Empfohlene nächste Schritte",
       "recommended-next__sourceHash": "9580a5b0e5ea276a1543ca8cac057520d5a8cb25ffa1bb9f330814ec6b28e51f",
       "other-templates": "Weitere Vorlagen (manuelle Zuordnung erforderlich)",
-      "other-templates__sourceHash": "599c8e670df61d8404f7f80634715e120b5999db62a61b1094a994a1d126e2fe"
+      "other-templates__sourceHash": "599c8e670df61d8404f7f80634715e120b5999db62a61b1094a994a1d126e2fe",
+      "needs-provider-title": "Dieser Workflow kann noch nicht ausgefuhrt werden",
+      "needs-provider-body": "Kein KI-Anbieter ist eingerichtet. Fugen Sie einen Anbieter-Schlussel in den Einstellungen hinzu oder wahlen Sie Ihr lokales Modell.",
+      "needs-provider-action": "KI-Einstellungen offnen",
+      "ollama-unreachable-title": "Ollama lauft nicht",
+      "ollama-unreachable-body": "Diese Vorlage ist an Ihr lokales Modell geknupft und wird nicht in die Cloud gesendet. Starten Sie Ollama und versuchen Sie es erneut.",
+      "ollama-unreachable-action": "Erneut versuchen"
     },
     "panel": {
       "trial-ended-label": "Testphase beendet.",
@@ -763,7 +769,9 @@
       "trial-ended": "Ihr {{days}}-tägiger Testzeitraum ist abgelaufen.",
       "trial-ended__sourceHash": "b3991f32efe51f15cb2572a4ec0040957fdcb3258092e18bd8245fb55b2b3560",
       "trial-ended-help": "Aktivieren Sie eine Lizenz unter Einstellungen, Lizenz, um weiterhin mit KI zu chatten. Ihre vorhandenen Dateien bleiben zugänglich. Nur KI-Aufrufe und Workflows werden pausiert.",
-      "trial-ended-help__sourceHash": "c91906de6483bd05e807ca5b12d9ad0ef6341a62cbf9ffab0891e34de5cf726d"
+      "trial-ended-help__sourceHash": "c91906de6483bd05e807ca5b12d9ad0ef6341a62cbf9ffab0891e34de5cf726d",
+      "retrieval-failed-refuse": "Ich konnte Ihren Arbeitsbereich gerade nicht durchsuchen und werde daher nicht aus Ihrer Akte antworten. {{reason}} Sie konnen \"Meinen Arbeitsbereich fragen\" deaktivieren, um diese Nachricht ohne Arbeitsbereichsverankerung zu senden.",
+      "workspace-empty-refuse": "Ich habe Ihren Arbeitsbereich durchsucht und nichts Relevantes gefunden, daher werde ich nicht aus Ihrer Akte antworten. Versuchen Sie es anders zu formulieren oder deaktivieren Sie \"Meinen Arbeitsbereich fragen\", um eine allgemeine Antwort zu erhalten."
     },
     "cost-chip": {
       "today-so-far": "Heute bisher: {{cost}}",

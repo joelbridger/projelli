@@ -603,7 +603,13 @@
       "recommended-next": "Pasos siguientes recomendados",
       "recommended-next__sourceHash": "9580a5b0e5ea276a1543ca8cac057520d5a8cb25ffa1bb9f330814ec6b28e51f",
       "other-templates": "Otras plantillas (requiere mapeo manual)",
-      "other-templates__sourceHash": "599c8e670df61d8404f7f80634715e120b5999db62a61b1094a994a1d126e2fe"
+      "other-templates__sourceHash": "599c8e670df61d8404f7f80634715e120b5999db62a61b1094a994a1d126e2fe",
+      "needs-provider-title": "No puedo ejecutar este flujo de trabajo todavia",
+      "needs-provider-body": "No hay ningun proveedor de IA configurado. Agrega una clave de proveedor en Ajustes o selecciona tu modelo local.",
+      "needs-provider-action": "Abrir ajustes de IA",
+      "ollama-unreachable-title": "Ollama no esta en ejecucion",
+      "ollama-unreachable-body": "Esta plantilla esta vinculada a tu modelo local y no la enviaremos a la nube. Inicia Ollama e intentalo de nuevo.",
+      "ollama-unreachable-action": "Intentar de nuevo"
     },
     "panel": {
       "trial-ended-label": "Prueba finalizada.",
@@ -763,7 +769,9 @@
       "trial-ended": "Tu período de prueba de {{days}} días ha finalizado.",
       "trial-ended__sourceHash": "b3991f32efe51f15cb2572a4ec0040957fdcb3258092e18bd8245fb55b2b3560",
       "trial-ended-help": "Activa una licencia en Ajustes, Licencia para seguir chateando con IA. Tus archivos existentes seguirán siendo accesibles. Solo las llamadas a IA y los flujos de trabajo quedarán en pausa.",
-      "trial-ended-help__sourceHash": "c91906de6483bd05e807ca5b12d9ad0ef6341a62cbf9ffab0891e34de5cf726d"
+      "trial-ended-help__sourceHash": "c91906de6483bd05e807ca5b12d9ad0ef6341a62cbf9ffab0891e34de5cf726d",
+      "retrieval-failed-refuse": "No pude buscar en tu espacio de trabajo en este momento, por lo que no respondere desde tu asunto. {{reason}} Puedes desactivar \"Preguntar a mi espacio de trabajo\" para enviar esto sin anclaje al espacio de trabajo.",
+      "workspace-empty-refuse": "Busque en tu espacio de trabajo y no encontre nada relevante, por lo que no respondere desde tu asunto. Intenta reformular la pregunta o desactiva \"Preguntar a mi espacio de trabajo\" para obtener una respuesta general."
     },
     "cost-chip": {
       "today-so-far": "Hoy hasta ahora: {{cost}}",

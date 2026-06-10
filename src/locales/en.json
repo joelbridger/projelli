@@ -368,7 +368,13 @@
       "save-as-file": "Save as file",
       "use-as-input": "Use this as input for another template",
       "recommended-next": "Recommended next steps",
-      "other-templates": "Other templates (manual mapping required)"
+      "other-templates": "Other templates (manual mapping required)",
+      "needs-provider-title": "I can't run this workflow yet",
+      "needs-provider-body": "No AI provider is set up. Add a provider key in Settings, or pick your local model.",
+      "needs-provider-action": "Open AI Settings",
+      "ollama-unreachable-title": "Ollama isn't running",
+      "ollama-unreachable-body": "This template is pinned to your local model and I won't send it to the cloud. Start Ollama, then try again.",
+      "ollama-unreachable-action": "Try again"
     },
     "panel": {
       "trial-ended-label": "Trial ended.",
@@ -471,7 +477,9 @@
       "retry-last-message": "Retry last message",
       "copy-diagnostic": "Copy diagnostic info",
       "trial-ended": "Your {{days}}-day trial has ended.",
-      "trial-ended-help": "Activate a license in Settings, License to keep chatting with AI. Your existing files stay accessible. Only AI calls and workflows are paused."
+      "trial-ended-help": "Activate a license in Settings, License to keep chatting with AI. Your existing files stay accessible. Only AI calls and workflows are paused.",
+      "retrieval-failed-refuse": "I couldn't search your workspace just now, so I won't answer from your matter. {{reason}} You can turn off \"Ask my workspace\" to send this without workspace grounding.",
+      "workspace-empty-refuse": "I searched your workspace and found nothing relevant to that, so I won't answer from your matter. Try rephrasing, or turn off \"Ask my workspace\" to get a general answer."
     },
     "cost-chip": {
       "today-so-far": "Today so far: {{cost}}",

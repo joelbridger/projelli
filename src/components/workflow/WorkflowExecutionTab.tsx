@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { InterviewForm } from './InterviewForm';
 import {
+  AlertCircle,
   CheckCircle,
   Clock,
   Download,
@@ -18,6 +19,7 @@ import {
   FileType,
   Link as LinkIcon,
   Loader2,
+  Settings,
   XCircle,
   Zap,
 } from 'lucide-react';
@@ -63,6 +65,21 @@ export interface WorkflowExecutionTabProps {
     sourceTemplate: WorkflowTemplate,
     targetTemplate: WorkflowTemplate
   ) => void;
+  /**
+   * F-106/F-107 — when set, the run was blocked before it started because no
+   * usable AI provider is available. One of:
+   *   'needs-provider' — no cloud key AND no reachable local model; user must
+   *                      configure a provider before the workflow can run.
+   *   'ollama-unreachable' — the template is pinned to Ollama, but Ollama is
+   *                          not running. The workflow will NEVER fall back to
+   *                          a cloud key; start Ollama or change the template's
+   *                          model setting.
+   * When this prop is set the tab renders a blocking UI instead of execution
+   * state. It is mutually exclusive with a running execution.
+   */
+  providerError?: 'needs-provider' | 'ollama-unreachable';
+  /** Optional callback to open Settings (used by the provider-error UI). */
+  onOpenSettings?: () => void;
   className?: string;
 }
 
@@ -131,6 +148,8 @@ export function WorkflowExecutionTab({
   onExportPptx,
   onFileOpen,
   onStartChainFromHere,
+  providerError,
+  onOpenSettings,
   className,
 }: WorkflowExecutionTabProps) {
   const { t } = useTranslation();
@@ -260,6 +279,67 @@ export function WorkflowExecutionTab({
     : totalSteps > 0
       ? Math.round((currentStep / totalSteps) * 100)
       : 0;
+
+  // F-106/F-107 — provider-error blocking state. Render this INSTEAD of the
+  // normal execution UI when the run was refused before starting because no
+  // usable AI provider is available. This surface is the only feedback the user
+  // gets; never show a green "Complete" under this condition.
+  if (providerError) {
+    const isOllama = providerError === 'ollama-unreachable';
+    return (
+      <div
+        data-testid="workflow-provider-error"
+        data-provider-error={providerError}
+        className={cn('flex flex-col h-full overflow-x-hidden', className)}
+      >
+        {/* Header — same chrome as the normal tab so it still feels familiar */}
+        <div className="shrink-0 border-b bg-muted/30 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <Zap className="h-5 w-5 text-amber-500" />
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-semibold truncate">{template.name}</h2>
+              <p className="text-xs text-muted-foreground truncate">{template.description}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Blocking body */}
+        <div className="flex-1 flex items-center justify-center px-6 py-12">
+          <div className="max-w-sm w-full space-y-4 text-center">
+            <div className="flex justify-center">
+              <AlertCircle className="h-10 w-10 text-amber-500" />
+            </div>
+            <div>
+              <p className="font-semibold text-base">
+                {t(
+                  isOllama
+                    ? 'workflow.execution.ollama-unreachable-title'
+                    : 'workflow.execution.needs-provider-title',
+                )}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {t(
+                  isOllama
+                    ? 'workflow.execution.ollama-unreachable-body'
+                    : 'workflow.execution.needs-provider-body',
+                )}
+              </p>
+            </div>
+            {!isOllama && onOpenSettings && (
+              <Button
+                size="sm"
+                onClick={onOpenSettings}
+                className="gap-2"
+              >
+                <Settings className="h-4 w-4" />
+                {t('workflow.execution.needs-provider-action')}
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

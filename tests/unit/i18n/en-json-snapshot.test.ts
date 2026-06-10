@@ -44,7 +44,7 @@ describe('en.json structure snapshot', () => {
     const counts = namespaceCounts(en as Record<string, JsonValue>);
     expect(counts).toMatchInlineSnapshot(`
       {
-        "ai": 15,
+        "ai": 17,
         "analysis": 10,
         "app": 2,
         "audio": 1,
@@ -70,7 +70,7 @@ describe('en.json structure snapshot', () => {
         "version": 17,
         "whats-new": 4,
         "whiteboard": 1,
-        "workflow": 22,
+        "workflow": 28,
         "workspace": 12,
       }
     `);
@@ -78,7 +78,7 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    expect(flat.length).toBe(679);
+    expect(flat.length).toBe(687);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

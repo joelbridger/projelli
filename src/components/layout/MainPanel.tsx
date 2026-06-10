@@ -240,6 +240,13 @@ interface MainPanelProps {
   /** Called to export workflow output as .pptx. */
   onWorkflowExportPptx?: (content: string, suggestedName: string) => void;
   /**
+   * F-106/F-107 — when set, the workflow run was blocked because no usable AI
+   * provider is available. The WorkflowExecutionTab renders a blocking UI.
+   */
+  workflowProviderError?: 'needs-provider' | 'ollama-unreachable' | null;
+  /** Called when the user clicks "Open AI Settings" in the provider-error UI. */
+  onOpenSettings?: () => void;
+  /**
    * Stream C3 — emits whenever the focused CodeMirror EditorView ref changes
    * (file open / close, tab switch, primary editor remount). The receiver
    * (App.tsx) routes this into the PluginManager's `setActiveEditor` so
@@ -270,6 +277,8 @@ export function MainPanel({
   onWorkflowSaveAsFile,
   onWorkflowExportDocx,
   onWorkflowExportPptx,
+  workflowProviderError,
+  onOpenSettings,
   onActiveEditorChange,
 }: MainPanelProps = {}) {
   const { t } = useTranslation();
@@ -682,6 +691,8 @@ export function MainPanel({
               {...(onWorkflowExportDocx ? { onExportDocx: onWorkflowExportDocx } : {})}
               {...(onWorkflowExportPptx ? { onExportPptx: onWorkflowExportPptx } : {})}
               {...(onFileOpen ? { onFileOpen: (path: string, name: string) => { onFileOpen(path, name); } } : {})}
+              {...(workflowProviderError ? { providerError: workflowProviderError } : {})}
+              {...(onOpenSettings ? { onOpenSettings } : {})}
               className="h-full"
             />
           </div>

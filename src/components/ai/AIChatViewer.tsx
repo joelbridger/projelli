@@ -979,6 +979,45 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           workspaceHint =
             "Workspace retrieval failed; this message wasn't workspace-aware.";
         }
+
+        // F-116 — "Avianca trap" guard (throw path): if retrieval FAILED while
+        // the user had "Ask my workspace" ON, do NOT proceed to call the model
+        // and produce a confident-looking answer with no grounding. Instead,
+        // post a refusal assistant message and return WITHOUT calling the model.
+        //
+        // Rationale: the user explicitly opted into workspace-grounded answers.
+        // Silently answering from general knowledge — with a thin yellow warning
+        // — produces exactly the Avianca-style fabrication risk the feature is
+        // meant to prevent. The safe choice is to refuse until grounding works.
+        //
+        // This applies whether the failure is "browser RAG unavailable" or a
+        // genuine retrieval error. The user can turn off "Ask my workspace" to
+        // get a general (ungrounded) answer if they choose.
+        if (workspaceHint && workspaceHint.includes('retrieval failed')) {
+          // Extract a clean reason from the hint for the locale string.
+          const reason = workspaceHint;
+          const refuseText = t('ai.chat.retrieval-failed-refuse', { reason });
+
+          const userMsg: ChatMessage = {
+            role: 'user',
+            content: rawContent,
+            timestamp: new Date().toISOString(),
+            workspaceHint,
+          };
+          addMessage(chatId, userMsg);
+          setInputValue('');
+          clearDraftInput(chatId);
+
+          const assistantRefusal: ChatMessage = {
+            role: 'assistant',
+            content: refuseText,
+            timestamp: new Date().toISOString(),
+            // No sources, no scope — this is a refusal, not an answer.
+          };
+          addMessage(chatId, assistantRefusal);
+          return; // Stop — do NOT call the AI provider.
+        }
+
       }
 
       // Audit (3.0 provenance) — record the scope this AI action ran under, the
@@ -987,6 +1026,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       // exactly what was searched, which client matter it was confined to, and
       // whether privileged material was held back. Only emitted when retrieval
       // actually ran (memory on); a memory-off turn logs neither.
+      //
+      // NOTE: audit events are intentionally emitted BEFORE the empty-results
+      // guard below so that a refused turn (zero hits) is still fully auditable.
+      // The workspace WAS searched; recording that is important for defensibility.
       if (isMemoryEnabled()) {
         const auditScope: AuditScope = activeMatter
           ? { kind: 'matter', matterId: activeMatter.id, matterName: matterLabel(activeMatter) }
@@ -1017,6 +1060,42 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             topScore,
           },
         }));
+      }
+
+      // F-116 — "Avianca trap" guard (empty-results path): retrieval
+      // SUCCEEDED but returned ZERO usable sources. When "Ask my workspace"
+      // is on (matter-scoped intent), the user explicitly requested
+      // workspace-grounded answers. Proceeding to the model with an empty
+      // context block would produce an ungrounded but confident-looking
+      // answer — the same Avianca risk the throw guard above prevents.
+      //
+      // Only fire when `askWorkspaceMode` is active (matter-scoped intent
+      // has been declared). Normal chat (askWorkspaceMode=false, no @workspace
+      // tag) is completely unaffected.
+      //
+      // Audit events above have already been emitted so the refused turn is
+      // fully auditable (the workspace WAS searched; recording it matters).
+      if (askWorkspaceMode && retrievedSources.length === 0) {
+        const emptyHint = "Workspace search returned no results for this query.";
+        const refuseText = t('ai.chat.workspace-empty-refuse');
+
+        const userMsg: ChatMessage = {
+          role: 'user',
+          content: rawContent,
+          timestamp: new Date().toISOString(),
+          workspaceHint: emptyHint,
+        };
+        addMessage(chatId, userMsg);
+        setInputValue('');
+        clearDraftInput(chatId);
+
+        const assistantRefusal: ChatMessage = {
+          role: 'assistant',
+          content: refuseText,
+          timestamp: new Date().toISOString(),
+        };
+        addMessage(chatId, assistantRefusal);
+        return; // Stop — do NOT call the AI provider.
       }
     }
 
