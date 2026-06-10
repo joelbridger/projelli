@@ -696,7 +696,7 @@ git commit -m "feat(rag): visible resumable model download — model_ensure/mode
 - Modify: `src-tauri/src/commands/rag/embedder.rs` (`get_embedder`, lines 59–81)
 - Modify: `src-tauri/src/commands/rag/mod.rs` (`rag_index_workspace`, starts line ~360)
 
-- [ ] **Step 0: Small fixes from the Task 2 quality review (all in `model_download.rs`)**
+- [x] **Step 0: Small fixes from the Task 2 quality review (all in `model_download.rs`)**
 
 (i) `head_total_size()` currently uses `reqwest::Client::new()`, which has NO timeouts — on a DROP-style firewall each of the 5 sequential HEADs can hang for minutes while the UI sits on "Checking" and the single-flight guard blocks retry. Replace the client construction with:
 
@@ -745,7 +745,7 @@ git commit -m "feat(rag): visible resumable model download — model_ensure/mode
 
 Run: `cd ~/keepance/src-tauri && cargo test --lib model_download 2>&1 | tail -5` → green.
 
-- [ ] **Step 1: Gate `get_embedder` behind the presence check**
+- [x] **Step 1: Gate `get_embedder` behind the presence check**
 
 In `embedder.rs`, add the marker constant near `EMBEDDING_DIM` (line ~21):
 
@@ -795,7 +795,7 @@ Replace the body of the `get_or_try_init` closure in `get_embedder` (lines 62–
 
 (`OnceCell::get_or_try_init` does not cache failures, so a `MODEL_NOT_READY` error retries cleanly on the next call after the download completes. `warm_init` from Task 2 stays as-is.)
 
-- [ ] **Step 2: Gate `rag_index_workspace` WITHOUT consuming the activation latch**
+- [x] **Step 2: Gate `rag_index_workspace` WITHOUT consuming the activation latch**
 
 In `mod.rs`, at the very top of `pub async fn rag_index_workspace` (immediately after the function signature's opening brace, BEFORE any latch/flag logic):
 
@@ -822,7 +822,7 @@ In `mod.rs`, at the very top of `pub async fn rag_index_workspace` (immediately 
 
 If `mod.rs` does not already have `use` access to `model_download` (it will via `pub mod model_download;` + the `model_download::` path), no extra import is needed; `embedder::` is already a sibling module path used in the file.
 
-- [ ] **Step 3: Full Rust test suite**
+- [x] **Step 3: Full Rust test suite**
 
 ```bash
 cd ~/keepance/src-tauri && cargo test 2>&1 | tail -15
@@ -830,7 +830,7 @@ cd ~/keepance/src-tauri && cargo test 2>&1 | tail -15
 
 Expected: all suites PASS (was 7/7 binaries green at v3.1.0 handoff). The embedder's own `#[test]`s do not call `get_embedder`, so the gate breaks nothing.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd ~/keepance && git add src-tauri/src/commands/rag/embedder.rs src-tauri/src/commands/rag/mod.rs
@@ -1497,6 +1497,25 @@ Wiring notes for the implementer (read the surrounding effect first):
 - Import at top of file: `import { MODEL_DOWNLOAD_EVENT, modelStatus, type ModelDownloadProgress } from '@/utils/tauri-commands';` (merge into the existing tauri-commands import if present).
 - The `.catch(() => 'ready')` default keeps browser mode behavior identical to today (indexWorkspace already no-ops gracefully outside Tauri).
 - A second `rag_set_workspace` for the SAME workspace does not re-arm the latch, so the deferred `startFullIndex` firing once per activation is preserved.
+
+- [ ] **Step 1b: Mail RAG backfill on model-ready (amendment from the Task 3 quality review — closes a silent permanent gap)**
+
+Why: `mailSyncAll` fires right after OAuth connect (`src/components/settings/MailConnect.tsx:50`). On a fresh install that is exactly the window when the model is absent, and each message's `index_mail_text_internal` failure is fire-and-forget (warn log only, `src-tauri/src/commands/mail/mod.rs:756/855/953`); delta sync never re-delivers those messages. Pre-gate, the implicit download made this eventually consistent; post-gate, mail imported before model-ready would NEVER get semantic recall. The canonical encrypted bodies are local, so healing needs no network.
+
+Rust (`src-tauri/src/commands/mail/mod.rs` + `src-tauri/src/lib.rs` registration):
+- When `index_mail_text_internal` fails AND the error contains `embedder::MODEL_NOT_READY`, set a persistent one-row marker in the mail meta store (key `rag_backfill_needed` = `'1'`; use whatever key-value/meta table the mail SQLCipher db already has — read the schema first; add a tiny meta table only if none exists).
+- New `#[tauri::command] pub async fn mail_backfill_rag(...) -> Result<u32, String>`: if the marker is absent → return Ok(0) immediately (one row read; safe to call on every boot). If set → iterate all stored messages across accounts, re-run the same indexing path used during sync for each, clear the marker only after a fully successful pass, return the count. The pass must not produce duplicate chunks: verify whether the rag store's mail indexing replaces by `source_id` (delete-then-insert) — if it appends, delete that source's chunks first. If a per-message "chunks already exist" probe is cheap in the store, prefer skip-already-indexed; otherwise reindex-all-under-flag is acceptable (bounded by the marker).
+- Unit-test what is cheaply testable (marker set/clear mechanics, the contains-MODEL_NOT_READY routing); the full path is exercised in the VG-1 harness later.
+
+Frontend (same file as Step 1, `useMemoryWiring.ts`):
+- In the model-ready transition added in Step 1, after `startFullIndex()`, also `void mailBackfillRag().catch(() => {})` (add the thin wrapper in `tauri-commands.ts`: `export async function mailBackfillRag(): Promise<number> { return invoke<number>('mail_backfill_rag'); }`).
+- Also call it once on plain boot when the mount-time status is already `'ready'` (covers: user imported mail during download, then restarted before the backfill ran). The marker makes this a no-op in the common case.
+
+- [ ] **Step 1c: Small Rust hardening bundled here (from the same review)**
+- Use `{e:#}` (anyhow alternate = full chain) instead of `{e}` in the IPC `map_err` sites in `mod.rs` that wrap embed errors (grep for `format!("embed query: {e}")`, `"index_file failed: {e}"`, `"index_pdf_chunks: {e}"` — line refs ~287/597/853) and in the three mail warn-logs above, so the `model-not-ready` marker survives any future `.context()` wrapping and the logs show causes.
+- Remove the now-dead `std::fs::create_dir_all(&cache_dir).ok();` in `embedder.rs::get_embedder` (the gate guarantees the dir exists).
+- Fix the stale header NOTE in `src-tauri/tests/rag_matter_scope.rs` (it still says the first run downloads the model; under the gate the model must be pre-provisioned — say so and how: run the app once so `model_ensure` downloads, or populate `dirs::data_dir()/keepance/models/e5-small`).
+- Update Task 6's commit to include the touched Rust files (`src-tauri/src/commands/mail/mod.rs`, `src-tauri/src/commands/rag/mod.rs`, `src-tauri/src/commands/rag/embedder.rs`, `src-tauri/src/lib.rs`, `src-tauri/tests/rag_matter_scope.rs`).
 
 - [ ] **Step 2: Add the refusal helper + use it**
 
