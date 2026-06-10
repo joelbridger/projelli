@@ -45,8 +45,8 @@ Plus: the no-em-dash user-facing-copy test, light theme only, first-person-singu
 - [ ] Tag `v3.1.0`, CI release workflow green, signed artifacts + latest.json in draft release
 - [ ] Website updates staged (Firm card → real self-serve purchase once provisioning proven)
 - [ ] Launch-readiness report + notify-jameson
-- [ ] JAMESON GATES: publish release, deploy site, declare launch
-- [ ] Post-publish: Jameson 5-minute Windows spot check (icons, new-docx typing, workflow layout, upload with spaces, Open on Desktop, firm sign-in)
+- [ ] ~~JAMESON GATES~~ PRE-AUTHORIZED (Jameson, 2026-06-10, in-session): publish the v3.1.0 release, deploy the website, and deploy the firm backend automatically when the campaign completes. Backend env: LEMONSQUEEZY_WEBHOOK_SECRET from ~/.local/share/jameworld/keepance-firm-webhook-secret.env + FIRM_VARIANT_IDS=1769899, restart per backend/deploy/RUNBOOK.md. The Firm pricing card stays "Talk to us" (LS quantity mechanics remain his decision).
+- [ ] Post-publish: Jameson 5-minute Windows spot check (icons, new-docx typing, workflow layout, upload with spaces, Open on Desktop, firm sign-in) + real-card test purchase
 
 ## Jameson involvement (none until the end, unless automation loses)
 
