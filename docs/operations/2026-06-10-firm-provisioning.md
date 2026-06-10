@@ -259,3 +259,15 @@ When the first real Firm purchase completes, the following MUST be reconciled be
 **Member revocation degradation**: The e2e test suite covers share, doc convergence, and ethical wall scenarios. Member seat revocation is covered at the unit level (`backend/test/licensing.test.ts` deprovision suite) and in the `seat_revoked` audit event emission. The full UI walk-through of a revoked member losing access will be exercised in the Diane Marchetti firm persona scenario (Phase 4).
 
 Do not write any secrets or credentials in this file.
+
+---
+
+## DEPLOYED 2026-06-10 (on Jameson's explicit go)
+
+The firm backend at api.keepance.com is now running the Phase-1 code.
+- Prod DB + env backed up (`keepance-firm.sqlite.bak-*`, `/etc/keepance-firm-backend.env.bak-*`).
+- Added to `/etc/keepance-firm-backend.env`: `LEMONSQUEEZY_WEBHOOK_SECRET` (from the off-repo secret file) + `FIRM_VARIANT_IDS=1769899`.
+- `bun install` clean, `bun test` 152/152, `systemctl restart keepance-backend` → active.
+- Guarded migration applied: `webhook_events.subscription_id` column added; existing tables/data intact.
+- Verified live through the edge: `/healthz` ok; `/.well-known/seat-pubkey` ok; `POST /webhooks/lemonsqueezy` (unsigned) → 401; `POST /org/claim` (bad key) → 404 `license_key_not_found`.
+- The LemonSqueezy webhook (id 109091) will now be accepted + provision orgs on a real Firm purchase. Rollback: restore the env + DB backups and restart (see §H).
