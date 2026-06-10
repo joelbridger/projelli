@@ -846,7 +846,7 @@ git commit -m "feat(rag): embed/index paths fail fast with model-not-ready inste
 - Create: `src/hooks/useModelStatus.ts`
 - Create: `tests/unit/model-status-hook.test.tsx` (mirror the mocking style of `tests/unit/rag-status-hook.test.tsx` — read it first)
 
-- [ ] **Step 1: Add types + wrappers to `tauri-commands.ts`**
+- [x] **Step 1: Add types + wrappers to `tauri-commands.ts`**
 
 Place next to the existing RAG exports (match the file's local doc-comment style):
 
@@ -883,7 +883,7 @@ export async function modelEnsure(): Promise<string> {
 }
 ```
 
-- [ ] **Step 2: Read the existing hook test for the mock pattern**
+- [x] **Step 2: Read the existing hook test for the mock pattern**
 
 ```bash
 sed -n '1,60p' ~/keepance/tests/unit/rag-status-hook.test.tsx
@@ -891,7 +891,7 @@ sed -n '1,60p' ~/keepance/tests/unit/rag-status-hook.test.tsx
 
 Mirror exactly how it mocks `@tauri-apps/api/core` (`isTauri`) and `@tauri-apps/api/event` (`listen`).
 
-- [ ] **Step 3: Write the failing hook test**
+- [x] **Step 3: Write the failing hook test**
 
 Create `tests/unit/model-status-hook.test.tsx` (adapt mock plumbing to what Step 2 showed; the assertions below are the contract):
 
@@ -990,7 +990,7 @@ describe('useModelStatus', () => {
 });
 ```
 
-- [ ] **Step 4: Run it — must FAIL (hook doesn't exist)**
+- [x] **Step 4: Run it — must FAIL (hook doesn't exist)**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/model-status-hook.test.tsx 2>&1 | tail -5
@@ -998,7 +998,7 @@ cd ~/keepance && npx vitest run tests/unit/model-status-hook.test.tsx 2>&1 | tai
 
 Expected: FAIL resolving `@/hooks/useModelStatus`.
 
-- [ ] **Step 5: Implement the hook**
+- [x] **Step 5: Implement the hook**
 
 Create `src/hooks/useModelStatus.ts`:
 
@@ -1107,7 +1107,7 @@ export function useModelStatus(): ModelStatusSnapshot {
 }
 ```
 
-- [ ] **Step 5b: Amendments from the Task 2 quality review (apply to the hook before running tests)**
+- [x] **Step 5b: Amendments from the Task 2 quality review (apply to the hook before running tests)**
 
 (i) **Immediate `downloading` state on mount.** The engine throttles progress events to ~4 MB; on a slow link the first event after mount can be tens of seconds away, and on a stalled transfer it never comes. When the mount-time probe returns `'downloading'`, reflect it immediately instead of waiting for an event — in the `(async () => { ... })()` block, extend the status handling:
 
@@ -1141,7 +1141,7 @@ Add one test to `tests/unit/model-status-hook.test.tsx` (use `vi.useFakeTimers()
   });
 ```
 
-- [ ] **Step 6: Run the test — must PASS**
+- [x] **Step 6: Run the test — must PASS**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/model-status-hook.test.tsx 2>&1 | tail -5
@@ -1149,7 +1149,7 @@ cd ~/keepance && npx vitest run tests/unit/model-status-hook.test.tsx 2>&1 | tai
 
 Note: the test mocks `invoke` via `@tauri-apps/api/core`; `tauri-commands.ts` imports `invoke` from there, so the mock intercepts it. If the suite shows the hook never calling `model_status`, check that the dynamic `import('@tauri-apps/api/core')` inside the hook resolves the mock (it does under Vitest module mocking).
 
-- [ ] **Step 7: Typecheck + commit**
+- [x] **Step 7: Typecheck + commit**
 
 ```bash
 cd ~/keepance && npx tsc --noEmit && git add src/utils/tauri-commands.ts src/hooks/useModelStatus.ts tests/unit/model-status-hook.test.tsx
@@ -1399,9 +1399,13 @@ export function ModelDownloadCard({ status }: ModelDownloadCardProps) {
 cd ~/keepance && npx vitest run tests/unit/model-download-card.test.tsx 2>&1 | tail -5
 ```
 
-- [ ] **Step 5c: Stalled-state banner (amendment from the Task 2 quality review)**
+- [ ] **Step 5c: Stalled-state banner (amendments from the Task 2 + Task 4 quality reviews)**
 
-When `snap.stalled` is true (and state is checking/downloading/verifying), the card shows a distinct line instead of the normal body text: locale key `model-download.stalled` = "The download looks stuck. Restarting Keepance resumes it where it stopped." (hand-translate es/de + lock, same as the other keys). Keep the progress bar visible. Add one render test: stalled snapshot shows the stalled text.
+When `snap.stalled` is true (and state is checking/downloading/verifying), the card shows a distinct line instead of the normal body text: locale key `model-download.stalled` = "The download looks stuck. Restarting Keepance resumes it where it stopped." (hand-translate es/de + lock, same as the other keys). Keep the progress bar visible. **Do NOT render a Resume/retry button in the stalled state** — on a true TCP hang, `model_ensure` returns "downloading" via the single-flight guard without emitting events, so Resume would just reset the stall window and re-flag; restarting the app is the only honest remedy (the Rust flag resets and hf-hub Range-resumes the partial file). The Resume button belongs to the `error` state only. Add render tests: stalled snapshot shows the stalled text AND no resume button.
+
+- [ ] **Step 5d: Two cheap hook tests (from the Task 4 quality review; add to `tests/unit/model-status-hook.test.tsx`)**
+1. Error-then-retry: fire an `error` event carrying a message, call `retry()`, assert `state === 'checking'`, `message === null`, `stalled === false` (the error card's Resume depends on that clearing).
+2. Unmount cleanup: mirror the sibling `rag-status-hook.test.tsx` "unsubscribes on unmount" pattern (track the returned unlisten fn being called; with fake timers, also assert no watchdog tick fires after unmount).
 
 - [ ] **Step 6: Mount in App.tsx**
 
