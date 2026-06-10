@@ -26,9 +26,13 @@
 //!                source flips its exclusion in place. Includes the adversarial
 //!                case (a privileged doc that is the top hit is NOT returned).
 //!
-//! NOTE: the first run downloads the e5-small ONNX model (~120MB) into the
-//! fastembed cache; subsequent runs are offline. Model load + index build happen
-//! ONCE per binary via a shared OnceCell.
+//! NOTE: under the Option B gate the embedder NEVER downloads implicitly, so
+//! the e5-small model must be pre-provisioned before running this binary:
+//! either run the app once so `model_ensure` downloads it, or populate
+//! `dirs::data_dir()/keepance/models/e5-small` (the `writable_cache_dir()`
+//! layout) by hand. With the files absent, `embed_documents`/`embed_query`
+//! fail fast with the `model-not-ready` marker and these tests error out.
+//! Model load + index build happen ONCE per binary via a shared OnceCell.
 
 use keepance_lib::commands::rag::chunker::Chunk;
 use keepance_lib::commands::rag::store::{

@@ -27,10 +27,14 @@ import {
   setPdfIndexingEnabledReader,
   setPrivilegeResolver,
 } from '@/modules/memory/MemoryService';
-import { resolveMatterIdForPath, useMatterStore } from '@/stores/matterStore';
-import { isPathInFolder, parseMailFolderKey } from '@/modules/memory/matterResolver';
+import { getMatters, resolveMatterIdForPath, useMatterStore } from '@/stores/matterStore';
+import {
+  buildMailMatterMap,
+  isPathInFolder,
+  parseMailFolderKey,
+} from '@/modules/memory/matterResolver';
 import { UNASSIGNED_MATTER_ID } from '@/types/matter';
-import { mailRetagFolderMatter } from '@/utils/mail-commands';
+import { mailBackfillRag, mailRetagFolderMatter } from '@/utils/mail-commands';
 import {
   resolvePrivilegeForSource,
   usePrivilegeStore,
@@ -43,7 +47,10 @@ import {
   setFactsAutoAcceptReader,
 } from '@/modules/memory/factsSingleton';
 import {
+  MODEL_DOWNLOAD_EVENT,
+  modelStatus,
   watchWorkspace,
+  type ModelDownloadProgress,
   type WorkspaceChangeEvent,
 } from '@/utils/tauri-commands';
 import { mailSetWorkspace } from '@/utils/mail-commands';
@@ -254,6 +261,7 @@ export function useMemoryWiring(
     if (!rootPath) return;
 
     let unlisten: (() => void) | null = null;
+    const stopModelListeners: Array<() => void> = [];
     let cancelled = false;
 
     (async () => {
@@ -297,13 +305,41 @@ export function useMemoryWiring(
 
         // Background full-workspace index. Resolves when complete; the
         // banner / badge UI follow progress events independently.
-        void MemoryService.indexWorkspace().catch(() => {
-          /* errors are surfaced via the progress event with status: error */
-        });
-
-        // A3: if PDF indexing is enabled, also index PDF files in the workspace.
-        if (isPdfIndexingEnabled() && workspaceService) {
-          void indexWorkspacePdfs(workspaceService).catch(() => {});
+        //
+        // Option B: the index needs the embedding model. When it is still
+        // downloading (first run), wait for the model-download ready event
+        // and start then — the Rust side also refuses without consuming
+        // the once-per-activation latch, so this re-call gets a full walk.
+        const startFullIndex = () => {
+          void MemoryService.indexWorkspace().catch(() => {
+            /* errors are surfaced via the progress event with status: error */
+          });
+          // A3: if PDF indexing is enabled, also index PDF files in the workspace.
+          if (isPdfIndexingEnabled() && workspaceService) {
+            void indexWorkspacePdfs(workspaceService).catch(() => {});
+          }
+          // Option B healing: re-index any mail imported while the model was
+          // still downloading, from the local encrypted bodies. The Rust side
+          // no-ops fast when the backfill marker is absent (the common case),
+          // so this is safe to fire on every activation. The matter map scopes
+          // each backfilled message exactly as a sync would have.
+          void mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
+        };
+        const status = await modelStatus().catch(() => 'ready');
+        if (status === 'ready') {
+          startFullIndex();
+        } else {
+          const stopModelListen = await listen<ModelDownloadProgress>(
+            MODEL_DOWNLOAD_EVENT,
+            (event) => {
+              if (event.payload.state === 'ready') {
+                stopModelListen();
+                startFullIndex();
+              }
+            },
+          );
+          if (cancelled) stopModelListen();
+          else stopModelListeners.push(stopModelListen);
         }
       } catch {
         // Tauri or watcher init failed — leave memory disabled gracefully.
@@ -313,6 +349,9 @@ export function useMemoryWiring(
     return () => {
       cancelled = true;
       if (unlisten) unlisten();
+      stopModelListeners.forEach((s) => {
+        s();
+      });
     };
   }, [rootPath]);
 

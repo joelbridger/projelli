@@ -112,6 +112,9 @@ pub fn run() {
             commands::mail::mail_get_message,
             // WS-B/C — re-tag a mail folder's messages to a matter in place.
             commands::mail::mail_retag_folder_matter,
+            // Option B — heal mail RAG indexing that failed while the embedding
+            // model was still downloading (no-op when the marker is absent).
+            commands::mail::mail_backfill_rag,
             // WS-B/C — list connected mail accounts for the matter-mapping UI.
             commands::mail::mail_connected_accounts,
             // G6 — OS full-disk encryption detection + nudge in MailConnect.

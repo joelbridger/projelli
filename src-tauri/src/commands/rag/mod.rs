@@ -282,9 +282,11 @@ pub async fn rag_index_file(
     // WS-VEC: the vector-store master key — chunk text is encrypted at rest.
     let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
 
+    // {e:#} = full anyhow chain, so the typed model-not-ready marker at the
+    // root cause survives any .context() wrapping when it crosses IPC.
     index_one_file(&table, &file_path, &matter, &privilege, &key)
         .await
-        .map_err(|e| format!("index_file failed: {e}"))?;
+        .map_err(|e| format!("index_file failed: {e:#}"))?;
     Ok(())
 }
 
@@ -592,9 +594,12 @@ pub async fn rag_retrieve(
         .await
         .map_err(|e| format!("open table: {e}"))?;
 
+    // {e:#} = full anyhow chain, so the typed model-not-ready marker at the
+    // root cause survives any .context() wrapping when it crosses IPC (the
+    // frontend routes its refusal message on that marker).
     let qvec = embedder::embed_query(&query)
         .await
-        .map_err(|e| format!("embed query: {e}"))?;
+        .map_err(|e| format!("embed query: {e:#}"))?;
 
     let raw = store::nearest(
         &table,
@@ -848,9 +853,11 @@ pub async fn rag_index_pdf_chunks(
     // WS-VEC: the vector-store master key — chunk text is encrypted at rest.
     let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
 
+    // {e:#} = full anyhow chain, so the typed model-not-ready marker at the
+    // root cause survives any .context() wrapping when it crosses IPC.
     let count = pdf_indexer::index_pdf_chunks(&table, &path, &pages, page_count, &matter, &privilege, &key)
         .await
-        .map_err(|e| format!("index_pdf_chunks: {e}"))?;
+        .map_err(|e| format!("index_pdf_chunks: {e:#}"))?;
     Ok(count as u32)
 }
 

@@ -353,6 +353,210 @@ pub async fn mail_retag_folder_matter(
     Ok(retagged)
 }
 
+/// Option B healing: re-index mail that was imported while the embedding model
+/// was still downloading. During that window each message's RAG indexing fails
+/// fast (model-not-ready) and delta sync never re-delivers it, so without this
+/// pass that mail would NEVER gain semantic recall. The canonical encrypted
+/// bodies are local, so healing needs no network.
+///
+/// Cheap by design: when the persistent `rag_backfill_needed` marker is absent
+/// (the common case) this returns Ok(0) after a single row read, so the
+/// frontend can call it on every boot / model-ready transition. When the marker
+/// is set, every stored message is walked; messages that already have chunks
+/// are skipped (one `count_rows` probe each), the rest are re-run through the
+/// SAME indexing path the sync uses (`index_mail_text_internal`, which is
+/// delete-then-insert by source id, so no duplicate chunks are possible). The
+/// marker is cleared only after a fully successful pass.
+///
+/// `matter_map` is the frontend's (provider, account, folder) -> matter mapping
+/// (same shape `mail_sync_all` takes) so each backfilled message is scoped
+/// exactly as a sync would have scoped it.
+#[tauri::command]
+pub async fn mail_backfill_rag(
+    state: State<'_, MailState>,
+    matter_map: Option<Vec<MailMatterMapEntry>>,
+) -> Result<u32, String> {
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("workspace not set")?;
+
+    // Fast no-op #1: no encrypted mail DB → mail was never imported in this
+    // workspace. Returns before touching the OS keychain so an ordinary boot
+    // never creates a mail master key (or prompts for keychain access).
+    if !EncryptedMailStore::db_path(&workspace).exists() {
+        return Ok(0);
+    }
+
+    let enc_key = crate::commands::mail::crypto::get_or_create_master_key()
+        .map_err(|e| e.to_string())?;
+
+    // Fast no-op #2: marker absent → nothing to heal (one row read).
+    let ws_probe = workspace.clone();
+    let key_probe = enc_key;
+    let needed = tokio::task::spawn_blocking(move || -> anyhow::Result<bool> {
+        let store = EncryptedMailStore::open_with_key(&ws_probe, &key_probe)?;
+        Ok(store.get_meta(RAG_BACKFILL_NEEDED_KEY)?.is_some())
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| format!("read backfill marker: {e:#}"))?;
+    if !needed {
+        return Ok(0);
+    }
+
+    // The embedding model must be present, or every message would just re-fail.
+    // Bail with the typed marker; the backfill marker stays set for the next try.
+    {
+        let dir = crate::commands::rag::embedder::resolve_cache_dir();
+        let cached = tokio::task::spawn_blocking(move || {
+            crate::commands::rag::model_download::model_files_cached(&dir)
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+        if !cached {
+            return Err(format!(
+                "{}: mail RAG backfill deferred until the model downloads",
+                crate::commands::rag::embedder::MODEL_NOT_READY
+            ));
+        }
+    }
+
+    // Mutual exclusion with mail_sync_all: both delete-then-insert the same
+    // LanceDB rows, so a concurrent pass over the same message could duplicate
+    // chunks. Claim the same sync slot; if a sync is running, bail — the
+    // marker stays set and the next boot / model-ready signal retries.
+    if state
+        .is_syncing
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("a sync is already in progress".into());
+    }
+    let _sync_guard = SyncGuard(state.is_syncing.clone());
+
+    let matter_map = matter_map.unwrap_or_default();
+
+    // Collect every stored message record (empty filters are wildcards, so this
+    // spans all providers/accounts/folders).
+    let ws_list = workspace.clone();
+    let key_list = enc_key;
+    let (store, records) = tokio::task::spawn_blocking(
+        move || -> anyhow::Result<(EncryptedMailStore, Vec<store::MailRecord>)> {
+            let store = EncryptedMailStore::open_with_key(&ws_list, &key_list)?;
+            let ids = store.ids_in_folder("", "", "")?;
+            let mut records = Vec::with_capacity(ids.len());
+            for id in ids {
+                if let Some(rec) = store.get_record(&id)? {
+                    records.push(rec);
+                }
+            }
+            Ok((store, records))
+        },
+    )
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| format!("list mail records: {e:#}"))?;
+    let store = Arc::new(store);
+
+    // Open the RAG table once for the already-indexed probe below.
+    let conn = crate::commands::rag::store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let table = crate::commands::rag::store::open_or_create_table(&conn)
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+
+    let total = records.len();
+    let mut indexed = 0u32;
+    let mut failures = 0u32;
+    for rec in records {
+        let path_key = format!("mail:{}", rec.id);
+
+        // Cheap probe: skip messages that already have chunks (indexed before
+        // the model went missing, or by an earlier partial pass). This keeps
+        // repeated passes cheap even if one poison message keeps the marker set.
+        match table
+            .count_rows(Some(format!(
+                "path = '{}'",
+                crate::commands::rag::store::sql_escape(&path_key)
+            )))
+            .await
+        {
+            Ok(n) if n > 0 => continue,
+            Ok(_) => {}
+            Err(e) => {
+                // Fall through and index — worst case is an idempotent
+                // delete-then-insert for a message that was already indexed.
+                log::warn!("mail RAG backfill probe failed for {path_key}: {e}");
+            }
+        }
+
+        // Decrypt the canonical body (blocking fs + AES) off the runtime.
+        let store_read = store.clone();
+        let ws_read = workspace.clone();
+        let rel = rec.relative_path.clone();
+        let key_read = enc_key;
+        let text = match tokio::task::spawn_blocking(move || -> anyhow::Result<String> {
+            let bytes = store_read.read_blob_with_key(&rel, &ws_read, &key_read)?;
+            Ok(String::from_utf8(bytes)?)
+        })
+        .await
+        {
+            Ok(Ok(t)) => t,
+            Ok(Err(e)) => {
+                log::warn!("mail RAG backfill: read body for {path_key} failed: {e:#}");
+                failures += 1;
+                continue;
+            }
+            Err(e) => {
+                log::warn!("mail RAG backfill: join for {path_key} failed: {e}");
+                failures += 1;
+                continue;
+            }
+        };
+
+        // Same matter resolution a sync would apply for this message's folder.
+        let matter =
+            resolve_mail_matter(&matter_map, &rec.provider, &rec.account, &rec.folder_id);
+
+        match index_mail_text_internal(&workspace, &path_key, &text, &matter).await {
+            Ok(_) => indexed += 1,
+            Err(e) => {
+                log::warn!("mail RAG backfill index for {path_key} failed: {e:#}");
+                failures += 1;
+                // Everything after this would fail the same way — stop early
+                // and keep the marker (the next ready signal retries).
+                if embed_error_is_model_not_ready(&e) {
+                    return Err(format!(
+                        "{}: mail RAG backfill aborted (model became unavailable)",
+                        crate::commands::rag::embedder::MODEL_NOT_READY
+                    ));
+                }
+            }
+        }
+    }
+
+    if failures > 0 {
+        // Not a fully successful pass: keep the marker so the next pass retries
+        // the failed messages (already-indexed ones are skipped by the probe).
+        return Err(format!(
+            "mail RAG backfill: {failures} of {total} messages failed; will retry on the next start"
+        ));
+    }
+
+    // Fully successful pass → clear the marker.
+    let store_clear = store.clone();
+    tokio::task::spawn_blocking(move || store_clear.delete_meta(RAG_BACKFILL_NEEDED_KEY))
+        .await
+        .map_err(|e| format!("join: {e}"))?
+        .map_err(|e| format!("clear backfill marker: {e:#}"))?;
+
+    Ok(indexed)
+}
+
 #[tauri::command]
 pub async fn mail_begin_login() -> Result<DeviceCodePrompt, String> {
     let auth = OAuth::new(client_id());
@@ -630,6 +834,72 @@ async fn index_mail_text_internal(
     Ok(rows.len() as u32)
 }
 
+/// Marker key in the encrypted mail store's `meta` table: set when one or more
+/// messages could not be RAG-indexed during sync because the embedding model
+/// was not downloaded yet (the Option B gate). Delta sync never re-delivers
+/// those messages, so without this marker mail imported before model-ready
+/// would NEVER gain semantic recall. `mail_backfill_rag` re-indexes from the
+/// local encrypted bodies and clears the marker after a fully successful pass.
+pub const RAG_BACKFILL_NEEDED_KEY: &str = "rag_backfill_needed";
+
+/// True when an indexing error chain means "the embedding model is not
+/// downloaded yet". Matches the FULL anyhow chain (`{:#}`) because the typed
+/// marker sits at the root cause underneath `.context()` wrappers (e.g.
+/// "embed mail chunks: model-not-ready: ..."); plain Display shows only the
+/// outermost context and would lose it.
+fn embed_error_is_model_not_ready(e: &anyhow::Error) -> bool {
+    format!("{e:#}").contains(crate::commands::rag::embedder::MODEL_NOT_READY)
+}
+
+/// Persist the "mail needs a RAG backfill" marker for `workspace`. Idempotent;
+/// one row in the encrypted mail store's meta table.
+fn mark_rag_backfill_needed(
+    workspace: &std::path::Path,
+    key: &[u8; 32],
+) -> anyhow::Result<()> {
+    let store = EncryptedMailStore::open_with_key(workspace, key)?;
+    store.set_meta(RAG_BACKFILL_NEEDED_KEY, "1")
+}
+
+/// Fire-and-forget mail RAG indexing, shared by every sync `index_callback`
+/// (M365 / IMAP / Gmail). On failure it logs the FULL error chain, and when
+/// the failure is the Option B "model not downloaded yet" gate it sets the
+/// persistent backfill marker so `mail_backfill_rag` can heal this message
+/// later from its local encrypted body.
+fn spawn_mail_rag_index(
+    workspace: std::path::PathBuf,
+    path_key: String,
+    text: String,
+    matter_id: String,
+    enc_key: [u8; 32],
+) {
+    let _ = tokio::task::spawn(async move {
+        if let Err(e) =
+            index_mail_text_internal(&workspace, &path_key, &text, &matter_id).await
+        {
+            // {:#} = full anyhow chain, so the log shows root causes and the
+            // model-not-ready marker survives any .context() wrapping.
+            log::warn!("mail RAG index failed for {}: {:#}", path_key, e);
+            if embed_error_is_model_not_ready(&e) {
+                let ws = workspace.clone();
+                match tokio::task::spawn_blocking(move || {
+                    mark_rag_backfill_needed(&ws, &enc_key)
+                })
+                .await
+                {
+                    Ok(Ok(())) => {}
+                    Ok(Err(me)) => {
+                        log::warn!("mail RAG backfill marker not set: {me:#}");
+                    }
+                    Err(join) => {
+                        log::warn!("mail RAG backfill marker join failed: {join}");
+                    }
+                }
+            }
+        }
+    });
+}
+
 /// Enumerate folders then sync each to its deltaLink, emitting progress.
 ///
 /// `matter_map` is the frontend's (provider, account, folder) -> matter mapping
@@ -744,19 +1014,19 @@ async fn mail_sync_all_inner(
         let app3 = app.clone();
         let index_callback = move |id: &str, text: &str, matter_id: &str| {
             let path_key = format!("mail:{}", id);
-            let text_owned = text.to_string();
-            let ws = workspace_for_index.clone();
             // WS-B/C: the matter resolved for this folder is tagged on the chunk
             // at index time (UNASSIGNED_MATTER when the folder is not mapped).
             // WS-VEC: index_mail_text_internal fetches the vector-store key itself
             // (the RAG copy is encrypted at rest under that key, not the mail key).
-            let matter = matter_id.to_string();
-            // Fire-and-forget RAG indexing.
-            let _ = tokio::task::spawn(async move {
-                if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &matter).await {
-                    log::warn!("mail RAG index failed for {}: {}", path_key, e);
-                }
-            });
+            // Fire-and-forget RAG indexing; sets the persistent backfill marker
+            // when the embedding model is not downloaded yet (Option B healing).
+            spawn_mail_rag_index(
+                workspace_for_index.clone(),
+                path_key,
+                text.to_string(),
+                matter_id.to_string(),
+                enc_key,
+            );
             // G5: pull the subject from the frontmatter (scoped to the fenced
             // block, unquoted + unescaped) and emit the event for MiniSearch.
             let subject = frontmatter_subject(text);
@@ -846,16 +1116,16 @@ async fn mail_sync_all_inner(
             let app3 = app.clone();
             let index_callback = move |id: &str, text: &str, matter_id: &str| {
                 let path_key = format!("mail:{}", id);
-                let text_owned = text.to_string();
-                let ws = workspace_for_index.clone();
                 // WS-VEC: index_mail_text_internal fetches the vector-store key.
-                let matter = matter_id.to_string();
-                // Fire-and-forget RAG indexing.
-                let _ = tokio::task::spawn(async move {
-                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &matter).await {
-                        log::warn!("mail RAG index failed for {}: {}", path_key, e);
-                    }
-                });
+                // Fire-and-forget RAG indexing; sets the persistent backfill
+                // marker when the model is not downloaded yet (Option B healing).
+                spawn_mail_rag_index(
+                    workspace_for_index.clone(),
+                    path_key,
+                    text.to_string(),
+                    matter_id.to_string(),
+                    enc_key,
+                );
                 // G5: pull the subject from the frontmatter (scoped to the fenced
                 // block, unquoted + unescaped) and emit the event for MiniSearch.
                 let subject = frontmatter_subject(text);
@@ -944,16 +1214,16 @@ async fn mail_sync_all_inner(
             let app3 = app.clone();
             let index_callback = move |id: &str, text: &str, matter_id: &str| {
                 let path_key = format!("mail:{}", id);
-                let text_owned = text.to_string();
-                let ws = workspace_for_index.clone();
                 // WS-VEC: index_mail_text_internal fetches the vector-store key.
-                let matter = matter_id.to_string();
-                // Fire-and-forget RAG indexing.
-                let _ = tokio::task::spawn(async move {
-                    if let Err(e) = index_mail_text_internal(&ws, &path_key, &text_owned, &matter).await {
-                        log::warn!("mail RAG index failed for {}: {}", path_key, e);
-                    }
-                });
+                // Fire-and-forget RAG indexing; sets the persistent backfill
+                // marker when the model is not downloaded yet (Option B healing).
+                spawn_mail_rag_index(
+                    workspace_for_index.clone(),
+                    path_key,
+                    text.to_string(),
+                    matter_id.to_string(),
+                    enc_key,
+                );
                 // G5: pull the subject from the frontmatter (scoped to the fenced
                 // block, unquoted + unescaped) and emit the event for MiniSearch.
                 let subject = frontmatter_subject(text);
@@ -1163,5 +1433,65 @@ mod tests {
         // while `\n` (escaped newline) becomes a space.
         assert_eq!(yaml_unescape("a\\\\nb"), "a\\nb");
         assert_eq!(yaml_unescape("a\\nb"), "a b");
+    }
+
+    // Option B — mail RAG backfill marker mechanics ---------------------------
+
+    #[test]
+    fn embed_error_routing_detects_model_not_ready_through_context_chain() {
+        use super::embed_error_is_model_not_ready;
+        // Mirrors the real failure shape: the gate's bail!() root cause gets
+        // wrapped by `.context("embed mail chunks")` in
+        // index_mail_text_internal. Plain Display shows only the outermost
+        // context and LOSES the marker — that is exactly why the helper
+        // matches on the full `{:#}` chain.
+        let root = anyhow::anyhow!(
+            "{}: the search model is not downloaded yet",
+            crate::commands::rag::embedder::MODEL_NOT_READY
+        );
+        let wrapped = root.context("embed mail chunks");
+        assert!(
+            !format!("{wrapped}").contains(crate::commands::rag::embedder::MODEL_NOT_READY),
+            "Display alone must lose the marker (the premise of using the full chain)"
+        );
+        assert!(embed_error_is_model_not_ready(&wrapped));
+
+        // Unwrapped root error also routes.
+        let bare = anyhow::anyhow!(
+            "{}: indexing deferred until the model downloads",
+            crate::commands::rag::embedder::MODEL_NOT_READY
+        );
+        assert!(embed_error_is_model_not_ready(&bare));
+
+        // Other failures never set the backfill marker.
+        let other = anyhow::anyhow!("lance dataset panic").context("embed mail chunks");
+        assert!(!embed_error_is_model_not_ready(&other));
+    }
+
+    #[test]
+    fn backfill_marker_set_is_idempotent_and_clearable() {
+        use super::{mark_rag_backfill_needed, RAG_BACKFILL_NEEDED_KEY};
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x42u8; 32];
+
+        // Setting the marker creates the store (meta table included) + the row.
+        mark_rag_backfill_needed(dir.path(), &key).unwrap();
+        let store = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
+        assert_eq!(
+            store.get_meta(RAG_BACKFILL_NEEDED_KEY).unwrap().as_deref(),
+            Some("1")
+        );
+
+        // Marking again (every failed message during a sync calls this) is
+        // idempotent.
+        mark_rag_backfill_needed(dir.path(), &key).unwrap();
+        assert_eq!(
+            store.get_meta(RAG_BACKFILL_NEEDED_KEY).unwrap().as_deref(),
+            Some("1")
+        );
+
+        // mail_backfill_rag clears it after a fully successful pass.
+        store.delete_meta(RAG_BACKFILL_NEEDED_KEY).unwrap();
+        assert_eq!(store.get_meta(RAG_BACKFILL_NEEDED_KEY).unwrap(), None);
     }
 }

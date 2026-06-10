@@ -44,7 +44,7 @@ import { matterLabel } from '@/modules/memory/matterResolver';
 import { useIncludePrivileged, usePrivilegeStore } from '@/stores/privilegeStore';
 import { MatterScopeSelector } from '@/components/matter/MatterScopeSelector';
 import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
-import type { RetrievalScope } from '@/utils/tauri-commands';
+import { MODEL_NOT_READY, type RetrievalScope } from '@/utils/tauri-commands';
 import { useFileContextStore } from '@/stores/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
 import { filterByScope } from '@/utils/client-boundary';
@@ -91,6 +91,29 @@ import {
   type ChatExtractionState,
   type ProposedFact,
 } from '@/modules/memory/factsExtraction';
+
+/**
+ * Pick the refusal i18n key for a failed workspace retrieval. The
+ * model-not-ready case gets its own honest message (the model is still
+ * downloading) instead of the generic search-failed text with a raw
+ * error string in it.
+ */
+export function refusalKeyForReason(
+  reason: unknown,
+): 'ai.chat.model-not-ready-refuse' | 'ai.chat.retrieval-failed-refuse' {
+  // Tauri invoke rejections are plain strings; JS-side failures are Errors.
+  // Anything else stringifies to text that can never contain the marker, so
+  // it safely falls through to the generic refusal.
+  const text =
+    typeof reason === 'string'
+      ? reason
+      : reason instanceof Error
+        ? String(reason)
+        : '';
+  return text.includes(MODEL_NOT_READY)
+    ? 'ai.chat.model-not-ready-refuse'
+    : 'ai.chat.retrieval-failed-refuse';
+}
 
 interface APIKey {
   provider: string;
@@ -909,6 +932,10 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     const shouldRetrieve = parsed.hasCommand || askWorkspaceMode;
     let retrievedSources: WorkspaceSource[] = [];
     let workspaceHint: string | undefined;
+    // Option B: the raw retrieval error, kept separate from the user-facing
+    // hint so the refusal below can route on the `model-not-ready` marker
+    // without ever rendering the raw error string.
+    let retrievalFailure: unknown;
     // WS-B/C — resolve the retrieval scope from the active matter. Captured at
     // send time so a later rename/delete of the matter doesn't rewrite history.
     // A null active matter is the explicit cross-matter ("all matters") scope.
@@ -976,6 +1003,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           }));
         } catch (err) {
           console.error('Workspace retrieval failed:', err);
+          retrievalFailure = err;
           workspaceHint =
             "Workspace retrieval failed; this message wasn't workspace-aware.";
         }
@@ -996,7 +1024,15 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         if (workspaceHint && workspaceHint.includes('retrieval failed')) {
           // Extract a clean reason from the hint for the locale string.
           const reason = workspaceHint;
-          const refuseText = t('ai.chat.retrieval-failed-refuse', { reason });
+          // Option B: route on the RAW error (the hint is a constant string) —
+          // a model-not-ready failure gets the honest "still downloading"
+          // refusal with no reason interpolation; everything else keeps the
+          // generic refusal with the clean hint as the reason.
+          const refusalKey = refusalKeyForReason(retrievalFailure);
+          const refuseText =
+            refusalKey === 'ai.chat.model-not-ready-refuse'
+              ? t(refusalKey)
+              : t(refusalKey, { reason });
 
           const userMsg: ChatMessage = {
             role: 'user',

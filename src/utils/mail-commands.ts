@@ -65,6 +65,16 @@ export async function mailCancelSync(): Promise<void> {
   return invoke<void>('mail_cancel_sync');
 }
 
+/** Option B healing: re-index mail that was imported while the embedding model
+ *  was still downloading. No-ops fast (one marker read, returns 0) when no
+ *  backfill is needed, so it is safe to call on every boot / model-ready
+ *  transition. `matterMap` scopes each backfilled message exactly as a sync
+ *  would have. Returns the number of messages re-indexed. */
+export async function mailBackfillRag(matterMap: MailMatterMapEntry[] = []): Promise<number> {
+  if (!isTauri()) return 0;
+  return invoke<number>('mail_backfill_rag', { matterMap });
+}
+
 /** Fetch + decrypt ONE stored message for the read-only viewer. `id` may be the
  *  raw message id or a `mail:<id>` citation source id. */
 export async function mailGetMessage(id: string): Promise<MailView> {

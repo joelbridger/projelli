@@ -313,6 +313,12 @@ impl EncryptedMailStore {
         let hex_key = hex::encode(key);
         conn.execute_batch(&format!("PRAGMA key = \"x'{}'\";", hex_key))?;
 
+        // Two connections can now write concurrently (the sync loop upserts
+        // records while a spawned index task sets the `rag_backfill_needed`
+        // meta marker). Without a busy timeout the second writer fails
+        // immediately with "database is locked"; wait briefly instead.
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
+
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS messages (
                 id                   TEXT PRIMARY KEY,
@@ -326,6 +332,10 @@ impl EncryptedMailStore {
              CREATE TABLE IF NOT EXISTS folder_cursors (
                 folder_id  TEXT PRIMARY KEY,
                 cursor     TEXT NOT NULL
+            );
+             CREATE TABLE IF NOT EXISTS meta (
+                key    TEXT PRIMARY KEY,
+                value  TEXT NOT NULL
             );",
         )?;
         migrate_message_columns(&conn);
@@ -383,6 +393,37 @@ impl EncryptedMailStore {
     pub fn read_blob(&self, rel: &str) -> Result<Vec<u8>> {
         let key = crate::commands::mail::crypto::get_or_create_master_key()?;
         self.read_blob_with_key(rel, &self.workspace_root, &key)
+    }
+
+    // -- meta: tiny key-value table for persistent per-workspace flags --------
+    // (e.g. the `rag_backfill_needed` marker set when mail is imported while
+    // the embedding model is still downloading; see mail_backfill_rag.)
+
+    /// Read one meta value, or `None` if the key is not set.
+    pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
+        let c = self.conn.lock().unwrap();
+        Ok(c.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| {
+            r.get(0)
+        })
+        .ok())
+    }
+
+    /// Set (upsert) one meta value. Idempotent.
+    pub fn set_meta(&self, key: &str, value: &str) -> Result<()> {
+        let c = self.conn.lock().unwrap();
+        c.execute(
+            "INSERT INTO meta (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = ?2",
+            rusqlite::params![key, value],
+        )?;
+        Ok(())
+    }
+
+    /// Remove one meta value. No-op when absent.
+    pub fn delete_meta(&self, key: &str) -> Result<()> {
+        let c = self.conn.lock().unwrap();
+        c.execute("DELETE FROM meta WHERE key = ?1", [key])?;
+        Ok(())
     }
 }
 
@@ -643,6 +684,48 @@ mod tests {
         assert!(!blob_abs.exists(), "blob must be deleted by tombstone");
         // Idempotent: second tombstone returns None.
         assert_eq!(s.tombstone("m1").unwrap(), None);
+    }
+
+    #[test]
+    fn enc_meta_roundtrips_and_deletes() {
+        let (_d, s) = enc_store();
+        // Absent key reads as None.
+        assert_eq!(s.get_meta("rag_backfill_needed").unwrap(), None);
+        // Set + read back.
+        s.set_meta("rag_backfill_needed", "1").unwrap();
+        assert_eq!(
+            s.get_meta("rag_backfill_needed").unwrap().as_deref(),
+            Some("1")
+        );
+        // Upsert is idempotent and last-writer-wins.
+        s.set_meta("rag_backfill_needed", "1").unwrap();
+        s.set_meta("rag_backfill_needed", "2").unwrap();
+        assert_eq!(
+            s.get_meta("rag_backfill_needed").unwrap().as_deref(),
+            Some("2")
+        );
+        // Delete clears it; deleting again is a no-op.
+        s.delete_meta("rag_backfill_needed").unwrap();
+        assert_eq!(s.get_meta("rag_backfill_needed").unwrap(), None);
+        s.delete_meta("rag_backfill_needed").unwrap();
+    }
+
+    #[test]
+    fn enc_meta_survives_close_and_reopen() {
+        // The marker must be persistent: set it, close, reopen with the same
+        // key, and it must still be there (this is what makes the backfill
+        // heal across app restarts).
+        let dir = TempDir::new().unwrap();
+        let key = [0x77u8; 32];
+        {
+            let s = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
+            s.set_meta("rag_backfill_needed", "1").unwrap();
+        }
+        let s2 = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
+        assert_eq!(
+            s2.get_meta("rag_backfill_needed").unwrap().as_deref(),
+            Some("1")
+        );
     }
 
     #[test]

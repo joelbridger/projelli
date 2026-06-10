@@ -480,6 +480,7 @@
       "copy-diagnostic": "Copy diagnostic info",
       "trial-ended": "Your {{days}}-day trial has ended.",
       "trial-ended-help": "Activate a license in Settings, License to keep chatting with AI. Your existing files stay accessible. Only AI calls and workflows are paused.",
+      "model-not-ready-refuse": "Your private search engine is still downloading, so I can't search your workspace yet and won't answer from your matter. Watch the setup banner for progress, or turn off \"Ask my workspace\" to send this without workspace grounding.",
       "retrieval-failed-refuse": "I couldn't search your workspace just now, so I won't answer from your matter. {{reason}} You can turn off \"Ask my workspace\" to send this without workspace grounding.",
       "workspace-empty-refuse": "I searched your workspace and found nothing relevant to that, so I won't answer from your matter. Try rephrasing, or turn off \"Ask my workspace\" to get a general answer."
     },

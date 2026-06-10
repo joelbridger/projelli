@@ -89,7 +89,8 @@ async fn get_embedder() -> Result<Arc<TextEmbedding>> {
                     "{MODEL_NOT_READY}: the search model is not downloaded yet"
                 );
             }
-            std::fs::create_dir_all(&cache_dir).ok();
+            // (No create_dir_all here: the presence gate above guarantees the
+            // cache dir exists and is fully populated.)
             // Model load is CPU-bound and blocks the executor for a few
             // hundred ms. Hop to a dedicated blocking task so the Tauri
             // runtime stays responsive.

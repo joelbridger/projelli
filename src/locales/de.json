@@ -772,8 +772,10 @@
       "trial-ended__sourceHash": "b3991f32efe51f15cb2572a4ec0040957fdcb3258092e18bd8245fb55b2b3560",
       "trial-ended-help": "Aktivieren Sie eine Lizenz unter Einstellungen, Lizenz, um weiterhin mit KI zu chatten. Ihre vorhandenen Dateien bleiben zugänglich. Nur KI-Aufrufe und Workflows werden pausiert.",
       "trial-ended-help__sourceHash": "c91906de6483bd05e807ca5b12d9ad0ef6341a62cbf9ffab0891e34de5cf726d",
+      "model-not-ready-refuse": "Ihre private Suchmaschine wird noch heruntergeladen, daher kann ich Ihren Arbeitsbereich noch nicht durchsuchen und werde nicht aus Ihrer Akte antworten. Verfolgen Sie den Fortschritt im Einrichtungsbanner oder deaktivieren Sie \"Meinen Arbeitsbereich fragen\", um diese Nachricht ohne Arbeitsbereichsverankerung zu senden.",
       "retrieval-failed-refuse": "Ich konnte Ihren Arbeitsbereich gerade nicht durchsuchen und werde daher nicht aus Ihrer Akte antworten. {{reason}} Sie konnen \"Meinen Arbeitsbereich fragen\" deaktivieren, um diese Nachricht ohne Arbeitsbereichsverankerung zu senden.",
-      "workspace-empty-refuse": "Ich habe Ihren Arbeitsbereich durchsucht und nichts Relevantes gefunden, daher werde ich nicht aus Ihrer Akte antworten. Versuchen Sie es anders zu formulieren oder deaktivieren Sie \"Meinen Arbeitsbereich fragen\", um eine allgemeine Antwort zu erhalten."
+      "workspace-empty-refuse": "Ich habe Ihren Arbeitsbereich durchsucht und nichts Relevantes gefunden, daher werde ich nicht aus Ihrer Akte antworten. Versuchen Sie es anders zu formulieren oder deaktivieren Sie \"Meinen Arbeitsbereich fragen\", um eine allgemeine Antwort zu erhalten.",
+      "model-not-ready-refuse__locked": true
     },
     "cost-chip": {
       "today-so-far": "Heute bisher: {{cost}}",
