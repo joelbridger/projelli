@@ -51,3 +51,18 @@ Owner files: `src/App.tsx` (workflow provider chain ~2337-2414), `src/components
 - LemonSqueezy Firm min-quantity mechanics (Firm card stays "Talk to us").
 - Live multi-user .docx co-editing (post-launch increment per the spike gate).
 - Design-partner recruiting; SOC 2 / DPA execution.
+
+---
+
+## Progress
+
+### Wave A — COMPLETE + committed (2026-06-10)
+- **WP-1 (P0s):** F-106 (no silent mock/false-green), F-107 (egress-correct provider resolution, regression-locked via the new pure `resolveWorkflowProvider`; controlled-revert proven), F-116 (refuse on failed AND empty retrieval). F-117 deferred to native pass. + 2 display P2s (folder litter, cross-tab error bleed).
+- **WP-2:** F-108 (markdown→Word tables), F-112 (17 legal templates → .docx).
+- **WP-6:** F-210 (overflow-helper clip-awareness → F-201/F-202 resolved), F-005 (accordion a11y), F-007 (per-step testids), F-008 (test comment), F-011 (3.0 og-image).
+- Gates: tsc clean, 2747 vitest pass. Three commits on keepance-3.0.
+- Pre-front-run earlier: F-001 (site icons), F-003 (icns guard), F-203 (template test IDs), stale CLAUDE.md.
+
+### Wave B — pending (this turn): WP-3 (trust copy incl. F-119 name leak + matters nav F-122/F-009 + copy/UX batch) and WP-4 (integration desktop-only disclosure F-113/F-114 + firm silent-handshake F-123/F-010). Sole locale writer per wave.
+
+### Still open after Wave B → native pass (WP-5): F-116/F-117 desktop citation chips, F-126 contradiction-finder, F-127 redline round-trip, F-121 privilege exclusion, F-004 workflow+split-pane in the real WebView.
