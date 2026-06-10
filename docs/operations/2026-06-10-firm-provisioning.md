@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-10  
 **Task:** Phase 1 firm wiring, Task 5  
-**Status:** Webhook LIVE. Claim-org UI shipped (Task 5). Backend deploy pending (orchestrator gates with Jameson's release go).
+**Status:** Webhook LIVE. Claim-org UI shipped (Task 5). **Backend DEPLOYED to api.keepance.com 2026-06-10** (see the "DEPLOYED" section at the end). §3's "do not execute" gate is satisfied; that section is retained for history/rollback reference.
 
 ---
 
