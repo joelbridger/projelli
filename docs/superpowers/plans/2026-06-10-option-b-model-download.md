@@ -1166,7 +1166,7 @@ git commit -m "feat(ui): useModelStatus hook + model download command wrappers"
 - Modify: `src/App.tsx` (import block ~line 43; render next to `<RagProgressBanner />` at ~line 3366)
 - Modify: `src/locales/en.json`, `src/locales/es.json`, `src/locales/de.json`
 
-- [ ] **Step 1: Add locale strings**
+- [x] **Step 1: Add locale strings**
 
 In `src/locales/en.json`, add a sibling section near the rag/memory strings (find the `"memory"` or `"ai"` top-level section and place `"model-download"` at the same level):
 
@@ -1195,7 +1195,7 @@ done
 
 (If `lock-translation.mjs` expects a different key form, run it with no args to see usage and adapt. VOICE RULES: no em dashes anywhere in these strings; plain language.)
 
-- [ ] **Step 2: Write the failing card test**
+- [x] **Step 2: Write the failing card test**
 
 Create `tests/unit/model-download-card.test.tsx`:
 
@@ -1273,13 +1273,13 @@ describe('ModelDownloadCard', () => {
 });
 ```
 
-- [ ] **Step 3: Run it — must FAIL**
+- [x] **Step 3: Run it — must FAIL**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/model-download-card.test.tsx 2>&1 | tail -5
 ```
 
-- [ ] **Step 4: Implement the card**
+- [x] **Step 4: Implement the card**
 
 Create `src/components/memory/ModelDownloadCard.tsx` (mirrors `RagProgressBanner`'s conventions: non-modal slim banner, `status` prop override for tests, light theme via the existing token classes):
 
@@ -1393,21 +1393,21 @@ export function ModelDownloadCard({ status }: ModelDownloadCardProps) {
 }
 ```
 
-- [ ] **Step 5: Run the card test — must PASS**
+- [x] **Step 5: Run the card test — must PASS**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/model-download-card.test.tsx 2>&1 | tail -5
 ```
 
-- [ ] **Step 5c: Stalled-state banner (amendments from the Task 2 + Task 4 quality reviews)**
+- [x] **Step 5c: Stalled-state banner (amendments from the Task 2 + Task 4 quality reviews)**
 
 When `snap.stalled` is true (and state is checking/downloading/verifying), the card shows a distinct line instead of the normal body text: locale key `model-download.stalled` = "The download looks stuck. Restarting Keepance resumes it where it stopped." (hand-translate es/de + lock, same as the other keys). Keep the progress bar visible. **Do NOT render a Resume/retry button in the stalled state** — on a true TCP hang, `model_ensure` returns "downloading" via the single-flight guard without emitting events, so Resume would just reset the stall window and re-flag; restarting the app is the only honest remedy (the Rust flag resets and hf-hub Range-resumes the partial file). The Resume button belongs to the `error` state only. Add render tests: stalled snapshot shows the stalled text AND no resume button.
 
-- [ ] **Step 5d: Two cheap hook tests (from the Task 4 quality review; add to `tests/unit/model-status-hook.test.tsx`)**
+- [x] **Step 5d: Two cheap hook tests (from the Task 4 quality review; add to `tests/unit/model-status-hook.test.tsx`)**
 1. Error-then-retry: fire an `error` event carrying a message, call `retry()`, assert `state === 'checking'`, `message === null`, `stalled === false` (the error card's Resume depends on that clearing).
 2. Unmount cleanup: mirror the sibling `rag-status-hook.test.tsx` "unsubscribes on unmount" pattern (track the returned unlisten fn being called; with fake timers, also assert no watchdog tick fires after unmount).
 
-- [ ] **Step 6: Mount in App.tsx**
+- [x] **Step 6: Mount in App.tsx**
 
 Import next to the RagProgressBanner import (~line 43):
 
@@ -1422,7 +1422,7 @@ Render directly above `<RagProgressBanner />` (~line 3366):
       <RagProgressBanner />
 ```
 
-- [ ] **Step 7: Typecheck + full new-test pass + commit**
+- [x] **Step 7: Typecheck + full new-test pass + commit**
 
 ```bash
 cd ~/keepance && npx tsc --noEmit \
