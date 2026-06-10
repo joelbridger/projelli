@@ -20,6 +20,20 @@ import type {
   DocxAuthorRevisionsResult,
   DocxResolveAction,
 } from '@/types/docx';
+import { resolveWorkspacePath } from '@/modules/workspace/pathResolve';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+
+/**
+ * Resolve `path` to an absolute path using the workspace root from the store.
+ * If rootPath is null (no workspace open yet), returns the path unchanged.
+ * This ensures all native Tauri commands receive absolute paths regardless of
+ * whether the caller remembered to resolve them first.
+ */
+function toAbsoluteDocxPath(path: string): string {
+  const rootPath = useWorkspaceStore.getState().rootPath;
+  if (!rootPath) return path;
+  return resolveWorkspacePath(rootPath, path);
+}
 
 /** True when the in-house docx engine is reachable (desktop app only). */
 export function isDocxEngineAvailable(): boolean {
@@ -37,7 +51,7 @@ const BROWSER_ERROR =
  */
 export async function docxOpen(path: string): Promise<DocumentJson> {
   if (!isTauri()) throw new Error(BROWSER_ERROR);
-  return invoke<DocumentJson>('docx_open', { path });
+  return invoke<DocumentJson>('docx_open', { path: toAbsoluteDocxPath(path) });
 }
 
 /**
@@ -49,7 +63,7 @@ export async function docxSave(
   document: DocumentJson,
 ): Promise<void> {
   if (!isTauri()) throw new Error(BROWSER_ERROR);
-  await invoke('docx_save', { path, document });
+  await invoke('docx_save', { path: toAbsoluteDocxPath(path), document });
 }
 
 /**
@@ -164,7 +178,10 @@ export async function docxExportCopy(
   destPath: string,
 ): Promise<void> {
   if (!isTauri()) throw new Error(BROWSER_ERROR);
-  await invoke('docx_export_copy', { srcPath, destPath });
+  await invoke('docx_export_copy', {
+    srcPath: toAbsoluteDocxPath(srcPath),
+    destPath: toAbsoluteDocxPath(destPath),
+  });
 }
 
 /**
@@ -181,8 +198,8 @@ export async function docxExportCleanCopy(
 ): Promise<void> {
   if (!isTauri()) throw new Error(BROWSER_ERROR);
   await invoke('docx_export_clean_copy', {
-    srcPath,
-    destPath,
+    srcPath: toAbsoluteDocxPath(srcPath),
+    destPath: toAbsoluteDocxPath(destPath),
     acceptAllChanges,
   });
 }
@@ -195,5 +212,5 @@ export async function docxExportCleanCopy(
  */
 export async function docxConvertToPdf(srcPath: string): Promise<string> {
   if (!isTauri()) throw new Error(BROWSER_ERROR);
-  return invoke<string>('convert_docx_to_pdf', { inputPath: srcPath });
+  return invoke<string>('convert_docx_to_pdf', { inputPath: toAbsoluteDocxPath(srcPath) });
 }

@@ -260,7 +260,7 @@ export function countRevisions(doc: DocumentJson): number {
 
 /** All comments as an array, sorted by date ascending then id for stability. */
 export function commentList(doc: DocumentJson): DocxComment[] {
-  return Object.values(doc.comments).sort((a, b) => {
+  return Object.values(doc.comments ?? {}).sort((a, b) => {
     if (a.date !== b.date) return a.date < b.date ? -1 : 1;
     return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
   });

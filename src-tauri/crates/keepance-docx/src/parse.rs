@@ -171,13 +171,21 @@ fn parse_body(xml: &str) -> Result<Vec<BlockContent>> {
                 // (outside body: <w:document> wrapper — descend into it.)
             }
             Event::Empty(e) if in_body => {
-                // PRESERVE: an empty block-level element (rare, e.g. a bare
-                // sectPr written empty). Capture verbatim.
-                let end_pos = reader.buffer_position() as usize;
-                let _ = &e; // name not needed; span is exact
-                blocks.push(BlockContent::Raw {
-                    xml: capture_empty(xml, pos, end_pos),
-                });
+                let ln = local_name(&e);
+                if ln == "p" {
+                    // A self-closing <w:p/> is a valid empty paragraph in OOXML.
+                    // Treat it as an empty Paragraph (no inlines, no properties)
+                    // so it renders as an editable surface rather than a
+                    // preserved-content placeholder.
+                    blocks.push(BlockContent::Paragraph(Paragraph::default()));
+                } else {
+                    // PRESERVE: any other empty block-level element (sectPr,
+                    // tbl written empty, etc.) captured verbatim.
+                    let end_pos = reader.buffer_position() as usize;
+                    blocks.push(BlockContent::Raw {
+                        xml: capture_empty(xml, pos, end_pos),
+                    });
+                }
             }
             Event::End(e) if local_of(e.name()) == "body" => {
                 in_body = false;

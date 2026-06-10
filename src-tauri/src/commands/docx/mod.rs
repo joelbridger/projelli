@@ -47,7 +47,19 @@ pub type DocumentJson = Value;
 // ---------------------------------------------------------------------------
 
 /// Read `.docx` bytes from `path` and return the JSON DOM.
+///
+/// Defense in depth: if `path` is relative, reject it immediately with a clear
+/// error rather than attempting a CWD-relative read (which produces "os error 3"
+/// on Windows when the process CWD is not the workspace root).  The TS layer
+/// should always resolve paths to absolute before invoking this command, but this
+/// guard catches any future caller that forgets.
 pub fn open_to_json(path: &Path) -> Result<DocumentJson, String> {
+    if path.is_relative() {
+        return Err(format!(
+            "I could not open this document: the app passed a relative path ({}) where an absolute path is required.",
+            path.display()
+        ));
+    }
     let bytes = std::fs::read(path).map_err(|e| format!("read {}: {e}", path.display()))?;
     let opened = OpenedDocument::open_bytes(&bytes).map_err(|e| e.to_string())?;
     document_to_value(&opened.document).map_err(|e| e.to_string())
@@ -56,11 +68,23 @@ pub fn open_to_json(path: &Path) -> Result<DocumentJson, String> {
 /// Serialize the JSON DOM to `.docx` bytes, preserving the unmodeled parts of
 /// the file currently at `path` (if any). Returns the bytes to write.
 ///
+/// Defense in depth: if `path` is relative, reject it immediately with a clear
+/// error rather than writing into the process CWD (which would silently produce
+/// a stray file in an unpredictable location). The TS layer should always
+/// resolve paths to absolute before invoking this command, but this guard
+/// catches any future caller that forgets.
+///
 /// Stateless preserve-by-default: the original package is recovered by reading
 /// whatever is already at `path`. For an edit, that file is the source document
 /// whose styles/theme/etc. must survive; for a brand-new document the path does
 /// not exist and we synthesize minimal plumbing.
 pub fn save_from_json(path: &Path, document_json: Value) -> Result<Vec<u8>, String> {
+    if path.is_relative() {
+        return Err(format!(
+            "I could not save this document: the app passed a relative path ({}) where an absolute path is required.",
+            path.display()
+        ));
+    }
     let document: Document = document_from_value(document_json).map_err(|e| e.to_string())?;
 
     match std::fs::read(path) {
@@ -461,6 +485,12 @@ pub async fn docx_resolve_all(document: Value, action: String) -> Result<Documen
 /// copy as .docx" path — distinct from synthesizing a fresh package, which would
 /// drop the source's styles/theme/numbering.
 pub fn export_copy_bytes(src: &Path) -> Result<Vec<u8>, String> {
+    if src.is_relative() {
+        return Err(format!(
+            "I could not export this document: the app passed a relative path ({}) where an absolute path is required.",
+            src.display()
+        ));
+    }
     let bytes = std::fs::read(src).map_err(|e| format!("read {}: {e}", src.display()))?;
     let opened = OpenedDocument::open_bytes(&bytes).map_err(|e| e.to_string())?;
     opened.save_bytes().map_err(|e| e.to_string())
@@ -471,6 +501,12 @@ pub fn export_copy_bytes(src: &Path) -> Result<Vec<u8>, String> {
 /// tracked changes accepted + comments removed. Preserves every other unmodeled
 /// part byte-for-byte.
 pub fn export_clean_copy_bytes(src: &Path, accept_all_changes: bool) -> Result<Vec<u8>, String> {
+    if src.is_relative() {
+        return Err(format!(
+            "I could not export a clean copy: the app passed a relative path ({}) where an absolute path is required.",
+            src.display()
+        ));
+    }
     let bytes = std::fs::read(src).map_err(|e| format!("read {}: {e}", src.display()))?;
     let opened = OpenedDocument::open_bytes(&bytes).map_err(|e| e.to_string())?;
     let options = keepance_docx::ScrubOptions {
@@ -882,5 +918,114 @@ mod tests {
         let final_doc = parse_docx_bytes(&final_clean).expect("parse final clean");
         assert!(final_doc.revisions().is_empty(), "final clean copy must accept all changes");
         assert!(final_doc.comments.is_empty(), "final clean copy must remove comments");
+    }
+
+    // -----------------------------------------------------------------------
+    // Task 6: defense-in-depth — relative paths must be rejected at the native
+    // layer with a clear error, not silently resolved against the process CWD.
+    // -----------------------------------------------------------------------
+
+    /// `open_to_json` must return an error (not attempt a CWD-relative read)
+    /// when given a relative path.  This is the last-resort guard that catches
+    /// any future TS caller that forgets to call `resolveWorkspacePath` first.
+    #[test]
+    fn open_to_json_rejects_relative_path() {
+        let rel = std::path::Path::new("docs/The Supreme Court.docx");
+        let result = open_to_json(rel);
+        assert!(result.is_err(), "relative path must be rejected by open_to_json");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("absolute path"),
+            "error message must contain 'absolute path'; got: {err}"
+        );
+    }
+
+    /// `open_to_json` must proceed past the relative-path guard for an absolute path
+    /// (even if the file does not exist — the error changes to "read ... No such file").
+    #[test]
+    fn open_to_json_accepts_absolute_path() {
+        // Use a path that is absolute but does not exist — we just want to confirm
+        // the relative-path guard does NOT fire for an absolute path.
+        let abs = std::path::Path::new("/nonexistent/absolute/path/file.docx");
+        let result = open_to_json(abs);
+        // Must be Err (file doesn't exist) but NOT the "relative path" error.
+        assert!(result.is_err(), "non-existent file must still error");
+        let err = result.unwrap_err();
+        assert!(
+            !err.contains("relative path"),
+            "an absolute path must NOT trigger the relative-path guard; got: {err}"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Item 5: defense-in-depth — relative paths must be rejected on the WRITE
+    // side too (save_from_json, export_copy_bytes, export_clean_copy_bytes).
+    // A relative path on the write path would silently create a stray file in
+    // the process CWD rather than returning a clear error to the user.
+    // -----------------------------------------------------------------------
+
+    /// `save_from_json` rejects a relative path with a clear first-person error.
+    #[test]
+    fn save_from_json_rejects_relative_path() {
+        let rel = std::path::Path::new("docs/matter.docx");
+        let json = serde_json::json!({
+            "formatVersion": 1,
+            "body": [],
+            "comments": {}
+        });
+        let result = save_from_json(rel, json);
+        assert!(result.is_err(), "relative path must be rejected by save_from_json");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("absolute path"),
+            "error must mention 'absolute path'; got: {err}"
+        );
+    }
+
+    /// `save_from_json` proceeds past the guard for an absolute path (the path
+    /// may not exist — the error then changes to "parse" / "synthesize", not a
+    /// relative-path error).
+    #[test]
+    fn save_from_json_accepts_absolute_path() {
+        let abs = std::path::Path::new("/nonexistent/path/matter.docx");
+        // The body is valid JSON — only the path is tested here.
+        let json = keepance_docx::document_to_value(&keepance_docx::fixture::build_fixture_model()).unwrap();
+        let result = save_from_json(abs, json);
+        // Must be Err (file doesn't exist → synthesize path, which may succeed
+        // or error on write, but NOT on the relative-path guard).
+        // We only assert that the relative-path guard did NOT fire.
+        if let Err(ref err) = result {
+            assert!(
+                !err.contains("relative path"),
+                "an absolute path must NOT trigger the relative-path guard; got: {err}"
+            );
+        }
+        // (If it somehow succeeds by writing to a nonexistent path, that's fine too.)
+    }
+
+    /// `export_copy_bytes` rejects a relative path with a clear first-person error.
+    #[test]
+    fn export_copy_bytes_rejects_relative_path() {
+        let rel = std::path::Path::new("docs/matter.docx");
+        let result = export_copy_bytes(rel);
+        assert!(result.is_err(), "relative path must be rejected by export_copy_bytes");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("absolute path"),
+            "error must mention 'absolute path'; got: {err}"
+        );
+    }
+
+    /// `export_clean_copy_bytes` rejects a relative path with a clear first-person error.
+    #[test]
+    fn export_clean_copy_bytes_rejects_relative_path() {
+        let rel = std::path::Path::new("docs/matter.docx");
+        let result = export_clean_copy_bytes(rel, false);
+        assert!(result.is_err(), "relative path must be rejected by export_clean_copy_bytes");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("absolute path"),
+            "error must mention 'absolute path'; got: {err}"
+        );
     }
 }

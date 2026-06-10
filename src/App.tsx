@@ -85,6 +85,7 @@ import { createClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { createOpenAIProvider } from '@/modules/models/OpenAIProvider';
 import { createGeminiProvider } from '@/modules/models/GeminiProvider';
 import { FileSystemWatcher, createFileTreeSnapshot } from '@/modules/workspace/FileSystemWatcher';
+import { resolveWorkspacePath } from '@/modules/workspace/pathResolve';
 import {
   Dialog,
   DialogContent,
@@ -2109,8 +2110,14 @@ function App() {
     async (files: FileList, targetFolder?: string) => {
       if (!workspaceServiceRef.current || !rootPath) return;
 
-      // Use targetFolder if provided, otherwise upload to root
-      const uploadPath = targetFolder || rootPath;
+      // Use targetFolder if provided, otherwise upload to root.
+      // Always resolve to an absolute path: when targetFolder is a
+      // workspace-relative folder (e.g. "docs"), the constructed filePath would
+      // be relative ("docs/file.docx").  Native Tauri commands (docx_open, etc.)
+      // receive paths via invoke() and call std::fs::read(path) directly —
+      // a relative path resolves against the Rust process CWD, not the
+      // workspace root, causing "os error 3" on Windows.
+      const uploadPath = resolveWorkspacePath(rootPath, targetFolder || rootPath);
 
       for (const file of Array.from(files)) {
         const filePath = `${uploadPath}/${file.name}`;
@@ -2134,6 +2141,7 @@ function App() {
       setFileTree(fileTree);
 
       // UX-33: open the last uploaded file so the user sees it immediately.
+      // Pass the absolute path so native commands (docx_open, etc.) can read it.
       const uploaded = Array.from(files);
       if (uploaded.length > 0) {
         const last = uploaded[uploaded.length - 1]!;

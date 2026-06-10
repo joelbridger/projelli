@@ -11,6 +11,19 @@
 // through the same code path the rest of the Tauri API uses.
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { resolveWorkspacePath } from '@/modules/workspace/pathResolve';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
+
+/**
+ * Resolve `path` to an absolute workspace path using the active workspace root.
+ * Mirrors `toAbsoluteDocxPath` in docx-commands.ts — kept separate so
+ * tauri-commands.ts doesn't depend on docx-commands.ts (different concern).
+ */
+function toAbsoluteWorkspacePath(path: string): string {
+  const rootPath = useWorkspaceStore.getState().rootPath;
+  if (!rootPath) return path;
+  return resolveWorkspacePath(rootPath, path);
+}
 
 /**
  * Detect whether LibreOffice (`soffice`) is installed on the user's system.
@@ -37,7 +50,7 @@ export async function convertDocToDocx(inputPath: string): Promise<string> {
   if (!isTauri()) {
     throw new Error('Conversion is only available in the desktop app.');
   }
-  return invoke<string>('convert_doc_to_docx', { inputPath });
+  return invoke<string>('convert_doc_to_docx', { inputPath: toAbsoluteWorkspacePath(inputPath) });
 }
 
 /**
@@ -55,7 +68,7 @@ export async function convertPptToPdf(inputPath: string): Promise<string> {
   if (!isTauri()) {
     throw new Error('PowerPoint preview is only available in the desktop app.');
   }
-  return invoke<string>('convert_ppt_to_pdf', { inputPath });
+  return invoke<string>('convert_ppt_to_pdf', { inputPath: toAbsoluteWorkspacePath(inputPath) });
 }
 
 // --------------------------------------------------------------------

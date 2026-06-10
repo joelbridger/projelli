@@ -12,6 +12,7 @@
 
 import mammoth from 'mammoth';
 import { renderAsync } from 'docx-preview';
+import JSZip from 'jszip';
 import {
   AlignmentType,
   BorderStyle,
@@ -526,11 +527,71 @@ function textRunProps(fmt: TextFormatting): TextRunProps {
 }
 
 /**
- * Create a blank `.docx` with a single empty paragraph. Used by the
+ * Create a blank `.docx` with a single empty paragraph.  Used by the
  * "New Word document" entry in the file-tree create menu.
+ *
+ * Implementation note: we build a minimal OOXML package by hand (via JSZip)
+ * rather than going through the `docx` JS library.  The `docx` library's
+ * Packer emits a body-level <w:sectPr> (section-properties element) inside
+ * <w:body>.  The in-house Rust engine captures every non-<w:p> block in the
+ * body as a BlockContent::Raw, which the DocxEditor renders as a read-only
+ * "[preserved content]" placeholder.  For a brand-new blank document the user
+ * must see an editable surface immediately, so the body must contain only a
+ * single <w:p/> and nothing else.  When the Rust engine saves the document for
+ * the first time it appends its own minimal <w:sectPr/> — but by that point the
+ * user has already placed their cursor and started typing.
  */
 export async function createBlankDocx(): Promise<Uint8Array> {
-  return serializeDocx('<p></p>', 'blank.docx');
+  const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
+  const DOC_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+
+  // Minimal word/document.xml: one empty paragraph (non-self-closing so the
+  // Rust parser sees Event::Start, not Event::Empty), no body-level sectPr.
+  const documentXml =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<w:document xmlns:w="${W_NS}">` +
+    `<w:body><w:p><w:r><w:t></w:t></w:r></w:p></w:body>` +
+    `</w:document>`;
+
+  // Minimal package plumbing.
+  const contentTypesXml =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
+    `<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>` +
+    `<Default Extension="xml" ContentType="application/xml"/>` +
+    `<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>` +
+    `</Types>`;
+
+  const rootRelsXml =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Relationships xmlns="${REL_NS}">` +
+    `<Relationship Id="rId1" Type="${DOC_REL}" Target="word/document.xml"/>` +
+    `</Relationships>`;
+
+  const wordRelsXml =
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+    `<Relationships xmlns="${REL_NS}"/>`;
+
+  // DETERMINISTIC: pass a fixed date to every zip.file() call so JSZip does not
+  // embed the current wall-clock time in the local-file-header timestamps.
+  // Without this the output bytes differ on every call, making the fixture test
+  // non-deterministic and the sha256 stability check impossible.
+  const FIXED_DATE = new Date('2026-01-01T00:00:00Z');
+
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', contentTypesXml, { date: FIXED_DATE });
+  zip.file('_rels/.rels', rootRelsXml, { date: FIXED_DATE });
+  zip.file('word/document.xml', documentXml, { date: FIXED_DATE });
+  zip.file('word/_rels/document.xml.rels', wordRelsXml, { date: FIXED_DATE });
+
+  // Use STORE (no compression) so the output bytes are identical across all
+  // JavaScript environments (Node, jsdom, browser). DEFLATE output can differ
+  // between pako (jsdom/browser) and Node's native zlib even for the same
+  // input, making the byte-stable fixture test impossible to satisfy.
+  // A minimal blank docx is tiny; the size difference is negligible.
+  const blob = await zip.generateAsync({ type: 'uint8array', compression: 'STORE' });
+  return blob;
 }
 
 // ---------------------------------------------------------------------------

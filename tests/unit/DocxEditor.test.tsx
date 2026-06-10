@@ -118,6 +118,43 @@ describe('DocxEditor — rendering', () => {
     invokeMock.mockReset();
   });
 
+  // Task 5 — blank doc must open as an editable surface, not as a preserved-content
+  // placeholder.  A blank document body contains exactly one empty paragraph with no
+  // raw blocks, so the editor must not render any `docx-raw-block` element.
+  it('blank doc (one empty paragraph, no raw blocks) renders no preserved-content placeholder', async () => {
+    // No `comments` field: proves the defensive fix in commentList()
+    // (doc.comments ?? {}) so it no longer crashes when undefined.
+    const blankDoc = {
+      formatVersion: 1,
+      body: [
+        {
+          kind: 'paragraph',
+          inlines: [],
+        },
+      ],
+    } as DocumentJson;
+
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'docx_open' ? Promise.resolve(blankDoc) : Promise.resolve(undefined),
+    );
+
+    renderEditor();
+
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith('docx_open', {
+        path: '/ws/agreement.docx',
+      }),
+    );
+
+    // The editor must be present and in edit mode (not message/error mode).
+    const editorRoot = await screen.findByTestId('docx-editor');
+    expect(editorRoot).toBeInTheDocument();
+    expect(editorRoot).not.toHaveAttribute('data-mode', 'message');
+
+    // No raw/preserved blocks: the "[preserved content]" placeholder must be absent.
+    expect(screen.queryByTestId('docx-raw-block')).not.toBeInTheDocument();
+  });
+
   it('opens via docx_open and renders runs, insertions, deletions, comments', async () => {
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === 'docx_open') return Promise.resolve(docWithRevisions());
