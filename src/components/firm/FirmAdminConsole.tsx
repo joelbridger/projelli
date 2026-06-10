@@ -17,11 +17,10 @@
  *     known from the email-to-user mapping cache; falls back to user_id).
  *   - All strings moved to i18n (firm.admin namespace).
  *
- * NOTE: There is no GET /org/users list endpoint in the backend contract. We
- * maintain a local cache (email -> user_id) populated when we create users or
- * invite members. For users that already exist and were not created by this
- * admin, we show their user_id. This is the correct behavior per the plan:
- * "show user_id with the email when known and note the gap in your report."
+ * NOTE: The /org/users/list endpoint (listOrgUsers) is used to seed the local
+ * email -> user_id cache on load. For users that existed before this admin
+ * session opened, their emails appear via the server response. For any user not
+ * yet in the cache, we fall back to showing their truncated user_id.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -43,6 +42,7 @@ import { cn } from '@/lib/utils';
 import { useFirm } from '@/hooks/useFirm';
 import { useFirmStore } from '@/stores/firmStore';
 import { publishMatterKeyToMembers } from '@/modules/firm/matterKeyService';
+import { AuditService } from '@/modules/audit/AuditService';
 import type {
   FirmMatter,
   MatterMembersResponse,
@@ -51,6 +51,8 @@ import type {
   ManagedKeyInfo,
   OrgUserEntry,
 } from '@/modules/firm/contract';
+
+const audit = new AuditService('firm');
 
 const ASSURED_PROVIDERS: AssuredProvider[] = ['anthropic', 'openai', 'google'];
 
@@ -201,8 +203,9 @@ export function FirmAdminConsole() {
       if (cachedUserId) {
         userId = cachedUserId;
       } else {
-        // Try creating the user. If 409, the user already exists but we can't
-        // resolve their user_id without a list endpoint in the backend contract.
+        // Try creating the user. If 409, the user already exists. The
+        // listOrgUsers call on mount should have seeded the cache; a 409
+        // here means the user was created after this session loaded.
         tmpPwd = generateTempPassword();
         try {
           const createRes = await client.createUser(email, tmpPwd);
@@ -213,7 +216,7 @@ export function FirmAdminConsole() {
           const httpStatus = (createErr as { status?: number }).status;
           if (httpStatus === 409) {
             throw new Error(
-              `${email} already has an account but I can't look up their ID without a list-users API. Check the user management panel or ask them to sign in to get their user ID.`,
+              t('firm.admin.invite-user-exists', { email }),
             );
           }
           throw createErr;
@@ -246,7 +249,7 @@ export function FirmAdminConsole() {
 
       await loadMembers(matterId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invite failed.');
+      setError(err instanceof Error ? err.message : t('firm.admin.invite-failed'));
     } finally {
       setBusy(false);
     }
@@ -267,11 +270,21 @@ export function FirmAdminConsole() {
     if (!email) return;
     const userId = emailToUserId[email];
     if (!userId) {
-      setError(`No user ID found for ${email}. Invite them first to populate the cache.`);
+      setError(t('firm.admin.wall-user-not-found', { email }));
       return;
     }
     await run(async () => {
       await getClient().setWall(matterId, userId);
+      audit.append({
+        type: 'wall_set_from_manager',
+        timestamp: new Date().toISOString(),
+        payload: {
+          matter_id: matterId,
+          firm_matter_id: matterId,
+          target_user_id: userId,
+          detail: `wall raised for ${email}`,
+        },
+      });
       setWallEmail('');
       await loadMembers(matterId);
     }, t('firm.admin.wall-ok'));
@@ -437,7 +450,7 @@ export function FirmAdminConsole() {
               onClick={() => void handleRepublishKeys(selectedMatter)}
             >
               <RefreshCw className="h-3.5 w-3.5" />
-              Re-publish keys to all member devices
+              {t('firm.admin.republish-keys-action')}
             </Button>
 
             {/* Temp password shown once after creating a new user */}
@@ -613,6 +626,16 @@ export function FirmAdminConsole() {
                   onClick={() =>
                     void run(async () => {
                       await getClient().revokeSeat(s.seat_id, 'admin_revoke');
+                      audit.append({
+                        type: 'seat_revoked',
+                        timestamp: new Date().toISOString(),
+                        payload: {
+                          seat_id: s.seat_id,
+                          ...(firm.org?.org_id ? { org_id: firm.org.org_id } : {}),
+                          reason: 'admin_revoke',
+                          detail: `revoked seat ${s.seat_id.slice(0, 12)} (${s.machine_label ?? 'unnamed'})`,
+                        },
+                      });
                       await loadSeats();
                     }, t('firm.admin.revoke-seat-ok'))
                   }

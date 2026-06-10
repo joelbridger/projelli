@@ -266,9 +266,13 @@ CREATE INDEX IF NOT EXISTS idx_wmk_matter_epoch ON wrapped_matter_keys(matter_id
 CREATE INDEX IF NOT EXISTS idx_wmk_user ON wrapped_matter_keys(user_id);
 
 -- LemonSqueezy webhook idempotency: prevents double-processing the same event.
+-- subscription_id column + index are added via guarded migration in the Store
+-- constructor (see below) so a DB created from the pre-subscription_id schema
+-- does not crash-loop on boot.
 CREATE TABLE IF NOT EXISTS webhook_events (
-  event_id     TEXT PRIMARY KEY,  -- LS event id (from meta.webhook_id or similar)
-  processed_at TEXT NOT NULL
+  event_id        TEXT PRIMARY KEY,  -- LS event id (from meta.webhook_id or similar)
+  processed_at    TEXT NOT NULL
+  -- subscription_id added by migration; do not add here (breaks old schemas)
 );
 `;
 
@@ -389,6 +393,19 @@ export class Store {
     this.db.exec("PRAGMA busy_timeout = 5000;");
     this.db.exec("PRAGMA synchronous = NORMAL;");
     this.db.exec(SCHEMA);
+
+    // Guarded migration: add subscription_id column + partial unique index to
+    // webhook_events if they were not present in the schema when the DB was
+    // created. A DB built from the pre-migration SCHEMA lacks this column and
+    // would crash-loop if the index DDL ran unconditionally at schema init time.
+    const cols = this.db.query("PRAGMA table_info(webhook_events)").all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === "subscription_id")) {
+      this.db.exec("ALTER TABLE webhook_events ADD COLUMN subscription_id TEXT");
+    }
+    this.db.exec(
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_webhook_events_subscription_id
+       ON webhook_events (subscription_id) WHERE subscription_id IS NOT NULL`,
+    );
   }
 
   close(): void {
@@ -1382,6 +1399,35 @@ export class Store {
     const existing = this.db.query(`SELECT 1 FROM webhook_events WHERE event_id = ?`).get(eventId);
     if (existing) return false;
     this.db.query(`INSERT INTO webhook_events (event_id, processed_at) VALUES (?, ?)`).run(eventId, this.nowIso());
+    return true;
+  }
+
+  /**
+   * Record a processed webhook event with an optional subscription identifier
+   * for second-level deduplication. Returns false if:
+   *   - the event_id already exists (retry of the same delivery), OR
+   *   - the subscriptionId already appears in another row (same subscription
+   *     delivered twice under different webhook_ids, e.g. subscription_created
+   *     and order_created for the same purchase).
+   * When the subscription_id constraint fires, returns false so the caller
+   * skips provisioning without treating it as an error.
+   */
+  recordWebhookEventWithSubscription(eventId: string, subscriptionId: string | null): boolean {
+    // First-level: duplicate event_id.
+    const byEventId = this.db.query(`SELECT 1 FROM webhook_events WHERE event_id = ?`).get(eventId);
+    if (byEventId) return false;
+    // Second-level: same subscription delivered under a different webhook_id.
+    if (subscriptionId) {
+      const bySubId = this.db.query(
+        `SELECT 1 FROM webhook_events WHERE subscription_id = ?`,
+      ).get(subscriptionId);
+      if (bySubId) return false;
+    }
+    this.db
+      .query(
+        `INSERT INTO webhook_events (event_id, processed_at, subscription_id) VALUES (?, ?, ?)`,
+      )
+      .run(eventId, this.nowIso(), subscriptionId ?? null);
     return true;
   }
 

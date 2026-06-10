@@ -15,16 +15,19 @@
 
 import { useEditorStore } from '@/stores/editorStore';
 import { useMatterStore } from '@/stores/matterStore';
+import i18n from '@/i18n';
 
 /**
  * Open or focus the shared notes surface for a matter.
  *
  * If the tab is already open, this focuses it without re-creating it.
- * If the matter does not exist or is not shared, this is a no-op.
+ * If the matter does not exist, or is not shared with a firm, this is a
+ * no-op. Opening notes for an unshared matter makes no sense: there is no
+ * firm matter ID to sync against.
  */
 export function openMatterNotes(localMatterId: string): void {
   const matter = useMatterStore.getState().matters.find((m) => m.id === localMatterId);
-  if (!matter) return;
+  if (!matter || !matter.shared || !matter.firmMatterId) return;
 
   const tabPath = `matter-notes:/${localMatterId}`;
   const { openTabs, setActiveTab, openTab } = useEditorStore.getState();
@@ -36,10 +39,13 @@ export function openMatterNotes(localMatterId: string): void {
     return;
   }
 
+  // i18n: tab title uses the matter.notes.tab-title key; no em dash.
+  const tabTitle = i18n.t('matter.notes.tab-title', { name: matter.name });
+
   // Open a new notes tab.
   openTab(
     tabPath,
-    `${matter.name} — Shared notes`,
+    tabTitle,
     '', // Notes content is managed by the Yjs doc, not the tab content field.
     'file',
   );

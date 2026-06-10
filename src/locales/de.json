@@ -1028,6 +1028,7 @@
       "firm-invite-error": "Konnte {{email}} nicht einladen. {{error}}",
       "firm-remove-error": "Konnte dieses Mitglied nicht entfernen. {{error}}",
       "firm-leave-error": "Konnte das Teilen nicht beenden. {{error}}",
+      "firm-invite-user-exists": "{{email}} hat bereits ein Konto. Verwenden Sie die Administratorkonsole, um die Person hinzuzufugen, oder bitten Sie sie, eine Einladung anzunehmen.",
       "open-notes-action": "Geteilte Notizen offnen"
     },
     "sync": {
@@ -1039,9 +1040,12 @@
     },
     "notes": {
       "title": "Geteilte Notizen",
+      "tab-title": "{{name}}: Geteilte Notizen",
       "subtitle": "Alle in diesem Mandat sehen diese Notizen. Sie werden in Echtzeit synchronisiert.",
       "no-access": "Ich kann diese Notizen noch nicht laden.",
       "no-access-hint": "Bitten Sie Ihren Kanzleiadministrator, den Zugriff mit diesem Gerat zu teilen.",
+      "loading": "Geteilte Notizen laden...",
+      "not-found": "Mandat nicht gefunden.",
       "status-live": "Live",
       "status-connecting": "Verbinde",
       "status-catching-up": "Synchronisiere",
@@ -1133,7 +1137,11 @@
       "no-keys": "Keine verwalteten Schlussel konfiguriert.",
       "delete-key-action": "Schlussel loschen",
       "delete-key-ok": "Verwalteter Schlussel geloscht.",
-      "user-id-fallback": "Benutzer {{id}}"
+      "user-id-fallback": "Benutzer {{id}}",
+      "republish-keys-action": "Schlussel fur alle Mitgliedsgerate erneut veroffentlichen",
+      "invite-user-exists": "{{email}} hat bereits ein Konto. Verwenden Sie die Administratorkonsole, um die Person hinzuzufugen, oder bitten Sie sie, eine Einladung anzunehmen.",
+      "invite-failed": "Einladung fehlgeschlagen.",
+      "wall-user-not-found": "Keine Benutzer-ID fur {{email}} gefunden. Laden Sie die Person zuerst ein, damit ihre ID im Cache gespeichert wird."
     }
   },
   "media": {

@@ -39,6 +39,7 @@ import {
   Share2,
   Users2,
   KeyRound as KeyIcon,
+  UserX,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/types/audit';
 import { EmptyState } from './EmptyState';
@@ -91,6 +92,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   member_removed: Users2,
   wall_set_from_manager: ShieldOff,
   key_published: KeyIcon,
+  seat_revoked: UserX,
 };
 
 const ACTION_LABELS: Record<AuditActionType, string> = {
@@ -119,6 +121,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   member_removed: 'Member Removed',
   wall_set_from_manager: 'Ethical Wall Set',
   key_published: 'Key Published',
+  seat_revoked: 'Seat Revoked',
 };
 
 const ACTION_COLORS: Record<AuditActionType, string> = {
@@ -147,6 +150,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   member_removed: 'text-orange-600',
   wall_set_from_manager: 'text-amber-700',
   key_published: 'text-sky-600',
+  seat_revoked: 'text-rose-700',
 };
 
 export function AuditLog({

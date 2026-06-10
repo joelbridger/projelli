@@ -109,9 +109,16 @@ export async function handleLemonSqueezyWebhook(req: Request, store: Store): Pro
 
   if (!eventId) return error("missing_event_id", 400, "meta.webhook_id is required");
 
-  // We only care about subscription_created and order_created.
-  const handled = eventName === "subscription_created" || eventName === "order_created";
-  if (!handled) {
+  // Webhook 109091 is configured for BOTH subscription_created and
+  // order_created. One purchase fires BOTH events. We provision ONLY on
+  // subscription_created; order_created is acknowledged as a no-op so the
+  // same purchase never provisions two orgs.
+  if (eventName === "order_created") {
+    // Acknowledge gracefully — no provisioning for order_created.
+    return json({ ok: true, ignored: true, reason: "order_created_no_provision" });
+  }
+
+  if (eventName !== "subscription_created") {
     // Unhandled event type: acknowledge gracefully.
     return json({ ok: true, ignored: true, reason: "event_type_not_handled" });
   }
@@ -121,9 +128,8 @@ export async function handleLemonSqueezyWebhook(req: Request, store: Store): Pro
   const attrs = (data.attributes ?? {}) as Record<string, unknown>;
 
   // LS subscription_created: first_subscription_item has variant_id + variant_name.
-  // LS order_created: first_order_item has variant_id + variant_name.
   const firstItem = (
-    (attrs.first_subscription_item ?? attrs.first_order_item) as Record<string, unknown> | undefined
+    (attrs.first_subscription_item as Record<string, unknown> | undefined)
   ) ?? {};
   const variantId = (firstItem.variant_id as string | number | null) ?? null;
   const variantName = (firstItem.variant_name as string | null) ?? null;
@@ -132,8 +138,12 @@ export async function handleLemonSqueezyWebhook(req: Request, store: Store): Pro
     return json({ ok: true, ignored: true, reason: "non_firm_product" });
   }
 
-  // Idempotency: skip if already processed.
-  const isNew = store.recordWebhookEvent(eventId);
+  // Derive the subscription identifier for second-level idempotency.
+  // LS subscription_created: data.id is the subscription resource id.
+  const subscriptionId = (data.id as string) ?? null;
+
+  // Idempotency: skip if already processed (by event_id OR subscription_id).
+  const isNew = store.recordWebhookEventWithSubscription(eventId, subscriptionId);
   if (!isNew) {
     return json({ ok: true, duplicate: true });
   }
@@ -150,43 +160,44 @@ export async function handleLemonSqueezyWebhook(req: Request, store: Store): Pro
     customerName.trim() ||
     (customerEmail.includes("@") ? customerEmail.split("@")[1]?.split(".")[0] ?? "Firm" : "Firm");
 
-  // Create the org as unclaimed.
-  const org = store.createOrg({
-    name: orgName,
-    plan: "practice",
-    packs: ["legal"],
-    seat_limit: seatLimit,
-    billing_customer_id: (attrs.customer_id as string) ?? null,
-  });
-  // Override status to 'unclaimed' (createOrg defaults to 'active').
-  store.setOrgStatus(org.org_id, "unclaimed");
-
   // Extract and store the license key hash.
-  // LS order_created: attrs.identifier (the order key).
-  // LS subscription_created: attrs.order_item_id or order_key.
-  // We also check meta.custom_data for a pre-generated key.
+  // LS subscription_created: meta.custom_data.license_key, else attrs.identifier.
+  // Fall back to a generated key if LS didn't include one.
   const customData = (meta.custom_data as Record<string, unknown>) ?? {};
-  const rawKey =
-    (customData.license_key as string) ??
-    (attrs.identifier as string) ??
-    // Fall back to a generated key if LS didn't include one.
-    generateLicenseKey();
+  const payloadKey = (customData.license_key as string) ?? (attrs.identifier as string) ?? null;
+  const rawKey = payloadKey ?? generateLicenseKey();
+  const keySource = payloadKey ? "payload" : "generated_fallback";
 
+  // Wrap org creation + status override + license key creation in a single
+  // transaction so a crash between steps cannot create an unclaimed org with
+  // no claimable key, or record the dedupe row and then fail to provision.
   const keyHash = hmacHash(rawKey);
-  store.createLicenseKey({
-    org_id: org.org_id,
-    key_hash: keyHash,
-    plan: "practice",
-    packs: ["legal"],
-    seat_limit: seatLimit,
-  });
+  const { org } = store.db.transaction(() => {
+    const newOrg = store.createOrg({
+      name: orgName,
+      plan: "practice",
+      packs: ["legal"],
+      seat_limit: seatLimit,
+      billing_customer_id: (attrs.customer_id as string) ?? null,
+    });
+    // Override status to 'unclaimed' (createOrg defaults to 'active').
+    store.setOrgStatus(newOrg.org_id, "unclaimed");
+    store.createLicenseKey({
+      org_id: newOrg.org_id,
+      key_hash: keyHash,
+      plan: "practice",
+      packs: ["legal"],
+      seat_limit: seatLimit,
+    });
+    return { org: newOrg };
+  })();
 
   store.audit({
     org_id: org.org_id,
     actor_user_id: null,
     action: "webhook.lemonsqueezy",
     target: org.org_id,
-    detail: { event_name: eventName, event_id: eventId, variant_id: variantId, seat_limit: seatLimit },
+    detail: { event_name: eventName, event_id: eventId, variant_id: variantId, seat_limit: seatLimit, key_source: keySource },
   });
 
   return json({ ok: true, org_id: org.org_id, seat_limit: seatLimit });

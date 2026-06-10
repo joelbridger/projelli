@@ -110,6 +110,13 @@ let cachedDeviceId: string | null = null;
 let cachedPublicJwk: JsonWebKey | null = null;
 let cachedPrivateCryptoKey: CryptoKey | null = null;
 
+/**
+ * Promise-singleton for getOrCreateDeviceKeypair: cached at function ENTRY so
+ * concurrent awaits share one construction and never double-generate or
+ * double-write the keypair. Cleared on resolution so a crash-retry can restart.
+ */
+let pendingKeypair: Promise<{ deviceId: string; publicJwk: JsonWebKey }> | null = null;
+
 // ── Public API --------------------------------------------------------------
 
 /**
@@ -118,12 +125,35 @@ let cachedPrivateCryptoKey: CryptoKey | null = null;
  * localStorage fallback (dev/test). The public JWK is safe to share; the
  * private key is never returned to callers (only used internally by keyWrap.ts
  * via getDevicePrivateKey).
+ *
+ * Singleton: concurrent calls share a single construction promise so React
+ * StrictMode double-effects and overlapping startup paths never double-generate
+ * the device keypair or write conflicting entries to the keychain.
  */
-export async function getOrCreateDeviceKeypair(): Promise<{
+export function getOrCreateDeviceKeypair(): Promise<{
   deviceId: string;
   publicJwk: JsonWebKey;
 }> {
-  // Fast path: already in memory.
+  // Fast path: already resolved in memory.
+  if (cachedDeviceId && cachedPublicJwk) {
+    return Promise.resolve({ deviceId: cachedDeviceId, publicJwk: cachedPublicJwk });
+  }
+
+  // Return in-flight promise if one exists.
+  if (pendingKeypair) return pendingKeypair;
+
+  pendingKeypair = _loadOrCreateDeviceKeypair().then(
+    (result) => { pendingKeypair = null; return result; },
+    (err) => { pendingKeypair = null; throw err; },
+  );
+  return pendingKeypair;
+}
+
+async function _loadOrCreateDeviceKeypair(): Promise<{
+  deviceId: string;
+  publicJwk: JsonWebKey;
+}> {
+  // Fast path: already in memory (may have resolved between the outer check and here).
   if (cachedDeviceId && cachedPublicJwk) {
     return { deviceId: cachedDeviceId, publicJwk: cachedPublicJwk };
   }

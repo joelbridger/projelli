@@ -1028,6 +1028,7 @@
       "firm-invite-error": "No pude invitar a {{email}}. {{error}}",
       "firm-remove-error": "No pude eliminar a este miembro. {{error}}",
       "firm-leave-error": "No pude dejar de compartir. {{error}}",
+      "firm-invite-user-exists": "{{email}} ya tiene una cuenta. Usa la consola de administración para añadirlo, o pídele que acepte una invitación.",
       "open-notes-action": "Abrir notas compartidas"
     },
     "sync": {
@@ -1039,9 +1040,12 @@
     },
     "notes": {
       "title": "Notas compartidas",
+      "tab-title": "{{name}}: Notas compartidas",
       "subtitle": "Todos en este asunto ven estas notas. Se sincronizan en vivo.",
       "no-access": "No puedo cargar estas notas todavía.",
       "no-access-hint": "Pide a tu administrador de firma que comparta el acceso con este dispositivo.",
+      "loading": "Cargando notas compartidas...",
+      "not-found": "Asunto no encontrado.",
       "status-live": "En vivo",
       "status-connecting": "Conectando",
       "status-catching-up": "Sincronizando",
@@ -1133,7 +1137,11 @@
       "no-keys": "No hay claves gestionadas configuradas.",
       "delete-key-action": "Eliminar clave",
       "delete-key-ok": "Clave gestionada eliminada.",
-      "user-id-fallback": "Usuario {{id}}"
+      "user-id-fallback": "Usuario {{id}}",
+      "republish-keys-action": "Volver a publicar claves para todos los dispositivos miembros",
+      "invite-user-exists": "{{email}} ya tiene una cuenta. Usa la consola de administración para añadirlo, o pídele que acepte una invitación.",
+      "invite-failed": "Error al invitar.",
+      "wall-user-not-found": "No se encontró el ID de usuario para {{email}}. Primero invítalo para que su ID quede en caché."
     }
   },
   "media": {

@@ -323,6 +323,9 @@ export const useFirmStore = create<FirmState>()(
       },
 
       signOut: async () => {
+        // Matter sync teardown is handled automatically by the subscription
+        // in matterNotesSync.ts (useFirmStore.subscribe → stopAll on seatToken
+        // cleared). We just clear credentials here.
         const session = get().session;
         if (session) {
           // Best-effort server logout with the current refresh token.

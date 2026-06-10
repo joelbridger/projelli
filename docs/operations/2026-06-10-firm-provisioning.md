@@ -227,3 +227,35 @@ FIRM_VARIANT_IDS=1769899
 ```
 
 This is also the fallback: `isFirmVariant()` in `webhooks.ts` also matches any variant whose name contains "Firm" (case-insensitive), so even if this env var is not set, a variant named "Default" on a product named "Keepance Firm" will be caught by the name-based check.
+
+---
+
+## 9. Assured proxy proof scope (accurate record)
+
+The Assured-proxy proof run was:
+
+- **Backend assured-proxy test suite**: `backend/test/assured-proxy.test.ts` (16 tests), run locally against an in-process server. Includes the sentinel never-in-DB-or-logs proof (OpaqueBody stores only `body_hash`, not plaintext) and the static `OpaqueBody` type-level assertion that prevents compilation if plaintext is accidentally exposed.
+- **Client-side routing unit tests**: `tests/unit/firm/assuredInference.test.ts` covering `resolveAssuredRoute` and `assuredInference` logic.
+
+No end-to-end browser UI run of the Assured path was performed in this session. That remains an open item for the Diane Marchetti persona scenario.
+
+---
+
+## 10. Staging smoke verification (2026-06-10)
+
+The following were verified against the live `api.keepance.com` endpoint:
+
+- `GET https://api.keepance.com/healthz` — 200 OK
+- `GET https://api.keepance.com/.well-known/seat-pubkey` — 200, body is an Ed25519 PEM (`-----BEGIN PUBLIC KEY-----`)
+
+---
+
+## 11. Real-purchase notes and open items
+
+When the first real Firm purchase completes, the following MUST be reconciled before considering provisioning complete:
+
+**License key source reconciliation**: The webhook handler derives a license key by hashing `meta.custom_data.license_key` (if present), then `attrs.identifier`, then a generated fallback. LemonSqueezy's emailed license key for license-enabled products is the LS-generated key stored at `attrs.identifier` on the order. Verify that the key the buyer receives in their LS order email matches exactly what the handler stored (i.e., confirm LS puts the key in `attrs.identifier` on `subscription_created`, not only on `order_created`). Fix the mapping if they differ.
+
+**Member revocation degradation**: The e2e test suite covers share, doc convergence, and ethical wall scenarios. Member seat revocation is covered at the unit level (`backend/test/licensing.test.ts` deprovision suite) and in the `seat_revoked` audit event emission. The full UI walk-through of a revoked member losing access will be exercised in the Diane Marchetti firm persona scenario (Phase 4).
+
+Do not write any secrets or credentials in this file.

@@ -23,8 +23,11 @@ import { issueAuthTokens, mintSeatToken } from "../src/lib/services.ts";
 import { hmacHash, generateLicenseKey, signAccessJwt, base64urlEncode } from "../src/lib/crypto.ts";
 import { buildServeOptions } from "../src/server.ts";
 import { fanout } from "../src/lib/matters.ts";
-import { createHmac } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { config } from "../src/lib/config.ts";
+import { Database } from "bun:sqlite";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -97,6 +100,7 @@ function makeLsPayload(opts?: {
   variantId?: string | number;
   quantity?: number;
   licenseKey?: string;
+  subscriptionId?: string;
 }) {
   const payload = {
     meta: {
@@ -105,6 +109,8 @@ function makeLsPayload(opts?: {
       custom_data: opts?.licenseKey ? { license_key: opts.licenseKey } : undefined,
     },
     data: {
+      // LS subscription resource id — used for second-level idempotency.
+      id: opts?.subscriptionId ?? `sub-${opts?.webhookId ?? "evt-test-001"}`,
       attributes: {
         first_subscription_item: {
           variant_id: opts?.variantId ?? "999",
@@ -735,6 +741,43 @@ describe("POST /org/claim", () => {
       expect(resp.status).toBe(400);
     } finally { server.stop(true); }
   });
+
+  test("ATOMIC: claim with email already in another org → 409 email_taken, org stays unclaimed, correct claim succeeds after", async () => {
+    const store = makeStore();
+    // Seed a second org with an existing user so the email is taken globally.
+    const orgA = store.createOrg({ name: "Org A", plan: "practice", packs: [], seat_limit: 3 });
+    store.createUser({ org_id: orgA.org_id, email: "taken@firm.test", password_hash: "x", role: "admin" });
+
+    // Seed the unclaimed org we want to claim.
+    const { licenseKey, org: unclaimedOrg } = seedUnclaimed(store);
+    const server = bootServer(store);
+    try {
+      // Attempt to claim using the already-taken email.
+      const resp1 = await post(server, "/org/claim", {
+        license_key: licenseKey,
+        email: "taken@firm.test",
+        password: "strongpassword123",
+      });
+      expect(resp1.status).toBe(409);
+      expect(String(resp1.body.error)).toBe("email_taken");
+
+      // Org must still be unclaimed (not partially activated).
+      const orgAfterFailedClaim = store.getOrg(unclaimedOrg.org_id);
+      expect(orgAfterFailedClaim?.status).toBe("unclaimed");
+
+      // A subsequent claim with a fresh email must succeed.
+      const resp2 = await post(server, "/org/claim", {
+        license_key: licenseKey,
+        email: "fresh@firm.test",
+        password: "strongpassword123",
+      });
+      expect(resp2.status).toBe(200);
+      expect(resp2.body.access_token).toBeDefined();
+      // Org now active.
+      const orgFinal = store.getOrg(unclaimedOrg.org_id);
+      expect(orgFinal?.status).toBe("active");
+    } finally { server.stop(true); }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -874,6 +917,189 @@ describe("POST /webhooks/lemonsqueezy", () => {
       const orgCount = (store as unknown as { db: { query: (s: string) => { all: () => unknown[] } } }).db.query("SELECT * FROM orgs WHERE status = 'unclaimed'").all().length;
       expect(orgCount).toBe(1); // only one org created
     } finally { server.stop(true); }
+  });
+
+  // Fix: order_created must NOT provision an org (webhook 109091 delivers
+  // both subscription_created and order_created for one purchase).
+  test("order_created → 200 ignored (no provisioning)", async () => {
+    const store = makeStore();
+    const server = bootServer(store);
+    const body = makeLsPayload({
+      eventName: "order_created",
+      variantName: "Firm",
+      webhookId: "evt-order-001",
+      licenseKey: "ls-order-key-xyz",
+    });
+    const sig = lsSign(body, WEBHOOK_SECRET);
+    try {
+      const resp = await fetch(`http://127.0.0.1:${server.port}/webhooks/lemonsqueezy`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-signature": sig },
+        body,
+      });
+      expect(resp.status).toBe(200);
+      const json = await resp.json() as Record<string, unknown>;
+      expect(json.ignored).toBe(true);
+      expect(json.reason).toBe("order_created_no_provision");
+      // No org should have been created
+      const orgCount = (store as unknown as { db: { query: (s: string) => { all: () => unknown[] } } }).db.query("SELECT * FROM orgs").all().length;
+      expect(orgCount).toBe(0);
+    } finally { server.stop(true); }
+  });
+
+  // Fix: same subscription id arriving under a different webhook_id must
+  // provision only once (simulates order_created arriving after subscription_created
+  // with a different webhook_id but same underlying subscription).
+  test("ADVERSARIAL: duplicate subscription_id under different webhook_ids provisions once", async () => {
+    const store = makeStore();
+    const server = bootServer(store);
+    const SHARED_SUB_ID = "sub-shared-12345";
+    // Two subscription_created deliveries, same subscriptionId, different webhook_ids.
+    const body1 = makeLsPayload({
+      variantName: "Firm",
+      webhookId: "evt-sub-001",
+      licenseKey: "ls-key-sub-001",
+      subscriptionId: SHARED_SUB_ID,
+    });
+    const body2 = makeLsPayload({
+      variantName: "Firm",
+      webhookId: "evt-sub-002", // different webhook delivery id
+      licenseKey: "ls-key-sub-002",
+      subscriptionId: SHARED_SUB_ID, // same subscription
+    });
+    const sig1 = lsSign(body1, WEBHOOK_SECRET);
+    const sig2 = lsSign(body2, WEBHOOK_SECRET);
+    try {
+      const r1 = await fetch(`http://127.0.0.1:${server.port}/webhooks/lemonsqueezy`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-signature": sig1 },
+        body: body1,
+      });
+      const r2 = await fetch(`http://127.0.0.1:${server.port}/webhooks/lemonsqueezy`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-signature": sig2 },
+        body: body2,
+      });
+      expect(r1.status).toBe(200);
+      expect(r2.status).toBe(200);
+      const j1 = await r1.json() as Record<string, unknown>;
+      const j2 = await r2.json() as Record<string, unknown>;
+      expect(j1.ok).toBe(true);
+      expect(j1.duplicate).toBeUndefined();
+      // Second delivery with same subscription_id is a duplicate
+      expect(j2.duplicate).toBe(true);
+      // Only ONE org created
+      const orgCount = (store as unknown as { db: { query: (s: string) => { all: () => unknown[] } } }).db.query("SELECT * FROM orgs WHERE status = 'unclaimed'").all().length;
+      expect(orgCount).toBe(1);
+    } finally { server.stop(true); }
+  });
+
+  test("audit detail carries key_source='payload' when LS provides a key", async () => {
+    const store = makeStore();
+    const server = bootServer(store);
+    const licenseKey = "ls-audit-key-source-payload";
+    const body = makeLsPayload({
+      variantName: "Firm",
+      webhookId: "evt-audit-payload",
+      licenseKey,
+    });
+    const sig = lsSign(body, WEBHOOK_SECRET);
+    try {
+      const resp = await fetch(`http://127.0.0.1:${server.port}/webhooks/lemonsqueezy`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-signature": sig },
+        body,
+      });
+      expect(resp.status).toBe(200);
+      const json = await resp.json() as Record<string, unknown>;
+      const orgId = json.org_id as string;
+      const events = store.listAudit(orgId);
+      const webhookEvent = events.find((e) => e.action === "webhook.lemonsqueezy");
+      expect(webhookEvent).toBeDefined();
+      const detail = JSON.parse(webhookEvent!.detail ?? "{}") as Record<string, unknown>;
+      expect(detail.key_source).toBe("payload");
+    } finally { server.stop(true); }
+  });
+
+  test("audit detail carries key_source='generated_fallback' when no key in payload", async () => {
+    const store = makeStore();
+    const server = bootServer(store);
+    // No licenseKey in the payload — triggers fallback generation.
+    const body = makeLsPayload({
+      variantName: "Firm",
+      webhookId: "evt-audit-fallback",
+      // licenseKey deliberately omitted
+    });
+    const sig = lsSign(body, WEBHOOK_SECRET);
+    try {
+      const resp = await fetch(`http://127.0.0.1:${server.port}/webhooks/lemonsqueezy`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-signature": sig },
+        body,
+      });
+      expect(resp.status).toBe(200);
+      const json = await resp.json() as Record<string, unknown>;
+      const orgId = json.org_id as string;
+      const events = store.listAudit(orgId);
+      const webhookEvent = events.find((e) => e.action === "webhook.lemonsqueezy");
+      expect(webhookEvent).toBeDefined();
+      const detail = JSON.parse(webhookEvent!.detail ?? "{}") as Record<string, unknown>;
+      expect(detail.key_source).toBe("generated_fallback");
+    } finally { server.stop(true); }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DB migration: old-schema boot (no subscription_id column) succeeds
+// ---------------------------------------------------------------------------
+
+describe("DB migration: old-schema boot succeeds + dedupe works", () => {
+  test("Store boots on a DB missing subscription_id column and dedupe still works", () => {
+    // Simulate an old-schema database by creating a bun:sqlite DB with the
+    // old webhook_events table (no subscription_id column) and then booting
+    // Store on that file.
+    const OLD_SCHEMA = `
+      CREATE TABLE IF NOT EXISTS orgs (
+        org_id TEXT PRIMARY KEY, name TEXT NOT NULL, billing_customer_id TEXT,
+        plan TEXT NOT NULL, packs TEXT NOT NULL DEFAULT '[]', seat_limit INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active', created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS users (
+        user_id TEXT PRIMARY KEY, org_id TEXT NOT NULL, email TEXT NOT NULL,
+        email_norm TEXT NOT NULL, password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'member', status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_norm ON users(email_norm);
+      CREATE TABLE IF NOT EXISTS webhook_events (
+        event_id TEXT PRIMARY KEY,
+        processed_at TEXT NOT NULL
+        -- NO subscription_id column (old schema)
+      );
+    `;
+
+    const dbPath = join(tmpdir(), `keepance-migration-test-${randomBytes(4).toString("hex")}.db`);
+    // Create the old-schema file.
+    const oldDb = new Database(dbPath, { create: true });
+    oldDb.exec(OLD_SCHEMA);
+    // Insert one webhook row without subscription_id (old format).
+    oldDb.exec(`INSERT INTO webhook_events (event_id, processed_at) VALUES ('old-evt-1', '2026-01-01T00:00:00.000Z')`);
+    oldDb.close();
+
+    // Boot Store on the existing file — must not throw.
+    let store: Store | null = null;
+    expect(() => {
+      store = new Store(dbPath);
+    }).not.toThrow();
+    expect(store).not.toBeNull();
+
+    // Verify the migration added the column + index: dedup with subscription_id works.
+    const first = store!.recordWebhookEventWithSubscription("new-evt-1", "sub-abc");
+    expect(first).toBe(true);
+    const dup = store!.recordWebhookEventWithSubscription("new-evt-2", "sub-abc"); // same sub
+    expect(dup).toBe(false);
+
+    store!.close();
   });
 });
 

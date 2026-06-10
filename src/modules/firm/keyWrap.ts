@@ -46,8 +46,9 @@
  *   accepting the epoch as a parameter: if the caller PASSES an epoch we use
  *   it in derivation and GCM AAD; any failure is flagged as WrongEpochError
  *   because the most common caller error is an epoch mismatch. Genuine bit-
- *   flips in a known-good epoch produce TamperedError only when we can confirm
- *   the blob parses cleanly (header is intact) but GCM still fails.
+ *   flips even in a known-good epoch also surface as WrongEpochError because
+ *   there is no cryptographic signal to distinguish them from an epoch mismatch
+ *   at the GCM layer — both are OperationError.
  *
  *   In practice: wrapMatterKey binds a specific epoch; unwrapMatterKey is called
  *   with the same epoch or a different one. WrongEpochError and TamperedError
@@ -133,7 +134,7 @@ function b64ToBytes(b64: string): Uint8Array {
   return out;
 }
 
-function epochInfo(epoch: number): ArrayBuffer {
+function epochInfo(epoch: number): Uint8Array {
   return new TextEncoder().encode(`keepance-matter-key-wrap:v1:epoch:${String(epoch)}`);
 }
 

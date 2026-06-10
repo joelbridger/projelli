@@ -834,6 +834,7 @@
       "firm-invite-error": "I couldn't invite {{email}}. {{error}}",
       "firm-remove-error": "I couldn't remove this member. {{error}}",
       "firm-leave-error": "I couldn't stop sharing. {{error}}",
+      "firm-invite-user-exists": "{{email}} already has an account. Use the admin console to add them, or ask them to accept an invitation.",
       "open-notes-action": "Open shared notes"
     },
     "sync": {
@@ -845,9 +846,12 @@
     },
     "notes": {
       "title": "Shared notes",
+      "tab-title": "{{name}}: Shared notes",
       "subtitle": "Everyone on this matter sees these notes. They sync live.",
       "no-access": "I can't load these notes yet.",
       "no-access-hint": "Ask your firm admin to share access with this device.",
+      "loading": "Loading shared notes...",
+      "not-found": "Matter not found.",
       "status-live": "Live",
       "status-connecting": "Connecting",
       "status-catching-up": "Catching up",
@@ -939,7 +943,11 @@
       "no-keys": "No managed keys configured.",
       "delete-key-action": "Delete key",
       "delete-key-ok": "Managed key deleted.",
-      "user-id-fallback": "User {{id}}"
+      "user-id-fallback": "User {{id}}",
+      "republish-keys-action": "Re-publish keys to all member devices",
+      "invite-user-exists": "{{email}} already has an account. Use the admin console to add them, or ask them to accept an invitation.",
+      "invite-failed": "Invite failed.",
+      "wall-user-not-found": "No user ID found for {{email}}. Invite them first so their ID is cached."
     }
   },
   "privacy": {

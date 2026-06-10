@@ -63,6 +63,7 @@ import {
 import { registerDevice } from '@/modules/firm/deviceKeys';
 import type { MatterMembersResponse, MatterMineSummary } from '@/modules/firm/contract';
 import { openMatterNotes } from '@/modules/matter/openMatterNotes';
+import { stopMatterSync } from '@/modules/matter/matterNotesSync';
 
 export interface MatterManagerDialogProps {
   open: boolean;
@@ -155,20 +156,11 @@ function MemberRoster({ matterId, firmMatterId, canInvite }: MemberRosterProps) 
       let createdNew = false;
       let tmpPwd: string | null = null;
 
-      // Try to find the user by checking org admins and existing members
-      // (no list-users endpoint in the backend contract; see report notes).
-      // We attempt to create the user; the backend returns 409 if they already
-      // exist, in which case we fall back to looking them up by listing members
-      // on any matter. Since we can't list org users directly, we use the
-      // addMatterMember approach: first try to add by email (the backend needs
-      // a user_id), so we must create first or recognize existing.
-      //
       // Strategy: always call createUser. If it succeeds, we have a new user.
-      // If it 409-conflicts, the user exists — we need their user_id from the
-      // existing members/admins. Since the API exposes no email-to-id lookup,
-      // we note this limitation and fall back to a minimal approach:
-      // create the user with a temp password; if the backend returns 409 meaning
-      // the email is taken, present an error asking the admin to get the user_id.
+      // If it 409-conflicts, the user already exists. The FirmAdminConsole has
+      // a /org/users/list-backed cache (listOrgUsers) that the admin panel uses;
+      // in this dialog we only have the member roster, so on 409 we surface a
+      // clear message directing the admin to use the admin console.
       tmpPwd = generateTempPassword();
       try {
         const createRes = await client.createUser(email, tmpPwd);
@@ -180,11 +172,10 @@ function MemberRoster({ matterId, firmMatterId, canInvite }: MemberRosterProps) 
         // the email when known and note the gap. Here we surface a clear message.
         const httpStatus = (createErr as { status?: number }).status;
         if (httpStatus === 409) {
-          // User exists but we cannot look up their user_id via the current
-          // API surface. The admin must use the Firm Admin Console's invite
-          // flow which accepts email and handles this lookup server-side.
+          // User already exists. The admin console can look them up via
+          // /org/users/list (listOrgUsers). Direct them there.
           throw new Error(
-            `${email} already has an account. Use the admin console to add them by user ID, or ask them to accept an invitation.`,
+            t('matter.manager.firm-invite-user-exists', { email }),
           );
         }
         throw createErr;
@@ -502,6 +493,10 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
   const handleShare = async (matterId: string, clientName: string) => {
     setSharingMatterId(matterId);
     setShareError(null);
+    // Track whether linkFirmMatter was called so the catch block can roll back
+    // correctly. We cannot read `matters` in the catch — it is a render-time
+    // snapshot and may be stale by the time the async op fails.
+    let linkedLocalId: string | null = null;
     try {
       const client = getClient();
 
@@ -513,6 +508,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
 
       // 2. Link the local matter to the firm matter
       linkFirmMatter(matterId, { firmMatterId, orgId, role: 'owner' });
+      linkedLocalId = matterId;
 
       // 3. Ensure a local matter key exists
       await getOrCreateMatterKey(firmMatterId);
@@ -540,9 +536,12 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
           error: err instanceof Error ? err.message : String(err),
         }),
       );
-      // Rollback: unlink if we partially linked
-      const m = matters.find((x) => x.id === matterId);
-      if (m?.firmMatterId) unlinkFirmMatter(matterId);
+      // Rollback: unlink using the tracked id rather than reading the stale
+      // render-time `matters` snapshot, which may not reflect the link we just set.
+      if (linkedLocalId) {
+        const freshMatter = useMatterStore.getState().matters.find((x) => x.id === linkedLocalId);
+        if (freshMatter?.firmMatterId) unlinkFirmMatter(linkedLocalId);
+      }
     } finally {
       setSharingMatterId(null);
     }
@@ -550,6 +549,9 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
 
   const handleLeave = (matterId: string) => {
     const leavingMatter = matters.find((x) => x.id === matterId);
+    // Stop the sync client before unlinking so the WebSocket is torn down
+    // before the matter loses its firmMatterId.
+    stopMatterSync(matterId);
     unlinkFirmMatter(matterId);
     audit.append({
       type: 'matter_unshared',

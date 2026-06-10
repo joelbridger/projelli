@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMatterStore } from '@/stores/matterStore';
 import { ensureMatterSync, getMatterSyncClient } from '@/modules/matter/matterNotesSync';
 import { MatterNotesEditor } from '@/components/matter/MatterNotesEditor';
@@ -26,6 +27,7 @@ export function MatterNotesEditorWrapper({
   workspaceService,
   className,
 }: MatterNotesEditorWrapperProps) {
+  const { t } = useTranslation();
   const matter = useMatterStore((s) => s.matters.find((m) => m.id === localMatterId) ?? null);
   const [syncClient, setSyncClient] = useState<MatterSyncClient | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,7 +65,7 @@ export function MatterNotesEditorWrapper({
   if (loading) {
     return (
       <div className={`flex items-center justify-center h-full text-muted-foreground text-sm ${className ?? ''}`}>
-        <span>Loading shared notes...</span>
+        <span>{t('matter.notes.loading')}</span>
       </div>
     );
   }
@@ -71,7 +73,7 @@ export function MatterNotesEditorWrapper({
   if (!matter) {
     return (
       <div className={`flex items-center justify-center h-full text-muted-foreground text-sm ${className ?? ''}`}>
-        <span>Matter not found.</span>
+        <span>{t('matter.notes.not-found')}</span>
       </div>
     );
   }

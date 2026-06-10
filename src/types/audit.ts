@@ -39,7 +39,8 @@ export type AuditActionType =
   | 'member_invited'
   | 'member_removed'
   | 'wall_set_from_manager'
-  | 'key_published';
+  | 'key_published'
+  | 'seat_revoked';
 
 /**
  * The verdict from citation verification (mirrors `CitationVerdict.verdict`
@@ -218,6 +219,21 @@ export type AuditEvent =
         matter_id: string;
         firm_matter_id: string;
         org_id?: string;
+        detail?: string;
+      };
+    }
+  /**
+   * A seat was revoked by an admin (via the Firm Admin Console's revoke flow).
+   * Recorded as a firm governance event so there is an auditable record of
+   * which seat was deactivated, on which machine, and when.
+   */
+  | {
+      type: 'seat_revoked';
+      timestamp: string;
+      payload: {
+        seat_id: string;
+        org_id?: string;
+        reason?: string;
         detail?: string;
       };
     }

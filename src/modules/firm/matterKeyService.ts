@@ -12,37 +12,9 @@
  *   - rotateMatterKeyLocally(matterId): generate a NEW key for a new epoch
  *     (used when the server bumps key_epoch on member-remove / wall-set).
  *
- * ───────────────────────────────────────────────────────────────────────────
- * DOCUMENTED FOLLOW-UP (NOT in this chunk — see firm/README intent):
- *
- *   Secure cross-member key DISTRIBUTION + admin ESCROW.
- *
- *   Today each member's key is generated/held locally, so two members do not
- *   yet share the SAME matter key automatically — the creator's key would need
- *   to be delivered to other members out of band. The relay is deliberately a
- *   dumb pipe and must NEVER carry the key. The follow-up must:
- *
- *     1. Wrap the per-matter content key to each member's PUBLIC key (an
- *        X25519/RSA device key the member registers; the server stores only the
- *        wrapped blobs, never the key). On `members/add` (key_release =
- *        release_to_member) the admin/creator wraps the current-epoch key to the
- *        new member and uploads the wrapped blob; the member unwraps it into
- *        their keychain. A walled user (blocked_walled) gets nothing.
- *     2. On key_epoch bump (member-remove / wall-set), generate the new key,
- *        re-wrap it to EVERY remaining member, and upload the new wrapped set.
- *        The removed/walled member never receives the new-epoch key, so the
- *        cryptographic teeth (epoch-bound AAD) hold: their old key cannot read
- *        post-bump updates.
- *     3. ADMIN ESCROW (R9): wrap each matter key ALSO to an org master/escrow
- *        public key (held by a firm admin / in an HSM), so the firm can recover
- *        a matter if an attorney leaves. The escrow key is wrapped the same way;
- *        the plaintext key still never touches the server.
- *
- *   Until that ships, a shared matter is fully functional for the member who
- *   created it (and any member handed the key out of band), and key_epoch
- *   rotation is honored locally. This service is the seam the follow-up plugs
- *   into: it already centralizes "get/rotate the matter key in the keychain".
- * ───────────────────────────────────────────────────────────────────────────
+ * Cross-member key distribution (publishMatterKeyToMembers) and admin escrow
+ * are implemented in this file. Each member's device receives a wrapped copy of
+ * the per-matter AES-256 key; epoch rotation re-wraps to all remaining members.
  */
 
 import { generateMatterKey } from './matterCrypto';

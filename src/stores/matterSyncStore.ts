@@ -51,16 +51,6 @@ export const useMatterSyncStore = create<MatterSyncState>()((set) => ({
   clear: () => set({ statusByMatterId: {} }),
 }));
 
-// ── Non-reactive accessors ────────────────────────────────────────────────────
-
-/**
- * Read the current sync status for a matter without subscribing to the store.
- * Returns 'idle' when no status has been set yet.
- */
-export function getMatterSyncStatus(matterId: string): MatterSyncStatus {
-  return useMatterSyncStore.getState().statusByMatterId[matterId] ?? 'idle';
-}
-
 // ── Reactive selectors ────────────────────────────────────────────────────────
 
 /**

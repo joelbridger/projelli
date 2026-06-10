@@ -16,37 +16,87 @@
 import type { Matter } from '@/types/matter';
 import { MatterSyncClient } from '@/modules/firm/MatterSyncClient';
 import { obtainMatterKey } from '@/modules/firm/matterKeyService';
+import { clearMatterKey, storeMatterKey } from '@/modules/firm/firmKeychain';
+import { getOrCreateDeviceKeypair } from '@/modules/firm/deviceKeys';
+import { unwrapMatterKey } from '@/modules/firm/keyWrap';
+import { FirmApiError } from '@/modules/firm/FirmApiClient';
 import { useMatterSyncStore } from '@/stores/matterSyncStore';
 import { useFirmStore } from '@/stores/firmStore';
 
-/** One client per local matter id. */
+/** One resolved client per local matter id (post-construction). */
 const clientCache = new Map<string, MatterSyncClient>();
+
+/**
+ * Promise-singleton cache: keyed at function ENTRY so concurrent calls share
+ * the same construction promise and never double-construct a WebSocket client.
+ * The entry is deleted on null/error resolution so a retry can try again.
+ */
+const pendingCache = new Map<string, Promise<MatterSyncClient | null>>();
 
 /**
  * Ensure a running MatterSyncClient exists for the given matter. Returns null
  * when the preconditions are not met (no firm session, matter not shared, key
  * unavailable / walled).
  *
- * Idempotent: calling again while a client is already running returns the
- * cached instance without re-connecting.
+ * Singleton: concurrent calls share a single construction promise keyed at
+ * entry so React StrictMode double-effects and other concurrent callers never
+ * double-construct or orphan a live WebSocket.
+ *
+ * @param localMatter - The local Matter record. Must be shared with a firmMatterId.
+ * @param keyEpoch - The current key epoch from the server (e.g. MatterMineSummary.key_epoch
+ *                   from /matter/mine, or from the createMatter/addMatterMember response).
+ *                   When omitted, the epoch is resolved here via /matter/mine so pushes
+ *                   are never mistagged on matters past epoch 1.
  */
-export async function ensureMatterSync(localMatter: Matter): Promise<MatterSyncClient | null> {
+export function ensureMatterSync(
+  localMatter: Matter,
+  keyEpoch?: number,
+): Promise<MatterSyncClient | null> {
   // 1. Must be a shared matter with a firm backend ID.
-  if (!localMatter.shared || !localMatter.firmMatterId) return null;
+  if (!localMatter.shared || !localMatter.firmMatterId) return Promise.resolve(null);
 
   // 2. Must have an active firm session (access token + seat token).
   const firmState = useFirmStore.getState();
   const seatToken = firmState.seatToken;
-  if (!seatToken) return null;
+  if (!seatToken) return Promise.resolve(null);
 
   const localMatterId = localMatter.id;
-  const firmMatterId = localMatter.firmMatterId;
 
-  // 3. Return the cached client if already running.
+  // 3. Return the already-resolved cached client.
   const existing = clientCache.get(localMatterId);
-  if (existing) return existing;
+  if (existing) return Promise.resolve(existing);
 
-  // 4. Obtain the matter key (local keychain → server fetch → null on wall/miss).
+  // 4. Return or create a pending promise (promise-singleton pattern).
+  //    Caching the Promise at entry prevents double-construction under concurrent
+  //    awaits (e.g. React StrictMode double-effect).
+  const pending = pendingCache.get(localMatterId);
+  if (pending) return pending;
+
+  const promise = _buildMatterSyncClient(localMatter, keyEpoch, seatToken, firmState).then(
+    (client) => {
+      pendingCache.delete(localMatterId);
+      if (client) clientCache.set(localMatterId, client);
+      return client;
+    },
+    (err) => {
+      pendingCache.delete(localMatterId);
+      throw err;
+    },
+  );
+  pendingCache.set(localMatterId, promise);
+  return promise;
+}
+
+async function _buildMatterSyncClient(
+  localMatter: Matter,
+  keyEpoch: number | undefined,
+  seatToken: string,
+  firmState: ReturnType<typeof useFirmStore.getState>,
+): Promise<MatterSyncClient | null> {
+  const localMatterId = localMatter.id;
+  const firmMatterId = localMatter.firmMatterId!;
+
+  // Obtain the matter key (local keychain → server fetch → null on wall/miss).
   const firmClient = firmState.client();
   const keyB64 = await obtainMatterKey(firmClient, firmMatterId, seatToken);
   if (!keyB64) {
@@ -55,11 +105,24 @@ export async function ensureMatterSync(localMatter: Matter): Promise<MatterSyncC
     return null;
   }
 
-  // 5. Construct the client with callbacks wired to the sync store.
+  // Resolve the real key epoch when the caller did not supply one. Pushes
+  // are tagged with this epoch, so starting at a stale value mistags them
+  // until the relay corrects us; one /matter/mine call avoids that window.
+  let epoch = keyEpoch;
+  if (epoch === undefined) {
+    try {
+      const mine = await firmClient.matterMine(seatToken);
+      epoch = mine.matters.find((m) => m.matter_id === firmMatterId)?.key_epoch ?? 1;
+    } catch {
+      epoch = 1; // offline/unreachable: start at 1; the relay signals the real epoch
+    }
+  }
+
+  // Construct the client with callbacks wired to the sync store.
   const client = new MatterSyncClient({
     matterId: firmMatterId,
     keyB64,
-    keyEpoch: 1,
+    keyEpoch: epoch,
     seatToken,
     client: firmClient,
     callbacks: {
@@ -70,24 +133,35 @@ export async function ensureMatterSync(localMatter: Matter): Promise<MatterSyncC
         // Remote update applied to the doc — store status already set by onStatus.
         // Callers bind to the Y.Text/Y.Doc directly for live content updates.
       },
-      onKeyEpochAdvanced: (newEpoch) => {
-        void handleKeyEpochAdvanced(localMatterId, firmMatterId, firmClient, client, newEpoch);
-      },
+      onKeyEpochAdvanced: (newEpoch) => handleKeyEpochAdvanced(localMatterId, firmMatterId, firmClient, client, newEpoch),
     },
   });
 
-  // 6. Cache before start so concurrent calls don't double-construct.
-  clientCache.set(localMatterId, client);
-
-  // 7. Start sync (catch-up + WebSocket).
+  // Start sync (catch-up + WebSocket).
   await client.start();
+
+  // 8. Seed the doc meta map if it is empty (first writer sets it once).
+  //    This gives the notes surface a stable {name, client_name} so new
+  //    members see the matter name even before any notes are typed.
+  const meta = client.doc.getMap<string>('meta');
+  if (!meta.get('name')) {
+    client.doc.transact(() => {
+      meta.set('name', localMatter.name);
+      meta.set('client_name', localMatter.client);
+    });
+  }
 
   return client;
 }
 
 /**
- * Handle a key epoch advance: re-fetch the new epoch's key from the server and
- * rotate the client's in-memory key. On 403/404 (walled), set status 'error'.
+ * Handle a key epoch advance: clear the stale local key, re-fetch and unwrap
+ * the new epoch's key from the server, then rotate the client's in-memory key.
+ *
+ * On 403/404 (walled or key not yet published), clears the old keychain entry
+ * so the screened user's machine does not attempt to reconstruct a client from
+ * a stale key, then stops the sync client. The next open attempt will show the
+ * true fail-closed panel rather than a half-alive client.
  */
 async function handleKeyEpochAdvanced(
   localMatterId: string,
@@ -97,24 +171,21 @@ async function handleKeyEpochAdvanced(
   newEpoch: number,
 ): Promise<void> {
   try {
-    // Re-obtain the key for the new epoch: local keychain won't have it for the
-    // new epoch (our stored blob was for the old epoch), so this goes to server.
-    // We clear the local cache first so obtainMatterKey does a fresh fetch.
-    const { clearMatterKey, storeMatterKey } = await import('@/modules/firm/firmKeychain');
-    const { getOrCreateDeviceKeypair } = await import('@/modules/firm/deviceKeys');
-    const { unwrapMatterKey } = await import('@/modules/firm/keyWrap');
-    const { FirmApiError } = await import('@/modules/firm/FirmApiClient');
-
     const seatToken = useFirmStore.getState().seatToken ?? '';
     const { deviceId } = await getOrCreateDeviceKeypair();
+
+    // Clear the old keychain entry first so obtainMatterKey does a fresh server
+    // fetch rather than returning the stale epoch's blob.
+    await clearMatterKey(firmMatterId);
+
     let fetchResp: { epoch: number; wrapped_key_b64: string };
     try {
       fetchResp = await firmClient.fetchMatterKeys(firmMatterId, deviceId, seatToken);
     } catch (err) {
       if (err instanceof FirmApiError && (err.status === 403 || err.status === 404)) {
         // Walled (403) or key not published for new epoch (404) — fail closed.
-        // Stop and evict the client from cache so the next open attempt re-checks
-        // access and shows the fail-closed panel if still blocked.
+        // The old key has already been cleared above, so the next ensureMatterSync
+        // will hit the server again and surface the proper fail-closed panel.
         stopMatterSync(localMatterId);
         return;
       }
@@ -122,7 +193,6 @@ async function handleKeyEpochAdvanced(
     }
 
     const newKeyB64 = await unwrapMatterKey(fetchResp.wrapped_key_b64, fetchResp.epoch);
-    await clearMatterKey(firmMatterId);
     await storeMatterKey(firmMatterId, newKeyB64);
     await client.rotateKey(newKeyB64, newEpoch);
   } catch (err) {
@@ -133,6 +203,7 @@ async function handleKeyEpochAdvanced(
 
 /** Stop and remove the sync client for a matter. Idempotent. */
 export function stopMatterSync(localMatterId: string): void {
+  pendingCache.delete(localMatterId);
   const client = clientCache.get(localMatterId);
   if (!client) return;
   client.stop();
@@ -142,8 +213,13 @@ export function stopMatterSync(localMatterId: string): void {
 
 /** Stop all running sync clients (e.g. on sign-out). */
 export function stopAll(): void {
+  pendingCache.clear();
   for (const [id, client] of clientCache.entries()) {
-    client.stop();
+    try {
+      client.stop();
+    } catch {
+      // One throwing client must not abort teardown of the rest.
+    }
     useMatterSyncStore.getState().clearMatter(id);
   }
   clientCache.clear();
@@ -153,3 +229,14 @@ export function stopAll(): void {
 export function getMatterSyncClient(localMatterId: string): MatterSyncClient | null {
   return clientCache.get(localMatterId) ?? null;
 }
+
+// ── Auto-teardown on sign-out ─────────────────────────────────────────────────
+// Subscribe to the firm store once at module load. When the seat token is
+// cleared (sign-out path), stop all sync clients immediately. This avoids a
+// dynamic import of this module inside firmStore.ts (which would create a
+// circular dependency at parse time, since firmStore is imported here).
+useFirmStore.subscribe((state, prev) => {
+  if (prev.seatToken && !state.seatToken) {
+    stopAll();
+  }
+});

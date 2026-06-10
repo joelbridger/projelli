@@ -513,6 +513,8 @@ function describeAuditEvent(event: AuditEvent): string {
       return `Ethical wall set${event.payload.detail ? `: ${event.payload.detail}` : ` for user ${event.payload.target_user_id.slice(0, 8)}`}`;
     case 'key_published':
       return `Matter key published to members${event.payload.detail ? `: ${event.payload.detail}` : ''}`;
+    case 'seat_revoked':
+      return `Seat revoked by admin${event.payload.detail ? `: ${event.payload.detail}` : ` (seat ${event.payload.seat_id.slice(0, 12)})`}`;
     default:
       return event.type;
   }

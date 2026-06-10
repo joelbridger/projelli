@@ -53,23 +53,31 @@ export async function handleOrgClaim(req: Request, store: Store): Promise<Respon
     return error("already_claimed", 409, `org is already ${org.status}`);
   }
 
+  // Pre-validate: reject globally-duplicate email before any mutation.
+  // Matches the admin.ts:137 convention (check first, error on conflict).
+  if (store.getUserByEmailWithHash(body.email)) {
+    return error("email_taken", 409);
+  }
+
   // Determine the org name: from body (if provided) else keep existing.
   const orgName =
     typeof body.org_name === "string" && body.org_name.trim().length > 0 && body.org_name.length <= 256
       ? body.org_name.trim()
       : undefined;
 
-  // Mark the org active (+ optional rename).
-  store.claimOrg(org.org_id, orgName ? { name: orgName } : undefined);
-
-  // Create the admin user.
+  // Atomically claim the org and create the admin user in a single transaction
+  // so a duplicate-email constraint violation cannot leave the org active with
+  // zero users or consume the key without a usable account.
   const passwordHash = await hashPassword(body.password);
-  const adminUser = store.createUser({
-    org_id: org.org_id,
-    email: body.email.trim(),
-    password_hash: passwordHash,
-    role: "admin",
-  });
+  const adminUser = store.db.transaction(() => {
+    store.claimOrg(org.org_id, orgName ? { name: orgName } : undefined);
+    return store.createUser({
+      org_id: org.org_id,
+      email: body.email.trim(),
+      password_hash: passwordHash,
+      role: "admin",
+    });
+  })();
 
   store.audit({
     org_id: org.org_id,

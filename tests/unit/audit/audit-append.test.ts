@@ -95,4 +95,66 @@ describe('AuditService.append accepts v2.0 events', () => {
     expect(results[0]!.action).toBe('matter_shared');
     expect(results[0]!.metadata['matter_id']).toBe('local-1');
   });
+
+  // wall_set_from_manager and seat_revoked round-trip tests (spec item 2)
+  it('wall_set_from_manager round-trips with correct description', () => {
+    const entry = auditEventToEntry({
+      type: 'wall_set_from_manager',
+      timestamp: new Date().toISOString(),
+      payload: {
+        matter_id: 'local-1',
+        firm_matter_id: 'firm-1',
+        target_user_id: 'user-abcdefgh12',
+        detail: 'lateral conflict',
+      },
+    });
+    expect(entry.action).toBe('wall_set_from_manager');
+    expect(entry.description).toBe('Ethical wall set: lateral conflict');
+    expect(entry.metadata['target_user_id']).toBe('user-abcdefgh12');
+  });
+
+  it('wall_set_from_manager stored and queryable', () => {
+    svc.append({
+      type: 'wall_set_from_manager',
+      timestamp: new Date().toISOString(),
+      payload: { matter_id: 'local-1', firm_matter_id: 'firm-1', target_user_id: 'user-42', detail: 'screen' },
+    });
+    const results = svc.query({ actionTypes: ['wall_set_from_manager'] });
+    expect(results).toHaveLength(1);
+    expect(results[0]!.action).toBe('wall_set_from_manager');
+    expect(results[0]!.metadata['target_user_id']).toBe('user-42');
+  });
+
+  it('seat_revoked round-trips with correct description', () => {
+    const entry = auditEventToEntry({
+      type: 'seat_revoked',
+      timestamp: new Date().toISOString(),
+      payload: { seat_id: 'seat-abcdefgh12345', org_id: 'org-1', reason: 'admin_revoke', detail: 'revoked seat seat-abcd (Work Laptop)' },
+    });
+    expect(entry.action).toBe('seat_revoked');
+    expect(entry.description).toBe('Seat revoked by admin: revoked seat seat-abcd (Work Laptop)');
+    expect(entry.metadata['seat_id']).toBe('seat-abcdefgh12345');
+  });
+
+  it('seat_revoked (no detail) includes seat id stub in description', () => {
+    const entry = auditEventToEntry({
+      type: 'seat_revoked',
+      timestamp: new Date().toISOString(),
+      payload: { seat_id: 'seat-abcdefgh12345', org_id: 'org-1' },
+    });
+    // slice(0, 12) of 'seat-abcdefgh12345' is 'seat-abcdefg'
+    expect(entry.description).toContain('seat-abcdef'); // prefix in first 12 chars
+  });
+
+  it('seat_revoked stored and queryable', () => {
+    svc.append({
+      type: 'seat_revoked',
+      timestamp: new Date().toISOString(),
+      payload: { seat_id: 'seat-001', org_id: 'org-1', reason: 'admin_revoke' },
+    });
+    const results = svc.query({ actionTypes: ['seat_revoked'] });
+    expect(results).toHaveLength(1);
+    expect(results[0]!.action).toBe('seat_revoked');
+    expect(results[0]!.metadata['seat_id']).toBe('seat-001');
+  });
 });
