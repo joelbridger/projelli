@@ -40,6 +40,7 @@ import { FeatureTour } from '@/components/onboarding/FeatureTour';
 import { useFeatureTour } from '@/hooks/useFeatureTour';
 import { useSettingsStore } from '@/stores/settingsStore';
 // M1 (v1.5) Memory: workspace RAG indexer + status UI.
+import { ModelDownloadCard } from '@/components/memory/ModelDownloadCard';
 import { RagProgressBanner } from '@/components/memory/RagProgressBanner';
 import { useMemoryWiring } from '@/hooks/useMemoryWiring';
 import { GlobalDropOverlay, useGlobalFileDrop } from '@/components/common/GlobalDropOverlay';
@@ -3363,6 +3364,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
       {/* M1 (v1.5) Memory: live indexing progress banner. Renders only
           while the workspace indexer is running (or briefly after it
           completes); otherwise it returns null and adds zero layout. */}
+      <ModelDownloadCard />
       <RagProgressBanner />
 
       {/* Trial countdown banner — only renders during the final week of

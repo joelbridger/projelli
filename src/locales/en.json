@@ -709,6 +709,17 @@
       "ready_other": "Memory ready, indexed {{count}} files."
     }
   },
+  "model-download": {
+    "title": "Setting up private search",
+    "body": "Keepance is downloading its private search engine (about 465 MB), one time, from Hugging Face. You can keep working. Search and AI answers from your files switch on when it finishes.",
+    "verifying": "Checking the downloaded files",
+    "progress": "{{done}} MB of {{total}} MB",
+    "progress-unknown": "{{done}} MB so far",
+    "stalled": "The download looks stuck. Restarting Keepance resumes it where it stopped.",
+    "error-title": "The search engine download was interrupted",
+    "error-body": "Nothing is lost. The download resumes where it stopped.",
+    "retry": "Resume download"
+  },
   "version": {
     "history": {
       "title": "Version History",

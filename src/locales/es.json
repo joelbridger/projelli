@@ -1299,6 +1299,26 @@
       "ready_other__sourceHash": "1b1eb7b9a151180c039d3ff711db127563701f4536795b705925988f6721a943"
     }
   },
+  "model-download": {
+    "title": "Configurando la búsqueda privada",
+    "body": "Keepance está descargando su motor de búsqueda privado (unos 465 MB), una sola vez, desde Hugging Face. Puedes seguir trabajando. La búsqueda y las respuestas de IA sobre tus archivos se activan cuando termina.",
+    "verifying": "Comprobando los archivos descargados",
+    "progress": "{{done}} MB de {{total}} MB",
+    "progress-unknown": "{{done}} MB hasta ahora",
+    "stalled": "La descarga parece atascada. Reiniciar Keepance la reanuda donde se detuvo.",
+    "error-title": "La descarga del motor de búsqueda se interrumpió",
+    "error-body": "No se ha perdido nada. La descarga se reanuda donde se detuvo.",
+    "retry": "Reanudar descarga",
+    "title__locked": true,
+    "body__locked": true,
+    "verifying__locked": true,
+    "progress__locked": true,
+    "progress-unknown__locked": true,
+    "stalled__locked": true,
+    "error-title__locked": true,
+    "error-body__locked": true,
+    "retry__locked": true
+  },
   "version": {
     "history": {
       "title": "Historial de versiones",

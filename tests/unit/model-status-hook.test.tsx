@@ -6,6 +6,9 @@
  *  - progress events update the snapshot
  *  - retry() re-invokes modelEnsure
  *  - no progress event for >90s mid-transfer → stalled flag
+ *  - retry() after an error clears message + stalled (the error card's
+ *    Resume button depends on that clearing)
+ *  - unmount unsubscribes the listener and stops the stall watchdog
  */
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const listeners: Array<(e: { payload: unknown }) => void> = [];
 const invokeMock = vi.fn();
 let isTauriShouldReturn = true;
+let unlistenCalled = false;
 
 vi.mock('@tauri-apps/api/core', () => ({
   isTauri: () => isTauriShouldReturn,
@@ -22,7 +26,9 @@ vi.mock('@tauri-apps/api/core', () => ({
 vi.mock('@tauri-apps/api/event', () => ({
   listen: async (_name: string, cb: (e: { payload: unknown }) => void) => {
     listeners.push(cb);
-    return () => {};
+    return () => {
+      unlistenCalled = true;
+    };
   },
 }));
 
@@ -33,6 +39,7 @@ describe('useModelStatus', () => {
     listeners.length = 0;
     invokeMock.mockReset();
     isTauriShouldReturn = true;
+    unlistenCalled = false;
   });
 
   afterEach(() => {
@@ -122,6 +129,63 @@ describe('useModelStatus', () => {
       expect(result.current.stalled).toBe(false);
       await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
       expect(result.current.stalled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears message and stalled when retry() follows an error', async () => {
+    invokeMock.mockImplementation(async (cmd: string) => {
+      if (cmd === 'model_status') return 'absent';
+      if (cmd === 'model_ensure') return 'ready';
+      return undefined;
+    });
+    const { result } = renderHook(() => useModelStatus());
+    await waitFor(() =>
+      expect(invokeMock).toHaveBeenCalledWith('model_ensure'),
+    );
+
+    act(() => {
+      for (const cb of listeners) {
+        cb({
+          payload: {
+            state: 'error',
+            file: null,
+            bytesDone: 0,
+            bytesTotal: null,
+            message: 'network unreachable',
+          },
+        });
+      }
+    });
+    expect(result.current.state).toBe('error');
+    expect(result.current.message).toBe('network unreachable');
+
+    act(() => result.current.retry());
+    expect(result.current.state).toBe('checking');
+    expect(result.current.message).toBeNull();
+    expect(result.current.stalled).toBe(false);
+  });
+
+  it('unsubscribes and stops the stall watchdog on unmount', async () => {
+    vi.useFakeTimers();
+    try {
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === 'model_status') return 'downloading';
+        return undefined;
+      });
+      const { result, unmount } = renderHook(() => useModelStatus());
+      await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+      expect(listeners.length).toBe(1);
+      // Watchdog interval armed while the transfer is active.
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      unmount();
+      expect(unlistenCalled).toBe(true);
+      // Interval cleared: no watchdog tick can fire after unmount.
+      expect(vi.getTimerCount()).toBe(0);
+      await act(async () => { await vi.advanceTimersByTimeAsync(200_000); });
+      expect(result.current.stalled).toBe(false);
     } finally {
       vi.useRealTimers();
     }

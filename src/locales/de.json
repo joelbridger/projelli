@@ -1299,6 +1299,26 @@
       "ready_other__sourceHash": "1b1eb7b9a151180c039d3ff711db127563701f4536795b705925988f6721a943"
     }
   },
+  "model-download": {
+    "title": "Private Suche wird eingerichtet",
+    "body": "Keepance lädt seine private Suchmaschine (etwa 465 MB) einmalig von Hugging Face herunter. Sie können weiterarbeiten. Suche und KI-Antworten aus Ihren Dateien werden aktiviert, sobald der Download abgeschlossen ist.",
+    "verifying": "Die heruntergeladenen Dateien werden geprüft",
+    "progress": "{{done}} MB von {{total}} MB",
+    "progress-unknown": "Bisher {{done}} MB",
+    "stalled": "Der Download scheint festzuhängen. Ein Neustart von Keepance setzt ihn dort fort, wo er angehalten hat.",
+    "error-title": "Der Download der Suchmaschine wurde unterbrochen",
+    "error-body": "Es ist nichts verloren gegangen. Der Download wird dort fortgesetzt, wo er gestoppt wurde.",
+    "retry": "Download fortsetzen",
+    "title__locked": true,
+    "body__locked": true,
+    "verifying__locked": true,
+    "progress__locked": true,
+    "progress-unknown__locked": true,
+    "stalled__locked": true,
+    "error-title__locked": true,
+    "error-body__locked": true,
+    "retry__locked": true
+  },
   "version": {
     "history": {
       "title": "Versionsverlauf",
