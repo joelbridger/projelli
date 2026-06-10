@@ -378,3 +378,17 @@ service in the same trust class — none is an architectural unknown.
 **Recommended next step:** stand up the design-partner firm program (already task #14) and
 validate R1/R2/R5 against real redlines in real Word with a real screened-attorney scenario,
 since those three are the high-severity items that only a real firm can fully exercise.
+
+---
+
+## Addendum — ship gate overridden by the board (2026-06-10)
+
+The original program decision gated SHIPPING live multi-user .docx co-editing on
+design-partner validation. On 2026-06-10 Jameson removed that gate as part of the
+100%-vision-completion decision (KEEPANCE_BUSINESS_PLAN.md Q7, revised): co-editing
+is now a committed build, scheduled as Wave 4 of
+`docs/strategy/2026-06-10-vision-gap-closure-plan.md`. The architecture decided in
+this document is unchanged and remains the design of record (document-tree-as-CRDT,
+Yjs/yrs, E2EE over the existing relay). The engineering rigor the gate was protecting
+(convergence suite, Word round-trip fidelity gates, chaos testing) moves into the
+build plan as mandatory verification instead of a precondition.

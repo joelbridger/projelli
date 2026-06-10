@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-10 · **Owner:** autonomous build (Claude) + Jameson where marked · **Status:** approved direction, workstreams execute in sequence below
 
-**Board decision 2026-06-10 (Jameson, recorded as Q7 in `KEEPANCE_BUSINESS_PLAN.md`):** target is **100% completion of the vision document**. SSO and the real encrypted vault are COMMITTED builds (moved out of demand-gated; "functional to sell"). Clio/DMS/add-ins stay deferred until a design partner asks. This version of the plan reflects that decision.
+**Board decision 2026-06-10 (Jameson, recorded as Q7 + same-day revision in `KEEPANCE_BUSINESS_PLAN.md`):** target is **100% completion of the vision document with ZERO exceptions**. SSO, the real encrypted vault, live multi-user Word co-editing, the Clio connector, DMS connectors, and Office add-ins are ALL committed builds. The co-editing ship gate from `spikes/firm-sync/DECISION.md` is overridden (addendum recorded there); its rigor moves into verification. This version of the plan reflects the revised decision.
 
 **What this is.** The full plan for closing every gap in the North-Star Vision Coverage Audit (`docs/quality/2026-06-10-v3-usability-campaign/VISION-COVERAGE-AUDIT.md`). Each workstream names the audit gap it closes, the approach, how we verify it, a relative size (S/M/L), and dependencies. Detailed per-workstream implementation plans (file-level, TDD) get written at build time under `docs/superpowers/plans/`, the same way Option B was planned.
 
@@ -105,18 +105,34 @@
 4. Live email import on a real mailbox (your Outlook; needs your interactive sign-in approval once; I drive the rest).
 5. The slow leg, sequenced: formed legal entity → executed DPA capability → SOC 2 engagement → named attorney advocates (design partners) → CLE/content presence. The entity gates the instruments; the briefs for DPA/SOC 2 already exist in `docs/legal/` and `docs/trust/`. The financial repository's milestone framework (`~/financial/08-recommendations/minimum-viable-launch.md`) is the template for sequencing this without overcommitting.
 
-### Deliberately deferred (named so they stop haunting audits; ratified by the board 2026-06-10)
-- **Clio connector, DMS (NetDocuments/iManage), Word/Outlook add-ins (roadmap WS-H):** deferred until a design partner asks (Jameson's explicit call for Clio; same logic extended to the rest of WS-H). The honest positioning (VG-5d) covers coexistence claims meanwhile. These are the ONLY vision items outside the 100% target, and each has a named re-entry trigger.
-- **Live multi-user .docx co-editing:** stays gated on design-partner validation per `spikes/firm-sync/DECISION.md`. Shared matter notes converge today; that is the shipped story.
-- **Bundling the embedder model in installers:** rejected by decision 2026-06-10 (Option B instead).
+### VG-8: Live multi-user Word co-editing (COMMITTED, board 2026-06-10 revision; ship gate overridden)
+**Why.** Completes Pillar 6's collaboration story. The architecture is already proven: the firm-sync spike's verdict was GO with 5/5 convergence tests on the document-tree-as-CRDT model (Yjs/yrs), including tracked-change attribution surviving a concurrent merge. The E2EE relay, per-matter keys, ethical walls, and live shared matter notes are in production today; co-editing extends that stack from notes to the Word document tree itself.
+**Approach.** Per the spike's settled design (unchanged, the design of record): the paragraphs→runs OOXML tree becomes the CRDT document; edits sync as end-to-end-encrypted Yjs updates over the existing relay; presence and cursors; tracked changes attributed per author; offline-first with convergence on reconnect; the .docx on disk stays the source of truth via deterministic serialization. Conflict behavior: last-write-wins at run granularity with visible attribution. Ships behind a per-matter toggle; solo behavior unchanged.
+**Verify (the rigor the old gate was protecting, now mandatory):** the spike's 5 convergence cases promoted into the live two-client integration suite (extending the existing 8/8 matter-notes harness); a fidelity gate (concurrently-edited documents round-trip through real Microsoft Word cleanly); a chaos pass (dropped, reordered, replayed updates); an offline-edit-then-reconnect matrix.
+**Size.** L (the largest single build in this plan). **Depends on:** nothing technically; scheduled after Wave 3 so the firm stack (vault, SSO) is settled before the document model changes.
+
+### VG-9: Fits-your-stack integrations, ALL committed (board 2026-06-10 revision)
+**Why.** Pillar 7 and non-negotiable #5 stop being positioning and become real connectors. Order follows ICP leverage and access lead times.
+**Approach.**
+- (a) **Clio connector** first (the named spine of the target practice): OAuth2 against Clio's public API; v1 is one-way sync (Clio stays the practice-management source of truth): matters and contacts sync in, Keepance matters link to Clio matters, conflict-check assist runs over synced contacts. Egress honesty: the data map gains a Clio line stating exactly what is read and that nothing is written back in v1.
+- (b) **Office add-ins**: a Word taskpane add-in (open-in-Keepance, send-selection-to-matter, citation lookup against the user's index) and an Outlook add-in (file-this-email-to-matter). Office.js; distribution by sideload/centralized deployment first, AppSource listing after (Microsoft Partner Center account is a Jameson dependency for publishing only, not for building).
+- (c) **DMS connectors**: NetDocuments first (self-serve developer program), iManage second (partner-gated, longest lead). v1 scope per DMS: browse, import-to-matter, index; same egress honesty treatment.
+- **Access-acquisition track (starts NOW, runs parallel to Waves 1-3):** Clio developer account + API application, NetDocuments developer program, iManage partner application, Microsoft Partner Center. I file everything that can be filed autonomously; anything needing Jameson's identity, payment, or signature gets flagged the moment it blocks. Build order within VG-9 flexes around which access lands first.
+**Verify.** Per connector: a live sandbox round-trip (sandbox tenant → sync/import → matter-scoped search returns the synced item with a working citation) plus data-map honesty checks. Website claims each integration only in the release that ships it (VG-5d's rule).
+**Size.** Each M-L; together the second-largest commitment in the plan. **Depends on:** vendor access with external lead times (hence the early parallel track).
+
+### Notes
+- **Bundling the embedder model in installers:** still rejected (2026-06-10); Option B's visible download is the implementation of record for the wedge's first run. This is an implementation choice, not a vision exception.
 
 ---
 
 ## 4. Sequencing
 
 ```
-NOW (in flight)     v3.1.0 publish + site deploy ........ closes #3, #4 live
-                    Option B visible model download ...... closes #1 (path)
+DONE TODAY          v3.1.0 published + keepance.com deployed (#3, #4 live)
+NOW (in flight)     Option B visible model download ...... closes #1 (path)
+ACCESS TRACK        VG-9 vendor access applications ...... starts immediately
+(parallel, slow)    (Clio, NetDocuments, iManage, MS Partner Center)
 WAVE 1              VG-1 wedge proof harness ............. the audit's top ask
 (after Option B)    VG-3a/b finder run + honest fallback
                     VG-4a PDF detect-and-explain
@@ -128,11 +144,13 @@ WAVE 2              VG-2 OCR (the big ingest build)
                     VG-6b Assured exercised live
                     VG-6e vector-store hardening
                     VG-4c letterhead, VG-3d issue spotter
-WAVE 3 (firm-sale   VG-6c SSO (OIDC: Entra ID, Google, generic)
- builds, committed) VG-6d-v2 encrypted workspace vault
-                    -> site re-claims SSO + vault claims ONLY when shipped
-DESIGN-PARTNER-GATED  WS-H integrations (Clio/DMS/add-ins), .docx co-editing
-PARALLEL (Jameson)  VG-7 items 1-5, any order; entity unlocks the instruments
+WAVE 3 (firm-sale)  VG-6c SSO (OIDC: Entra ID, Google, generic)
+                    VG-6d-v2 encrypted workspace vault
+                    -> site re-claims SSO + vault ONLY when shipped
+WAVE 4              VG-8 live multi-user Word co-editing
+WAVE 5              VG-9 connectors, as access lands:
+                    Clio -> Office add-ins -> NetDocuments -> iManage
+PARALLEL (Jameson)  VG-7 items 1-5 + vendor signatures/Partner Center when flagged
 ```
 
-Waves 2 and 3 touch disjoint subsystems (ingest vs firm backend/auth), so Wave 3 may start while Wave 2 is in flight if orchestration capacity allows; the order above is the default. Each wave gets its own implementation plan + subagent-driven execution + verification artifacts under `docs/quality/`, and the coverage ledger gets updated rows so the next audit diffs cleanly against this one. **Definition of done for this plan: a re-run of the vision coverage audit returns 100% of in-scope commitments BUILT + verified, with the three design-partner-gated items as the only named exceptions.**
+Waves touching disjoint subsystems (ingest vs firm backend/auth vs integrations) may overlap when orchestration capacity allows; the order above is the default. Each wave gets its own implementation plan + subagent-driven execution + verification artifacts under `docs/quality/`, and the coverage ledger gets updated rows so the next audit diffs cleanly against this one. **Definition of done for this plan: a re-run of the vision coverage audit returns 100% of the vision document's commitments BUILT + verified. No exceptions.**

@@ -410,7 +410,7 @@ keepance/
 - In flight: the exhaustive usability campaign (persona study + mechanical sweep + native pass) feeding a fix wave and the v3.1.0 release. Campaign home: `docs/quality/2026-06-10-v3-usability-campaign/`; umbrella plan: `docs/superpowers/plans/2026-06-10-v3-full-vision-quality-campaign.md`.
 - Read `docs/strategy/2026-06-09-keepance-3.0-STATUS.md` and the project memory before substantive work; parts of the historical sections below (architecture tables, file lists) predate 3.0 and are being reconciled.
 
-**Named next increment (post-launch):** live multi-user .docx co-editing (the document-tree-as-CRDT model proven in `spikes/firm-sync/`, gated on design-partner validation per `spikes/firm-sync/DECISION.md`).
+**Post-launch build program:** 100% vision-document completion, zero exceptions (board Q7 revised, 2026-06-10). Plan of record: `docs/strategy/2026-06-10-vision-gap-closure-plan.md` (Option B model download → wedge proof → OCR → SSO + encrypted vault → live multi-user .docx co-editing [ship gate overridden, addendum in `spikes/firm-sync/DECISION.md`] → Clio/Office add-ins/DMS connectors, with vendor-access applications running in parallel).
 
 ---
 
@@ -511,7 +511,6 @@ interface DocSummary {
 ## Out of Scope (DO NOT IMPLEMENT)
 
 - Plaintext/cloud-readable sync of user content (firm sync exists but is E2EE-only; the relay must never be able to read content)
-- Live multi-user .docx co-editing (spike-proven; gated on design-partner validation per `spikes/firm-sync/DECISION.md` — do not ship it casually)
 - Mobile support
 - Autonomous agents (multi-step without approval)
 - Web scraping/crawling

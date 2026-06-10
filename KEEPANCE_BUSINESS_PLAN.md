@@ -691,6 +691,8 @@ These are the only items NOT decided. Jameson's input is required before they're
 ### Q7: Vision-gap closure scope after the 3.0 coverage audit — RESOLVED 2026-06-10
 **Answer (board):** Target is 100% completion of the north-star vision document. Build SSO **now** (functional to sell, not demand-gated) and build the **real encrypted workspace vault** now (not just disk-encryption guidance). The Clio connector (and by the same logic DMS connectors and Office add-ins, roadmap WS-H) stays deferred until a design partner asks. Live multi-user .docx co-editing stays gated on design-partner validation per `spikes/firm-sync/DECISION.md`. Plan of record: `docs/strategy/2026-06-10-vision-gap-closure-plan.md`.
 
+**REVISED 2026-06-10 (same day, board):** Jameson removed ALL exceptions. Live multi-user .docx co-editing, the Clio connector, DMS connectors (NetDocuments/iManage), and Office add-ins are now COMMITTED builds. The vision document gets completed at 100% with zero deferred items. The co-editing ship gate in `spikes/firm-sync/DECISION.md` is overridden (addendum recorded there); its verification rigor moves into the build plan. Vendor API access applications (Clio, NetDocuments, iManage, Microsoft Partner Center) start immediately as a parallel track; items needing Jameson's identity or signature get flagged the moment they block.
+
 ---
 
 ## Part 8: How this plan is operated going forward
