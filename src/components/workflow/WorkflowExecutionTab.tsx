@@ -264,7 +264,7 @@ export function WorkflowExecutionTab({
   return (
     <div
       data-testid="workflow-execution-tab"
-      className={cn('flex flex-col h-full', className)}
+      className={cn('flex flex-col h-full overflow-x-hidden', className)}
     >
       {/* Header */}
       <div className="shrink-0 border-b bg-muted/30 px-6 py-4">
@@ -322,7 +322,7 @@ export function WorkflowExecutionTab({
               <div
                 key={step.id}
                 className={cn(
-                  'flex items-center gap-2 px-3 py-1.5 rounded text-sm',
+                  'flex items-center gap-2 px-3 py-1.5 rounded text-sm min-w-0',
                   isCurrent && 'bg-amber-500/10 font-medium',
                   isDone && 'text-muted-foreground'
                 )}
@@ -335,9 +335,9 @@ export function WorkflowExecutionTab({
                   <XCircle className="h-4 w-4 text-red-500 shrink-0" />
                 )}
                 {isPending && <Clock className="h-4 w-4 text-muted-foreground/50 shrink-0" />}
-                <span>{step.name}</span>
+                <span className="truncate min-w-0">{step.name}</span>
                 {step.description && (
-                  <span className="text-xs text-muted-foreground ml-auto truncate max-w-[40%]">
+                  <span className="text-xs text-muted-foreground ml-auto truncate max-w-[40%] shrink-0">
                     {step.description}
                   </span>
                 )}
@@ -467,7 +467,7 @@ export function WorkflowExecutionTab({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <pre className="text-xs whitespace-pre-wrap bg-muted/50 rounded p-3 max-h-[400px] overflow-y-auto">
+              <pre className="text-xs whitespace-pre-wrap break-words bg-muted/50 rounded p-3 max-h-[400px] overflow-y-auto overflow-x-hidden">
                 {finalOutput}
               </pre>
               {onExportDocx && (

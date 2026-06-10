@@ -658,7 +658,7 @@ export function MainPanel({
         const liveTemplate = isLive ? workflowTemplate : parsed.template;
         const liveInterview = isLive ? (workflowInterviewQuestions ?? null) : null;
         return (
-          <div data-testid="workflow-execution-tab-wrapper" className="h-full">
+          <div data-testid="workflow-execution-tab-wrapper" className="h-full min-w-0 overflow-hidden">
             <WorkflowExecutionTab
               template={liveTemplate ?? parsed.template}
               execution={liveExecution ?? null}
@@ -939,7 +939,7 @@ export function MainPanel({
     const isMarkdown = ext === 'md' || ext === 'markdown' || ext === 'txt' || !ext;
 
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col min-w-0">
         {/* Secondary pane header with file selector and close button */}
         {isSecondary && (
           <div className="flex items-center justify-between px-2 py-1 border-b bg-muted/50">
