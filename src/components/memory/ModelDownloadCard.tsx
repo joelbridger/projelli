@@ -83,7 +83,13 @@ export function ModelDownloadCard({ status }: ModelDownloadCardProps) {
       <div className="flex-1 min-w-0">
         <div className="font-medium text-foreground">
           {t('model-download.title')}
-          {pct !== null ? ` (${pct}%)` : ''}
+          {/* aria-hidden: the percent ticks on every progress event; the
+              progressbar's aria-valuenow already exposes it, so keep it
+              out of the polite live region to avoid re-announcing the
+              whole banner every ~4MB. */}
+          {pct !== null ? (
+            <span aria-hidden="true">{` (${pct}%)`}</span>
+          ) : null}
         </div>
         <div className="text-muted-foreground">
           {snap.stalled
@@ -94,21 +100,35 @@ export function ModelDownloadCard({ status }: ModelDownloadCardProps) {
         </div>
         <div
           role="progressbar"
+          aria-label={t('model-download.title')}
           aria-valuemin={0}
           aria-valuemax={100}
           {...(pct !== null ? { 'aria-valuenow': pct } : {})}
           className="mt-1 h-1.5 w-full overflow-hidden rounded bg-muted"
         >
+          {/* Indeterminate (unknown total): dimmed pulsing full-width fill,
+              not a solid bar that would visibly "drain" once the first real
+              total arrives. transition-[width] only when determinate. */}
           <div
-            className="h-full rounded bg-primary transition-[width]"
+            className={
+              pct !== null
+                ? 'h-full rounded bg-primary transition-[width]'
+                : 'h-full rounded bg-primary animate-pulse opacity-40'
+            }
             style={{ width: pct !== null ? `${pct}%` : '100%' }}
           />
         </div>
-        <div className="mt-0.5 text-muted-foreground">
-          {totalMb !== null
-            ? t('model-download.progress', { done: doneMb, total: totalMb })
-            : t('model-download.progress-unknown', { done: doneMb })}
-        </div>
+        {/* aria-live="off": the MB counter changes on every chunk; without
+            it the polite region above would re-announce for minutes.
+            Suppressed entirely when verifying an unknown total — "0 MB so
+            far" right after a finished download reads as a regression. */}
+        {!(snap.state === 'verifying' && totalMb === null) && (
+          <div aria-live="off" className="mt-0.5 text-muted-foreground">
+            {totalMb !== null
+              ? t('model-download.progress', { done: doneMb, total: totalMb })
+              : t('model-download.progress-unknown', { done: doneMb })}
+          </div>
+        )}
       </div>
     </div>
   );

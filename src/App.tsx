@@ -3266,6 +3266,17 @@ This file contains rules and guidelines for AI assistants in this workspace.
     const canDismiss = Boolean(rootPath);
     return (
       <>
+        {/* One-time embedding-model download banner: mounted here as well as
+            in the main shell (same both-branches pattern as firstRunOverlay
+            below — the branches are exclusive, so only one instance ever
+            exists). Mounting runs useModelStatus's probe, so a brand-new
+            user's download starts during onboarding rather than after it,
+            and returning to the selector mid-download keeps the progress
+            visible. The selector is a fixed full-viewport page (z-50), so
+            the banner needs its own fixed top-of-screen layer above it. */}
+        <div className="fixed inset-x-0 top-0 z-[60]">
+          <ModelDownloadCard />
+        </div>
         <WorkspaceSelector
           open={true}
           onWorkspaceSelected={handleWorkspaceSelected}
@@ -3361,8 +3372,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
         </div>
       </header>
 
-      {/* M1 (v1.5) Memory: live indexing progress banner. Renders only
-          while the workspace indexer is running (or briefly after it
+      {/* Memory: model download + live indexing progress banners. Each
+          renders only while its work is in flight (one-time embedding-model
+          download / workspace indexer running, or briefly after it
           completes); otherwise it returns null and adds zero layout. */}
       <ModelDownloadCard />
       <RagProgressBanner />

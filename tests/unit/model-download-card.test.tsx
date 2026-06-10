@@ -2,7 +2,9 @@
  * ModelDownloadCard render contract:
  *  - idle / ready → renders nothing
  *  - downloading with a known total → title, MB-of-MB text, progressbar
- *  - downloading with unknown total → MB-so-far text
+ *  - downloading with unknown total → MB-so-far text; the progressbar is
+ *    indeterminate (no aria-valuenow)
+ *  - verifying with a known total → verifying body line
  *  - stalled mid-transfer → distinct stalled line, progress bar stays,
  *    NO Resume button (restarting the app is the only honest remedy)
  *  - error → error title + Resume button wired to retry()
@@ -59,6 +61,38 @@ describe('ModelDownloadCard', () => {
       />,
     );
     expect(screen.getByText(/42 MB/)).toBeInTheDocument();
+  });
+
+  it('shows the verifying line when verifying with a known total', () => {
+    render(
+      <ModelDownloadCard
+        status={snap({
+          state: 'verifying',
+          bytesDone: 465 * MB,
+          bytesTotal: 465 * MB,
+        })}
+      />,
+    );
+    expect(
+      screen.getByText(/checking the downloaded files/i),
+    ).toBeInTheDocument();
+    // Known total keeps the MB counter.
+    expect(screen.getByText(/465 MB of 465 MB/)).toBeInTheDocument();
+  });
+
+  it('checking with an unknown total: MB-so-far line, no NaN, indeterminate progressbar', () => {
+    const { container } = render(
+      <ModelDownloadCard
+        status={snap({ state: 'checking', bytesDone: 0, bytesTotal: null })}
+      />,
+    );
+    expect(screen.getByText(/0 MB so far/)).toBeInTheDocument();
+    // Nothing in the rendered output (text or attributes) may be NaN.
+    expect(container.innerHTML).not.toContain('NaN');
+    // Indeterminate: the progressbar exists but exposes no aria-valuenow.
+    expect(screen.getByRole('progressbar')).not.toHaveAttribute(
+      'aria-valuenow',
+    );
   });
 
   it('shows the stalled line, keeps the progress bar, and offers NO resume button when stalled', () => {
