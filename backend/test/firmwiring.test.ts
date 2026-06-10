@@ -836,13 +836,13 @@ describe("POST /webhooks/lemonsqueezy", () => {
     } finally { server.stop(true); }
   });
 
-  test("Firm product by name → creates unclaimed org with seat_limit=3 min", async () => {
+  test("Firm product by name → grants exactly the seats purchased (charge-aligned)", async () => {
     const store = makeStore();
     const server = bootServer(store);
     const licenseKey = "ls-test-key-1234567890";
     const body = makeLsPayload({
       variantName: "Keepance Firm Annual",
-      quantity: 1, // below 3 minimum
+      quantity: 1, // a buyer who reduced the prefilled-3 cart to 1 gets exactly 1
       licenseKey,
     });
     const sig = lsSign(body, WEBHOOK_SECRET);
@@ -855,14 +855,14 @@ describe("POST /webhooks/lemonsqueezy", () => {
       expect(resp.status).toBe(200);
       const json = await resp.json() as Record<string, unknown>;
       expect(json.ok).toBe(true);
-      expect(json.seat_limit).toBe(3); // clamped to minimum 3
+      expect(json.seat_limit).toBe(1); // grant equals quantity paid for, never inflated
 
       // Org must be unclaimed
       const orgId = json.org_id as string;
       const org = store.getOrg(orgId);
       expect(org?.status).toBe("unclaimed");
       expect(org?.plan).toBe("practice");
-      expect(org?.seat_limit).toBe(3);
+      expect(org?.seat_limit).toBe(1);
 
       // License key hash stored
       const found = store.findOrgByLicenseKeyHash(hmacHash(licenseKey));

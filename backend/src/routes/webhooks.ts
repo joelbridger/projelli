@@ -148,10 +148,14 @@ export async function handleLemonSqueezyWebhook(req: Request, store: Store): Pro
     return json({ ok: true, duplicate: true });
   }
 
-  // Determine quantity (for seat_limit; minimum 3).
+  // Determine quantity. Grant EXACTLY the seats purchased (charge-aligned):
+  // the 3-seat minimum is enforced softly at checkout via a prefilled quantity,
+  // not by inflating the grant beyond what the buyer paid for. (Policy change
+  // green-lit 2026-06-10; previously max(3, quantity), which granted 3 seats for
+  // a reduced-to-1 purchase.)
   const quantity =
     typeof firstItem.quantity === "number" && firstItem.quantity > 0 ? firstItem.quantity : 1;
-  const seatLimit = Math.max(3, quantity);
+  const seatLimit = quantity;
 
   // Derive org name from customer name or email domain.
   const customerName = (attrs.customer_name as string) ?? (attrs.user_name as string) ?? "";
