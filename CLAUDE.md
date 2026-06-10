@@ -44,21 +44,21 @@
 | **Test Command** | `npm run test` |
 | **Port** | 5173 (Vite default) |
 | **TypeScript** | Strict mode enabled |
-| **Target Platforms** | Windows (live v1.0.0), macOS (Week 3), Linux (post-launch) |
+| **Target Platforms** | Windows, macOS (arm + intel), Linux — all live and signed since v3.0.0, with auto-update |
 
 ---
 
 ## What Keepance is
 
-**Keepance** is a local-first AI workspace for confidential client work. Every AI chat conversation produces real Markdown files in a real folder on the user's hard drive. The product combines a CodeMirror 6 editor (with wiki-links, backlinks, version history, split panes) with an AI chat interface (Claude/OpenAI/Gemini, BYOK, streaming) and profession-specific workflow template packs.
+**Keepance** (3.0, repositioned 2026-06-09) is **the private intelligence layer for a law practice**: the place a lawyer's confidential work lives (documents, email, matters), kept provably private, that answers questions across all of it with citations you can verify. Word (.docx) is the first-class format via an in-house OOXML engine with tracked changes and AI redline; Markdown never appears in user-facing copy. Recall is matter-scoped with cryptographic isolation; an always-visible egress indicator, a printable Data Map, and a Local-only / BYOK-direct / Assured confidentiality spectrum make the trust story honest and inspectable. North star: `docs/strategy/2026-06-09-keepance-3.0-roadmap.md` + `docs/research/2026-06-08-ux-attorney-v2.5.1/vision-most-viable-keepance.md`.
 
-**The pitch in one sentence:** *The AI workspace for professionals who legally or temperamentally cannot pipe their work into the cloud.*
+**The pitch in one sentence:** *The private place your whole practice lives and answers you back: your clients' data never leaves your control, and every answer is cited.*
 
-**The differentiator:** local-first + BYOK + chat-as-artifacts. Your data stays on your machine. Your API keys live in your OS keychain. AI requests go directly from your machine to the provider, never via Keepance's servers. This is the product story for lawyers, CPAs, consultants, and others bound by NDA, privilege, or professional confidentiality obligations.
+**The differentiator:** local-first + BYOK + Word-native + matter isolation + a firm tier whose collaboration is end-to-end encrypted (the relay only ever stores ciphertext; ethical walls are enforced by key denial, not UI hiding). AI requests go directly from the user's machine to their provider (or through the firm's zero-retention proxy in Assured mode), never via a Keepance content server.
 
-**ICP (locked 2026-05-27):** Solo + small-firm attorneys (general + patent), tax preparers / CPAs / EAs, independent strategy consultants + boutique agencies. Lead with law (ABA Op 512, Heppner ruling), fast-follow with tax (IRC §7216), then consulting.
+**ICP (locked 2026-05-27, sharpened 2026-06-09):** litigation-heavy solos and small/mid law firms first (ABA Op 512, U.S. v. Heppner); tax and consulting packs exist but law leads.
 
-**Pricing:** $49 one-time Personal / $129 one-time Professional (+ one profession pack) / $399 one-time Practice (up to 5 seats). Sold via LemonSqueezy. Charter pricing: $89 for first 100 Professional buyers per profession pack.
+**Pricing (3.0, live):** per-seat ANNUAL subscriptions via LemonSqueezy: Solo $468/yr (wire code `personal`), Professional $948/yr (`professional`), Firm $1,548/seat/yr (`practice`, min 3 seats enforced server-side). Pre-3.0 one-time buyers are grandfathered forever (entitlement layer guarantees data access is never gated). Canonical config: `src/config/pricing.ts`.
 
 **Key Principles:**
 - **Local-first** — works offline (except for AI calls)
@@ -281,7 +281,7 @@ useEffect(() => {
 - **NO direct file system access** - Always go through WorkspaceService
 - **NO storing API keys in plaintext** - Use KeychainService
 - **NO autonomous AI operations** - User must approve all changes
-- **NO cloud sync or collaboration features** - Local-only
+- **NO plaintext cloud sync** - Solo mode is local-only. Firm-tier shared matters sync ONLY as end-to-end-encrypted blobs through the relay (per-matter keys in OS keychains; the server can never read content). Never add a sync path the relay could read.
 - **NO chat-only patterns without artifacts** - Every chat interaction must produce/modify persistent documents
 - **NO path concatenation without validation** - Use PathValidator
 
@@ -403,26 +403,14 @@ keepance/
 
 ## Current Phase
 
-**v0.1.0 - Operational**
+**v3.0.x — launched (2026-06-09/10), full-vision quality campaign in flight.**
 
-The application is functional with core features implemented:
-- Browser-based prototype working (File System Access API)
-- File tree, tabs, markdown editor, split panes
-- Workflow system, version history, trash management
-- Audio recording/playback, whiteboard, search
-- Test mode for automated testing
-- AI chat integration
+- v3.0.0 published: signed Win/Mac/Linux installers + auto-update; keepance.com on 3.0 positioning/pricing; firm backend LIVE at api.keepance.com; LemonSqueezy subscriptions live.
+- Firm desktop wiring complete (2026-06-10): shared matters with cross-member key distribution (ECDH P-256 wrap + admin escrow), live collaborative matter notes (Yjs over the E2EE relay), invite-by-email, ethical walls with key purge + epoch rotation, /org/claim self-serve activation, LS webhook provisioning, Assured routing.
+- In flight: the exhaustive usability campaign (persona study + mechanical sweep + native pass) feeding a fix wave and the v3.1.0 release. Campaign home: `docs/quality/2026-06-10-v3-usability-campaign/`; umbrella plan: `docs/superpowers/plans/2026-06-10-v3-full-vision-quality-campaign.md`.
+- Read `docs/strategy/2026-06-09-keepance-3.0-STATUS.md` and the project memory before substantive work; parts of the historical sections below (architecture tables, file lists) predate 3.0 and are being reconciled.
 
-Project documentation is now organized in `docs/`:
-- `docs/ARCHITECTURE.md` - System design
-- `docs/VISION.md` - Product vision
-- `docs/PRD.md` - Product requirements
-- `docs/DECISIONS.md` - Architecture decisions
-- `docs/DEFINITION_OF_DONE.md` - Quality standards
-- `docs/BACKLOG.md` - Future improvements
-- `docs/SECURITY.md` - Security guidelines
-
-**Next Focus:** Desktop transition (Tauri), performance optimization, code organization
+**Named next increment (post-launch):** live multi-user .docx co-editing (the document-tree-as-CRDT model proven in `spikes/firm-sync/`, gated on design-partner validation per `spikes/firm-sync/DECISION.md`).
 
 ---
 
@@ -522,8 +510,8 @@ interface DocSummary {
 
 ## Out of Scope (DO NOT IMPLEMENT)
 
-- Cloud sync
-- Real-time collaboration
+- Plaintext/cloud-readable sync of user content (firm sync exists but is E2EE-only; the relay must never be able to read content)
+- Live multi-user .docx co-editing (spike-proven; gated on design-partner validation per `spikes/firm-sync/DECISION.md` — do not ship it casually)
 - Mobile support
 - Autonomous agents (multi-step without approval)
 - Web scraping/crawling
