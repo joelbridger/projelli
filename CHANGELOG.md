@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **The one-time search engine download is now visible, resumable, and honest.** On first run Keepance shows a "Setting up private search" banner with live progress while it downloads its embedding model (about 465 MB, one time, from Hugging Face) instead of silently stalling the first search or index. A dropped connection shows a clear message with a Resume button that continues where it stopped (HTTP range resume). Until the model is present, workspace indexing defers itself and the AI says plainly that search isn't ready yet rather than failing cryptically; both start automatically the moment the download completes. Email imported while the download is still running heals itself too: those messages are indexed for search automatically as soon as the model is ready. Files: `src-tauri/src/commands/rag/model_download.rs`, `src-tauri/src/commands/rag/embedder.rs`, `src-tauri/src/commands/mail/mod.rs`, `src/hooks/useModelStatus.ts`, `src/components/memory/ModelDownloadCard.tsx`, `src/hooks/useMemoryWiring.ts`, `src/components/ai/AIChatViewer.tsx`.
+
 ## [3.1.0] - 2026-06-10
 
 > **Keepance 3.1: the full-vision quality release.** Completes the Firm tier so a firm can buy, claim, and collaborate end to end, fixes a severe memory leak that could exhaust RAM, closes two workflow/AI correctness bugs (no more silent mock output; a local-pinned workflow can never reach the cloud), makes the document and trust surfaces honest, and lands the fixes from an exhaustive usability campaign (an attorney-persona study, a 222-surface mechanical sweep, and a native desktop pass). Verification artifacts: `docs/quality/2026-06-10-v3-usability-campaign/`.
