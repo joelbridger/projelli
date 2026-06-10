@@ -264,7 +264,7 @@ git commit -m "feat(rag): model_download module — presence check, progress pay
 - Modify: `src-tauri/src/commands/rag/embedder.rs` (`resolve_cache_dir` convergence + `warm_init`)
 - Modify: `src-tauri/src/lib.rs` (invoke_handler list, lines ~53–66)
 
-- [ ] **Step 0: CRITICAL (amendment from Task 1 quality review) — converge the two cache-dir functions**
+- [x] **Step 0: CRITICAL (amendment from Task 1 quality review) — converge the two cache-dir functions**
 
 Why: every CI build bundles `resources/embeddings/.gitkeep` (tauri.conf.json bundles `resources/**/*`), so `<exe_dir>/resources/embeddings/` EXISTS in every production install while containing no model (the bundle-prefetch is deliberately off). `resolve_cache_dir()`'s `cand.is_dir()` check therefore returns that empty, read-only install dir in production. Without this fix the Task 2/3 wiring loops forever: `model_ensure` downloads into the writable dir, the readiness gate re-checks the empty bundled dir, verification "fails", the error arm wipes the good download, Resume repeats. (The same ghost dir pointing fastembed's cache at a read-only install dir is the likely root cause of the original fragile first-run download.)
 
@@ -360,7 +360,7 @@ In `embedder.rs` tests: (a) update `resolve_cache_dir_prefers_bundled_path_when_
 
 Run: `cd ~/keepance/src-tauri && cargo test --lib 2>&1 | tail -5` → green before moving on.
 
-- [ ] **Step 1: Add the download engine to `model_download.rs`**
+- [x] **Step 1: Add the download engine to `model_download.rs`**
 
 Append after `writable_cache_dir` (before the tests module):
 
@@ -623,7 +623,7 @@ pub async fn warm_init() -> Result<()> {
 }
 ```
 
-- [ ] **Step 2: Add the ignored real-download integration test**
+- [x] **Step 2: Add the ignored real-download integration test**
 
 Append inside the `tests` module of `model_download.rs`:
 
@@ -663,7 +663,7 @@ Append inside the `tests` module of `model_download.rs`:
     }
 ```
 
-- [ ] **Step 3: Register the commands**
+- [x] **Step 3: Register the commands**
 
 In `src-tauri/src/lib.rs`, in the `invoke_handler` list right after `commands::rag::rag_retag_matter` (line ~66):
 
@@ -672,7 +672,7 @@ In `src-tauri/src/lib.rs`, in the `invoke_handler` list right after `commands::r
             commands::rag::model_download::model_ensure,
 ```
 
-- [ ] **Step 4: Build + run unit tests**
+- [x] **Step 4: Build + run unit tests**
 
 ```bash
 cd ~/keepance/src-tauri && cargo test --lib model_download 2>&1 | tail -10
@@ -680,7 +680,7 @@ cd ~/keepance/src-tauri && cargo test --lib model_download 2>&1 | tail -10
 
 Expected: PASS (5 unit tests; the ignored one is skipped). Fix any signature drift against the vendored hf-hub source noted in the plan header.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ~/keepance && git add src-tauri/src/commands/rag/model_download.rs src-tauri/src/commands/rag/embedder.rs src-tauri/src/lib.rs
@@ -692,8 +692,58 @@ git commit -m "feat(rag): visible resumable model download — model_ensure/mode
 ### Task 3: Rust gates — no implicit download, indexing defers honestly
 
 **Files:**
+- Modify: `src-tauri/src/commands/rag/model_download.rs` (Step 0 fixes from the Task 2 quality review)
 - Modify: `src-tauri/src/commands/rag/embedder.rs` (`get_embedder`, lines 59–81)
 - Modify: `src-tauri/src/commands/rag/mod.rs` (`rag_index_workspace`, starts line ~360)
+
+- [ ] **Step 0: Small fixes from the Task 2 quality review (all in `model_download.rs`)**
+
+(i) `head_total_size()` currently uses `reqwest::Client::new()`, which has NO timeouts — on a DROP-style firewall each of the 5 sequential HEADs can hang for minutes while the UI sits on "Checking" and the single-flight guard blocks retry. Replace the client construction with:
+
+```rust
+    let client = match reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+    {
+        Ok(c) => c,
+        // Builder failure is exotic; the prepass is best-effort anyway.
+        Err(_) => return None,
+    };
+```
+
+(ii) `SinkProgress::init` must reset per-file counters (hf-hub's `Progress` contract: `init` may be called again on an internal retry, followed by `update(offset)` to re-seed position; without the reset a future `.with_retries(N)` would silently double-count and push the bar past 100%):
+
+```rust
+    fn init(&mut self, _size: usize, _filename: &str) {
+        // hf-hub may call init again on an internal retry, then re-seed the
+        // position via update(offset) — reset so a retry can't double-count.
+        self.file_done = 0;
+        self.last_emit = 0;
+        self.emit_now();
+    }
+```
+
+(iii) In `model_ensure`, check the single-flight guard BEFORE the cached fast-path (matches `model_status`'s order; removes a window where a concurrent caller emits Ready while another job is still in Verifying and could yet fail-and-wipe): move the `if DOWNLOADING.compare_exchange(...)` block above the fast-path block... NOT exactly — the CAS must stay where it is (it CLAIMS the slot). Correct minimal change: add a plain load check at the very top of `model_ensure`:
+
+```rust
+    if DOWNLOADING.load(Ordering::SeqCst) {
+        return Ok("downloading".into());
+    }
+```
+
+(iv) In `download_all`, build the API from the cache to avoid capturing a stale user-level HF token (`~/.cache/huggingface/token`) that could 401 where anonymous succeeds:
+
+```rust
+    let api = hf_hub::api::sync::ApiBuilder::from_cache(hf_hub::Cache::new(cache_dir.to_path_buf()))
+        .with_progress(false)
+        .build()
+        .context("hf-hub api init")?;
+```
+
+(If `ApiBuilder::from_cache` does not exist in the vendored 0.4.3, check `~/.cargo/registry/src/*/hf-hub-0.4.3/src/api/sync.rs` for the equivalent constructor; if none exists, keep `new().with_cache_dir(...)` and add a comment noting the stale-token caveat instead.)
+
+Run: `cd ~/keepance/src-tauri && cargo test --lib model_download 2>&1 | tail -5` → green.
 
 - [ ] **Step 1: Gate `get_embedder` behind the presence check**
 
@@ -1057,6 +1107,40 @@ export function useModelStatus(): ModelStatusSnapshot {
 }
 ```
 
+- [ ] **Step 5b: Amendments from the Task 2 quality review (apply to the hook before running tests)**
+
+(i) **Immediate `downloading` state on mount.** The engine throttles progress events to ~4 MB; on a slow link the first event after mount can be tens of seconds away, and on a stalled transfer it never comes. When the mount-time probe returns `'downloading'`, reflect it immediately instead of waiting for an event — in the `(async () => { ... })()` block, extend the status handling:
+
+```ts
+        } else if (status === 'downloading') {
+          setSnap((s) => ({ ...s, state: 'downloading' }));
+        }
+```
+
+(ii) **Stall watchdog.** A mid-transfer TCP stall (NAT timeout without RST) freezes hf-hub's read forever with no error event; the engine cannot detect it (hf-hub exposes no read-timeout), so the frontend must. Add `stalled: boolean` to `ModelStatusSnapshot` (initial `false`). In the hook: keep a `lastEventAtRef = useRef(Date.now())`; update it (and clear `stalled`) on every received event AND on the mount-time probe; add one interval (15 s) that sets `stalled: true` when state is `'checking' | 'downloading' | 'verifying'` and more than 90 s have passed since `lastEventAtRef`. Clear the interval in the effect cleanup. (Restarting the app fully recovers: the single-flight flag resets and hf-hub resumes the partial file via Range, so the stalled-state copy in Task 5 says exactly that.)
+
+Add one test to `tests/unit/model-status-hook.test.tsx` (use `vi.useFakeTimers()` for this test only):
+
+```tsx
+  it('flags a stall when no progress event arrives for 90s while downloading', async () => {
+    vi.useFakeTimers();
+    try {
+      invokeMock.mockImplementation(async (cmd: string) => {
+        if (cmd === 'model_status') return 'downloading';
+        return undefined;
+      });
+      const { result } = renderHook(() => useModelStatus());
+      await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+      expect(result.current.state).toBe('downloading');
+      expect(result.current.stalled).toBe(false);
+      await act(async () => { await vi.advanceTimersByTimeAsync(120_000); });
+      expect(result.current.stalled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+```
+
 - [ ] **Step 6: Run the test — must PASS**
 
 ```bash
@@ -1315,6 +1399,10 @@ export function ModelDownloadCard({ status }: ModelDownloadCardProps) {
 cd ~/keepance && npx vitest run tests/unit/model-download-card.test.tsx 2>&1 | tail -5
 ```
 
+- [ ] **Step 5c: Stalled-state banner (amendment from the Task 2 quality review)**
+
+When `snap.stalled` is true (and state is checking/downloading/verifying), the card shows a distinct line instead of the normal body text: locale key `model-download.stalled` = "The download looks stuck. Restarting Keepance resumes it where it stopped." (hand-translate es/de + lock, same as the other keys). Keep the progress bar visible. Add one render test: stalled snapshot shows the stalled text.
+
 - [ ] **Step 6: Mount in App.tsx**
 
 Import next to the RagProgressBanner import (~line 43):
@@ -1512,6 +1600,9 @@ git commit -m "feat(rag): defer first index until the model is ready; honest AI 
 
 **Files:**
 - Modify: `CHANGELOG.md` (`[Unreleased]` section at the top)
+- Optionally modify: `src-tauri/src/commands/rag/model_download.rs` (hardening below)
+
+- [ ] **Step 0 (optional hardening from the Task 2 quality review; do if quick, skip without guilt):** (a) wrap the `DOWNLOADING` clear in `model_ensure` in a small RAII Drop guard (mirrors `IndexingGuard` in `mod.rs`) so a panic between the CAS and the store can never wedge status at "downloading"; (b) move the `resolve_cache_dir()` calls inside the existing `spawn_blocking` closures in `model_status`/`model_ensure` (it does a dozen fs syscalls; cosmetic). Neither blocks anything.
 
 - [ ] **Step 1: Full gates**
 
