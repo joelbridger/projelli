@@ -59,6 +59,18 @@ pub struct ModelDownloadProgress {
 /// True while a download job is running (single-flight guard).
 static DOWNLOADING: AtomicBool = AtomicBool::new(false);
 
+/// RAII guard that clears `DOWNLOADING` on every exit path (normal return,
+/// error, panic-unwind) so a panic between the CAS in `model_ensure` and
+/// the final store can never wedge status at "downloading". Mirrors
+/// `IndexingGuard` in `mod.rs`.
+struct DownloadingGuard;
+
+impl Drop for DownloadingGuard {
+    fn drop(&mut self) {
+        DOWNLOADING.store(false, Ordering::SeqCst);
+    }
+}
+
 /// True when every file fastembed needs is present in `cache_dir`'s hf-hub
 /// cache layout (bundled OR previously downloaded). Pure filesystem check.
 pub fn model_files_cached(cache_dir: &Path) -> bool {
@@ -276,10 +288,12 @@ pub async fn model_status() -> Result<String, String> {
     if DOWNLOADING.load(Ordering::SeqCst) {
         return Ok("downloading".into());
     }
-    let dir = embedder::resolve_cache_dir();
-    let ready = tokio::task::spawn_blocking(move || model_files_cached(&dir))
-        .await
-        .map_err(|e| e.to_string())?;
+    // resolve_cache_dir itself probes candidate dirs (a dozen fs syscalls),
+    // so it belongs inside the blocking closure too.
+    let ready =
+        tokio::task::spawn_blocking(|| model_files_cached(&embedder::resolve_cache_dir()))
+            .await
+            .map_err(|e| e.to_string())?;
     Ok(if ready { "ready" } else { "absent" }.into())
 }
 
@@ -298,10 +312,12 @@ pub async fn model_ensure(app: AppHandle) -> Result<String, String> {
     }
 
     {
-        let dir = embedder::resolve_cache_dir();
-        let ready = tokio::task::spawn_blocking(move || model_files_cached(&dir))
-            .await
-            .map_err(|e| e.to_string())?;
+        // resolve_cache_dir probes candidate dirs (fs syscalls) — keep it
+        // off the async thread alongside the presence check.
+        let ready =
+            tokio::task::spawn_blocking(|| model_files_cached(&embedder::resolve_cache_dir()))
+                .await
+                .map_err(|e| e.to_string())?;
         if ready {
             // Make "ready" observable even when nothing was downloaded, so
             // late event subscribers converge.
@@ -325,9 +341,11 @@ pub async fn model_ensure(app: AppHandle) -> Result<String, String> {
     {
         return Ok("downloading".into());
     }
+    // The CAS above claimed the slot; this guard releases it on every exit
+    // path from here on, including panic-unwind inside the download job.
+    let _downloading_guard = DownloadingGuard;
 
     let result = run_download(&app).await;
-    DOWNLOADING.store(false, Ordering::SeqCst);
 
     match result {
         Ok(()) => {
