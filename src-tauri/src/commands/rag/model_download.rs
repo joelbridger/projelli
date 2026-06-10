@@ -94,7 +94,18 @@ fn emit(app: &AppHandle, p: ModelDownloadProgress) {
 /// — the latter is the body size hint, which is always 0 for a HEAD
 /// response (hyper decodes HEAD bodies as zero-length per RFC 9110).
 async fn head_total_size() -> Option<u64> {
-    let client = reqwest::Client::new();
+    // Timeouts matter: on a DROP-style firewall each of the 5 sequential
+    // HEADs would otherwise hang for minutes while the UI sits on
+    // "Checking" and the single-flight guard blocks retry.
+    let client = match reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+    {
+        Ok(c) => c,
+        // Builder failure is exotic; the prepass is best-effort anyway.
+        Err(_) => return None,
+    };
     let mut sum: u64 = 0;
     for file in REQUIRED_FILES {
         let url = format!("https://huggingface.co/{MODEL_REPO}/resolve/main/{file}");
@@ -133,6 +144,10 @@ struct SinkProgress {
 
 impl hf_hub::api::Progress for SinkProgress {
     fn init(&mut self, _size: usize, _filename: &str) {
+        // hf-hub may call init again on an internal retry, then re-seed the
+        // position via update(offset) — reset so a retry can't double-count.
+        self.file_done = 0;
+        self.last_emit = 0;
         self.emit_now();
     }
     fn update(&mut self, size: usize) {
@@ -174,11 +189,15 @@ fn download_all(
     grand_total: Option<u64>,
     sink: impl Fn(ModelDownloadProgress) + Send + Clone + 'static,
 ) -> Result<()> {
-    let api = hf_hub::api::sync::ApiBuilder::new()
-        .with_progress(false) // no terminal bar; we emit our own events
-        .with_cache_dir(cache_dir.to_path_buf())
-        .build()
-        .context("hf-hub api init")?;
+    // from_cache (not new().with_cache_dir(...)): `new()` reads the token
+    // from the DEFAULT ~/.cache/huggingface and with_cache_dir doesn't reset
+    // it — a stale user-level HF token could 401 where anonymous succeeds.
+    let api = hf_hub::api::sync::ApiBuilder::from_cache(hf_hub::Cache::new(
+        cache_dir.to_path_buf(),
+    ))
+    .with_progress(false) // no terminal bar; we emit our own events
+    .build()
+    .context("hf-hub api init")?;
     let repo = api.model(MODEL_REPO.to_string());
 
     let mut done_before: u64 = 0;
@@ -270,6 +289,14 @@ pub async fn model_status() -> Result<String, String> {
 /// "ready" (or an error after emitting an Error event).
 #[tauri::command]
 pub async fn model_ensure(app: AppHandle) -> Result<String, String> {
+    // Check the single-flight guard BEFORE the cached fast-path (matching
+    // model_status's order) so a concurrent caller can't observe "ready"
+    // while another job is still in Verifying and could yet fail-and-wipe.
+    // The CAS below still CLAIMS the slot; this is only an early report.
+    if DOWNLOADING.load(Ordering::SeqCst) {
+        return Ok("downloading".into());
+    }
+
     {
         let dir = embedder::resolve_cache_dir();
         let ready = tokio::task::spawn_blocking(move || model_files_cached(&dir))

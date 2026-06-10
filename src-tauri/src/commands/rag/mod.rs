@@ -363,6 +363,25 @@ pub async fn rag_index_workspace(
     state: State<'_, RagState>,
     matter_id: Option<String>,
 ) -> Result<(), String> {
+    // Option B: without the embedding model there is nothing to index. Bail
+    // with the typed marker BEFORE consuming the once-per-activation latch
+    // (F-301) so the frontend can simply re-call after `model_ensure`
+    // reports ready and still get the full walk.
+    {
+        let dir = embedder::resolve_cache_dir();
+        let cached = tokio::task::spawn_blocking(move || {
+            model_download::model_files_cached(&dir)
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+        if !cached {
+            return Err(format!(
+                "{}: indexing deferred until the model downloads",
+                embedder::MODEL_NOT_READY
+            ));
+        }
+    }
+
     let matter = resolve_matter(matter_id.as_deref())?;
     let workspace = require_workspace(&state).await?;
 

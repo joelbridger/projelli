@@ -1,10 +1,12 @@
 // Lazy-initialized text embedder backed by fastembed-rs / e5-small.
 //
 // One process-wide instance, hidden behind `embed_query` / `embed_documents`
-// helpers. The first call instantiates the model (which may download the
-// ONNX file from Hugging Face if it isn't cached); subsequent calls reuse
-// the loaded session. fastembed's `embed` is `&self` + thread-safe, so a
-// plain `Arc<TextEmbedding>` is enough; no Mutex required.
+// helpers. The first call instantiates the model from the local cache —
+// never downloading: when the files aren't cached it fails fast with the
+// `MODEL_NOT_READY` marker and `model_download::model_ensure` is the only
+// network path. Subsequent calls reuse the loaded session. fastembed's
+// `embed` is `&self` + thread-safe, so a plain `Arc<TextEmbedding>` is
+// enough; no Mutex required.
 //
 // e5-small expects "passage: " / "query: " prefixes — see the fastembed
 // docstring. We add them transparently inside `embed_*` so callers don't
@@ -24,6 +26,11 @@ use super::model_download;
 /// Output dimension of the e5-small embedder. Hard-coded so the LanceDB
 /// schema can declare a `FixedSizeList<Float32, EMBEDDING_DIM>` column.
 pub const EMBEDDING_DIM: usize = 384;
+
+/// Typed marker for "the model files aren't downloaded yet". Embedded in
+/// error strings crossing IPC; matched by the frontend
+/// (`MODEL_NOT_READY` in `src/utils/tauri-commands.ts`) and never shown raw.
+pub const MODEL_NOT_READY: &str = "model-not-ready";
 
 /// Singleton handle. `OnceCell::get_or_try_init` makes the constructor run
 /// at most once even under concurrent first-time access.
@@ -67,10 +74,25 @@ async fn get_embedder() -> Result<Arc<TextEmbedding>> {
     EMBEDDER
         .get_or_try_init(|| async {
             let cache_dir = resolve_cache_dir();
+            // Option B: embed paths NEVER download implicitly. The only
+            // network path for model files is `model_ensure`, which shows
+            // real progress and supports resume/retry. Without this gate a
+            // first search would silently stall for a ~465 MB download.
+            let check_dir = cache_dir.clone();
+            let cached = tokio::task::spawn_blocking(move || {
+                super::model_download::model_files_cached(&check_dir)
+            })
+            .await
+            .context("model presence check join failed")?;
+            if !cached {
+                anyhow::bail!(
+                    "{MODEL_NOT_READY}: the search model is not downloaded yet"
+                );
+            }
             std::fs::create_dir_all(&cache_dir).ok();
             // Model load is CPU-bound and blocks the executor for a few
-            // hundred ms (cached) to ~30s (cold download). Hop to a
-            // dedicated blocking task so the Tauri runtime stays responsive.
+            // hundred ms. Hop to a dedicated blocking task so the Tauri
+            // runtime stays responsive.
             let model = tokio::task::spawn_blocking(move || -> Result<TextEmbedding> {
                 let opts = InitOptions::new(EmbeddingModel::MultilingualE5Small)
                     .with_cache_dir(cache_dir)
