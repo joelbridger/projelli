@@ -1441,7 +1441,7 @@ git commit -m "feat(ui): first-run model download banner with live progress and 
 - Modify: `src/locales/{en,es,de}.json` (`ai.chat.model-not-ready-refuse`)
 - Test: extend the existing refusal coverage (find it: `grep -rln "retrieval-failed-refuse" tests/` — if no test exists, the new pure helper below gets its own small test file `tests/unit/refusal-key.test.ts`)
 
-- [ ] **Step 1: Defer the full workspace index until the model is ready**
+- [x] **Step 1: Defer the full workspace index until the model is ready**
 
 In `useMemoryWiring.ts`, replace the block at ~lines 298–308:
 
@@ -1502,7 +1502,7 @@ Wiring notes for the implementer (read the surrounding effect first):
 - The `.catch(() => 'ready')` default keeps browser mode behavior identical to today (indexWorkspace already no-ops gracefully outside Tauri).
 - A second `rag_set_workspace` for the SAME workspace does not re-arm the latch, so the deferred `startFullIndex` firing once per activation is preserved.
 
-- [ ] **Step 1b: Mail RAG backfill on model-ready (amendment from the Task 3 quality review — closes a silent permanent gap)**
+- [x] **Step 1b: Mail RAG backfill on model-ready (amendment from the Task 3 quality review — closes a silent permanent gap)**
 
 Why: `mailSyncAll` fires right after OAuth connect (`src/components/settings/MailConnect.tsx:50`). On a fresh install that is exactly the window when the model is absent, and each message's `index_mail_text_internal` failure is fire-and-forget (warn log only, `src-tauri/src/commands/mail/mod.rs:756/855/953`); delta sync never re-delivers those messages. Pre-gate, the implicit download made this eventually consistent; post-gate, mail imported before model-ready would NEVER get semantic recall. The canonical encrypted bodies are local, so healing needs no network.
 
@@ -1515,13 +1515,13 @@ Frontend (same file as Step 1, `useMemoryWiring.ts`):
 - In the model-ready transition added in Step 1, after `startFullIndex()`, also `void mailBackfillRag().catch(() => {})` (add the thin wrapper in `tauri-commands.ts`: `export async function mailBackfillRag(): Promise<number> { return invoke<number>('mail_backfill_rag'); }`).
 - Also call it once on plain boot when the mount-time status is already `'ready'` (covers: user imported mail during download, then restarted before the backfill ran). The marker makes this a no-op in the common case.
 
-- [ ] **Step 1c: Small Rust hardening bundled here (from the same review)**
+- [x] **Step 1c: Small Rust hardening bundled here (from the same review)**
 - Use `{e:#}` (anyhow alternate = full chain) instead of `{e}` in the IPC `map_err` sites in `mod.rs` that wrap embed errors (grep for `format!("embed query: {e}")`, `"index_file failed: {e}"`, `"index_pdf_chunks: {e}"` — line refs ~287/597/853) and in the three mail warn-logs above, so the `model-not-ready` marker survives any future `.context()` wrapping and the logs show causes.
 - Remove the now-dead `std::fs::create_dir_all(&cache_dir).ok();` in `embedder.rs::get_embedder` (the gate guarantees the dir exists).
 - Fix the stale header NOTE in `src-tauri/tests/rag_matter_scope.rs` (it still says the first run downloads the model; under the gate the model must be pre-provisioned — say so and how: run the app once so `model_ensure` downloads, or populate `dirs::data_dir()/keepance/models/e5-small`).
 - Update Task 6's commit to include the touched Rust files (`src-tauri/src/commands/mail/mod.rs`, `src-tauri/src/commands/rag/mod.rs`, `src-tauri/src/commands/rag/embedder.rs`, `src-tauri/src/lib.rs`, `src-tauri/tests/rag_matter_scope.rs`).
 
-- [ ] **Step 2: Add the refusal helper + use it**
+- [x] **Step 2: Add the refusal helper + use it**
 
 In `AIChatViewer.tsx`, add a small exported pure helper near the top of the file (module scope, after imports):
 
@@ -1559,7 +1559,7 @@ with:
               : t(refusalKey, { reason });
 ```
 
-- [ ] **Step 3: Locale strings**
+- [x] **Step 3: Locale strings**
 
 In `src/locales/en.json`, inside `ai.chat` next to `"retrieval-failed-refuse"` (~line 483):
 
@@ -1573,7 +1573,7 @@ Hand-translate into `es.json` and `de.json` and lock:
 cd ~/keepance && node scripts/lock-translation.mjs es "ai.chat.model-not-ready-refuse" && node scripts/lock-translation.mjs de "ai.chat.model-not-ready-refuse"
 ```
 
-- [ ] **Step 4: Write the failing helper test**
+- [x] **Step 4: Write the failing helper test**
 
 Check for existing refusal tests first: `grep -rln "retrieval-failed-refuse" tests/`. Extend that file if it exists; otherwise create `tests/unit/refusal-key.test.ts`:
 
@@ -1601,7 +1601,7 @@ describe('refusalKeyForReason', () => {
 
 (If importing `AIChatViewer.tsx` into a unit test drags in heavy dependencies that break Vitest, move `refusalKeyForReason` to `src/utils/refusal.ts` instead, import it from AIChatViewer, and point the test there. Prefer the in-file export if it just works.)
 
-- [ ] **Step 5: Run tests — PASS**
+- [x] **Step 5: Run tests — PASS**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/refusal-key.test.ts 2>&1 | tail -5
@@ -1609,7 +1609,7 @@ cd ~/keepance && npx vitest run tests/unit/refusal-key.test.ts 2>&1 | tail -5
 
 (Adjust the path if Step 4 extended an existing file instead.)
 
-- [ ] **Step 6: Typecheck + commit**
+- [x] **Step 6: Typecheck + commit**
 
 ```bash
 cd ~/keepance && npx tsc --noEmit
