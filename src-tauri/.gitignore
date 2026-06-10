@@ -6,3 +6,9 @@
 # Stub files used for dev/CI builds are also excluded to avoid committing empty executables.
 /binaries/
 /voices/
+
+# Bundled e5-small ONNX model (~930 MB resolved, never committed).
+# Populated at CI time via `cargo run --bin prefetch_model` before `tauri build`.
+# To populate locally: cd src-tauri && cargo run --bin prefetch_model
+# The .gitkeep files inside are committed; the model blobs are not.
+/resources/embeddings/models--intfloat--multilingual-e5-small/

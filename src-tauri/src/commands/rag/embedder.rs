@@ -172,4 +172,71 @@ mod tests {
         let p = resolve_cache_dir();
         assert!(p.is_absolute(), "got {p:?}");
     }
+
+    /// Verify that `resolve_cache_dir` returns the bundled path when the
+    /// `resources/embeddings` directory exists adjacent to the test binary.
+    ///
+    /// This simulates the production layout where Tauri places
+    /// `bundle.resources` next to the executable so `resolve_cache_dir()`
+    /// finds it and skips the HuggingFace download.
+    ///
+    /// Strategy: create a temporary `resources/embeddings` directory next to
+    /// the current test executable, call `resolve_cache_dir()`, assert we get
+    /// that path, then clean up. Because `std::env::current_exe()` returns the
+    /// real test binary path, this exercises the same code path as the
+    /// production app.
+    #[test]
+    fn resolve_cache_dir_prefers_bundled_path_when_present() {
+        let exe = std::env::current_exe().expect("current_exe");
+        let exe_dir = exe.parent().expect("exe has parent");
+        let bundled = exe_dir.join("resources").join("embeddings");
+
+        // Create the sentinel directory.
+        std::fs::create_dir_all(&bundled)
+            .expect("create bundled embeddings dir");
+
+        let result = resolve_cache_dir();
+
+        // Clean up before asserting so a test failure doesn't leave the dir
+        // behind and pollute later runs.
+        let _ = std::fs::remove_dir_all(&bundled);
+
+        assert_eq!(
+            result.canonicalize().unwrap_or(result.clone()),
+            bundled.canonicalize().unwrap_or(bundled.clone()),
+            "expected bundled path {:?}, got {:?}",
+            bundled,
+            result,
+        );
+    }
+
+    /// Verify that when no bundled path exists, `resolve_cache_dir()` falls
+    /// back to a path under the system data dir (or temp dir) — NOT the
+    /// bundled location — so the existing download-on-first-run path still
+    /// works correctly for dev builds.
+    #[test]
+    fn resolve_cache_dir_falls_back_when_no_bundled_dir() {
+        // Ensure no stray `resources/embeddings` dir is adjacent to this
+        // binary (the previous test cleans up, but be defensive).
+        let exe = std::env::current_exe().expect("current_exe");
+        let exe_dir = exe.parent().expect("exe has parent");
+        let bundled = exe_dir.join("resources").join("embeddings");
+
+        // Only run the assertion if the bundled dir truly doesn't exist.
+        if bundled.is_dir() {
+            // Another test (or a real build) left it in place; skip rather
+            // than fail misleadingly.
+            return;
+        }
+
+        let result = resolve_cache_dir();
+        assert!(
+            result.is_absolute(),
+            "fallback path must be absolute, got {result:?}"
+        );
+        assert!(
+            !result.starts_with(&bundled),
+            "fallback should NOT be the bundled path when it doesn't exist"
+        );
+    }
 }

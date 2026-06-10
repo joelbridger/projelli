@@ -33,6 +33,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 name = "keepance-mcp"
 path = "src/mcp_bin/main.rs"
 
+# Model prefetch helper: downloads the e5-small ONNX model into
+# resources/embeddings/ so the Tauri installer can bundle it offline.
+# Run from src-tauri/ before `tauri build`:  cargo run --bin prefetch_model
+# CI runs this in every build job (see .github/workflows/release.yml).
+[[bin]]
+name = "prefetch_model"
+path = "src/bin/prefetch_model.rs"
+
 [build-dependencies]
 tauri-build = { version = "2.5.3", features = [] }
 
