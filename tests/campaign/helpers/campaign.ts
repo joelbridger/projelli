@@ -122,6 +122,26 @@ const BENIGN_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
     pattern: /vite\/dist\/client\/env\.mjs/i,
     reason: 'Vite client environment script log',
   },
+  {
+    // ai-file-context emits a console.warn (surfaced as [warning]) when injected
+    // binary tabs (docx/pptx/rtf) have no real file content. This is expected
+    // in sweep tests that inject empty-content stubs for viewer coverage.
+    pattern: /\[ai-file-context\]/i,
+    reason: 'ai-file-context warning on empty stub content in sweep — expected',
+  },
+  {
+    // X-Frame-Options refusal when the browser panel loads a URL that disallows
+    // framing (e.g. google.com). The BrowserPanel correctly attempts the load;
+    // the browser enforces the header. Not a product defect.
+    pattern: /X-Frame-Options|Refused to display .* in a frame/i,
+    reason: 'X-Frame-Options refusal in browser panel — expected third-party behavior',
+  },
+  {
+    // 401 Unauthorized from the firm backend when sweep tests use wrong credentials
+    // to exercise the friendly error path. The response itself is the expected outcome.
+    pattern: /401 \(Unauthorized\)/i,
+    reason: 'Firm backend 401 on intentional wrong-password edge test — expected',
+  },
 ];
 
 /** Returns true when the message text matches any known-benign pattern. */
