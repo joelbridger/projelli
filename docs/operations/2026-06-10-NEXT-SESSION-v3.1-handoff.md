@@ -1,5 +1,7 @@
 # Next session handoff — Keepance v3.1.0 publish + what's next
 
+> **⚠️ SUPERSEDED (2026-06-10 evening).** STEP 1 below is DONE: v3.1.0 is published (signed installers live, updater serving 3.1.0) and keepance.com is deployed + smoke-tested. STEP 2 (Option B) is IN FLIGHT via `docs/superpowers/plans/2026-06-10-option-b-model-download.md`. STEP 3 is replaced by the board-ratified plan of record: **`docs/strategy/2026-06-10-vision-gap-closure-plan.md`** (100% vision completion, zero exceptions, board Q7 revised — includes SSO, encrypted vault, .docx co-editing, and all connectors; vendor access applications already filed, see `docs/operations/2026-06-10-vendor-access-track.md`). Start from the project memory + that plan, not this file.
+
 **Read this first.** Branch `keepance-3.0`, all work committed + pushed. This session ran the full-vision quality campaign (leak fix, P0s, firm tier completion, persona study, sweep, native pass, fix wave) and cut the v3.1.0 release. One thing is mid-flight: the signed installer build.
 
 ## STEP 1 (do this first): publish v3.1.0, then deploy the website
