@@ -159,11 +159,51 @@ pub const PROGRESS_EVENT: &str = "rag-indexing-progress";
 /// Shared state managed by Tauri. Holds:
 ///   - the currently-active workspace root (so `rag_index_workspace` and
 ///     incremental file-change handlers know where to walk),
-///   - a cancellation flag the in-flight workspace indexer polls.
+///   - a cancellation flag the in-flight workspace indexer polls,
+///   - a "full index pending" latch that makes the default full-workspace walk
+///     run AT MOST ONCE per workspace activation (see `rag_index_workspace` —
+///     F-301 OOM guard).
 #[derive(Default)]
 pub struct RagState {
     pub workspace_root: Mutex<Option<PathBuf>>,
     pub cancel_flag: Arc<AtomicBool>,
+    /// Latch armed by `rag_set_workspace` and consumed by the first default
+    /// (`matter_id = None`) `rag_index_workspace` call. Subsequent default calls
+    /// for the SAME activation are no-ops.
+    ///
+    /// Why (F-301): the default full walk is fired on every workspace open. The
+    /// dev Vite HMR reload-storm (parallel agents writing repo artifacts) reset
+    /// the webview to the selector repeatedly, and re-opening re-fired the walk —
+    /// dozens of times in seconds. Each walk runs the destructive pre-3.0
+    /// migration (`drop_table` + full re-index) because the version marker is
+    /// only written at the END of a successful walk; the rapid drop/recreate
+    /// churn corrupted the LanceDB dataset and triggered a flood of panics
+    /// (`lance dataset.rs:496` "range end index … out of range") whose unwinds
+    /// leaked memory until the kernel OOM-killed the process (~24 GB). Running
+    /// the full walk once per activation keeps it to a single clean pass;
+    /// incremental edits are still picked up by the file-watcher → `indexFile`.
+    /// See docs/quality/2026-06-10-v3-usability-campaign/leak-investigation.md.
+    pub full_index_pending: Arc<AtomicBool>,
+    /// True while a `rag_index_workspace` walk is running. A second call that
+    /// arrives while one is in flight coalesces (returns immediately) rather than
+    /// running a SECOND walk concurrently on the same LanceDB dataset. Two
+    /// overlapping walks mutate/`drop_table` the dataset at once, which is what
+    /// corrupts it (the `lance dataset.rs:496` panic). The latch above bounds
+    /// re-fires across activations; this bounds true overlap WITHIN one (e.g. a
+    /// reload re-arms the latch via `rag_set_workspace` while a slow walk on a
+    /// large workspace is still running). Reset by `IndexingGuard` on every exit.
+    pub indexing: Arc<AtomicBool>,
+}
+
+/// RAII guard that clears `RagState::indexing` on every exit path (normal
+/// return, `?` early-return, panic-unwind) so a failed walk never wedges the
+/// concurrency flag permanently "on".
+struct IndexingGuard(Arc<AtomicBool>);
+
+impl Drop for IndexingGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
 }
 
 /// Helper: load the active workspace root, returning a friendly error if
@@ -178,7 +218,7 @@ async fn require_workspace(state: &RagState) -> Result<PathBuf, String> {
 }
 
 /// Set or replace the active workspace root the RAG indexer points at.
-/// Called once when the user opens a workspace, before any indexing.
+/// Called when the user opens a workspace, before any indexing.
 #[tauri::command]
 pub async fn rag_set_workspace(
     state: State<'_, RagState>,
@@ -189,8 +229,20 @@ pub async fn rag_set_workspace(
         return Err(format!("workspace path does not exist: {}", path));
     }
     let mut guard = state.workspace_root.lock().await;
+    // F-301: only arm the once-per-activation full-index latch when the workspace
+    // root actually CHANGES. `useMemoryWiring` calls this on every mount, and the
+    // RagState lives in the Rust process — so it survives webview reloads. A dev
+    // HMR reload-storm re-mounts the frontend many times for the SAME workspace;
+    // re-arming on each of those would re-trigger the destructive full re-index
+    // (drop_table + rebuild) over and over and run memory away. Re-opening the
+    // SAME already-active workspace is a no-op for indexing (the watcher keeps the
+    // index live incrementally); a real switch to a DIFFERENT workspace re-arms.
+    let changed = guard.as_deref() != Some(target.as_path());
     *guard = Some(target);
     state.cancel_flag.store(false, Ordering::SeqCst);
+    if changed {
+        state.full_index_pending.store(true, Ordering::SeqCst);
+    }
     Ok(())
 }
 
@@ -312,6 +364,37 @@ pub async fn rag_index_workspace(
 ) -> Result<(), String> {
     let matter = resolve_matter(matter_id.as_deref())?;
     let workspace = require_workspace(&state).await?;
+
+    // F-301 guard 1 — CONCURRENCY: never run two walks on the same LanceDB
+    // dataset at once. Overlapping walks mutate/`drop_table` it concurrently,
+    // which corrupts the dataset and triggers the `lance dataset.rs:496` panic
+    // flood that leaked memory to an OOM. A second call while one is in flight
+    // coalesces. The RAII guard clears the flag on every exit path.
+    if state
+        .indexing
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Ok(());
+    }
+    let _indexing_guard = IndexingGuard(state.indexing.clone());
+
+    // F-301 guard 2 — ONCE PER ACTIVATION: the DEFAULT full walk (`matter_id ==
+    // None`, fired on every workspace open) consumes the latch armed by
+    // `rag_set_workspace`. Later default calls for the same activation (rapid
+    // re-opens under the dev reload-storm) see `false` and return — collapsing
+    // the storm's dozens of destructive re-migrations into a single clean pass.
+    // A scoped re-index (`matter_id = Some`, from matter remap) is a distinct,
+    // deliberate operation and is NOT gated.
+    if matter_id.is_none()
+        && state
+            .full_index_pending
+            .compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+    {
+        return Ok(());
+    }
+
     state.cancel_flag.store(false, Ordering::SeqCst);
     let cancel = state.cancel_flag.clone();
 
@@ -858,6 +941,119 @@ mod tests {
             page_number: None,
             privilege: Some("none".into()),
         }
+    }
+
+    // ---- F-301 once-per-activation full-index latch -----------------------
+    //
+    // These model the exact `full_index_pending` true→false swap that gates the
+    // DEFAULT full walk in `rag_index_workspace`. They guard the OOM regression:
+    // the default full walk is fired on every workspace open, and rapid re-fires
+    // (dev HMR reload-storm re-opening the workspace) re-ran the destructive
+    // pre-3.0 migration (`drop_table` + re-index) over and over; the rapid
+    // drop/recreate churn corrupted the LanceDB dataset and flooded the process
+    // with panics whose unwinds leaked memory to an OOM. Contract: armed once by
+    // `rag_set_workspace`; exactly one default walk consumes it; later default
+    // walks for the same activation are no-ops.
+
+    /// Try to claim the full-index latch exactly as the command does for a
+    /// default (`matter_id == None`) walk. Returns true iff this caller should
+    /// run the walk.
+    fn claim_full_index(latch: &Arc<AtomicBool>) -> bool {
+        latch
+            .compare_exchange(true, false, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+    }
+
+    #[test]
+    fn full_index_runs_once_per_activation() {
+        // `rag_set_workspace` arms the latch.
+        let latch: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
+
+        // The first default walk consumes it and runs.
+        assert!(claim_full_index(&latch), "first default walk runs");
+        // Every subsequent default walk for the SAME activation is a no-op —
+        // this is what collapses the reload-storm's dozens of re-fires into a
+        // single clean pass.
+        assert!(!claim_full_index(&latch), "2nd default walk is a no-op");
+        assert!(!claim_full_index(&latch), "3rd default walk is a no-op");
+        assert!(!claim_full_index(&latch), "Nth default walk is a no-op");
+        assert!(!latch.load(Ordering::SeqCst), "latch stays consumed");
+    }
+
+    #[test]
+    fn re_activation_re_arms_the_latch() {
+        // Opening a (different) workspace re-arms the latch so its full walk
+        // runs once too.
+        let latch: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
+        assert!(claim_full_index(&latch));
+        assert!(!claim_full_index(&latch));
+
+        // `rag_set_workspace` re-arms on the next activation.
+        latch.store(true, Ordering::SeqCst);
+        assert!(claim_full_index(&latch), "new activation runs one walk");
+        assert!(!claim_full_index(&latch), "and only one");
+    }
+
+    #[test]
+    fn concurrent_default_walks_only_one_wins() {
+        // Even if two default walks race the claim, the atomic swap lets exactly
+        // one through — no overlapping full walks on the same dataset.
+        let latch: Arc<AtomicBool> = Arc::new(AtomicBool::new(true));
+        let a = claim_full_index(&latch);
+        let b = claim_full_index(&latch);
+        assert!(a ^ b, "exactly one of two racing default walks runs");
+    }
+
+    /// Model `rag_set_workspace`'s re-arm decision: arm the full-index latch ONLY
+    /// when the workspace root actually changes.
+    fn set_workspace_rearms(current: Option<&Path>, incoming: &Path) -> bool {
+        current != Some(incoming)
+    }
+
+    #[test]
+    fn reopening_same_workspace_does_not_rearm() {
+        let a = PathBuf::from("/tmp/ws-a");
+        let b = PathBuf::from("/tmp/ws-b");
+
+        // First activation: None -> /ws-a re-arms (the one clean walk).
+        assert!(set_workspace_rearms(None, &a), "first open arms");
+
+        // THE F-301 REGRESSION: re-opening the SAME workspace (every reload calls
+        // setWorkspace) must NOT re-arm — otherwise the reload-storm re-triggers
+        // the destructive full re-index repeatedly and runs memory away.
+        assert!(!set_workspace_rearms(Some(&a), &a), "same workspace never re-arms");
+        assert!(!set_workspace_rearms(Some(&a), &a), "...no matter how many times");
+
+        // A real switch to a DIFFERENT workspace re-arms so it gets indexed once.
+        assert!(set_workspace_rearms(Some(&a), &b), "switching workspaces arms");
+        assert!(!set_workspace_rearms(Some(&b), &b), "then stable again");
+    }
+
+    /// Try to acquire the concurrency flag exactly as the command does.
+    fn acquire_indexing(flag: &Arc<AtomicBool>) -> bool {
+        flag.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+    }
+
+    #[test]
+    fn concurrency_guard_blocks_overlap_and_releases_on_exit() {
+        let indexing: Arc<AtomicBool> = Arc::new(AtomicBool::new(false));
+
+        // First walk acquires the slot and holds the RAII guard.
+        assert!(acquire_indexing(&indexing), "first walk acquires");
+        let guard = IndexingGuard(indexing.clone());
+
+        // A walk that arrives while the first is in flight coalesces — so two
+        // walks never mutate the same LanceDB dataset concurrently (the cause of
+        // the corruption-panic flood).
+        assert!(!acquire_indexing(&indexing), "overlapping walk coalesces");
+        assert!(indexing.load(Ordering::SeqCst));
+
+        // When the in-flight walk finishes (or `?`-errors / panics), the guard
+        // drops and frees the slot so future walks can run.
+        drop(guard);
+        assert!(!indexing.load(Ordering::SeqCst), "slot freed on exit");
+        assert!(acquire_indexing(&indexing), "a later, non-overlapping walk runs");
     }
 
     #[test]

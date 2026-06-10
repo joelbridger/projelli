@@ -161,6 +161,13 @@ export function resolvePrivilegeForPath(sourceId: string): string {
   }
 }
 
+/**
+ * F-301 guard: true while a default (whole-workspace) index is in flight, so
+ * overlapping `indexWorkspace()` calls coalesce instead of stacking up. Reset in
+ * a `finally`, so a rejected index can never wedge it permanently on.
+ */
+let workspaceIndexInFlight = false;
+
 export const MemoryService = {
   /** Point the indexer at a workspace. Always runs even if disabled — the
    *  workspace handle is metadata, not user data. */
@@ -185,9 +192,28 @@ export const MemoryService = {
    * per-file watcher (which calls `indexFile`) re-tags each file with its real
    * matter as it is touched. To re-index ONE matter's folders under its id,
    * pass `matterId` explicitly (see `reindexMatterFolders`).
+   *
+   * F-301 defense-in-depth: coalesce overlapping full-workspace indexes at the
+   * call site so we don't even issue a redundant `invoke` while one is already
+   * running. A full index is fired on every workspace open; rapid re-opens
+   * (e.g. under a dev HMR reload-storm) would otherwise pile up overlapping
+   * walks whose Rust-side connections + embedding buffers ran memory away to an
+   * OOM. The Rust command also coalesces (the authoritative guard); this just
+   * avoids the wasted IPC. Per-matter re-index (`matterId` set) is NOT gated by
+   * this flag — it is a distinct, scoped operation.
    */
   async indexWorkspace(matterId?: string): Promise<void> {
     if (!isMemoryEnabled()) return;
+    if (matterId === undefined) {
+      if (workspaceIndexInFlight) return;
+      workspaceIndexInFlight = true;
+      try {
+        await ragIndexWorkspace(matterId);
+      } finally {
+        workspaceIndexInFlight = false;
+      }
+      return;
+    }
     await ragIndexWorkspace(matterId);
   },
 
