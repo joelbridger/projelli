@@ -41,6 +41,14 @@ import {
   type AssuredProvider,
   type MatterRole,
   type UserRole,
+  type RegisterDeviceResponse,
+  type FetchOrgUserDevicesResponse,
+  type PublishMatterKeysRequest,
+  type PublishMatterKeysResponse,
+  type FetchMatterKeysResponse,
+  type ListOrgAdminsResponse,
+  type MatterMineResponse,
+  type PublicUser,
 } from './contract';
 
 export class FirmApiError extends Error {
@@ -230,6 +238,18 @@ export class FirmApiClient {
     });
   }
 
+  /**
+   * POST /matter/mine — list shared matters the calling member has access to
+   * (member AND not walled). Requires Bearer + X-Seat-Token.
+   */
+  matterMine(seatToken: string): Promise<MatterMineResponse> {
+    return this.request<MatterMineResponse>(FIRM_ENDPOINTS.matterMine, {
+      method: 'POST',
+      auth: true,
+      headers: { 'X-Seat-Token': seatToken },
+    });
+  }
+
   listMatterMembers(matterId: string): Promise<MatterMembersResponse> {
     return this.request<MatterMembersResponse>(
       FIRM_ENDPOINTS.listMatterMembers.replace(':id', encodeURIComponent(matterId)),
@@ -266,6 +286,58 @@ export class FirmApiClient {
     return this.request<ClearWallResponse>(
       FIRM_ENDPOINTS.clearWall.replace(':id', encodeURIComponent(matterId)),
       { method: 'POST', auth: true, body: { user_id: userId } },
+    );
+  }
+
+  // --- device registration + key distribution --------------------------------
+
+  registerDevice(
+    deviceId: string,
+    machineId: string,
+    label: string,
+    pubkeyJwk: JsonWebKey,
+  ): Promise<RegisterDeviceResponse> {
+    return this.request<RegisterDeviceResponse>(FIRM_ENDPOINTS.deviceRegister, {
+      method: 'POST',
+      auth: true,
+      body: {
+        device_id: deviceId,
+        machine_id: machineId,
+        label,
+        pubkey_jwk: pubkeyJwk,
+      },
+    });
+  }
+
+  fetchOrgUserDevices(userIds: string[]): Promise<FetchOrgUserDevicesResponse> {
+    return this.request<FetchOrgUserDevicesResponse>(FIRM_ENDPOINTS.orgUserDevices, {
+      method: 'POST',
+      auth: true,
+      body: { user_ids: userIds },
+    });
+  }
+
+  listOrgAdmins(): Promise<ListOrgAdminsResponse> {
+    return this.request<ListOrgAdminsResponse>(FIRM_ENDPOINTS.orgAdmins, {
+      method: 'POST',
+      auth: true,
+    });
+  }
+
+  publishMatterKeys(
+    matterId: string,
+    payload: PublishMatterKeysRequest,
+  ): Promise<PublishMatterKeysResponse> {
+    return this.request<PublishMatterKeysResponse>(
+      FIRM_ENDPOINTS.publishMatterKeys.replace(':id', encodeURIComponent(matterId)),
+      { method: 'POST', auth: true, body: payload },
+    );
+  }
+
+  fetchMatterKeys(matterId: string, deviceId: string): Promise<FetchMatterKeysResponse> {
+    return this.request<FetchMatterKeysResponse>(
+      FIRM_ENDPOINTS.fetchMatterKeys.replace(':id', encodeURIComponent(matterId)),
+      { method: 'POST', auth: true, body: { device_id: deviceId } },
     );
   }
 
@@ -347,8 +419,8 @@ export class FirmApiClient {
     });
   }
 
-  createUser(email: string, password: string, role?: UserRole): Promise<{ user: unknown }> {
-    return this.request<{ user: unknown }>(FIRM_ENDPOINTS.createUser, {
+  createUser(email: string, password: string, role?: UserRole): Promise<{ user: PublicUser }> {
+    return this.request<{ user: PublicUser }>(FIRM_ENDPOINTS.createUser, {
       method: 'POST',
       auth: true,
       body: { email, password, ...(role ? { role } : {}) },

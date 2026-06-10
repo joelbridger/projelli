@@ -48,6 +48,10 @@ import {
   handleDeleteProviderKey,
   handleInferenceBilling,
 } from "./routes/assured.ts";
+import { handleDeviceRegister, handleListUsersDevices, handleListOrgAdmins } from "./routes/devices.ts";
+import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine } from "./routes/matterKeys.ts";
+import { handleOrgClaim } from "./routes/claim.ts";
+import { handleLemonSqueezyWebhook } from "./routes/webhooks.ts";
 import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
 
@@ -121,7 +125,12 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
           if (mm.rest === "wall/set" && method === "POST") return await handleSetWall(req, store, mm.id);
           if (mm.rest === "wall/clear" && method === "POST") return await handleClearWall(req, store, mm.id);
           if (mm.rest === "archive" && method === "POST") return handleArchiveMatter(req, store, mm.id);
+          // Phase 1: wrapped matter-key distribution.
+          if (mm.rest === "keys/publish" && method === "POST") return await handlePublishMatterKeys(req, store, mm.id);
+          if (mm.rest === "keys/fetch" && method === "POST") return await handleFetchMatterKey(req, store, mm.id);
         }
+        // Phase 1: /matter/mine (before the :id match so it doesn't accidentally match).
+        if (path === "/matter/mine" && method === "POST") return await handleMatterMine(req, store);
         // Admin: matter collection.
         if (path === "/org/matters" && method === "POST") return await handleCreateMatter(req, store);
         if (path === "/org/matters/list" && method === "POST") return handleListMatters(req, store);
@@ -164,6 +173,17 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/assured/keys/list" && method === "POST") return handleListProviderKeys(req, store);
         if (path === "/assured/keys/delete" && method === "POST") return await handleDeleteProviderKey(req, store);
         if (path === "/assured/billing" && method === "POST") return handleInferenceBilling(req, store);
+
+        // --- Phase 1: device key registration ---
+        if (path === "/device/register" && method === "POST") return await handleDeviceRegister(req, store);
+        if (path === "/org/users/devices" && method === "POST") return await handleListUsersDevices(req, store);
+        if (path === "/org/admins" && method === "POST") return await handleListOrgAdmins(req, store);
+
+        // --- Phase 1: org claim (self-serve activation) ---
+        if (path === "/org/claim" && method === "POST") return await handleOrgClaim(req, store);
+
+        // --- Phase 1: LemonSqueezy webhook ---
+        if (path === "/webhooks/lemonsqueezy" && method === "POST") return await handleLemonSqueezyWebhook(req, store);
 
         // --- Provisioning (billing-driven; protect at network layer) ---
         if (path === "/admin/org" && method === "POST") return await handleCreateOrg(req, store);

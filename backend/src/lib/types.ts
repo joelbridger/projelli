@@ -10,7 +10,7 @@
 export type Plan = "personal" | "professional" | "practice";
 export type ProfessionPack = "legal" | "tax" | "consulting";
 
-export type OrgStatus = "active" | "suspended";
+export type OrgStatus = "active" | "suspended" | "unclaimed";
 export type UserRole = "admin" | "member";
 export type UserStatus = "active" | "deprovisioned";
 export type SeatStatus = "active" | "revoked";
@@ -86,7 +86,13 @@ export type AuditAction =
   | "assured.key.set" // admin set/rotated an org managed provider key (metadata only)
   | "assured.key.delete" // admin removed an org managed provider key
   | "assured.infer" // a forwarded inference (metadata only — NEVER prompt/completion)
-  | "assured.infer.rejected"; // a rejected inference (bad seat, no key, provider error)
+  | "assured.infer.rejected" // a rejected inference (bad seat, no key, provider error)
+  // ---- chunk 4: device keys + wrapped matter keys + claim + webhook ---------
+  | "device.register" // user registered a device public key
+  | "matter.keys.publish" // admin published wrapped matter keys for members
+  | "matter.keys.fetch" // member fetched their wrapped matter key
+  | "org.claim" // org claimed from unclaimed status via license key
+  | "webhook.lemonsqueezy"; // LemonSqueezy webhook processed
 
 export interface AuditEvent {
   id: number;
@@ -197,3 +203,35 @@ export type MatterAccess =
   | { allowed: true; matter: Matter; reason: "member" | "admin" }
   | { allowed: false; matter: Matter; reason: "walled" | "not_member" }
   | { allowed: false; matter: null; reason: "matter_not_found" | "cross_org" };
+
+// ---------------------------------------------------------------------------
+// Chunk 4 — Device keys + wrapped matter keys + claim + webhook
+// ---------------------------------------------------------------------------
+
+/** A device's registered P-256 public key for wrapped matter-key delivery. */
+export interface Device {
+  device_id: string;
+  user_id: string;
+  org_id: string;
+  machine_id: string;
+  label: string;
+  pubkey_jwk: string; // JSON text of EC P-256 public JWK
+  created_at: string; // ISO
+}
+
+/** A per-device wrapped copy of a matter content key at a given epoch. */
+export interface WrappedMatterKey {
+  matter_id: string;
+  epoch: number;
+  user_id: string;
+  device_id: string;
+  wrapped_key_b64: string;
+  published_by: string; // user_id of the publisher (admin / owner)
+  created_at: string; // ISO
+}
+
+/** Idempotency record for processed webhook events. */
+export interface WebhookEvent {
+  event_id: string; // LemonSqueezy event id (from meta.event_name + meta.custom_data or event id)
+  processed_at: string; // ISO
+}

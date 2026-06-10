@@ -135,10 +135,18 @@ export async function handleRemoveMatterMember(req: Request, store: Store, matte
   const body = await readJson<{ user_id?: unknown }>(req);
   if (!body || !isNonEmptyString(body.user_id, 64)) return error("missing_fields", 400);
 
+  const oldEpoch = m.matter.key_epoch;
   const removed = store.removeMatterMember(matterId, body.user_id);
   // Removing a member rotates the matter key so updates pushed after this point
   // are sealed under an epoch the removed user never receives (§4 L2).
   const newEpoch = store.bumpMatterKeyEpoch(matterId);
+
+  // Phase 1 (wrapped keys): delete all wrapped keys for the removed user on this
+  // matter (all epochs) and delete the OLD epoch's full published set so publishers
+  // must re-wrap for the new epoch.
+  store.deleteWrappedKeysForUser(matterId, body.user_id);
+  store.deleteWrappedKeysForEpoch(matterId, oldEpoch);
+
   store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.member.remove", target: matterId, detail: { user_id: body.user_id, removed } });
   store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.key.rotate", target: matterId, detail: { reason: "member_remove", key_epoch: newEpoch } });
 
@@ -175,10 +183,17 @@ export async function handleSetWall(req: Request, store: Store, matterId: string
   if (!ok.ok) return ok.resp;
 
   const reason = isNonEmptyString(body.reason, 512) ? body.reason.trim() : null;
+  const wallOldEpoch = m.matter.key_epoch;
   store.setEthicalWall({ matter_id: matterId, user_id: body.user_id, org_id: a.claims.org_id, reason, created_by: a.claims.sub });
   // Raising a screen rotates the key so the screened user — even if they were a
   // member with the old key — cannot read updates pushed after the screen (§4 L2).
   const newEpoch = store.bumpMatterKeyEpoch(matterId);
+
+  // Phase 1 (wrapped keys): delete all wrapped keys for the walled user and purge
+  // the old epoch set so publishers must re-wrap at the new epoch.
+  store.deleteWrappedKeysForUser(matterId, body.user_id);
+  store.deleteWrappedKeysForEpoch(matterId, wallOldEpoch);
+
   store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.wall.set", target: matterId, detail: { user_id: body.user_id, reason } });
   store.audit({ org_id: a.claims.org_id, actor_user_id: a.claims.sub, action: "matter.key.rotate", target: matterId, detail: { reason: "wall_set", key_epoch: newEpoch } });
 

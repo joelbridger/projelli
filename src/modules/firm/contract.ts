@@ -286,6 +286,105 @@ export interface DeleteProviderKeyResponse {
   deleted: boolean;
 }
 
+// --- Device registration + key distribution ---------------------------------
+
+export interface RegisterDeviceRequest {
+  device_id: string;
+  machine_id: string;
+  label: string;
+  pubkey_jwk: JsonWebKey;
+}
+
+export interface RegisterDeviceResponse {
+  ok: true;
+}
+
+export interface FetchOrgUserDevicesRequest {
+  user_ids: string[];
+}
+
+export interface DeviceRecord {
+  user_id: string;
+  device_id: string;
+  pubkey_jwk: JsonWebKey;
+  label: string;
+}
+
+export interface FetchOrgUserDevicesResponse {
+  devices: DeviceRecord[];
+}
+
+export interface WrappedKeyEntry {
+  user_id: string;
+  device_id: string;
+  wrapped_key_b64: string;
+}
+
+export interface PublishMatterKeysRequest {
+  epoch: number;
+  wrapped: WrappedKeyEntry[];
+}
+
+export interface PublishMatterKeysResponse {
+  ok: true;
+  stored: number;
+}
+
+export interface FetchMatterKeysRequest {
+  device_id: string;
+}
+
+export interface FetchMatterKeysResponse {
+  epoch: number;
+  wrapped_key_b64: string;
+}
+
+/** Response for POST /org/admins — org admin users (used for escrow). */
+export interface OrgAdminEntry {
+  user_id: string;
+  email: string;
+  role: 'admin';
+}
+
+export interface ListOrgAdminsResponse {
+  admins: OrgAdminEntry[];
+}
+
+// --- /matter/mine ----------------------------------------------------------
+
+export interface MatterMineSummary {
+  matter_id: string;
+  client_name: string;
+  status: MatterStatus;
+  key_epoch: number;
+  role: MatterRole;
+}
+
+export interface MatterMineResponse {
+  matters: MatterMineSummary[];
+}
+
+// --- /org/claim (Phase 1) --------------------------------------------------
+
+export interface OrgClaimRequest {
+  license_key: string;
+  email: string;
+  password: string;
+  /** Optional: rename the org on first claim. */
+  org_name?: string;
+}
+
+export interface OrgClaimResponse extends AuthTokensResponse {
+  org: {
+    org_id: string;
+    name: string;
+    plan: Plan;
+    packs: ProfessionPack[];
+    seat_limit: number;
+  };
+  user: PublicUser;
+}
+
 // --- Errors ----------------------------------------------------------------
 export interface ApiError {
   error: string;
@@ -294,6 +393,12 @@ export interface ApiError {
 
 /** Endpoint paths (mirror of backend ENDPOINTS). `:id` = matter_id. */
 export const FIRM_ENDPOINTS = {
+  deviceRegister: '/device/register',
+  orgUserDevices: '/org/users/devices',
+  orgAdmins: '/org/admins',
+  matterMine: '/matter/mine',
+  orgClaim: '/org/claim',
+  lemonSqueezyWebhook: '/webhooks/lemonsqueezy',
   health: '/healthz',
   seatPublicKey: '/.well-known/seat-pubkey',
   login: '/auth/login',
@@ -313,6 +418,8 @@ export const FIRM_ENDPOINTS = {
   addMatterMember: '/matter/:id/members/add',
   removeMatterMember: '/matter/:id/members/remove',
   listMatterMembers: '/matter/:id/members/list',
+  publishMatterKeys: '/matter/:id/keys/publish',
+  fetchMatterKeys: '/matter/:id/keys/fetch',
   setWall: '/matter/:id/wall/set',
   clearWall: '/matter/:id/wall/clear',
   pushUpdate: '/matter/:id/updates',

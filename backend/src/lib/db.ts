@@ -34,6 +34,9 @@ import type {
   MatterRole,
   EthicalWall,
   MatterUpdate,
+  Device,
+  WrappedMatterKey,
+  WebhookEvent,
 } from "./types.ts";
 import type { AssuredProvider, BillingMeta, ManagedProviderKey } from "./assured-types.ts";
 
@@ -225,6 +228,48 @@ CREATE TABLE IF NOT EXISTS inference_billing (
   -- NO prompt / completion / body / content column. By design. See guard test.
 );
 CREATE INDEX IF NOT EXISTS idx_inference_billing_org ON inference_billing(org_id, id);
+
+-- =====================================================================
+-- Chunk 4: Device keys, wrapped matter keys, and webhook idempotency.
+-- (Phase 1 firm desktop wiring — ECDH P-256 key distribution.)
+-- =====================================================================
+
+-- One row per (user, device). Upserted on re-register (key rotation).
+CREATE TABLE IF NOT EXISTS devices (
+  device_id  TEXT NOT NULL,
+  user_id    TEXT NOT NULL REFERENCES users(user_id),
+  org_id     TEXT NOT NULL REFERENCES orgs(org_id),
+  machine_id TEXT NOT NULL,
+  label      TEXT NOT NULL DEFAULT '',
+  pubkey_jwk TEXT NOT NULL,   -- JSON text of EC P-256 public JWK (no private fields)
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (device_id, user_id)  -- device_id is caller-supplied; unique per user
+);
+CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_id);
+CREATE INDEX IF NOT EXISTS idx_devices_org  ON devices(org_id);
+
+-- Per-device wrapped copy of a matter's content key at a given epoch.
+-- A published set covers every (matter, epoch, user, device) tuple.
+-- On member-remove / wall-set the handler deletes the affected user's rows
+-- and all rows for the OLD epoch so publishers must re-wrap for the new one.
+CREATE TABLE IF NOT EXISTS wrapped_matter_keys (
+  matter_id       TEXT NOT NULL REFERENCES matters(matter_id),
+  epoch           INTEGER NOT NULL,
+  user_id         TEXT NOT NULL REFERENCES users(user_id),
+  device_id       TEXT NOT NULL,
+  wrapped_key_b64 TEXT NOT NULL,
+  published_by    TEXT NOT NULL,  -- user_id of the admin / owner who published
+  created_at      TEXT NOT NULL,
+  PRIMARY KEY (matter_id, epoch, user_id, device_id)
+);
+CREATE INDEX IF NOT EXISTS idx_wmk_matter_epoch ON wrapped_matter_keys(matter_id, epoch);
+CREATE INDEX IF NOT EXISTS idx_wmk_user ON wrapped_matter_keys(user_id);
+
+-- LemonSqueezy webhook idempotency: prevents double-processing the same event.
+CREATE TABLE IF NOT EXISTS webhook_events (
+  event_id     TEXT PRIMARY KEY,  -- LS event id (from meta.webhook_id or similar)
+  processed_at TEXT NOT NULL
+);
 `;
 
 // ---------------------------------------------------------------------------
@@ -453,6 +498,18 @@ export class Store {
 
   setUserStatus(userId: string, status: UserStatus): void {
     this.db.query(`UPDATE users SET status = ? WHERE user_id = ?`).run(status, userId);
+  }
+
+  /** Active admin users for an org. Clients use this to wrap matter keys to admin
+   * devices (escrow), so any org member may read it; emails are org-internal. */
+  listOrgAdmins(orgId: string): Array<{ user_id: string; email: string }> {
+    const rows = this.db
+      .query(`SELECT * FROM users WHERE org_id = ? AND role = 'admin'`)
+      .all(orgId) as UserRow[];
+    return rows
+      .map(toUser)
+      .filter((u) => u.status === "active")
+      .map((u) => ({ user_id: u.user_id, email: u.email }));
   }
 
   // ---- License keys --------------------------------------------------------
@@ -1148,6 +1205,213 @@ export class Store {
         ts: r.ts,
       }),
     );
+  }
+
+  // ===========================================================================
+  // Chunk 4 — Device keys
+  // ===========================================================================
+
+  /**
+   * Upsert a device record for (device_id, user_id). If the device already
+   * exists for this user, update label + pubkey (key rotation). If device_id is
+   * claimed by a DIFFERENT user in this org, that is fine — devices are scoped
+   * to a user. Cross-user collisions (a client bug) overwrite only the calling
+   * user's row, so they cannot steal another user's device slot.
+   */
+  upsertDevice(input: {
+    device_id: string;
+    user_id: string;
+    org_id: string;
+    machine_id: string;
+    label: string;
+    pubkey_jwk: string;
+  }): Device {
+    const now = this.nowIso();
+    this.db
+      .query(
+        `INSERT INTO devices (device_id, user_id, org_id, machine_id, label, pubkey_jwk, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(device_id, user_id) DO UPDATE SET
+           machine_id = excluded.machine_id,
+           label      = excluded.label,
+           pubkey_jwk = excluded.pubkey_jwk`,
+      )
+      .run(input.device_id, input.user_id, input.org_id, input.machine_id, input.label, input.pubkey_jwk, now);
+    return {
+      device_id: input.device_id,
+      user_id: input.user_id,
+      org_id: input.org_id,
+      machine_id: input.machine_id,
+      label: input.label,
+      pubkey_jwk: input.pubkey_jwk,
+      created_at: now,
+    };
+  }
+
+  /** List all devices registered by the given users (org-scoped: only same-org users). */
+  listDevicesForUsers(userIds: string[]): Device[] {
+    if (userIds.length === 0) return [];
+    // SQLite has no array binding; build a parameterised IN clause.
+    const placeholders = userIds.map(() => "?").join(",");
+    const rows = this.db
+      .query(`SELECT * FROM devices WHERE user_id IN (${placeholders}) ORDER BY user_id, created_at ASC`)
+      .all(...userIds) as Array<{
+      device_id: string;
+      user_id: string;
+      org_id: string;
+      machine_id: string;
+      label: string;
+      pubkey_jwk: string;
+      created_at: string;
+    }>;
+    return rows;
+  }
+
+  getDevice(deviceId: string, userId: string): Device | null {
+    const r = this.db.query(`SELECT * FROM devices WHERE device_id = ? AND user_id = ?`).get(deviceId, userId) as
+      | Device
+      | null;
+    return r ?? null;
+  }
+
+  // ===========================================================================
+  // Chunk 4 — Wrapped matter keys
+  // ===========================================================================
+
+  /**
+   * Store a wrapped matter key for one device. Idempotent on the PK tuple:
+   * a re-publish of the same (matter, epoch, user, device) replaces the blob.
+   */
+  upsertWrappedMatterKey(input: {
+    matter_id: string;
+    epoch: number;
+    user_id: string;
+    device_id: string;
+    wrapped_key_b64: string;
+    published_by: string;
+  }): void {
+    this.db
+      .query(
+        `INSERT INTO wrapped_matter_keys (matter_id, epoch, user_id, device_id, wrapped_key_b64, published_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(matter_id, epoch, user_id, device_id) DO UPDATE SET
+           wrapped_key_b64 = excluded.wrapped_key_b64,
+           published_by    = excluded.published_by`,
+      )
+      .run(input.matter_id, input.epoch, input.user_id, input.device_id, input.wrapped_key_b64, input.published_by, this.nowIso());
+  }
+
+  /** Fetch the wrapped key for a specific (matter, epoch, user, device). */
+  getWrappedMatterKey(matterId: string, epoch: number, userId: string, deviceId: string): WrappedMatterKey | null {
+    const r = this.db
+      .query(`SELECT * FROM wrapped_matter_keys WHERE matter_id = ? AND epoch = ? AND user_id = ? AND device_id = ?`)
+      .get(matterId, epoch, userId, deviceId) as WrappedMatterKey | null;
+    return r ?? null;
+  }
+
+  /**
+   * Delete ALL wrapped keys for a user on a given matter (all epochs).
+   * Called when a member is removed or walled — they lose access to all key
+   * epochs, including ones they already had.
+   */
+  deleteWrappedKeysForUser(matterId: string, userId: string): void {
+    this.db
+      .query(`DELETE FROM wrapped_matter_keys WHERE matter_id = ? AND user_id = ?`)
+      .run(matterId, userId);
+  }
+
+  /**
+   * Delete all wrapped keys for a matter at a SPECIFIC epoch (the old epoch
+   * before a key rotation). After remove/wall the epoch bumps; the old epoch's
+   * published set is stale because the removed user had keys for it. Deleting
+   * it forces a full re-publish at the new epoch.
+   */
+  deleteWrappedKeysForEpoch(matterId: string, epoch: number): void {
+    this.db
+      .query(`DELETE FROM wrapped_matter_keys WHERE matter_id = ? AND epoch = ?`)
+      .run(matterId, epoch);
+  }
+
+  // ===========================================================================
+  // Chunk 4 — Webhook idempotency
+  // ===========================================================================
+
+  /**
+   * Record a processed webhook event. Returns false if the event_id already
+   * exists (already processed — caller should return 200 + ignore).
+   */
+  recordWebhookEvent(eventId: string): boolean {
+    const existing = this.db.query(`SELECT 1 FROM webhook_events WHERE event_id = ?`).get(eventId);
+    if (existing) return false;
+    this.db.query(`INSERT INTO webhook_events (event_id, processed_at) VALUES (?, ?)`).run(eventId, this.nowIso());
+    return true;
+  }
+
+  // ===========================================================================
+  // Chunk 4 — Org claim (for unclaimed orgs provisioned by webhook)
+  // ===========================================================================
+
+  /** Find an org by its license key hash (used in /org/claim). */
+  findOrgByLicenseKeyHash(keyHash: string): { org: Org; licenseKey: LicenseKey } | null {
+    const keyRow = this.db.query(`SELECT * FROM license_keys WHERE key_hash = ?`).get(keyHash) as
+      | (Omit<LicenseKey, "packs"> & { packs: string })
+      | null;
+    if (!keyRow) return null;
+    const orgRow = this.db.query(`SELECT * FROM orgs WHERE org_id = ?`).get(keyRow.org_id) as OrgRow | null;
+    if (!orgRow) return null;
+    return {
+      org: toOrg(orgRow),
+      licenseKey: { ...keyRow, packs: parsePacks(keyRow.packs) },
+    };
+  }
+
+  /**
+   * Mark an org as active (claim it). Sets status = 'active' and optionally
+   * renames it. Called by /org/claim after identity verification.
+   */
+  claimOrg(orgId: string, opts?: { name?: string }): void {
+    if (opts?.name) {
+      this.db.query(`UPDATE orgs SET status = 'active', name = ? WHERE org_id = ?`).run(opts.name, orgId);
+    } else {
+      this.db.query(`UPDATE orgs SET status = 'active' WHERE org_id = ?`).run(orgId);
+    }
+  }
+
+  /**
+   * List matters where the user is a member AND NOT walled, in the given org.
+   * Returns the matter info plus the user's role in that matter.
+   * Used by POST /matter/mine.
+   */
+  listMatterMembershipsForUser(
+    userId: string,
+    orgId: string,
+  ): Array<{ matter_id: string; client_name: string; status: MatterStatus; key_epoch: number; role: MatterRole }> {
+    const rows = this.db
+      .query(
+        `SELECT m.matter_id, m.client_name, m.status, m.key_epoch, mm.role
+         FROM matter_members mm
+         JOIN matters m ON m.matter_id = mm.matter_id
+         WHERE mm.user_id = ? AND m.org_id = ?
+           AND NOT EXISTS (
+             SELECT 1 FROM ethical_walls ew
+             WHERE ew.matter_id = mm.matter_id AND ew.user_id = mm.user_id
+           )
+         ORDER BY m.created_at DESC`,
+      )
+      .all(userId, orgId) as Array<{
+      matter_id: string;
+      client_name: string;
+      status: string;
+      key_epoch: number;
+      role: string;
+    }>;
+    return rows.map((r) => ({
+      matter_id: r.matter_id,
+      client_name: r.client_name,
+      status: r.status as MatterStatus,
+      key_epoch: r.key_epoch,
+      role: r.role as MatterRole,
+    }));
   }
 }
 

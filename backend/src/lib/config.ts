@@ -159,6 +159,13 @@ export const config = {
    *  client treats tokens uniformly; the seat-token issuer is the firm host. */
   issuer: str("TOKEN_ISSUER", "licenses.keepance.com"),
 
+  // ---- LemonSqueezy webhook (chunk 4) --------------------------------------
+  /** HMAC-SHA256 signing secret for verifying X-Signature on LS webhooks.
+   *  Set in production; empty string in dev/tests (tests set it directly). */
+  lemonSqueezyWebhookSecret: str("LEMONSQUEEZY_WEBHOOK_SECRET", ""),
+  /** Comma-separated LS variant IDs that map to the Firm plan. */
+  firmVariantIds: str("FIRM_VARIANT_IDS", ""),
+
   bootstrap: {
     orgName: process.env.BOOTSTRAP_ORG_NAME?.trim() || null,
     adminEmail: process.env.BOOTSTRAP_ADMIN_EMAIL?.trim() || null,
