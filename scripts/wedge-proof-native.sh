@@ -95,32 +95,28 @@ cmd_preflight() {
   echo "preflight OK"
 }
 
-cmd_up() {
-  say "build binary (debug) + production frontend"
-  echo "(if another session holds the cargo lock, cargo waits — do not kill it)"
-  (cd "$REPO/src-tauri" && cargo build 2>&1 | tail -2)
-  (cd "$REPO" && npm run build 2>&1 | tail -3)
-
-  say "Xvfb $DISP"
-  # ^-anchored: must never match a shell whose cmdline merely MENTIONS the
-  # pattern (e.g. a tool wrapper quoting this very command).
-  pkill -f "^Xvfb $DISP" 2>/dev/null || true
-  for _ in 1 2 3 4 5; do
-    pgrep -f "^Xvfb $DISP" >/dev/null || break
-    sleep 1
-  done
+# Idempotent Xvfb bring-up: start only when $DISP is not already serving.
+# `down` kills Xvfb, but `launch` must be re-runnable after `down` — the
+# seeding flow is launch → down → seed-localstorage → launch, and Task 7's
+# Option B run is down → launch --fresh-model.
+ensure_xvfb() {
   mkdir -p "$ART/logs" "$ART/screenshots" "$ART/output"
-  Xvfb "$DISP" -screen 0 1366x768x24 >"$ART/logs/xvfb.log" 2>&1 &
-  sleep 1
+  if ! DISPLAY="$DISP" xdotool getdisplaygeometry >/dev/null 2>&1; then
+    Xvfb "$DISP" -screen 0 1366x768x24 >"$ART/logs/xvfb.log" 2>&1 &
+    sleep 1
+  fi
   DISPLAY="$DISP" xdotool getdisplaygeometry >/dev/null \
     || { echo "FAIL: Xvfb $DISP did not come up (see $ART/logs/xvfb.log)"; exit 1; }
+}
 
-  say "vite preview :$PORT (quiesced frontend — no HMR)"
-  pkill -f "$PREVIEW_PAT" 2>/dev/null || true
-  for _ in 1 2 3 4 5; do
-    pgrep -f "$PREVIEW_PAT" >/dev/null || break
-    sleep 1
-  done
+# Idempotent vite-preview bring-up. OURS = cmdline matches PREVIEW_PAT; a
+# foreign listener on $PORT is a hard FAIL (never killed, never reused).
+ensure_preview() {
+  if pgrep -f "$PREVIEW_PAT" >/dev/null 2>&1; then
+    curl -sf "http://localhost:$PORT" >/dev/null \
+      || { echo "FAIL: our preview is running but :$PORT does not answer (see $ART/logs/vite-preview.log)"; exit 1; }
+    return 0
+  fi
   if ss -ltn "sport = :$PORT" 2>/dev/null | grep -q LISTEN; then
     echo "FAIL: port $PORT is held by a process this harness did not start:"
     ss -ltnp "sport = :$PORT" 2>/dev/null || true
@@ -136,6 +132,31 @@ cmd_up() {
   done
   curl -sf "http://localhost:$PORT" >/dev/null \
     || { echo "FAIL: preview not up (see $ART/logs/vite-preview.log)"; exit 1; }
+}
+
+cmd_up() {
+  say "build binary (debug) + production frontend"
+  echo "(if another session holds the cargo lock, cargo waits — do not kill it)"
+  (cd "$REPO/src-tauri" && cargo build 2>&1 | tail -2)
+  (cd "$REPO" && npm run build 2>&1 | tail -3)
+
+  say "Xvfb $DISP"
+  # ^-anchored: must never match a shell whose cmdline merely MENTIONS the
+  # pattern (e.g. a tool wrapper quoting this very command).
+  pkill -f "^Xvfb $DISP" 2>/dev/null || true
+  for _ in 1 2 3 4 5; do
+    pgrep -f "^Xvfb $DISP" >/dev/null || break
+    sleep 1
+  done
+  ensure_xvfb
+
+  say "vite preview :$PORT (quiesced frontend — no HMR)"
+  pkill -f "$PREVIEW_PAT" 2>/dev/null || true
+  for _ in 1 2 3 4 5; do
+    pgrep -f "$PREVIEW_PAT" >/dev/null || break
+    sleep 1
+  done
+  ensure_preview
 
   say "fresh profile + model pre-seed + fixture workspace"
   rm -rf "$PROFILE" "$WS"
@@ -197,7 +218,12 @@ cmd_launch() {
   local fresh=0
   [ "${1:-}" = "--fresh-model" ] && fresh=1
   [ -x "$BIN" ] || { echo "FAIL: $BIN missing — run '$0 up' first"; exit 1; }
+  [ -d "$PROFILE" ] || { echo "FAIL: profile $PROFILE missing — run '$0 up' first"; exit 1; }
   free -h | sed -n '1,2p'
+  # `down` tears Xvfb + preview down; bring them back so launch is
+  # re-runnable standalone (never touches the profile, unlike `up`).
+  ensure_xvfb
+  ensure_preview
   if [ "$fresh" = 1 ]; then
     rm -rf "$PROFILE/data/keepance/models/e5-small"
     if [ -d "$BUNDLE_MODEL" ]; then
@@ -244,6 +270,9 @@ cmd_down() {
     mv "$BUNDLE_STASH" "$BUNDLE_MODEL"
     echo "restored exe-adjacent model bundle from stash"
   fi
+  # The systemd-run scope dies with the app; its parent slice unit lingers
+  # loaded-but-empty. Stop it so down leaves zero systemd residue.
+  systemctl --user stop wedgeproof.slice 2>/dev/null || true
   sleep 1
   local left
   left=$(pgrep -af "target/debug/keepance|$PREVIEW_PAT|^Xvfb $DISP|gnome-keyring-daemon --" 2>/dev/null || true)
@@ -254,6 +283,129 @@ cmd_down() {
   echo "down OK (profile + workspace kept for inspection: $PROFILE, $WS)"
 }
 
+# Seed onboarding-complete + the recent-workspace entry into the webview's
+# localStorage so the app boots straight to a selector with a clickable
+# Recent entry (the GTK chooser is unusable headless). WebKit stores
+# localStorage per-origin as an sqlite3 ItemTable with UTF-16-LE values;
+# keys verified in src: keepance_recent_workspaces (workspaceStore.ts:155),
+# keepance_onboarding_complete (FirstRunWizard.tsx:43),
+# keepance_onboarding_completed_at (useOnboarding.ts:9). RecentWorkspace
+# shape: {path,name,lastOpened} (types/workspace.ts:30-34). Method proven by
+# the campaign (leak-investigation.md:54). The storage file exists only after
+# one boot (App.tsx:798 writes `theme` on startup), so the flow is:
+# launch (background) → wait for the window → down → seed-localstorage →
+# launch again.
+cmd_seed_localstorage() {
+  # Rig-verified layout (webkit2gtk on this box): flat per-origin file
+  #   <profile>/data/com.keepance.app/localstorage/http_localhost_5173.localstorage
+  # (an sqlite3 db despite the extension). Newer WebKit uses
+  # storage/<salted-hash>/localstorage.sqlite3 — both shapes are matched.
+  local db
+  db=$(find "$PROFILE" -name '*localhost*5173*' \( -name '*.sqlite3' -o -name '*.localstorage' \) 2>/dev/null | head -1 || true)
+  [ -z "$db" ] && db=$(find "$PROFILE" -ipath '*localstorage*' \( -name '*.sqlite3' -o -name '*.localstorage' \) 2>/dev/null | head -1 || true)
+  if [ -z "$db" ]; then
+    echo "FAIL: no localStorage sqlite under $PROFILE — boot the app once first (launch, wait for the window, down)"
+    find "$PROFILE" \( -name '*.sqlite3' -o -name '*.localstorage' \) 2>/dev/null || true
+    exit 1
+  fi
+  WS="$WS" python3 - "$db" <<'PY'
+import json, os, sqlite3, sys
+from datetime import datetime, timezone
+
+db = sys.argv[1]
+ws = os.environ["WS"]
+recent = json.dumps([{
+    "path": ws,
+    "name": os.path.basename(ws),
+    "lastOpened": datetime.now(timezone.utc).isoformat(),
+}])
+now = datetime.now(timezone.utc).isoformat()
+
+conn = sqlite3.connect(db)
+conn.execute(
+    "CREATE TABLE IF NOT EXISTS ItemTable "
+    "(key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB NOT NULL ON CONFLICT FAIL)"
+)
+for key, value in [
+    ("keepance_recent_workspaces", recent),
+    ("keepance_onboarding_complete", "true"),
+    ("keepance_onboarding_completed_at", now),
+]:
+    conn.execute(
+        "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+        (key, value.encode("utf-16-le")),
+    )
+conn.commit()
+print(f"seeded {db}")
+# Verification: decode every row back from UTF-16-LE so the seeding is
+# self-evidencing (WebKit stores values as UTF-16-LE natively).
+for key, value in conn.execute("SELECT key, value FROM ItemTable ORDER BY key"):
+    preview = bytes(value).decode("utf-16-le", "replace")[:72]
+    print(f"  {key}  ({len(value)} bytes)  {preview}")
+PY
+}
+
+# Disk-truth assertions + artifact collection after the attended pass.
+# PASS/FAIL rubric for the contradiction .docx (LLM wording varies, so we
+# match the planted FACTS, tolerantly — README.md:43-47):
+#   C1: /personal\s+e-?mail/i
+#   C2: /October\s+17/ AND /October\s+10/
+#   C3: /four[-\s]?weeks?/i AND /eight\s*(\(8\)\s*)?[-\s]?weeks?/i
+# PASS requires ALL clusters. Up to 2 attended attempts are allowed (LLM
+# nondeterminism); two misses = a logged finding (diagnose with the run
+# record's retrievedChunks/verified counts: feed problem vs model quality),
+# never a weakened rubric.
+# Exit codes distinguish the failure stage:
+#   2 = vector store has no data fragments (index never populated — F-415)
+#   3 = no 'Deposition Contradiction Analysis.docx' under the workspace
+#   4 = fact rubric FAIL (extracted text still banked for diagnosis)
+cmd_assert() {
+  say "vector store populated?"
+  local frags
+  frags=$(find "$WS/.keepance/vectors/chunks.lance" -name '*.lance' -not -path '*_versions*' 2>/dev/null | wc -l || true)
+  echo "data fragments: $frags"
+  [ "$frags" -gt 0 ] || { echo "FAIL(2): chunks.lance has no data fragments (index never populated — F-415 would still be open)"; exit 2; }
+
+  say "app log shows real indexing activity"
+  grep -c -i 'commit' "$APP_LOG" || echo "WARN: no commit lines in app log"
+
+  say "contradiction-finder .docx rubric"
+  local docx rubric_rc=0
+  docx=$(find "$WS" -name 'Deposition Contradiction Analysis.docx' 2>/dev/null | head -1 || true)
+  [ -n "$docx" ] || { echo "FAIL(3): no 'Deposition Contradiction Analysis.docx' under $WS"; exit 3; }
+  echo "found: $docx"
+  mkdir -p "$ART/output"
+  cp "$docx" "$ART/output/"
+  python3 - "$docx" <<'PY' || rubric_rc=4
+import re, sys, zipfile
+
+xml = zipfile.ZipFile(sys.argv[1]).read("word/document.xml").decode("utf-8", "replace")
+text = re.sub(r"<[^>]+>", " ", xml)
+open(sys.argv[1] + ".extracted.txt", "w").write(text)
+
+clusters = {
+    "C1 personal-email forwarding": bool(re.search(r"personal\s+e-?mail", text, re.I)),
+    "C2 October 17 side":           bool(re.search(r"October\s+17", text)),
+    "C2 October 10 side":           bool(re.search(r"October\s+10", text)),
+    "C3 four-week side":            bool(re.search(r"four[-\s]?weeks?", text, re.I)),
+    "C3 eight-week side":           bool(re.search(r"eight\s*(\(8\)\s*)?[-\s]?weeks?", text, re.I)),
+}
+for name, ok in clusters.items():
+    print(f"  {'PASS' if ok else 'MISS'}  {name}")
+if all(clusters.values()):
+    print("RUBRIC: PASS — all three planted contradictions mentioned by fact")
+else:
+    print("RUBRIC: FAIL — missing clusters above (diagnose: run-record retrievedChunks vs LLM quality)")
+    sys.exit(1)
+PY
+  # Bank the extracted text even on a rubric FAIL — it IS the diagnostic.
+  cp "$docx.extracted.txt" "$ART/output/" 2>/dev/null || true
+  [ "$rubric_rc" -eq 0 ] || exit "$rubric_rc"
+
+  say "artifacts banked"
+  find "$ART" -type f | sort | head -40
+}
+
 case "${1:-}" in
   preflight) cmd_preflight ;;
   up) cmd_up ;;
@@ -262,8 +414,8 @@ case "${1:-}" in
   click) cmd_click "${2:?usage: $0 click <x> <y>}" "${3:?usage: $0 click <x> <y>}" ;;
   key) shift; cmd_key "$@" ;;
   type) cmd_type "${2:?usage: $0 type <text>}" ;;
-  seed-localstorage) cmd_seed_localstorage ;;   # Task 6
-  assert) cmd_assert ;;                          # Task 6
+  seed-localstorage) cmd_seed_localstorage ;;
+  assert) cmd_assert ;;
   down) cmd_down ;;
   *) echo "usage: $0 preflight|up|launch [--fresh-model]|shot <name>|click <x> <y>|key <keys>|type <text>|seed-localstorage|assert|down"; exit 1 ;;
 esac
