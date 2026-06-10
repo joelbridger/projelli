@@ -64,6 +64,9 @@ pub fn run() {
             commands::rag::rag_retag_privilege,
             // WS-B/C — re-tag a source's matter in place (mail/file re-scope).
             commands::rag::rag_retag_matter,
+            // Option B — visible, resumable first-run download of the e5-small model.
+            commands::rag::model_download::model_status,
+            commands::rag::model_download::model_ensure,
             // N2: rag_index_mail_text removed — latent plaintext-over-IPC surface.
             // The real indexing path is index_mail_text_internal (mail/mod.rs).
             commands::watcher::watch_workspace,

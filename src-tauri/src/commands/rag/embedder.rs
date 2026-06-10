@@ -16,6 +16,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
+// Pulled in at module level so `mod tests` below can reach the sibling
+// module's shared fixtures as `super::model_download::*`.
+#[cfg(test)]
+use super::model_download;
+
 /// Output dimension of the e5-small embedder. Hard-coded so the LanceDB
 /// schema can declare a `FixedSizeList<Float32, EMBEDDING_DIM>` column.
 pub const EMBEDDING_DIM: usize = 384;
@@ -32,6 +37,13 @@ pub fn resolve_cache_dir() -> PathBuf {
     // 1. Bundled copy adjacent to the executable (production). Tauri puts
     //    `bundle.resources` next to the binary — check `<exe_dir>/resources/embeddings`
     //    and `<exe_dir>/../Resources/embeddings` (macOS .app layout).
+    //
+    //    IMPORTANT: existence is NOT enough. Every CI build ships
+    //    `resources/embeddings/.gitkeep`, so this dir exists in all installs
+    //    while the model ships in none (the bundle-prefetch is deliberately
+    //    off). Only treat the bundle as the cache when it actually CONTAINS
+    //    the model files; otherwise fall through to the user-writable dir
+    //    that `model_download::model_ensure` downloads into.
     if let Ok(exe) = std::env::current_exe() {
         if let Some(exe_dir) = exe.parent() {
             let candidates = [
@@ -39,21 +51,15 @@ pub fn resolve_cache_dir() -> PathBuf {
                 exe_dir.join("..").join("Resources").join("embeddings"),
             ];
             for cand in candidates {
-                if cand.is_dir() {
+                if super::model_download::model_files_cached(&cand) {
                     return cand;
                 }
             }
         }
     }
 
-    // 2. App data dir under `keepance/models/e5-small`.
-    if let Some(data_dir) = dirs::data_dir() {
-        let p = data_dir.join("keepance").join("models").join("e5-small");
-        return p;
-    }
-
-    // 3. Last resort: temp dir.
-    std::env::temp_dir().join("keepance-e5-small")
+    // 2./3. The single user-writable location, defined once in model_download.
+    super::model_download::writable_cache_dir()
 }
 
 /// Get the singleton embedder, initializing on first use.
@@ -78,6 +84,12 @@ async fn get_embedder() -> Result<Arc<TextEmbedding>> {
         })
         .await
         .cloned()
+}
+
+/// Initialize (or reuse) the embedder without embedding anything. Used by
+/// `model_ensure` as the post-download verification step.
+pub async fn warm_init() -> Result<()> {
+    get_embedder().await.map(|_| ())
 }
 
 /// Embed a single query string. Prepends the "query: " prefix expected by
@@ -174,26 +186,30 @@ mod tests {
     }
 
     /// Verify that `resolve_cache_dir` returns the bundled path when the
-    /// `resources/embeddings` directory exists adjacent to the test binary.
+    /// `resources/embeddings` directory adjacent to the test binary actually
+    /// CONTAINS the model files (a bare directory no longer wins — every CI
+    /// build ships an empty `resources/embeddings/.gitkeep`).
     ///
     /// This simulates the production layout where Tauri places
     /// `bundle.resources` next to the executable so `resolve_cache_dir()`
     /// finds it and skips the HuggingFace download.
     ///
-    /// Strategy: create a temporary `resources/embeddings` directory next to
-    /// the current test executable, call `resolve_cache_dir()`, assert we get
-    /// that path, then clean up. Because `std::env::current_exe()` returns the
-    /// real test binary path, this exercises the same code path as the
-    /// production app.
+    /// Strategy: build a full fake hf-hub layout in `resources/embeddings`
+    /// next to the current test executable, call `resolve_cache_dir()`,
+    /// assert we get that path, then clean up. Because
+    /// `std::env::current_exe()` returns the real test binary path, this
+    /// exercises the same code path as the production app.
     #[test]
     fn resolve_cache_dir_prefers_bundled_path_when_present() {
         let exe = std::env::current_exe().expect("current_exe");
         let exe_dir = exe.parent().expect("exe has parent");
         let bundled = exe_dir.join("resources").join("embeddings");
 
-        // Create the sentinel directory.
-        std::fs::create_dir_all(&bundled)
-            .expect("create bundled embeddings dir");
+        // Populate a complete model layout: existence alone must not win.
+        super::model_download::write_fake_layout(
+            &bundled,
+            &super::model_download::REQUIRED_FILES,
+        );
 
         let result = resolve_cache_dir();
 
@@ -210,21 +226,22 @@ mod tests {
         );
     }
 
-    /// Verify that when no bundled path exists, `resolve_cache_dir()` falls
-    /// back to a path under the system data dir (or temp dir) — NOT the
-    /// bundled location — so the existing download-on-first-run path still
-    /// works correctly for dev builds.
+    /// Verify that when no populated bundle exists, `resolve_cache_dir()`
+    /// falls back to a path under the system data dir (or temp dir) — NOT
+    /// the bundled location — so first-run downloads land somewhere
+    /// writable in dev builds and production installs alike.
     #[test]
     fn resolve_cache_dir_falls_back_when_no_bundled_dir() {
-        // Ensure no stray `resources/embeddings` dir is adjacent to this
-        // binary (the previous test cleans up, but be defensive).
+        // Ensure no stray populated `resources/embeddings` layout is
+        // adjacent to this binary (the previous test cleans up, but be
+        // defensive).
         let exe = std::env::current_exe().expect("current_exe");
         let exe_dir = exe.parent().expect("exe has parent");
         let bundled = exe_dir.join("resources").join("embeddings");
 
-        // Only run the assertion if the bundled dir truly doesn't exist.
-        if bundled.is_dir() {
-            // Another test (or a real build) left it in place; skip rather
+        // Only run the assertion if the bundled dir truly holds no model.
+        if super::model_download::model_files_cached(&bundled) {
+            // Another test (or a real build) left it populated; skip rather
             // than fail misleadingly.
             return;
         }
@@ -237,6 +254,23 @@ mod tests {
         assert!(
             !result.starts_with(&bundled),
             "fallback should NOT be the bundled path when it doesn't exist"
+        );
+    }
+
+    /// The agreement invariant that kills the drift risk: with no populated
+    /// bundle next to the exe, the read path and the download path are the
+    /// SAME directory.
+    #[test]
+    fn resolve_cache_dir_agrees_with_writable_cache_dir_without_bundle() {
+        let exe = std::env::current_exe().expect("current_exe");
+        let exe_dir = exe.parent().expect("exe has parent");
+        let bundled = exe_dir.join("resources").join("embeddings");
+        if super::model_download::model_files_cached(&bundled) {
+            return; // a real populated bundle is adjacent; invariant doesn't apply
+        }
+        assert_eq!(
+            resolve_cache_dir(),
+            super::model_download::writable_cache_dir()
         );
     }
 }
