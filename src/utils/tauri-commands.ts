@@ -369,6 +369,45 @@ export async function ragVerifyCitation(
   });
 }
 
+/** Tauri event for the one-time embedding-model download. Mirrors
+ *  MODEL_EVENT in src-tauri/src/commands/rag/model_download.rs. */
+export const MODEL_DOWNLOAD_EVENT = 'model-download-progress';
+
+/** Marker substring in Rust errors meaning "model files not downloaded
+ *  yet". Mirrors MODEL_NOT_READY in embedder.rs. */
+export const MODEL_NOT_READY = 'model-not-ready';
+
+/** Download lifecycle emitted on `model-download-progress` events.
+ *  Mirror of `ModelDownloadState` in model_download.rs (lowercase on
+ *  the wire). */
+export type ModelDownloadState =
+  | 'checking'
+  | 'downloading'
+  | 'verifying'
+  | 'ready'
+  | 'error';
+
+/** Payload emitted on the `model-download-progress` event. The
+ *  `useModelStatus` hook subscribes to this event. Mirror of
+ *  `ModelDownloadProgress` in model_download.rs (camelCase via serde). */
+export interface ModelDownloadProgress {
+  state: ModelDownloadState;
+  file: string | null;
+  bytesDone: number;
+  bytesTotal: number | null;
+  message: string | null;
+}
+
+/** Cheap model presence probe: 'ready' | 'absent' | 'downloading'. */
+export async function modelStatus(): Promise<string> {
+  return invoke<string>('model_status');
+}
+
+/** Idempotent: kicks off the visible model download when files are missing. */
+export async function modelEnsure(): Promise<string> {
+  return invoke<string>('model_ensure');
+}
+
 /** Start (or replace) the workspace file watcher. Only one watcher is
  *  active at a time. Emits `workspace-file-changed` events that callers
  *  can subscribe to via `@tauri-apps/api/event`'s `listen`. */
