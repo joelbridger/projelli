@@ -16,7 +16,12 @@
  *      runs for real; it returns before any provider/API-key code).
  *   3. The xlsx open → edit → recompute → save-artifact → reopen round-trip
  *      over the campaign's damages-model.xlsx, asserting the FORMULA
- *      survives (=SUM(B2:B7) is not flattened to a number).
+ *      survives (=SUM(B2:B7) is not flattened to a number). This is a
+ *      recorded product finding: see the expected-fail test below — SheetJS
+ *      drops formula cells whose cached value is empty (openpyxl-authored
+ *      files), so the TOTAL cells never render and any edit+save silently
+ *      strips the formulas. Kept at full assertion strength as the fix
+ *      tripwire.
  *   4. exhibit-deck.pptx parses and renders its real slide text through the
  *      honest no-LibreOffice fallback outline. (There is NO pptx editing in
  *      the product — the export side is unit-covered in pptx-export.test.ts.)
@@ -302,5 +307,149 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     // (AIChatViewer.tsx:1005). Anything else fails the test.
     const unexpected = getErrors().filter((e) => !e.includes('Workspace retrieval failed'));
     expect(unexpected, 'unexpected console errors').toHaveLength(0);
+  });
+
+  const XLSX_MIME =
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const PPTX_MIME =
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+
+  function fixtureAsDataUrl(name: string, mime: string): string {
+    const bytes = readFileSync(join(fixturesDir, name));
+    return `data:${mime};base64,${Buffer.from(bytes).toString('base64')}`;
+  }
+
+  test('FINDING (expected fail): xlsx round-trip — SheetJS drops openpyxl formula cells, so the TOTAL never renders and edits silently strip the formulas', async ({
+    page,
+  }, testInfo) => {
+    // PRODUCT FINDING — harness proves, never fixes (F-5xx row for the
+    // RESULTS.md ledger, Task 7): the real damages-model.xlsx opens, but
+    // both TOTAL cells (B10 `=SUM(B2:B7)`, B11 `=SUM(B2:B8)`) render EMPTY —
+    // no computed value, no ƒ indicator — and the round-trip below can never
+    // start. Diagnosis (reproduced against the repo's pinned SheetJS 0.20.3):
+    //
+    //   - openpyxl never computes formulas; the fixture stores the formula
+    //     with an EMPTY cached value: `<c r="B10"><f>SUM(B2:B7)</f><v></v></c>`
+    //     (raw sheet1.xml of tests/fixtures/matter-corpus/damages-model.xlsx).
+    //   - With the production read options (spreadsheet-io.ts:584-589 —
+    //     cellDates/cellFormula/cellNF, NO `sheetStubs`), `XLSX.read` treats
+    //     a formula cell with an empty cached value as a stub and DROPS it:
+    //     `ws['B10']` is `undefined`. A formula cell WITH a cached value
+    //     survives (`{t:'n', v:5, f:'SUM(A1:A2)'}`) — which is why the
+    //     SheetJS-authored tests/fixtures/test.xlsx passes in
+    //     spreadsheet-improvements.spec.ts: Excel and SheetJS always cache.
+    //   - Dropped cell → `cellToSheetCell` never runs → no `formula` on any
+    //     SheetCell → `hasFormulas` is false (spreadsheet-io.ts:378) → no
+    //     SheetEngine attaches → B10/B11 paint as empty cells.
+    //   - WORSE, data loss: after ANY edit, serializeXlsx skips null model
+    //     cells (`if (!cell) continue`, spreadsheet-io.ts:431), so the saved
+    //     artifact omits B10/B11 entirely — the user's formulas are silently
+    //     destroyed by open → edit → autosave on files from openpyxl-class
+    //     tools (or any writer that doesn't cache formula values).
+    //   - Fix direction for the fix wave (NOT applied here): `sheetStubs:
+    //     true` makes SheetJS surface the cell as `{t:'z', f:'SUM(B2:B7)'}`,
+    //     which the existing engine overlay would then compute live.
+    //   - Same pure-JS path runs in the Tauri webview — leg 3's native pass
+    //     will observe the same on this fixture (runbook should mirror it).
+    //
+    // The assertions below are the plan's original round-trip at full
+    // strength. When the parse gap is fixed, this test will "pass
+    // unexpectedly" and fail the suite — remove the test.fail() then.
+    test.fail(
+      true,
+      'Known product gap: SheetJS (no sheetStubs) drops formula cells with empty cached values, so openpyxl-authored formulas neither render nor survive a save',
+    );
+
+    const getErrors = collectConsoleErrors(page);
+    const xlsxPath = '/test-workspace/matter-corpus/damages-model.xlsx';
+
+    await openTestFile(page, {
+      path: xlsxPath,
+      name: 'damages-model.xlsx',
+      content: fixtureAsDataUrl('damages-model.xlsx', XLSX_MIME),
+    });
+    await expect(page.getByTestId('spreadsheet-viewer')).toBeVisible({ timeout: 20_000 });
+
+    // Layout (generate-fixtures.py:726-749, 0-based incl. header row):
+    // B4 "Lost bonus (2025)" = cell-3-1 (22000); B10 "TOTAL (base)" =
+    // cell-9-1 = =SUM(B2:B7) → 355250 computed by the live formula engine.
+    const total = page.getByTestId('spreadsheet-cell-9-1');
+    await expect(total).toContainText('355250');
+
+    // Edit the input: 22000 → 30000; the total recomputes to 363250.
+    const bonus = page.getByTestId('spreadsheet-cell-3-1');
+    await bonus.dblclick();
+    const editor = page.getByTestId('spreadsheet-cell-input-3-1');
+    await expect(editor).toBeVisible();
+    await editor.fill('30000');
+    await editor.press('Enter');
+    await expect(total).toContainText('363250');
+    await keep(page, testInfo, 'leg2-04-xlsx-edited');
+
+    // The edit pushed a re-serialized .xlsx data URL into the tab content
+    // (SpreadsheetViewer onContentChange → editor store). Read that saved
+    // artifact back and REOPEN it — the true serialize→reparse round-trip.
+    const savedDataUrl = await page.evaluate((p) => {
+      const store = (
+        window as unknown as {
+          __editorStore?: { getState: () => { openTabs: Array<{ path: string; content: string }> } };
+        }
+      ).__editorStore;
+      if (!store) throw new Error('window.__editorStore missing');
+      const tab = store.getState().openTabs.find((t) => t.path === p);
+      if (!tab) throw new Error(`tab not found: ${p}`);
+      return tab.content;
+    }, xlsxPath);
+    expect(savedDataUrl.startsWith('data:')).toBe(true);
+
+    await openTestFile(page, {
+      path: '/test-workspace/matter-corpus/damages-model-reopened.xlsx',
+      name: 'damages-model-reopened.xlsx',
+      content: savedDataUrl,
+    });
+    await expect(page.getByTestId('spreadsheet-viewer')).toBeVisible({ timeout: 20_000 });
+
+    // Edited value persisted AND the total still COMPUTES (not a flattened
+    // copy of the old number).
+    await expect(page.getByTestId('spreadsheet-cell-3-1')).toContainText('30000');
+    const reopenedTotal = page.getByTestId('spreadsheet-cell-9-1');
+    await expect(reopenedTotal).toContainText('363250');
+
+    // THE formula assertion: select the total cell; the formula bar shows
+    // the live formula, proving =SUM(B2:B7) survived the round-trip.
+    await hardClick(reopenedTotal);
+    await expect(page.getByTestId('spreadsheet-formula-bar-content')).toContainText('=SUM(B2:B7)');
+    await keep(page, testInfo, 'leg2-05-xlsx-reopened-formula');
+
+    expect(getErrors(), 'console errors').toHaveLength(0);
+  });
+
+  test('pptx: exhibit-deck.pptx parses and renders its real slide text via the honest fallback outline', async ({
+    page,
+  }, testInfo) => {
+    const getErrors = collectConsoleErrors(page);
+
+    await openTestFile(page, {
+      path: '/test-workspace/matter-corpus/exhibit-deck.pptx',
+      name: 'exhibit-deck.pptx',
+      content: fixtureAsDataUrl('exhibit-deck.pptx', PPTX_MIME),
+    });
+
+    await expect(page.getByTestId('presentation-viewer')).toBeVisible({ timeout: 20_000 });
+    // Browser mode takes the pure-JS extract fallback (PresentationViewer
+    // effect: !inTauri → runFallback). Real fixture text, really parsed:
+    await expect(page.getByTestId('presentation-fallback-banner')).toBeVisible();
+    await expect(page.getByTestId('fallback-slide-1')).toContainText(
+      'Johnson v. Nexus Dynamics Corp.',
+    );
+    await expect(page.getByTestId('fallback-slide-2')).toContainText('Key Events Timeline');
+    await expect(page.getByTestId('fallback-slide-2')).toContainText(
+      'November 12, 2025: Termination',
+    );
+    await keep(page, testInfo, 'leg2-06-pptx-fallback');
+
+    // No pptx editing exists in the product; the export half (build→extract)
+    // is unit-proven in tests/unit/pptx-export.test.ts. Nothing more to claim.
+    expect(getErrors(), 'console errors').toHaveLength(0);
   });
 });
