@@ -1627,6 +1627,8 @@ git commit -m "feat(rag): defer first index until the model is ready; honest AI 
 
 - [ ] **Step 0 (optional hardening from the Task 2 quality review; do if quick, skip without guilt):** (a) wrap the `DOWNLOADING` clear in `model_ensure` in a small RAII Drop guard (mirrors `IndexingGuard` in `mod.rs`) so a panic between the CAS and the store can never wedge status at "downloading"; (b) move the `resolve_cache_dir()` calls inside the existing `spawn_blocking` closures in `model_status`/`model_ensure` (it does a dozen fs syscalls; cosmetic). Neither blocks anything.
 
+- [ ] **Step 0b (verification note from the Task 5 quality review):** in the dev-build sanity pass, confirm the ready handoff has no dead gap: the moment the download card vanishes (Ready), the deferred index kicks and the rag indexing banner appears — the rag banner provides the visible closure, which is why the card has no "done" flash of its own. Also confirm the card renders on BOTH the workspace-selector screen and the main shell (the first-run mount fix).
+
 - [ ] **Step 1: Full gates**
 
 ```bash
