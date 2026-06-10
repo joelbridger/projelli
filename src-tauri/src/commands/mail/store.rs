@@ -400,12 +400,18 @@ impl EncryptedMailStore {
     // the embedding model is still downloading; see mail_backfill_rag.)
 
     /// Read one meta value, or `None` if the key is not set.
+    ///
+    /// Absence vs failure: a missing row is `Ok(None)`; a real DB error (e.g.
+    /// SQLITE_BUSY surviving the busy timeout) is `Err`. Callers must never
+    /// read "the DB is broken" as "the marker is absent" — the backfill probe
+    /// skips its pass on Err instead of wrongly concluding there is no work.
     pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
+        use rusqlite::OptionalExtension;
         let c = self.conn.lock().unwrap();
         Ok(c.query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| {
             r.get(0)
         })
-        .ok())
+        .optional()?)
     }
 
     /// Set (upsert) one meta value. Idempotent.

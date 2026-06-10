@@ -325,21 +325,36 @@ export function useMemoryWiring(
           // each backfilled message exactly as a sync would have.
           void mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
         };
+        // Listen-first-then-check: register the ready listener BEFORE probing
+        // modelStatus(), so a ready event landing between the probe and the
+        // listen can't be missed (the session would otherwise never index
+        // until the next launch). If both the event and the probe report
+        // ready, the flag makes the kick-off run exactly once.
+        let fullIndexStarted = false;
+        const startFullIndexOnce = () => {
+          if (fullIndexStarted) return;
+          fullIndexStarted = true;
+          startFullIndex();
+        };
+        const stopModelListen = await listen<ModelDownloadProgress>(
+          MODEL_DOWNLOAD_EVENT,
+          (event) => {
+            if (event.payload.state === 'ready') {
+              stopModelListen();
+              startFullIndexOnce();
+            }
+          },
+        );
+        if (cancelled) stopModelListen();
+        else stopModelListeners.push(stopModelListen);
+
         const status = await modelStatus().catch(() => 'ready');
         if (status === 'ready') {
-          startFullIndex();
-        } else {
-          const stopModelListen = await listen<ModelDownloadProgress>(
-            MODEL_DOWNLOAD_EVENT,
-            (event) => {
-              if (event.payload.state === 'ready') {
-                stopModelListen();
-                startFullIndex();
-              }
-            },
-          );
-          if (cancelled) stopModelListen();
-          else stopModelListeners.push(stopModelListen);
+          // Already ready — the listener is unnecessary; drop it and start
+          // immediately. Otherwise keep the listener; it starts the index on
+          // the ready event.
+          stopModelListen();
+          startFullIndexOnce();
         }
       } catch {
         // Tauri or watcher init failed — leave memory disabled gracefully.

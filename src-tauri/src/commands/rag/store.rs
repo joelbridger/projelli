@@ -60,10 +60,11 @@ use arrow_array::{
 };
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
 use lancedb::{
-    query::{ExecutableQuery, QueryBase},
+    query::{ExecutableQuery, QueryBase, Select},
     Connection, Table,
 };
 use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -926,6 +927,42 @@ pub async fn lookup_by_id(
     Ok(None)
 }
 
+/// Collect the `path` of EVERY mail chunk (`path LIKE 'mail:%'`) into a set —
+/// one scan, path column only — so the mail RAG backfill can answer "is this
+/// message already indexed?" by set membership instead of issuing a
+/// `count_rows` query per message. Paths repeat once per chunk; the set
+/// collapses them to one entry per message.
+pub async fn list_indexed_mail_paths(table: &Table) -> Result<HashSet<String>> {
+    use futures_util::TryStreamExt;
+    let mut stream = table
+        .query()
+        .only_if("path LIKE 'mail:%'")
+        .select(Select::columns(&["path"]))
+        .execute()
+        .await
+        .context("list_indexed_mail_paths query execute failed")?;
+
+    let mut out = HashSet::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("list_indexed_mail_paths stream try_next failed")?
+    {
+        let path_col = batch
+            .column_by_name("path")
+            .context("missing path column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("path column is not StringArray")?;
+        for i in 0..path_col.len() {
+            if !path_col.is_null(i) {
+                out.insert(path_col.value(i).to_string());
+            }
+        }
+    }
+    Ok(out)
+}
+
 // ---------------------------------------------------------------------------
 // WS-B/C: version-aware migration.
 // ---------------------------------------------------------------------------
@@ -1583,5 +1620,44 @@ mod tests {
         assert!(!after_a.iter().any(|h| h.path == "mail:movable"), "must leave Matter A after re-tag");
         let after_b = nearest(&table, &q, 10, Some("matter_b"), false).await.unwrap();
         assert!(after_b.iter().any(|h| h.path == "mail:movable"), "must appear under Matter B after re-tag");
+    }
+
+    /// The backfill's batched skip-probe: ONE path-only scan returns every mail
+    /// chunk path as a set, and never file/pdf paths.
+    #[tokio::test]
+    async fn list_indexed_mail_paths_returns_mail_paths_only() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        add_mail_chunk(&table, "mail:msg-1", "matter_a", 0.10).await;
+        add_mail_chunk(&table, "mail:msg-2", "matter_b", 0.11).await;
+
+        // A non-mail (file) chunk must NOT appear in the set.
+        let rows = vec![(
+            Chunk {
+                path: "notes/mail-policy.md".into(),
+                paragraph_index: 0,
+                text: "a file, not a message".into(),
+                start_offset: 0,
+                end_offset: 10,
+            },
+            vec![0.2f32; EMBEDDING_DIM],
+        )];
+        let batch =
+            build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+                .expect("build file batch");
+        let schema = batch.schema();
+        table
+            .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+            .execute()
+            .await
+            .expect("add file chunk");
+
+        let set = list_indexed_mail_paths(&table).await.expect("list mail paths");
+        assert_eq!(set.len(), 2, "exactly the two mail messages: {set:?}");
+        assert!(set.contains("mail:msg-1"));
+        assert!(set.contains("mail:msg-2"));
+        assert!(!set.contains("notes/mail-policy.md"));
     }
 }

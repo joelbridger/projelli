@@ -363,10 +363,18 @@ pub async fn mail_retag_folder_matter(
 /// (the common case) this returns Ok(0) after a single row read, so the
 /// frontend can call it on every boot / model-ready transition. When the marker
 /// is set, every stored message is walked; messages that already have chunks
-/// are skipped (one `count_rows` probe each), the rest are re-run through the
-/// SAME indexing path the sync uses (`index_mail_text_internal`, which is
-/// delete-then-insert by source id, so no duplicate chunks are possible). The
-/// marker is cleared only after a fully successful pass.
+/// are skipped (ONE batched path scan up front, then set membership), the rest
+/// are re-run through the SAME indexing path the sync uses
+/// (`index_mail_text_internal`, which is delete-then-insert by source id, so no
+/// duplicate chunks are possible).
+///
+/// Marker lifecycle: the marker survives a pass ONLY when the model went
+/// missing mid-pass (model-not-ready failures) — those messages WILL succeed
+/// once the model is back, so retrying on the next boot is correct. Any other
+/// pass is terminal and clears the marker: fully successful, or one whose only
+/// failures were non-model ones (logged loudly with their ids and NOT retried
+/// automatically — a poison message must not re-walk the mailbox every boot).
+/// See `backfill_marker_disposition`.
 ///
 /// `matter_map` is the frontend's (provider, account, folder) -> matter mapping
 /// (same shape `mail_sync_all` takes) so each backfilled message is scoped
@@ -396,13 +404,23 @@ pub async fn mail_backfill_rag(
     // Fast no-op #2: marker absent → nothing to heal (one row read).
     let ws_probe = workspace.clone();
     let key_probe = enc_key;
-    let needed = tokio::task::spawn_blocking(move || -> anyhow::Result<bool> {
+    let needed = match tokio::task::spawn_blocking(move || -> anyhow::Result<bool> {
         let store = EncryptedMailStore::open_with_key(&ws_probe, &key_probe)?;
         Ok(store.get_meta(RAG_BACKFILL_NEEDED_KEY)?.is_some())
     })
     .await
     .map_err(|e| format!("join: {e}"))?
-    .map_err(|e| format!("read backfill marker: {e:#}"))?;
+    {
+        Ok(n) => n,
+        Err(e) => {
+            // A real DB error, NOT "marker absent" (get_meta distinguishes the
+            // two). Don't guess in either direction: skip the backfill this
+            // boot — the marker (if any) is untouched, so the next boot
+            // re-probes and self-corrects.
+            log::warn!("mail RAG backfill: marker probe failed; skipping this boot: {e:#}");
+            return Err(format!("read backfill marker: {e:#}"));
+        }
+    };
     if !needed {
         return Ok(0);
     }
@@ -427,7 +445,10 @@ pub async fn mail_backfill_rag(
     // Mutual exclusion with mail_sync_all: both delete-then-insert the same
     // LanceDB rows, so a concurrent pass over the same message could duplicate
     // chunks. Claim the same sync slot; if a sync is running, bail — the
-    // marker stays set and the next boot / model-ready signal retries.
+    // marker stays set and the next boot / model-ready signal retries. Note
+    // this excludes a RUNNING sync; in-flight spawned index tasks from a
+    // just-finished sync may briefly overlap (bounded: delete-then-insert
+    // self-heals on the next index of that message).
     if state
         .is_syncing
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -461,37 +482,42 @@ pub async fn mail_backfill_rag(
     .map_err(|e| format!("list mail records: {e:#}"))?;
     let store = Arc::new(store);
 
-    // Open the RAG table once for the already-indexed probe below.
+    // Open the RAG table once and batch the already-indexed probe: ONE scan of
+    // all mail chunk paths into a set, instead of a count_rows query per
+    // message. If the scan itself fails, warn and treat it as empty — the
+    // indexing below is delete-then-insert (idempotent), so the worst case is
+    // redundant re-index work, never a gap.
     let conn = crate::commands::rag::store::open_connection(&workspace)
         .await
         .map_err(|e| format!("open lancedb: {e}"))?;
     let table = crate::commands::rag::store::open_or_create_table(&conn)
         .await
         .map_err(|e| format!("open table: {e}"))?;
+    let indexed_paths = match crate::commands::rag::store::list_indexed_mail_paths(&table).await {
+        Ok(set) => set,
+        Err(e) => {
+            log::warn!("mail RAG backfill: indexed-paths scan failed (re-indexing all): {e:#}");
+            std::collections::HashSet::new()
+        }
+    };
 
     let total = records.len();
     let mut indexed = 0u32;
-    let mut failures = 0u32;
+    // Failure buckets drive the end-of-pass marker disposition: model-not-ready
+    // failures mean "a retry after the model returns heals"; anything else is
+    // terminal for automatic-retry purposes.
+    let mut model_failures = 0usize;
+    let mut other_failures = 0usize;
+    let mut failed_ids: Vec<String> = Vec::new();
     for rec in records {
         let path_key = format!("mail:{}", rec.id);
 
-        // Cheap probe: skip messages that already have chunks (indexed before
-        // the model went missing, or by an earlier partial pass). This keeps
-        // repeated passes cheap even if one poison message keeps the marker set.
-        match table
-            .count_rows(Some(format!(
-                "path = '{}'",
-                crate::commands::rag::store::sql_escape(&path_key)
-            )))
-            .await
-        {
-            Ok(n) if n > 0 => continue,
-            Ok(_) => {}
-            Err(e) => {
-                // Fall through and index — worst case is an idempotent
-                // delete-then-insert for a message that was already indexed.
-                log::warn!("mail RAG backfill probe failed for {path_key}: {e}");
-            }
+        // Skip messages that already have chunks (indexed before the model
+        // went missing, or by an earlier partial pass) — set membership against
+        // the one batched scan above. This keeps repeated passes cheap even if
+        // one poison message keeps the marker set.
+        if indexed_paths.contains(&path_key) {
+            continue;
         }
 
         // Decrypt the canonical body (blocking fs + AES) off the runtime.
@@ -508,12 +534,14 @@ pub async fn mail_backfill_rag(
             Ok(Ok(t)) => t,
             Ok(Err(e)) => {
                 log::warn!("mail RAG backfill: read body for {path_key} failed: {e:#}");
-                failures += 1;
+                other_failures += 1;
+                failed_ids.push(path_key);
                 continue;
             }
             Err(e) => {
                 log::warn!("mail RAG backfill: join for {path_key} failed: {e}");
-                failures += 1;
+                other_failures += 1;
+                failed_ids.push(path_key);
                 continue;
             }
         };
@@ -526,33 +554,54 @@ pub async fn mail_backfill_rag(
             Ok(_) => indexed += 1,
             Err(e) => {
                 log::warn!("mail RAG backfill index for {path_key} failed: {e:#}");
-                failures += 1;
-                // Everything after this would fail the same way — stop early
-                // and keep the marker (the next ready signal retries).
                 if embed_error_is_model_not_ready(&e) {
-                    return Err(format!(
-                        "{}: mail RAG backfill aborted (model became unavailable)",
-                        crate::commands::rag::embedder::MODEL_NOT_READY
-                    ));
+                    // Everything after this would fail the same way — stop the
+                    // walk; the disposition below keeps the marker so the next
+                    // boot / ready signal retries.
+                    model_failures += 1;
+                    break;
                 }
+                other_failures += 1;
+                failed_ids.push(path_key);
             }
         }
     }
 
-    if failures > 0 {
-        // Not a fully successful pass: keep the marker so the next pass retries
-        // the failed messages (already-indexed ones are skipped by the probe).
+    // End-of-pass marker lifecycle (see `backfill_marker_disposition`).
+    if backfill_marker_disposition(model_failures, other_failures)
+        == BackfillMarkerDisposition::Retain
+    {
+        // The model regressed mid-pass: the un-indexed remainder WILL succeed
+        // once it is back, so the marker must survive for the next boot.
         return Err(format!(
-            "mail RAG backfill: {failures} of {total} messages failed; will retry on the next start"
+            "{}: mail RAG backfill aborted (model became unavailable); will retry on the next start",
+            crate::commands::rag::embedder::MODEL_NOT_READY
         ));
     }
 
-    // Fully successful pass → clear the marker.
+    // Terminal pass (the model was present throughout): surface any permanent
+    // failures loudly, then clear the marker either way — retrying a non-model
+    // failure every boot would never fix it, just re-walk the mailbox.
+    if !failed_ids.is_empty() {
+        log::warn!(
+            "mail backfill: {} message(s) permanently failed to index and will NOT be retried automatically: {failed_ids:?}",
+            failed_ids.len()
+        );
+    }
     let store_clear = store.clone();
     tokio::task::spawn_blocking(move || store_clear.delete_meta(RAG_BACKFILL_NEEDED_KEY))
         .await
         .map_err(|e| format!("join: {e}"))?
         .map_err(|e| format!("clear backfill marker: {e:#}"))?;
+    // Release the once-per-session mark latch so a LATER incident in this
+    // session (e.g. the model is deleted and a new sync fails) can re-mark.
+    MARKED_THIS_SESSION.store(false, Ordering::SeqCst);
+
+    if other_failures > 0 {
+        return Err(format!(
+            "mail RAG backfill: {other_failures} of {total} messages permanently failed; not retrying automatically (ids in the log)"
+        ));
+    }
 
     Ok(indexed)
 }
@@ -839,7 +888,8 @@ async fn index_mail_text_internal(
 /// was not downloaded yet (the Option B gate). Delta sync never re-delivers
 /// those messages, so without this marker mail imported before model-ready
 /// would NEVER gain semantic recall. `mail_backfill_rag` re-indexes from the
-/// local encrypted bodies and clears the marker after a fully successful pass.
+/// local encrypted bodies and clears the marker after a terminal pass (see its
+/// marker-lifecycle doc and `backfill_marker_disposition`).
 pub const RAG_BACKFILL_NEEDED_KEY: &str = "rag_backfill_needed";
 
 /// True when an indexing error chain means "the embedding model is not
@@ -851,14 +901,62 @@ fn embed_error_is_model_not_ready(e: &anyhow::Error) -> bool {
     format!("{e:#}").contains(crate::commands::rag::embedder::MODEL_NOT_READY)
 }
 
+/// End-of-pass decision for the persistent backfill marker, given the failure
+/// buckets a `mail_backfill_rag` pass observed. Pure so the policy is
+/// unit-testable.
+#[derive(Debug, PartialEq, Eq)]
+enum BackfillMarkerDisposition {
+    /// Clear the marker: the pass was terminal. Either everything indexed, or
+    /// the only failures were non-model ones that an automatic retry would
+    /// never fix (the caller logs those loudly instead).
+    Clear,
+    /// Keep the marker: the model went missing mid-pass, so the un-indexed
+    /// remainder WILL succeed once it returns — the next boot must retry.
+    Retain,
+}
+
+fn backfill_marker_disposition(
+    model_failures: usize,
+    other_failures: usize,
+) -> BackfillMarkerDisposition {
+    match (model_failures, other_failures) {
+        // The model regressed mid-pass → a retry after it returns heals; keep
+        // the marker.
+        (m, _) if m > 0 => BackfillMarkerDisposition::Retain,
+        // Model present throughout → anything still failing is terminal;
+        // clear (the caller warns loudly with the failed ids).
+        _ => BackfillMarkerDisposition::Clear,
+    }
+}
+
+/// Process-level latch: true once `mark_rag_backfill_needed` has persisted the
+/// marker this session. A burst of N messages failing in one sync would
+/// otherwise open N SQLCipher connections just to upsert the same row. Reset
+/// where the marker is cleared (the terminal end of a `mail_backfill_rag`
+/// pass) so a later incident in the same session can re-mark.
+static MARKED_THIS_SESSION: AtomicBool = AtomicBool::new(false);
+
 /// Persist the "mail needs a RAG backfill" marker for `workspace`. Idempotent;
-/// one row in the encrypted mail store's meta table.
+/// one row in the encrypted mail store's meta table, written at most once per
+/// session (see `MARKED_THIS_SESSION`).
 fn mark_rag_backfill_needed(
     workspace: &std::path::Path,
     key: &[u8; 32],
 ) -> anyhow::Result<()> {
-    let store = EncryptedMailStore::open_with_key(workspace, key)?;
-    store.set_meta(RAG_BACKFILL_NEEDED_KEY, "1")
+    // Claim the session latch first so concurrent failures collapse to one
+    // write.
+    if MARKED_THIS_SESSION.swap(true, Ordering::SeqCst) {
+        return Ok(()); // already persisted this session
+    }
+    let result = EncryptedMailStore::open_with_key(workspace, key)
+        .and_then(|store| store.set_meta(RAG_BACKFILL_NEEDED_KEY, "1"));
+    if result.is_err() {
+        // Nothing was persisted — release the latch so the next failing
+        // message retries the write instead of trusting a marker that isn't
+        // there.
+        MARKED_THIS_SESSION.store(false, Ordering::SeqCst);
+    }
+    result
 }
 
 /// Fire-and-forget mail RAG indexing, shared by every sync `index_callback`
@@ -1470,9 +1568,14 @@ mod tests {
 
     #[test]
     fn backfill_marker_set_is_idempotent_and_clearable() {
-        use super::{mark_rag_backfill_needed, RAG_BACKFILL_NEEDED_KEY};
+        use super::{mark_rag_backfill_needed, MARKED_THIS_SESSION, RAG_BACKFILL_NEEDED_KEY};
+        use std::sync::atomic::Ordering;
         let dir = tempfile::TempDir::new().unwrap();
         let key = [0x42u8; 32];
+
+        // This is the only test that touches the process-level latch; start
+        // from a known state so test order can't matter.
+        MARKED_THIS_SESSION.store(false, Ordering::SeqCst);
 
         // Setting the marker creates the store (meta table included) + the row.
         mark_rag_backfill_needed(dir.path(), &key).unwrap();
@@ -1483,15 +1586,52 @@ mod tests {
         );
 
         // Marking again (every failed message during a sync calls this) is
-        // idempotent.
+        // idempotent — and short-circuits on the session latch, so a burst of
+        // failures doesn't open one SQLCipher connection per message.
         mark_rag_backfill_needed(dir.path(), &key).unwrap();
         assert_eq!(
             store.get_meta(RAG_BACKFILL_NEEDED_KEY).unwrap().as_deref(),
             Some("1")
         );
 
-        // mail_backfill_rag clears it after a fully successful pass.
+        // Proof of the short-circuit: delete the row out from under the latch;
+        // a re-mark while the latch is still set must NOT rewrite it...
+        store.delete_meta(RAG_BACKFILL_NEEDED_KEY).unwrap();
+        mark_rag_backfill_needed(dir.path(), &key).unwrap();
+        assert_eq!(store.get_meta(RAG_BACKFILL_NEEDED_KEY).unwrap(), None);
+
+        // ...while after the latch reset that mail_backfill_rag performs when
+        // it clears the marker, a later incident in the same session re-marks.
+        MARKED_THIS_SESSION.store(false, Ordering::SeqCst);
+        mark_rag_backfill_needed(dir.path(), &key).unwrap();
+        assert_eq!(
+            store.get_meta(RAG_BACKFILL_NEEDED_KEY).unwrap().as_deref(),
+            Some("1")
+        );
+
+        // mail_backfill_rag clears it after a terminal pass.
         store.delete_meta(RAG_BACKFILL_NEEDED_KEY).unwrap();
         assert_eq!(store.get_meta(RAG_BACKFILL_NEEDED_KEY).unwrap(), None);
+
+        // Leave the latch clean for any future test in this process.
+        MARKED_THIS_SESSION.store(false, Ordering::SeqCst);
+    }
+
+    /// The pure end-of-pass policy: the marker survives ONLY a model
+    /// regression; terminal (non-model) failures never pin it.
+    #[test]
+    fn backfill_marker_disposition_covers_all_four_buckets() {
+        use super::backfill_marker_disposition;
+        use super::BackfillMarkerDisposition::{Clear, Retain};
+        // Clean pass → clear.
+        assert_eq!(backfill_marker_disposition(0, 0), Clear);
+        // Terminal (non-model) failures only → clear anyway; retrying every
+        // boot would never fix them (they are logged loudly instead).
+        assert_eq!(backfill_marker_disposition(0, 3), Clear);
+        // Model regressed mid-pass → retain; a retry after the model returns
+        // heals the remainder.
+        assert_eq!(backfill_marker_disposition(2, 0), Retain);
+        // Mixed → the model bucket wins; retain.
+        assert_eq!(backfill_marker_disposition(2, 3), Retain);
     }
 }
