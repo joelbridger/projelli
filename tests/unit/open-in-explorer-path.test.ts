@@ -1,13 +1,18 @@
 // Unit tests for the "Open on Desktop" path-resolution logic in FileTree.
 //
-// The core defect: TauriFSBackend stores workspace-relative paths in node.path
-// (e.g. "docs", "docs/brief.docx"). handleOpenInExplorer must join them with
-// rootPath using the CORRECT platform separator so explorer.exe (Windows),
-// open (macOS), or xdg-open (Linux) receives a valid absolute path.
+// Scope: these tests exercise the exported `resolveExplorerPath` function from
+// the production FileTree module.  They cover the path-joining rules (Unix,
+// Windows, UNC) that the function itself implements.
 //
-// The historic bug: joining with "/" unconditionally on Windows produced
-// "C:\Users\ws/docs" -- a mixed-separator path explorer.exe silently
-// ignores, falling back to the user's Documents folder.
+// What is NOT covered here: the FileTree click handler that calls
+// `resolveExplorerPath`, the Tauri `invoke('open_in_explorer', ...)` side
+// effect in the real app, or the file-selection state wiring inside FileTree.
+// Those code paths require a running Tauri context and live in integration /
+// e2e coverage.
+//
+// The historic bug this guards against: joining with "/" unconditionally on
+// Windows produced "C:\Users\ws/docs" -- a mixed-separator path that
+// explorer.exe silently ignores, falling back to the user's Documents folder.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 

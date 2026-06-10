@@ -208,7 +208,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                 </div>
               }
               actions={
-                <Button data-testid="onboarding-next" onClick={() => setStep('profession')} size="lg">
+                <Button data-testid="onboarding-next-welcome" onClick={() => setStep('profession')} size="lg">
                   {t('onboarding.first-run.welcome.cta')}
                 </Button>
               }
@@ -247,7 +247,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                   <Button variant="outline" onClick={() => setStep('welcome')}>
                     {t('onboarding.first-run.back')}
                   </Button>
-                  <Button data-testid="onboarding-next" onClick={() => setStep('workspace')} size="lg">
+                  <Button data-testid="onboarding-next-profession" onClick={() => setStep('workspace')} size="lg">
                     {profession
                       ? t('onboarding.first-run.workspace.cta')
                       : t('onboarding.first-run.skip-for-now')}

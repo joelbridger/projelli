@@ -20,15 +20,13 @@ async function gotoAndNavigateToDataStep(page: import('@playwright/test').Page) 
   await page.goto('/?testMode=true&forceOnboarding=true');
   await page.waitForLoadState('networkidle');
 
-  // Welcome → advance using stable testid (locale-proof)
-  const letsGoBtn = page.getByTestId('onboarding-next').first();
+  // Welcome → advance using per-step stable testid (locale-proof)
+  const letsGoBtn = page.getByTestId('onboarding-next-welcome');
   await expect(letsGoBtn).toBeVisible({ timeout: 15_000 });
   await hardClick(letsGoBtn);
 
-  // Profession step → advance using the same testid on the profession-step CTA
-  // (the top-right skip link is a plain <button> without a testid; this picks
-  // the primary CTA which is data-testid="onboarding-next").
-  const professionNext = page.getByTestId('onboarding-next').first();
+  // Profession step → advance using the profession-step-specific testid
+  const professionNext = page.getByTestId('onboarding-next-profession');
   await expect(professionNext).toBeVisible({ timeout: 8_000 });
   await professionNext.click();
 
@@ -91,13 +89,13 @@ test.describe('Data-map onboarding accordion — 1920x1080', () => {
     await page.goto('/?testMode=true&forceOnboarding=true');
     await page.waitForLoadState('networkidle');
 
-    // Welcome → advance with stable testid
-    const letsGoBtn = page.getByTestId('onboarding-next').first();
+    // Welcome → advance with per-step stable testid
+    const letsGoBtn = page.getByTestId('onboarding-next-welcome');
     await expect(letsGoBtn).toBeVisible({ timeout: 15_000 });
     await hardClick(letsGoBtn);
 
-    // Profession step → advance with stable testid
-    const professionNext = page.getByTestId('onboarding-next').first();
+    // Profession step → advance with profession-step-specific testid
+    const professionNext = page.getByTestId('onboarding-next-profession');
     await expect(professionNext).toBeVisible({ timeout: 8_000 });
     await professionNext.click();
 

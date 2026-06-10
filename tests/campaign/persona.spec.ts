@@ -76,12 +76,12 @@ test('Task 1: first run wizard to workspace', async ({ page }, testInfo) => {
 
   // 1. Cold open — true first run, no testMode.
   await page.goto('/');
-  await page.getByTestId('onboarding-next').waitFor({ state: 'visible', timeout: 20_000 });
+  await page.getByTestId('onboarding-next-welcome').waitFor({ state: 'visible', timeout: 20_000 });
   await dump(page, 't1-welcome');
   await snap(page, testInfo, 't1-01-first-launch');
 
   // 2. "Let's go" → profession picker.
-  await page.getByTestId('onboarding-next').click();
+  await page.getByTestId('onboarding-next-welcome').click();
   await page.getByTestId('profession-card-legal').waitFor({ state: 'visible', timeout: 5000 });
   await dump(page, 't1-profession');
   await snap(page, testInfo, 't1-02-profession-picker');
@@ -90,8 +90,8 @@ test('Task 1: first run wizard to workspace', async ({ page }, testInfo) => {
   await page.getByTestId('profession-card-legal').click();
   await snap(page, testInfo, 't1-03-after-legal-pick');
   // Button label changes once profession picked — capture it.
-  await dump(page, 't1-profession-cta', '[data-testid="onboarding-next"]');
-  await page.getByTestId('onboarding-next').click();
+  await dump(page, 't1-profession-cta', '[data-testid="onboarding-next-profession"]');
+  await page.getByTestId('onboarding-next-profession').click();
 
   // 4. Workspace (folder) explainer step.
   await page.getByTestId('onboarding-workspace-next').waitFor({ state: 'visible', timeout: 5000 });
