@@ -26,6 +26,7 @@ pub mod chunker;
 pub mod crypto;
 pub mod embedder;
 pub mod extractor;
+pub mod model_download;
 pub mod pdf_indexer;
 pub mod store;
 

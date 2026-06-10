@@ -92,6 +92,10 @@ notify = "6"
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 lancedb = "0.21"
 fastembed = "4"
+# Direct dep on the SAME hf-hub fastembed uses (same version + features, so
+# nothing new compiles). Gives us download_with_progress + the Cache lookup
+# for the visible first-run model download (Option B).
+hf-hub = { version = "0.4.3", default-features = false, features = ["ureq", "native-tls"] }
 arrow-array = "55"
 arrow-schema = "55"
 # Stable hash for chunk ids (path + paragraph_index). std::hash defaults

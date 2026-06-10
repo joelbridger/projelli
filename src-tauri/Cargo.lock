@@ -4530,6 +4530,7 @@ dependencies = [
  "flate2",
  "futures-util",
  "hex",
+ "hf-hub",
  "keepance-docx",
  "keyring",
  "lancedb",
