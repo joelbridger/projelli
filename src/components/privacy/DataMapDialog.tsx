@@ -96,8 +96,8 @@ export const DATA_MAP_ROWS: MapRow[] = [
   {
     icon: Server,
     tone: 'text-slate-700 bg-slate-100 dark:text-slate-300 dark:bg-slate-800/60',
-    title: 'The only thing Keepance’s own servers ever see is a licence check',
-    body: 'Keepance contacts its own server for exactly one reason: to validate your licence (a periodic check that your purchase is active). That request does not contain your documents, your prompts, or your client information, only what is needed to confirm the licence.',
+    title: "The only thing Keepance’s own servers ever see is a license check",
+    body: "Keepance contacts its own server for exactly one reason: to validate your license (a periodic check that your purchase is active). That request does not contain your documents, your prompts, or your client information, only what is needed to confirm the license.",
   },
 ];
 

@@ -19,10 +19,11 @@ import {
 describe('Per-provider tutorial data shape', () => {
   const providers: ProviderId[] = ['anthropic', 'openai', 'google'];
 
-  it.each(providers)('%s tutorial has 3-5 steps', (providerId) => {
+  it.each(providers)('%s tutorial has 3-6 steps', (providerId) => {
     const t = PROVIDER_TUTORIALS[providerId];
     expect(t.steps.length).toBeGreaterThanOrEqual(3);
-    expect(t.steps.length).toBeLessThanOrEqual(5);
+    // F-105: added training-opt-out step so tutorials now have 6 steps
+    expect(t.steps.length).toBeLessThanOrEqual(6);
   });
 
   it.each(providers)('%s tutorial has valid console + billing URLs', (providerId) => {

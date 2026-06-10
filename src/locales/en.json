@@ -9,7 +9,7 @@
     },
     "bug-report": {
       "title": "Report a bug",
-      "description": "Tell us what went wrong. Reports go straight to Jameson's inbox.",
+      "description": "Tell us what went wrong. Reports go straight to the Keepance team.",
       "success": "Thanks, your report landed. If you left an email I'll reply when there's something to share.",
       "email-label": "Your email",
       "email-optional": "(optional, so we can reply)",
@@ -47,6 +47,7 @@
       "grid-view-title": "Grid view",
       "tabs": {
         "files": "Files",
+        "matters": "Matters",
         "search": "Search",
         "workflows": "Workflows",
         "ai-assistant": "AI Assistant",
@@ -64,7 +65,7 @@
       "modified": "Modified",
       "tabs-open_one": "{{count}} file open",
       "tabs-open_other": "{{count}} files open",
-      "bug-report-title": "Report a bug, sends directly to Jameson",
+      "bug-report-title": "Report a bug, sends directly to the Keepance team",
       "bug-report-cta": "Something broken? Let us know!"
     },
     "main-panel": {
@@ -115,7 +116,7 @@
     },
     "license": {
       "title": "License",
-      "description": "Activate Keepance with a license key purchased at <pricingLink>keepance.com</pricingLink>.",
+      "description": "A license keeps AI chat, workflows, and all Keepance features running after your trial. Keys are available at <pricingLink>keepance.com</pricingLink>.",
       "deactivate-confirm": "Deactivate this license? You will lose access to paid features until you re-activate.",
       "badge": {
         "activated": "ACTIVATED",
@@ -176,17 +177,17 @@
         "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of Keepance, and macOS / Windows / Linux.",
         "field-event": "<c>event</c>: one of <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
         "field-license-tier": "<c>license_tier</c> (when relevant): trial, personal, professional, practice.",
-        "endpoint-note": "Endpoint: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL stored on Jameson's server. Used only for funnel metrics and roadmap decisions.",
+        "endpoint-note": "Endpoint: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL stored on Keepance's server. Used only for funnel metrics and roadmap decisions.",
         "install-id-display": "Your install ID: <c>{{id}}</c>"
       },
       "email": {
         "title": "Email updates",
         "intro": "If you opted into email updates at first launch (or via the website), you'll get launch announcements and discount codes. No drip campaigns, no weekly newsletters.",
-        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any email from Jameson, they all forward straight to him."
+        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any Keepance email. All replies go straight to support."
       },
       "data-map": {
         "title": "Where your data lives and who can see it",
-        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Keepance’s own servers see (only a licence check). You can print it or save it as a PDF to show a client.",
+        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Keepance’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open the data map"
       }
     },
@@ -197,7 +198,7 @@
       "status": {
         "loading": "Looking up bundle path...",
         "ready": "Ready to install in Claude Desktop",
-        "unavailable": "Bundle not available. Run <cmd>node scripts/build-mcpb.mjs</cmd> first, or install via a released build."
+        "unavailable": "MCP server is not available in this build. Install the desktop app to use MCP."
       },
       "download-cta": "Download .mcpb for Claude Desktop",
       "whats-mcp": "What's MCP?",
@@ -364,6 +365,7 @@
       "select-option": "Select an option"
     },
     "execution": {
+      "waiting-for-answers": "Your input needed",
       "may-take-moment": "This may take a moment depending on the AI provider.",
       "save-as-file": "Save as file",
       "use-as-input": "Use this as input for another template",
@@ -591,7 +593,7 @@
       "title": "Welcome to Keepance",
       "description": "A couple of optional things, both off by default. Skip if you'd rather not.",
       "email-optin-label": "Email me launch updates, tips, and discount codes",
-      "email-optin-help": "Real updates only, no drip campaigns, no weekly newsletters. Unsubscribe any time. Goes straight to Jameson.",
+      "email-optin-help": "Real updates only, no drip campaigns, no weekly newsletters. Unsubscribe any time. Goes straight to the Keepance team.",
       "telemetry-label": "Help improve Keepance with anonymous usage stats",
       "telemetry-help": "Sends a random install ID, the app version, your platform, and lifecycle events (trial started, license activated, etc.). No content, no files, no AI prompts, no email. You can turn this off in Settings, Privacy."
     }
@@ -789,6 +791,13 @@
     "citation": {
       "unverified-warning": "One or more citations could not be verified against the source. Open the source to confirm before relying on it."
     },
+    "sidebar": {
+      "empty": "No matters yet.",
+      "create-first": "Create your first matter",
+      "manage-all": "Manage all matters",
+      "open-manager": "Manage matters",
+      "key-pending": "Waiting for your firm admin to grant this device access to this matter. I'll open it automatically once they do."
+    },
     "manager": {
       "title": "Matters",
       "description": "A matter groups one client's work under one or more workspace folders. Files in a matter's folders are scoped to that matter so other clients' data never appears.",
@@ -836,7 +845,7 @@
       "firm-open-shared-empty": "No shared matters available.",
       "firm-open-action": "Open",
       "firm-opening": "Opening...",
-      "firm-key-blocked": "I can't open this matter yet. Ask your firm admin to share access with this device.",
+      "firm-key-blocked": "Waiting for your firm admin to grant this device access to this matter. I'll open it automatically once they do.",
       "firm-share-error": "I couldn't share this matter. {{error}}",
       "firm-open-error": "I couldn't open this matter. {{error}}",
       "firm-invite-error": "I couldn't invite {{email}}. {{error}}",
@@ -856,8 +865,8 @@
       "title": "Shared notes",
       "tab-title": "{{name}}: Shared notes",
       "subtitle": "Everyone on this matter sees these notes. They sync live.",
-      "no-access": "I can't load these notes yet.",
-      "no-access-hint": "Ask your firm admin to share access with this device.",
+      "no-access": "Waiting for your firm admin to grant this device access.",
+      "no-access-hint": "I'll open these notes automatically once your admin publishes the key to this device.",
       "loading": "Loading shared notes...",
       "not-found": "Matter not found.",
       "status-live": "Live",
@@ -916,7 +925,7 @@
       "create-matter": "Create",
       "matter-created": "Matter created.",
       "no-matters": "No matters yet.",
-      "epoch-label": "epoch {{epoch}}",
+      "epoch-label": "Key version {{epoch}}",
       "members-section": "Membership and ethical walls",
       "invite-label": "Invite by email",
       "invite-placeholder": "member@lawfirm.com",
@@ -930,15 +939,15 @@
       "wall-placeholder": "member@lawfirm.com",
       "wall-action": "Wall",
       "wall-ok": "Ethical wall raised.",
-      "members-epoch": "Members (epoch {{epoch}})",
+      "members-epoch": "Members (key version {{epoch}})",
       "remove-member-action": "Remove",
-      "remove-member-ok": "Member removed (key epoch rotated).",
+      "remove-member-ok": "Member removed.",
       "walls-label": "Walled (screened)",
       "clear-wall-action": "Clear",
       "clear-wall-ok": "Wall cleared.",
       "seats-section": "Seats",
       "no-seats": "No seats in use.",
-      "unnamed-device": "Unnamed device",
+      "unnamed-device": "Unknown device",
       "inactive-label": "inactive",
       "revoke-seat-action": "Revoke",
       "revoke-seat-ok": "Seat revoked.",
@@ -953,6 +962,7 @@
       "delete-key-ok": "Managed key deleted.",
       "user-id-fallback": "User {{id}}",
       "republish-keys-action": "Re-publish keys to all member devices",
+      "republish-keys-ok": "Keys sent to all registered devices.",
       "invite-user-exists": "{{email}} already has an account. Use the admin console to add them, or ask them to accept an invitation.",
       "invite-failed": "Invite failed.",
       "wall-user-not-found": "No user ID found for {{email}}. Invite them first so their ID is cached."
@@ -974,7 +984,7 @@
       }
     },
     "privileged-matter": {
-      "badge": "Privileged Matter Mode: network extensions disabled",
+      "badge": "Privileged matter: outside connections are blocked so nothing can leave this matter",
       "title-manual": "Network plugins and MCP servers are disabled.",
       "title-privileged-matter": "On because the active matter is privileged. Network plugins and MCP servers are disabled.",
       "title-local-only": "On because Local-only is selected. Network plugins and MCP servers are disabled."

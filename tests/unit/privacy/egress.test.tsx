@@ -223,8 +223,8 @@ describe('DataMapDialog', () => {
     // Email encrypted locally.
     expect(screen.getByText(/encrypted on your machine/i)).toBeTruthy();
 
-    // Keepance servers only see a licence check.
-    expect(screen.getByText(/only thing Keepance’s own servers ever see is a licence check/i)).toBeTruthy();
+    // Keepance servers only see a license check (F-103: fixed British spelling).
+    expect(screen.getByText(/only thing Keepance’s own servers ever see is a license check/i)).toBeTruthy();
 
     // Browser-demo caveat present in the footer.
     expect(screen.getByText(/never be used with confidential or client/i)).toBeTruthy();

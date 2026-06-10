@@ -454,10 +454,10 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
             </div>
             <div
               data-testid="new-workspace-structure-preview"
-              className="text-xs font-mono"
+              className="text-xs"
               style={{ color: '#94A3B8' }}
             >
-              {PREVIEW_STRUCTURE_FOLDERS.map((f) => `${f}/`).join('  ')}
+              {PREVIEW_STRUCTURE_FOLDERS.join(', ')}
             </div>
           </button>
         </div>

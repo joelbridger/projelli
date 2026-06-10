@@ -63,6 +63,11 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
         title: 'Add credits (if needed)',
         body: 'New accounts have free-tier credits for about a week. After that, add a credit balance at Settings, then Billing.',
       },
+      {
+        title: 'Turn off training on your account',
+        body: 'Go to Privacy settings in your Anthropic console and disable "Use my data to improve Anthropic products." This keeps your prompts from being used for model training. The option is in console.anthropic.com under Settings, Privacy.',
+        hint: 'This is the one step Keepance cannot do for you. It controls what the AI company does with your prompts on their side.',
+      },
     ],
   },
   openai: {
@@ -92,6 +97,11 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
         title: 'Add billing credit',
         body: 'OpenAI requires prepaid credit for API use (unlike ChatGPT Plus). Go to Billing, add a payment method, and add an initial credit balance.',
       },
+      {
+        title: 'Turn off training on your account',
+        body: 'Go to platform.openai.com, then Settings, Data controls. Disable "Improve the model for everyone." This prevents your API prompts from being used for model training.',
+        hint: 'This is the one step Keepance cannot do for you. It controls what the AI company does with your prompts on their side.',
+      },
     ],
   },
   google: {
@@ -120,6 +130,11 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       {
         title: 'Free tier is usually enough',
         body: 'Gemini Flash free tier is 1500 requests/day with 1M tokens/minute. Most users never exceed this. No billing setup needed unless you want higher limits.',
+      },
+      {
+        title: 'Turn off training on your account',
+        body: 'In Google AI Studio, go to Settings and disable "Help improve AI Studio." For Google Cloud Vertex AI accounts, check your data residency and training-use settings in the Cloud Console.',
+        hint: 'This is the one step Keepance cannot do for you. It controls what the AI company does with your prompts on their side.',
       },
     ],
   },

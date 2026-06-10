@@ -60,6 +60,7 @@ import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { MemoryService } from '@/modules/memory/MemoryService';
 import { getActiveScope } from '@/stores/matterStore';
+import { MattersSidebarPanel } from '@/components/matter/MattersSidebarPanel';
 import { ragVerifyCitation, type RetrievalScope } from '@/utils/tauri-commands';
 import {
   createTemplatesMarketplaceService,
@@ -272,7 +273,7 @@ function App() {
   const [workflowProviderError, setWorkflowProviderError] = useState<'needs-provider' | 'ollama-unreachable' | null>(null);
 
   // Sidebar state
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins'>('files');
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins'>('files');
 
   // UX-04 onboarding: one-shot "open Keys sub-tab" instruction passed to
   // AIAssistantPane. Set when the onboarding card's CTA fires, cleared by
@@ -3481,6 +3482,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onDeleteWhiteboard={handleDelete}
             />
           }
+          mattersContent={<MattersSidebarPanel />}
         />
 
         {/* Main editor panel */}
@@ -3521,7 +3523,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
           onRequestApiKeySetup={handleRequestApiKeySetup}
           workflowExecution={currentExecution}
           workflowTemplate={activeWorkflowTemplate}
-          workflowInterviewQuestions={interviewQuestions}
+          workflowInterviewQuestions={showInterviewDialog ? null : interviewQuestions}
           onWorkflowInterviewSubmit={handleInterviewSubmit}
           onWorkflowCancel={handleInterviewCancel}
           onWorkflowSaveAsFile={handleWorkflowSaveAsFile}

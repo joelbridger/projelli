@@ -49,8 +49,17 @@ export function MailImapConnect() {
         >
           Google app password
         </a>
-        ), Fastmail, Outlook IMAP, or any standard IMAP host. Your password is stored only in
-        this device's keychain and never leaves your machine.
+        ), Outlook or Microsoft 365 (via an{' '}
+        <a
+          href="https://account.live.com/proofs/AppPassword"
+          target="_blank"
+          rel="noreferrer"
+          className="underline"
+        >
+          Outlook app password
+        </a>
+        ), Fastmail, or any standard IMAP host. Your password is stored only in
+        this device's keychain and never leaves your machine. Requires the Keepance desktop app.
       </p>
 
       {!connected && (

@@ -337,7 +337,8 @@ describe('MatterManagerDialog — open-shared fail-closed', () => {
     });
 
     const errorEl = screen.getByTestId('firm-open-error');
-    expect(errorEl.textContent).toContain("can't open this matter");
+    // F-123: changed from error to pending-state copy
+    expect(errorEl.textContent).toContain("Waiting for your firm admin");
 
     // No local matter was created
     expect(useMatterStore.getState().matters).toHaveLength(0);

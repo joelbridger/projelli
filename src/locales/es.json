@@ -13,7 +13,7 @@
     "bug-report": {
       "title": "Informar de un error",
       "title__sourceHash": "f75e0bd8ff2369251bc8767de55dd8c0bcb3efd1dbc34041bfca4058f9edf0ef",
-      "description": "Cuéntanos qué salió mal. Los informes llegan directamente a la bandeja de entrada de Jameson.",
+      "description": "Cuéntanos qué salió mal. Los informes llegan directamente al equipo de Keepance.",
       "description__sourceHash": "90745362a3ba692b8a9434bafc6f1dc318af6ce21272dcc810d6bca2e57118f6",
       "success": "Gracias, hemos recibido tu informe. Si dejaste un correo electrónico, te responderé cuando haya novedades.",
       "success__sourceHash": "4db9f77b45c80c60276eb21358b92bb63c74c6eab1d59b248fd43b95f6907eed",
@@ -78,6 +78,7 @@
       "tabs": {
         "files": "Archivos",
         "files__sourceHash": "abc7e9892806b047b4d4786b3685285543f76ca314c4c76246d5f6544c7856c9",
+        "matters": "Asuntos",
         "search": "Buscar",
         "search__sourceHash": "49c266baaaa70981ea188fa714d5c40cf13830d786a861c9943ae0d26a7f3fe9",
         "workflows": "Flujos de trabajo",
@@ -109,7 +110,7 @@
       "tabs-open_one__sourceHash": "0a31f6a8b7d199532d8574307bf901fe83997c034167d109dace3d7d62630268",
       "tabs-open_other": "{{count}} archivos abiertos",
       "tabs-open_other__sourceHash": "bdf97bdcad54458e35cf56aa78038f99020da85bffea48c2c1c363aaf598d940",
-      "bug-report-title": "Informar de un error, se envía directamente a Jameson",
+      "bug-report-title": "Informar de un error, se envía directamente al equipo de Keepance",
       "bug-report-title__sourceHash": "2f7fa6da3c07bc59c11d0db87267c4ad43e2d6d4655bd5130a636b3ca9a4ce3a",
       "bug-report-cta": "¿Algo no funciona? ¡Cuéntanoslo!",
       "bug-report-cta__sourceHash": "ed9685394e5c2d85b72d913a8d68a0ff46d1178f9b0176bfb9e186c8220834d7"
@@ -197,7 +198,7 @@
     "license": {
       "title": "Licencia",
       "title__sourceHash": "c011d6097bfbc8e936280addcf2e3e7d06ea2223ffd596973191b800a7035c32",
-      "description": "Activa Keepance con una clave de licencia adquirida en <pricingLink>keepance.com</pricingLink>.",
+      "description": "Una licencia mantiene el chat de IA, los flujos de trabajo y todas las funciones de Keepance activas tras tu prueba. Las claves están disponibles en <pricingLink>keepance.com</pricingLink>.",
       "description__sourceHash": "5cdede16d12ec5981d36069071f514adb12fadbc540e15f9ef25fe76e5c4126b",
       "deactivate-confirm": "¿Desactivar esta licencia? Perderás el acceso a las funciones de pago hasta que la reactives.",
       "deactivate-confirm__sourceHash": "2cff19c7259e4828cf7e844917462cea95640e0282d0f3deb804dafff9c80d89",
@@ -295,7 +296,7 @@
         "field-event__sourceHash": "bc1f75f1e8aca06d01bb82dfcc2fdd8763fa6bb049773ee3e3bc4567a8c5d6af",
         "field-license-tier": "<c>license_tier</c> (cuando corresponda): trial, personal, professional, practice.",
         "field-license-tier__sourceHash": "f7d152bd910804c89a34c457ce6be8502aa36e700605e229bf85904ae9dc2890",
-        "endpoint-note": "Endpoint: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL almacenado en el servidor de Jameson. Se usa únicamente para métricas de embudo y decisiones de hoja de ruta.",
+        "endpoint-note": "Endpoint: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL almacenado en servidores de Keepance. Se usa únicamente para métricas de embudo y decisiones de hoja de ruta.",
         "endpoint-note__sourceHash": "db930261bf43f001c34e4e42013d35c2e5151ba931b8d208f3a0368e29fba6e9",
         "install-id-display": "Tu ID de instalación: <c>{{id}}</c>",
         "install-id-display__sourceHash": "52e2a9cf6161dc02a352627b94c8e6694d0a6aa311200f3f358a7fdf8b213a52"
@@ -305,12 +306,12 @@
         "title__sourceHash": "273ea8304d5cb611e05f6a3014bcf7f76279840419a1ce5b4ac7cc62bbca4fa0",
         "intro": "Si te suscribiste a las actualizaciones por correo al iniciar la app por primera vez (o a través del sitio web), recibirás anuncios de lanzamiento y códigos de descuento. Sin campañas de goteo ni boletines semanales.",
         "intro__sourceHash": "5374b77af50d1185509943d13c4764a7e072db9ad1de07b699dc1db0fa12d0a6",
-        "unsub": "Para eliminarte de la lista, responde <c>UNSUB</c> a cualquier correo de Jameson; todos llegan directamente a él.",
+        "unsub": "Para eliminarte de la lista, responde <c>UNSUB</c> a cualquier correo de Keepance. Todas las respuestas van directamente al soporte.",
         "unsub__sourceHash": "626d7ab8d08ee9e570934274be883f50b437a6400a8fa507f403f7298dedb40f"
       },
       "data-map": {
         "title": "Where your data lives and who can see it",
-        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Keepance’s own servers see (only a licence check). You can print it or save it as a PDF to show a client.",
+        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Keepance’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open the data map"
       }
     },
@@ -326,7 +327,7 @@
         "loading__sourceHash": "34af1eddb7ea2970f2cf353b7e98d445054518b739659d7578f6673c169553e7",
         "ready": "Listo para instalar en Claude Desktop",
         "ready__sourceHash": "ebfd24c588a608e12e8b1375ea276217297a7e2475b1e17c52242a5e252323ab",
-        "unavailable": "Bundle no disponible. Ejecuta primero <cmd>node scripts/build-mcpb.mjs</cmd> o instálalo desde una versión publicada.",
+        "unavailable": "El servidor MCP no está disponible en esta versión. Instala la aplicación de escritorio para usar MCP.",
         "unavailable__sourceHash": "70fa99e13bd8e4cc81a564a13c85f53de607d5faf2e7fd4364748918ce9b3127"
       },
       "download-cta": "Descargar .mcpb para Claude Desktop",
@@ -594,6 +595,7 @@
       "select-option__sourceHash": "fb1cbc38fb4060f4a648fbe213f1910915d66229d9f2b7753b7e68be1a17689f"
     },
     "execution": {
+      "waiting-for-answers": "Se necesita tu respuesta",
       "may-take-moment": "Esto puede tardar un momento según el proveedor de IA.",
       "may-take-moment__sourceHash": "03ca4930aa30d4302d3b628b712ca71f87210f2bfe0328858efc8ba4658d16bc",
       "save-as-file": "Guardar como archivo",
@@ -954,7 +956,7 @@
       "description__sourceHash": "81f5ec87b429ff9eaccaac3e1991d66957862668a1077e8bed7ef866f534b709",
       "email-optin-label": "Envíame actualizaciones de lanzamiento, consejos y códigos de descuento",
       "email-optin-label__sourceHash": "484a32d897b9fa023757a516543b3b7bfb3f0d1e8137f1850eb6f5d2239dbd22",
-      "email-optin-help": "Solo actualizaciones reales, sin campañas de goteo ni boletines semanales. Cancela la suscripción en cualquier momento. Llega directamente a Jameson.",
+      "email-optin-help": "Solo actualizaciones reales, sin campañas de goteo ni boletines semanales. Cancela la suscripción en cualquier momento. Llega directamente al equipo de Keepance.",
       "email-optin-help__sourceHash": "2221fab2b8aca62d29f43156c58785f7325e7aff47187c2cf662ae0509a2cc6a",
       "telemetry-label": "Ayuda a mejorar Keepance con estadísticas de uso anónimas",
       "telemetry-label__sourceHash": "5e9554dbf5aff7af0d7ae4aa41fc6c1d1160edc15b3e94722e21df4dd9013184",
@@ -991,6 +993,13 @@
     }
   },
   "matter": {
+    "sidebar": {
+      "empty": "Aún no hay asuntos.",
+      "create-first": "Crea tu primer asunto",
+      "manage-all": "Gestionar todos los asuntos",
+      "open-manager": "Gestionar asuntos",
+      "key-pending": "Esperando a que el administrador de tu firma conceda acceso a este dispositivo para este asunto. Lo abriré automáticamente cuando lo haga."
+    },
     "manager": {
       "mail-label": "Cuentas de correo en este asunto",
       "mail-label__sourceHash": "894f4e905bce6814391e9107fa9e0d0e23f8d94eee4a68377ba19ce693254204",
@@ -1030,7 +1039,7 @@
       "firm-open-shared-empty": "No hay asuntos compartidos disponibles.",
       "firm-open-action": "Abrir",
       "firm-opening": "Abriendo...",
-      "firm-key-blocked": "Aún no puedo abrir este asunto. Pide a tu administrador que comparta el acceso con este dispositivo.",
+      "firm-key-blocked": "Esperando a que el administrador de tu firma conceda acceso a este dispositivo para este asunto. Lo abriré automáticamente cuando lo haga.",
       "firm-share-error": "No pude compartir este asunto. {{error}}",
       "firm-open-error": "No pude abrir este asunto. {{error}}",
       "firm-invite-error": "No pude invitar a {{email}}. {{error}}",
@@ -1050,8 +1059,8 @@
       "title": "Notas compartidas",
       "tab-title": "{{name}}: Notas compartidas",
       "subtitle": "Todos en este asunto ven estas notas. Se sincronizan en vivo.",
-      "no-access": "No puedo cargar estas notas todavía.",
-      "no-access-hint": "Pide a tu administrador de firma que comparta el acceso con este dispositivo.",
+      "no-access": "Esperando a que el administrador de tu firma conceda acceso a este dispositivo.",
+      "no-access-hint": "Abriré estas notas automáticamente cuando el administrador publique la clave en este dispositivo.",
       "loading": "Cargando notas compartidas...",
       "not-found": "Asunto no encontrado.",
       "status-live": "En vivo",
@@ -1110,7 +1119,7 @@
       "create-matter": "Crear",
       "matter-created": "Asunto creado.",
       "no-matters": "Aún no hay asuntos.",
-      "epoch-label": "época {{epoch}}",
+      "epoch-label": "Versión de clave {{epoch}}",
       "members-section": "Miembros y muros éticos",
       "invite-label": "Invitar por correo",
       "invite-placeholder": "miembro@abogados.com",
@@ -1124,15 +1133,15 @@
       "wall-placeholder": "miembro@abogados.com",
       "wall-action": "Muro",
       "wall-ok": "Muro ético activado.",
-      "members-epoch": "Miembros (época {{epoch}})",
+      "members-epoch": "Miembros (versión de clave {{epoch}})",
       "remove-member-action": "Eliminar",
-      "remove-member-ok": "Miembro eliminado (época de clave rotada).",
+      "remove-member-ok": "Miembro eliminado.",
       "walls-label": "Bloqueados (con muro)",
       "clear-wall-action": "Limpiar",
       "clear-wall-ok": "Muro eliminado.",
       "seats-section": "Licencias",
       "no-seats": "No hay licencias en uso.",
-      "unnamed-device": "Dispositivo sin nombre",
+      "unnamed-device": "Dispositivo desconocido",
       "inactive-label": "inactivo",
       "revoke-seat-action": "Revocar",
       "revoke-seat-ok": "Licencia revocada.",
@@ -1147,6 +1156,7 @@
       "delete-key-ok": "Clave gestionada eliminada.",
       "user-id-fallback": "Usuario {{id}}",
       "republish-keys-action": "Volver a publicar claves para todos los dispositivos miembros",
+      "republish-keys-ok": "Claves enviadas a todos los dispositivos registrados.",
       "invite-user-exists": "{{email}} ya tiene una cuenta. Usa la consola de administración para añadirlo, o pídele que acepte una invitación.",
       "invite-failed": "Error al invitar.",
       "wall-user-not-found": "No se encontró el ID de usuario para {{email}}. Primero invítalo para que su ID quede en caché."
@@ -1386,7 +1396,7 @@
       }
     },
     "privileged-matter": {
-      "badge": "Modo de Asunto Privilegiado: extensiones de red desactivadas",
+      "badge": "Asunto privilegiado: las conexiones externas están bloqueadas para que nada pueda salir de este asunto",
       "title-manual": "Los complementos de red y los servidores MCP están desactivados.",
       "title-privileged-matter": "Activado porque el asunto activo es privilegiado. Los complementos de red y los servidores MCP están desactivados.",
       "title-local-only": "Activado porque está seleccionado Solo local. Los complementos de red y los servidores MCP están desactivados."

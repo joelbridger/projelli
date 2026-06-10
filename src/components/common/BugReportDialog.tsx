@@ -16,7 +16,7 @@ import { getCorsSafeFetch } from '@/modules/models/fetchUtils';
 import { openExternal } from '@/utils/openExternal';
 
 const BUG_REPORT_URL = 'https://keepance.com/api/forms/keepance/bug-report';
-const MAILTO_ADDRESS = 'jamesondaines@outlook.com';
+const MAILTO_ADDRESS = 'support@keepance.com';
 
 type Status = 'idle' | 'sending' | 'success' | 'error';
 

@@ -13,7 +13,7 @@
     "bug-report": {
       "title": "Fehler melden",
       "title__sourceHash": "f75e0bd8ff2369251bc8767de55dd8c0bcb3efd1dbc34041bfca4058f9edf0ef",
-      "description": "Beschreibe, was schiefgelaufen ist. Meldungen landen direkt in Jamesons Posteingang.",
+      "description": "Beschreibe, was schiefgelaufen ist. Meldungen landen direkt beim Keepance-Team.",
       "description__sourceHash": "90745362a3ba692b8a9434bafc6f1dc318af6ce21272dcc810d6bca2e57118f6",
       "success": "Danke, dein Bericht ist angekommen. Falls du eine E-Mail-Adresse hinterlassen hast, melde ich mich, sobald es etwas zu berichten gibt.",
       "success__sourceHash": "4db9f77b45c80c60276eb21358b92bb63c74c6eab1d59b248fd43b95f6907eed",
@@ -78,6 +78,7 @@
       "tabs": {
         "files": "Dateien",
         "files__sourceHash": "abc7e9892806b047b4d4786b3685285543f76ca314c4c76246d5f6544c7856c9",
+        "matters": "Fälle",
         "search": "Suche",
         "search__sourceHash": "49c266baaaa70981ea188fa714d5c40cf13830d786a861c9943ae0d26a7f3fe9",
         "workflows": "Workflows",
@@ -109,7 +110,7 @@
       "tabs-open_one__sourceHash": "0a31f6a8b7d199532d8574307bf901fe83997c034167d109dace3d7d62630268",
       "tabs-open_other": "{{count}} Dateien geöffnet",
       "tabs-open_other__sourceHash": "bdf97bdcad54458e35cf56aa78038f99020da85bffea48c2c1c363aaf598d940",
-      "bug-report-title": "Fehler melden, wird direkt an Jameson gesendet",
+      "bug-report-title": "Fehler melden, wird direkt an das Keepance-Team gesendet",
       "bug-report-title__sourceHash": "2f7fa6da3c07bc59c11d0db87267c4ad43e2d6d4655bd5130a636b3ca9a4ce3a",
       "bug-report-cta": "Etwas funktioniert nicht? Gib uns Bescheid!",
       "bug-report-cta__sourceHash": "ed9685394e5c2d85b72d913a8d68a0ff46d1178f9b0176bfb9e186c8220834d7"
@@ -197,7 +198,7 @@
     "license": {
       "title": "Lizenz",
       "title__sourceHash": "c011d6097bfbc8e936280addcf2e3e7d06ea2223ffd596973191b800a7035c32",
-      "description": "Aktivieren Sie Keepance mit einem Lizenzschlüssel, den Sie unter <pricingLink>keepance.com</pricingLink> erworben haben.",
+      "description": "Eine Lizenz hält KI-Chat, Workflows und alle Keepance-Funktionen nach Ihrer Testphase aktiv. Schlüssel sind verfügbar unter <pricingLink>keepance.com</pricingLink>.",
       "description__sourceHash": "5cdede16d12ec5981d36069071f514adb12fadbc540e15f9ef25fe76e5c4126b",
       "deactivate-confirm": "Diese Lizenz deaktivieren? Sie verlieren den Zugang zu kostenpflichtigen Funktionen, bis Sie die Lizenz erneut aktivieren.",
       "deactivate-confirm__sourceHash": "2cff19c7259e4828cf7e844917462cea95640e0282d0f3deb804dafff9c80d89",
@@ -295,7 +296,7 @@
         "field-event__sourceHash": "bc1f75f1e8aca06d01bb82dfcc2fdd8763fa6bb049773ee3e3bc4567a8c5d6af",
         "field-license-tier": "<c>license_tier</c> (wenn relevant): trial, personal, professional, practice.",
         "field-license-tier__sourceHash": "f7d152bd910804c89a34c457ce6be8502aa36e700605e229bf85904ae9dc2890",
-        "endpoint-note": "Endpunkt: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL gespeichert auf Jamesons Server. Wird ausschließlich für Trichter-Metriken und Roadmap-Entscheidungen verwendet.",
+        "endpoint-note": "Endpunkt: <c>keepance.com/api/forms/keepance/app-event</c>. JSONL gespeichert auf Keepance-Servern. Wird ausschließlich für Trichter-Metriken und Roadmap-Entscheidungen verwendet.",
         "endpoint-note__sourceHash": "db930261bf43f001c34e4e42013d35c2e5151ba931b8d208f3a0368e29fba6e9",
         "install-id-display": "Ihre Installations-ID: <c>{{id}}</c>",
         "install-id-display__sourceHash": "52e2a9cf6161dc02a352627b94c8e6694d0a6aa311200f3f358a7fdf8b213a52"
@@ -305,12 +306,12 @@
         "title__sourceHash": "273ea8304d5cb611e05f6a3014bcf7f76279840419a1ce5b4ac7cc62bbca4fa0",
         "intro": "Wenn Sie beim ersten Start (oder über die Website) in E-Mail-Updates eingewilligt haben, erhalten Sie Start-Ankündigungen und Rabattcodes. Keine Drip-Kampagnen, keine wöchentlichen Newsletter.",
         "intro__sourceHash": "5374b77af50d1185509943d13c4764a7e072db9ad1de07b699dc1db0fa12d0a6",
-        "unsub": "Um sich von der Liste zu entfernen, antworten Sie auf eine beliebige E-Mail von Jameson mit <c>UNSUB</c>. Alle Nachrichten landen direkt bei ihm.",
+        "unsub": "Um sich von der Liste zu entfernen, antworten Sie auf eine beliebige Keepance-E-Mail mit <c>UNSUB</c>. Alle Antworten gehen direkt an den Support.",
         "unsub__sourceHash": "626d7ab8d08ee9e570934274be883f50b437a6400a8fa507f403f7298dedb40f"
       },
       "data-map": {
         "title": "Where your data lives and who can see it",
-        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Keepance’s own servers see (only a licence check). You can print it or save it as a PDF to show a client.",
+        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Keepance’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open the data map"
       }
     },
@@ -326,7 +327,7 @@
         "loading__sourceHash": "34af1eddb7ea2970f2cf353b7e98d445054518b739659d7578f6673c169553e7",
         "ready": "Bereit zur Installation in Claude Desktop",
         "ready__sourceHash": "ebfd24c588a608e12e8b1375ea276217297a7e2475b1e17c52242a5e252323ab",
-        "unavailable": "Bundle nicht verfügbar. Führen Sie zuerst <cmd>node scripts/build-mcpb.mjs</cmd> aus oder installieren Sie es über einen veröffentlichten Build.",
+        "unavailable": "MCP-Server ist in diesem Build nicht verfügbar. Installieren Sie die Desktop-App, um MCP zu nutzen.",
         "unavailable__sourceHash": "70fa99e13bd8e4cc81a564a13c85f53de607d5faf2e7fd4364748918ce9b3127"
       },
       "download-cta": ".mcpb für Claude Desktop herunterladen",
@@ -594,6 +595,7 @@
       "select-option__sourceHash": "fb1cbc38fb4060f4a648fbe213f1910915d66229d9f2b7753b7e68be1a17689f"
     },
     "execution": {
+      "waiting-for-answers": "Ihre Eingabe wird benötigt",
       "may-take-moment": "Dies kann je nach KI-Anbieter einen Moment dauern.",
       "may-take-moment__sourceHash": "03ca4930aa30d4302d3b628b712ca71f87210f2bfe0328858efc8ba4658d16bc",
       "save-as-file": "Als Datei speichern",
@@ -954,7 +956,7 @@
       "description__sourceHash": "81f5ec87b429ff9eaccaac3e1991d66957862668a1077e8bed7ef866f534b709",
       "email-optin-label": "E-Mail-Updates, Tipps und Rabattcodes zusenden",
       "email-optin-label__sourceHash": "484a32d897b9fa023757a516543b3b7bfb3f0d1e8137f1850eb6f5d2239dbd22",
-      "email-optin-help": "Nur echte Updates, keine Drip-Kampagnen, keine wöchentlichen Newsletter. Jederzeit abbestellbar. Geht direkt an Jameson.",
+      "email-optin-help": "Nur echte Updates, keine Drip-Kampagnen, keine wöchentlichen Newsletter. Jederzeit abbestellbar. Geht direkt an das Keepance-Team.",
       "email-optin-help__sourceHash": "2221fab2b8aca62d29f43156c58785f7325e7aff47187c2cf662ae0509a2cc6a",
       "telemetry-label": "Keepance mit anonymen Nutzungsstatistiken verbessern helfen",
       "telemetry-label__sourceHash": "5e9554dbf5aff7af0d7ae4aa41fc6c1d1160edc15b3e94722e21df4dd9013184",
@@ -991,6 +993,13 @@
     }
   },
   "matter": {
+    "sidebar": {
+      "empty": "Noch keine Fälle.",
+      "create-first": "Ersten Fall erstellen",
+      "manage-all": "Alle Fälle verwalten",
+      "open-manager": "Fälle verwalten",
+      "key-pending": "Ich warte darauf, dass dein Kanzleiadmin diesem Gerät Zugriff auf diesen Fall gewährt. Ich öffne ihn automatisch, sobald das erledigt ist."
+    },
     "manager": {
       "mail-label": "E-Mail-Konten in diesem Mandat",
       "mail-label__sourceHash": "894f4e905bce6814391e9107fa9e0d0e23f8d94eee4a68377ba19ce693254204",
@@ -1030,7 +1039,7 @@
       "firm-open-shared-empty": "Keine geteilten Mandate verfugbar.",
       "firm-open-action": "Offnen",
       "firm-opening": "Wird geoffnet...",
-      "firm-key-blocked": "Ich kann dieses Mandat noch nicht offnen. Bitte Ihren Kanzleiadministrator, den Zugriff fur dieses Gerat freizugeben.",
+      "firm-key-blocked": "Ich warte darauf, dass dein Kanzleiadmin diesem Gerät Zugriff auf dieses Mandat gewährt. Ich öffne es automatisch, sobald das erledigt ist.",
       "firm-share-error": "Konnte dieses Mandat nicht teilen. {{error}}",
       "firm-open-error": "Konnte dieses Mandat nicht offnen. {{error}}",
       "firm-invite-error": "Konnte {{email}} nicht einladen. {{error}}",
@@ -1050,8 +1059,8 @@
       "title": "Geteilte Notizen",
       "tab-title": "{{name}}: Geteilte Notizen",
       "subtitle": "Alle in diesem Mandat sehen diese Notizen. Sie werden in Echtzeit synchronisiert.",
-      "no-access": "Ich kann diese Notizen noch nicht laden.",
-      "no-access-hint": "Bitten Sie Ihren Kanzleiadministrator, den Zugriff mit diesem Gerat zu teilen.",
+      "no-access": "Warte darauf, dass dein Kanzleiadmin diesem Gerät Zugriff gewährt.",
+      "no-access-hint": "Ich öffne diese Notizen automatisch, sobald dein Admin den Schlüssel auf dieses Gerät veröffentlicht.",
       "loading": "Geteilte Notizen laden...",
       "not-found": "Mandat nicht gefunden.",
       "status-live": "Live",
@@ -1110,7 +1119,7 @@
       "create-matter": "Erstellen",
       "matter-created": "Mandat erstellt.",
       "no-matters": "Noch keine Mandate.",
-      "epoch-label": "Epoche {{epoch}}",
+      "epoch-label": "Schlusselversion {{epoch}}",
       "members-section": "Mitglieder und ethische Mauern",
       "invite-label": "Per E-Mail einladen",
       "invite-placeholder": "mitglied@kanzlei.de",
@@ -1124,15 +1133,15 @@
       "wall-placeholder": "mitglied@kanzlei.de",
       "wall-action": "Mauer",
       "wall-ok": "Ethische Mauer gesetzt.",
-      "members-epoch": "Mitglieder (Epoche {{epoch}})",
+      "members-epoch": "Mitglieder (Schlusselversion {{epoch}})",
       "remove-member-action": "Entfernen",
-      "remove-member-ok": "Mitglied entfernt (Schlusselepoche rotiert).",
+      "remove-member-ok": "Mitglied entfernt.",
       "walls-label": "Gesperrt (mit Mauer)",
       "clear-wall-action": "Entfernen",
       "clear-wall-ok": "Mauer entfernt.",
       "seats-section": "Lizenzen",
       "no-seats": "Keine Lizenzen in Verwendung.",
-      "unnamed-device": "Unbenanntes Gerat",
+      "unnamed-device": "Unbekanntes Gerat",
       "inactive-label": "inaktiv",
       "revoke-seat-action": "Widerrufen",
       "revoke-seat-ok": "Lizenz widerrufen.",
@@ -1147,6 +1156,7 @@
       "delete-key-ok": "Verwalteter Schlussel geloscht.",
       "user-id-fallback": "Benutzer {{id}}",
       "republish-keys-action": "Schlussel fur alle Mitgliedsgerate erneut veroffentlichen",
+      "republish-keys-ok": "Schlussel an alle registrierten Gerate gesendet.",
       "invite-user-exists": "{{email}} hat bereits ein Konto. Verwenden Sie die Administratorkonsole, um die Person hinzuzufugen, oder bitten Sie sie, eine Einladung anzunehmen.",
       "invite-failed": "Einladung fehlgeschlagen.",
       "wall-user-not-found": "Keine Benutzer-ID fur {{email}} gefunden. Laden Sie die Person zuerst ein, damit ihre ID im Cache gespeichert wird."
@@ -1386,7 +1396,7 @@
       }
     },
     "privileged-matter": {
-      "badge": "Modus für privilegierte Mandate: Netzwerk-Erweiterungen deaktiviert",
+      "badge": "Privilegiertes Mandat: externe Verbindungen sind gesperrt, damit nichts dieses Mandat verlassen kann",
       "title-manual": "Netzwerk-Plugins und MCP-Server sind deaktiviert.",
       "title-privileged-matter": "Aktiviert, weil das aktive Mandat privilegiert ist. Netzwerk-Plugins und MCP-Server sind deaktiviert.",
       "title-local-only": "Aktiviert, weil Nur lokal ausgewählt ist. Netzwerk-Plugins und MCP-Server sind deaktiviert."

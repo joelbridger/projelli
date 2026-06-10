@@ -17,6 +17,7 @@ import {
   Download,
   FileText,
   FileType,
+  HelpCircle,
   Link as LinkIcon,
   Loader2,
   Settings,
@@ -446,13 +447,14 @@ export function WorkflowExecutionTab({
           </Card>
         ))}
 
-        {/* Current interview form */}
+        {/* Current interview form — waiting for user input, NOT generating */}
         {interviewQuestions && isRunning && (
           <Card className="border-amber-500/30">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
-                <Loader2 className="h-4 w-4 text-amber-500 animate-spin" />
-                {template.steps[currentStep]?.name ?? 'Questions'}
+                <HelpCircle className="h-4 w-4 text-amber-500" />
+                {t('workflow.execution.waiting-for-answers')}
+                {template.steps[currentStep]?.name ? ` — ${template.steps[currentStep]!.name}` : ''}
               </CardTitle>
             </CardHeader>
             <CardContent>

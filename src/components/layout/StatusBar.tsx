@@ -26,6 +26,8 @@ import { EgressIndicator } from '@/components/privacy/EgressIndicator';
 import type { EgressProvider } from '@/modules/privacy/egress';
 // Privileged Matter Mode: persistent badge stating network extensions are off.
 import { usePrivilegedMatterMode } from '@/hooks/usePrivilegedMatterMode';
+// F-120: persistent direct-mode egress signal.
+import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
 
 /**
  * Extract project name from full path
@@ -141,6 +143,9 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
   const activeMatter = useActiveMatter();
   // Privileged Matter Mode: when active, network plugins + MCP are disabled.
   const privilegedMode = usePrivilegedMatterMode();
+  // F-120: persistent confidentiality-mode signal — read here, evaluated after
+  // activeChatProvider below so the derived flag can reference it.
+  const confidentialityMode = useConfidentialityMode();
 
   // WS-C: when the active tab is an AI chat, surface the compact egress mirror
   // for that chat's provider. We parse the provider out of the chat file's JSON
@@ -156,6 +161,12 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
       return 'anthropic';
     }
   }, [activeTab]);
+
+  // F-120: show the persistent indicator when the mode is not local AND no chat
+  // tab is already driving an egress indicator (avoids a double-badge).
+  // 'anthropic' is used as the display provider when no chat is open — it drives
+  // the correct severity/icon for direct and assured modes.
+  const showPersistentEgress = !activeChatProvider && confidentialityMode !== 'local-only';
 
   const projectName = getProjectName(rootPath, t('layout.status-bar.no-workspace'));
 
@@ -350,6 +361,21 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
             without cluttering it during plain editing. */}
         {activeChatProvider && (
           <EgressIndicator provider={activeChatProvider} variant="compact" />
+        )}
+
+        {/* F-120: persistent Direct/Assured egress signal. When no AI chat is
+            the active tab, the status bar used to show nothing in Direct mode —
+            making it look identical to local-only mode. This ensures the user
+            can always see where AI requests would go, even while editing a doc.
+            Uses 'anthropic' as the display provider when no chat is open; the
+            actual provider is set per-chat and is irrelevant here — the severity
+            colour and label come from the mode (direct = sky, assured = indigo). */}
+        {showPersistentEgress && (
+          <EgressIndicator
+            provider="anthropic"
+            mode={confidentialityMode}
+            variant="compact"
+          />
         )}
 
         {/* WS-B/C: active-matter scope indicator. Always visible so the user

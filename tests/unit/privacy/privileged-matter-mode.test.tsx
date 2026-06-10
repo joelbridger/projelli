@@ -394,7 +394,8 @@ describe('StatusBar: Privileged Matter Mode badge', () => {
     render(<StatusBar />);
     const badge = screen.getByTestId('privileged-matter-badge');
     expect(badge).toBeInTheDocument();
-    expect(badge.textContent).toContain('network extensions disabled');
+    // F-104: badge copy updated to plain English describing what the mode does
+    expect(badge.textContent).toContain('outside connections are blocked');
   });
 
   it('does not render the badge when the mode is off', () => {

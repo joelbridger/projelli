@@ -25,6 +25,7 @@ import {
   Bot,
   LayoutGrid,
   Puzzle,
+  Briefcase,
 } from 'lucide-react';
 import { PluginSidebarPanels } from '@/components/plugins/PluginSidebarPanels';
 import { usePluginRegistryStore } from '@/stores/pluginRegistryStore';
@@ -38,6 +39,7 @@ interface SidebarProps {
   auditContent?: React.ReactNode;
   trashContent?: React.ReactNode;
   whiteboardContent?: React.ReactNode;
+  mattersContent?: React.ReactNode;
   activeTab?: SidebarTab; // Controlled active tab
   onTabChange?: (tab: SidebarTab) => void; // Tab change callback
   /** Opens the Grid View tab in the main panel. Shown as an icon button in
@@ -46,7 +48,7 @@ interface SidebarProps {
   className?: string;
 }
 
-type SidebarTab = 'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins';
+type SidebarTab = 'files' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins' | 'matters';
 
 export function Sidebar({
   fileTreeContent,
@@ -57,6 +59,7 @@ export function Sidebar({
   auditContent,
   trashContent,
   whiteboardContent,
+  mattersContent,
   activeTab: controlledActiveTab,
   onTabChange,
   onOpenGridView,
@@ -94,6 +97,7 @@ export function Sidebar({
     shortcutId?: string;
   }[] = [
     { id: 'files', Icon: FolderTree, label: t('layout.sidebar.tabs.files') },
+    { id: 'matters', Icon: Briefcase, label: t('layout.sidebar.tabs.matters') },
     { id: 'search', Icon: Search, label: t('layout.sidebar.tabs.search') },
     { id: 'workflows', Icon: Workflow, label: t('layout.sidebar.tabs.workflows') },
     { id: 'ai-assistant', Icon: Bot, label: t('layout.sidebar.tabs.ai-assistant'), shortcutId: 'ai-assistant' },
@@ -287,6 +291,7 @@ export function Sidebar({
               </div>
             </div>
           )}
+          {activeTab === 'matters' && mattersContent}
           {activeTab === 'search' && searchContent}
           {activeTab === 'workflows' && workflowContent}
           {activeTab === 'ai-assistant' && aiAssistantContent}

@@ -53,6 +53,7 @@ import { prioritizeByProfession } from '@/modules/workflow/prioritizeByProfessio
 import { getOnboardingProfession } from '@/components/onboarding/FirstRunWizard';
 import { useTrialGate } from '@/hooks/useTrial';
 import { useTemplatesMarketplace } from '@/hooks/useTemplatesMarketplace';
+import { useSettingsStore } from '@/stores/settingsStore';
 import {
   TEMPLATE_PROVENANCE_LABELS,
   type TemplateProvenance,
@@ -377,6 +378,13 @@ interface WorkflowEstimateModalProps {
 }
 
 function WorkflowEstimateModal({ template, onConfirm, onCancel }: WorkflowEstimateModalProps) {
+  const confidentialityMode = useSettingsStore((s) => s.getSetting<string>('confidentialityMode'));
+  const templateProvider = template?.defaultProvider;
+  // Local runs have no provider charge: local-only mode, or template pinned to ollama.
+  const isLocalRun =
+    confidentialityMode === 'local-only' ||
+    templateProvider === 'ollama';
+
   if (!template) return null;
 
   const stepCount = template.steps.length;
@@ -411,14 +419,22 @@ function WorkflowEstimateModal({ template, onConfirm, onCancel }: WorkflowEstima
             )}
             <div className="flex items-center justify-between gap-3">
               <span className="text-muted-foreground">Estimated cost</span>
-              <span className="font-medium tabular-nums font-mono">{costRange}</span>
+              <span className="font-medium tabular-nums font-mono" data-testid="workflow-estimate-cost">
+                {isLocalRun ? '$0' : costRange}
+              </span>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            This is a rough estimate based on typical step sizes. Your actual cost
-            depends on the length of your inputs and the model you have selected.
-            Billed directly by your AI provider.
-          </p>
+          {isLocalRun ? (
+            <p className="text-xs text-muted-foreground">
+              This workflow runs on your local AI model. No provider charge.
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              This is a rough estimate based on typical step sizes. Your actual cost
+              depends on the length of your inputs and the model you have selected.
+              Billed directly by your AI provider.
+            </p>
+          )}
         </div>
 
         <DialogFooter>

@@ -87,7 +87,7 @@ export function MailConnect() {
     <section className="rounded-lg border border-slate-200 bg-white p-4">
       <h3 className="text-sm font-semibold text-slate-900">Microsoft 365 email</h3>
       <p className="mt-1 text-sm text-slate-600">
-        Bring your Outlook mail into Keepance so you can actually find it. Your mail is encrypted and stays on this machine.
+        Bring your Outlook mail into Keepance so you can actually find it. Your mail is encrypted and stays on this machine. Requires the Keepance desktop app.
       </p>
       {fdeStatus === 'off' && (
         <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">

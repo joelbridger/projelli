@@ -261,7 +261,7 @@ export function FirmAdminConsole() {
     if (!epoch) return;
     await run(async () => {
       await publishMatterKeyToMembers(getClient(), matterId, epoch);
-    }, 'Keys re-published to all member devices.');
+    }, t('firm.admin.republish-keys-ok'));
   };
 
   /** Set wall by email. */
@@ -524,7 +524,7 @@ export function FirmAdminConsole() {
                       key={mem.user_id}
                       className="flex items-center justify-between rounded-md border border-border px-2 py-1"
                     >
-                      <span className="font-mono text-[11px]">
+                      <span className="text-[11px]">
                         {mem.email ?? displayUser(mem.user_id)}
                       </span>
                       <span className="flex items-center gap-2">
@@ -560,7 +560,7 @@ export function FirmAdminConsole() {
                           key={w.user_id}
                           className="flex items-center justify-between rounded-md border border-amber-300 bg-amber-50 px-2 py-1"
                         >
-                          <span className="font-mono text-[11px]">
+                          <span className="text-[11px]">
                             {wallUser?.email ?? displayUser(w.user_id)}
                           </span>
                           <Button

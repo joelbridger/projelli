@@ -39,8 +39,11 @@ export function openMatterNotes(localMatterId: string): void {
     return;
   }
 
-  // i18n: tab title uses the matter.notes.tab-title key; no em dash.
-  const tabTitle = i18n.t('matter.notes.tab-title', { name: matter.name });
+  // F-125: use matterLabel (not matter.name) so the tab title always shows the
+  // best human-readable label — avoids leaking raw IDs if matter.name is empty
+  // or if name === client (both set to client_name on firm-linked matters).
+  const label = matter.client.trim() || matter.name.trim() || (matter.firmMatterId ?? matter.id);
+  const tabTitle = i18n.t('matter.notes.tab-title', { name: label });
 
   // Open a new notes tab.
   openTab(
