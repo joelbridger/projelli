@@ -12,6 +12,43 @@
 >
 > **Voice rules for any user-facing copy:** Every marketing artifact in `docs/features/` and `website/blog/` was written under the rules in `~/.claude/projects/-home-jameson/memory/feedback_marketing_copy_voice.md` and `~/.claude/projects/-home-jameson/memory/reference_ai_writing_tells.md`. The short version: first-person singular always, contractions, specific concrete nouns over abstractions, no "leverage / delve / seamless / transform / empower / elevate / unlock", no italicized fragments at sentence ends, no "It's not X, it's Y" parallelism, uneven sentence length, occasional informal fragments. If in doubt, read the homepage at keepance.com (audited 2026-04-08) for the canonical voice reference.
 
+## Token-Budget Operating Mode (Keepance only)
+
+> **Scope: this project only.** These rules live in the Keepance `CLAUDE.md`, so they apply *only* when a Claude Code session is working in this repo. They do **not** change how you pick models in any other project on the server, and they do **not** touch the global `~/.claude/CLAUDE.md`. Manual model control everywhere else is unchanged.
+>
+> **Why this exists:** finishing 3.0 to 100% of the vision while staying inside a $100 Max 5x weekly budget, without compromising thinking ability or code quality. The prior approach (Claude Fable 5 at Max effort) was the single most expensive configuration possible and exhausted a $200 plan in three days. The fix below keeps quality high (Opus 4.8 is the strongest bug-finder of the family) while cutting burn several-fold.
+
+**Model + effort policy for work in this repo:**
+
+- **Driver / orchestrator / reviewer: Opus 4.8 at `high` effort.** High is the quality-vs-tokens sweet spot. Do **not** run the main session at Max effort as a default.
+- **Raise to `xhigh` only for the two correctness-critical, data-loss-sensitive builds:** the **encrypted workspace vault** (VG-6d-v2) and the **live multi-user co-editing CRDT** (VG-8). Everything else stays at `high`.
+- **Claude Fable 5 = break-glass only.** Never the default. If Opus genuinely stalls on one intractable problem (e.g. a nasty CRDT convergence bug), spend a single scoped Fable session on just that, then drop straight back to Opus 4.8.
+- **Delegate the volume so it never touches the premium bucket.** Most tokens in a build are mechanical, not the hard 20%. Use subagent-driven development and push work down a tier per the **Sub-agent model routing** section below:
+  - well-specified implementation → **Sonnet 4.6** subagents (`model: "sonnet"`; effectively unlimited on Max 5x for normal workloads)
+  - boilerplate / scaffolding / renames / fixtures / mechanical edits → **`model: "haiku"`** (cheapest tier)
+  - Opus 4.8 reviews the diffs; it does not write the boilerplate.
+
+> **Routing reality check (verified 2026-06-11):** Claude Code is **not** currently routed through the local LiteLLM gateway (no `ANTHROPIC_BASE_URL` set in env, shell profiles, or either `settings.json`). So `model: "haiku"` subagents bill as **Anthropic cloud Haiku ($1/$5 per MTok)** today, not the free local RTX 5070. Cloud Haiku is still the cheapest tier, so the strategy holds; the "free" local offload only becomes real once the gateway is wired into Claude Code. The bottom "Sub-agent model routing" section describes that intended setup (and names Qwen2.5-7B, which is not loaded — only llama3.1:8b / llama3.2:3b are), so treat it as aspirational until the gateway is hooked up.
+
+**Per-wave model map (remaining work to 100%):**
+
+| Wave | Driver / reviewer | Implementation subagents |
+|---|---|---|
+| Wave 2 finale (re-review + native re-run) | Opus 4.8 · high | Sonnet 4.6 + local-Haiku |
+| Wave 3a: SSO (OIDC) | Opus 4.8 · high | Sonnet 4.6 |
+| Wave 3b: encrypted vault | Opus 4.8 · **xhigh** | Sonnet 4.6 (Opus reviews every diff) |
+| Wave 4: live co-editing CRDT | Opus 4.8 · **xhigh** | Sonnet 4.6 |
+| Wave 5: connectors (Clio / add-ins / DMS) | Opus 4.8 · high | Sonnet 4.6 + local-Haiku for boilerplate |
+
+**Token hygiene (the quiet 30-60% saver):**
+
+- `/compact` roughly every 30 turns; long sessions re-read the whole transcript each turn (near-quadratic growth).
+- Reference files by path ("the `validateToken` function in `src/auth.ts`") instead of pasting; trim logs/stack traces to the relevant 20-30 lines.
+- Feed each wave its already-written plan up front in one well-specified prompt. Opus 4.8 wastes tokens inferring scope across many turns and rewards a clear goal stated once.
+- Stay terse between tool calls on autonomous builds. Opus 4.8 narrates more by default; that is pure output tokens you do not need. Lead the final summary with the outcome, then detail.
+
+---
+
 ## Where things live
 
 | Item | Path | Notes |
