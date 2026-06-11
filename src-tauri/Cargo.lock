@@ -4571,6 +4571,7 @@ dependencies = [
  "hf-hub",
  "hmac",
  "keepance-docx",
+ "keepance-vault",
  "keyring",
  "lancedb",
  "log",
@@ -4600,6 +4601,7 @@ dependencies = [
  "tokio-native-tls",
  "walkdir",
  "wiremock",
+ "zeroize",
  "zip",
 ]
 

@@ -25,7 +25,7 @@ use keepance_vault::{
     vault::decrypt_file_at,
     verifier::make_verifier,
 };
-use rand::RngCore;
+use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -89,19 +89,28 @@ pub(crate) fn delete_vmk(workspace_id: &str) -> Result<(), VaultCommandError> {
 /// Returns `Err(VaultCommandError::Locked)` if the keychain has no VMK for
 /// this workspace (the user needs to unlock via recovery phrase or escrow).
 fn load_vmk(workspace_id: &str) -> Result<ZeroizedVmk, VaultCommandError> {
-    let b64 = get_vmk_b64(workspace_id)?
+    let mut b64 = get_vmk_b64(workspace_id)?
         .ok_or_else(|| VaultCommandError::Locked("vault is locked — no VMK in keychain".into()))?;
-    let bytes = BASE64
+    let mut bytes = BASE64
         .decode(&b64)
-        .map_err(|e| VaultCommandError::Internal(format!("VMK base64 decode failed: {e}")))?;
+        .map_err(|e| {
+            b64.zeroize();
+            VaultCommandError::Internal(format!("VMK base64 decode failed: {e}"))
+        })?;
     if bytes.len() != 32 {
-        return Err(VaultCommandError::Internal(format!(
+        let err = VaultCommandError::Internal(format!(
             "VMK has unexpected length {} (expected 32)",
             bytes.len()
-        )));
+        ));
+        bytes.zeroize();
+        b64.zeroize();
+        return Err(err);
     }
     let mut key = [0u8; 32];
     key.copy_from_slice(&bytes);
+    // Zeroize heap intermediates before returning.
+    bytes.zeroize();
+    b64.zeroize();
     Ok(ZeroizedVmk(key))
 }
 
@@ -153,16 +162,30 @@ pub fn workspace_id(root: &Path) -> String {
 /// Mirrors the `PathValidator` approach used in `commands/fs.rs` and
 /// `modules/workspace/PathValidator.ts`.
 fn resolve_and_guard(workspace: &Path, rel_path: &str) -> Result<PathBuf, VaultCommandError> {
-    // Reject obvious traversal in the raw string before any canonicalization.
-    // This catches `../../etc/passwd` before we even touch the filesystem.
-    if rel_path.contains("..") {
-        return Err(VaultCommandError::PathTraversal(format!(
-            "rel_path '{rel_path}' contains '..'"
-        )));
-    }
-
-    // Strip a leading slash/backslash so `rel_path` is always relative.
+    // Strip a leading slash/backslash so `rel_path` is always relative before
+    // any component inspection.
     let rel = rel_path.trim_start_matches(['/', '\\']);
+
+    // Reject traversal components before any canonicalization (defense in depth).
+    // Component-based walk so a legitimate filename like `report..2026.docx` is
+    // accepted while `../foo` or absolute paths are rejected.
+    use std::path::Component;
+    for component in Path::new(rel).components() {
+        match component {
+            Component::ParentDir => {
+                return Err(VaultCommandError::PathTraversal(format!(
+                    "rel_path '{rel_path}' contains a '..' component"
+                )));
+            }
+            // Absolute paths or Windows drive prefixes are not allowed as rel_path.
+            Component::RootDir | Component::Prefix(_) => {
+                return Err(VaultCommandError::PathTraversal(format!(
+                    "rel_path '{rel_path}' is an absolute path"
+                )));
+            }
+            _ => {}
+        }
+    }
 
     // Build the candidate absolute path.
     let candidate = workspace.join(rel);
@@ -326,9 +349,9 @@ pub async fn vault_create(
 ) -> Result<VaultCreated, VaultCommandError> {
     let root = Path::new(&workspace);
 
-    // 1. Generate a 32-byte VMK.
+    // 1. Generate a 32-byte VMK using OsRng (spec §4.1 mandates OS entropy source).
     let mut vmk = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut vmk);
+    OsRng.fill_bytes(&mut vmk);
 
     // 2. Recovery wrap.
     let (phrase, recovery_wrap) = create_recovery(&vmk)
@@ -373,10 +396,11 @@ pub async fn vault_create(
         .map_err(|e| VaultCommandError::Io(format!("failed to write vault metadata: {e}")))?;
 
     // 6. Encode and store the VMK in the keychain.
-    let vmk_b64 = BASE64.encode(&vmk);
+    let mut vmk_b64 = BASE64.encode(&vmk);
     store_vmk(&vault_id, &vmk_b64)?;
 
-    // Zeroize the VMK now that it's safely in the keychain.
+    // Zeroize both the raw VMK and the base64 heap copy now that it's safely in the keychain.
+    vmk_b64.zeroize();
     vmk.zeroize();
 
     Ok(VaultCreated {
@@ -571,6 +595,47 @@ mod tests {
         std::fs::write(root.join("file.txt"), b"hi").unwrap();
         let result = resolve_and_guard(root, "/file.txt");
         assert!(result.is_ok(), "leading slash should be stripped: {result:?}");
+    }
+
+    /// A filename that legitimately contains `..` as part of its name
+    /// (e.g. `report..2026.docx`) must NOT be rejected by the traversal guard.
+    #[test]
+    fn dotted_filename_is_accepted() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::write(root.join("report..2026.docx"), b"content").unwrap();
+        let result = resolve_and_guard(root, "report..2026.docx");
+        assert!(
+            result.is_ok(),
+            "filename containing '..' as part of the name must be accepted: {result:?}"
+        );
+    }
+
+    /// A symlink inside the workspace that points outside must be rejected by the
+    /// canonicalize + starts_with guard.
+    #[cfg(unix)]
+    #[test]
+    fn symlink_escape_is_rejected() {
+        let outside = tempfile::tempdir().unwrap();
+        let workspace = tempfile::tempdir().unwrap();
+
+        // Create a real file outside the workspace.
+        let outside_file = outside.path().join("secret.txt");
+        std::fs::write(&outside_file, b"secret").unwrap();
+
+        // Create a symlink INSIDE the workspace pointing to the outside file.
+        let symlink_path = workspace.path().join("escape_link.txt");
+        std::os::unix::fs::symlink(&outside_file, &symlink_path)
+            .expect("symlink creation should succeed");
+
+        // The symlink exists inside the workspace directory, but resolving it
+        // escapes to the outside path. The canonicalize+starts_with check must
+        // catch this.
+        let result = resolve_and_guard(workspace.path(), "escape_link.txt");
+        assert!(
+            matches!(result, Err(VaultCommandError::PathTraversal(_))),
+            "symlink escaping workspace must be rejected, got: {result:?}"
+        );
     }
 
     // ── format_iso8601 ────────────────────────────────────────────────────────
