@@ -130,6 +130,18 @@ pub fn read_bytes(path: &Path) -> Option<Vec<u8>> {
     fs::read(path).ok()
 }
 
+/// Read a text file's raw bytes using the same `MAX_FILE_BYTES` (5 MiB) cap as
+/// `read_text`. Used by the RAG indexer's decrypt-on-read seam (VG-6d): we need
+/// the raw bytes to check for KPV1 magic before converting to UTF-8, but we still
+/// want to enforce the text-file size limit, not the more permissive office limit.
+pub fn read_text_bytes(path: &Path) -> Option<Vec<u8>> {
+    let meta = fs::metadata(path).ok()?;
+    if meta.len() > MAX_FILE_BYTES {
+        return None;
+    }
+    fs::read(path).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

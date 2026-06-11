@@ -303,15 +303,22 @@ pub async fn rag_index_file(
     // WS-VEC: the vector-store master key — chunk text is encrypted at rest.
     let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
 
+    // VG-6d: try to load the workspace vault master key once for this index call.
+    // Returns None if the workspace is not vaulted or the vault is locked —
+    // in which case indexing proceeds on plaintext files unchanged.
+    let vault_vmk_holder = crate::commands::vault::try_load_vault_vmk(&workspace);
+    let vault_vmk: Option<&[u8; 32]> = vault_vmk_holder.as_ref().map(|v| v.as_bytes());
+
     // {e:#} = full anyhow chain, so the typed model-not-ready marker at the
     // root cause survives any .context() wrapping when it crosses IPC.
     //
     // F-501: cancel is `None` here ON PURPOSE — `rag_cancel_indexing` leaves
     // the shared flag true until the next walk resets it, and a stale `true`
     // would silently skip every watcher-triggered single-file index.
-    index_one_file(&table, &file_path, &matter, &privilege, &key, None)
+    index_one_file(&table, &file_path, &matter, &privilege, &key, None, vault_vmk)
         .await
         .map_err(|e| format!("index_file failed: {e:#}"))?;
+    // vault_vmk_holder is dropped (and ZeroizedVmk zeroizes) here.
     Ok(())
 }
 
@@ -341,6 +348,34 @@ fn resolve_privilege(privilege: Option<&str>) -> Result<String, String> {
     }
 }
 
+/// VG-6d: decrypt a file's bytes in memory if it is a KPV1-vaulted file.
+///
+/// If `vault_vmk` is `Some` and `bytes` starts with the KPV1 magic, this
+/// decrypts with the VMK and returns the plaintext. Otherwise the bytes are
+/// returned unchanged (either the workspace is not vaulted, the VMK is not
+/// available, or the file is already plaintext).
+///
+/// Decryption failures (wrong key, tampered ciphertext) are treated as
+/// "not our file to decrypt" — the original bytes are returned, which will
+/// produce a bad extraction and log a warning in the caller. We never silently
+/// swallow crypto errors: the caller's existing error-handling path covers it.
+fn decrypt_if_vaulted(bytes: Vec<u8>, vault_vmk: Option<&[u8; 32]>) -> Vec<u8> {
+    let Some(vmk) = vault_vmk else { return bytes; };
+    if !keepance_vault::format::has_vault_magic(&bytes) {
+        return bytes;
+    }
+    match keepance_vault::format::decrypt_file(&bytes, vmk) {
+        Ok(plaintext) => plaintext,
+        Err(e) => {
+            // Decryption failed — log and pass the raw bytes through. The caller's
+            // extraction path will likely fail or produce garbage and warn/skip,
+            // which is the right outcome (we never silently eat a crypto error).
+            log::warn!("rag: KPV1 decrypt failed for a vaulted file: {e}");
+            bytes
+        }
+    }
+}
+
 /// Internal: extract → chunk → embed → upsert for one file, dispatching on
 /// `extractor::classify` (VG-2b — this single dispatch is what makes office
 /// documents land from BOTH the full walk and the watcher, which funnels
@@ -349,6 +384,11 @@ fn resolve_privilege(privilege: Option<&str>) -> Result<String, String> {
 /// WS-B/C: `matter_id` is the confidentiality scope the file is filed under
 /// (the caller supplies it; `UNASSIGNED_MATTER` when not yet categorized). Every
 /// written chunk carries it — index-time enforcement, layer one of scoping.
+///
+/// VG-6d: `vault_vmk` is the workspace vault master key, or `None` when the
+/// workspace is not vaulted (or the vault is locked). When `Some`, any file
+/// whose first bytes are the KPV1 magic is decrypted in memory before
+/// extraction. Plain files pass through unchanged.
 ///
 /// Failure stance: a corrupt/unreadable office file (incl. a zero-byte
 /// `.docx`) drops any stale rows, warns, and returns `Ok` — one bad file
@@ -360,6 +400,7 @@ async fn index_one_file(
     privilege: &str,
     key: &[u8; 32],
     cancel: Option<&AtomicBool>,
+    vault_vmk: Option<&[u8; 32]>,
 ) -> anyhow::Result<()> {
     let path_str = file_path.to_string_lossy().to_string();
     let Some(kind) = extractor::classify(file_path) else {
@@ -369,11 +410,24 @@ async fn index_one_file(
     };
     match kind {
         extractor::IndexKind::Text => {
-            let Some(text) = extractor::read_text(file_path) else {
+            // VG-6d: read as raw bytes so we can check for KPV1 magic and decrypt
+            // before converting to UTF-8. `read_text_bytes` uses the same
+            // MAX_FILE_BYTES (5 MiB) cap as `read_text` — the text-file size limit,
+            // not the more permissive office-package limit.
+            let Some(raw_bytes) = extractor::read_text_bytes(file_path) else {
                 // File missing or too big — drop any existing rows for safety.
                 store::delete_path(table, &path_str, key).await?;
                 return Ok(());
             };
+            let decrypted = decrypt_if_vaulted(raw_bytes, vault_vmk);
+            let Some(text) = String::from_utf8(decrypted).ok() else {
+                // After decryption the bytes are not valid UTF-8 — skip this file.
+                store::delete_path(table, &path_str, key).await?;
+                return Ok(());
+            };
+            // Mirror what the old extractor::read_text empty-string guard did:
+            // an empty string after decryption still flows into the chunker which
+            // returns an empty slice, causing delete + no-op (correct).
             // VG-3c — certified line-numbered deposition transcripts (.txt
             // only) chunk page:line-aware so citations read "Tr. 45:12".
             // Detection is deliberately conservative: a false negative just
@@ -405,10 +459,12 @@ async fn index_one_file(
             .await
         }
         extractor::IndexKind::Docx | extractor::IndexKind::Rtf => {
-            let Some(bytes) = extractor::read_bytes(file_path) else {
+            let Some(raw_bytes) = extractor::read_bytes(file_path) else {
                 store::delete_path(table, &path_str, key).await?;
                 return Ok(());
             };
+            // VG-6d: decrypt in memory before passing to the office extractor.
+            let bytes = decrypt_if_vaulted(raw_bytes, vault_vmk);
             // The document's CURRENT READING as plain text: tracked
             // insertions in, deletions out, no raw markup (text.rs); rtf
             // decodes control words/escapes to text (office.rs).
@@ -439,10 +495,12 @@ async fn index_one_file(
             .await
         }
         extractor::IndexKind::Xlsx | extractor::IndexKind::Pptx => {
-            let Some(bytes) = extractor::read_bytes(file_path) else {
+            let Some(raw_bytes) = extractor::read_bytes(file_path) else {
                 store::delete_path(table, &path_str, key).await?;
                 return Ok(());
             };
+            // VG-6d: decrypt in memory before passing to the office extractor.
+            let bytes = decrypt_if_vaulted(raw_bytes, vault_vmk);
             let sections = match kind {
                 extractor::IndexKind::Xlsx => office::extract_xlsx_sections(&bytes),
                 _ => office::extract_pptx_sections(&bytes),
@@ -702,6 +760,13 @@ pub async fn rag_index_workspace(
     // WS-VEC: the vector-store master key — chunk text is encrypted at rest.
     let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
 
+    // VG-6d: try to load the workspace vault master key once for the whole walk.
+    // Returns None if the workspace is not vaulted or the vault is locked —
+    // in which case indexing proceeds on plaintext files unchanged. The VMK is
+    // held for the duration of the walk and zeroized on drop (ZeroizedVmk).
+    let vault_vmk_holder = crate::commands::vault::try_load_vault_vmk(&workspace);
+    let vault_vmk: Option<&[u8; 32]> = vault_vmk_holder.as_ref().map(|v| v.as_bytes());
+
     // Phase 1: walk the tree.
     let files: Vec<PathBuf> = walkdir::WalkDir::new(&workspace)
         .follow_links(false)
@@ -762,6 +827,7 @@ pub async fn rag_index_workspace(
             store::PRIVILEGE_NONE,
             &key,
             Some(cancel.as_ref()),
+            vault_vmk,
         )
         .await
         {
@@ -1820,5 +1886,105 @@ mod tests {
         assert!(s.contains("\"processed\":12"));
         assert!(s.contains("\"total\":100"));
         assert!(s.contains("\"status\":\"Indexing\"") || s.contains("\"status\":\"indexing\""));
+    }
+
+    // -----------------------------------------------------------------------
+    // VG-6d: decrypt-on-read seam — Task 13 of the Wave 3b encrypted-vault plan.
+    //
+    // These tests exercise the `decrypt_if_vaulted` helper with an injected VMK
+    // so no keychain is required. The full integration (vault metadata + keychain
+    // → index_one_file) is covered by the live-app native pass; the unit path
+    // here proves the seam logic in isolation.
+    // -----------------------------------------------------------------------
+
+    /// A vaulted file (KPV1 magic) is decrypted when the VMK is provided.
+    ///
+    /// This is the "destructive item 12" spec test: encrypt the plaintext,
+    /// write it to a temp workspace with `.keepance-vault.json`, then drive the
+    /// decrypt_if_vaulted seam and assert the plaintext is recovered.
+    #[test]
+    fn vaulted_file_decrypts_to_plaintext_with_vmk() {
+        use keepance_vault::format::encrypt_file;
+
+        let vmk: [u8; 32] = [0xCC; 32];
+        let plaintext = b"the quick brown fox";
+
+        // Encrypt the plaintext to produce a KPV1 blob.
+        let blob = encrypt_file(plaintext, &vmk).expect("encrypt_file must succeed");
+
+        // The blob must start with KPV1 magic.
+        assert_eq!(&blob[..4], b"KPV1", "encrypted blob must have KPV1 magic");
+
+        // decrypt_if_vaulted with the VMK must return the original plaintext.
+        let result = decrypt_if_vaulted(blob, Some(&vmk));
+        assert_eq!(
+            result, plaintext,
+            "decrypt_if_vaulted must recover the plaintext from a KPV1 blob"
+        );
+    }
+
+    /// A plain file (no KPV1 magic) passes through decrypt_if_vaulted unchanged,
+    /// even when a VMK is provided (the workspace is vaulted but the file is plain).
+    #[test]
+    fn plain_file_passes_through_decrypt_seam_unchanged() {
+        let vmk: [u8; 32] = [0xDD; 32];
+        let plaintext = b"# Plain markdown document\n\nThis is not encrypted.".to_vec();
+
+        // No KPV1 magic — passes through unchanged.
+        let result = decrypt_if_vaulted(plaintext.clone(), Some(&vmk));
+        assert_eq!(
+            result, plaintext,
+            "plain file must be returned unchanged by decrypt_if_vaulted"
+        );
+    }
+
+    /// Non-vaulted workspace (vault_vmk = None): any bytes pass through unchanged.
+    #[test]
+    fn no_vmk_passes_any_bytes_through() {
+        // Even bytes that happen to look like KPV1 magic pass through when there
+        // is no VMK (non-vaulted workspace or locked vault).
+        let fake_vaulted = b"KPV1\x01some-garbled-bytes".to_vec();
+        let result = decrypt_if_vaulted(fake_vaulted.clone(), None);
+        assert_eq!(
+            result, fake_vaulted,
+            "bytes must pass through unchanged when vault_vmk is None"
+        );
+    }
+
+    /// Wrong VMK: decrypt_if_vaulted returns the original bytes (decryption failed),
+    /// never panics, never returns garbage that claims to be plaintext.
+    #[test]
+    fn wrong_vmk_returns_original_bytes_not_garbage() {
+        use keepance_vault::format::encrypt_file;
+
+        let right_vmk: [u8; 32] = [0xEE; 32];
+        let wrong_vmk: [u8; 32] = [0xFF; 32];
+        let plaintext = b"confidential content";
+
+        let blob = encrypt_file(plaintext, &right_vmk).expect("encrypt_file must succeed");
+
+        // Wrong VMK — decrypt_if_vaulted must return the original blob, not plaintext.
+        let result = decrypt_if_vaulted(blob.clone(), Some(&wrong_vmk));
+        assert_eq!(
+            result, blob,
+            "wrong VMK must return original bytes, not partially-decrypted garbage"
+        );
+        // Importantly, the result must NOT equal the plaintext.
+        assert_ne!(result.as_slice(), plaintext.as_slice());
+    }
+
+    /// `try_load_vault_vmk` returns None for a workspace with no vault metadata.
+    /// (Tests the public-facing seam used by both rag_index_file and rag_index_workspace.)
+    #[test]
+    fn try_load_vault_vmk_returns_none_for_unvaulted_workspace() {
+        let dir = tempfile::tempdir().expect("tempdir must succeed");
+        let root = dir.path();
+
+        // No .keepance-vault.json — must return None.
+        let result = crate::commands::vault::try_load_vault_vmk(root);
+        assert!(
+            result.is_none(),
+            "try_load_vault_vmk must return None for a workspace with no vault metadata"
+        );
     }
 }

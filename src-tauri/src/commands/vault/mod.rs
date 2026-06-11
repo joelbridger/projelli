@@ -115,11 +115,44 @@ fn load_vmk(workspace_id: &str) -> Result<ZeroizedVmk, VaultCommandError> {
     Ok(ZeroizedVmk(key))
 }
 
+/// Try to load the VMK for a workspace without requiring the vault to be enabled
+/// or the keychain to have an entry. Returns `None` in any of these cases:
+///
+/// - The workspace has no `.keepance-vault.json` (vault not enabled — plaintext workspace).
+/// - The metadata is unreadable (vault not enabled / corrupt).
+/// - The keychain has no VMK for this workspace (vault is locked on this machine).
+/// - Any error in keychain access or base64 decoding.
+///
+/// This is the seam used by the RAG indexer: it calls this once per index run
+/// and passes the result to each per-file decrypt check. If `None`, indexing
+/// proceeds as before (no vault, no decrypt). If `Some(vmk)`, every file that
+/// has KPV1 magic bytes is decrypted in memory before text extraction.
+///
+/// The returned `ZeroizedVmk` is zeroized when it is dropped by the caller.
+pub(crate) fn try_load_vault_vmk(workspace_root: &Path) -> Option<ZeroizedVmk> {
+    // Step 1: check if the vault is enabled (metadata file must exist).
+    let meta = keepance_vault::metadata::VaultMetadata::read_from(workspace_root).ok()?;
+    // Step 2: try to load the VMK from the keychain. A `None` from `get_vmk_b64`
+    // means the vault is locked (no VMK for this machine) — silent passthrough.
+    let mut b64 = get_vmk_b64(&meta.vault_id).ok()??;
+    let mut bytes = BASE64.decode(&b64).ok()?;
+    if bytes.len() != 32 {
+        bytes.zeroize();
+        b64.zeroize();
+        return None;
+    }
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&bytes);
+    bytes.zeroize();
+    b64.zeroize();
+    Some(ZeroizedVmk(key))
+}
+
 /// A 32-byte VMK that is automatically zeroized when dropped.
-struct ZeroizedVmk([u8; 32]);
+pub(crate) struct ZeroizedVmk([u8; 32]);
 
 impl ZeroizedVmk {
-    fn as_bytes(&self) -> &[u8; 32] {
+    pub(crate) fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
 }
