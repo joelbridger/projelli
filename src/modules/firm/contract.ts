@@ -399,6 +399,29 @@ export interface OrgClaimResponse extends AuthTokensResponse {
   user: PublicUser;
 }
 
+// --- SSO (OIDC) admin config -----------------------------------------------
+export type IdpProvider = 'entra' | 'google' | 'generic';
+
+export interface SsoConfigSetRequest {
+  provider: IdpProvider;
+  issuer: string;
+  client_id: string;
+  /** Write-only; never returned by the API. */
+  client_secret: string;
+  enabled: boolean;
+}
+
+export interface SsoConfigView {
+  configured: boolean;
+  provider?: IdpProvider;
+  issuer?: string;
+  client_id?: string;
+  enabled?: boolean;
+  has_secret?: boolean;
+  /** The redirect URI the firm must register with their IdP. */
+  redirect_uri: string;
+}
+
 // --- Errors ----------------------------------------------------------------
 export interface ApiError {
   error: string;
@@ -445,4 +468,9 @@ export const FIRM_ENDPOINTS = {
   assuredKeySet: '/assured/keys/set',
   assuredKeyList: '/assured/keys/list',
   assuredKeyDelete: '/assured/keys/delete',
+  ssoConfigSet: '/org/sso/config/set',
+  ssoConfigGet: '/org/sso/config/get',
+  ssoConfigDelete: '/org/sso/config/delete',
+  ssoStart: '/auth/sso/start',
+  ssoExchange: '/auth/sso/exchange',
 } as const;

@@ -50,6 +50,8 @@ import {
   type MatterMineResponse,
   type PublicUser,
   type ListOrgUsersResponse,
+  type SsoConfigSetRequest,
+  type SsoConfigView,
 } from './contract';
 
 export class FirmApiError extends Error {
@@ -491,6 +493,35 @@ export class FirmApiClient {
       method: 'POST',
       auth: true,
       body: { provider },
+    });
+  }
+
+  // --- admin: SSO (OIDC) config ----------------------------------------------
+
+  /** GET the org's SSO configuration (secret-free view). Admin only. */
+  ssoConfigGet(): Promise<SsoConfigView> {
+    return this.request<SsoConfigView>(FIRM_ENDPOINTS.ssoConfigGet, {
+      method: 'POST',
+      auth: true,
+      body: {},
+    });
+  }
+
+  /** Set (upsert) the org's SSO configuration. Admin only. */
+  ssoConfigSet(req: SsoConfigSetRequest): Promise<{ ok: true; redirect_uri: string }> {
+    return this.request<{ ok: true; redirect_uri: string }>(FIRM_ENDPOINTS.ssoConfigSet, {
+      method: 'POST',
+      auth: true,
+      body: req,
+    });
+  }
+
+  /** Delete the org's SSO configuration. Admin only. */
+  ssoConfigDelete(): Promise<{ ok: true }> {
+    return this.request<{ ok: true }>(FIRM_ENDPOINTS.ssoConfigDelete, {
+      method: 'POST',
+      auth: true,
+      body: {},
     });
   }
 }
