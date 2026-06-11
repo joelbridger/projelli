@@ -55,3 +55,77 @@ test("admin can set, get (secret-free), and delete SSO config; member is forbidd
   const get2 = await post("/org/sso/config/get", {}, adminToken);
   expect((await get2.json()).configured).toBe(false);
 });
+
+test("update SSO config without client_secret keeps the existing secret (keep-existing path)", async () => {
+  // First-time setup with a secret.
+  const set1 = await post("/org/sso/config/set", {
+    provider: "entra", issuer: "https://login.microsoftonline.com/tenant/v2.0",
+    client_id: "client-keep", client_secret: "original-secret", enabled: true,
+  }, adminToken);
+  expect(set1.status).toBe(200);
+
+  // Confirm secret is saved.
+  const view1 = await (await post("/org/sso/config/get", {}, adminToken)).json();
+  expect(view1.has_secret).toBe(true);
+  expect(view1.enabled).toBe(true);
+
+  // Update: same provider/issuer/client_id, flip enabled, NO client_secret.
+  const set2 = await post("/org/sso/config/set", {
+    provider: "entra", issuer: "https://login.microsoftonline.com/tenant/v2.0",
+    client_id: "client-keep", enabled: false,
+    // client_secret intentionally omitted
+  }, adminToken);
+  expect(set2.status).toBe(200);
+
+  // The secret must still be present and enabled must have changed.
+  const view2 = await (await post("/org/sso/config/get", {}, adminToken)).json();
+  expect(view2.has_secret).toBe(true);
+  expect(view2.enabled).toBe(false);
+  expect(view2.client_id).toBe("client-keep");
+
+  // Same test with an explicit empty string for client_secret.
+  const set3 = await post("/org/sso/config/set", {
+    provider: "entra", issuer: "https://login.microsoftonline.com/tenant/v2.0",
+    client_id: "client-keep", client_secret: "", enabled: true,
+  }, adminToken);
+  expect(set3.status).toBe(200);
+
+  const view3 = await (await post("/org/sso/config/get", {}, adminToken)).json();
+  expect(view3.has_secret).toBe(true);
+  expect(view3.enabled).toBe(true);
+
+  // Cleanup.
+  await post("/org/sso/config/delete", {}, adminToken);
+});
+
+test("first-time SSO setup with no client_secret returns 400 invalid_client_secret", async () => {
+  // Ensure no config exists for this org (deleted in previous test).
+  const check = await (await post("/org/sso/config/get", {}, adminToken)).json();
+  expect(check.configured).toBe(false);
+
+  // First-time setup without a secret — must be rejected.
+  const res = await post("/org/sso/config/set", {
+    provider: "generic", issuer: "https://idp.example.com",
+    client_id: "client-first", enabled: true,
+    // client_secret omitted
+  }, adminToken);
+  expect(res.status).toBe(400);
+  const body = await res.json();
+  expect(body.error).toBe("invalid_client_secret");
+
+  // Same with explicit empty string.
+  const res2 = await post("/org/sso/config/set", {
+    provider: "generic", issuer: "https://idp.example.com",
+    client_id: "client-first", client_secret: "", enabled: true,
+  }, adminToken);
+  expect(res2.status).toBe(400);
+  expect((await res2.json()).error).toBe("invalid_client_secret");
+
+  // Same with whitespace-only.
+  const res3 = await post("/org/sso/config/set", {
+    provider: "generic", issuer: "https://idp.example.com",
+    client_id: "client-first", client_secret: "   ", enabled: true,
+  }, adminToken);
+  expect(res3.status).toBe(400);
+  expect((await res3.json()).error).toBe("invalid_client_secret");
+});

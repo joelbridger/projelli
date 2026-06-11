@@ -876,22 +876,28 @@ export function FirmAdminConsole() {
               type="button"
               size="sm"
               data-testid="sso-save"
-              disabled={busy || !ssoIssuer.trim() || !ssoClientId.trim()}
+              disabled={
+                busy ||
+                !ssoIssuer.trim() ||
+                !ssoClientId.trim() ||
+                // Require a secret on first-time setup; allow blank (keep-existing) when one is already saved.
+                (!ssoView?.has_secret && !ssoClientSecret.trim())
+              }
               onClick={() =>
                 void run(async () => {
                   const req: SsoConfigSetRequest = {
                     provider: ssoProvider,
                     issuer: ssoIssuer.trim(),
                     client_id: ssoClientId.trim(),
-                    client_secret: ssoClientSecret,
+                    // Only include client_secret when the field was touched; omit it to keep the existing secret.
+                    ...(ssoSecretTouched ? { client_secret: ssoClientSecret.trim() } : {}),
                     enabled: ssoEnabled,
                   };
-                  const res = await getClient().ssoConfigSet(req);
+                  await getClient().ssoConfigSet(req);
                   setSsoSecretTouched(false);
                   setSsoClientSecret('');
                   // Re-fetch to get the canonical view (has_secret etc.)
                   await loadSsoConfig();
-                  setSsoView((prev) => ({ ...(prev ?? { configured: true, redirect_uri: res.redirect_uri }), configured: true }));
                 }, 'SSO configuration saved.')
               }
             >
@@ -909,6 +915,7 @@ export function FirmAdminConsole() {
                   void run(async () => {
                     await getClient().ssoConfigDelete();
                     setSsoView((prev) => prev ? { ...prev, configured: false } : null);
+                    setSsoProvider('entra');
                     setSsoIssuer('');
                     setSsoClientId('');
                     setSsoClientSecret('');

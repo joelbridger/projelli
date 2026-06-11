@@ -50,10 +50,28 @@ export async function handleSsoConfigSet(req: Request, store: Store): Promise<Re
   const issuerTrimmed = issuer.trim();
   if (!isLoopbackIssuer(issuerTrimmed) && !/^https:\/\//.test(issuerTrimmed)) return error("invalid_issuer", 400, "issuer must be an https URL");
   if (typeof client_id !== "string" || !client_id.trim() || client_id.length > 512) return error("invalid_client_id", 400);
-  if (typeof client_secret !== "string" || !client_secret.trim() || client_secret.length > 4096) return error("invalid_client_secret", 400);
+
+  // client_secret is optional on updates: if omitted/blank, preserve the existing encrypted secret.
+  const secretProvided = typeof client_secret === "string" && client_secret.trim().length > 0;
+  if (secretProvided && (client_secret as string).length > 4096) return error("invalid_client_secret", 400);
+
+  // Determine which encrypted secret to store.
+  let client_secret_enc: string;
+  if (secretProvided) {
+    client_secret_enc = encryptSecret((client_secret as string).trim());
+  } else {
+    // No new secret — look up the existing config.
+    const existing = store.getOrgIdpConfig(a.orgId);
+    if (!existing) {
+      // First-time setup: a secret is required.
+      return error("invalid_client_secret", 400, "a client secret is required for first-time setup");
+    }
+    client_secret_enc = existing.client_secret_enc;
+  }
+
   store.upsertOrgIdpConfig({
     org_id: a.orgId, provider: provider as IdpProvider, issuer: issuerTrimmed, client_id: client_id.trim(),
-    client_secret_enc: encryptSecret(client_secret.trim()), enabled: !!enabled,
+    client_secret_enc, enabled: !!enabled,
   });
   store.audit({ org_id: a.orgId, actor_user_id: a.userId, action: "sso.config.set", target: a.orgId, detail: { provider, enabled: !!enabled } });
   return json({ ok: true, redirect_uri: REDIRECT_URI });

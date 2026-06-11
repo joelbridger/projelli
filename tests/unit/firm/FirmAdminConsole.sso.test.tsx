@@ -245,4 +245,40 @@ describe('FirmAdminConsole SSO section', () => {
     fireEvent.click(screen.getByRole('button', { name: /remove sso/i }));
     await waitFor(() => expect(deleteCalled).toBe(true));
   });
+
+  it('omits client_secret from payload when secret field is not touched (keep-existing path)', async () => {
+    // SSO is already configured with a secret.
+    let setSsoBody: unknown = null;
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if ((url as string).includes('/org/sso/config/set')) {
+        setSsoBody = JSON.parse((init as RequestInit).body as string);
+        return Promise.resolve(ssoSetOk());
+      }
+      if ((url as string).includes('/org/sso/config/get')) return Promise.resolve(ssoGetConfigured());
+      return Promise.resolve(emptyListResponse());
+    });
+
+    await act(async () => { render(<FirmAdminConsole />); });
+    // Wait for the form to be populated from ssoConfigGet.
+    await waitFor(() => expect(screen.getByLabelText(/issuer/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect((screen.getByLabelText(/issuer/i) as HTMLInputElement).value).toContain('microsoftonline'),
+    );
+
+    // Admin edits ONLY the issuer; leaves secret blank (not touched).
+    fireEvent.change(screen.getByLabelText(/issuer/i), {
+      target: { value: 'https://login.microsoftonline.com/new-tenant/v2.0' },
+    });
+    // Do NOT touch the client secret field.
+
+    fireEvent.click(screen.getByRole('button', { name: /save sso/i }));
+
+    await waitFor(() => expect(setSsoBody).not.toBeNull());
+
+    // client_secret must be absent (undefined → not serialized) or explicitly undefined.
+    expect((setSsoBody as Record<string, unknown>)['client_secret']).toBeUndefined();
+    expect((setSsoBody as Record<string, unknown>)['issuer']).toBe(
+      'https://login.microsoftonline.com/new-tenant/v2.0',
+    );
+  });
 });

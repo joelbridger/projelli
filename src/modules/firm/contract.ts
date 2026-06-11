@@ -406,8 +406,8 @@ export interface SsoConfigSetRequest {
   provider: IdpProvider;
   issuer: string;
   client_id: string;
-  /** Write-only; never returned by the API. */
-  client_secret: string;
+  /** Write-only; never returned by the API. Omit (or leave blank) to keep the existing secret on an update. Required on first setup. */
+  client_secret?: string;
   enabled: boolean;
 }
 
