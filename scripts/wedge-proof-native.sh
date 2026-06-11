@@ -33,16 +33,14 @@
 #     proof) and would bump the indexable count past the expected 4 files
 #     (extractor.rs TEXT_EXTENSIONS over the corpus = deposition .txt,
 #     incident-summary .md, huge-notes.md, acme-supply-agreement.txt).
-#   · huge-notes.md ALSO stays OUT (Task 7, 2026-06-11 — RESULTS.md F-501):
-#     first-indexing it oom-killed the real app at 3G (twice), 6G and 12G
-#     caps, identical phase, monotonic ~1.5 GB/s growth with no release
-#     (logs/cgroup-mem.csv; index_one_file embeds all ~1,400 chunks of the
-#     2 MB file through one embed_documents call → fastembed's internal
-#     256-sequence batches). None of the wedge claims live in that file
-#     (leg 1's corpus never included it), so the positive pass runs on the
-#     3 indexable survivors and the OOM is a logged P1 finding, not fixed
-#     here. Expected banner/status count for this harness is therefore
-#     "3 files", not the plan's original 4.
+#   · huge-notes.md is back IN (Wave 1 fix wave, 2026-06-11 — F-501 FIXED):
+#     the original unbatched index_one_file embedded all ~1,400 chunks of
+#     the 2 MB file through one embed_documents call (fastembed's internal
+#     256-sequence batches) and oom-killed the app at 3G/6G/12G caps. The
+#     fix routes indexing through embedder::embed_documents_batched
+#     (32-chunk slices, cancel honored between slices), bounding the peak
+#     regardless of file size. Expected banner/status count for this
+#     harness is therefore back to the plan's original "4 files".
 #
 # OUT OF SCOPE on this rig (stays on the Windows spot check): live mail
 # import (TLS-only IMAP vs the plaintext greenmail fixture, F-419) and the
@@ -172,8 +170,8 @@ cmd_up() {
   rm -rf "$PROFILE" "$WS"
   mkdir -p "$PROFILE/data/keepance/models" "$PROFILE/config" "$PROFILE/cache" "$WS"
   cp -a "$MODEL_SRC" "$PROFILE/data/keepance/models/e5-small"
-  # huge-notes.md excluded — F-501 (embedding it oom-kills the app; header).
-  rsync -a --exclude generators --exclude README.md --exclude huge-notes.md \
+  # huge-notes.md re-enabled — F-501 fixed (bounded batched embed; header).
+  rsync -a --exclude generators --exclude README.md \
     "$REPO/tests/fixtures/matter-corpus/" "$WS/"
   echo "workspace files:"; ls "$WS"
   echo "up OK — next: $0 launch   (run it in the background; it blocks)"
@@ -212,20 +210,18 @@ wedge_launch_inner() {
   trap 'kill "$sampler" 2>/dev/null || true; rm -f "$SAMPLER_PID"' EXIT
 
   # MemoryMax RECALIBRATED 3G→12G during Task 7 (2026-06-11). The campaign's
-  # 3G bound was measured on a run whose embedder never embedded a document
-  # (F-415/F-416 — the model never downloaded). REAL first-indexing of the
-  # fixture corpus oom-killed the scope at 3G twice AND at 6G once, at the
-  # identical phase (journal 'Failed with result oom-kill'; 1 s curve in
-  # logs/cgroup-mem.csv: 188 MB → 6.0 GiB in ~5 s). Grounded mechanism, the
-  # RESULTS.md finding: index_one_file embeds EVERY chunk of a file in one
-  # embed_documents call (rag/mod.rs:343, batch_size None) and fastembed
-  # 4.9.1 then batches 256 sequences internally (DEFAULT_BATCH_SIZE,
-  # text_embedding/impl.rs:292); huge-notes.md (2 MB ≈ 1,400 chunks of ~384
-  # tokens, chunker.rs:15) makes fp32 BERT attention buffers of ~5 GB per
-  # internal batch. 12G lets the bounded one-time spike complete and STILL
-  # guards the box (the incident-class leak was an unbounded accelerating
-  # climb; preflight checks available RAM; MemorySwapMax=0 keeps the scope
-  # un-swappable). The spike is logged as a product finding, not fixed here.
+  # History: the original 3G bound was measured on a run whose embedder
+  # never embedded a document (F-415/F-416 — the model never downloaded),
+  # and REAL first-indexing with huge-notes.md then oom-killed the scope at
+  # 3G/6G/12G (RESULTS.md F-501: one embed_documents call per file +
+  # fastembed's internal 256-sequence batches → ~5 GB fp32 BERT attention
+  # buffers per internal batch on a 2 MB / ~1,400-chunk file). FIXED in the
+  # Wave 1 fix wave: index_one_file now embeds through
+  # embedder::embed_documents_batched (32-chunk slices), so the per-file
+  # peak is bounded and huge-notes.md indexes inside this cap. 12G stays as
+  # generous headroom that STILL guards the box (the incident-class leak
+  # was an unbounded accelerating climb; preflight checks available RAM;
+  # MemorySwapMax=0 keeps the scope un-swappable).
   systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0 \
     --slice=wedgeproof \
     env DISPLAY="$DISP" GDK_BACKEND=x11 \

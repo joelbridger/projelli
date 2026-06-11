@@ -152,6 +152,33 @@ pub async fn embed_documents(docs: &[String]) -> Result<Vec<Vec<f32>>> {
     Ok(vecs)
 }
 
+/// F-501 — bounded batch size for document embedding. One `embed_documents`
+/// call materializes every output vector for its input at once (and
+/// fastembed itself batches 256 sequences internally), so a single large
+/// file could balloon past 12 GiB. 32 chunks ≈ 48 KiB of text per call
+/// keeps the peak flat regardless of file size.
+pub const EMBED_BATCH_SIZE: usize = 32;
+
+/// Embed a (possibly large) chunk list in `EMBED_BATCH_SIZE` slices,
+/// checking `cancel` between slices. Returns `Ok(None)` when cancelled so
+/// the caller can skip the upsert cleanly (nothing partial is written; the
+/// file simply re-indexes on the next pass).
+pub async fn embed_documents_batched(
+    docs: &[String],
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<Option<Vec<Vec<f32>>>> {
+    let mut out: Vec<Vec<f32>> = Vec::with_capacity(docs.len());
+    for slice in docs.chunks(EMBED_BATCH_SIZE) {
+        if let Some(flag) = cancel {
+            if flag.load(std::sync::atomic::Ordering::SeqCst) {
+                return Ok(None);
+            }
+        }
+        out.extend(embed_documents(slice).await?);
+    }
+    Ok(Some(out))
+}
+
 /// Convert LanceDB cosine distance to a `[0, 1]` similarity score where
 /// higher = better. LanceDB returns cosine distance in `[0, 2]`.
 ///
@@ -200,6 +227,16 @@ mod tests {
     #[test]
     fn embedding_dim_is_384() {
         assert_eq!(EMBEDDING_DIM, 384);
+    }
+
+    #[tokio::test]
+    async fn batched_embed_short_circuits_on_preset_cancel() {
+        let cancel = std::sync::atomic::AtomicBool::new(true);
+        let docs = vec!["never embedded".to_string()];
+        let out = embed_documents_batched(&docs, Some(&cancel))
+            .await
+            .expect("no error path");
+        assert!(out.is_none(), "cancelled embed must return None");
     }
 
     #[test]

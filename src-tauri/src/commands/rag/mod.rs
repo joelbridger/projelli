@@ -284,7 +284,11 @@ pub async fn rag_index_file(
 
     // {e:#} = full anyhow chain, so the typed model-not-ready marker at the
     // root cause survives any .context() wrapping when it crosses IPC.
-    index_one_file(&table, &file_path, &matter, &privilege, &key)
+    //
+    // F-501: cancel is `None` here ON PURPOSE — `rag_cancel_indexing` leaves
+    // the shared flag true until the next walk resets it, and a stale `true`
+    // would silently skip every watcher-triggered single-file index.
+    index_one_file(&table, &file_path, &matter, &privilege, &key, None)
         .await
         .map_err(|e| format!("index_file failed: {e:#}"))?;
     Ok(())
@@ -327,6 +331,7 @@ async fn index_one_file(
     matter_id: &str,
     privilege: &str,
     key: &[u8; 32],
+    cancel: Option<&AtomicBool>,
 ) -> anyhow::Result<()> {
     let path_str = file_path.to_string_lossy().to_string();
     let Some(text) = extractor::read_text(file_path) else {
@@ -340,7 +345,12 @@ async fn index_one_file(
         return Ok(());
     }
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    let vectors = embedder::embed_documents(&texts).await?;
+    // F-501 — bounded slices; cancel honored between slices. `None` means
+    // the user cancelled mid-file: write nothing (the walk's per-file cancel
+    // check emits the Cancelled event on its next iteration).
+    let Some(vectors) = embedder::embed_documents_batched(&texts, cancel).await? else {
+        return Ok(());
+    };
     let rows: Vec<(chunker::Chunk, Vec<f32>)> =
         chunks.into_iter().zip(vectors).collect();
     store::upsert_chunks_for_path(
@@ -498,7 +508,16 @@ pub async fn rag_index_workspace(
         // privileged), applied via the privilege store + `rag_retag_privilege`
         // after indexing — mirroring how per-file matter assignment re-tags on top
         // of the unassigned full walk.
-        if let Err(e) = index_one_file(&table, file, &matter, store::PRIVILEGE_NONE, &key).await {
+        if let Err(e) = index_one_file(
+            &table,
+            file,
+            &matter,
+            store::PRIVILEGE_NONE,
+            &key,
+            Some(cancel.as_ref()),
+        )
+        .await
+        {
             // Don't abort the whole walk on a single bad file — log and move on.
             log::warn!(
                 "rag_index_workspace: failed to index {}: {}",
