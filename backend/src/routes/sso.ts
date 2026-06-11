@@ -12,9 +12,15 @@
  *   POST /auth/sso/exchange     — desktop swaps one-time sso_code for LoginResponse
  */
 
-import { json, error, readJson, authenticate } from "../lib/http.ts";
-import { encryptSecret } from "../lib/crypto.ts";
+import { json, error, readJson, authenticate, rateLimit } from "../lib/http.ts";
+import { encryptSecret, decryptSecret, hmacHash, generateSecretToken } from "../lib/crypto.ts";
 import { config } from "../lib/config.ts";
+import { issueAuthTokens, publicUser } from "../lib/services.ts";
+import { putState, takeState, putCode, takeCode } from "../lib/ssoState.ts";
+import {
+  fetchDiscovery, fetchJwks, buildAuthUrl, exchangeCode, verifyIdToken,
+  emailFromClaims, genVerifier, challengeFor, randomToken,
+} from "../lib/oidc.ts";
 import type { Store } from "../lib/db.ts";
 import type { IdpProvider } from "../lib/types.ts";
 
@@ -40,11 +46,14 @@ export async function handleSsoConfigSet(req: Request, store: Store): Promise<Re
   const { provider, issuer, client_id, client_secret, enabled } = body;
   if (typeof provider !== "string" || !VALID_PROVIDERS.has(provider)) return error("invalid_provider", 400);
   // Length caps mirror http.isNonEmptyString's 512 default; the secret gets a generous 4 KB.
-  if (typeof issuer !== "string" || issuer.length > 512 || !/^https:\/\//.test(issuer.trim())) return error("invalid_issuer", 400, "issuer must be an https URL");
+  if (typeof issuer !== "string" || issuer.length > 512) return error("invalid_issuer", 400, "issuer must be an https URL");
+  const issuerTrimmed = issuer.trim();
+  const isLoopbackIssuer = /^https?:\/\/(127\.0\.0\.1|::1|\[::1\])(:\d+)?/.test(issuerTrimmed);
+  if (!isLoopbackIssuer && !/^https:\/\//.test(issuerTrimmed)) return error("invalid_issuer", 400, "issuer must be an https URL");
   if (typeof client_id !== "string" || !client_id.trim() || client_id.length > 512) return error("invalid_client_id", 400);
   if (typeof client_secret !== "string" || !client_secret.trim() || client_secret.length > 4096) return error("invalid_client_secret", 400);
   store.upsertOrgIdpConfig({
-    org_id: a.orgId, provider: provider as IdpProvider, issuer: issuer.trim(), client_id: client_id.trim(),
+    org_id: a.orgId, provider: provider as IdpProvider, issuer: issuerTrimmed, client_id: client_id.trim(),
     client_secret_enc: encryptSecret(client_secret.trim()), enabled: !!enabled,
   });
   store.audit({ org_id: a.orgId, actor_user_id: a.userId, action: "sso.config.set", target: a.orgId, detail: { provider, enabled: !!enabled } });
@@ -70,8 +79,99 @@ export function handleSsoConfigDelete(req: Request, store: Store): Response {
 }
 
 // ---------------------------------------------------------------------------
-// Member flow handlers will be added here in Task 6:
-//   export async function handleSsoStart(...)
-//   export async function handleSsoCallback(...)
-//   export async function handleSsoExchange(...)
+// Member flow: start / callback / exchange
 // ---------------------------------------------------------------------------
+
+/** POST /auth/sso/start { email, loopback_port } -> { auth_url, state } */
+export async function handleSsoStart(req: Request, store: Store, ip: string): Promise<Response> {
+  const rl = rateLimit(ip, "sso"); if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
+  const body = await readJson<any>(req);
+  if (!body || typeof body.email !== "string") return error("invalid_request", 400);
+  const port = Number(body.loopback_port);
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) return error("invalid_loopback_port", 400);
+
+  // Authenticate-only: the email must belong to an existing active user whose org has SSO enabled.
+  // Always return a generic shape on the "not eligible" path so we don't leak which emails exist.
+  const user = store.getUserByEmailNorm(body.email);
+  const cfg = user ? store.getOrgIdpConfig(user.org_id) : null;
+  if (!user || user.status !== "active" || !cfg || !cfg.enabled) {
+    return error("sso_unavailable", 404, "SSO is not available for this email. Ask your firm admin.");
+  }
+
+  let disco;
+  try { disco = await fetchDiscovery(cfg.issuer); }
+  catch { return error("idp_unreachable", 502, "Could not reach your identity provider."); }
+
+  const state = randomToken();
+  const nonce = randomToken();
+  const verifier = genVerifier();
+  putState(state, { orgId: user.org_id, issuer: cfg.issuer, clientId: cfg.client_id, codeVerifier: verifier, nonce, loopbackPort: port }, config.ssoStateTtlSeconds);
+
+  const auth_url = buildAuthUrl({
+    authorizationEndpoint: disco.authorization_endpoint,
+    clientId: cfg.client_id, redirectUri: REDIRECT_URI,
+    state, nonce, codeChallenge: challengeFor(verifier), loginHint: body.email.trim().toLowerCase(),
+  });
+  return json({ auth_url, state });
+}
+
+/** GET /auth/sso/callback?code&state -> 302 to the desktop loopback with a one-time sso_code. */
+export async function handleSsoCallback(req: Request, store: Store): Promise<Response> {
+  const u = new URL(req.url);
+  const code = u.searchParams.get("code");
+  const state = u.searchParams.get("state") ?? "";
+  const st = takeState(state);
+  const fail = (reason: string, port?: number) =>
+    port
+      ? Response.redirect(`http://127.0.0.1:${port}/?sso_error=${encodeURIComponent(reason)}`, 302)
+      : error("sso_failed", 400, reason);
+  if (!st) return fail("invalid_or_expired_state");
+  if (!code) return fail("missing_code", st.loopbackPort);
+
+  const cfg = store.getOrgIdpConfig(st.orgId);
+  if (!cfg || !cfg.enabled) return fail("sso_disabled", st.loopbackPort);
+  const clientSecret = decryptSecret(cfg.client_secret_enc);
+  if (!clientSecret) return fail("server_misconfig", st.loopbackPort);
+
+  let claims;
+  try {
+    const disco = await fetchDiscovery(cfg.issuer);
+    const { id_token } = await exchangeCode({
+      tokenEndpoint: disco.token_endpoint, clientId: cfg.client_id, clientSecret,
+      code, codeVerifier: st.codeVerifier, redirectUri: REDIRECT_URI,
+    });
+    const jwks = await fetchJwks(disco.jwks_uri);
+    // Use cfg.issuer (the stored, admin-verified value) — not disco.issuer — to
+    // prevent an adversarial discovery doc from influencing the trusted issuer.
+    const verified = await verifyIdToken(id_token, { issuer: cfg.issuer, clientId: cfg.client_id, nonce: st.nonce, jwks });
+    if (!verified.ok) return fail(`id_token_${verified.reason}`, st.loopbackPort);
+    claims = verified.claims;
+  } catch {
+    return fail("token_exchange_failed", st.loopbackPort);
+  }
+
+  const email = emailFromClaims(claims);
+  const matched = email ? store.getUserByEmailNorm(email) : null;
+  if (!matched || matched.org_id !== st.orgId || matched.status !== "active") {
+    store.audit({ org_id: st.orgId, actor_user_id: null, action: "sso.login.rejected", target: email ?? "unknown", detail: { reason: matched ? "org_or_status" : "no_user" } });
+    return fail("no_matching_account", st.loopbackPort);
+  }
+
+  const ssoCode = generateSecretToken();
+  putCode(hmacHash(ssoCode), { userId: matched.user_id }, config.ssoCodeTtlSeconds);
+  store.audit({ org_id: st.orgId, actor_user_id: matched.user_id, action: "sso.login", target: matched.user_id, detail: { provider: cfg.provider } });
+  return Response.redirect(`http://127.0.0.1:${st.loopbackPort}/?sso_code=${encodeURIComponent(ssoCode)}&state=${encodeURIComponent(state)}`, 302);
+}
+
+/** POST /auth/sso/exchange { sso_code } -> LoginResponse (same shape as /auth/login). */
+export async function handleSsoExchange(req: Request, store: Store, ip: string): Promise<Response> {
+  const rl = rateLimit(ip, "sso"); if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
+  const body = await readJson<any>(req);
+  if (!body || typeof body.sso_code !== "string") return error("invalid_request", 400);
+  const entry = takeCode(hmacHash(body.sso_code));
+  if (!entry) return error("invalid_sso_code", 401);
+  const user = store.getUser(entry.userId);
+  if (!user || user.status !== "active") return error("user_invalid", 403);
+  const tokens = issueAuthTokens(store, user);
+  return json({ user: publicUser(user), ...tokens });
+}

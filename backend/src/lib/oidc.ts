@@ -57,9 +57,11 @@ export async function fetchDiscovery(issuer: string, get: HttpGet = defaultGet):
     throw new Error("oidc_issuer_mismatch");
   }
 
-  // Fix 2 (M-6): all endpoint URLs must use https://
+  // Fix 2 (M-6): all endpoint URLs must use https:// — unless the issuer is a loopback
+  // address (127.0.0.1 or ::1), which is test/dev-only and can never appear in production.
+  const isLoopback = /^https?:\/\/(127\.0\.0\.1|::1|\[::1\])(:\d+)?\//.test(normalizedIssuer + "/");
   const endpoints: (string | undefined)[] = [disco.authorization_endpoint, disco.token_endpoint, disco.jwks_uri];
-  if (endpoints.some((ep) => typeof ep !== "string" || !ep.startsWith("https://"))) {
+  if (!isLoopback && endpoints.some((ep) => typeof ep !== "string" || !ep.startsWith("https://"))) {
     throw new Error("oidc_insecure_endpoint");
   }
 

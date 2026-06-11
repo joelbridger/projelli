@@ -42,6 +42,7 @@ import {
 } from "./routes/matters.ts";
 import { fanout, FanoutHub, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
 import { startSyncTicketGc } from "./lib/syncTickets.ts";
+import { startSsoStateGc } from "./lib/ssoState.ts";
 import {
   handleAssuredInfer,
   handleSetProviderKey,
@@ -52,7 +53,7 @@ import {
 import { handleDeviceRegister, handleListUsersDevices, handleListOrgAdmins } from "./routes/devices.ts";
 import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine } from "./routes/matterKeys.ts";
 import { handleOrgClaim } from "./routes/claim.ts";
-import { handleSsoConfigSet, handleSsoConfigGet, handleSsoConfigDelete } from "./routes/sso.ts";
+import { handleSsoConfigSet, handleSsoConfigGet, handleSsoConfigDelete, handleSsoStart, handleSsoCallback, handleSsoExchange } from "./routes/sso.ts";
 import { handleLemonSqueezyWebhook } from "./routes/webhooks.ts";
 import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
@@ -151,6 +152,9 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/auth/refresh" && method === "POST") return await handleRefresh(req, store, ip);
         if (path === "/auth/logout" && method === "POST") return await handleLogout(req, store);
         if (path === "/auth/me" && method === "GET") return handleMe(req, store);
+        if (path === "/auth/sso/start" && method === "POST") return await handleSsoStart(req, store, ip);
+        if (path === "/auth/sso/callback" && method === "GET") return await handleSsoCallback(req, store);
+        if (path === "/auth/sso/exchange" && method === "POST") return await handleSsoExchange(req, store, ip);
 
         // --- Licensing / seats (client-facing core) ---
         if (path === "/org/activate" && method === "POST") return await handleActivate(req, store);
@@ -253,6 +257,7 @@ const store = getStore();
 maybeBootstrap(store);
 startRateLimitGc();
 startSyncTicketGc();
+startSsoStateGc();
 
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, fanout));
 
