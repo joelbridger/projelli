@@ -4,6 +4,8 @@
 import type { FSBackend } from './types';
 import { WebFSBackend } from './WebFSBackend';
 import { TauriFSBackend } from './TauriFSBackend';
+import { VaultFSBackend } from './VaultFSBackend';
+import { vaultStatus } from '@/modules/vault/vaultClient';
 
 /**
  * Detects if running in Tauri environment
@@ -35,6 +37,22 @@ export async function createFSBackend(workspacePath?: string): Promise<FSBackend
     const backend = new TauriFSBackend();
     await backend.setRootPath(workspacePath);
     console.log('[BackendFactory] Backend initialized successfully');
+
+    // Wrap in VaultFSBackend if the workspace has an active vault.
+    // The vault_status command is cheap (just reads .keepance-vault.json).
+    // Browser/Web backend is NEVER wrapped — vault is Tauri-only.
+    try {
+      const status = await vaultStatus(workspacePath);
+      if (status.enabled) {
+        console.log('[BackendFactory] Vault enabled for workspace, wrapping with VaultFSBackend');
+        return new VaultFSBackend(backend, workspacePath);
+      }
+    } catch (err) {
+      // Non-fatal: if vault_status fails (e.g. command not registered yet),
+      // fall through and return the plain TauriFSBackend.
+      console.warn('[BackendFactory] vault_status check failed, using plain TauriFSBackend:', err);
+    }
+
     return backend;
   } else {
     console.log('[BackendFactory] Browser environment detected, using WebFSBackend');
