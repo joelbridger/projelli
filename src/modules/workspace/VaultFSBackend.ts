@@ -99,7 +99,7 @@ export class VaultFSBackend implements FSBackend {
    */
   async write(path: string, content: string): Promise<void> {
     const bytes = new TextEncoder().encode(content);
-    return invoke<void>('vault_write_file', {
+    return invoke('vault_write_file', {
       workspace: this.workspace,
       relPath: path,
       bytes,
@@ -114,7 +114,7 @@ export class VaultFSBackend implements FSBackend {
    */
   async writeBinary(path: string, content: ArrayBuffer): Promise<void> {
     const bytes = new Uint8Array(content);
-    return invoke<void>('vault_write_file', {
+    return invoke('vault_write_file', {
       workspace: this.workspace,
       relPath: path,
       bytes,

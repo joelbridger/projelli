@@ -50,7 +50,7 @@ export function RecoveryPhraseCeremony({ phrase, onConfirmed }: RecoveryPhraseCe
     try {
       await navigator.clipboard.writeText(phrase);
       setCopies(true);
-      setTimeout(() => setCopies(false), 2000);
+      setTimeout(() => { setCopies(false); }, 2000);
     } catch {
       /* Clipboard may be unavailable in tests */
     }
@@ -87,7 +87,7 @@ export function RecoveryPhraseCeremony({ phrase, onConfirmed }: RecoveryPhraseCe
           variant="outline"
           size="sm"
           className="mt-3 gap-1.5 border-slate-300 text-slate-700"
-          onClick={handleCopy}
+          onClick={() => { void handleCopy(); }}
         >
           {copies ? (
             <><Check className="h-3.5 w-3.5 text-green-600" aria-hidden /> {t('vault.ceremony.copied')}</>
@@ -106,19 +106,19 @@ export function RecoveryPhraseCeremony({ phrase, onConfirmed }: RecoveryPhraseCe
           {positions.map((pos) => (
             <div key={pos} className="flex items-center gap-3">
               <Label
-                htmlFor={`confirm-input-${pos}`}
+                htmlFor={`confirm-input-${String(pos)}`}
                 className="w-24 shrink-0 text-sm text-slate-600"
               >
                 {t('vault.ceremony.word-label', { pos })}
               </Label>
               <Input
-                id={`confirm-input-${pos}`}
-                data-testid={`confirm-input-${pos}`}
+                id={`confirm-input-${String(pos)}`}
+                data-testid={`confirm-input-${String(pos)}`}
                 placeholder={t('vault.ceremony.word-placeholder', { pos })}
                 value={confirmValues[pos] ?? ''}
-                onChange={(e) =>
-                  setConfirmValues((prev) => ({ ...prev, [pos]: e.target.value }))
-                }
+                onChange={(e) => {
+                  setConfirmValues((prev) => ({ ...prev, [pos]: e.target.value }));
+                }}
                 className="max-w-48 border-slate-300 bg-white text-slate-800 placeholder:text-slate-400"
                 autoComplete="off"
                 spellCheck={false}

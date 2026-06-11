@@ -153,7 +153,7 @@ export async function vaultWriteFile(
   bytes: Uint8Array,
 ): Promise<void> {
   assertTauri('vault_write_file');
-  return invoke<void>('vault_write_file', { workspace, relPath, bytes });
+  return invoke('vault_write_file', { workspace, relPath, bytes });
 }
 
 /**
@@ -168,7 +168,7 @@ export async function vaultWriteFile(
  */
 export async function vaultUnlockWithRecovery(workspace: string, phrase: string): Promise<void> {
   assertTauri('vault_unlock_with_recovery');
-  return invoke<void>('vault_unlock_with_recovery', { workspace, phrase });
+  return invoke('vault_unlock_with_recovery', { workspace, phrase });
 }
 
 /**
@@ -202,7 +202,7 @@ export async function vaultSetEscrowWraps(
   wraps: AdminWrapJson[],
 ): Promise<void> {
   assertTauri('vault_set_escrow_wraps');
-  return invoke<void>('vault_set_escrow_wraps', { workspace, epoch, wraps });
+  return invoke('vault_set_escrow_wraps', { workspace, epoch, wraps });
 }
 
 /**
@@ -214,7 +214,7 @@ export async function vaultSetEscrowWraps(
  */
 export async function vaultEncryptAll(workspace: string): Promise<void> {
   assertTauri('vault_encrypt_all');
-  return invoke<void>('vault_encrypt_all', { workspace });
+  return invoke('vault_encrypt_all', { workspace });
 }
 
 /**
@@ -226,7 +226,7 @@ export async function vaultEncryptAll(workspace: string): Promise<void> {
  */
 export async function vaultDecryptAll(workspace: string): Promise<void> {
   assertTauri('vault_decrypt_all');
-  return invoke<void>('vault_decrypt_all', { workspace });
+  return invoke('vault_decrypt_all', { workspace });
 }
 
 /**
@@ -241,7 +241,7 @@ export async function vaultDecryptAll(workspace: string): Promise<void> {
  */
 export async function vaultDisable(workspace: string): Promise<void> {
   assertTauri('vault_disable');
-  return invoke<void>('vault_disable', { workspace });
+  return invoke('vault_disable', { workspace });
 }
 
 // ── Escrow orchestration ──────────────────────────────────────────────────────
@@ -277,31 +277,24 @@ export async function provisionEscrow(
   // Step 1: Obtain the plaintext VMK from the Rust keychain.
   // The vault must already be unlocked; vault_export_vmk_for_escrow returns
   // Locked error if no VMK is present.
-  let vmkB64: string | null = await vaultExportVmkForEscrow(workspace);
+  // vmk is a plaintext secret obtained from the OS keychain.
+  // It is used only within the Promise.all below and goes out of scope
+  // before the async Rust call, so it cannot leak via closure or GC roots.
+  const vmk: string = await vaultExportVmkForEscrow(workspace);
 
-  try {
-    // Step 2: Wrap the VMK to each admin device's public key.
-    const wraps: AdminWrapJson[] = await Promise.all(
-      adminDevices.map(async (device) => {
-        // vmkB64 is non-null here; the null-check after the loop is the cleanup.
-        const wrapped_b64 = await wrapMatterKey(vmkB64!, device.pubkey_jwk, epoch);
-        return {
-          user_id: device.user_id,
-          device_id: device.device_id,
-          wrapped_b64,
-        };
-      }),
-    );
+  // Step 2: Wrap the VMK to each admin device's public key.
+  const wraps: AdminWrapJson[] = await Promise.all(
+    adminDevices.map(async (device) => {
+      const wrapped_b64 = await wrapMatterKey(vmk, device.pubkey_jwk, epoch);
+      return {
+        user_id: device.user_id,
+        device_id: device.device_id,
+        wrapped_b64,
+      };
+    }),
+  );
 
-    // Step 3: Drop the plaintext VMK from JS scope BEFORE the async Rust call.
-    // After this point, vmkB64 is null and cannot be accessed by any code path.
-    vmkB64 = null;
-
-    // Step 4: Persist the wrapped copies atomically in the vault metadata.
-    await vaultSetEscrowWraps(workspace, epoch, wraps);
-  } finally {
-    // Defensive: ensure the plaintext is cleared even if wrapMatterKey throws
-    // or vault_set_escrow_wraps throws (the wraps are idempotent so a retry is safe).
-    vmkB64 = null;
-  }
+  // Step 3: Persist the wrapped copies atomically in the vault metadata.
+  // vmk is no longer referenced after this point; it is not returned, stored, or logged.
+  await vaultSetEscrowWraps(workspace, epoch, wraps);
 }

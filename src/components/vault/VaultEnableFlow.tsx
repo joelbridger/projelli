@@ -90,7 +90,7 @@ export function VaultEnableFlow({
           </Button>
           <Button
             type="button"
-            onClick={handleStart}
+            onClick={() => { void handleStart(); }}
             disabled={status === 'loading'}
             className="bg-blue-600 text-white hover:bg-blue-700"
           >
@@ -121,7 +121,7 @@ export function VaultEnableFlow({
             <p className="text-sm text-slate-500">{t('vault.enable.ceremony-subheading')}</p>
           </div>
         </div>
-        <RecoveryPhraseCeremony phrase={recoveryPhrase} onConfirmed={handleCeremonyConfirmed} />
+        <RecoveryPhraseCeremony phrase={recoveryPhrase} onConfirmed={() => { void handleCeremonyConfirmed(); }} />
       </div>
     );
   }
@@ -137,7 +137,7 @@ export function VaultEnableFlow({
         <div className="flex justify-end gap-2">
           <Button
             type="button"
-            onClick={handleCeremonyConfirmed}
+            onClick={() => { void handleCeremonyConfirmed(); }}
             disabled={status === 'loading'}
             className="bg-blue-600 text-white hover:bg-blue-700"
           >
@@ -167,29 +167,25 @@ export function VaultEnableFlow({
   }
 
   // ── Done ──────────────────────────────────────────────────────────────────────
-  if (phase === 'done') {
-    return (
-      <div className="flex flex-col items-center gap-4 py-8 p-1">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-          <ShieldCheck className="h-6 w-6 text-green-600" aria-hidden />
-        </div>
-        <div className="text-center">
-          <p className="font-semibold text-slate-900">{t('vault.enable.done-title')}</p>
-          <p className="text-sm text-slate-500">{t('vault.enable.done-subtitle')}</p>
-        </div>
-        <Button
-          type="button"
-          onClick={() => {
-            reset();
-            onComplete?.();
-          }}
-          className="bg-blue-600 text-white hover:bg-blue-700"
-        >
-          {t('vault.enable.done-button')}
-        </Button>
+  return (
+    <div className="flex flex-col items-center gap-4 py-8 p-1">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+        <ShieldCheck className="h-6 w-6 text-green-600" aria-hidden />
       </div>
-    );
-  }
-
-  return null;
+      <div className="text-center">
+        <p className="font-semibold text-slate-900">{t('vault.enable.done-title')}</p>
+        <p className="text-sm text-slate-500">{t('vault.enable.done-subtitle')}</p>
+      </div>
+      <Button
+        type="button"
+        onClick={() => {
+          reset();
+          onComplete?.();
+        }}
+        className="bg-blue-600 text-white hover:bg-blue-700"
+      >
+        {t('vault.enable.done-button')}
+      </Button>
+    </div>
+  );
 }

@@ -12,7 +12,7 @@
  *   onEscapeHatch — optional callback to open the VaultEscapeHatchDialog.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Lock, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -44,24 +44,25 @@ export function VaultLockedPrompt({
   const { status, error, unlockWithRecovery, clearError } = useVaultStore();
   const [phrase, setPhrase] = useState('');
   // Track whether we have an unlock attempt in flight so we can detect success.
-  const [unlocking, setUnlocking] = useState(false);
+  // Using a ref avoids calling setState synchronously inside the effect.
+  const unlockingRef = useRef(false);
 
   const canSubmit = phrase.trim().length > 0 && status !== 'loading';
 
   // When status transitions back to idle while an unlock is in flight (meaning
   // no error was set), the unlock succeeded.
   useEffect(() => {
-    if (unlocking && status === 'idle' && !error) {
-      setUnlocking(false);
+    if (unlockingRef.current && status === 'idle' && !error) {
+      unlockingRef.current = false;
       onUnlocked?.();
-    } else if (unlocking && (status === 'error' || status === 'idle')) {
-      setUnlocking(false);
+    } else if (unlockingRef.current && (status === 'error' || status === 'idle')) {
+      unlockingRef.current = false;
     }
-  }, [status, error, unlocking, onUnlocked]);
+  }, [status, error, onUnlocked]);
 
   const handleUnlock = async () => {
     clearError();
-    setUnlocking(true);
+    unlockingRef.current = true;
     await unlockWithRecovery(workspace, phrase.trim());
     // The useEffect above will detect the status change and call onUnlocked.
   };
@@ -105,7 +106,7 @@ export function VaultLockedPrompt({
           rows={3}
           placeholder={t('vault.locked.phrase-placeholder')}
           value={phrase}
-          onChange={(e) => setPhrase(e.target.value)}
+          onChange={(e) => { setPhrase(e.target.value); }}
           className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           spellCheck={false}
           autoCorrect="off"
@@ -120,7 +121,7 @@ export function VaultLockedPrompt({
           className="text-sm text-red-600"
           role="alert"
         >
-          {errorKey(error) ? t(errorKey(error)!) : error}
+          {(() => { const k = errorKey(error); return k ? t(k) : error; })()}
         </p>
       )}
 
@@ -138,7 +139,7 @@ export function VaultLockedPrompt({
         <div className="flex gap-2 ml-auto">
           <Button
             type="button"
-            onClick={handleUnlock}
+            onClick={() => { void handleUnlock(); }}
             disabled={!canSubmit}
             className="bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
           >

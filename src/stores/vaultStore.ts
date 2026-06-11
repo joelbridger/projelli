@@ -136,7 +136,7 @@ export const useVaultStore = create<VaultState>()((set, _get) => ({
     }
   },
 
-  setPhase: (phase) => set({ phase }),
-  clearError: () => set({ error: null }),
-  reset: () => set({ phase: null, status: 'idle', error: null, recoveryPhrase: null }),
+  setPhase: (phase) => { set({ phase }); },
+  clearError: () => { set({ error: null }); },
+  reset: () => { set({ phase: null, status: 'idle', error: null, recoveryPhrase: null }); },
 }));

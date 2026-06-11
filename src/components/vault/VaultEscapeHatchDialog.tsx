@@ -154,7 +154,7 @@ export function VaultEscapeHatchDialog({
               <Button
                 type="button"
                 data-testid="escape-hatch-confirm"
-                onClick={handleConfirm}
+                onClick={() => { void handleConfirm(); }}
                 className="bg-orange-600 text-white hover:bg-orange-700"
               >
                 {t('vault.escape-hatch.confirm-button')}
@@ -189,7 +189,7 @@ export function VaultEscapeHatchDialog({
               <Button
                 type="button"
                 data-testid="escape-hatch-confirm"
-                onClick={handleConfirm}
+                onClick={() => { void handleConfirm(); }}
                 className="bg-orange-600 text-white hover:bg-orange-700"
               >
                 {t('vault.escape-hatch.try-again')}
