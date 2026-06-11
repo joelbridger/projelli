@@ -120,7 +120,7 @@ export const PRICING_TIERS: readonly PricingTier[] = [
     features: [
       'Everything in Professional',
       'Shared matters and collaboration',
-      'Admin console with ethical walls and seat management',
+      'Admin console with SSO, ethical walls, and seat management',
       'The assured zero-retention option',
       'The assurance package: DPA, trust center, SOC 2 readiness',
     ],
