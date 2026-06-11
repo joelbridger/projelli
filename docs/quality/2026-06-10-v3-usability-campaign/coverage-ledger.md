@@ -369,6 +369,34 @@
 
 ---
 
+## W. Wedge proof (VG-1 harness, 2026-06-11)
+
+Three-leg proof of the core promise (ask, get a cited answer, verify, click through, finder completes). Verdict detail + the F-5xx findings register: `../2026-06-11-wedge-proof/RESULTS.md`; procedure: `../2026-06-11-wedge-proof/RUNBOOK.md`; plan: `docs/superpowers/plans/2026-06-10-vg1-wedge-proof-harness.md`.
+
+| ID | Surface | Where | Covered by | Result | Findings |
+|----|---------|-------|------------|--------|----------|
+| W-001 | Planted-contradiction passages retrievable + citations verify (both sides, C1-C3) | rag store/embedder/chunker | src-tauri/tests/rag_deposition_contradictions.rs | pass | Leg 1 green (7 tests) at commit `2667297`: both sides of all three planted contradictions retrieved; content-addressed citations verify against the store. |
+| W-002 | Matter B (Acme) isolation under the same queries | rag store prefilter | src-tauri/tests/rag_deposition_contradictions.rs | pass | Acme never surfaces under Johnson queries and vice versa (leg 1). Leg 3 observed the scope surfaces live (scope chip, All-matters selector); the isolation TRUTH claim is leg 1's (RESULTS.md claim 11). |
+| W-003 | Contradiction-finder retrieval feed sufficient at its own topK 12 | DepositionContradictionFinder.ts:64,129 | src-tauri/tests/rag_deposition_contradictions.rs | pass | The finder's own query at topK 12 deterministically contains both sides of all 3 planted contradictions; this exonerates the feed in F-507's diagnosis. |
+| W-004 | Citation chips (verified/unverified), sources accordion, scope chip, click-through (UI glue) | AIChatViewer.tsx | tests/e2e/wedge-proof.spec.ts | pass-with-finding F-504, F-505 | browser = wiring only, never retrieval. Chips/states/accordion/scope chip render and click; click-through opens the file but no scroll-to-passage listener exists (F-504, expected-fail tripwire at wedge-proof.spec.ts:238); accordion rows reuse the inline chip testid (F-505, P3). |
+| W-005 | Refusal-not-fabrication with Ask-my-workspace ON, no rag (browser) | AIChatViewer.tsx:1025 | tests/e2e/wedge-proof.spec.ts | pass | Declines to answer from the matter rather than fabricating. |
+| W-006 | xlsx open→edit→save→reopen, =SUM(B2:B7) survives | SpreadsheetViewer + spreadsheet-io | tests/e2e/wedge-proof.spec.ts | finding F-506 (P1) | SheetJS read (no `sheetStubs`) drops formula cells with empty cached values: totals render EMPTY and an edit+autosave silently strips the formulas from the saved file (data loss; spreadsheet-io.ts:432). Expected-fail tripwire at wedge-proof.spec.ts:322. First-edit-per-session backup exists but is silent and decays across sessions. |
+| W-007 | exhibit-deck.pptx parses + renders real slide text (fallback outline) | PresentationViewer.tsx | tests/e2e/wedge-proof.spec.ts | pass | no pptx editing exists; export side = pptx-export.test.ts (honest correction recorded in the plan). |
+| W-008 | REAL MACHINE: index populates on a fresh profile (closes F-415's observation) | full app, Xvfb | scripts/wedge-proof-native.sh + RESULTS.md | pass-with-finding F-501 | needed headless Secret Service (vectors key, rag/mod.rs:446). "Memory ready, indexed 3 files." + `chunks.lance` fragments on disk, zero key errors. 3 files not 4: embedding the 2 MB huge-notes.md OOM-kills the app at 3G/6G/12G caps (F-501, P1, unbounded per-file embed batch; supersedes F-416's no-embed calibration), so the harness excludes it. |
+| W-009 | REAL MACHINE: cited answer + verify + click-through (closes F-117) | full app | wedge-proof RUNBOOK run-05/06 | pass-with-finding F-503, F-504 | Grounded two-sided answers over 8 real store hits, both attempts. Chip render machinery works, but llama3.2:3b muddles the citation grammar (none, then number-keyed), so live verification never runs and the chip click fails honestly (F-503). Sources-accordion click-through opens the real deposition, at top of file, not the cited passage (F-504, corroborates leg 2 on native). |
+| W-010 | REAL MACHINE: contradiction finder full run → .docx mentions all 3 planted facts (closes F-422/F-126 buildable half) | full app + Ollama | wedge-proof assert rubric | pass-with-finding F-502, F-507 | Full run completes to a real OOXML .docx with verification banner, both attempts (the never-completed half is closed). Start required the per-template Ollama pin: without it the run silently no-ops (F-502, P1, root cause of campaign F-422; it was never HMR; RESULTS.md). Single-run rubric not met in the 2 allowed attempts (4/5 then 3/5; union 3/3 with verbatim quotes on both sides) and 0 finder citations verify (sourceNumber absent): F-507, a local-model selection floor; the feed is exonerated by W-003. |
+| W-011 | Option B ready handoff: download card → rag banner, fresh profile | ModelDownloadCard/RagProgressBanner | wedge-proof RUNBOOK run-10/11 | pass | 465 MB downloaded into the profile cache; bonus: interrupted state + Resume exercised live; card vanished at Ready and the rag banner took over with no dead gap; deferred indexing completed. |
+
+**Closure pointers (campaign findings this section dispositions; detail in `../2026-06-11-wedge-proof/RESULTS.md` §D):**
+
+- **F-415 CLOSED** (W-008): the index populates on a real machine, fresh profile. Evidence: `docs/quality/2026-06-11-wedge-proof/screenshots/run-02c-indexing-3files.png` + `chunks.lance` data fragments on disk + zero `vectors key:` errors. The headless-Secret-Service requirement is now part of the documented environment.
+- **F-117 CLOSED-with-findings** (W-009): the cited answer renders live over the real index (retrieval + render halves observed). The verification gap remains on the local tier: F-503 (chat citation grammar) / F-507 (finder sourceNumber); re-verify the verified-chip half after the citation-grammar fix.
+- **F-422 ROOT-CAUSED** (W-010): it was F-502, silent local-only workflow model resolution (the resolution chain ignores `confidentialityMode` and the needs-provider banner has no surface), not HMR; cite RESULTS.md. The finder itself completes on the real binary with a local model.
+
+Register findings without a W row (full register: RESULTS.md §B): F-508 (P3, AI artifacts (.aichat/.workflow) are indexed back into matter memory and compete with primary sources) and F-509 (P3, workflow tab hides the sidebar; Ctrl+B inert while open). RESULTS.md claims 2 (local chat egress + privilege-toggle surfaces, observed live) and 13 (memory profile: successful-pass peak 3.70 GiB) are supporting evidence rows with no W mapping.
+
+---
+
 ## Summary
 
 | Category | Count | pass | finding | native-only | unreachable |
@@ -389,10 +417,12 @@
 | N. MCP gate | 3 | 2 | 0 | 1 | 0 |
 | O. Plugins panel | 6 | 6 | 0 | 0 | 0 |
 | P. Additional surfaces | 20 | 17 | 0 | 3 | 0 |
-| **TOTAL** | **222** | **206** | **0** | **15** | **1** |
+| W. Wedge proof (VG-1, Rust + browser + real machine, 2026-06-11) | 11 | 6 | 5 | 0 | 0 |
+| **TOTAL** | **233** | **212** | **5** | **15** | **1** |
 
 **Notes:**
-- 0 product findings from the sweep (no P0/P1/P2 product bugs discovered in any of the 222 ledger rows)
+- 0 product findings from the sweep (no P0/P1/P2 product bugs discovered in any of the 222 original L-rows)
+- W section (2026-06-11): the wedge-proof harness DID find product bugs; rows marked pass-with-finding count in the finding column. The F-5xx register lives in `../2026-06-11-wedge-proof/RESULTS.md` §B; P1s F-501 (unbounded embed memory), F-502 (silent local-only workflow no-op), F-506 (xlsx formula data loss) route to the fix wave.
 - F-202/F-210: split-pane overflow confirmed as detection false positive (scrollWidth = clientWidth); no user-visible overflow
 - F-203: spec bug fixed — 18 template IDs corrected to match actual `id` fields in source
 - F-204: Playwright ENOENT artifact race (infra) — all affected tests pass when run isolated or with adequate workers; the parallel run with all 12 specs shows 3 apparent failures which are pure dev-server resource contention (all 3 pass individually)
