@@ -102,6 +102,8 @@ pub fn chunk_transcript(path: &str, text: &str) -> Vec<Chunk> {
     let mut out: Vec<Chunk> = Vec::new();
 
     let mut current_page: u32 = 1;
+    // Gutter tracking for lost-page-header recovery (see below).
+    let mut prev_line_no: Option<u32> = None;
     let mut buf = String::new();
     let mut buf_start: Option<(u32, u32)> = None; // (page, line) of first buffered line
     let mut buf_end: (u32, u32) = (1, 1); // (page, line) of last buffered line
@@ -150,6 +152,9 @@ pub fn chunk_transcript(path: &str, text: &str) -> Vec<Chunk> {
                 Some(n) => current_page = n,
                 None => current_page += 1, // bare form feed: next page
             }
+            // The marker already advanced the page; the upcoming gutter
+            // reset to 1 must not advance it again.
+            prev_line_no = None;
             continue;
         }
         let Some((line_no, content_start)) = leading_line_number(line) else {
@@ -158,6 +163,18 @@ pub fn chunk_transcript(path: &str, text: &str) -> Vec<Chunk> {
             // the detection gate); skip rather than fabricate a locator.
             continue;
         };
+        // A gutter reset (e.g. 25 -> 1) with NO intervening page marker
+        // means the page header was lost (a common PDF-to-txt casualty).
+        // Advance the page anyway: otherwise every locator on the new page
+        // claims the previous page — fabricated-cite-class harm (Wave 2
+        // Task 9/10 review finding).
+        if let Some(prev) = prev_line_no {
+            if prev >= 20 && line_no <= 3 {
+                current_page += 1;
+            }
+        }
+        prev_line_no = Some(line_no);
+
         let content = &line[content_start..];
         let content = content.trim_end();
         if content.is_empty() {
@@ -478,5 +495,52 @@ fn main() {
         assert_eq!(parse_page_marker("Page two"), None);
         assert_eq!(parse_page_marker("Pages 2-4 follow"), None);
         assert_eq!(parse_page_marker("The Page 2 ruling"), None);
+    }
+}
+
+#[cfg(test)]
+mod lost_page_header_tests {
+    use super::*;
+
+    /// A certified transcript whose page-2 header was lost in PDF→txt
+    /// conversion: the gutter reset (25 → 1) must still advance the page so
+    /// locators never claim page 1 for page-2 testimony (review finding).
+    #[test]
+    fn gutter_reset_without_marker_advances_the_page() {
+        let mut text = String::from("Page 1\n");
+        for i in 1..=25 {
+            text.push_str(&format!("{i:>2}  Q. Filler question number {i}?\n"));
+        }
+        // Lost header here — the next page starts directly at gutter 1.
+        for i in 1..=10 {
+            text.push_str(&format!("{i:>2}  A. Page two answer line {i}.\n"));
+        }
+        let chunks = chunk_transcript("/t.txt", &text);
+        let last = chunks.last().expect("chunks");
+        let loc = last.locator.as_deref().expect("locator");
+        assert!(
+            loc.starts_with("2:") || loc.contains("-2:"),
+            "page-2 testimony must carry a page-2 locator, got {loc}"
+        );
+    }
+
+    /// The marker path must NOT double-advance: header seen, then gutter 1.
+    #[test]
+    fn marker_then_reset_does_not_double_advance() {
+        let mut text = String::from("Page 1\n");
+        for i in 1..=25 {
+            text.push_str(&format!("{i:>2}  Q. Filler question number {i}?\n"));
+        }
+        text.push_str("Page 2\n");
+        for i in 1..=10 {
+            text.push_str(&format!("{i:>2}  A. Second page line {i}.\n"));
+        }
+        let chunks = chunk_transcript("/t.txt", &text);
+        let last = chunks.last().expect("chunks");
+        let loc = last.locator.as_deref().expect("locator");
+        assert!(
+            loc.contains("2:") && !loc.contains("3:"),
+            "marker + reset must land on page 2, not 3: {loc}"
+        );
     }
 }

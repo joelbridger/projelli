@@ -72,7 +72,12 @@
 //     REMAINING residual, documented honestly (and in the user-facing Data
 //     Map): `matter_id` and `privilege` values stay readable on disk because
 //     isolation prefilters on them, and the embedding vectors are stored as
-//     plain floats by design.
+//     plain floats by design. One more, subtle: `id` below is UNKEYED
+//     sha256(path, paragraph_index), so a raw-disk reader who GUESSES an
+//     exact absolute path can confirm the guess by hashing it against the
+//     id column. Browsing/recovery of paths stays closed (that needs the
+//     key); guess-CONFIRMATION survives. Keying the id would break the
+//     content-address contract (review-accepted residual, Wave 2 Task 10).
 //
 // `id` is content-addressed by `(path, paragraph_index)` so re-indexing a
 // file is idempotent — we delete `path = ?` first and then append, avoiding

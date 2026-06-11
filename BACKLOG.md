@@ -442,3 +442,6 @@ A second Claude session ran in parallel with the engineering work and produced t
 - **IN PROGRESS** — actively being worked on; mark with date started
 - **DONE** — complete, with commit hash or PR link as evidence
 - **BLOCKED** — cannot start until dependency resolves; name the dependency
+
+### WAVE2-FU-01 — MCP search tool prints ciphertext as passage text
+Pre-existing since WS-VEC encrypted `chunk_text` (commit 1e537d1): `src-tauri/src/mcp_bin/tools.rs` `search_workspace` pushes `hit.text` raw, which has been hex ciphertext ever since — the tool's output is unreadable for encrypted rows. The Wave 2 Task 10 commit fixed the PATH display (path_enc decrypt) but text display needs the same treatment (decrypt with the vector key; fail closed to a placeholder when the keychain is locked). Found by the Wave 2 Task 9/10 review, 2026-06-11.

@@ -120,7 +120,7 @@ export const DATA_MAP_ROWS: MapRow[] = [
     tone: 'text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40',
     title: 'What the search index itself stores',
     body: 'To answer questions across your files, Keepance keeps a local search index inside your workspace folder. The passage text in it is encrypted at rest, and so are the file paths, so the index on its own does not reveal which clients or matters you have files for. Two things in it stay readable on disk, on purpose: the matter label and the privilege tag on each passage, because search isolation has to filter on them before anything is searched.',
-    caveat: 'The index also stores embedding vectors: lists of plain numbers that stand in for each passage’s meaning. They are not your text, and there is no practical way to read your words back out of them, but they sit on disk unencrypted. They exist, and this row exists so you know that.',
+    caveat: 'The index also stores embedding vectors: lists of plain numbers that stand in for each passage’s meaning. They are not your text, and there is no practical way to read your words back out of them, but they sit on disk unencrypted. They exist, and this row exists so you know that. One narrow edge for completeness: each passage also carries an unencrypted fingerprint of its file path, so someone with your disk who already guessed an exact file path could confirm that guess. Recovering paths they have not guessed stays locked.',
   },
 ];
 
