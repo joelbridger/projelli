@@ -36,9 +36,14 @@ export interface RetrievedChunk {
   id?: string;
   matterId?: string;
   sourceId?: string;
-  /** VG-2b widens the union with the office formats (mirrors `RagHit`). */
-  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf';
+  /** VG-2b widens the union with the office formats; VG-3c with certified
+   *  transcripts (mirrors `RagHit`). */
+  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf' | 'transcript';
   pageNumber?: number;
+  /** VG-3c: page:line locator for certified transcript chunks
+   *  (`"startPage:startLine-endPage:endLine"`, mirrors `RagHit`); finder
+   *  deliverable locators read it as "Tr. 45:12-46:3". */
+  locator?: string;
   /** VG-2: `'ocr'` when the chunk was read from a scanned page by the local
    *  OCR engine (mirrors `RagHit`); locators disclose it. */
   extraction?: 'ocr';
@@ -182,10 +187,15 @@ function ocrLocatorSuffix(c: RetrievedChunk): string {
  *  office sources label the honest locator ("sheet 2", "slide 3" — the
  *  REAL 1-based number carried in pageNumber); docx/rtf chunk like text and
  *  fall through to the paragraph branch. VG-2: OCR-read pages disclose
- *  " (scanned)" / " (scanned, low-confidence)". */
+ *  " (scanned)" / " (scanned, low-confidence)". VG-3c: certified transcript
+ *  chunks cite the way lawyers cite — "Tr. 45:12-46:3" from the page:line
+ *  locator. */
 function sourceLocator(c: RetrievedChunk): string {
   const base = basename(c.path);
   const suffix = ocrLocatorSuffix(c);
+  if (c.sourceType === 'transcript' && c.locator) {
+    return `${base} Tr. ${c.locator}`;
+  }
   if (c.sourceType === 'pdf' && c.pageNumber != null) {
     return `${base} page ${String(c.pageNumber)}${suffix}`;
   }

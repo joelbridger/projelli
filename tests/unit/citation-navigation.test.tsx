@@ -198,6 +198,35 @@ describe('Citation navigation (M2)', () => {
     );
   });
 
+  it('labels transcript citations "Tr. page:line" on the chip and accordion row (VG-3c)', () => {
+    const chat = buildChatWithCitations();
+    chat.messages[1] = {
+      ...chat.messages[1]!,
+      content: 'The hold went out on September 12 [weston.txt paragraph 2].',
+      sources: [
+        {
+          path: 'matter/weston.txt',
+          chunkText: 'A. The litigation hold notice went out to the team.',
+          score: 0.9,
+          paragraphIndex: 2,
+          sourceType: 'transcript',
+          locator: '2:14-2:16',
+        },
+      ],
+    };
+    render(<AIChatViewer chatData={chat} onOpenFileAtPath={vi.fn()} />);
+    // Chip: the label is the lawyer's cite ("Tr. 2:14-2:16"); the resolution
+    // key + testid grammar (basename + paragraphIndex) are unchanged.
+    const chip = screen.getByTestId('chat-citation-weston.txt-2');
+    expect(chip.textContent).toContain('Tr. 2:14-2:16');
+    expect(chip.textContent).not.toContain('§');
+    // Accordion row: same label, basename stays in the title attr.
+    fireEvent.click(screen.getByTestId('chat-sources-toggle'));
+    const row = screen.getByTestId('chat-source-weston.txt-2');
+    expect(row.textContent).toContain('Tr. 2:14-2:16');
+    expect(row).toHaveAttribute('title', 'matter/weston.txt');
+  });
+
   it('shows a toast warning when the citation has no matching source', () => {
     const chat = buildChatWithCitations();
     // Replace the assistant message with a citation whose basename

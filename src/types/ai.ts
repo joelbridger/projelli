@@ -106,11 +106,17 @@ export interface WorkspaceSource {
   chunkText: string;
   score: number;
   paragraphIndex: number;
-  /** A3: 'text' | 'pdf'; G4 adds 'mail'; VG-2b adds the office formats. */
-  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf';
+  /** A3: 'text' | 'pdf'; G4 adds 'mail'; VG-2b adds the office formats;
+   *  VG-3c adds certified deposition transcripts. */
+  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf' | 'transcript';
   /** A3: 1-based page number for PDF chunks; VG-2b reuses it for the REAL
-   *  1-based sheet/slide number on xlsx/pptx chunks. Absent on pre-A3 rows. */
+   *  1-based sheet/slide number on xlsx/pptx chunks; VG-3c reuses it for a
+   *  transcript chunk's start page. Absent on pre-A3 rows. */
   pageNumber?: number;
+  /** VG-3c: page:line locator for certified transcript chunks
+   *  (`"startPage:startLine-endPage:endLine"`). Citation chips prefer it:
+   *  "Tr. 45:12-46:3". Absent on every other source. */
+  locator?: string;
   /** VG-2: `'ocr'` when this chunk was read from a scanned page by the local
    *  OCR engine; absent on natively-extracted chunks. Citations disclose it. */
   extraction?: 'ocr';

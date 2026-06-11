@@ -20,6 +20,13 @@
 //!       extraction production uses (keepance-docx parse + plain-text walk),
 //!       a contract clause retrieves with a VERIFYING citation, and the
 //!       matter-isolation invariants hold over the bigger corpus.
+//!   TRANSCRIPT (VG-3c) — the certified line-numbered Weston transcript
+//!       indexes through the PRODUCTION transcript path
+//!       (transcript::chunk_transcript, grouped by locator start page
+//!       exactly as index_one_file does); its hits carry a page:line
+//!       locator covering the planted sentence and the citation VERIFIES.
+//!       The Johnson transcript stays byte-untouched on the GENERIC path —
+//!       the c1/c2/c3 chunk-id assertions are that regression lock.
 //!
 //! HONESTY BOUNDARY: this binary proves RETRIEVAL truth only. The actual
 //! contradiction-finding judgment is an LLM analyze step (legalAnalysis.ts)
@@ -71,12 +78,24 @@ struct Source {
 /// fixture edits keep the proof honest). Johnson = the contradiction pair
 /// plus the services contract (VG-2b office member); Acme = the isolation
 /// matter (supply agreement + the intake memo, its .docx member).
+/// VG-3c — the certified line-numbered Weston transcript. Loaded through the
+/// PRODUCTION transcript path (detect + page:line chunking); the generator's
+/// planted-sentence constants (generate-fixtures.py WESTON_HOLD_*) are
+/// mirrored in the locator test below.
+const WESTON_FILE: &str = "deposition-transcript-weston-certified.txt";
+const WESTON_SOURCE_ID: &str = "/matter-corpus/deposition-transcript-weston-certified.txt";
+
 fn corpus() -> Vec<Source> {
     vec![
         Source {
             matter_id: MATTER_JOHNSON,
             source_id: "/matter-corpus/deposition-transcript-johnson.txt",
             file: "deposition-transcript-johnson.txt",
+        },
+        Source {
+            matter_id: MATTER_JOHNSON,
+            source_id: WESTON_SOURCE_ID,
+            file: WESTON_FILE,
         },
         Source {
             matter_id: MATTER_JOHNSON,
@@ -125,6 +144,43 @@ fn load_source(src: &Source) -> (String, SourceType) {
     }
 }
 
+/// VG-3c — chunk groups for one corpus member, through the SAME dispatch
+/// production's `index_one_file` uses. The certified Weston transcript goes
+/// through `transcript::detect_transcript` + `transcript::chunk_transcript`
+/// (page:line locators, grouped by the locator's START PAGE exactly as
+/// `index_transcript` groups them); everything else is one generic-chunker
+/// group under its `load_source` SourceType — so the Johnson transcript and
+/// every other member keep their byte-identical chunk ids.
+fn load_groups(src: &Source) -> Vec<(SourceType, Vec<Chunk>)> {
+    use keepance_lib::commands::rag::transcript;
+    if src.file == WESTON_FILE {
+        let path = format!("{FIXTURE_DIR}/{}", src.file);
+        let text = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("read fixture {path}: {e}"));
+        assert!(
+            transcript::detect_transcript(&text),
+            "the certified Weston fixture must detect as a transcript"
+        );
+        let chunks = transcript::chunk_transcript(src.source_id, &text);
+        let mut grouped: std::collections::BTreeMap<u32, Vec<Chunk>> =
+            std::collections::BTreeMap::new();
+        for c in chunks {
+            let page = transcript::locator_start_page(c.locator.as_deref()).unwrap_or(1);
+            grouped.entry(page).or_default().push(c);
+        }
+        grouped
+            .into_iter()
+            .map(|(page, chunks)| (SourceType::Transcript { start_page: page }, chunks))
+            .collect()
+    } else {
+        let (text, source_type) = load_source(src);
+        vec![(
+            source_type,
+            keepance_lib::commands::rag::chunker::chunk_text(src.source_id, &text),
+        )]
+    }
+}
+
 struct Fixture {
     table: lancedb::Table,
     _dir: tempfile::TempDir,
@@ -140,30 +196,32 @@ async fn fixture() -> Arc<Fixture> {
             let table = store::open_or_create_table(&conn).await.expect("create table");
 
             for src in corpus() {
-                let (text, source_type) = load_source(&src);
-                let chunks =
-                    keepance_lib::commands::rag::chunker::chunk_text(src.source_id, &text);
-                let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-                let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts)
-                    .await
-                    .expect("embed documents (is the e5-small cache provisioned?)");
-                let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
-                let batch = store::build_batch(
-                    &rows,
-                    source_type,
-                    src.matter_id,
-                    PRIVILEGE_NONE,
-                    None,
-                    &VEC_KEY,
-                )
-                .expect("build batch");
-                let schema = batch.schema();
-                use arrow_array::RecordBatchIterator;
-                table
-                    .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
-                    .execute()
-                    .await
-                    .expect("add batch");
+                for (source_type, chunks) in load_groups(&src) {
+                    if chunks.is_empty() {
+                        continue;
+                    }
+                    let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+                    let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts)
+                        .await
+                        .expect("embed documents (is the e5-small cache provisioned?)");
+                    let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
+                    let batch = store::build_batch(
+                        &rows,
+                        source_type,
+                        src.matter_id,
+                        PRIVILEGE_NONE,
+                        None,
+                        &VEC_KEY,
+                    )
+                    .expect("build batch");
+                    let schema = batch.schema();
+                    use arrow_array::RecordBatchIterator;
+                    table
+                        .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+                        .execute()
+                        .await
+                        .expect("add batch");
+                }
             }
 
             Arc::new(Fixture { table, _dir: dir })
@@ -469,6 +527,98 @@ async fn acme_intake_memo_never_leaks_into_johnson_scope() {
 }
 
 // ===========================================================================
+// TRANSCRIPT (VG-3c) — the certified Weston transcript, indexed through the
+// PRODUCTION page:line path, retrieves with a locator covering the planted
+// litigation-hold sentence (generator constants: WESTON_HOLD_PAGE = 2,
+// WESTON_HOLD_LINES = 14-16) and the citation VERIFIES across the
+// transcript's line wraps. paragraph_index stays the sequential chunk index
+// — the content-addressed citation contract is unchanged, page:line is
+// metadata ON TOP.
+// ===========================================================================
+
+/// Parse "sp:sl-ep:el" into ((sp, sl), (ep, el)); panics with the raw string
+/// on malformation — well-formedness is part of what this proves.
+fn parse_locator(loc: &str) -> ((u32, u32), (u32, u32)) {
+    let parse_pair = |s: &str| -> (u32, u32) {
+        let (p, l) = s
+            .split_once(':')
+            .unwrap_or_else(|| panic!("malformed locator {loc:?}"));
+        (
+            p.parse().unwrap_or_else(|_| panic!("malformed locator {loc:?}")),
+            l.parse().unwrap_or_else(|_| panic!("malformed locator {loc:?}")),
+        )
+    };
+    let (start, end) = loc
+        .split_once('-')
+        .unwrap_or_else(|| panic!("malformed locator {loc:?}"));
+    (parse_pair(start), parse_pair(end))
+}
+
+#[tokio::test]
+async fn certified_transcript_chunks_carry_page_line_locators() {
+    let f = fixture().await;
+    let q = embed("when did the litigation hold notice go out to the infrastructure team").await;
+    let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
+
+    // The planted sentence's chunk comes back from the CERTIFIED transcript
+    // (needle = the contiguous spoken words of fixture page 2 line 14).
+    let hit = hit_containing(&hits, "The litigation hold notice went out to");
+    assert_eq!(hit.source_id.as_deref(), Some(WESTON_SOURCE_ID));
+    assert_eq!(hit.matter_id.as_deref(), Some(MATTER_JOHNSON));
+    assert_eq!(hit.source_type.as_deref(), Some("transcript"));
+
+    // The locator is well-formed page:line-page:line and covers the planted
+    // sentence at page 2 lines 14-16.
+    let locator = hit
+        .locator
+        .as_deref()
+        .expect("a certified-transcript hit must carry a page:line locator");
+    let ((sp, sl), (ep, el)) = parse_locator(locator);
+    assert!(
+        (sp, sl) <= (2, 14) && (2, 16) <= (ep, el),
+        "locator Tr. {locator} must cover the planted sentence at 2:14-2:16"
+    );
+
+    // page_number carries the chunk group's start page (how the store bands
+    // transcript groups), matching the locator's first number.
+    assert_eq!(hit.page_number, Some(sp));
+
+    // The citation key is content-addressed exactly as ever — the locator is
+    // metadata ON TOP of the unchanged sequential paragraph_index.
+    assert_eq!(hit.id, store::chunk_id(WESTON_SOURCE_ID, hit.paragraph_index));
+
+    // And the quote VERIFIES with the full spoken sentence, whitespace-
+    // normalized across the transcript's line wraps (the gutter is stripped,
+    // so the certified line numbers never pollute verification).
+    let verdict = verify(
+        &f.table,
+        &hit.id,
+        MATTER_JOHNSON,
+        "The litigation hold notice went out to the cloud infrastructure team on September 12, 2025.",
+    )
+    .await;
+    assert_eq!(verdict, Verdict::Verified, "the Tr. {locator} citation must verify");
+}
+
+#[tokio::test]
+async fn certified_transcript_stays_out_of_acme_scope() {
+    // The new corpus member obeys the same isolation invariant as everything
+    // else: Weston content never surfaces under the Acme matter.
+    let f = fixture().await;
+    let q = embed("when did the litigation hold notice go out to the infrastructure team").await;
+    let hits = nearest(&f.table, &q, 8, Some(MATTER_ACME_B), false).await.unwrap();
+    for h in &hits {
+        assert_eq!(
+            h.matter_id.as_deref(),
+            Some(MATTER_ACME_B),
+            "LEAK: {:?} under Acme scope",
+            h.source_id
+        );
+        assert_ne!(h.source_id.as_deref(), Some(WESTON_SOURCE_ID));
+    }
+}
+
+// ===========================================================================
 // FINDER FEED — the DepositionContradictionFinder's own retrieval query, at
 // its own topK = 12, surfaces both sides of all three contradictions. The
 // query string below is retrievalQueryTemplate
@@ -583,32 +733,34 @@ async fn fixture_with_filler() -> Arc<Fixture> {
             let table = store::open_or_create_table(&conn).await.expect("create table");
 
             for src in corpus_with_filler() {
-                let (text, source_type) = load_source(&src);
-                let chunks =
-                    keepance_lib::commands::rag::chunker::chunk_text(src.source_id, &text);
-                let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-                let vectors =
-                    keepance_lib::commands::rag::embedder::embed_documents_batched(&texts, None)
+                for (source_type, chunks) in load_groups(&src) {
+                    if chunks.is_empty() {
+                        continue;
+                    }
+                    let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+                    let vectors =
+                        keepance_lib::commands::rag::embedder::embed_documents_batched(&texts, None)
+                            .await
+                            .expect("embed documents (is the e5-small cache provisioned?)")
+                            .expect("not cancelled");
+                    let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
+                    let batch = store::build_batch(
+                        &rows,
+                        source_type,
+                        src.matter_id,
+                        PRIVILEGE_NONE,
+                        None,
+                        &VEC_KEY,
+                    )
+                    .expect("build batch");
+                    let schema = batch.schema();
+                    use arrow_array::RecordBatchIterator;
+                    table
+                        .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+                        .execute()
                         .await
-                        .expect("embed documents (is the e5-small cache provisioned?)")
-                        .expect("not cancelled");
-                let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
-                let batch = store::build_batch(
-                    &rows,
-                    source_type,
-                    src.matter_id,
-                    PRIVILEGE_NONE,
-                    None,
-                    &VEC_KEY,
-                )
-                .expect("build batch");
-                let schema = batch.schema();
-                use arrow_array::RecordBatchIterator;
-                table
-                    .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
-                    .execute()
-                    .await
-                    .expect("add batch");
+                        .expect("add batch");
+                }
             }
 
             Arc::new(Fixture { table, _dir: dir })
@@ -676,6 +828,7 @@ async fn f510_capped_finder_feed_contains_both_sides_of_all_three() {
             privilege: h.privilege.clone(),
             extraction: h.extraction.clone(),
             extraction_confidence: h.extraction_confidence,
+            locator: h.locator.clone(),
         })
         .collect();
     hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));

@@ -1,0 +1,112 @@
+                          Page 1
+
+ 1   UNITED STATES DISTRICT COURT
+ 2   SOUTHERN DISTRICT OF NEW YORK
+ 3   ------------------------------------------x
+ 4   IN RE: JOHNSON v. NEXUS DYNAMICS CORP.
+ 5   Case No. 26-CV-0412 (S.D.N.Y.)
+ 6   ------------------------------------------x
+ 7   DEPOSITION OF THOMAS WESTON
+ 8   Taken on June 3, 2026 at 9:30 a.m.
+ 9   Offices of Marchetti & Associates LLP
+10   1200 Commerce Drive, Suite 400, New York
+11   APPEARANCES:
+12   For the Plaintiff: Diane Marchetti, Esq.
+13   For the Defendant: Kevin Hartley, Esq.
+14   Court Reporter: Sandra Price, RPR
+15   EXAMINATION BY MS. MARCHETTI:
+16   Q.   Please state your name for the record.
+17   A.   Thomas Edward Weston.
+18   Q.   What is your position at Nexus Dynamics?
+19   A.   Senior Director of the Cloud
+20   Infrastructure Division.
+21   Q.   How long have you held that role?
+22   A.   Since March of 2019.
+23   Q.   Are you familiar with the company's
+24   document retention policy?
+25   A.   Yes, I am. I helped draft the current
+
+                          Page 2
+
+ 1   version of that policy in 2023.
+ 2   Q.   Describe the retention schedule for
+ 3   engineering records, please.
+ 4   A.   Project documentation is retained for
+ 5   seven years. Routine operational logs are
+ 6   kept for eighteen months and then purged
+ 7   on a rolling basis by the archive system.
+ 8   Q.   Who administers litigation holds at
+ 9   Nexus Dynamics?
+10   A.   The legal operations group issues the
+11   hold notices. My division carries out the
+12   preservation steps for cloud systems.
+13   Q.   When was a hold issued for this case?
+14   A.   The litigation hold notice went out to
+15   the cloud infrastructure team on September
+16   12, 2025.
+17   Q.   What does the team do when a notice
+18   like that arrives?
+19   A.   Automated purges are suspended for the
+20   named custodians and the backup snapshots
+21   are moved to the legal archive tier.
+22   Q.   Is that suspension logged anywhere?
+23   A.   Yes. The archive system writes an
+24   entry for every suspension and every
+25   release. The log is append-only.
+
+                          Page 3
+
+ 1   Q.   Turning to backups. How are the cloud
+ 2   system backups organized?
+ 3   A.   Nightly incremental snapshots and a
+ 4   full weekly snapshot, retained on a
+ 5   ninety-day rotation unless a hold applies.
+ 6   Q.   Where are the snapshots stored?
+ 7   A.   In a separate archive account with
+ 8   restricted access. Two administrators in
+ 9   my division hold the credentials.
+10   Q.   Does the retention policy cover email?
+11   A.   Email is managed by corporate IT, not
+12   my division. My understanding is that the
+13   same hold process applies to mailboxes.
+14   Q.   How are employees trained on these
+15   procedures?
+16   A.   There is an annual compliance module.
+17   Completion is tracked by Human Resources
+18   and reported to the audit committee.
+19   Q.   Did your division complete the 2025
+20   module?
+21   A.   Yes. Completion for my division was
+22   one hundred percent as of October 2025.
+23   Q.   Thank you. Let's take a short break.
+24   (Recess taken from 10:42 a.m. to
+25   10:55 a.m.)
+
+                          Page 4
+
+ 1   EXAMINATION BY MR. HARTLEY:
+ 2   Q.   Mr. Weston, just a few questions. Is
+ 3   the retention policy you described written
+ 4   down anywhere?
+ 5   A.   Yes, it is published on the internal
+ 6   policy portal as document RET-104.
+ 7   Q.   And the archive log you mentioned, who
+ 8   can read it?
+ 9   A.   Legal operations and the two archive
+10   administrators. Read access is logged as
+11   well.
+12   Q.   Nothing further. Thank you.
+13   MS. MARCHETTI: No redirect. We are
+14   adjourned.
+15   (Deposition concluded at 11:20 a.m.)
+16   CERTIFICATE OF REPORTER
+17   I, Sandra Price, RPR, Certified Court
+18   Reporter, do hereby certify that the
+19   foregoing is a true and accurate
+20   transcript of the deposition of Thomas
+21   Weston, taken on June 3, 2026.
+22   Sandra Price, RPR
+23   Notary Public, State of New York
+24   Commission No. 01PR6054321
+25   My commission expires March 14, 2028.
+

@@ -19,6 +19,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  buildRetrievedContextBlock,
   groundQuoteToChunk,
   runContradictionAnalysis,
   type RetrievedChunk,
@@ -48,6 +49,36 @@ const chunks: RetrievedChunk[] = [
     sourceId: '/ws/policy.md',
   },
 ];
+
+describe('sourceLocator labels transcript chunks "Tr. page:line" (VG-3c)', () => {
+  it('prefers the page:line locator for transcript chunks in the numbered context', () => {
+    const transcriptChunk: RetrievedChunk = {
+      path: '/ws/depo-weston-certified.txt',
+      paragraphIndex: 2,
+      chunkText: 'A. The litigation hold notice went out to the team.',
+      sourceType: 'transcript',
+      locator: '2:14-2:16',
+      id: 'c'.repeat(64),
+      matterId: 'm1',
+      sourceId: '/ws/depo-weston-certified.txt',
+    };
+    const block = buildRetrievedContextBlock([transcriptChunk]);
+    // The vision's locator: lawyers cite "Tr. 45:12", not "paragraph 2".
+    expect(block).toContain('depo-weston-certified.txt Tr. 2:14-2:16');
+    expect(block).not.toContain('paragraph 2');
+  });
+
+  it('keeps the paragraph label when a transcript chunk has no locator (legacy rows)', () => {
+    const legacy: RetrievedChunk = {
+      path: '/ws/depo.txt',
+      paragraphIndex: 5,
+      chunkText: 'Q. And then?',
+      sourceType: 'transcript',
+    };
+    const block = buildRetrievedContextBlock([legacy]);
+    expect(block).toContain('depo.txt paragraph 5');
+  });
+});
 
 describe('groundQuoteToChunk (F-507b)', () => {
   it('grounds a verbatim quote to its chunk', () => {

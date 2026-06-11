@@ -34,6 +34,7 @@ pub mod model_download;
 pub mod office;
 pub mod pdf_indexer;
 pub mod store;
+pub mod transcript;
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -96,6 +97,12 @@ pub struct Hit {
     // values below OCR_LOW_CONFIDENCE = 60 as a low-confidence scan.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extraction_confidence: Option<f32>,
+    // VG-3c: page:line locator for certified deposition transcript chunks
+    // ("startPage:startLine-endPage:endLine", e.g. "45:12-46:3"); absent on
+    // every other source. The UI prefers it for the citation label:
+    // "Tr. 45:12-46:3". Metadata ON TOP of the unchanged `paragraph_index`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locator: Option<String>,
 }
 
 /// WS-B/C — the REQUIRED retrieval scope. Confidentiality is enforced here: a
@@ -367,6 +374,24 @@ async fn index_one_file(
                 store::delete_path(table, &path_str).await?;
                 return Ok(());
             };
+            // VG-3c — certified line-numbered deposition transcripts (.txt
+            // only) chunk page:line-aware so citations read "Tr. 45:12".
+            // Detection is deliberately conservative: a false negative just
+            // falls through to the generic path below, which is always
+            // correct (the existing Johnson fixture stays generic — its
+            // chunk ids are leg-1's regression lock).
+            let ext = file_path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_ascii_lowercase());
+            if matches!(ext.as_deref(), Some("txt") | Some("text"))
+                && transcript::detect_transcript(&text)
+            {
+                return index_transcript(
+                    table, &path_str, &text, matter_id, privilege, key, cancel,
+                )
+                .await;
+            }
             index_plain_text(
                 table,
                 &path_str,
@@ -472,6 +497,49 @@ async fn index_one_file(
             Ok(())
         }
     }
+}
+
+/// VG-3c — index a certified line-numbered deposition transcript: page:line
+/// chunking (`transcript::chunk_transcript`), then the chunks grouped by
+/// their locator's START PAGE so each group's
+/// `SourceType::Transcript { start_page }` is honest (the sectioned-source
+/// write shape, exactly like PDF pages / xlsx sheets). The per-chunk
+/// "Tr. p:l-p:l" detail rides the `locator` column; `paragraph_index` stays
+/// the sequential chunk index, so the content-addressed citation contract
+/// is unchanged.
+async fn index_transcript(
+    table: &lancedb::Table,
+    path_str: &str,
+    text: &str,
+    matter_id: &str,
+    privilege: &str,
+    key: &[u8; 32],
+    cancel: Option<&AtomicBool>,
+) -> anyhow::Result<()> {
+    let chunks = transcript::chunk_transcript(path_str, text);
+    if chunks.is_empty() {
+        store::delete_path(table, path_str).await?;
+        return Ok(());
+    }
+    let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+    // F-501 — same bounded, cancel-aware embedding as every other index path.
+    let Some(vectors) = embedder::embed_documents_batched(&texts, cancel).await? else {
+        return Ok(());
+    };
+    let mut grouped: std::collections::BTreeMap<u32, Vec<(chunker::Chunk, Vec<f32>)>> =
+        std::collections::BTreeMap::new();
+    for (chunk, vec) in chunks.into_iter().zip(vectors) {
+        let page = transcript::locator_start_page(chunk.locator.as_deref()).unwrap_or(1);
+        grouped.entry(page).or_default().push((chunk, vec));
+    }
+    // Transcripts are native text — never OCR-extracted (extraction None).
+    let groups: Vec<(store::SourceType, Option<(&str, f32)>, Vec<(chunker::Chunk, Vec<f32>)>)> =
+        grouped
+            .into_iter()
+            .map(|(page, rows)| (store::SourceType::Transcript { start_page: page }, None, rows))
+            .collect();
+    store::upsert_grouped(table, path_str, groups, matter_id, privilege, key).await?;
+    Ok(())
 }
 
 /// Shared tail of the unsectioned index paths (text / docx / rtf): chunk →
@@ -910,6 +978,9 @@ pub async fn rag_retrieve(
                 // "scanned" / "low-confidence scan".
                 extraction: h.extraction,
                 extraction_confidence: h.extraction_confidence,
+                // VG-3c: carry the page:line locator so transcript citations
+                // can read "Tr. 45:12-46:3".
+                locator: h.locator,
             }
         })
         .collect();
@@ -1264,6 +1335,7 @@ mod tests {
             privilege: None,
             extraction: None,
             extraction_confidence: None,
+            locator: None,
         }
     }
 
@@ -1302,6 +1374,7 @@ mod tests {
             privilege: Some("none".into()),
             extraction: None,
             extraction_confidence: None,
+            locator: None,
         }
     }
 
@@ -1462,6 +1535,7 @@ mod tests {
             privilege: Some("none".into()),
             extraction: Some("ocr".into()),
             extraction_confidence: Some(48.5),
+            locator: None,
         };
         let s = serde_json::to_string(&hit).expect("serialize");
         assert!(s.contains("\"sourceType\":\"pdf\""), "got {}", s);
@@ -1469,6 +1543,21 @@ mod tests {
         // VG-2: the OCR disclosure crosses IPC camel-cased.
         assert!(s.contains("\"extraction\":\"ocr\""), "got {}", s);
         assert!(s.contains("\"extractionConfidence\":48.5"), "got {}", s);
+    }
+
+    #[test]
+    fn hit_serializes_transcript_locator() {
+        // VG-3c: the page:line locator crosses IPC so the UI can label the
+        // citation "Tr. 45:12-46:3".
+        let hit = Hit {
+            source_type: Some("transcript".into()),
+            page_number: Some(45),
+            locator: Some("45:12-46:3".into()),
+            ..sample_hit()
+        };
+        let s = serde_json::to_string(&hit).expect("serialize");
+        assert!(s.contains("\"sourceType\":\"transcript\""), "got {}", s);
+        assert!(s.contains("\"locator\":\"45:12-46:3\""), "got {}", s);
     }
 
     #[test]
@@ -1486,6 +1575,7 @@ mod tests {
             privilege: None,
             extraction: None,
             extraction_confidence: None,
+            locator: None,
         };
         let s = serde_json::to_string(&hit).expect("serialize");
         assert!(!s.contains("sourceType"), "got {}", s);
@@ -1495,6 +1585,8 @@ mod tests {
         assert!(!s.contains("privilege"), "got {}", s);
         // VG-2: native chunks carry no extraction keys at all.
         assert!(!s.contains("extraction"), "got {}", s);
+        // VG-3c: non-transcript hits carry no locator key at all.
+        assert!(!s.contains("locator"), "got {}", s);
     }
 
     #[test]

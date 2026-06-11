@@ -298,10 +298,12 @@ function ocrLabelSuffix(extraction?: string, extractionConfidence?: number): str
  * VG-2b (+ the Wave-1 follow-up (f) nit) — display label for a citation chip
  * or sources-accordion row. Page-keyed sources say their honest locator:
  * "p. N" for PDF pages, "sheet N" / "slide N" for office sections (the REAL
- * 1-based number carried in pageNumber). Everything else keeps the paragraph
- * anchor (§N). VG-2: OCR-read sources append the scanned/low-confidence
- * disclosure. LABELS ONLY: the chip's resolution key and testid grammar
- * (basename + paragraphIndex) are deliberately untouched.
+ * 1-based number carried in pageNumber). VG-3c: certified transcript chunks
+ * say the lawyer's cite — "Tr. 45:12-46:3" from the page:line locator (the
+ * basename stays in the chip/row title attr). Everything else keeps the
+ * paragraph anchor (§N). VG-2: OCR-read sources append the
+ * scanned/low-confidence disclosure. LABELS ONLY: the chip's resolution key
+ * and testid grammar (basename + paragraphIndex) are deliberately untouched.
  */
 function citationDisplayLabel(
   basename: string,
@@ -310,8 +312,12 @@ function citationDisplayLabel(
   pageNumber?: number,
   extraction?: string,
   extractionConfidence?: number,
+  locator?: string,
 ): string {
   const suffix = ocrLabelSuffix(extraction, extractionConfidence);
+  if (sourceType === 'transcript' && locator) {
+    return `Tr. ${locator}`;
+  }
   if (pageNumber != null) {
     if (sourceType === 'pdf') return `${basename} p. ${String(pageNumber)}${suffix}`;
     if (sourceType === 'xlsx') return `${basename} sheet ${String(pageNumber)}${suffix}`;
@@ -375,6 +381,7 @@ function renderMessageWithCitations(
       ) ?? (sources ?? []).find((s) => s.path === resolved);
     // VG-2b/(f): page-keyed sources label "p. N" / "sheet N" / "slide N".
     // VG-2: OCR-read sources disclose "(scanned)" / "(low-confidence scan)".
+    // VG-3c: transcript sources label the lawyer's cite "Tr. page:line".
     const label = citationDisplayLabel(
       cite.basename,
       cite.paragraphIndex,
@@ -382,6 +389,7 @@ function renderMessageWithCitations(
       matchedSource?.pageNumber,
       matchedSource?.extraction,
       matchedSource?.extractionConfidence,
+      matchedSource?.locator,
     );
     const unverified = matchedSource?.verified === false;
     // VG-2: a low-confidence scan carries the fuller warning in the chip title.
@@ -525,6 +533,7 @@ function ChatSourcesAccordion({
                     s.pageNumber,
                     s.extraction,
                     s.extractionConfidence,
+                    s.locator,
                   )}
                 </button>
               </li>
@@ -1124,6 +1133,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             ...(h.extractionConfidence !== undefined
               ? { extractionConfidence: h.extractionConfidence }
               : {}),
+            // VG-3c: page:line locator so transcript citations read
+            // "Tr. 45:12-46:3".
+            ...(h.locator !== undefined ? { locator: h.locator } : {}),
             // WS-B/C: carry the citation key, matter, and resolvable source id
             // so citations can be verified + resolved (file vs email).
             ...(h.id !== undefined ? { id: h.id } : {}),

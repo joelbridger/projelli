@@ -48,6 +48,9 @@ pub fn build_pdf_chunks(path: &str, pages: &[String]) -> Vec<Chunk> {
                 text: trimmed.to_string(),
                 start_offset: 0,
                 end_offset: trimmed.len(),
+                // VG-3c: page:line locators are a certified-transcript
+                // (text-path) concept; PDF chunks cite by page_number.
+                locator: None,
             });
         } else {
             // Long page: run through the standard text chunker, then stamp

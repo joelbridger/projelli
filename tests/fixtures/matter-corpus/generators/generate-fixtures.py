@@ -543,6 +543,173 @@ def make_deposition_transcript():
 
 
 # ---------------------------------------------------------------------------
+# 2b. deposition-transcript-weston-certified.txt (VG-3c, Wave 2 Task 9)
+#    The CERTIFIED line-numbered deposition format: every content line carries
+#    a right-aligned two-digit line number 1-25, pages separated by a centered
+#    "Page N" header. detect_transcript (src-tauri rag/transcript.rs) must
+#    return TRUE for this file and FALSE for deposition-transcript-johnson.txt
+#    (which is deliberately Q./A. + "PAGE N" prose, NOT line-numbered).
+#
+#    Content: document-retention and litigation-hold PROCEDURE testimony by
+#    Thomas Weston — topically NEUTRAL: it must not corroborate or contradict
+#    any of the three planted contradiction pairs (personal-email forwarding,
+#    the written-response deadline, the severance weeks), so the finder
+#    rubric dynamics stay clean.
+# ---------------------------------------------------------------------------
+
+# The unique quotable sentence planted at page 2 lines 14-16 (spoken words,
+# reconstructed across the transcript's line wraps). The leg-1 retrieval test
+# (src-tauri/tests/rag_deposition_contradictions.rs
+# certified_transcript_chunks_carry_page_line_locators) cites these constants
+# verbatim — change them ONLY together with that test.
+WESTON_HOLD_SENTENCE = (
+    "The litigation hold notice went out to the cloud infrastructure team "
+    "on September 12, 2025."
+)
+WESTON_HOLD_PAGE = 2
+WESTON_HOLD_LINES = (14, 16)
+
+# 25 content lines per page, exactly. Line numbers are applied by the maker.
+WESTON_PAGES = [
+    [  # Page 1 — caption + examination opens
+        "UNITED STATES DISTRICT COURT",
+        "SOUTHERN DISTRICT OF NEW YORK",
+        "------------------------------------------x",
+        "IN RE: JOHNSON v. NEXUS DYNAMICS CORP.",
+        "Case No. 26-CV-0412 (S.D.N.Y.)",
+        "------------------------------------------x",
+        "DEPOSITION OF THOMAS WESTON",
+        "Taken on June 3, 2026 at 9:30 a.m.",
+        "Offices of Marchetti & Associates LLP",
+        "1200 Commerce Drive, Suite 400, New York",
+        "APPEARANCES:",
+        "For the Plaintiff: Diane Marchetti, Esq.",
+        "For the Defendant: Kevin Hartley, Esq.",
+        "Court Reporter: Sandra Price, RPR",
+        "EXAMINATION BY MS. MARCHETTI:",
+        "Q.   Please state your name for the record.",
+        "A.   Thomas Edward Weston.",
+        "Q.   What is your position at Nexus Dynamics?",
+        "A.   Senior Director of the Cloud",
+        "Infrastructure Division.",
+        "Q.   How long have you held that role?",
+        "A.   Since March of 2019.",
+        "Q.   Are you familiar with the company's",
+        "document retention policy?",
+        "A.   Yes, I am. I helped draft the current",
+    ],
+    [  # Page 2 — retention schedule + the planted hold-notice lines 14-16
+        "version of that policy in 2023.",
+        "Q.   Describe the retention schedule for",
+        "engineering records, please.",
+        "A.   Project documentation is retained for",
+        "seven years. Routine operational logs are",
+        "kept for eighteen months and then purged",
+        "on a rolling basis by the archive system.",
+        "Q.   Who administers litigation holds at",
+        "Nexus Dynamics?",
+        "A.   The legal operations group issues the",
+        "hold notices. My division carries out the",
+        "preservation steps for cloud systems.",
+        "Q.   When was a hold issued for this case?",
+        "A.   The litigation hold notice went out to",
+        "the cloud infrastructure team on September",
+        "12, 2025.",
+        "Q.   What does the team do when a notice",
+        "like that arrives?",
+        "A.   Automated purges are suspended for the",
+        "named custodians and the backup snapshots",
+        "are moved to the legal archive tier.",
+        "Q.   Is that suspension logged anywhere?",
+        "A.   Yes. The archive system writes an",
+        "entry for every suspension and every",
+        "release. The log is append-only.",
+    ],
+    [  # Page 3 — backups + training (neutral filler)
+        "Q.   Turning to backups. How are the cloud",
+        "system backups organized?",
+        "A.   Nightly incremental snapshots and a",
+        "full weekly snapshot, retained on a",
+        "ninety-day rotation unless a hold applies.",
+        "Q.   Where are the snapshots stored?",
+        "A.   In a separate archive account with",
+        "restricted access. Two administrators in",
+        "my division hold the credentials.",
+        "Q.   Does the retention policy cover email?",
+        "A.   Email is managed by corporate IT, not",
+        "my division. My understanding is that the",
+        "same hold process applies to mailboxes.",
+        "Q.   How are employees trained on these",
+        "procedures?",
+        "A.   There is an annual compliance module.",
+        "Completion is tracked by Human Resources",
+        "and reported to the audit committee.",
+        "Q.   Did your division complete the 2025",
+        "module?",
+        "A.   Yes. Completion for my division was",
+        "one hundred percent as of October 2025.",
+        "Q.   Thank you. Let's take a short break.",
+        "(Recess taken from 10:42 a.m. to",
+        "10:55 a.m.)",
+    ],
+    [  # Page 4 — cross + certificate
+        "EXAMINATION BY MR. HARTLEY:",
+        "Q.   Mr. Weston, just a few questions. Is",
+        "the retention policy you described written",
+        "down anywhere?",
+        "A.   Yes, it is published on the internal",
+        "policy portal as document RET-104.",
+        "Q.   And the archive log you mentioned, who",
+        "can read it?",
+        "A.   Legal operations and the two archive",
+        "administrators. Read access is logged as",
+        "well.",
+        "Q.   Nothing further. Thank you.",
+        "MS. MARCHETTI: No redirect. We are",
+        "adjourned.",
+        "(Deposition concluded at 11:20 a.m.)",
+        "CERTIFICATE OF REPORTER",
+        "I, Sandra Price, RPR, Certified Court",
+        "Reporter, do hereby certify that the",
+        "foregoing is a true and accurate",
+        "transcript of the deposition of Thomas",
+        "Weston, taken on June 3, 2026.",
+        "Sandra Price, RPR",
+        "Notary Public, State of New York",
+        "Commission No. 01PR6054321",
+        "My commission expires March 14, 2028.",
+    ],
+]
+
+
+def make_weston_certified_transcript():
+    path = out("deposition-transcript-weston-certified.txt")
+    out_lines = []
+    for page_no, lines in enumerate(WESTON_PAGES, start=1):
+        assert len(lines) == 25, f"page {page_no} must have exactly 25 lines"
+        header = f"Page {page_no}"
+        out_lines.append(" " * max(0, (58 - len(header)) // 2) + header)
+        out_lines.append("")
+        for line_no, content in enumerate(lines, start=1):
+            out_lines.append(f"{line_no:>2}   {content}")
+        out_lines.append("")
+    # Self-check: the planted sentence sits exactly where the constants say
+    # (whitespace-normalized across the line wraps, the same canon the
+    # citation verifier uses).
+    lo, hi = WESTON_HOLD_LINES
+    planted = WESTON_PAGES[WESTON_HOLD_PAGE - 1][lo - 1 : hi]
+    joined = " ".join(" ".join(planted).split())
+    assert WESTON_HOLD_SENTENCE in joined, f"planted sentence drifted: {joined!r}"
+    text = "\n".join(out_lines) + "\n"
+    path.write_text(text, encoding="utf-8")
+    print(
+        f"CREATED: {path.name} ({len(WESTON_PAGES)} certified pages, "
+        f"hold-notice sentence at page {WESTON_HOLD_PAGE} "
+        f"lines {WESTON_HOLD_LINES[0]}-{WESTON_HOLD_LINES[1]})"
+    )
+
+
+# ---------------------------------------------------------------------------
 # 3. incident-summary-johnson.md
 #    Matter summary that contradicts the transcript in 3 places (labelled).
 # ---------------------------------------------------------------------------
@@ -1181,6 +1348,7 @@ if __name__ == "__main__":
     MAKERS = [
         ("engagement-letter", make_engagement_letter_tracked),
         ("deposition-transcript", make_deposition_transcript),
+        ("weston-transcript", make_weston_certified_transcript),
         ("incident-summary", make_incident_summary),
         ("services-agreement", make_services_agreement),
         ("scanned-exhibit", make_scanned_exhibit),

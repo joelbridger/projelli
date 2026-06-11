@@ -26,6 +26,14 @@
 //   extraction_confidence : Float32 (nullable) — mean OCR word confidence
 //                                      (0-100) for the chunk's page; null on
 //                                      native chunks.
+//   locator         : Utf8 (nullable) — VG-3c page:line locator for certified
+//                                      deposition transcripts
+//                                      ("startPage:startLine-endPage:endLine",
+//                                      e.g. "45:12-46:3"); null on every other
+//                                      source. Metadata ON TOP of the unchanged
+//                                      sequential paragraph_index — the
+//                                      content-addressed citation contract is
+//                                      untouched.
 //
 // WS-VEC — chunk text is a CONFIDENTIALITY GUARANTEE at rest. The `text` column
 // is encrypted with AES-256-GCM under the dedicated vector-store master key
@@ -95,6 +103,11 @@ pub enum SourceType {
     Rtf,
     Xlsx { sheet_number: u32 },
     Pptx { slide_number: u32 },
+    /// VG-3c — certified line-numbered deposition transcript (.txt detected
+    /// by `transcript::detect_transcript`). `start_page` is the chunk
+    /// group's locator start page (derived from the locator's first
+    /// number), stored in `page_number` the way PDF pages band.
+    Transcript { start_page: u32 },
 }
 
 /// Name of the per-workspace LanceDB table that stores chunk embeddings.
@@ -185,7 +198,14 @@ pub const UNASSIGNED_MATTER: &str = "unassigned";
 /// table lacks the columns, so the one-time drop + re-index migration brings
 /// every row onto the uniform schema — never rely on LanceDB auto-evolving a
 /// live table.
-pub const INDEX_VERSION: u32 = 8;
+///
+/// 9: VG-3c — transcript page:line locator column. The chunk schema gains the
+/// trailing nullable `locator` column ("startPage:startLine-endPage:endLine")
+/// so certified deposition transcripts cite as "Tr. 45:12-46:3", and a pre-9
+/// table predates transcript detection entirely — the one-time drop +
+/// re-index migration is what re-chunks the transcripts already sitting in a
+/// workspace through the page:line path.
+pub const INDEX_VERSION: u32 = 9;
 
 /// Filename (under the vectors dir) holding the integer `INDEX_VERSION` the
 /// current `chunks` table was built with.
@@ -295,6 +315,10 @@ pub fn build_schema() -> SchemaRef {
         // chunk's page; null on native chunks. Surfaced in retrieval so the UI
         // can disclose low-confidence scans (OCR_LOW_CONFIDENCE = 60).
         Field::new("extraction_confidence", DataType::Float32, true),
+        // VG-3c: page:line locator for certified deposition transcript chunks
+        // ("startPage:startLine-endPage:endLine"); null on every other source.
+        // Nullable + trailing so pre-V9 datasets still open during migration.
+        Field::new("locator", DataType::Utf8, true),
     ]))
 }
 
@@ -423,6 +447,10 @@ pub fn build_batch(
         SourceType::Rtf => ("rtf", 0),
         SourceType::Xlsx { sheet_number } => ("xlsx", sheet_number),
         SourceType::Pptx { slide_number } => ("pptx", slide_number),
+        // VG-3c — certified transcripts: page_number carries the group's
+        // locator start page (the per-row "Tr. p:l-p:l" detail lives in the
+        // `locator` column below).
+        SourceType::Transcript { start_page } => ("transcript", start_page),
         // Mail chunks MUST go through build_batch_mail so source_type = "mail".
         // Fail loudly — this is a programmer error on a code-chosen enum, never
         // data-driven.
@@ -446,6 +474,14 @@ pub fn build_batch(
     let conf_arr =
         arrow_array::Float32Array::from(vec![extraction.map(|(_, conf)| conf); rows.len()]);
 
+    // VG-3c: the page:line locator is PER ROW — each transcript chunk carries
+    // its own range; every non-transcript chunk writes null.
+    let loc_arr = StringArray::from(
+        rows.iter()
+            .map(|(c, _)| c.locator.as_deref())
+            .collect::<Vec<Option<&str>>>(),
+    );
+
     let batch = RecordBatch::try_new(
         schema,
         vec![
@@ -463,6 +499,7 @@ pub fn build_batch(
             Arc::new(priv_arr),
             Arc::new(ext_arr),
             Arc::new(conf_arr),
+            Arc::new(loc_arr),
         ],
     )
     .context("RecordBatch::try_new failed for chunks batch")?;
@@ -546,6 +583,8 @@ pub fn build_batch_mail(
     // VG-2: mail is never OCR-extracted — extraction columns stay null.
     let ext_arr = StringArray::from(vec![None::<&str>; rows.len()]);
     let conf_arr = arrow_array::Float32Array::from(vec![None::<f32>; rows.len()]);
+    // VG-3c: mail never carries a page:line locator.
+    let loc_arr = StringArray::from(vec![None::<&str>; rows.len()]);
 
     RecordBatch::try_new(
         schema,
@@ -564,6 +603,7 @@ pub fn build_batch_mail(
             Arc::new(priv_arr),
             Arc::new(ext_arr),
             Arc::new(conf_arr),
+            Arc::new(loc_arr),
         ],
     )
     .context("RecordBatch::try_new failed for mail chunks batch")
@@ -772,6 +812,10 @@ pub struct StoredHit {
     // VG-2: mean OCR word confidence (0-100) for the chunk's page; None on
     // native chunks. Disclosed in citations below OCR_LOW_CONFIDENCE = 60.
     pub extraction_confidence: Option<f32>,
+    // VG-3c: page:line locator for certified transcript chunks
+    // ("startPage:startLine-endPage:endLine"); None on every other source
+    // (and pre-V9 rows). Citations read it as "Tr. 45:12-46:3".
+    pub locator: Option<String>,
 }
 
 /// Compose the LanceDB `only_if` PREFILTER predicate for a retrieval query from
@@ -925,6 +969,10 @@ pub async fn nearest(
         let ext_conf_col = batch
             .column_by_name("extraction_confidence")
             .and_then(|c| c.as_any().downcast_ref::<arrow_array::Float32Array>());
+        // VG-3c: read the nullable locator column. Absent on pre-V9 rows → None.
+        let loc_col = batch
+            .column_by_name("locator")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
 
         for i in 0..batch.num_rows() {
             let distance = dist_col.map(|c| c.value(i)).unwrap_or(0.0);
@@ -951,6 +999,9 @@ pub async fn nearest(
                 .filter(|c| !c.is_null(i))
                 .map(|c| c.value(i).to_string());
             let extraction_confidence = ext_conf_col.filter(|c| !c.is_null(i)).map(|c| c.value(i));
+            let locator = loc_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string());
             out.push(StoredHit {
                 id,
                 path: path_col.value(i).to_string(),
@@ -965,6 +1016,7 @@ pub async fn nearest(
                 privilege,
                 extraction,
                 extraction_confidence,
+                locator,
             });
         }
     }
@@ -1237,6 +1289,7 @@ mod tests {
                 "privilege",
                 "extraction",
                 "extraction_confidence",
+                "locator",
             ]
         );
     }
@@ -1295,6 +1348,7 @@ mod tests {
                 text: "work product memo".into(),
                 start_offset: 0,
                 end_offset: 17,
+                locator: None,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
@@ -1316,6 +1370,7 @@ mod tests {
                 text: "x".into(),
                 start_offset: 0,
                 end_offset: 1,
+                locator: None,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
@@ -1388,6 +1443,7 @@ mod tests {
                     text: "hello".into(),
                     start_offset: 0,
                     end_offset: 5,
+                    locator: None,
                 },
                 vec![0.1f32; EMBEDDING_DIM],
             ),
@@ -1398,6 +1454,7 @@ mod tests {
                     text: "world".into(),
                     start_offset: 6,
                     end_offset: 11,
+                    locator: None,
                 },
                 vec![0.2f32; EMBEDDING_DIM],
             ),
@@ -1405,10 +1462,10 @@ mod tests {
         let batch = build_batch(&chunks, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
             .expect("build_batch");
         assert_eq!(batch.num_rows(), 2);
-        // 14 columns: id, path, matter_id, source_id, paragraph_index, text,
+        // 15 columns: id, path, matter_id, source_id, paragraph_index, text,
         // vector, indexed_at, source_type, page_number, encrypted, privilege,
-        // extraction, extraction_confidence
-        assert_eq!(batch.num_columns(), 14);
+        // extraction, extraction_confidence, locator
+        assert_eq!(batch.num_columns(), 15);
     }
 
     #[test]
@@ -1421,6 +1478,7 @@ mod tests {
                 text: "hello".into(),
                 start_offset: 0,
                 end_offset: 5,
+                locator: None,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
@@ -1442,6 +1500,7 @@ mod tests {
                 text: "hello".into(),
                 start_offset: 0,
                 end_offset: 5,
+                locator: None,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
@@ -1456,6 +1515,66 @@ mod tests {
             .expect("page_number column missing")
             .as_primitive::<arrow_array::types::UInt32Type>();
         assert_eq!(pn_col.value(0), 0);
+        // VG-3c: a generic text chunk writes a NULL locator.
+        let loc_col = batch
+            .column_by_name("locator")
+            .expect("locator column missing")
+            .as_string::<i32>();
+        assert!(loc_col.is_null(0), "non-transcript chunks must write null locator");
+    }
+
+    #[test]
+    fn build_batch_transcript_writes_per_row_locator_and_start_page() {
+        // VG-3c: transcript chunks carry their own page:line locator per ROW,
+        // source_type = "transcript", page_number = the group's start page.
+        use arrow_array::cast::AsArray;
+        let rows = vec![
+            (
+                Chunk {
+                    path: "/w/depo-weston.txt".into(),
+                    paragraph_index: 0,
+                    text: "Q. When was a hold issued?".into(),
+                    start_offset: 0,
+                    end_offset: 26,
+                    locator: Some("45:12-46:3".into()),
+                },
+                vec![0.1f32; EMBEDDING_DIM],
+            ),
+            (
+                Chunk {
+                    path: "/w/depo-weston.txt".into(),
+                    paragraph_index: 1,
+                    text: "A. In September.".into(),
+                    start_offset: 27,
+                    end_offset: 43,
+                    locator: Some("46:4-46:20".into()),
+                },
+                vec![0.2f32; EMBEDDING_DIM],
+            ),
+        ];
+        let batch = build_batch(
+            &rows,
+            SourceType::Transcript { start_page: 45 },
+            "matter-johnson",
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch transcript");
+        let st_col = batch.column_by_name("source_type").expect("source_type").as_string::<i32>();
+        assert_eq!(st_col.value(0), "transcript");
+        let pn_col = batch
+            .column_by_name("page_number")
+            .expect("page_number")
+            .as_primitive::<arrow_array::types::UInt32Type>();
+        assert_eq!(pn_col.value(0), 45);
+        let loc_col = batch.column_by_name("locator").expect("locator").as_string::<i32>();
+        assert_eq!(loc_col.value(0), "45:12-46:3");
+        assert_eq!(loc_col.value(1), "46:4-46:20");
+        // The content-address contract is untouched: id still hashes
+        // (path, paragraph_index) — the locator is metadata ON TOP.
+        let id_col = batch.column_by_name("id").expect("id").as_string::<i32>();
+        assert_eq!(id_col.value(0), chunk_id("/w/depo-weston.txt", 0));
     }
 
     #[test]
@@ -1468,6 +1587,7 @@ mod tests {
                 text: "page text".into(),
                 start_offset: 0,
                 end_offset: 9,
+                locator: None,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
@@ -1499,6 +1619,7 @@ mod tests {
                 text: "office text".into(),
                 start_offset: 0,
                 end_offset: 11,
+                locator: None,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )]
@@ -1542,16 +1663,22 @@ mod tests {
         let s = build_schema();
         let names: Vec<_> = s.fields().iter().map(|f| f.name().as_str()).collect();
         // Trailing so older datasets (pre-V8 rows) still open; nullable so
-        // native chunks simply leave them unset.
-        assert_eq!(names[names.len() - 2], "extraction");
-        assert_eq!(names[names.len() - 1], "extraction_confidence");
-        for name in ["extraction", "extraction_confidence"] {
+        // native chunks simply leave them unset. (V9 appended `locator`
+        // after them — the locator-class columns stay a trailing block.)
+        assert_eq!(names[names.len() - 3], "extraction");
+        assert_eq!(names[names.len() - 2], "extraction_confidence");
+        assert_eq!(names[names.len() - 1], "locator");
+        for name in ["extraction", "extraction_confidence", "locator"] {
             let f = s.field_with_name(name).expect("field present");
             assert!(f.is_nullable(), "{name} must be nullable");
         }
         assert_eq!(
             s.field_with_name("extraction_confidence").unwrap().data_type(),
             &DataType::Float32
+        );
+        assert_eq!(
+            s.field_with_name("locator").unwrap().data_type(),
+            &DataType::Utf8
         );
     }
 
@@ -1612,6 +1739,7 @@ mod tests {
                 text: "mail body".into(),
                 start_offset: 0,
                 end_offset: 9,
+                locator: None,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
@@ -1643,6 +1771,7 @@ mod tests {
                     text: format!("text of {path}"),
                     start_offset: 0,
                     end_offset: 10,
+                    locator: None,
                 },
                 vec![seed; EMBEDDING_DIM],
             )]
@@ -1715,6 +1844,7 @@ mod tests {
                 text: plaintext.into(),
                 start_offset: 0,
                 end_offset: 11,
+                locator: None,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
@@ -1749,6 +1879,7 @@ mod tests {
                 text: plaintext.into(),
                 start_offset: 0,
                 end_offset: 9,
+                locator: None,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
@@ -1781,6 +1912,7 @@ mod tests {
                 text: plaintext.to_string(),
                 start_offset: 0,
                 end_offset: plaintext.len(),
+                locator: None,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
@@ -1814,6 +1946,7 @@ mod tests {
                 text: plaintext.to_string(),
                 start_offset: 0,
                 end_offset: plaintext.len(),
+                locator: None,
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
@@ -1848,6 +1981,7 @@ mod tests {
                     text: "First confidential paragraph.".into(),
                     start_offset: 0,
                     end_offset: 30,
+                    locator: None,
                 },
                 vec![0.1f32; EMBEDDING_DIM],
             ),
@@ -1858,6 +1992,7 @@ mod tests {
                     text: "Second confidential paragraph.".into(),
                     start_offset: 31,
                     end_offset: 61,
+                    locator: None,
                 },
                 vec![0.2f32; EMBEDDING_DIM],
             ),
@@ -1895,6 +2030,7 @@ mod tests {
                 text: "One chunk.".into(),
                 start_offset: 0,
                 end_offset: 10,
+                locator: None,
             },
             vec![0.5f32; EMBEDDING_DIM],
         )];
@@ -1917,6 +2053,7 @@ mod tests {
                 text: format!("confidential body for {path}"),
                 start_offset: 0,
                 end_offset: 10,
+                locator: None,
             },
             vec![seed; EMBEDDING_DIM],
         )];
@@ -2001,6 +2138,7 @@ mod tests {
                 text: "a file, not a message".into(),
                 start_offset: 0,
                 end_offset: 10,
+                locator: None,
             },
             vec![0.2f32; EMBEDDING_DIM],
         )];

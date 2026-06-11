@@ -31,6 +31,12 @@ pub struct Chunk {
     pub text: String,
     pub start_offset: usize,
     pub end_offset: usize,
+    /// VG-3c — page:line locator for certified deposition transcripts
+    /// ("startPage:startLine-endPage:endLine", e.g. "45:12-46:3"), stamped
+    /// by `transcript::chunk_transcript`. `None` on every other path. This
+    /// is metadata ON TOP of `paragraph_index` — the content-addressed
+    /// citation contract (`chunk_id(path, paragraph_index)`) is unchanged.
+    pub locator: Option<String>,
 }
 
 /// Split `text` from `path` into chunks. Produces at least one chunk for
@@ -71,6 +77,7 @@ pub fn chunk_text(path: &str, text: &str) -> Vec<Chunk> {
             text: buf.trim_end().to_string(),
             start_offset: *buf_start,
             end_offset: *buf_end,
+            locator: None,
         });
         *chunk_idx += 1;
         // Keep the last OVERLAP_BYTES of the buffer as the seed for the
@@ -116,6 +123,7 @@ pub fn chunk_text(path: &str, text: &str) -> Vec<Chunk> {
                     text: window.to_string(),
                     start_offset: p_start + cursor,
                     end_offset: p_start + end,
+                    locator: None,
                 });
                 chunk_idx += 1;
                 if end >= paragraph.len() {

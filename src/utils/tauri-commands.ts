@@ -110,11 +110,17 @@ export interface RagHit {
   /** WS-B/C: resolvable source (`/path/to/file` or `mail:<id>`). */
   sourceId?: string;
   /** A3: discriminates text vs PDF vs mail chunks. Absent on pre-A3 rows.
-   *  VG-2b adds the office formats (docx/xlsx/pptx/rtf). */
-  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf';
+   *  VG-2b adds the office formats (docx/xlsx/pptx/rtf); VG-3c adds
+   *  certified deposition transcripts. */
+  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf' | 'transcript';
   /** A3: 1-based page number for PDF chunks; VG-2b reuses it for the REAL
-   *  1-based sheet/slide number on xlsx/pptx chunks. Absent on pre-A3 rows. */
+   *  1-based sheet/slide number on xlsx/pptx chunks; VG-3c reuses it for a
+   *  transcript chunk's start page. Absent on pre-A3 rows. */
   pageNumber?: number;
+  /** VG-3c: page:line locator for certified deposition transcript chunks
+   *  (`"startPage:startLine-endPage:endLine"`, e.g. `"45:12-46:3"`). Absent
+   *  on every other source. Citation labels prefer it: "Tr. 45:12-46:3". */
+  locator?: string;
   /** WS-PRIV: the chunk's privilege status. Present post-WS-PRIV. Default
    *  retrieval only ever returns `'none'`; a non-`none` value appears only on an
    *  explicitly include-privileged query, so the UI can label it. */
