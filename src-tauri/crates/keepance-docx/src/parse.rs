@@ -64,6 +64,12 @@ fn local_name(e: &BytesStart) -> String {
 }
 
 /// Read a `w:*` attribute by local name (e.g. "author", "date", "id").
+///
+/// Values are XML-unescaped: the serializer re-escapes on write, so reading
+/// the raw bytes (`&amp;` staying literal) would grow one `amp;` per
+/// parse→save cycle in any author/date value containing `&` — progressive
+/// corruption. On a malformed escape sequence we fall back to the raw bytes
+/// (preserve-don't-crash, matching the crate's stance on bad input).
 fn attr(e: &BytesStart, want_local: &str) -> Option<String> {
     for a in e.attributes().with_checks(false).flatten() {
         let kb = a.key.as_ref();
@@ -72,7 +78,10 @@ fn attr(e: &BytesStart, want_local: &str) -> Option<String> {
             None => kb,
         };
         if local == want_local.as_bytes() {
-            return Some(String::from_utf8_lossy(&a.value).into_owned());
+            return Some(match a.unescape_value() {
+                Ok(v) => v.into_owned(),
+                Err(_) => String::from_utf8_lossy(&a.value).into_owned(),
+            });
         }
     }
     None

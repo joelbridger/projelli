@@ -1588,3 +1588,38 @@ fn test_clean_copy_preserves_unmodeled_parts() {
         "unmodeled styles.xml must survive a clean copy byte-for-byte"
     );
 }
+
+/// Attribute values must be XML-unescaped on parse (and re-escaped on
+/// serialize) so an author like "Smith & Jones LLP" never grows an extra
+/// `amp;` per save cycle. Pre-fix, `attr()` read the raw bytes: `&amp;`
+/// parsed as the literal string `&amp;`, the serializer re-escaped it to
+/// `&amp;amp;`, and every subsequent cycle grew it again — progressive
+/// corruption of tracked-change attribution.
+#[test]
+fn test_ampersand_author_attribute_does_not_grow_across_cycles() {
+    let document_xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:p><w:ins w:id=\"1\" w:author=\"Smith &amp; Jones LLP\" w:date=\"2026-06-11T00:00:00Z\"><w:r><w:t>inserted text</w:t></w:r></w:ins></w:p><w:sectPr><w:pgSz w:w=\"12240\" w:h=\"15840\"/></w:sectPr></w:body></w:document>";
+    let content_types = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/></Types>";
+    let root_rels = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/></Relationships>";
+
+    let mut pkg = Package::new();
+    pkg.insert("[Content_Types].xml", content_types.as_bytes().to_vec());
+    pkg.insert("_rels/.rels", root_rels.as_bytes().to_vec());
+    pkg.insert("word/document.xml", document_xml.as_bytes().to_vec());
+    let bytes = pkg.write_to_bytes().unwrap();
+
+    // Cycle 1: the model must hold the UNESCAPED author.
+    let doc1 = parse_docx_bytes(&bytes).expect("parse cycle 1");
+    assert_eq!(doc1.revisions()[0].0.author, "Smith & Jones LLP");
+
+    // Serialize and re-parse: the author must be stable and the on-disk XML
+    // must carry exactly one level of escaping, every cycle.
+    let bytes2 = serialize_docx_bytes(&doc1).expect("serialize cycle 1");
+    let doc2 = parse_docx_bytes(&bytes2).expect("parse cycle 2");
+    assert_eq!(doc2.revisions()[0].0.author, "Smith & Jones LLP");
+
+    let bytes3 = serialize_docx_bytes(&doc2).expect("serialize cycle 2");
+    let pkg3 = Package::read_from_bytes(&bytes3).unwrap();
+    let xml3 = String::from_utf8(pkg3.get("word/document.xml").unwrap().to_vec()).unwrap();
+    assert!(xml3.contains("w:author=\"Smith &amp; Jones LLP\""), "single escape level: {xml3}");
+    assert!(!xml3.contains("&amp;amp;"), "no escape growth: {xml3}");
+}
