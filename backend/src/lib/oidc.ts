@@ -44,13 +44,26 @@ const discoCache = new Map<string, { at: number; disco: OidcDiscovery }>();
 const jwksCache = new Map<string, { at: number; jwks: Jwks }>();
 
 export async function fetchDiscovery(issuer: string, get: HttpGet = defaultGet): Promise<OidcDiscovery> {
-  const cached = discoCache.get(issuer);
+  const normalizedIssuer = issuer.replace(/\/$/, "");
+  const cached = discoCache.get(normalizedIssuer);
   if (cached && Date.now() - cached.at < DISCO_TTL_MS) return cached.disco;
-  const wellKnown = issuer.replace(/\/$/, "") + "/.well-known/openid-configuration";
+  const wellKnown = normalizedIssuer + "/.well-known/openid-configuration";
   const res = await get(wellKnown);
   if (res.status !== 200 || !res.json?.token_endpoint) throw new Error("oidc_discovery_failed");
   const disco = res.json as OidcDiscovery;
-  discoCache.set(issuer, { at: Date.now(), disco });
+
+  // Fix 1 (I-1): RFC 8414 §3.3 — returned issuer MUST match the requested issuer (trailing-slash normalized)
+  if ((disco.issuer ?? "").replace(/\/$/, "") !== normalizedIssuer) {
+    throw new Error("oidc_issuer_mismatch");
+  }
+
+  // Fix 2 (M-6): all endpoint URLs must use https://
+  const endpoints: (string | undefined)[] = [disco.authorization_endpoint, disco.token_endpoint, disco.jwks_uri];
+  if (endpoints.some((ep) => typeof ep !== "string" || !ep.startsWith("https://"))) {
+    throw new Error("oidc_insecure_endpoint");
+  }
+
+  discoCache.set(normalizedIssuer, { at: Date.now(), disco });
   return disco;
 }
 
@@ -129,26 +142,48 @@ export async function verifyIdToken(
   let header: any, claims: IdTokenClaims;
   try { header = decodeSegment(h); claims = decodeSegment(p); }
   catch { return { ok: false, reason: "malformed" }; }
+
+  // Fix 4 (M-5): guard non-object header/claims (e.g. base64url-encoded null or array)
+  if (typeof header !== "object" || header === null || Array.isArray(header)) return { ok: false, reason: "malformed" };
+  if (typeof claims !== "object" || claims === null || Array.isArray(claims)) return { ok: false, reason: "malformed" };
+
   if (header.alg !== "RS256") return { ok: false, reason: "bad_alg" };
 
-  const jwk = opts.jwks.keys.find((k) => k.kid === header.kid) ?? opts.jwks.keys[0];
-  if (!jwk) return { ok: false, reason: "no_jwk" };
-  let pub;
-  try { pub = createPublicKey({ key: jwk as any, format: "jwk" }); }
-  catch { return { ok: false, reason: "bad_jwk" }; }
+  // Fix 3 (I-3): kid-miss must try ALL JWKS keys (supports IdP key rotation)
+  // If kid is present in the header, prefer the matching key; if none match (rotation),
+  // attempt verification against every key and accept if any succeeds.
+  const keys = opts.jwks.keys;
+  if (keys.length === 0) return { ok: false, reason: "no_jwk" };
 
-  const verifier = createVerify("RSA-SHA256");
-  verifier.update(`${h}.${p}`);
+  const headerKid: string | undefined = header.kid;
+  // Build an ordered candidate list: matching-kid key first, then all remaining keys.
+  const preferredIdx = headerKid !== undefined ? keys.findIndex((k) => k.kid === headerKid) : -1;
+  const orderedKeys = preferredIdx >= 0
+    ? [keys[preferredIdx], ...keys.slice(0, preferredIdx), ...keys.slice(preferredIdx + 1)]
+    : [...keys];
+
+  const signingInput = `${h}.${p}`;
+  const sigBuf = Buffer.from(s, "base64url");
   let sigOk = false;
-  try { sigOk = verifier.verify(pub, Buffer.from(s, "base64url")); }
-  catch { return { ok: false, reason: "signature_invalid" }; }
+  for (const jwk of orderedKeys) {
+    let pub;
+    try { pub = createPublicKey({ key: jwk as any, format: "jwk" }); }
+    catch { continue; } // malformed key — skip, not fatal
+    try {
+      const verifier = createVerify("RSA-SHA256");
+      verifier.update(signingInput);
+      if (verifier.verify(pub, sigBuf)) { sigOk = true; break; }
+    } catch { continue; }
+  }
   if (!sigOk) return { ok: false, reason: "signature_invalid" };
 
+  // Fix 5 (M-2): allow ±60s clock-skew on exp
+  const CLOCK_SKEW_S = 60;
   const now = opts.nowSeconds ?? Math.floor(Date.now() / 1000);
   if (claims.iss !== opts.issuer) return { ok: false, reason: "iss_mismatch" };
   const auds = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
   if (!auds.includes(opts.clientId)) return { ok: false, reason: "aud_mismatch" };
-  if (typeof claims.exp !== "number" || claims.exp < now) return { ok: false, reason: "expired" };
+  if (typeof claims.exp !== "number" || claims.exp < now - CLOCK_SKEW_S) return { ok: false, reason: "expired" };
   if (claims.nonce !== opts.nonce) return { ok: false, reason: "nonce_mismatch" };
   return { ok: true, claims };
 }
