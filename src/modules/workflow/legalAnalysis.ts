@@ -304,10 +304,12 @@ export async function runContradictionAnalysis(
   if (retrievalQuery) {
     try {
       chunks = await retrieve(retrievalQuery, topK, scope);
-    } catch {
+    } catch (err) {
       // VG-3b — retrieval down (no index yet, model missing, store error).
       // Fall back to the attorney's pasted excerpts ONLY, and say so in the
       // deliverable header. Refusal below covers the nothing-at-all case.
+      // eslint-disable-next-line no-console -- diagnosis trail behind the run record's retrievalUnavailable flag
+      console.warn('[legalAnalysis] workspace retrieval unavailable; analyzing pasted excerpts only:', err);
       retrievalUnavailable = true;
     }
   }
