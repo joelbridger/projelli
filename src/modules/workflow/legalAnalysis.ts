@@ -279,16 +279,48 @@ export interface RunContradictionAnalysisArgs {
  * plus verified/unverified counts) AND the retrieved chunks (so the engine can
  * record what grounded the analysis). The Word rendering happens in the engine
  * (via `serializeContradictionsDocx`) so this module stays import-light.
+ *
+ * VG-3b: when `retrieve` THROWS but the attorney pasted material (any of
+ * `config.pastedInputIds` is non-blank), the analysis proceeds on the pasted
+ * excerpts alone and returns `retrievalUnavailable: true` so the engine can
+ * disclose that in the deliverable header. With retrieval down AND nothing
+ * pasted it refuses — an analysis with no grounding at all is never produced.
  */
 export async function runContradictionAnalysis(
   args: RunContradictionAnalysisArgs,
-): Promise<{ result: ContradictionAnalysisResult; chunks: RetrievedChunk[]; retrievalQuery: string }> {
+): Promise<{
+  result: ContradictionAnalysisResult;
+  chunks: RetrievedChunk[];
+  retrievalQuery: string;
+  retrievalUnavailable: boolean;
+}> {
   const { provider, config, inputs, scope, retrieve, verify, interpolate } = args;
 
   // 1) Matter-scoped retrieval (privilege excluded by the injected retrieve fn).
   const retrievalQuery = interpolate(config.retrievalQueryTemplate, inputs).trim();
   const topK = config.topK ?? 12;
-  const chunks = retrievalQuery ? await retrieve(retrievalQuery, topK, scope) : [];
+  let chunks: RetrievedChunk[] = [];
+  let retrievalUnavailable = false;
+  if (retrievalQuery) {
+    try {
+      chunks = await retrieve(retrievalQuery, topK, scope);
+    } catch {
+      // VG-3b — retrieval down (no index yet, model missing, store error).
+      // Fall back to the attorney's pasted excerpts ONLY, and say so in the
+      // deliverable header. Refusal below covers the nothing-at-all case.
+      retrievalUnavailable = true;
+    }
+  }
+  if (retrievalUnavailable) {
+    const hasPasted = (config.pastedInputIds ?? []).some(
+      (id) => typeof inputs[id] === 'string' && (inputs[id] as string).trim().length > 0,
+    );
+    if (!hasPasted) {
+      throw new Error(
+        'Workspace retrieval is unavailable and no excerpts were pasted, so there is nothing to analyze from. Paste the transcript excerpts into the interview, or run again once matter memory is ready.',
+      );
+    }
+  }
 
   // 2) Structured findings from the model, grounded in the numbered context.
   const contextBlock = buildRetrievedContextBlock(chunks);
@@ -342,5 +374,5 @@ export async function runContradictionAnalysis(
     unverifiedCount: findings.length - verifiedCount,
   };
 
-  return { result, chunks, retrievalQuery };
+  return { result, chunks, retrievalQuery, retrievalUnavailable };
 }

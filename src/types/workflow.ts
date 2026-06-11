@@ -137,6 +137,11 @@ export interface AnalyzeStepConfig {
    * template's `verificationNote` (set by the caller) when omitted.
    */
   verificationBanner?: string;
+  /** VG-3b — interview input ids that count as attorney-pasted material.
+   *  When retrieval is unavailable, the analysis falls back to these (and
+   *  says so in the deliverable header) instead of failing; with none of
+   *  them filled it refuses. */
+  pastedInputIds?: string[];
 }
 
 /**

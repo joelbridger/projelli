@@ -66,6 +66,8 @@ export interface AnalyzeDeps {
       witnessName?: string;
       depositionDate?: string;
       verificationBanner: string;
+      /** VG-3b — honest disclosure when retrieval was unavailable or empty. */
+      retrievalNote?: string;
     },
   ) => Promise<Uint8Array>;
 }
@@ -395,7 +397,7 @@ export class WorkflowEngine {
 
     // Grounded, cited analysis. `analyzeKind` selects the pipeline; today the
     // litigation flagship is `'contradictions'`.
-    const { result, chunks, retrievalQuery } = await runContradictionAnalysis({
+    const { result, chunks, retrievalQuery, retrievalUnavailable } = await runContradictionAnalysis({
       provider: this.provider,
       config,
       inputs,
@@ -421,6 +423,14 @@ export class WorkflowEngine {
       ...(typeof inputs['depositionDate'] === 'string'
         ? { depositionDate: inputs['depositionDate'] as string }
         : {}),
+      // VG-3b — the deliverable says what grounded it. Retrieval down but
+      // excerpts pasted → analyzed only those, and the header says so. Empty
+      // (but working) retrieval → the no-documents disclosure.
+      ...(retrievalUnavailable
+        ? { retrievalNote: 'Analyzed only the excerpts you provided; workspace retrieval was unavailable for this run.' }
+        : chunks.length === 0
+          ? { retrievalNote: 'No matter documents were retrieved; this analysis covers only the excerpts you provided.' }
+          : {}),
     };
     const bytes = await this.analyzeDeps.serializeContradictions(result, meta);
     await this.fileOps.writeFileBinary(config.outputFile, bytes);
@@ -437,6 +447,8 @@ export class WorkflowEngine {
         scope,
         outputFile: config.outputFile,
         retrievedChunks: chunks.length,
+        // VG-3b — the run record carries whether retrieval was down.
+        retrievalUnavailable,
       },
       result: {
         totalFindings: result.totalCount,

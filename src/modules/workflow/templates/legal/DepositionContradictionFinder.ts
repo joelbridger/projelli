@@ -126,6 +126,9 @@ export const DepositionContradictionFinder: WorkflowTemplate = {
         outputFile: 'Deposition Contradiction Analysis.docx',
         retrievalQueryTemplate,
         topK: 12,
+        // VG-3b — these interview answers are attorney-pasted material the
+        // analysis honestly falls back to when workspace retrieval is down.
+        pastedInputIds: ['depositionExcerpts', 'priorStatements'],
         promptTemplate: contradictionFinderPrompt,
         documentTitle: 'Deposition Contradiction Analysis: {{witnessName}}',
         verificationBanner:

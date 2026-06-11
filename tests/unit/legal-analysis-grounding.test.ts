@@ -8,6 +8,12 @@
  * containment against the retrieved chunks — the "quote match" half the
  * legalAnalysis module docstring always promised. Fabricated quotes must
  * still match nothing (verification is never weakened).
+ *
+ * VG-3b — honest fallback when retrieval is UNAVAILABLE (throws): analyze the
+ * attorney's pasted excerpts and report `retrievalUnavailable: true` so the
+ * deliverable can say so; refuse only when there is genuinely nothing to
+ * analyze (retrieval down AND nothing pasted). Empty-but-working retrieval
+ * stays `retrievalUnavailable: false`.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -99,5 +105,98 @@ describe('runContradictionAnalysis recovers omitted sourceNumber by quote (F-503
     expect(verify).toHaveBeenCalledTimes(2);
     expect(verify).toHaveBeenCalledWith('a'.repeat(64), 'm1', expect.any(String));
     expect(result.verifiedCount).toBe(1);
+  });
+});
+
+describe('runContradictionAnalysis honest fallback when retrieval is unavailable (VG-3b)', () => {
+  const scope: RetrievalScope = { kind: 'matter', matterId: 'm1' };
+
+  function pastedConfig(): AnalyzeStepConfig {
+    return {
+      analyzeKind: 'contradictions',
+      retrievalQueryTemplate: 'q',
+      promptTemplate: 'p',
+      outputFile: 'o.docx',
+      pastedInputIds: ['depositionExcerpts', 'priorStatements'],
+    };
+  }
+
+  function findingProvider(): Provider {
+    const provider = createMockProvider();
+    provider.structuredOutput = (async () => ({
+      findings: [
+        {
+          topic: 'Email receipt',
+          statementA: { sourceNumber: 0, quote: 'I never received the email from Mr. Johnson.' },
+          statementB: { sourceNumber: 0, quote: 'I received it and forwarded it to my supervisor.' },
+          conflictRationale: 'Denies receipt, then admits it.',
+        },
+      ],
+    })) as Provider['structuredOutput'];
+    return provider;
+  }
+
+  it('falls back to the pasted excerpts when retrieve throws, and reports it', async () => {
+    const retrieve = vi.fn(async (): Promise<RetrievedChunk[]> => {
+      throw new Error('embedding model not ready');
+    });
+
+    const { result, chunks: returnedChunks, retrievalUnavailable } = await runContradictionAnalysis({
+      provider: findingProvider(),
+      config: pastedConfig(),
+      inputs: {
+        depositionExcerpts: 'P. 42:3-18\nQ: Did you receive the email?\nA: No, never.',
+      },
+      scope,
+      retrieve,
+      verify: vi.fn(async () => 'verified' as const),
+      interpolate: (tpl) => tpl,
+    });
+
+    expect(retrievalUnavailable).toBe(true);
+    expect(returnedChunks).toEqual([]);
+    // The model still analyzed the pasted material…
+    expect(result.findings).toHaveLength(1);
+    // …but with no retrieved record nothing can claim verification — the
+    // Avianca-trap discipline is never weakened by the fallback.
+    expect(result.verifiedCount).toBe(0);
+    expect(result.findings[0]!.verified).toBe(false);
+  });
+
+  it('refuses when retrieval is down AND nothing was pasted (never answer from nothing)', async () => {
+    const retrieve = vi.fn(async (): Promise<RetrievedChunk[]> => {
+      throw new Error('vector store offline');
+    });
+
+    await expect(
+      runContradictionAnalysis({
+        provider: findingProvider(),
+        config: pastedConfig(),
+        // Whitespace-only counts as nothing pasted.
+        inputs: { depositionExcerpts: '   ' },
+        scope,
+        retrieve,
+        verify: vi.fn(async () => 'verified' as const),
+        interpolate: (tpl) => tpl,
+      }),
+    ).rejects.toThrow(/nothing to analyze from/);
+  });
+
+  it('keeps retrievalUnavailable false on EMPTY (but working) retrieval', async () => {
+    const provider = createMockProvider();
+    provider.structuredOutput = (async () => ({ findings: [] })) as Provider['structuredOutput'];
+
+    const { chunks: returnedChunks, retrievalUnavailable } = await runContradictionAnalysis({
+      provider,
+      config: pastedConfig(),
+      inputs: { depositionExcerpts: 'P. 42: some excerpt' },
+      scope,
+      retrieve: vi.fn(async () => [] as RetrievedChunk[]),
+      verify: vi.fn(async () => 'verified' as const),
+      interpolate: (tpl) => tpl,
+    });
+
+    expect(retrievalUnavailable).toBe(false);
+    expect(returnedChunks).toHaveLength(0);
   });
 });

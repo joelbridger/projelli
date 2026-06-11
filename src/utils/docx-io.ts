@@ -1067,6 +1067,10 @@ export async function serializeContradictionsDocx(
     witnessName?: string;
     depositionDate?: string;
     verificationBanner: string;
+    /** VG-3b — honest disclosure of what grounded the analysis (rendered
+     *  right under the verification banner when retrieval was unavailable
+     *  or returned nothing). */
+    retrievalNote?: string;
   },
   options: DocxExportOptions = {},
 ): Promise<Uint8Array> {
@@ -1091,6 +1095,17 @@ export async function serializeContradictionsDocx(
     }),
     new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: meta.title })] }),
   ];
+
+  // VG-3b — the retrieval disclosure sits directly under the verification
+  // banner so the reader knows what grounded the analysis before anything else.
+  if (meta.retrievalNote) {
+    headerLines.splice(1, 0,
+      new Paragraph({
+        spacing: { after: 160 },
+        children: [new TextRun({ text: meta.retrievalNote, bold: true, size: 22, color: 'B23B00' })],
+      }),
+    );
+  }
 
   if (meta.matterName) {
     headerLines.push(

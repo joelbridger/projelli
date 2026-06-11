@@ -23,7 +23,8 @@ import JSZip from 'jszip';
 import { LEGAL_TEMPLATES } from '../../src/modules/workflow/templates/legal/index';
 import { WorkflowEngine } from '../../src/modules/workflow/WorkflowEngine';
 import { MockProvider } from '../../src/modules/models/MockProvider';
-import type { WorkflowTemplate } from '../../src/types/workflow';
+import { serializeContradictionsDocx } from '../../src/utils/docx-io';
+import type { WorkflowTemplate, ContradictionAnalysisResult } from '../../src/types/workflow';
 
 // ─── 1. All legal templates declare .docx outputFile ─────────────────────────
 
@@ -125,5 +126,29 @@ describe('F-112 — ClientIntakeSynthesizer is .docx (flagship template)', () =>
     const config = generateStep!.config as { outputFile: string };
     expect(config.outputFile).toBe('CLIENT_INTAKE_PACKAGE.docx');
     expect(template!.outputs).toContain('CLIENT_INTAKE_PACKAGE.docx');
+  });
+});
+
+// ─── 4. VG-3b — retrieval-unavailable honesty header in the deliverable ──────
+
+describe('VG-3b — contradictions docx carries the retrieval-unavailable note', () => {
+  it('renders the retrievalNote sentence in the document header', async () => {
+    const result: ContradictionAnalysisResult = {
+      findings: [],
+      totalCount: 0,
+      verifiedCount: 0,
+      unverifiedCount: 0,
+    };
+    const note =
+      'Analyzed only the excerpts you provided; workspace retrieval was unavailable for this run.';
+    const bytes = await serializeContradictionsDocx(result, {
+      title: 'Deposition Contradiction Analysis: Jane Doe',
+      verificationBanner: 'Verify before relying.',
+      retrievalNote: note,
+    });
+
+    const zip = await JSZip.loadAsync(bytes);
+    const docXml = await zip.file('word/document.xml')!.async('string');
+    expect(docXml).toContain(note);
   });
 });
