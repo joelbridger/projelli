@@ -38,6 +38,11 @@
     /* Path aliases */
     "baseUrl": ".",
     "paths": {
+      // tesseract-wasm 0.11.0 ships dist/index.d.ts but its package.json
+      // "exports" map has no "types" condition, so bundler-mode tsc can't
+      // resolve it. Types-only mapping; runtime resolution (Vite/Vitest)
+      // uses the real "exports" entry (dist/lib.js) and is unaffected.
+      "tesseract-wasm": ["./node_modules/tesseract-wasm/dist/index.d.ts"],
       "@/*": ["./src/*"],
       "@/components/*": ["./src/components/*"],
       "@/modules/*": ["./src/modules/*"],
