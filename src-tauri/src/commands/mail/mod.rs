@@ -854,9 +854,12 @@ async fn index_mail_text_internal(
     }
 
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
-    let vectors = crate::commands::rag::embedder::embed_documents(&texts)
+    // F-501-class hardening: bounded batches even for a pathological multi-MB
+    // plaintext body. No cancel flag on the mail path, so Some is guaranteed.
+    let vectors = crate::commands::rag::embedder::embed_documents_batched(&texts, None)
         .await
-        .context("embed mail chunks")?;
+        .context("embed mail chunks")?
+        .unwrap_or_default();
     let rows: Vec<(crate::commands::rag::chunker::Chunk, Vec<f32>)> =
         chunks.into_iter().zip(vectors).collect();
 

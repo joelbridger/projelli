@@ -1577,3 +1577,7 @@ git push origin keepance-3.0
 - **Known judgment calls left to the implementer (each flagged in its step):** exact exported name of the `detect_libreoffice` wrapper; the `onOpenFileAtPath` intermediate hop names; MarkdownEditor mount-order placement of the pending-scroll consume; `FirmMatter` field names; whether `firm-collaboration.spec.ts` is mock-backed; locale section placement.
 - **Cross-task interactions:** T1 and T6 both touch `mod.rs`/`store.rs` (disjoint regions); T4 and T5 both touch `AIChatViewer.tsx` (disjoint regions: verify sites vs chip/accordion handlers); T3 and T5 and T6 all touch `App.tsx` (disjoint regions). Execute in order and conflicts cannot arise.
 - **Out of scope (deliberate):** prompt-grammar changes for chat citations (cloud tier works; deterministic repair is strictly safer), VG-3c/d, VG-4b/c, VG-6b/c/e, OCR (Wave 2+), marker-free fixture variant (RESULTS.md follow-up note), F-507a model-quality chasing, any website deploy.
+
+---
+
+**Orchestrator addendum (2026-06-11, post-Task-1 review):** the Task 1 reviewer's call-site audit found the F-501 class ALSO lived in `pdf_indexer.rs:99` (whole-PDF embed, NO upstream size cap — worse-exposed than the text path for long legal PDFs) and, as cheap hardening, `mail/mod.rs:857` (per-message, pathological-body case). Both routed through `embed_documents_batched(.., None)` directly by the orchestrator (commit referenced below); lib suite green. F-501 is closed as a CLASS only with these in.

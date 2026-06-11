@@ -21,7 +21,7 @@ use anyhow::Result;
 use lancedb::Table;
 
 use super::chunker::{chunk_text, Chunk, BYTES_PER_TOKEN, TARGET_TOKENS};
-use super::embedder::embed_documents;
+use super::embedder::embed_documents_batched;
 use super::store::{delete_path, SourceType};
 
 pub const MAX_CHUNKS_PER_PAGE: u32 = 100;
@@ -96,7 +96,12 @@ pub async fn index_pdf_chunks(
     }
 
     let texts: Vec<String> = all_chunks.iter().map(|c| c.text.clone()).collect();
-    let vectors = embed_documents(&texts).await?;
+    // F-501 class: a long legal PDF (hundreds of pages, no upstream size cap)
+    // must never embed in one unbounded call. No cancel flag on this path, so
+    // the batched helper always returns Some.
+    let Some(vectors) = embed_documents_batched(&texts, None).await? else {
+        return Ok(0);
+    };
     let count = all_chunks.len();
 
     // Each chunk carries a SourceType derived from its paragraph_index band.
