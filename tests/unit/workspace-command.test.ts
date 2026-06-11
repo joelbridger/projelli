@@ -311,4 +311,17 @@ describe('normalizeNumericCitations (F-503)', () => {
   it('is a no-op with no sources', () => {
     expect(normalizeNumericCitations('See [1 paragraph 2].', [])).toBe('See [1 paragraph 2].');
   });
+
+  it('never rewrites array indexing, footnote markers in quoted prose, or chained brackets', () => {
+    // Task 4 review counterexamples: bare [N] preceded by a word char or `]`
+    // is syntax, not a citation — rewriting it corrupts verbatim quotes.
+    const code = 'Check items[1] and data[2] before use.';
+    expect(normalizeNumericCitations(code, sources)).toBe(code);
+    const quoted = 'The witness said "the terms[1] set forth herein control."';
+    expect(normalizeNumericCitations(quoted, sources)).toBe(quoted);
+    const chained = 'matrix[0][1] stays untouched.';
+    expect(normalizeNumericCitations(chained, sources)).toBe(chained);
+    // A genuine bare citation after a space still rewrites.
+    expect(normalizeNumericCitations('Conflicting dates [1].', sources)).toContain('paragraph');
+  });
 });

@@ -205,7 +205,11 @@ export function normalizeNumericCitations(
     /\[(\d{1,3})\s+(?:paragraph\s+|§\s*)\d+\]/gi,
     (match, nStr: string) => rewrite(Number.parseInt(nStr, 10)) ?? match,
   );
-  out = out.replace(/\[(\d{1,3})\](?!\()/g, (match, nStr: string) => {
+  // Bare-[N] hardening (Task 4 review): `items[1]`, `terms[1]` in quoted
+  // prose, and chained `][1]` are array/footnote syntax, not citations —
+  // rewriting them would corrupt verbatim-quoted text in a legal app. Only a
+  // bare [N] NOT preceded by a word character or `]` is a citation candidate.
+  out = out.replace(/(?<![\w\]])\[(\d{1,3})\](?!\()/g, (match, nStr: string) => {
     const n = Number.parseInt(nStr, 10);
     if (n < 1 || n > sources.length) return match;
     return rewrite(n) ?? match;
