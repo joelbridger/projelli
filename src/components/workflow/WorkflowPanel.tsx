@@ -70,6 +70,12 @@ interface WorkflowPanelProps {
    * app owns the engine, so the panel just hands back the saved chain.
    */
   onRunChain?: (chain: WorkflowChain) => void;
+  /** F-502 — when set, the last Run click was blocked before any folder/tab
+   *  was created. Rendered as a banner at the top of the panel so the click
+   *  never silently does nothing. */
+  providerError?: 'needs-provider' | 'ollama-unreachable' | null;
+  /** Open Settings > AI (used by the banner action). */
+  onOpenSettings?: () => void;
 }
 
 export function WorkflowPanel({
@@ -78,6 +84,8 @@ export function WorkflowPanel({
   runHistory,
   onFocusExecutionTab,
   onRunChain,
+  providerError,
+  onOpenSettings,
 }: WorkflowPanelProps) {
   const { t } = useTranslation();
   // 30-day trial gate. Locks template + chain runs when expired and not paid.
@@ -211,6 +219,38 @@ export function WorkflowPanel({
         >
           <strong>{t('workflow.panel.trial-ended-label')}</strong>{' '}
           {t('workflow.panel.trial-ended-description')}
+        </div>
+      )}
+      {/* F-502 — blocked-run banner. handleStartWorkflow returns BEFORE
+          creating the workflow folder/tab when provider resolution blocks
+          (no empty folder litter), so the execution-tab banner has no
+          surface for a fresh click. This banner, right where the user just
+          clicked Run, is that surface. */}
+      {providerError && (
+        <div
+          data-testid="workflow-provider-error-banner"
+          className="m-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm"
+          role="alert"
+        >
+          <p className="font-medium">
+            {t(
+              providerError === 'ollama-unreachable'
+                ? 'workflow.execution.ollama-unreachable-title'
+                : 'workflow.execution.needs-provider-title',
+            )}
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            {t(
+              providerError === 'ollama-unreachable'
+                ? 'workflow.execution.ollama-unreachable-body'
+                : 'workflow.execution.needs-provider-body',
+            )}
+          </p>
+          {onOpenSettings && providerError === 'needs-provider' && (
+            <Button size="sm" variant="outline" className="mt-2" onClick={onOpenSettings}>
+              {t('workflow.execution.needs-provider-action')}
+            </Button>
+          )}
         </div>
       )}
       {/* Header — sized for the narrow sidebar slot. Title truncates,

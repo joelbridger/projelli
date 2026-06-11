@@ -111,6 +111,18 @@ export interface ResolveWorkflowProviderInput {
   ollamaReachable: boolean;
   /** True only in test/E2E mode — permits MockProvider when no real key exists. */
   isTestMode: boolean;
+  /**
+   * F-502 — true when the confidentiality mode restricts inference to local
+   * models (modeRestrictsToLocal). In this mode resolution NEVER yields
+   * 'cloud' or 'mock', regardless of keys or testMode.
+   */
+  localOnly: boolean;
+  /**
+   * F-502 — installed Ollama tags (detectOllama().models). Used in local-only
+   * mode to land a cloud pin/default on the first installed model. Empty when
+   * none are installed or the probe was skipped.
+   */
+  installedOllamaModels: string[];
 }
 
 /**
@@ -118,11 +130,14 @@ export interface ResolveWorkflowProviderInput {
  *
  * The caller (handleStartWorkflow in App.tsx) is responsible for:
  *   1. Calling resolveTemplateModel() to get pickedProvider + pickedModel.
- *   2. Calling detectOllama() when pickedProvider === 'ollama' and passing
- *      the result as ollamaReachable.
+ *   2. Calling detectOllama() when pickedProvider === 'ollama' OR the
+ *      confidentiality mode is local-only, passing the result as
+ *      ollamaReachable + installedOllamaModels.
  *   3. Acting on the returned discriminated union.
  *
  * Safety invariants (see test suite for regression coverage):
+ *   • localOnly                  → 'ollama' | 'ollama-unreachable' ONLY
+ *                                   (NEVER 'cloud', NEVER 'mock')
  *   • ollama + !ollamaReachable  → 'ollama-unreachable'   (NEVER 'cloud')
  *   • no key + !isTestMode       → 'needs-provider'        (NEVER 'mock')
  *   • no key + isTestMode        → 'mock'
@@ -131,7 +146,33 @@ export interface ResolveWorkflowProviderInput {
 export function resolveWorkflowProvider(
   input: ResolveWorkflowProviderInput,
 ): WorkflowProviderResolution {
-  const { pickedProvider, pickedModel, anthropicKey, openaiKey, googleKey, ollamaReachable, isTestMode } = input;
+  const {
+    pickedProvider,
+    pickedModel,
+    anthropicKey,
+    openaiKey,
+    googleKey,
+    ollamaReachable,
+    isTestMode,
+    localOnly,
+    installedOllamaModels,
+  } = input;
+
+  // F-502 — Local-only confidentiality mode: workflows run on Ollama, full
+  // stop. A cloud pin/default is overridden to the first installed local
+  // model (the chat surface's behavior); an explicit ollama pin keeps its
+  // model. NEVER 'cloud' and NEVER 'mock' in this mode — the mode is a
+  // confidentiality promise, not a preference.
+  if (localOnly) {
+    if (!ollamaReachable) {
+      return { kind: 'ollama-unreachable' };
+    }
+    const model =
+      pickedProvider === 'ollama' && pickedModel
+        ? pickedModel
+        : installedOllamaModels[0];
+    return { kind: 'ollama', model };
+  }
 
   // Ollama branch — the template is pinned to local inference.
   if (pickedProvider === 'ollama') {

@@ -10,7 +10,7 @@
  * `resolveTemplateModel` for the full precedence rules.
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,10 @@ import {
   TEMPLATE_MODEL_OVERRIDES_KEY,
   type TemplateModelOverride,
 } from '@/modules/workflow/resolveTemplateModel';
+import {
+  detectOllama,
+  formatOllamaDisplayName,
+} from '@/modules/models/OllamaProvider';
 
 interface TemplateModelSettingsProps {
   /** All templates to show (built-ins first, then user templates). */
@@ -28,10 +32,11 @@ interface TemplateModelSettingsProps {
 }
 
 /**
- * Provider -> list of model id/label pairs we offer in the dropdown.
- * Kept as an inline constant so this settings surface doesn't need to wait
- * for a live model-list fetch. Users with unusual models can always fall
- * back to the free-text "Other" option.
+ * Provider -> static fallback list of model id/label pairs for the dropdown.
+ * Cloud providers use these as-is so this settings surface never waits on a
+ * live model-list fetch. The Ollama entry is only the fallback: when the
+ * local daemon is reachable, the dropdown is replaced by the tags actually
+ * installed on this machine (detectOllama — F-502 sub-finding).
  */
 const PROVIDER_MODEL_OPTIONS: Record<
   TemplateProviderId,
@@ -64,13 +69,41 @@ const PROVIDER_LABEL: Record<TemplateProviderId, string> = {
   ollama: 'Ollama',
 };
 
-function firstModelFor(provider: TemplateProviderId): string {
-  return PROVIDER_MODEL_OPTIONS[provider][0]?.value ?? '';
-}
-
 export function TemplateModelSettings({ templates }: TemplateModelSettingsProps) {
   const { t } = useTranslation();
   const { getSetting, setSetting } = useSettingsStore();
+
+  // F-502 sub-finding — the Ollama dropdown now reflects what is actually
+  // installed (detectOllama, same source as the chat picker) instead of a
+  // hardcoded pair that may not exist on this machine. Falls back to the
+  // static pair when the daemon is unreachable so the control stays usable.
+  const [liveOllamaModels, setLiveOllamaModels] = useState<string[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void detectOllama().then((res) => {
+      if (!cancelled && res.reachable) setLiveOllamaModels(res.models);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const modelOptionsFor = useCallback(
+    (provider: TemplateProviderId): { value: string; label: string }[] =>
+      provider === 'ollama' && liveOllamaModels.length > 0
+        ? liveOllamaModels.map((m) => ({
+            value: m,
+            label: formatOllamaDisplayName(m),
+          }))
+        : PROVIDER_MODEL_OPTIONS[provider],
+    [liveOllamaModels]
+  );
+
+  // First entry of the LIVE list for ollama (static fallback otherwise) so a
+  // provider switch seeds an installed model, consistent with the dropdown.
+  const firstModelFor = useCallback(
+    (provider: TemplateProviderId): string =>
+      modelOptionsFor(provider)[0]?.value ?? '',
+    [modelOptionsFor]
+  );
 
   const overrides = useMemo(
     () =>
@@ -107,7 +140,7 @@ export function TemplateModelSettings({ templates }: TemplateModelSettingsProps)
         });
       }
     },
-    [overrides, updateOverride]
+    [overrides, updateOverride, firstModelFor]
   );
 
   const handleModelChange = useCallback(
@@ -149,7 +182,7 @@ export function TemplateModelSettings({ templates }: TemplateModelSettingsProps)
           const activeProvider: TemplateProviderId =
             override?.provider ?? tpl.defaultProvider ?? 'claude';
           const activeModel = override?.model ?? tpl.defaultModel ?? '';
-          const modelOptions = PROVIDER_MODEL_OPTIONS[activeProvider];
+          const modelOptions = modelOptionsFor(activeProvider);
           return (
             <div
               key={tpl.id}

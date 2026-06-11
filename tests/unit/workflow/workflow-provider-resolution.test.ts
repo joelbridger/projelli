@@ -18,12 +18,15 @@
  *   5. cloud key present + no pin → 'cloud'
  *   6. settings override to ollama wins over cloud key
  *   7. explicit cloud pin wins over template default which wins over global
+ *   8. F-502 — local-only mode resolves to the installed Ollama model and
+ *      can NEVER yield 'cloud' or 'mock' (the mode-level egress invariant)
  */
 
 import { describe, it, expect } from 'vitest';
 import {
   resolveWorkflowProvider,
   resolveTemplateModel,
+  type ResolveWorkflowProviderInput,
   type WorkflowProviderResolution,
   type TemplateModelOverride,
 } from '@/modules/workflow/resolveTemplateModel';
@@ -99,7 +102,34 @@ function resolve(input: HelperInput): WorkflowProviderResolution {
     googleKey,
     ollamaReachable,
     isTestMode,
+    // F-502 — the end-to-end cases above all model the default (cloud-capable)
+    // confidentiality mode; local-only behavior is exercised via makeInput.
+    localOnly: false,
+    installedOllamaModels: [],
   });
+}
+
+/**
+ * F-502 — direct input builder for resolveWorkflowProvider. The end-to-end
+ * `resolve()` helper above routes through resolveTemplateModel first; these
+ * defaults let the local-only cases pin the picked provider/model directly
+ * and override only what each case is about.
+ */
+function makeInput(
+  overrides: Partial<ResolveWorkflowProviderInput> = {},
+): ResolveWorkflowProviderInput {
+  return {
+    pickedProvider: 'claude',
+    pickedModel: undefined,
+    anthropicKey: undefined,
+    openaiKey: undefined,
+    googleKey: undefined,
+    ollamaReachable: false,
+    isTestMode: false,
+    localOnly: false,
+    installedOllamaModels: [],
+    ...overrides,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -280,5 +310,45 @@ describe('F-107 — resolution precedence end-to-end', () => {
       isTestMode: false,
     });
     expect(result.kind).toBe('needs-provider');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// F-502 — Local-only confidentiality mode (the mode-level egress invariant)
+// ---------------------------------------------------------------------------
+
+describe('F-502 — local-only mode', () => {
+  it('resolves a cloud-pinned template to ollama in local-only mode (never cloud, even with keys)', () => {
+    const r = resolveWorkflowProvider(makeInput({
+      pickedProvider: 'claude', pickedModel: 'claude-sonnet-4-6',
+      anthropicKey: 'sk-real', localOnly: true,
+      ollamaReachable: true, installedOllamaModels: ['llama3.2:3b', 'qwen2.5:7b'],
+    }));
+    expect(r).toEqual({ kind: 'ollama', model: 'llama3.2:3b' });
+  });
+
+  it('keeps an explicit ollama pin in local-only mode', () => {
+    const r = resolveWorkflowProvider(makeInput({
+      pickedProvider: 'ollama', pickedModel: 'qwen2.5:7b',
+      localOnly: true, ollamaReachable: true,
+      installedOllamaModels: ['llama3.2:3b', 'qwen2.5:7b'],
+    }));
+    expect(r).toEqual({ kind: 'ollama', model: 'qwen2.5:7b' });
+  });
+
+  it('local-only + ollama unreachable is ollama-unreachable, never needs-provider/cloud/mock', () => {
+    const r = resolveWorkflowProvider(makeInput({
+      pickedProvider: 'claude', anthropicKey: 'sk-real',
+      localOnly: true, ollamaReachable: false, isTestMode: true,
+    }));
+    expect(r).toEqual({ kind: 'ollama-unreachable' });
+  });
+
+  it('local-only with no installed models still resolves to ollama with model undefined (constructor default applies)', () => {
+    const r = resolveWorkflowProvider(makeInput({
+      pickedProvider: 'claude', localOnly: true,
+      ollamaReachable: true, installedOllamaModels: [],
+    }));
+    expect(r).toEqual({ kind: 'ollama', model: undefined });
   });
 });

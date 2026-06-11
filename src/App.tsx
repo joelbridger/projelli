@@ -88,6 +88,10 @@ import { createClaudeProvider } from '@/modules/models/ClaudeProvider';
 import { createOpenAIProvider } from '@/modules/models/OpenAIProvider';
 import { createGeminiProvider } from '@/modules/models/GeminiProvider';
 import { OllamaProvider, detectOllama, OLLAMA_DEFAULT_MODEL } from '@/modules/models/OllamaProvider';
+// F-502 — workflow provider resolution must honor the confidentiality mode.
+// getConfidentialityMode is the non-reactive read (correct inside a handler).
+import { modeRestrictsToLocal } from '@/modules/privacy/egress';
+import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
 import { FileSystemWatcher, createFileTreeSnapshot } from '@/modules/workspace/FileSystemWatcher';
 import { resolveWorkspacePath } from '@/modules/workspace/pathResolve';
 import {
@@ -2330,10 +2334,17 @@ function App() {
       // F-107 — probe Ollama reachability when the template is pinned to it.
       // We pass the result into the pure helper rather than doing the async
       // check inside it, keeping resolveWorkflowProvider synchronous/testable.
+      // F-502 — ALSO probe in local-only confidentiality mode: the resolver
+      // must land on an installed local model (or block honestly) no matter
+      // what the template/global default says, so it needs reachability plus
+      // the installed tag list.
+      const localOnly = modeRestrictsToLocal(getConfidentialityMode());
       let ollamaReachable = false;
-      if (pickedProvider === 'ollama') {
+      let installedOllamaModels: string[] = [];
+      if (pickedProvider === 'ollama' || localOnly) {
         const ollamaStatus = await detectOllama();
         ollamaReachable = ollamaStatus.reachable;
+        installedOllamaModels = ollamaStatus.models;
       }
 
       // Pure resolution — decides kind, never creates providers or side-effects.
@@ -2345,6 +2356,8 @@ function App() {
         googleKey,
         ollamaReachable,
         isTestMode: IS_TEST_MODE,
+        localOnly,
+        installedOllamaModels,
       });
 
       // Handle the two early-return blocking cases BEFORE creating the folder
@@ -3432,6 +3445,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onStartWorkflow={handleStartWorkflow}
               currentExecution={currentExecution}
               runHistory={runHistory}
+              // F-502 — surface a blocked run right where the user clicked
+              // Run (no folder/tab exists yet for the execution-tab banner).
+              providerError={workflowProviderError}
+              onOpenSettings={() => openSettings('ai')}
               onFocusExecutionTab={() => {
                 // Prefer the tracked active workflow file path (live run);
                 // fall back to scanning open tabs for any `.workflow` file
