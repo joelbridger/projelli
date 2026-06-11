@@ -586,6 +586,10 @@ function parseXlsx(buffer: ArrayBuffer, extension: 'xlsx' | 'xls'): SheetModel {
     cellDates: true,
     cellFormula: true,
     cellNF: true, // keep number-format strings so `w` is populated for typed cells
+    // F-506: surface formula cells whose cached value is empty (openpyxl-
+    // class writers emit `<f>…</f><v></v>`); without this SheetJS drops the
+    // cell entirely, the formula never renders, and a save destroys it.
+    sheetStubs: true,
   });
 
   const sheets: SheetData[] = workbook.SheetNames.map((sheetName) => {
@@ -659,6 +663,13 @@ function parseWorksheet(name: string, worksheet: XLSX.WorkSheet): SheetData {
 
 function cellToSheetCell(cell: XLSX.CellObject | undefined): SheetCell | null {
   if (!cell) return null;
+
+  // F-506: with `sheetStubs: true`, blank cells arrive as `{t:'z'}` stubs.
+  // A stub WITH a formula is a real formula cell whose author cached no
+  // value — keep it so `hasFormulas` trips and the engine computes it live.
+  // A stub WITHOUT a formula is genuinely blank — drop it so the model and
+  // serializeXlsx don't bloat with empty cells.
+  if (cell.t === 'z' && !cell.f) return null;
 
   // Prefer the formatted display string (`w`) when SheetJS computed one —
   // this is what Excel shows after applying the number format.

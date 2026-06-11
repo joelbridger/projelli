@@ -16,12 +16,12 @@
  *      runs for real; it returns before any provider/API-key code).
  *   3. The xlsx open → edit → recompute → save-artifact → reopen round-trip
  *      over the campaign's damages-model.xlsx, asserting the FORMULA
- *      survives (=SUM(B2:B7) is not flattened to a number). This is a
- *      recorded product finding: see the expected-fail test below — SheetJS
- *      drops formula cells whose cached value is empty (openpyxl-authored
- *      files), so the TOTAL cells never render and any edit+save silently
- *      strips the formulas. Kept at full assertion strength as the fix
- *      tripwire.
+ *      survives (=SUM(B2:B7) is not flattened to a number). Formerly the
+ *      F-506 expected-fail tripwire (SheetJS dropped formula cells whose
+ *      cached value is empty, so openpyxl-authored totals neither rendered
+ *      nor survived a save); fixed in the Wave 1 fix wave (`sheetStubs:
+ *      true` + stub handling in spreadsheet-io.ts) and now a normal test at
+ *      full assertion strength.
  *   4. exhibit-deck.pptx parses and renders its real slide text through the
  *      honest no-LibreOffice fallback outline. (There is NO pptx editing in
  *      the product — the export side is unit-covered in pptx-export.test.ts.)
@@ -319,46 +319,21 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     return `data:${mime};base64,${Buffer.from(bytes).toString('base64')}`;
   }
 
-  test('FINDING (expected fail): xlsx round-trip — SheetJS drops openpyxl formula cells, so the TOTAL never renders and edits silently strip the formulas', async ({
+  test('xlsx round-trip: openpyxl formula cells render, recompute, and survive edit + save (F-506 fixed)', async ({
     page,
   }, testInfo) => {
-    // PRODUCT FINDING — harness proves, never fixes (F-5xx row for the
-    // RESULTS.md ledger, Task 7): the real damages-model.xlsx opens, but
-    // both TOTAL cells (B10 `=SUM(B2:B7)`, B11 `=SUM(B2:B8)`) render EMPTY —
-    // no computed value, no ƒ indicator — and the round-trip below can never
-    // start. Diagnosis (reproduced against the repo's pinned SheetJS 0.20.3):
-    //
-    //   - openpyxl never computes formulas; the fixture stores the formula
-    //     with an EMPTY cached value: `<c r="B10"><f>SUM(B2:B7)</f><v></v></c>`
-    //     (raw sheet1.xml of tests/fixtures/matter-corpus/damages-model.xlsx).
-    //   - With the production read options (spreadsheet-io.ts:584-589 —
-    //     cellDates/cellFormula/cellNF, NO `sheetStubs`), `XLSX.read` treats
-    //     a formula cell with an empty cached value as a stub and DROPS it:
-    //     `ws['B10']` is `undefined`. A formula cell WITH a cached value
-    //     survives (`{t:'n', v:5, f:'SUM(A1:A2)'}`) — which is why the
-    //     SheetJS-authored tests/fixtures/test.xlsx passes in
-    //     spreadsheet-improvements.spec.ts: Excel and SheetJS always cache.
-    //   - Dropped cell → `cellToSheetCell` never runs → no `formula` on any
-    //     SheetCell → `hasFormulas` is false (spreadsheet-io.ts:378) → no
-    //     SheetEngine attaches → B10/B11 paint as empty cells.
-    //   - WORSE, data loss: after ANY edit, serializeXlsx skips null model
-    //     cells (`if (!cell) continue`, spreadsheet-io.ts:431), so the saved
-    //     artifact omits B10/B11 entirely — the user's formulas are silently
-    //     destroyed by open → edit → autosave on files from openpyxl-class
-    //     tools (or any writer that doesn't cache formula values).
-    //   - Fix direction for the fix wave (NOT applied here): `sheetStubs:
-    //     true` makes SheetJS surface the cell as `{t:'z', f:'SUM(B2:B7)'}`,
-    //     which the existing engine overlay would then compute live.
-    //   - Same pure-JS path runs in the Tauri webview — leg 3's native pass
-    //     will observe the same on this fixture (runbook should mirror it).
-    //
-    // The assertions below are the plan's original round-trip at full
-    // strength. When the parse gap is fixed, this test will "pass
-    // unexpectedly" and fail the suite — remove the test.fail() then.
-    test.fail(
-      true,
-      'Known product gap: SheetJS (no sheetStubs) drops formula cells with empty cached values, so openpyxl-authored formulas neither render nor survive a save',
-    );
+    // F-506 — FIXED in the Wave 1 fix wave: `sheetStubs: true` + stub-cell
+    // handling in spreadsheet-io.ts. openpyxl never computes formulas; the
+    // fixture stores `<c r="B10"><f>SUM(B2:B7)</f><v></v></c>`, and the old
+    // read options (no `sheetStubs`) made SheetJS DROP that cell — the TOTAL
+    // cells painted empty and any edit+autosave silently stripped the
+    // formulas from the saved file. Now the stub surfaces as
+    // `{t:'z', f:'SUM(B2:B7)'}`, `cellToSheetCell` keeps formula-bearing
+    // stubs (and still drops blank ones), `hasFormulas` trips, and the
+    // existing SheetEngine overlay computes the totals live. Unit coverage:
+    // tests/unit/spreadsheet-io.test.ts (F-506 describe block). This test is
+    // the plan's original round-trip at full assertion strength — formerly
+    // the expected-fail tripwire, now a normal test.
 
     const getErrors = collectConsoleErrors(page);
     const xlsxPath = '/test-workspace/matter-corpus/damages-model.xlsx';
