@@ -99,7 +99,7 @@ All RESULTS.md line cites were checked against the tree on 2026-06-11. Everythin
 
 **Files:** `src-tauri/src/commands/rag/embedder.rs`, `src-tauri/src/commands/rag/mod.rs`, create `src-tauri/tests/rag_embed_memory.rs`, `scripts/wedge-proof-native.sh`.
 
-- [ ] **Step 1: Add the batched embed helper to `embedder.rs`** (after `embed_documents`, before `cosine_distance_to_score`):
+- [x] **Step 1: Add the batched embed helper to `embedder.rs`** (after `embed_documents`, before `cosine_distance_to_score`):
 
 ```rust
 /// F-501 — bounded batch size for document embedding. One `embed_documents`
@@ -130,7 +130,7 @@ pub async fn embed_documents_batched(
 }
 ```
 
-- [ ] **Step 2: Route `index_one_file` through it.** In `mod.rs`, change the signature (`:324`) to add `cancel: Option<&std::sync::atomic::AtomicBool>` as the last parameter, and replace `:342-345`:
+- [x] **Step 2: Route `index_one_file` through it.** In `mod.rs`, change the signature (`:324`) to add `cancel: Option<&std::sync::atomic::AtomicBool>` as the last parameter, and replace `:342-345`:
 
 ```rust
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
@@ -148,7 +148,7 @@ Update the two call sites:
 - Walk loop (`:501`): `index_one_file(&table, file, &matter, store::PRIVILEGE_NONE, &key, Some(cancel.as_ref())).await`
 - `rag_index_file` (`:287`): pass `None` for cancel. **Do NOT pass the shared cancel flag here** — `rag_cancel_indexing` leaves the flag true until the next walk resets it, and a stale `true` would silently skip every watcher-triggered single-file index.
 
-- [ ] **Step 3: The bounded-memory integration test.** Create `src-tauri/tests/rag_embed_memory.rs`:
+- [x] **Step 3: The bounded-memory integration test.** Create `src-tauri/tests/rag_embed_memory.rs`:
 
 ```rust
 //! F-501 — bounded-memory embedding of a large file.
@@ -216,7 +216,7 @@ Also add a fast cancel unit test inside `embedder.rs`'s `tests` module (no model
     }
 ```
 
-- [ ] **Step 4: Run**
+- [x] **Step 4: Run**
 
 ```bash
 cd ~/keepance/src-tauri && cargo test --lib 2>&1 | tail -5
@@ -225,12 +225,12 @@ cargo test --release --test rag_embed_memory -- --ignored --nocapture 2>&1 | tai
 
 Expected: lib tests green (including the new cancel test); the ignored test prints `test huge_file_embeds_under_bounded_memory ... ok` (it takes a while — ~1,400 chunks embed for real). If it cannot find the model cache, verify `~/.local/share/keepance/models/e5-small` is populated (it is on this rig per leg 1).
 
-- [ ] **Step 5: Re-enable huge-notes.md in the native harness.** In `scripts/wedge-proof-native.sh`:
+- [x] **Step 5: Re-enable huge-notes.md in the native harness.** In `scripts/wedge-proof-native.sh`:
 - Remove `--exclude huge-notes.md` from the rsync at `:176`.
 - Update the comment block at `:175` and the header notes at `:35-36` (and the F-501 sizing comment near `:223`): huge-notes.md is back IN; the F-501 fix bounds the embed; expected fresh-workspace indexable count returns to **4**.
 - Grep the script for any other `3`-file count assertions tied to the exclusion (`grep -n "huge-notes\|indexed 3\|count" scripts/wedge-proof-native.sh`) and restore them to 4 where they exist.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd ~/keepance && git add src-tauri/src/commands/rag/embedder.rs src-tauri/src/commands/rag/mod.rs src-tauri/tests/rag_embed_memory.rs scripts/wedge-proof-native.sh
@@ -245,7 +245,7 @@ git commit -m "fix(rag): F-501 bound embed memory — 32-chunk slices with cance
 
 **Files:** `src/utils/spreadsheet-io.ts`, `tests/unit/spreadsheet-io.test.ts`, `tests/e2e/wedge-proof.spec.ts`.
 
-- [ ] **Step 1: Failing unit tests first.** Read `tests/unit/spreadsheet-io.test.ts` for the existing harness/import style, then add a describe block. The fixture is `tests/fixtures/matter-corpus/damages-model.xlsx` (real openpyxl output; B10 = row 9 col 1 = `=SUM(B2:B7)`, B11 = row 10 col 1 = `=SUM(B2:B8)`). Contract:
+- [x] **Step 1: Failing unit tests first.** Read `tests/unit/spreadsheet-io.test.ts` for the existing harness/import style, then add a describe block. The fixture is `tests/fixtures/matter-corpus/damages-model.xlsx` (real openpyxl output; B10 = row 9 col 1 = `=SUM(B2:B7)`, B11 = row 10 col 1 = `=SUM(B2:B8)`). Contract:
 
 ```ts
 describe('F-506 — openpyxl formula cells with empty cached values', () => {
@@ -288,7 +288,7 @@ describe('F-506 — openpyxl formula cells with empty cached values', () => {
 
 Adapt exact entry-point names to the module's exports (`parseSpreadsheet` / `serializeSpreadsheet` per `spreadsheet-io.ts:370/408`; check how existing tests build inputs). Run: `npx vitest run tests/unit/spreadsheet-io.test.ts` → the new tests FAIL (B10 undefined).
 
-- [ ] **Step 2: The fix.** In `parseXlsx` (`:584-589`) add the option:
+- [x] **Step 2: The fix.** In `parseXlsx` (`:584-589`) add the option:
 
 ```ts
   const workbook = XLSX.read(buffer, {
@@ -316,13 +316,13 @@ And in `cellToSheetCell` (`:660`), immediately after the `if (!cell) return null
 
 No serializer change is needed: `sheetCellToXlsxCell` (`:478-501`) already writes `f` plus the engine-computed `display` as the cached value for formula cells, and the engine overlay (`:376-393`) computes `display` once `hasFormulas` trips.
 
-- [ ] **Step 3: Unit tests green**
+- [x] **Step 3: Unit tests green**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/spreadsheet-io.test.ts 2>&1 | tail -5
 ```
 
-- [ ] **Step 4: Flip the tripwire.** In `tests/e2e/wedge-proof.spec.ts:322-425`: delete the `test.fail(true, …)` call, rename the test to `'xlsx round-trip: openpyxl formula cells render, recompute, and survive edit + save (F-506 fixed)'`, and rewrite the FINDING comment block to past tense ("Fixed in the Wave 1 fix wave: `sheetStubs: true` + stub handling in spreadsheet-io.ts"). Keep every assertion at full strength.
+- [x] **Step 4: Flip the tripwire.** In `tests/e2e/wedge-proof.spec.ts:322-425`: delete the `test.fail(true, …)` call, rename the test to `'xlsx round-trip: openpyxl formula cells render, recompute, and survive edit + save (F-506 fixed)'`, and rewrite the FINDING comment block to past tense ("Fixed in the Wave 1 fix wave: `sheetStubs: true` + stub handling in spreadsheet-io.ts"). Keep every assertion at full strength.
 
 ```bash
 npx playwright test tests/e2e/wedge-proof.spec.ts --project=chromium 2>&1 | tail -8
@@ -330,7 +330,7 @@ npx playwright test tests/e2e/wedge-proof.spec.ts --project=chromium 2>&1 | tail
 
 Expected: the xlsx test now PASSES as a normal test; the scroll-to-passage tripwire still expected-fails (Task 5 owns it); everything else green.
 
-- [ ] **Step 5: Keep the adjacent suite green**
+- [x] **Step 5: Keep the adjacent suite green**
 
 ```bash
 npx playwright test tests/e2e/spreadsheet-improvements.spec.ts --project=chromium 2>&1 | tail -5
@@ -338,7 +338,7 @@ npx playwright test tests/e2e/spreadsheet-improvements.spec.ts --project=chromiu
 
 (That suite's test.xlsx is SheetJS-authored with cached values; `sheetStubs` must not regress it. If a test there starts seeing extra blank cells, the Step 2 stub-drop guard is wrong — fix the guard, not the test.)
 
-- [ ] **Step 6: Typecheck + commit**
+- [x] **Step 6: Typecheck + commit**
 
 ```bash
 cd ~/keepance && npx tsc --noEmit
@@ -357,7 +357,7 @@ git commit -m "fix(spreadsheet): F-506 sheetStubs — uncached formula cells ren
 - The blocked-run surface goes in **WorkflowPanel** (where the user just clicked Run), reusing the existing `workflow.execution.needs-provider-*` / `ollama-unreachable-*` locale keys. This honors the v3.1 "no empty folder litter on blocked runs" decision (the early return stays); the WorkflowExecutionTab banner remains for re-opened tabs.
 - "The configured Ollama model" in local-only mode = the template pin/override when it names an ollama model, else the FIRST installed model from `detectOllama()` (mirrors the chat surface, `AIAssistantPane.tsx:161-170`), else `OLLAMA_DEFAULT_MODEL` at construction (already the fallback at `App.tsx:2429`).
 
-- [ ] **Step 1: Failing tests.** Extend `tests/unit/workflow/workflow-provider-resolution.test.ts` (read its input-builder pattern first; add `localOnly: false, installedOllamaModels: []` to the existing builder so current cases keep compiling). New cases:
+- [x] **Step 1: Failing tests.** Extend `tests/unit/workflow/workflow-provider-resolution.test.ts` (read its input-builder pattern first; add `localOnly: false, installedOllamaModels: []` to the existing builder so current cases keep compiling). New cases:
 
 ```ts
 describe('F-502 — local-only mode', () => {
@@ -397,7 +397,7 @@ describe('F-502 — local-only mode', () => {
 });
 ```
 
-- [ ] **Step 2: Implement in `resolveTemplateModel.ts`.** Add the two fields to `ResolveWorkflowProviderInput` (documented), and insert this as the FIRST branch of `resolveWorkflowProvider` (before the existing ollama branch):
+- [x] **Step 2: Implement in `resolveTemplateModel.ts`.** Add the two fields to `ResolveWorkflowProviderInput` (documented), and insert this as the FIRST branch of `resolveWorkflowProvider` (before the existing ollama branch):
 
 ```ts
   // F-502 — Local-only confidentiality mode: workflows run on Ollama, full
@@ -419,7 +419,7 @@ describe('F-502 — local-only mode', () => {
 
 (`installedOllamaModels[0]` is `undefined` for an empty list — matches the declared `model: string | undefined`.) Update the doc comment's invariants list. Run the test file → green.
 
-- [ ] **Step 3: Wire `App.tsx` `handleStartWorkflow`.** Around `:2330-2348`:
+- [x] **Step 3: Wire `App.tsx` `handleStartWorkflow`.** Around `:2330-2348`:
 - `const localOnly = modeRestrictsToLocal(getConfidentialityMode());` (import both from `@/modules/privacy/egress` / `@/hooks/useConfidentialityMode` — `getConfidentialityMode` is the non-reactive read, correct inside a handler).
 - Probe condition becomes `if (pickedProvider === 'ollama' || localOnly)`; capture `ollamaStatus.models` too:
 
@@ -436,7 +436,7 @@ describe('F-502 — local-only mode', () => {
 - Pass `localOnly` and `installedOllamaModels` into `resolveWorkflowProvider`.
 - Confirm `setWorkflowProviderError(null)` runs when resolution SUCCEEDS (grep where it is currently cleared; if a successful run never clears a stale error, add the clear right after the two early-return blocks at `:2356-2359`).
 
-- [ ] **Step 4: The visible blocked-run surface.** `WorkflowPanel.tsx`: add to `WorkflowPanelProps` (`:62-73`):
+- [x] **Step 4: The visible blocked-run surface.** `WorkflowPanel.tsx`: add to `WorkflowPanelProps` (`:62-73`):
 
 ```ts
   /** F-502 — when set, the last Run click was blocked before any folder/tab
@@ -481,7 +481,7 @@ Render at the top of the panel's root (read the component's JSX root first; plac
 
 In `App.tsx` (`:3430-3448`) pass `providerError={workflowProviderError}` and `onOpenSettings={() => openSettings('ai')}` to `<WorkflowPanel>`. No new locale keys needed (reuses `en.json:374-379`).
 
-- [ ] **Step 5: Live Ollama list in the override UI.** In `TemplateModelSettings.tsx`: add a detect-on-mount effect (mirror `AIAssistantPane.tsx:161-180`):
+- [x] **Step 5: Live Ollama list in the override UI.** In `TemplateModelSettings.tsx`: add a detect-on-mount effect (mirror `AIAssistantPane.tsx:161-180`):
 
 ```ts
   // F-502 sub-finding — the Ollama dropdown now reflects what is actually
@@ -500,7 +500,7 @@ In `App.tsx` (`:3430-3448`) pass `providerError={workflowProviderError}` and `on
 
 Compute `modelOptions` for the ollama provider from `liveOllamaModels.map((m) => ({ value: m, label: formatOllamaDisplayName(m) }))` when non-empty, else the existing static pair. Import `detectOllama, formatOllamaDisplayName` from `@/modules/models/OllamaProvider`. Fix the stale comment at `:30-35` (there is no free-text "Other" control; say what the code now does). Keep `firstModelFor` consistent (it must use the live list for ollama).
 
-- [ ] **Step 6: Verify + commit**
+- [x] **Step 6: Verify + commit**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/workflow/workflow-template-model.test.ts tests/unit/workflow/workflow-provider-resolution.test.ts 2>&1 | tail -5
@@ -519,7 +519,7 @@ Two halves, both deterministic post-processing (no model dependence, no prompt c
 
 **Files:** `src/modules/memory/workspaceCommand.ts`, `src/components/ai/AIChatViewer.tsx`, `src/modules/workflow/legalAnalysis.ts`, `tests/unit/workspace-command.test.ts`, create `tests/unit/legal-analysis-grounding.test.ts`.
 
-- [ ] **Step 1 (chat, failing tests):** add to `tests/unit/workspace-command.test.ts`:
+- [x] **Step 1 (chat, failing tests):** add to `tests/unit/workspace-command.test.ts`:
 
 ```ts
 describe('normalizeNumericCitations (F-503)', () => {
@@ -554,7 +554,7 @@ describe('normalizeNumericCitations (F-503)', () => {
 });
 ```
 
-- [ ] **Step 2 (chat, implement):** in `workspaceCommand.ts`, after `parseCitations`:
+- [x] **Step 2 (chat, implement):** in `workspaceCommand.ts`, after `parseCitations`:
 
 ```ts
 /**
@@ -593,7 +593,7 @@ export function normalizeNumericCitations(
 
 Run the test file → green.
 
-- [ ] **Step 3 (chat, wire):** in `AIChatViewer.tsx`, at BOTH verify sites, normalize first and persist the normalized content. Streaming site (`:1648-1660`):
+- [x] **Step 3 (chat, wire):** in `AIChatViewer.tsx`, at BOTH verify sites, normalize first and persist the normalized content. Streaming site (`:1648-1660`):
 
 ```ts
           // F-503 — repair number-keyed local-model citations BEFORE
@@ -612,7 +612,7 @@ Run the test file → green.
 
 Non-streaming site (`:1681-1690`): same pattern over `response.content` (use the normalized string for both `verifyCitations` and `assistantMessage.content`). Import `normalizeNumericCitations` alongside the existing `workspaceCommand` imports (`:69-75`). The numbering is correct by construction: the context block is built from `retrievedSources` in order (`:1534-1543`), so source `[N]` is `retrievedSources[N-1]`.
 
-- [ ] **Step 4 (finder, failing tests):** create `tests/unit/legal-analysis-grounding.test.ts`:
+- [x] **Step 4 (finder, failing tests):** create `tests/unit/legal-analysis-grounding.test.ts`:
 
 ```ts
 import { describe, expect, it, vi } from 'vitest';
@@ -680,7 +680,7 @@ describe('runContradictionAnalysis recovers omitted sourceNumber by quote (F-503
 
 (Adapt the `config`/`scope` casts to the real `AnalyzeStepConfig`/`RetrievalScope` shapes — read `src/types/workflow.ts` first and prefer real objects over `as never` where cheap.)
 
-- [ ] **Step 5 (finder, implement):** in `legalAnalysis.ts`:
+- [x] **Step 5 (finder, implement):** in `legalAnalysis.ts`:
 
 ```ts
 /** Normalize for containment matching: lowercase, straight quotes,
@@ -727,7 +727,7 @@ In `resolveSource` (`:182-202`), replace the chunk lookup:
 
 (`raw.sourceNumber` may be `undefined` from a sloppy model: `undefined - 1` is `NaN`, `NaN >= 0` is false, so the fallback runs — verify with the Step 4 test.) Run both new test files → green.
 
-- [ ] **Step 6: Verify + commit**
+- [x] **Step 6: Verify + commit**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/workspace-command.test.ts tests/unit/legal-analysis-grounding.test.ts 2>&1 | tail -5
@@ -746,7 +746,7 @@ System-level verification of `data-verified="true"` chips on the local tier happ
 
 **Files:** create `src/utils/scrollToParagraph.ts`; modify `src/components/editor/MarkdownEditor.tsx`, `src/components/ai/AIChatViewer.tsx`, `src/App.tsx`, `tests/unit/citation-navigation.test.tsx`, `tests/e2e/wedge-proof.spec.ts`; the component between them (grep `onOpenFileAtPath` — the prop flows App → MainPanel → AIChatViewer).
 
-- [ ] **Step 1: The pending-slot util.** Create `src/utils/scrollToParagraph.ts`:
+- [x] **Step 1: The pending-slot util.** Create `src/utils/scrollToParagraph.ts`:
 
 ```ts
 /**
@@ -815,7 +815,7 @@ export function approximateChunkOffset(doc: string, paragraphIndex: number): num
 }
 ```
 
-- [ ] **Step 2: Carry the snippet through the click chain.** Grep `onOpenFileAtPath` across `src/` (three links: `AIChatViewer.tsx` prop + internal handlers, `MainPanel.tsx` pass-through, `App.tsx:3518`). Extend the signature everywhere with a trailing `snippet?: string`:
+- [x] **Step 2: Carry the snippet through the click chain.** Grep `onOpenFileAtPath` across `src/` (three links: `AIChatViewer.tsx` prop + internal handlers, `MainPanel.tsx` pass-through, `App.tsx:3518`). Extend the signature everywhere with a trailing `snippet?: string`:
 - `renderMessageWithCitations`'s `onCitationClick` (`AIChatViewer.tsx:268-273`) gains `snippet?: string`; the chip `onClick` (`:325-337`) passes `matchedSource?.chunkText`.
 - `ChatSourcesAccordion`'s `onOpen` (`:381`) gains it; the row click (`:417-420`) passes `s.chunkText`.
 - The intermediate handler(s) inside AIChatViewer that call the `onOpenFileAtPath` prop forward it (grep `onOpenFileAtPath(` inside the file).
@@ -836,7 +836,7 @@ export function approximateChunkOffset(doc: string, paragraphIndex: number): num
 
 Update the now-stale "no editor listens" comment.
 
-- [ ] **Step 3: The editor listener.** In `MarkdownEditor.tsx`: add an optional `filePath?: string` prop (check the render site in `MainPanel.tsx` — pass the tab's `path`; grep `<MarkdownEditor`). Add an effect after the view-creation effect:
+- [x] **Step 3: The editor listener.** In `MarkdownEditor.tsx`: add an optional `filePath?: string` prop (check the render site in `MainPanel.tsx` — pass the tab's `path`; grep `<MarkdownEditor`). Add an effect after the view-creation effect:
 
 ```ts
     // F-504 — bring the cited passage on screen. Primary: exact search for
@@ -876,11 +876,11 @@ Update the now-stale "no editor listens" comment.
 
 Caveat for the implementer: the view-creation effect may run after this one on first mount — if the pending consume finds no `viewRef.current`, move the `consumePendingScroll` call to the END of the view-creation effect instead (after `viewRef.current = view`), keeping the event listener effect as-is. Verify against the real mount order.
 
-- [ ] **Step 4: F-505 — dedupe the accordion testid.** `AIChatViewer.tsx:409`: change to `const testId = \`chat-source-${base}-${s.paragraphIndex}\`;`. Grep `chat-citation-` across `tests/` and `src/` for anything that relied on the accordion duplication (the wedge-proof helper comment at `tests/e2e/wedge-proof.spec.ts:166-174` documents the workaround — simplify the comment; the `[data-verified]`-scoped locators keep working unchanged). Update `tests/unit/citation-navigation.test.tsx` if it queries accordion rows by the old id, and extend it with one assertion that `onOpenFileAtPath` now receives the snippet (the seeded source's `chunkText`).
+- [x] **Step 4: F-505 — dedupe the accordion testid.** `AIChatViewer.tsx:409`: change to `const testId = \`chat-source-${base}-${s.paragraphIndex}\`;`. Grep `chat-citation-` across `tests/` and `src/` for anything that relied on the accordion duplication (the wedge-proof helper comment at `tests/e2e/wedge-proof.spec.ts:166-174` documents the workaround — simplify the comment; the `[data-verified]`-scoped locators keep working unchanged). Update `tests/unit/citation-navigation.test.tsx` if it queries accordion rows by the old id, and extend it with one assertion that `onOpenFileAtPath` now receives the snippet (the seeded source's `chunkText`).
 
-- [ ] **Step 5: Flip the tripwire.** `tests/e2e/wedge-proof.spec.ts:238-269`: remove `test.fail(true, …)`, rename to `'citation click-through scrolls the cited passage on screen (F-504 fixed)'`, rewrite the FINDING comment to past tense. The assertion body stays untouched (chip click → `getByText('until October 17, 2025 to submit my written response')` visible — the seeded `chunkText` is verbatim fixture text, so the snippet search lands exactly).
+- [x] **Step 5: Flip the tripwire.** `tests/e2e/wedge-proof.spec.ts:238-269`: remove `test.fail(true, …)`, rename to `'citation click-through scrolls the cited passage on screen (F-504 fixed)'`, rewrite the FINDING comment to past tense. The assertion body stays untouched (chip click → `getByText('until October 17, 2025 to submit my written response')` visible — the seeded `chunkText` is verbatim fixture text, so the snippet search lands exactly).
 
-- [ ] **Step 6: Verify + commit**
+- [x] **Step 6: Verify + commit**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/citation-navigation.test.tsx 2>&1 | tail -5
@@ -898,7 +898,7 @@ Expected: the whole wedge-proof spec is now green with ZERO expected-fails.
 
 **Files:** `src-tauri/src/commands/rag/extractor.rs`, `src-tauri/src/commands/rag/store.rs`, `src/components/layout/Sidebar.tsx`, `src/App.tsx`, create `tests/unit/sidebar-collapse.test.tsx`.
 
-- [ ] **Step 1 (F-508): extractor exclusion.** In `extractor.rs:19-22` remove `"aichat", "workflow"` from `TEXT_EXTENSIONS` and document why:
+- [x] **Step 1 (F-508): extractor exclusion.** In `extractor.rs:19-22` remove `"aichat", "workflow"` from `TEXT_EXTENSIONS` and document why:
 
 ```rust
 /// Extensions whose contents are read as raw UTF-8 text and indexed.
@@ -916,7 +916,7 @@ pub const TEXT_EXTENSIONS: &[&str] = &[
 
 Flip the existing test `aichat_and_workflow_are_indexable` (`extractor.rs:83-87`) to assert NOT indexable and rename it `ai_artifacts_are_not_indexable`. The watcher path is already covered: `rag_index_file` returns early for non-indexable files (`mod.rs:269-273`).
 
-- [ ] **Step 2 (F-508): one-time clean re-index.** Existing stores still hold artifact rows (the walker now skips those files, so their rows would never be deleted). Bump `store.rs:151`:
+- [x] **Step 2 (F-508): one-time clean re-index.** Existing stores still hold artifact rows (the walker now skips those files, so their rows would never be deleted). Bump `store.rs:151`:
 
 ```rust
 pub const INDEX_VERSION: u32 = 6; // 6: F-508 — .aichat/.workflow artifacts excluded; bump drops + re-indexes once
@@ -924,9 +924,9 @@ pub const INDEX_VERSION: u32 = 6; // 6: F-508 — .aichat/.workflow artifacts ex
 
 Confirm `needs_migration` compares the stored version against `INDEX_VERSION` (read `store.rs` around `:977`); the walk's existing migration arm (`mod.rs:431-439`) then drops and rebuilds once per workspace. Note the one-time re-index in the Task 14 CHANGELOG entry.
 
-- [ ] **Step 3 (F-509): reproduce first** (REPRODUCE-BEFORE-DIAGNOSING). `npm run dev`, open `/?testMode=true`, open any `.workflow` file (seed via `window.__openTestFile` with a minimal valid workflow JSON, or run a mock workflow). Observe whether the sidebar disappears and confirm the mechanism. Verified hypothesis from plan-writing: `Sidebar.tsx:149-154` has `w-64` but NO `shrink-0`, so a wide non-shrinking workflow tab crushes it (flex-shrink default 1); closing the tab restores width. If reproduction shows a different mechanism, fix THAT and note it in the commit body — but apply Step 4 regardless (both changes are correct independently).
+- [x] **Step 3 (F-509): reproduce first** (REPRODUCE-BEFORE-DIAGNOSING). `npm run dev`, open `/?testMode=true`, open any `.workflow` file (seed via `window.__openTestFile` with a minimal valid workflow JSON, or run a mock workflow). Observe whether the sidebar disappears and confirm the mechanism. Verified hypothesis from plan-writing: `Sidebar.tsx:149-154` has `w-64` but NO `shrink-0`, so a wide non-shrinking workflow tab crushes it (flex-shrink default 1); closing the tab restores width. If reproduction shows a different mechanism, fix THAT and note it in the commit body — but apply Step 4 regardless (both changes are correct independently).
 
-- [ ] **Step 4 (F-509): fixes.**
+- [x] **Step 4 (F-509): fixes.**
 - `Sidebar.tsx:151`: add `shrink-0` to the root `cn(...)` class list (`'flex flex-col shrink-0 border-r bg-card transition-all duration-200'`).
 - Controlled collapse (pattern mirrors the existing controlled `activeTab`): add optional props `collapsed?: boolean; onCollapsedChange?: (next: boolean) => void` to `SidebarProps`; `const isCollapsed = collapsed !== undefined ? collapsed : internalCollapsed;` and the chevron button calls `onCollapsedChange?.(!isCollapsed)` (falling back to internal state when uncontrolled).
 - `App.tsx`: `const [sidebarCollapsed, setSidebarCollapsed] = useState(false);` near the sidebar state (`:276`); pass `collapsed={sidebarCollapsed}` `onCollapsedChange={setSidebarCollapsed}` to `<Sidebar>` (`:3390`); and add the missing global shortcut in the keydown handler, ABOVE the Ctrl+Shift+B branch (`:3124`):
@@ -944,9 +944,9 @@ Confirm `needs_migration` compares the stored version against `INDEX_VERSION` (r
 
 If App renders `CommandPalette` with handlers (grep `onToggleSidebar`), wire `onToggleSidebar: () => setSidebarCollapsed((v) => !v)` there too.
 
-- [ ] **Step 5: Tests.** Create `tests/unit/sidebar-collapse.test.tsx` (RTL): (a) controlled `collapsed` renders the `w-12` state and the chevron calls `onCollapsedChange(false→true)`; (b) the root `sidebar` testid carries `shrink-0`. Mirror the mocking style of a nearby layout test if Sidebar's children need stubs (pass empty `fileTreeContent` etc.).
+- [x] **Step 5: Tests.** Create `tests/unit/sidebar-collapse.test.tsx` (RTL): (a) controlled `collapsed` renders the `w-12` state and the chevron calls `onCollapsedChange(false→true)`; (b) the root `sidebar` testid carries `shrink-0`. Mirror the mocking style of a nearby layout test if Sidebar's children need stubs (pass empty `fileTreeContent` etc.).
 
-- [ ] **Step 6: Verify + commit**
+- [x] **Step 6: Verify + commit**
 
 ```bash
 cd ~/keepance/src-tauri && cargo test --lib extractor 2>&1 | tail -5
@@ -964,9 +964,9 @@ git commit -m "fix: F-508 AI artifacts excluded from matter memory (one-time re-
 
 **Files:** `src/types/workflow.ts`, `src/modules/workflow/legalAnalysis.ts`, `src/modules/workflow/WorkflowEngine.ts`, `src/utils/docx-io.ts`, `src/modules/workflow/templates/legal/DepositionContradictionFinder.ts`, `tests/unit/legal-analysis-grounding.test.ts`, plus the docx test file.
 
-- [ ] **Step 1: Failing tests** (extend `tests/unit/legal-analysis-grounding.test.ts`): (a) `retrieve` rejects + `inputs.depositionExcerpts` non-empty + `config.pastedInputIds: ['depositionExcerpts','priorStatements']` → resolves with `retrievalUnavailable: true` and findings from the model; (b) `retrieve` rejects + no pasted material → rejects with a message containing `'nothing to analyze from'`; (c) `retrieve` resolves `[]` → `retrievalUnavailable: false` and `chunks.length === 0` (the engine renders the no-documents note for this case).
+- [x] **Step 1: Failing tests** (extend `tests/unit/legal-analysis-grounding.test.ts`): (a) `retrieve` rejects + `inputs.depositionExcerpts` non-empty + `config.pastedInputIds: ['depositionExcerpts','priorStatements']` → resolves with `retrievalUnavailable: true` and findings from the model; (b) `retrieve` rejects + no pasted material → rejects with a message containing `'nothing to analyze from'`; (c) `retrieve` resolves `[]` → `retrievalUnavailable: false` and `chunks.length === 0` (the engine renders the no-documents note for this case).
 
-- [ ] **Step 2: Types + template.** `src/types/workflow.ts` — add to `AnalyzeStepConfig`:
+- [x] **Step 2: Types + template.** `src/types/workflow.ts` — add to `AnalyzeStepConfig`:
 
 ```ts
   /** VG-3b — interview input ids that count as attorney-pasted material.
@@ -978,7 +978,7 @@ git commit -m "fix: F-508 AI artifacts excluded from matter memory (one-time re-
 
 `DepositionContradictionFinder.ts` — add `pastedInputIds: ['depositionExcerpts', 'priorStatements'],` to the analyze step's config (`:120-130` region).
 
-- [ ] **Step 3: `legalAnalysis.ts`.** Replace the retrieval line (`:253`):
+- [x] **Step 3: `legalAnalysis.ts`.** Replace the retrieval line (`:253`):
 
 ```ts
   const topK = config.topK ?? 12;
@@ -1008,7 +1008,7 @@ git commit -m "fix: F-508 AI artifacts excluded from matter memory (one-time re-
 
 Return `retrievalUnavailable` from `runContradictionAnalysis` (add it to the return object and its type).
 
-- [ ] **Step 4: Engine + docx header.** `WorkflowEngine.ts` `executeAnalyzeStep` (`:378+`): destructure `retrievalUnavailable`, and extend `meta`:
+- [x] **Step 4: Engine + docx header.** `WorkflowEngine.ts` `executeAnalyzeStep` (`:378+`): destructure `retrievalUnavailable`, and extend `meta`:
 
 ```ts
       ...(retrievalUnavailable
@@ -1033,9 +1033,9 @@ Return `retrievalUnavailable` from `runContradictionAnalysis` (add it to the ret
 
 Also record `retrievalUnavailable` in the analyze tool-call params (`WorkflowEngine.ts` `:434+`) so the run record carries it.
 
-- [ ] **Step 5: Docx-level assertion.** Extend `tests/unit/legal-template-docx-deliverables.test.ts` (read its docx-text extraction helper) with one case: `serializeContradictionsDocx(result, { …, retrievalNote: 'Analyzed only the excerpts you provided; workspace retrieval was unavailable for this run.' })` → extracted text contains that sentence.
+- [x] **Step 5: Docx-level assertion.** Extend `tests/unit/legal-template-docx-deliverables.test.ts` (read its docx-text extraction helper) with one case: `serializeContradictionsDocx(result, { …, retrievalNote: 'Analyzed only the excerpts you provided; workspace retrieval was unavailable for this run.' })` → extracted text contains that sentence.
 
-- [ ] **Step 6: Verify + commit**
+- [x] **Step 6: Verify + commit**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/legal-analysis-grounding.test.ts tests/unit/legal-template-docx-deliverables.test.ts 2>&1 | tail -5
@@ -1052,7 +1052,7 @@ git commit -m "feat(workflow): VG-3b honest fallback — finder analyzes pasted 
 
 **Files:** create `src/components/media/LibreOfficeHelpNotice.tsx`; modify `src/components/media/DocxEditor.tsx`, locales; create `tests/unit/libreoffice-help-notice.test.tsx`.
 
-- [ ] **Step 1: The notice component** (light theme, dismissible):
+- [x] **Step 1: The notice component** (light theme, dismissible):
 
 ```tsx
 /**
@@ -1102,7 +1102,7 @@ export function LibreOfficeHelpNotice({ onDismiss }: { onDismiss: () => void }) 
 }
 ```
 
-- [ ] **Step 2: Locales** (`en.json` inside `media.docx-editor`, then es/de + lock; NO em dashes):
+- [x] **Step 2: Locales** (`en.json` inside `media.docx-editor`, then es/de + lock; NO em dashes):
 
 ```json
 "pdf-needs-libreoffice-title": "PDF export needs LibreOffice",
@@ -1111,7 +1111,7 @@ export function LibreOfficeHelpNotice({ onDismiss }: { onDismiss: () => void }) 
 "pdf-libreoffice-copied": "Copied"
 ```
 
-- [ ] **Step 3: Gate the export.** In `DocxEditor.tsx`: add `const [libreOfficeHelpOpen, setLibreOfficeHelpOpen] = useState(false);` near the export state (`:228`); at the top of `handleExportPdf`'s `runExport` callback (`:434`):
+- [x] **Step 3: Gate the export.** In `DocxEditor.tsx`: add `const [libreOfficeHelpOpen, setLibreOfficeHelpOpen] = useState(false);` near the export state (`:228`); at the top of `handleExportPdf`'s `runExport` callback (`:434`):
 
 ```ts
       // VG-4a — never fail silently: probe LibreOffice BEFORE converting.
@@ -1124,9 +1124,9 @@ export function LibreOfficeHelpNotice({ onDismiss }: { onDismiss: () => void }) 
 
 (Import the wrapper from `@/utils/tauri-commands` — grep the exact exported name around `:36`.) Render `{libreOfficeHelpOpen && <LibreOfficeHelpNotice onDismiss={() => setLibreOfficeHelpOpen(false)} />}` next to the existing export-notice render (`:943` region).
 
-- [ ] **Step 4: Tests.** `tests/unit/libreoffice-help-notice.test.tsx` (RTL): renders title/body, copy button writes the URL to a mocked `navigator.clipboard`, dismiss fires. Manual verification of the gate: in dev, temporarily PATH-mask soffice (or stub `detectLibreoffice` to return null) and confirm Export → PDF shows the notice instead of a raw error; with LibreOffice present the export still produces a PDF.
+- [x] **Step 4: Tests.** `tests/unit/libreoffice-help-notice.test.tsx` (RTL): renders title/body, copy button writes the URL to a mocked `navigator.clipboard`, dismiss fires. Manual verification of the gate: in dev, temporarily PATH-mask soffice (or stub `detectLibreoffice` to return null) and confirm Export → PDF shows the notice instead of a raw error; with LibreOffice present the export still produces a PDF.
 
-- [ ] **Step 5: Verify + commit**
+- [x] **Step 5: Verify + commit**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/libreoffice-help-notice.test.tsx tests/unit/i18n 2>&1 | tail -5
@@ -1141,7 +1141,7 @@ git commit -m "feat(docx): VG-4a PDF export detects missing LibreOffice and expl
 
 **Scope note (verified):** F-120's persistent static badge already shipped (`StatusBar.tsx:166-176`, render `:373`). This task adds only the missing ACTIVE signal: a visible "sending" state while a cloud request is actually in flight. Single instrumentation point: every cloud provider call goes through `getCorsSafeFetch()` (`fetchUtils.ts:65`; call sites in Claude/OpenAI/Gemini providers + ModelListService — verified by grep).
 
-- [ ] **Step 1 (F-120): the activity store + wrapper.** Create `src/modules/privacy/egressActivity.ts`:
+- [x] **Step 1 (F-120): the activity store + wrapper.** Create `src/modules/privacy/egressActivity.ts`:
 
 ```ts
 /**
@@ -1186,7 +1186,7 @@ export function instrumentEgressFetch(fetchFn: typeof globalThis.fetch): typeof 
 
 In `fetchUtils.ts` `getCorsSafeFetch()`: wrap all three return paths with `instrumentEgressFetch(...)` (import at top; the dynamic-import cache stays, wrap once when assigning `tauriFetchFn`).
 
-- [ ] **Step 2 (F-120): StatusBar pulse.** In `StatusBar.tsx`, subscribe + hold:
+- [x] **Step 2 (F-120): StatusBar pulse.** In `StatusBar.tsx`, subscribe + hold:
 
 ```ts
   // F-120 — active egress pulse: visible while a provider request is in
@@ -1221,9 +1221,9 @@ Render next to the egress indicators (`:359-375` region), suppressed in local-on
 
 Locale (en + es/de + lock): `"privacy.egress.sending": "Sending to your AI provider"` (place inside the existing `privacy.egress` section).
 
-- [ ] **Step 3 (F-120): tests.** `tests/unit/egress-activity.test.ts`: the wrapper increments during a pending fetch, decrements on resolve AND on reject; the store floor is 0. Use a controllable promise as the fake fetch.
+- [x] **Step 3 (F-120): tests.** `tests/unit/egress-activity.test.ts`: the wrapper increments during a pending fetch, decrements on resolve AND on reject; the store floor is 0. Use a controllable promise as the fake fetch.
 
-- [ ] **Step 4 (F-121): the explainer.** Create `src/components/ai/PrivilegeExclusionExplainer.tsx` — an info button + popover mounted NEXT TO the include-privileged toggle (`AIChatViewer.tsx:2269-2292`, rendered under the same `askWorkspaceMode &&` guard). Check `src/components/ui/popover.tsx` exists (shadcn); if not, use the existing Dialog primitives. Contents:
+- [x] **Step 4 (F-121): the explainer.** Create `src/components/ai/PrivilegeExclusionExplainer.tsx` — an info button + popover mounted NEXT TO the include-privileged toggle (`AIChatViewer.tsx:2269-2292`, rendered under the same `askWorkspaceMode &&` guard). Check `src/components/ui/popover.tsx` exists (shadcn); if not, use the existing Dialog primitives. Contents:
   - One sentence (locale `ai.privilege-explainer.body`): `"Sources tagged privileged are filtered out of workspace retrieval itself, before anything reaches the AI. It is enforced in the search engine, not just a label."`
   - A "See it work" button (`data-testid="privilege-explainer-demo"`): runs the user's current question (the chat input value, or the last user message when empty; prop in from AIChatViewer) through `ragRetrieve(query, 8, scope, false)` and `ragRetrieve(query, 8, scope, true)` with the chat's same `retrievalScope` (pass as a prop; read how AIChatViewer builds it near `:975`), then renders the diff via the pure helper below. Outside Tauri, `ragRetrieve` throws — catch and render `ai.privilege-explainer.desktop-only`: `"This live check runs in the desktop app."`
   - Pure helper (exported for tests, same file or `src/modules/memory/privilegeDiff.ts`):
@@ -1244,9 +1244,9 @@ export function summarizePrivilegeDiff(
 
   - Result strings (en + es/de + lock): `ai.privilege-explainer.withheld`: `"Privilege exclusion is withholding {{count}} source(s) from this question right now. Top withheld source: {{name}}."` and `ai.privilege-explainer.none-withheld`: `"No privileged sources matched this question, so nothing was withheld."` Also `ai.privilege-explainer.title`: `"What does privilege exclusion do?"` and `ai.privilege-explainer.demo`: `"See it work on my own files"`.
 
-- [ ] **Step 5 (F-121): tests.** Unit-test `summarizePrivilegeDiff` (withheld count, top basename, empty-diff case) in `tests/unit/egress-activity.test.ts`'s sibling file `tests/unit/privilege-explainer.test.tsx`, plus an RTL render of the popover body strings with a mocked demo runner.
+- [x] **Step 5 (F-121): tests.** Unit-test `summarizePrivilegeDiff` (withheld count, top basename, empty-diff case) in `tests/unit/egress-activity.test.ts`'s sibling file `tests/unit/privilege-explainer.test.tsx`, plus an RTL render of the popover body strings with a mocked demo runner.
 
-- [ ] **Step 6: Verify + commit**
+- [x] **Step 6: Verify + commit**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/egress-activity.test.ts tests/unit/privilege-explainer.test.tsx tests/unit/i18n 2>&1 | tail -5
@@ -1261,13 +1261,13 @@ git commit -m "feat(trust): F-120 live egress pulse in Direct mode; F-121 privil
 
 **Engine support (verified):** mail indexes at `PRIVILEGE_NONE` and is designed for the user to "mark a message privileged in the UI, which writes the privilege store and re-tags these chunks in place via `rag_retag_privilege`" (`src-tauri/src/commands/mail/mod.rs:864-866`). The frontend path exists: `MemoryService` wraps `ragRetagPrivilege(sourceId, privilege)` (`MemoryService.ts:250`), and `mail:` source-id prefixes are tolerated (`mail/mod.rs:233-235`). The FILE privilege UI to mirror is `src/components/privilege/PrivilegeMenuItems.tsx`.
 
-- [ ] **Step 1: Read the file-privilege pattern.** Read `PrivilegeMenuItems.tsx` end to end and whichever store/hook it uses for current-privilege state, the valid privilege values (the store validates three; use exactly those), and any audit event it emits. The mail control must reuse the SAME values, service calls, and audit shape.
+- [x] **Step 1: Read the file-privilege pattern.** Read `PrivilegeMenuItems.tsx` end to end and whichever store/hook it uses for current-privilege state, the valid privilege values (the store validates three; use exactly those), and any audit event it emits. The mail control must reuse the SAME values, service calls, and audit shape.
 
-- [ ] **Step 2: The control.** In `src/components/mail/EmailViewer.tsx`, in the header metadata block (near the attachments row, `:153`): a compact privilege control (`data-testid="email-privilege-control"`) showing the message's current privilege (default none) with actions to mark attorney-client / work-product / clear, calling the same MemoryService/privilege-store path with sourceId `` `mail:${sourceId}` `` (strip a pre-existing `mail:` prefix first to avoid doubling — the viewer's `sourceId` prop may already carry it; check the prop's call site in `MainPanel.tsx:643-646`). Show a one-line consequence string under the control when privileged (locale `mail.viewer.privilege-note`): `"Excluded from AI retrieval by default. The Include privileged toggle in chat is the only way to bring it back in."` Add `mail.viewer.privilege-mark-ac`, `privilege-mark-wp`, `privilege-clear`, `privilege-label` strings (en + es/de + lock; mirror the file UI's wording verbatim where it has equivalents).
+- [x] **Step 2: The control.** In `src/components/mail/EmailViewer.tsx`, in the header metadata block (near the attachments row, `:153`): a compact privilege control (`data-testid="email-privilege-control"`) showing the message's current privilege (default none) with actions to mark attorney-client / work-product / clear, calling the same MemoryService/privilege-store path with sourceId `` `mail:${sourceId}` `` (strip a pre-existing `mail:` prefix first to avoid doubling — the viewer's `sourceId` prop may already carry it; check the prop's call site in `MainPanel.tsx:643-646`). Show a one-line consequence string under the control when privileged (locale `mail.viewer.privilege-note`): `"Excluded from AI retrieval by default. The Include privileged toggle in chat is the only way to bring it back in."` Add `mail.viewer.privilege-mark-ac`, `privilege-mark-wp`, `privilege-clear`, `privilege-label` strings (en + es/de + lock; mirror the file UI's wording verbatim where it has equivalents).
 
-- [ ] **Step 3: Tests.** `tests/unit/email-privilege-control.test.tsx` (RTL, mock the service layer): marking calls the retag path with the `mail:`-prefixed source id and the exact privilege value; clearing calls it with the none value; the note renders only when privileged. Mirror EmailViewer's existing test mocks if a test exists (grep `EmailViewer` under `tests/`).
+- [x] **Step 3: Tests.** `tests/unit/email-privilege-control.test.tsx` (RTL, mock the service layer): marking calls the retag path with the `mail:`-prefixed source id and the exact privilege value; clearing calls it with the none value; the note renders only when privileged. Mirror EmailViewer's existing test mocks if a test exists (grep `EmailViewer` under `tests/`).
 
-- [ ] **Step 4: Verify + commit**
+- [x] **Step 4: Verify + commit**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/email-privilege-control.test.tsx 2>&1 | tail -5
@@ -1282,7 +1282,7 @@ git commit -m "feat(mail): VG-5c per-message privilege control in the email view
 
 **Verified:** exactly one offending phrase. `website/index.html:511`: `"It fits beside Clio, Outlook, and Word. It sits on top of the tools you already live in."` — "sits on top of" reads as a connector. `:654` ("the private AI layer beside Clio, not a replacement") is the philosophy and STAYS.
 
-- [ ] **Step 1: Replace line 511's text** with connector-free copy (keep the `<li>`/svg wrapper byte-identical):
+- [x] **Step 1: Replace line 511's text** with connector-free copy (keep the `<li>`/svg wrapper byte-identical):
 
 ```
 It fits beside Clio, Outlook, and Word. Nothing to integrate and nothing to migrate: it works on the files and email you already have.
@@ -1290,7 +1290,7 @@ It fits beside Clio, Outlook, and Word. Nothing to integrate and nothing to migr
 
 (Voice check: no em dashes, contraction-free is fine here, no "seamless". Matches the homepage's existing list-item register.)
 
-- [ ] **Step 2: Self-lint for other connector implications.**
+- [x] **Step 2: Self-lint for other connector implications.**
 
 ```bash
 grep -rn "sits on top of\|integrates with\|connects to\|plugs into\|syncs with" website/ | grep -vi "does not\|no integration\|nothing to integrate"
@@ -1302,7 +1302,7 @@ Fix any hit that implies a shipped integration (the /vs/ pages and llms.txt are 
 npx vitest run tests/unit/website-content-lint.test.ts 2>&1 | tail -5
 ```
 
-- [ ] **Step 3: Commit.** NOTE: repo edit only — the site deploys with the next release deploy, which (Keepance = commercial) needs Jameson's explicit go. Do NOT run `infra/deploy.sh` in this wave.
+- [x] **Step 3: Commit.** NOTE: repo edit only — the site deploys with the next release deploy, which (Keepance = commercial) needs Jameson's explicit go. Do NOT run `infra/deploy.sh` in this wave.
 
 ```bash
 cd ~/keepance && git add website/ && git commit -m "fix(website): VG-5d Clio copy precision — no connector implied until one exists"
@@ -1314,11 +1314,11 @@ cd ~/keepance && git add website/ && git commit -m "fix(website): VG-5d Clio cop
 
 **Verified state:** `publishMatterKeyToMembers` (`matterKeyService.ts:74-129`) wraps to every eligible device and is called manually (invite flow `FirmAdminConsole.tsx:236`; "Re-publish keys" button `:263`). The member side already waits honestly and self-resolves once a key appears (`en.json:811` "I'll open it automatically once they do"). The missing piece: the ADMIN client never notices a member's newly registered device, so the wait lasts until a human clicks Re-publish. Approach (per the vision plan): poll on the admin console; auto-republish when the device set changes. The manual button stays as the fallback.
 
-- [ ] **Step 1: Failing tests.** Extend `tests/unit/firm/matterKeyDistribution.test.ts` (read its mock-client pattern first):
+- [x] **Step 1: Failing tests.** Extend `tests/unit/firm/matterKeyDistribution.test.ts` (read its mock-client pattern first):
   - `deviceSetFingerprint` is order-independent and epoch-sensitive.
   - `autoRepublishHeldMatterKeys`: (a) a matter whose device set grew since the recorded fingerprint gets exactly one publish and the fingerprint updates; (b) unchanged device set publishes nothing; (c) a matter with no local key is skipped without touching the network beyond the device listing (or at all — see Step 2's key-first ordering); (d) one matter's publish failure does not abort the others.
 
-- [ ] **Step 2: Refactor + implement in `matterKeyService.ts`.**
+- [x] **Step 2: Refactor + implement in `matterKeyService.ts`.**
   - Extract steps 2–4 of `publishMatterKeyToMembers` (`:88-106`) into a shared helper, preserving behavior exactly:
 
 ```ts
@@ -1381,7 +1381,7 @@ export async function autoRepublishHeldMatterKeys(
 
 (Yes, a drifted matter fetches the roster twice — once for the fingerprint, once inside publish. Accept it: drift is rare, correctness is shared code. Read `interface FirmMatter` in `contract.ts:~137-148` for the real `id`/`matter_id` + `key_epoch` field names before writing.)
 
-- [ ] **Step 3: The console poll.** In `FirmAdminConsole.tsx`, after the initial-load effect (`:177-183`):
+- [x] **Step 3: The console poll.** In `FirmAdminConsole.tsx`, after the initial-load effect (`:177-183`):
 
 ```ts
   // VG-6a — auto-publish poll: while the admin console is open, newly
@@ -1410,9 +1410,9 @@ export async function autoRepublishHeldMatterKeys(
 
 With tiny localStorage helpers in the same file (key `keepance_firm_key_publish_fp`, JSON, try/catch both ways). Locale (en + es/de + lock): `"firm.admin.auto-republish-ok": "Granted key access to newly registered devices for {{count}} matter(s)."`
 
-- [ ] **Step 4: Two-client coverage decision.** Read `tests/e2e/firm-collaboration.spec.ts`: if it drives a mock/local backend, add one case (member registers a second device → admin poll tick → member device can fetch the wrapped key). If it requires the live backend, do NOT fake it — the unit tests in Step 1 are this wave's required coverage, and note the live two-client exercise as a follow-up line in the Task 14 RESULTS addendum.
+- [x] **Step 4: Two-client coverage decision.** Read `tests/e2e/firm-collaboration.spec.ts`: if it drives a mock/local backend, add one case (member registers a second device → admin poll tick → member device can fetch the wrapped key). If it requires the live backend, do NOT fake it — the unit tests in Step 1 are this wave's required coverage, and note the live two-client exercise as a follow-up line in the Task 14 RESULTS addendum.
 
-- [ ] **Step 5: Verify + commit**
+- [x] **Step 5: Verify + commit**
 
 ```bash
 cd ~/keepance && npx vitest run tests/unit/firm/matterKeyDistribution.test.ts 2>&1 | tail -5
@@ -1427,7 +1427,7 @@ git commit -m "feat(firm): VG-6a key-handshake auto-publish — admin console po
 
 Until the v2 encrypted vault exists (Wave 3), document files rely on OS full-disk encryption. Make that unmissable: an onboarding callout in the existing `data` step + a Data Map row with OS-specific "check it is on" instructions.
 
-- [ ] **Step 1: The guidance component.** Create `src/components/onboarding/DiskEncryptionGuidance.tsx`:
+- [x] **Step 1: The guidance component.** Create `src/components/onboarding/DiskEncryptionGuidance.tsx`:
 
 ```tsx
 /**
@@ -1470,7 +1470,7 @@ export function DiskEncryptionGuidance() {
 }
 ```
 
-- [ ] **Step 2: Locales** (en + es/de + lock; no em dashes):
+- [x] **Step 2: Locales** (en + es/de + lock; no em dashes):
 
 ```json
 "disk-encryption": {
@@ -1482,9 +1482,9 @@ export function DiskEncryptionGuidance() {
 }
 ```
 
-- [ ] **Step 3: Mount in onboarding.** In `FirstRunWizard.tsx`, inside the `step === 'data'` pane body (read the block ending at `:316-329`; place the component at the END of the body content, above the actions): `<DiskEncryptionGuidance />`. The step is already on the wizard's required path (`welcome → profession → workspace → data → ai-setup → demo`), which satisfies "onboarding step" without adding a seventh circle.
+- [x] **Step 3: Mount in onboarding.** In `FirstRunWizard.tsx`, inside the `step === 'data'` pane body (read the block ending at `:316-329`; place the component at the END of the body content, above the actions): `<DiskEncryptionGuidance />`. The step is already on the wizard's required path (`welcome → profession → workspace → data → ai-setup → demo`), which satisfies "onboarding step" without adding a seventh circle.
 
-- [ ] **Step 4: Data Map row.** In `DataMapDialog.tsx`, append to `DATA_MAP_ROWS` (`:64`) following the file's existing hardcoded-copy + tone conventions (amber = honest caveat; import `HardDrive` from lucide):
+- [x] **Step 4: Data Map row.** In `DataMapDialog.tsx`, append to `DATA_MAP_ROWS` (`:64`) following the file's existing hardcoded-copy + tone conventions (amber = honest caveat; import `HardDrive` from lucide):
 
 ```ts
   {
@@ -1496,13 +1496,13 @@ export function DiskEncryptionGuidance() {
   },
 ```
 
-- [ ] **Step 5: Tests.** `tests/unit/disk-encryption-guidance.test.tsx`: renders title + the detected platform's check line (mock userAgent per case via `vi.stubGlobal`/property spy). Run the onboarding + data-map adjacent suites to catch copy snapshots:
+- [x] **Step 5: Tests.** `tests/unit/disk-encryption-guidance.test.tsx`: renders title + the detected platform's check line (mock userAgent per case via `vi.stubGlobal`/property spy). Run the onboarding + data-map adjacent suites to catch copy snapshots:
 
 ```bash
 npx vitest run tests/unit/disk-encryption-guidance.test.tsx tests/unit/first-run-wizard-flow.test.tsx tests/unit/onboarding-copy-3-0.test.ts tests/unit/i18n 2>&1 | tail -6
 ```
 
-- [ ] **Step 6: Verify + commit**
+- [x] **Step 6: Verify + commit**
 
 ```bash
 cd ~/keepance && npx tsc --noEmit
@@ -1514,7 +1514,7 @@ git commit -m "feat(trust): VG-6d-v1 unmissable disk-encryption guidance — onb
 
 ### Task 14: Wave verification — full gates, leg-3 re-run, CHANGELOG, doc ticks
 
-- [ ] **Step 1: Full gates**
+- [x] **Step 1: Full gates**
 
 ```bash
 cd ~/keepance && npx tsc --noEmit && npm run test 2>&1 | tail -6
@@ -1524,20 +1524,20 @@ cd ~/keepance && npx playwright test tests/e2e/wedge-proof.spec.ts tests/e2e/spr
 
 Expected: tsc clean; vitest fully green; cargo green; the wedge-proof spec green with ZERO `test.fail` remaining (`grep -c "test.fail" tests/e2e/wedge-proof.spec.ts` → 0).
 
-- [ ] **Step 2: The heavy ignored test, once**
+- [x] **Step 2: The heavy ignored test, once**
 
 ```bash
 cd ~/keepance/src-tauri && cargo test --release --test rag_embed_memory -- --ignored --nocapture 2>&1 | tail -6
 ```
 
-- [ ] **Step 3: Leg-3 runbook re-run (the wave's system-level verification, rule 2).** Follow `docs/quality/2026-06-11-wedge-proof/RUNBOOK.md` end to end on this rig (fresh profile, headless keyring, MemoryMax per the recalibrated harness), banking artifacts to `docs/quality/2026-06-11-wedge-proof/fix-wave-rerun/`. Expected deltas vs the 2026-06-11 baseline:
+- [x] **Step 3: Leg-3 runbook re-run (the wave's system-level verification, rule 2).** Follow `docs/quality/2026-06-11-wedge-proof/RUNBOOK.md` end to end on this rig (fresh profile, headless keyring, MemoryMax per the recalibrated harness), banking artifacts to `docs/quality/2026-06-11-wedge-proof/fix-wave-rerun/`. Expected deltas vs the 2026-06-11 baseline:
   - **Indexing:** 4 files indexed (huge-notes.md back in), no OOM, whole-scope cgroup peak well under the 12G cap (record the curve; F-501 closed at system level).
   - **Chat (F-503):** a number-keyed local-model citation now renders as a filename chip, `data-verified="true"` against the wedge fixtures, and chip click-through opens the deposition WITH the cited passage scrolled on screen (F-504).
   - **Finder (F-502/F-507b):** starts with NO per-template pin seeded in local-only mode (remove the harness's F-502 workaround pin from `seed-localstorage` and note it in the script header — the product now resolves local-only itself); run completes; findings with verbatim quotes report verified > 0 in the run record (engine recovers grounding by quote). Single-run rubric completeness (F-507a) is OBSERVED and recorded, not gated (model floor).
   - **Artifacts (F-508):** banner counts no longer grow as .aichat/.workflow files accrue.
   - Append a dated "Fix-wave re-run" addendum section to `RESULTS.md` with per-finding closure verdicts (CLOSED / improved / still-open with evidence), and add the corresponding W-rows to the campaign coverage ledger.
 
-- [ ] **Step 4: CHANGELOG.** Under `## [Unreleased]`, following the existing entry style:
+- [x] **Step 4: CHANGELOG.** Under `## [Unreleased]`, following the existing entry style:
 
 ```markdown
 ### Fixed
@@ -1558,9 +1558,9 @@ cd ~/keepance/src-tauri && cargo test --release --test rag_embed_memory -- --ign
 - Website: the Clio line no longer implies an integration that does not exist yet ("fits beside Clio" stays; "sits on top of the tools" is gone). File: `website/index.html`.
 ```
 
-- [ ] **Step 5: Doc ticks.** In `docs/strategy/2026-06-10-vision-gap-closure-plan.md`, add STATUS lines (matching the VG-1 STATUS style) to VG-3 (b done; c/d stay Wave 2), VG-4 (a done; b/c stay), VG-5 (a-d done), VG-6 (a done, d-v1 done; b/c/e stay) referencing this plan + the re-run artifacts.
+- [x] **Step 5: Doc ticks.** In `docs/strategy/2026-06-10-vision-gap-closure-plan.md`, add STATUS lines (matching the VG-1 STATUS style) to VG-3 (b done; c/d stay Wave 2), VG-4 (a done; b/c stay), VG-5 (a-d done), VG-6 (a done, d-v1 done; b/c/e stay) referencing this plan + the re-run artifacts.
 
-- [ ] **Step 6: Commit + push**
+- [x] **Step 6: Commit + push**
 
 ```bash
 cd ~/keepance && git add CHANGELOG.md docs/ scripts/wedge-proof-native.sh
