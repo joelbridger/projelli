@@ -30,17 +30,25 @@
 #     `down` restores it.
 #   · README.md stays OUT of the seeded workspace: it documents the planted
 #     contradictions (the answer key — indexing it would contaminate the
-#     proof) and would bump the indexable count past the expected 4 files
-#     (extractor.rs TEXT_EXTENSIONS over the corpus = deposition .txt,
-#     incident-summary .md, huge-notes.md, acme-supply-agreement.txt).
-#   · huge-notes.md is back IN (Wave 1 fix wave, 2026-06-11 — F-501 FIXED):
+#     proof) and the generators/ dir is excluded too.
+#   · INDEXABLE WALK COUNT = 14 (OBSERVED on the 2026-06-11 Wave 2 re-run —
+#     the live banner read "Indexing workspace: 7 / 14 files"). Wave 2 made
+#     office formats indexable Rust-side (extractor.rs OFFICE_EXTENSIONS:
+#     docx/xlsx/pptx/rtf) on top of TEXT_EXTENSIONS, so the corpus now walks:
+#     6 docx (contract-services-agreement, engagement-letter-tracked,
+#     intake-memo-acme, letterhead-template, Müller—Schäfer, empty.docx —
+#     empty counts in the walk total but stores 0 chunks), 2 md (huge-notes,
+#     incident-summary), 3 txt (deposition-johnson, weston-certified,
+#     acme-supply-agreement), 2 xlsx (damages-model, acme-damages-summary),
+#     1 pptx (exhibit-deck) = 14. The 3 scanned .pdf fixtures stay on the TS
+#     path (OCR), NOT in this Rust-walk count. (Pre-Wave-2 this was 4.)
+#   · huge-notes.md is IN (Wave 1 fix wave, 2026-06-11 — F-501 FIXED):
 #     the original unbatched index_one_file embedded all ~1,400 chunks of
 #     the 2 MB file through one embed_documents call (fastembed's internal
 #     256-sequence batches) and oom-killed the app at 3G/6G/12G caps. The
 #     fix routes indexing through embedder::embed_documents_batched
 #     (32-chunk slices, cancel honored between slices), bounding the peak
-#     regardless of file size. Expected banner/status count for this
-#     harness is therefore back to the plan's original "4 files".
+#     regardless of file size (Wave 2 re-run: 1.66 GiB peak / 1659 chunks).
 #   · The F-502 workaround pin is GONE from seed-localstorage (Wave 1 fix
 #     wave, 2026-06-11): the original run seeded a templateModelOverrides
 #     Ollama pin for the contradiction finder because local-only runs

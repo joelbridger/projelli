@@ -1,0 +1,408 @@
+{
+  "id": "chat_1781198830042_z9ssy",
+  "title": "Local Chat 1",
+  "created": "2026-06-11T17:27:10.042Z",
+  "updated": "2026-06-11T17:38:21.798Z",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What hourly rate does the services agreement set for the firm's work?",
+      "timestamp": "2026-06-11T17:27:54.223Z",
+      "sources": [
+        {
+          "path": "/tmp/wedge-ws/contract-services-agreement.docx",
+          "chunkText": "PROFESSIONAL SERVICES AGREEMENT\n\nThis Professional Services Agreement (\"Agreement\") is entered into as of June 10, 2026, by and between Marchetti & Associates LLP (\"Firm\") and Nexus Consulting Partners LLC (\"Client\").\n\n1. Scope of Services\n\nThe Firm agrees to provide legal research, document review, and litigation support services as requested by Client in writing. All services shall be performed in accordance with applicable professional standards.\n\n2. Fees and Payment\n\nClient agrees to pay the Firm at a blended hourly rate of $375 per hour. Invoices shall be rendered monthly and are due within thirty (30) days of receipt. Late payments accrue interest at 1.5% per month.\n\n3. Confidentiality\n\nEach party agrees to maintain in strict confidence all Confidential Information received from the other party and to use such information only in furtherance of this Agreement. This obligation survives termination.\n\n4. Term and Termination\n\nThis Agreement commences on the date first written above and continues for twelve (12) months, unless earlier terminated. Either party may terminate upon thirty (30) days written notice. Upon termination, Client shall pay all fees incurred through the effective termination date.\n\n5. Governing Law\n\nThis Agreement shall be governed by and construed in accordance with the laws of the State of New York, without regard to its conflict of laws principles. Any disputes shall be resolved exclusively in the state or federal courts located in New York County.",
+          "score": 0.8302037,
+          "paragraphIndex": 0,
+          "sourceType": "docx",
+          "pageNumber": 0,
+          "id": "86dfbc74cf81d9ca075b99fa309786befe520697a4c90a385d3b24ab1f2c36d0",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/contract-services-agreement.docx"
+        },
+        {
+          "path": "/tmp/wedge-ws/engagement-letter-tracked.docx",
+          "chunkText": "ENGAGEMENT LETTER\n\nMarchetti & Associates LLP\n\n1200 Commerce Drive, Suite 400\n\nNew York, NY 10001\n\nJune 10, 2026\n\nRe: Retention — Johnson v. Nexus Dynamics Corp.\n\nDear Mr. Johnson, this letter confirms the terms of our engagement. We will represent you in connection with your wrongful termination claim against Nexus Dynamics Corp. Our hourly rate is $450 per hour.\n\nScope of Representation: We will handle all aspects of pre-litigation negotiation, mediation, and if necessary, litigation through trial. We will not handle any appeals without a separate engagement agreement.\n\nRetainer: You agree to pay an initial retainer of $10,000. Additional costs will be billed monthly.\n\nConfidentiality: All communications between attorney and client are protected by attorney-client privilege. You must not share our work product with third parties without prior written consent.\n\nTERMS AND CONDITIONS\n\nGoverning Law: This agreement shall be governed by the laws of the State of New York.\n\nDispute Resolution: Any fee disputes shall first be submitted to non-binding mediation before the New York State Bar Association.\n\nTermination: Either party may terminate this engagement upon ten (10) days written notice. Client remains responsible for all fees incurred through the termination date.\n\nPlease sign below to acknowledge your agreement to these terms.\n\nSincerely,\n\nDiane Marchetti, Esq.\n\nMarchetti & Associates LLP\n\nAccepted by: ________________________  Date: __________",
+          "score": 0.79776466,
+          "paragraphIndex": 0,
+          "sourceType": "docx",
+          "pageNumber": 0,
+          "id": "bd007482f44346bebbf6e821a907bf1248e8422ab62fe10ed783e5fbd25bea44",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/engagement-letter-tracked.docx"
+        },
+        {
+          "path": "/tmp/wedge-ws/engagement-letter-tracked.docx",
+          "chunkText": "remains responsible for all fees incurred through the termination date.\n\nPlease sign below to acknowledge your agreement to these terms.\n\nSincerely,\n\nDiane Marchetti, Esq.\n\nMarchetti & Associates LLP\n\nAccepted by: ________________________  Date: __________\n\n[INSERTED BY MARCHETTI] Additionally, we will provide monthly status updates.\n\n[INSERTED BY THORNTON] Hourly rate subject to annual review.",
+          "score": 0.78532845,
+          "paragraphIndex": 1,
+          "sourceType": "docx",
+          "pageNumber": 0,
+          "id": "74180eefde2868577c3554586375b8334142dbec39f60b187aee7b32a0131200",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/engagement-letter-tracked.docx"
+        },
+        {
+          "path": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "chunkText": "forwarded documents to his personal email for safekeeping on\n> approximately September 9-10. This summary states no documents left company\n> systems. These accounts directly conflict on a material fact.]\n\n### October 3 Meeting — Written Response Deadline\n\nDuring the October 3, 2025 meeting with Tom Weston (manager) and Sandra Liu (HR),\nJohnson was given a deadline of **October 10, 2025** to submit his written\nexplanation of the Q2 expense discrepancies.\n\n> [CONTRADICTION-2 vs. deposition transcript: The transcript records the\n> deadline as October 17, 2025. The incident summary records it as October 10.\n> A seven-day discrepancy on a key compliance deadline is directly material.]\n\n### Severance Offer\n\nUpon termination, Nexus Dynamics presented Johnson with a severance agreement\noffering **eight (8) weeks of base salary continuation** in accordance with\ncompany policy for employees with five or more years of service.\n\n> [CONTRADICTION-3 vs. deposition transcript: The transcript records Johnson\n> stating he was offered four weeks of severance. The incident summary records\n> the offer as eight weeks. This discrepancy affects both damages calculation\n> and the question of whether Johnson understood the offer presented.]\n\n---\n\n## Timeline of Key Events",
+          "score": 0.78313035,
+          "paragraphIndex": 1,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "def2c0cc3ca1d1173817c3bc2d69a67e2272d62058acfe4d8d2bfee3f3333ae4",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/incident-summary-johnson.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "chunkText": "tating he was offered four weeks of severance. The incident summary records\n> the offer as eight weeks. This discrepancy affects both damages calculation\n> and the question of whether Johnson understood the offer presented.]\n\n---\n\n## Timeline of Key Events\n\n| Date | Event |\n|------|-------|\n| Feb 2020 | Johnson hired as Product Manager |\n| Mar 2025 | Johnson reports billing irregularities to ethics hotline and HR |\n| Apr 2025 | Johnson excluded from meetings; reduced responsibilities (per Johnson) |\n| Aug 2025 | Last performance review: \"Meets Expectations,\" no written concerns |\n| Sep 8, 2025 | Compliance sends document preservation notice |\n| Oct 3, 2025 | Meeting with Weston and Liu regarding Q2 expense discrepancies |\n| Oct 10, 2025 | Deadline for Johnson's written response (per this summary) |\n| Oct 15, 2025 | Johnson submits written response |\n| Nov 12, 2025 | Johnson terminated |\n\n---\n\n## Litigation Posture\n\n**Theory of recovery:** Retaliatory termination under New York Labor Law § 740\n(whistleblower protection) and Title VII (if discriminatory motive can be shown).\n\n**Key vulnerabilities:** Document forwarding to personal email (IT policy\ncompliance); possible gap between his subjective belief about retaliation and\ndocumentary proof of causal nexus.",
+          "score": 0.7818074,
+          "paragraphIndex": 2,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "8a695d2f81a84aa8751ea0556fb063e8ab99af1e4bf966c1180f4a7bf675e031",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/incident-summary-johnson.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": "s potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.\n\n### Privilege Log Notes\n\nCommunications between Johnson and this firm are protected by attorney-client\nprivilege. Work product prepared by or at the direction of counsel is protected\nunder the work product doctrine. Marchetti & Associates has established a\nprivilege log to track all potentially protected communications.\n\n## Litigation Note — Block 545\n\n**Date:** June 14, 2026\n**Prepared by:** Diane Marchetti, Esq.\n**Matter:** Johnson v. Nexus Dynamics Corp.\n\n### Research Notes\n\nThis section documents preliminary research into New York Labor Law § 740,\nthe state whistleblower protection statute. Under § 740, an employer may not\ntake retaliatory personnel action against an employee who discloses, threatens\nto disclose, objects to, or refuses to participate in an activity, policy, or\npractice of the employer that is in violation of law, rule, or regulation.\n\nThe threshold question is whether Johnson's March 2025 report to the ethics\nhotline constitutes a \"disclosure\" within the meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).",
+          "score": 0.7806814,
+          "paragraphIndex": 1088,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "7810de1897979e04144c6a03b5f0ff502588c13d852c5735cf3c6205e2478fa1",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": "s potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.\n\n### Privilege Log Notes\n\nCommunications between Johnson and this firm are protected by attorney-client\nprivilege. Work product prepared by or at the direction of counsel is protected\nunder the work product doctrine. Marchetti & Associates has established a\nprivilege log to track all potentially protected communications.\n\n## Litigation Note — Block 45\n\n**Date:** June 18, 2026\n**Prepared by:** Diane Marchetti, Esq.\n**Matter:** Johnson v. Nexus Dynamics Corp.\n\n### Research Notes\n\nThis section documents preliminary research into New York Labor Law § 740,\nthe state whistleblower protection statute. Under § 740, an employer may not\ntake retaliatory personnel action against an employee who discloses, threatens\nto disclose, objects to, or refuses to participate in an activity, policy, or\npractice of the employer that is in violation of law, rule, or regulation.\n\nThe threshold question is whether Johnson's March 2025 report to the ethics\nhotline constitutes a \"disclosure\" within the meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).",
+          "score": 0.78018165,
+          "paragraphIndex": 88,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "cce50fbc01e24d0172595020ea02454c570643a25f8b0db604f49c365820441a",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": "s potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.\n\n### Privilege Log Notes\n\nCommunications between Johnson and this firm are protected by attorney-client\nprivilege. Work product prepared by or at the direction of counsel is protected\nunder the work product doctrine. Marchetti & Associates has established a\nprivilege log to track all potentially protected communications.\n\n## Litigation Note — Block 94\n\n**Date:** June 11, 2026\n**Prepared by:** Diane Marchetti, Esq.\n**Matter:** Johnson v. Nexus Dynamics Corp.\n\n### Research Notes\n\nThis section documents preliminary research into New York Labor Law § 740,\nthe state whistleblower protection statute. Under § 740, an employer may not\ntake retaliatory personnel action against an employee who discloses, threatens\nto disclose, objects to, or refuses to participate in an activity, policy, or\npractice of the employer that is in violation of law, rule, or regulation.\n\nThe threshold question is whether Johnson's March 2025 report to the ethics\nhotline constitutes a \"disclosure\" within the meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).",
+          "score": 0.78014755,
+          "paragraphIndex": 186,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "05146801e5b67c2cd4c641c9a3ea5694d625e29a31146f19617a1d01adfb11d8",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        }
+      ],
+      "scope": {
+        "kind": "allMatters"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "The Professional Services Agreement [contract-services-agreement.docx paragraph 0] sets the blended hourly rate at $375 per hour for the Firm's work.",
+      "timestamp": "2026-06-11T17:28:39.448Z",
+      "sources": [
+        {
+          "path": "/tmp/wedge-ws/contract-services-agreement.docx",
+          "chunkText": "PROFESSIONAL SERVICES AGREEMENT\n\nThis Professional Services Agreement (\"Agreement\") is entered into as of June 10, 2026, by and between Marchetti & Associates LLP (\"Firm\") and Nexus Consulting Partners LLC (\"Client\").\n\n1. Scope of Services\n\nThe Firm agrees to provide legal research, document review, and litigation support services as requested by Client in writing. All services shall be performed in accordance with applicable professional standards.\n\n2. Fees and Payment\n\nClient agrees to pay the Firm at a blended hourly rate of $375 per hour. Invoices shall be rendered monthly and are due within thirty (30) days of receipt. Late payments accrue interest at 1.5% per month.\n\n3. Confidentiality\n\nEach party agrees to maintain in strict confidence all Confidential Information received from the other party and to use such information only in furtherance of this Agreement. This obligation survives termination.\n\n4. Term and Termination\n\nThis Agreement commences on the date first written above and continues for twelve (12) months, unless earlier terminated. Either party may terminate upon thirty (30) days written notice. Upon termination, Client shall pay all fees incurred through the effective termination date.\n\n5. Governing Law\n\nThis Agreement shall be governed by and construed in accordance with the laws of the State of New York, without regard to its conflict of laws principles. Any disputes shall be resolved exclusively in the state or federal courts located in New York County.",
+          "score": 0.8302037,
+          "paragraphIndex": 0,
+          "sourceType": "docx",
+          "pageNumber": 0,
+          "id": "86dfbc74cf81d9ca075b99fa309786befe520697a4c90a385d3b24ab1f2c36d0",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/contract-services-agreement.docx",
+          "verified": true
+        },
+        {
+          "path": "/tmp/wedge-ws/engagement-letter-tracked.docx",
+          "chunkText": "ENGAGEMENT LETTER\n\nMarchetti & Associates LLP\n\n1200 Commerce Drive, Suite 400\n\nNew York, NY 10001\n\nJune 10, 2026\n\nRe: Retention — Johnson v. Nexus Dynamics Corp.\n\nDear Mr. Johnson, this letter confirms the terms of our engagement. We will represent you in connection with your wrongful termination claim against Nexus Dynamics Corp. Our hourly rate is $450 per hour.\n\nScope of Representation: We will handle all aspects of pre-litigation negotiation, mediation, and if necessary, litigation through trial. We will not handle any appeals without a separate engagement agreement.\n\nRetainer: You agree to pay an initial retainer of $10,000. Additional costs will be billed monthly.\n\nConfidentiality: All communications between attorney and client are protected by attorney-client privilege. You must not share our work product with third parties without prior written consent.\n\nTERMS AND CONDITIONS\n\nGoverning Law: This agreement shall be governed by the laws of the State of New York.\n\nDispute Resolution: Any fee disputes shall first be submitted to non-binding mediation before the New York State Bar Association.\n\nTermination: Either party may terminate this engagement upon ten (10) days written notice. Client remains responsible for all fees incurred through the termination date.\n\nPlease sign below to acknowledge your agreement to these terms.\n\nSincerely,\n\nDiane Marchetti, Esq.\n\nMarchetti & Associates LLP\n\nAccepted by: ________________________  Date: __________",
+          "score": 0.79776466,
+          "paragraphIndex": 0,
+          "sourceType": "docx",
+          "pageNumber": 0,
+          "id": "bd007482f44346bebbf6e821a907bf1248e8422ab62fe10ed783e5fbd25bea44",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/engagement-letter-tracked.docx"
+        },
+        {
+          "path": "/tmp/wedge-ws/engagement-letter-tracked.docx",
+          "chunkText": "remains responsible for all fees incurred through the termination date.\n\nPlease sign below to acknowledge your agreement to these terms.\n\nSincerely,\n\nDiane Marchetti, Esq.\n\nMarchetti & Associates LLP\n\nAccepted by: ________________________  Date: __________\n\n[INSERTED BY MARCHETTI] Additionally, we will provide monthly status updates.\n\n[INSERTED BY THORNTON] Hourly rate subject to annual review.",
+          "score": 0.78532845,
+          "paragraphIndex": 1,
+          "sourceType": "docx",
+          "pageNumber": 0,
+          "id": "74180eefde2868577c3554586375b8334142dbec39f60b187aee7b32a0131200",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/engagement-letter-tracked.docx"
+        },
+        {
+          "path": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "chunkText": "forwarded documents to his personal email for safekeeping on\n> approximately September 9-10. This summary states no documents left company\n> systems. These accounts directly conflict on a material fact.]\n\n### October 3 Meeting — Written Response Deadline\n\nDuring the October 3, 2025 meeting with Tom Weston (manager) and Sandra Liu (HR),\nJohnson was given a deadline of **October 10, 2025** to submit his written\nexplanation of the Q2 expense discrepancies.\n\n> [CONTRADICTION-2 vs. deposition transcript: The transcript records the\n> deadline as October 17, 2025. The incident summary records it as October 10.\n> A seven-day discrepancy on a key compliance deadline is directly material.]\n\n### Severance Offer\n\nUpon termination, Nexus Dynamics presented Johnson with a severance agreement\noffering **eight (8) weeks of base salary continuation** in accordance with\ncompany policy for employees with five or more years of service.\n\n> [CONTRADICTION-3 vs. deposition transcript: The transcript records Johnson\n> stating he was offered four weeks of severance. The incident summary records\n> the offer as eight weeks. This discrepancy affects both damages calculation\n> and the question of whether Johnson understood the offer presented.]\n\n---\n\n## Timeline of Key Events",
+          "score": 0.78313035,
+          "paragraphIndex": 1,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "def2c0cc3ca1d1173817c3bc2d69a67e2272d62058acfe4d8d2bfee3f3333ae4",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/incident-summary-johnson.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "chunkText": "tating he was offered four weeks of severance. The incident summary records\n> the offer as eight weeks. This discrepancy affects both damages calculation\n> and the question of whether Johnson understood the offer presented.]\n\n---\n\n## Timeline of Key Events\n\n| Date | Event |\n|------|-------|\n| Feb 2020 | Johnson hired as Product Manager |\n| Mar 2025 | Johnson reports billing irregularities to ethics hotline and HR |\n| Apr 2025 | Johnson excluded from meetings; reduced responsibilities (per Johnson) |\n| Aug 2025 | Last performance review: \"Meets Expectations,\" no written concerns |\n| Sep 8, 2025 | Compliance sends document preservation notice |\n| Oct 3, 2025 | Meeting with Weston and Liu regarding Q2 expense discrepancies |\n| Oct 10, 2025 | Deadline for Johnson's written response (per this summary) |\n| Oct 15, 2025 | Johnson submits written response |\n| Nov 12, 2025 | Johnson terminated |\n\n---\n\n## Litigation Posture\n\n**Theory of recovery:** Retaliatory termination under New York Labor Law § 740\n(whistleblower protection) and Title VII (if discriminatory motive can be shown).\n\n**Key vulnerabilities:** Document forwarding to personal email (IT policy\ncompliance); possible gap between his subjective belief about retaliation and\ndocumentary proof of causal nexus.",
+          "score": 0.7818074,
+          "paragraphIndex": 2,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "8a695d2f81a84aa8751ea0556fb063e8ab99af1e4bf966c1180f4a7bf675e031",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/incident-summary-johnson.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": "s potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.\n\n### Privilege Log Notes\n\nCommunications between Johnson and this firm are protected by attorney-client\nprivilege. Work product prepared by or at the direction of counsel is protected\nunder the work product doctrine. Marchetti & Associates has established a\nprivilege log to track all potentially protected communications.\n\n## Litigation Note — Block 545\n\n**Date:** June 14, 2026\n**Prepared by:** Diane Marchetti, Esq.\n**Matter:** Johnson v. Nexus Dynamics Corp.\n\n### Research Notes\n\nThis section documents preliminary research into New York Labor Law § 740,\nthe state whistleblower protection statute. Under § 740, an employer may not\ntake retaliatory personnel action against an employee who discloses, threatens\nto disclose, objects to, or refuses to participate in an activity, policy, or\npractice of the employer that is in violation of law, rule, or regulation.\n\nThe threshold question is whether Johnson's March 2025 report to the ethics\nhotline constitutes a \"disclosure\" within the meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).",
+          "score": 0.7806814,
+          "paragraphIndex": 1088,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "7810de1897979e04144c6a03b5f0ff502588c13d852c5735cf3c6205e2478fa1",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": "s potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.\n\n### Privilege Log Notes\n\nCommunications between Johnson and this firm are protected by attorney-client\nprivilege. Work product prepared by or at the direction of counsel is protected\nunder the work product doctrine. Marchetti & Associates has established a\nprivilege log to track all potentially protected communications.\n\n## Litigation Note — Block 45\n\n**Date:** June 18, 2026\n**Prepared by:** Diane Marchetti, Esq.\n**Matter:** Johnson v. Nexus Dynamics Corp.\n\n### Research Notes\n\nThis section documents preliminary research into New York Labor Law § 740,\nthe state whistleblower protection statute. Under § 740, an employer may not\ntake retaliatory personnel action against an employee who discloses, threatens\nto disclose, objects to, or refuses to participate in an activity, policy, or\npractice of the employer that is in violation of law, rule, or regulation.\n\nThe threshold question is whether Johnson's March 2025 report to the ethics\nhotline constitutes a \"disclosure\" within the meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).",
+          "score": 0.78018165,
+          "paragraphIndex": 88,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "cce50fbc01e24d0172595020ea02454c570643a25f8b0db604f49c365820441a",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": "s potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.\n\n### Privilege Log Notes\n\nCommunications between Johnson and this firm are protected by attorney-client\nprivilege. Work product prepared by or at the direction of counsel is protected\nunder the work product doctrine. Marchetti & Associates has established a\nprivilege log to track all potentially protected communications.\n\n## Litigation Note — Block 94\n\n**Date:** June 11, 2026\n**Prepared by:** Diane Marchetti, Esq.\n**Matter:** Johnson v. Nexus Dynamics Corp.\n\n### Research Notes\n\nThis section documents preliminary research into New York Labor Law § 740,\nthe state whistleblower protection statute. Under § 740, an employer may not\ntake retaliatory personnel action against an employee who discloses, threatens\nto disclose, objects to, or refuses to participate in an activity, policy, or\npractice of the employer that is in violation of law, rule, or regulation.\n\nThe threshold question is whether Johnson's March 2025 report to the ethics\nhotline constitutes a \"disclosure\" within the meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).",
+          "score": 0.78014755,
+          "paragraphIndex": 186,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "05146801e5b67c2cd4c641c9a3ea5694d625e29a31146f19617a1d01adfb11d8",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        }
+      ],
+      "scope": {
+        "kind": "allMatters"
+      }
+    },
+    {
+      "role": "user",
+      "content": "In the Weston deposition, how long is project documentation retained under the retention schedule?",
+      "timestamp": "2026-06-11T17:37:34.708Z",
+      "sources": [
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-weston-certified.txt",
+          "chunkText": "UNITED STATES DISTRICT COURT\nSOUTHERN DISTRICT OF NEW YORK\n------------------------------------------x\nIN RE: JOHNSON v. NEXUS DYNAMICS CORP.\nCase No. 26-CV-0412 (S.D.N.Y.)\n------------------------------------------x\nDEPOSITION OF THOMAS WESTON\nTaken on June 3, 2026 at 9:30 a.m.\nOffices of Marchetti & Associates LLP\n1200 Commerce Drive, Suite 400, New York\nAPPEARANCES:\nFor the Plaintiff: Diane Marchetti, Esq.\nFor the Defendant: Kevin Hartley, Esq.\nCourt Reporter: Sandra Price, RPR\nEXAMINATION BY MS. MARCHETTI:\nQ.   Please state your name for the record.\nA.   Thomas Edward Weston.\nQ.   What is your position at Nexus Dynamics?\nA.   Senior Director of the Cloud\nInfrastructure Division.\nQ.   How long have you held that role?\nA.   Since March of 2019.\nQ.   Are you familiar with the company's\ndocument retention policy?\nA.   Yes, I am. I helped draft the current\nversion of that policy in 2023.\nQ.   Describe the retention schedule for\nengineering records, please.\nA.   Project documentation is retained for\nseven years. Routine operational logs are\nkept for eighteen months and then purged\non a rolling basis by the archive system.\nQ.   Who administers litigation holds at\nNexus Dynamics?",
+          "score": 0.85396737,
+          "paragraphIndex": 0,
+          "sourceType": "transcript",
+          "pageNumber": 1,
+          "locator": "1:1-2:9",
+          "id": "dfec7032e1a6a9d4df409194e799850c960a6949c49b1d0dab0b9a70c52c6094",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-weston-certified.txt"
+        },
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-weston-certified.txt",
+          "chunkText": "A.   There is an annual compliance module.\nCompletion is tracked by Human Resources\nand reported to the audit committee.\nQ.   Did your division complete the 2025\nmodule?\nA.   Yes. Completion for my division was\none hundred percent as of October 2025.\nQ.   Thank you. Let's take a short break.\n(Recess taken from 10:42 a.m. to\n10:55 a.m.)\nEXAMINATION BY MR. HARTLEY:\nQ.   Mr. Weston, just a few questions. Is\nthe retention policy you described written\ndown anywhere?\nA.   Yes, it is published on the internal\npolicy portal as document RET-104.\nQ.   And the archive log you mentioned, who\ncan read it?\nA.   Legal operations and the two archive\nadministrators. Read access is logged as\nwell.\nQ.   Nothing further. Thank you.\nMS. MARCHETTI: No redirect. We are\nadjourned.\n(Deposition concluded at 11:20 a.m.)\nCERTIFICATE OF REPORTER\nI, Sandra Price, RPR, Certified Court\nReporter, do hereby certify that the\nforegoing is a true and accurate\ntranscript of the deposition of Thomas\nWeston, taken on June 3, 2026.\nSandra Price, RPR\nNotary Public, State of New York\nCommission No. 01PR6054321\nMy commission expires March 14, 2028.",
+          "score": 0.8483875,
+          "paragraphIndex": 2,
+          "sourceType": "transcript",
+          "pageNumber": 3,
+          "locator": "3:16-4:25",
+          "id": "870dec97369e2c1b36e8c1bcfe791c08056d117effa3a8a99672ed2a1ffeb679",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-weston-certified.txt"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": "eport and the November 2025 termination — may\nbe insufficient on its own. The court in *Kotcher v. Rosa and Sullivan\nAppliance Ctr.*, 957 F.2d 59, 65 (2d Cir. 1992), held that a time gap of\neight to ten months requires additional circumstantial evidence.\n\nAdditional evidence to pursue:\n- Documentary evidence of Weston's changed conduct after April 2025\n- Email communications between Weston and Liu re: Johnson during Q2-Q4 2025\n- Comparator data: how were other employees' expense discrepancies handled?\n- Whether the \"restructuring\" justification was applied to any other PM\n\n### Document Review Notes\n\nPlaintiff's Exhibit 3 (Compliance email of September 8, 2025) establishes\nthat Nexus Dynamics had an ongoing investigation as of that date. The\ndocument preservation directive creates an inference that management knew\nof Johnson's potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.\n\n### Privilege Log Notes\n\nCommunications between Johnson and this firm are protected by attorney-client\nprivilege. Work product prepared by or at the direction of counsel is protected\nunder the work product doctrine. Marchetti & Associates has established a\nprivilege log to track all potentially protected communications.\n\n## Litigation Note — Block 2",
+          "score": 0.83377254,
+          "paragraphIndex": 1,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "f7bbd3e3d5a70c2c874d4608ba3ab248aa52502ef8c559caff5982d4c4e54b01",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "chunkText": "ail.\n   Were you aware that Nexus Dynamics' IT policy requires all work documents\n   to remain on company-managed systems?\nA. I may have seen something about that policy, but I didn't consider it\n   relevant to preserving documents for a compliance review.\n\nQ. And regarding the October meeting with Mr. Weston — you said the\n   deadline was October 17. Do you have any written confirmation of that date?\nA. Tom told me verbally. I didn't receive it in writing.\n\nMR. HARTLEY: No further questions.\n\nMS. MARCHETTI: We'll reserve the right to re-examine.\n\n-------------------------------------------------------\nCERTIFICATE OF REPORTER\nI, Sandra Price, RPR, Certified Court Reporter, do hereby certify that\nthe foregoing is a true and accurate transcript of the deposition of\nMarcus Johnson taken on May 14, 2026.\n\nSandra Price, RPR\n-------------------------------------------------------",
+          "score": 0.82663476,
+          "paragraphIndex": 6,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "707438717071e0cecebafa9f5579cb7802cb7970d8b00d60f7f7ad4f97b48d39",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt"
+        },
+        {
+          "path": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "chunkText": "r protection) and Title VII (if discriminatory motive can be shown).\n\n**Key vulnerabilities:** Document forwarding to personal email (IT policy\ncompliance); possible gap between his subjective belief about retaliation and\ndocumentary proof of causal nexus.\n\n**Recommended next steps:**\n1. Resolve the document-forwarding contradiction before any motion practice.\n2. Obtain written confirmation of the October compliance deadline from Weston\n   or Liu.\n3. Subpoena Nexus Dynamics for September–November 2025 manager communications.\n4. Identify and interview the two Product Managers who received retention\n   bonuses in September 2025.",
+          "score": 0.8248699,
+          "paragraphIndex": 3,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "e8b2e971e5ad24d618e6d2ff34f89d1a458058b0068d77fa5b3588b1f7e9e4ce",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/incident-summary-johnson.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "chunkText": "forwarded documents to his personal email for safekeeping on\n> approximately September 9-10. This summary states no documents left company\n> systems. These accounts directly conflict on a material fact.]\n\n### October 3 Meeting — Written Response Deadline\n\nDuring the October 3, 2025 meeting with Tom Weston (manager) and Sandra Liu (HR),\nJohnson was given a deadline of **October 10, 2025** to submit his written\nexplanation of the Q2 expense discrepancies.\n\n> [CONTRADICTION-2 vs. deposition transcript: The transcript records the\n> deadline as October 17, 2025. The incident summary records it as October 10.\n> A seven-day discrepancy on a key compliance deadline is directly material.]\n\n### Severance Offer\n\nUpon termination, Nexus Dynamics presented Johnson with a severance agreement\noffering **eight (8) weeks of base salary continuation** in accordance with\ncompany policy for employees with five or more years of service.\n\n> [CONTRADICTION-3 vs. deposition transcript: The transcript records Johnson\n> stating he was offered four weeks of severance. The incident summary records\n> the offer as eight weeks. This discrepancy affects both damages calculation\n> and the question of whether Johnson understood the offer presented.]\n\n---\n\n## Timeline of Key Events",
+          "score": 0.8241187,
+          "paragraphIndex": 1,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "def2c0cc3ca1d1173817c3bc2d69a67e2272d62058acfe4d8d2bfee3f3333ae4",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/incident-summary-johnson.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "chunkText": "il to the ethics hotline and also spoke directly with\n   Sandra Liu in HR.\n\nQ. And what response did you receive?\nA. Sandra said she would look into it. I never received a written follow-up.\n\nQ. Did you keep a copy of that email?\nA. Yes, I have that email.\n\nQ. After you raised those concerns, did you notice any change in how\n   Mr. Weston treated you?\nA. Yes. Starting in April 2025, Tom began excluding me from key meetings\n   that I had previously attended. My responsibilities were also reduced.\n\nQ. How many meetings do you estimate you were excluded from between\n   April and October 2025?\nA. I would say at least fifteen to twenty significant meetings.\n\nPAGE 5\n\nQ. Mr. Johnson, I want to ask you about your compensation. What was your\n   base salary at the time of termination?\nA. $185,000 per year.\n\nQ. Did you receive any bonuses in 2024?\nA. Yes. I received my standard annual bonus of $22,000 in March 2024.\n\nQ. And for 2025?\nA. I did not receive a bonus for 2025. I was told bonuses were suspended\n   company-wide due to budget constraints.\n\nQ. Were you aware of other employees receiving bonuses in 2025?\nA. Yes. I learned from colleagues that two other product managers received\n   retention bonuses in September 2025.\n\nQ. Do you know the names of those colleagues?\nA. I'd prefer not to put their names on record, but yes, I know who they are.",
+          "score": 0.81610024,
+          "paragraphIndex": 4,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "a85090047b64bc9766494a1a36d7ce86e838964be1a1aa8c614be8fdf4193782",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt"
+        },
+        {
+          "path": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "chunkText": "# Matter Summary: Johnson v. Nexus Dynamics Corp.\n\n**Case No.:** 26-CV-0412 (S.D.N.Y.)\n**Client:** Marcus Raymond Johnson\n**Opposing Party:** Nexus Dynamics Corp.\n**Lead Attorney:** Diane Marchetti, Esq.\n**Date Prepared:** June 1, 2026\n\n---\n\n## Background\n\nMarcus Johnson was employed by Nexus Dynamics Corp. as a Senior Product Manager\nfrom February 2020 until his termination on November 12, 2025 — a tenure of\napproximately five years and nine months.\n\nJohnson's termination followed an internal compliance review of Q2 2025 expense\nreports. The company characterizes the separation as a \"restructuring.\" Johnson\ncontends it was retaliatory, stemming from his March 2025 report of suspected\nvendor billing irregularities to the company ethics hotline.\n\n---\n\n## Key Facts (Established from Company Records)\n\n### Document Preservation\n\nFollowing receipt of the Compliance Department's document preservation notice\ndated September 8, 2025, Johnson confirmed to HR that **all relevant documents\nremained on company servers only** and that he did not transfer or copy any\nmaterials to personal devices or email accounts.\n\n> [CONTRADICTION-1 vs. deposition transcript: The transcript records Johnson\n> saying he forwarded documents to his personal email for safekeeping on\n> approximately September 9-10. This summary states no documents left company\n> systems. These accounts directly conflict on a material fact.]\n\n### October 3 Meeting — Written Response Deadline",
+          "score": 0.81576324,
+          "paragraphIndex": 0,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "a9f827c74a6917fb0e97763b4b7e29a61c069aecf10428157c9d137c3f6fca7d",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/incident-summary-johnson.md"
+        }
+      ],
+      "scope": {
+        "kind": "allMatters"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "According to the deposition transcript of Thomas Weston [deposition-transcript-weston-certified.txt paragraph 0], \"Project documentation is retained for seven years.\"",
+      "timestamp": "2026-06-11T17:38:21.797Z",
+      "sources": [
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-weston-certified.txt",
+          "chunkText": "UNITED STATES DISTRICT COURT\nSOUTHERN DISTRICT OF NEW YORK\n------------------------------------------x\nIN RE: JOHNSON v. NEXUS DYNAMICS CORP.\nCase No. 26-CV-0412 (S.D.N.Y.)\n------------------------------------------x\nDEPOSITION OF THOMAS WESTON\nTaken on June 3, 2026 at 9:30 a.m.\nOffices of Marchetti & Associates LLP\n1200 Commerce Drive, Suite 400, New York\nAPPEARANCES:\nFor the Plaintiff: Diane Marchetti, Esq.\nFor the Defendant: Kevin Hartley, Esq.\nCourt Reporter: Sandra Price, RPR\nEXAMINATION BY MS. MARCHETTI:\nQ.   Please state your name for the record.\nA.   Thomas Edward Weston.\nQ.   What is your position at Nexus Dynamics?\nA.   Senior Director of the Cloud\nInfrastructure Division.\nQ.   How long have you held that role?\nA.   Since March of 2019.\nQ.   Are you familiar with the company's\ndocument retention policy?\nA.   Yes, I am. I helped draft the current\nversion of that policy in 2023.\nQ.   Describe the retention schedule for\nengineering records, please.\nA.   Project documentation is retained for\nseven years. Routine operational logs are\nkept for eighteen months and then purged\non a rolling basis by the archive system.\nQ.   Who administers litigation holds at\nNexus Dynamics?",
+          "score": 0.85396737,
+          "paragraphIndex": 0,
+          "sourceType": "transcript",
+          "pageNumber": 1,
+          "locator": "1:1-2:9",
+          "id": "dfec7032e1a6a9d4df409194e799850c960a6949c49b1d0dab0b9a70c52c6094",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-weston-certified.txt",
+          "verified": true
+        },
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-weston-certified.txt",
+          "chunkText": "A.   There is an annual compliance module.\nCompletion is tracked by Human Resources\nand reported to the audit committee.\nQ.   Did your division complete the 2025\nmodule?\nA.   Yes. Completion for my division was\none hundred percent as of October 2025.\nQ.   Thank you. Let's take a short break.\n(Recess taken from 10:42 a.m. to\n10:55 a.m.)\nEXAMINATION BY MR. HARTLEY:\nQ.   Mr. Weston, just a few questions. Is\nthe retention policy you described written\ndown anywhere?\nA.   Yes, it is published on the internal\npolicy portal as document RET-104.\nQ.   And the archive log you mentioned, who\ncan read it?\nA.   Legal operations and the two archive\nadministrators. Read access is logged as\nwell.\nQ.   Nothing further. Thank you.\nMS. MARCHETTI: No redirect. We are\nadjourned.\n(Deposition concluded at 11:20 a.m.)\nCERTIFICATE OF REPORTER\nI, Sandra Price, RPR, Certified Court\nReporter, do hereby certify that the\nforegoing is a true and accurate\ntranscript of the deposition of Thomas\nWeston, taken on June 3, 2026.\nSandra Price, RPR\nNotary Public, State of New York\nCommission No. 01PR6054321\nMy commission expires March 14, 2028.",
+          "score": 0.8483875,
+          "paragraphIndex": 2,
+          "sourceType": "transcript",
+          "pageNumber": 3,
+          "locator": "3:16-4:25",
+          "id": "870dec97369e2c1b36e8c1bcfe791c08056d117effa3a8a99672ed2a1ffeb679",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-weston-certified.txt"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": "eport and the November 2025 termination — may\nbe insufficient on its own. The court in *Kotcher v. Rosa and Sullivan\nAppliance Ctr.*, 957 F.2d 59, 65 (2d Cir. 1992), held that a time gap of\neight to ten months requires additional circumstantial evidence.\n\nAdditional evidence to pursue:\n- Documentary evidence of Weston's changed conduct after April 2025\n- Email communications between Weston and Liu re: Johnson during Q2-Q4 2025\n- Comparator data: how were other employees' expense discrepancies handled?\n- Whether the \"restructuring\" justification was applied to any other PM\n\n### Document Review Notes\n\nPlaintiff's Exhibit 3 (Compliance email of September 8, 2025) establishes\nthat Nexus Dynamics had an ongoing investigation as of that date. The\ndocument preservation directive creates an inference that management knew\nof Johnson's potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.\n\n### Privilege Log Notes\n\nCommunications between Johnson and this firm are protected by attorney-client\nprivilege. Work product prepared by or at the direction of counsel is protected\nunder the work product doctrine. Marchetti & Associates has established a\nprivilege log to track all potentially protected communications.\n\n## Litigation Note — Block 2",
+          "score": 0.83377254,
+          "paragraphIndex": 1,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "f7bbd3e3d5a70c2c874d4608ba3ab248aa52502ef8c559caff5982d4c4e54b01",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "chunkText": "ail.\n   Were you aware that Nexus Dynamics' IT policy requires all work documents\n   to remain on company-managed systems?\nA. I may have seen something about that policy, but I didn't consider it\n   relevant to preserving documents for a compliance review.\n\nQ. And regarding the October meeting with Mr. Weston — you said the\n   deadline was October 17. Do you have any written confirmation of that date?\nA. Tom told me verbally. I didn't receive it in writing.\n\nMR. HARTLEY: No further questions.\n\nMS. MARCHETTI: We'll reserve the right to re-examine.\n\n-------------------------------------------------------\nCERTIFICATE OF REPORTER\nI, Sandra Price, RPR, Certified Court Reporter, do hereby certify that\nthe foregoing is a true and accurate transcript of the deposition of\nMarcus Johnson taken on May 14, 2026.\n\nSandra Price, RPR\n-------------------------------------------------------",
+          "score": 0.82663476,
+          "paragraphIndex": 6,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "707438717071e0cecebafa9f5579cb7802cb7970d8b00d60f7f7ad4f97b48d39",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt"
+        },
+        {
+          "path": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "chunkText": "r protection) and Title VII (if discriminatory motive can be shown).\n\n**Key vulnerabilities:** Document forwarding to personal email (IT policy\ncompliance); possible gap between his subjective belief about retaliation and\ndocumentary proof of causal nexus.\n\n**Recommended next steps:**\n1. Resolve the document-forwarding contradiction before any motion practice.\n2. Obtain written confirmation of the October compliance deadline from Weston\n   or Liu.\n3. Subpoena Nexus Dynamics for September–November 2025 manager communications.\n4. Identify and interview the two Product Managers who received retention\n   bonuses in September 2025.",
+          "score": 0.8248699,
+          "paragraphIndex": 3,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "e8b2e971e5ad24d618e6d2ff34f89d1a458058b0068d77fa5b3588b1f7e9e4ce",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/incident-summary-johnson.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "chunkText": "forwarded documents to his personal email for safekeeping on\n> approximately September 9-10. This summary states no documents left company\n> systems. These accounts directly conflict on a material fact.]\n\n### October 3 Meeting — Written Response Deadline\n\nDuring the October 3, 2025 meeting with Tom Weston (manager) and Sandra Liu (HR),\nJohnson was given a deadline of **October 10, 2025** to submit his written\nexplanation of the Q2 expense discrepancies.\n\n> [CONTRADICTION-2 vs. deposition transcript: The transcript records the\n> deadline as October 17, 2025. The incident summary records it as October 10.\n> A seven-day discrepancy on a key compliance deadline is directly material.]\n\n### Severance Offer\n\nUpon termination, Nexus Dynamics presented Johnson with a severance agreement\noffering **eight (8) weeks of base salary continuation** in accordance with\ncompany policy for employees with five or more years of service.\n\n> [CONTRADICTION-3 vs. deposition transcript: The transcript records Johnson\n> stating he was offered four weeks of severance. The incident summary records\n> the offer as eight weeks. This discrepancy affects both damages calculation\n> and the question of whether Johnson understood the offer presented.]\n\n---\n\n## Timeline of Key Events",
+          "score": 0.8241187,
+          "paragraphIndex": 1,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "def2c0cc3ca1d1173817c3bc2d69a67e2272d62058acfe4d8d2bfee3f3333ae4",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/incident-summary-johnson.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "chunkText": "il to the ethics hotline and also spoke directly with\n   Sandra Liu in HR.\n\nQ. And what response did you receive?\nA. Sandra said she would look into it. I never received a written follow-up.\n\nQ. Did you keep a copy of that email?\nA. Yes, I have that email.\n\nQ. After you raised those concerns, did you notice any change in how\n   Mr. Weston treated you?\nA. Yes. Starting in April 2025, Tom began excluding me from key meetings\n   that I had previously attended. My responsibilities were also reduced.\n\nQ. How many meetings do you estimate you were excluded from between\n   April and October 2025?\nA. I would say at least fifteen to twenty significant meetings.\n\nPAGE 5\n\nQ. Mr. Johnson, I want to ask you about your compensation. What was your\n   base salary at the time of termination?\nA. $185,000 per year.\n\nQ. Did you receive any bonuses in 2024?\nA. Yes. I received my standard annual bonus of $22,000 in March 2024.\n\nQ. And for 2025?\nA. I did not receive a bonus for 2025. I was told bonuses were suspended\n   company-wide due to budget constraints.\n\nQ. Were you aware of other employees receiving bonuses in 2025?\nA. Yes. I learned from colleagues that two other product managers received\n   retention bonuses in September 2025.\n\nQ. Do you know the names of those colleagues?\nA. I'd prefer not to put their names on record, but yes, I know who they are.",
+          "score": 0.81610024,
+          "paragraphIndex": 4,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "a85090047b64bc9766494a1a36d7ce86e838964be1a1aa8c614be8fdf4193782",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt"
+        },
+        {
+          "path": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "chunkText": "# Matter Summary: Johnson v. Nexus Dynamics Corp.\n\n**Case No.:** 26-CV-0412 (S.D.N.Y.)\n**Client:** Marcus Raymond Johnson\n**Opposing Party:** Nexus Dynamics Corp.\n**Lead Attorney:** Diane Marchetti, Esq.\n**Date Prepared:** June 1, 2026\n\n---\n\n## Background\n\nMarcus Johnson was employed by Nexus Dynamics Corp. as a Senior Product Manager\nfrom February 2020 until his termination on November 12, 2025 — a tenure of\napproximately five years and nine months.\n\nJohnson's termination followed an internal compliance review of Q2 2025 expense\nreports. The company characterizes the separation as a \"restructuring.\" Johnson\ncontends it was retaliatory, stemming from his March 2025 report of suspected\nvendor billing irregularities to the company ethics hotline.\n\n---\n\n## Key Facts (Established from Company Records)\n\n### Document Preservation\n\nFollowing receipt of the Compliance Department's document preservation notice\ndated September 8, 2025, Johnson confirmed to HR that **all relevant documents\nremained on company servers only** and that he did not transfer or copy any\nmaterials to personal devices or email accounts.\n\n> [CONTRADICTION-1 vs. deposition transcript: The transcript records Johnson\n> saying he forwarded documents to his personal email for safekeeping on\n> approximately September 9-10. This summary states no documents left company\n> systems. These accounts directly conflict on a material fact.]\n\n### October 3 Meeting — Written Response Deadline",
+          "score": 0.81576324,
+          "paragraphIndex": 0,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "a9f827c74a6917fb0e97763b4b7e29a61c069aecf10428157c9d137c3f6fca7d",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/incident-summary-johnson.md"
+        }
+      ],
+      "scope": {
+        "kind": "allMatters"
+      }
+    }
+  ],
+  "provider": "ollama",
+  "model": "llama3.1:8b"
+}

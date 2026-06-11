@@ -198,3 +198,15 @@ already-indexed workspace is a no-op by design (the leak fix).
   `attempt{1,2}-extracted.txt` + `attempt{1,2}-run-record.workflow.json` +
   `local-chat-1.aichat.json`.
 - RESULTS.md filled in, every FAIL carrying an F-5xx row.
+
+## 7. Wave 2 extension (2026-06-11)
+
+Same bring-up as §2 (`up` → `launch &` → wait for window → `down` → `seed-localstorage` → `launch &`). The seeded workspace now indexes **14 files** (OBSERVED on the live banner "Indexing workspace: 7 / 14 files"; the script comment is corrected to 14 — Wave 2 made docx/xlsx/pptx/rtf indexable Rust-side, on top of the text formats; the 3 scanned `.pdf` fixtures stay on the TS/OCR path, not in the Rust walk count). Attended items driven this pass (screenshots + artifacts under `wave2-rerun/`):
+
+1. **Office citation (VG-2b):** local chat, Ask-my-workspace ON, ask "What hourly rate does the services agreement set?" → grounded "$375 per hour" answer with a `contract-services-agreement.docx §0` chip, `verified: true` on disk, chip click-through opens the `.docx` at the Fees & Payment clause. (`wave2-07`, `wave2-08`).
+2. **Transcript citation (VG-3c):** ask the Weston retention question → "seven years" with a `Tr. 1:1-2:9` page:line chip, `verified: true` on disk. (`wave2-10`).
+3. **Finder precision (F-510):** Workflows → Deposition Contradiction Finder ▶ → Run (the Start dialog confirms "runs on your local AI model" — F-502 stays fixed, no pin needed) → interview with the leg-1 inputs → completes to a `.docx`. `assert` rubric = **3/5** (C1 personal-email, C3 four-week, C3 eight-week); the cap is live (`perSourceCap` in the run record) and only 1 of 5 findings anchored on `huge-notes.md` vs the Wave-1 4/4 at 0/5 — the recovery. C2 partially surfaced; verdicts + the F-507a/all-matters-scope caveats are in RESULTS §F.
+
+NOT re-driven natively this pass (deterministically test-covered; see RESULTS §F residuals): OCR retrieval over the scanned fixtures, and a letterheaded *deliverable* (a workflow run with a template set — the new-document byte-copy path was sanity-checked in Task 12; the deliverable merge + its review-found reconciliation fix are covered by the keepance-docx unit suite).
+
+> Operator note: the in-app editor autosaves every ~2 s. If you mis-target the chat input and type into an open document, undo and restore the workspace copy from `tests/fixtures/matter-corpus/` immediately — the committed fixtures are never at risk, but a contaminated workspace copy would skew a re-index. (Happened once this pass; caught and reverted, committed fixtures verified untouched.)

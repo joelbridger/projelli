@@ -686,7 +686,7 @@ git commit -m "feat(workflow): VG-3d issue-spotter template — legal pack, draf
 
 ### Task 14: Wave verification — full gates, harness extension run, RESULTS §F, CHANGELOG, doc ticks
 
-- [ ] **Step 1: Full gates**
+- [x] **Step 1: Full gates**
 
 ```bash
 cd ~/keepance && npx tsc --noEmit && npm run test 2>&1 | tail -6
@@ -696,7 +696,7 @@ cd ~/keepance && npx playwright test tests/e2e/wedge-proof.spec.ts --project=chr
 
 Expected: all green (the wedge-proof spec stayed zero-expected-fails after Wave 1; office/locator label changes must not regress it — fix forward if they do).
 
-- [ ] **Step 2: Heavy ignored tests, once**
+- [x] **Step 2: Heavy ignored tests, once**
 
 ```bash
 cd ~/keepance/src-tauri && cargo test --release --test rag_embed_memory -- --ignored --nocapture 2>&1 | tail -4
@@ -705,15 +705,15 @@ cargo test --release --test rag_deposition_contradictions -- --ignored --nocaptu
 
 Expected: bounded-memory still green; `f510_capped_finder_feed_contains_both_sides_of_all_three` green; the raw-feed composition printout banked into the RESULTS addendum.
 
-- [ ] **Step 3: Harness extension (leg-3-style attended pass on this rig).** Update `scripts/wedge-proof-native.sh` first: header notes (office formats + certified transcript + scanned fixtures now in scope; the indexable walk count — recompute it: 4 text + 1 certified transcript + 5 docx (incl. zero-byte empty.docx, which counts in the total and stores 0 chunks) + 2 xlsx + 1 pptx = **13**; verify against the live banner and correct the script comment to what is OBSERVED). Append a "Wave 2 extension" section to `RUNBOOK.md` with these attended items, then run them (`up` → `launch` → drive):
+- [x] **Step 3: Harness extension (leg-3-style attended pass on this rig).** Update `scripts/wedge-proof-native.sh` first: header notes (office formats + certified transcript + scanned fixtures now in scope; the indexable walk count — recompute it: 4 text + 1 certified transcript + 5 docx (incl. zero-byte empty.docx, which counts in the total and stores 0 chunks) + 2 xlsx + 1 pptx = **13**; verify against the live banner and correct the script comment to what is OBSERVED). Append a "Wave 2 extension" section to `RUNBOOK.md` with these attended items, then run them (`up` → `launch` → drive):
   1. **Office citation (VG-2b):** ask `"What hourly rate does the services agreement set?"` → grounded answer with a chip from `contract-services-agreement.docx`, `verified: true` on disk in the persisted chat, click-through opens the document.
   2. **OCR retrieval (VG-2):** with the scanned fixtures in the workspace and the OCR toggle on: the OCR progress line appears during indexing; ask about the planted motion sentence → cited hit from `scanned-filing-stamped.pdf` with the scanned disclosure; the noisy fax fixture's chunks carry the low-confidence label.
   3. **Transcript citation (VG-3c):** ask the litigation-hold question → chip labeled `Tr. <page:line>`; click-through opens the certified transcript.
   4. **Finder precision (F-510, observed):** configure a Johnson matter mapping the fixture files (so the run is matter-scoped — the leg-3 gap), run the finder once with the §A interview inputs: the run record's retrieved feed shows ≤4 chunks per source (the cap live) with both fixture documents present; rubric scored via the existing `assert` verb and recorded HONESTLY (F-507a stays a model floor — observed, not gated; the claim this wave makes is feed precision, proven in Step 2's capped-feed test + the live feed composition).
   5. **Letterhead on the real binary (VG-4c):** set the template, create a new Word doc, confirm the header renders.
   6. Bank screenshots/output to `docs/quality/2026-06-11-wedge-proof/wave2-rerun/` (the Assured artifacts from Task 11 already live in `wave2-rerun/assured/`).
-- [ ] **Step 4: RESULTS §F addendum.** Append `## F. Wave 2 extension run, <date>` to `docs/quality/2026-06-11-wedge-proof/RESULTS.md`: per-item verdicts for office citations, OCR retrieval + low-confidence marking, transcript page:line citations, the capped finder feed (with the raw-vs-capped composition from Step 2), the Assured live exercise (link the redacted artifacts), the verifier-normalization re-verify (how many previously-`textMismatch` shapes now verify — cite the new unit cases), and an honest residuals list (at minimum: F-507a model floor unchanged; finder source-type filter considered-and-deferred; OCR engine decision + anything the spike left open; xlsx formula cells are not search text by design).
-- [ ] **Step 5: CHANGELOG** under `## [Unreleased]`, following the existing entry style (consolidated, plain language, file lists; the one-time re-index note appears ONCE):
+- [x] **Step 4: RESULTS §F addendum.** Append `## F. Wave 2 extension run, <date>` to `docs/quality/2026-06-11-wedge-proof/RESULTS.md`: per-item verdicts for office citations, OCR retrieval + low-confidence marking, transcript page:line citations, the capped finder feed (with the raw-vs-capped composition from Step 2), the Assured live exercise (link the redacted artifacts), the verifier-normalization re-verify (how many previously-`textMismatch` shapes now verify — cite the new unit cases), and an honest residuals list (at minimum: F-507a model floor unchanged; finder source-type filter considered-and-deferred; OCR engine decision + anything the spike left open; xlsx formula cells are not search text by design).
+- [x] **Step 5: CHANGELOG** under `## [Unreleased]`, following the existing entry style (consolidated, plain language, file lists; the one-time re-index note appears ONCE):
 
 ```markdown
 ### Added
@@ -732,8 +732,8 @@ Expected: bounded-memory still green; `f510_capped_finder_feed_contains_both_sid
 - **The search index stores less about you at rest:** file paths inside it are now tokenized and encrypted like the text already was, and the printable Data Map documents what remains (matter labels, privilege tags, embedding vectors). Files: `src-tauri/src/commands/rag/store.rs`, `src/components/privacy/DataMapDialog.tsx`.
 ```
 
-- [ ] **Step 6: Strategy doc ticks.** In `docs/strategy/2026-06-10-vision-gap-closure-plan.md`, add STATUS lines (matching the existing STATUS style) to VG-2, VG-2b, VG-3 (c and d now done), VG-4 (c done; b remains open as the written evaluation), VG-6 (b and e done; c SSO and d-v2 vault stay Wave 3), each referencing this plan + the §F artifacts.
-- [ ] **Step 7: Commit + push**
+- [x] **Step 6: Strategy doc ticks.** In `docs/strategy/2026-06-10-vision-gap-closure-plan.md`, add STATUS lines (matching the existing STATUS style) to VG-2, VG-2b, VG-3 (c and d now done), VG-4 (c done; b remains open as the written evaluation), VG-6 (b and e done; c SSO and d-v2 vault stay Wave 3), each referencing this plan + the §F artifacts.
+- [x] **Step 7: Commit + push**
 
 ```bash
 cd ~/keepance && git add CHANGELOG.md docs scripts/wedge-proof-native.sh
