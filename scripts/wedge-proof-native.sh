@@ -41,6 +41,14 @@
 #     (32-chunk slices, cancel honored between slices), bounding the peak
 #     regardless of file size. Expected banner/status count for this
 #     harness is therefore back to the plan's original "4 files".
+#   · The F-502 workaround pin is GONE from seed-localstorage (Wave 1 fix
+#     wave, 2026-06-11): the original run seeded a templateModelOverrides
+#     Ollama pin for the contradiction finder because local-only runs
+#     silently no-opped without one. F-502 is fixed product-side
+#     (resolveWorkflowProvider honors localOnly + installed Ollama models;
+#     blocked runs banner in WorkflowPanel), so the harness now seeds only
+#     what onboarding itself would persist — the re-run must exercise the
+#     real resolution path.
 #
 # OUT OF SCOPE on this rig (stays on the Windows spot check): live mail
 # import (TLS-only IMAP vs the plaintext greenmail fixture, F-419) and the
@@ -356,29 +364,19 @@ now = datetime.now(timezone.utc).isoformat()
 # Mirror of the zustand-persist payload onboarding would have written
 # (settingsStore partialize: values/_migrated/featuresTourCompleted/language).
 #
-# templateModelOverrides pins the Deposition Contradiction Finder to the
-# local model — byte-identical to what Settings → Templates writes via
-# handleProviderChange (TemplateModelSettings.tsx: firstModelFor('ollama')
-# = 'llama3.1:8b'). Two reasons it is seeded rather than clicked (Task 7):
-#   1. F-502 (RESULTS.md): without a pin, a local-only run silently no-ops —
-#      handleStartWorkflow resolves provider from template pins + cloud keys
-#      only (App.tsx:2306-2360 ignores confidentialityMode), lands on
-#      'needs-provider', and returns before any workflow tab exists, so the
-#      error banner (WorkflowExecutionTab.tsx:318) has nowhere to render.
-#   2. The Settings provider <select> opens a native GTK popup that is
-#      input-isolated on a no-WM Xvfb (same class as the GTK file chooser);
-#      the pin cannot be clicked headless. The Settings surface itself is
-#      screenshot-proven (run-08f..run-08i).
+# NO templateModelOverrides pin anymore (Wave 1 fix wave, 2026-06-11): the
+# original run had to seed an Ollama pin for the Deposition Contradiction
+# Finder because of F-502 (handleStartWorkflow ignored confidentialityMode,
+# resolved to a cloud default, and silently no-opped in local-only mode).
+# F-502 is FIXED — resolveWorkflowProvider now takes localOnly +
+# installedOllamaModels and resolves local-only runs to the first installed
+# Ollama model product-side, and a blocked run surfaces a banner in
+# WorkflowPanel. The re-run deliberately seeds NOTHING so the product path
+# is what gets tested.
 settings = json.dumps({
     "state": {
         "values": {
             "confidentialityMode": "local-only",
-            "templateModelOverrides": {
-                "legal-deposition-contradiction-finder": {
-                    "provider": "ollama",
-                    "model": "llama3.1:8b",
-                }
-            },
         },
         "_migrated": True,
         "featuresTourCompleted": True,

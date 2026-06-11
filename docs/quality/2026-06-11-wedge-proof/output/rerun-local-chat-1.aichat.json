@@ -1,0 +1,208 @@
+{
+  "id": "chat_1781155774649_48pl4",
+  "title": "Local Chat 1",
+  "created": "2026-06-11T05:29:34.649Z",
+  "updated": "2026-06-11T05:30:55.767Z",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What deadline was Johnson given to submit his written response about the expense review?",
+      "timestamp": "2026-06-11T05:30:15.278Z",
+      "sources": [
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "chunkText": "out?\nA. Tom told me the Q2 expense review had found some discrepancies and\n   that I would need to submit a written explanation.\n\nQ. How did you respond?\nA. I told him I was happy to cooperate and that I had already saved\n   all the relevant documentation.\n\nQ. Did Mr. Weston tell you a deadline for submitting the explanation?\nA. He said I had until October 17, 2025 to submit my written response.\n   [CONTRADICTION-2: Transcript records the deadline as October 17, 2025.\n   The incident summary states the deadline given to Johnson was October 10, 2025.]\n\nQ. Did you meet that deadline?\nA. I submitted my response on October 15, 2025, two days before the deadline.\n\nQ. Let's talk about your relationship with Mr. Weston. Would you describe\n   it as positive?\nA. Mostly yes. We had occasional disagreements about project priorities,\n   but nothing serious.\n\nPAGE 4\n\nQ. In the eighteen months before your termination, did you ever raise any\n   concerns about Nexus Dynamics' business practices?\nA. Yes. In March 2025 I raised concerns about billing irregularities I\n   had noticed in vendor invoices.\n\nQ. Who did you raise those concerns with?\nA. I sent an email to the ethics hotline and also spoke directly with\n   Sandra Liu in HR.\n\nQ. And what response did you receive?\nA. Sandra said she would look into it. I never received a written follow-up.\n\nQ. Did you keep a copy of that email?\nA. Yes, I have that email.",
+          "score": 0.8533488,
+          "paragraphIndex": 3,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "9c689feecf0784157dd18d1e84d0660fcfe304c3a1f27110550bf5bdc856d8ff",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt"
+        },
+        {
+          "path": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "chunkText": "forwarded documents to his personal email for safekeeping on\n> approximately September 9-10. This summary states no documents left company\n> systems. These accounts directly conflict on a material fact.]\n\n### October 3 Meeting — Written Response Deadline\n\nDuring the October 3, 2025 meeting with Tom Weston (manager) and Sandra Liu (HR),\nJohnson was given a deadline of **October 10, 2025** to submit his written\nexplanation of the Q2 expense discrepancies.\n\n> [CONTRADICTION-2 vs. deposition transcript: The transcript records the\n> deadline as October 17, 2025. The incident summary records it as October 10.\n> A seven-day discrepancy on a key compliance deadline is directly material.]\n\n### Severance Offer\n\nUpon termination, Nexus Dynamics presented Johnson with a severance agreement\noffering **eight (8) weeks of base salary continuation** in accordance with\ncompany policy for employees with five or more years of service.\n\n> [CONTRADICTION-3 vs. deposition transcript: The transcript records Johnson\n> stating he was offered four weeks of severance. The incident summary records\n> the offer as eight weeks. This discrepancy affects both damages calculation\n> and the question of whether Johnson understood the offer presented.]\n\n---\n\n## Timeline of Key Events",
+          "score": 0.83699185,
+          "paragraphIndex": 1,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "def2c0cc3ca1d1173817c3bc2d69a67e2272d62058acfe4d8d2bfee3f3333ae4",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/incident-summary-johnson.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "chunkText": "nd when were you terminated?\nA. November 12, 2025.\n\nQ. Did you receive any written notice of the termination?\nA. No. They called me into HR and told me verbally.\n\nQ. Who was present in that meeting?\nA. Sandra Liu from HR, and my direct manager, Tom Weston.\n\nQ. Did Mr. Weston say anything about the reason for your termination?\nA. He said it was a \"restructuring,\" but he didn't give specifics.\n\nQ. Had you received any performance reviews in the six months prior?\nA. Yes, my last review was in August 2025. I received a \"Meets Expectations\" rating.\n\nQ. Was there any mention of performance concerns?\nA. No. My August review had no written performance concerns.\n\nPAGE 2\n\nQ. Let me direct your attention to September 2025. Were you aware of\n   an internal investigation by Nexus Dynamics at that time?\nA. No, I was not aware of any investigation involving me.\n\nQ. Do you recall receiving an email from Compliance on September 8, 2025?\nA. I receive many emails. I don't specifically recall one from Compliance\n   in September.\n\nQ. I am going to show you what has been marked as Plaintiff's Exhibit 3.\n   Is this an email you received?\nA. Yes, that appears to be an email to me from the Compliance department.\n\nQ. And what is the date on that email?\nA. September 8, 2025.\n\nQ. And what does it say?\nA. It says there is a review of expense reports from Q2 2025 and asks\n   me to preserve all related documents.",
+          "score": 0.83241254,
+          "paragraphIndex": 1,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "42550157313aa57c55fa05afff5c159bbd7bb6117657d0eff7a3a48dd2ac4faf",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt"
+        },
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "chunkText": "ail.\n   Were you aware that Nexus Dynamics' IT policy requires all work documents\n   to remain on company-managed systems?\nA. I may have seen something about that policy, but I didn't consider it\n   relevant to preserving documents for a compliance review.\n\nQ. And regarding the October meeting with Mr. Weston — you said the\n   deadline was October 17. Do you have any written confirmation of that date?\nA. Tom told me verbally. I didn't receive it in writing.\n\nMR. HARTLEY: No further questions.\n\nMS. MARCHETTI: We'll reserve the right to re-examine.\n\n-------------------------------------------------------\nCERTIFICATE OF REPORTER\nI, Sandra Price, RPR, Certified Court Reporter, do hereby certify that\nthe foregoing is a true and accurate transcript of the deposition of\nMarcus Johnson taken on May 14, 2026.\n\nSandra Price, RPR\n-------------------------------------------------------",
+          "score": 0.82833034,
+          "paragraphIndex": 6,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "707438717071e0cecebafa9f5579cb7802cb7970d8b00d60f7f7ad4f97b48d39",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": " meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).\n\nHowever, a causal nexus must be shown between the protected activity and the\nadverse employment action. Temporal proximity — here, approximately eight\nmonths between the March 2025 report and the November 2025 termination — may\nbe insufficient on its own. The court in *Kotcher v. Rosa and Sullivan\nAppliance Ctr.*, 957 F.2d 59, 65 (2d Cir. 1992), held that a time gap of\neight to ten months requires additional circumstantial evidence.\n\nAdditional evidence to pursue:\n- Documentary evidence of Weston's changed conduct after April 2025\n- Email communications between Weston and Liu re: Johnson during Q2-Q4 2025\n- Comparator data: how were other employees' expense discrepancies handled?\n- Whether the \"restructuring\" justification was applied to any other PM\n\n### Document Review Notes\n\nPlaintiff's Exhibit 3 (Compliance email of September 8, 2025) establishes\nthat Nexus Dynamics had an ongoing investigation as of that date. The\ndocument preservation directive creates an inference that management knew\nof Johnson's potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.",
+          "score": 0.8277325,
+          "paragraphIndex": 3,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "52f0bafe6cdec88f11d3bf042c4be92e0a090a6bcd86c99a37f7c2126930943d",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": " meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).\n\nHowever, a causal nexus must be shown between the protected activity and the\nadverse employment action. Temporal proximity — here, approximately eight\nmonths between the March 2025 report and the November 2025 termination — may\nbe insufficient on its own. The court in *Kotcher v. Rosa and Sullivan\nAppliance Ctr.*, 957 F.2d 59, 65 (2d Cir. 1992), held that a time gap of\neight to ten months requires additional circumstantial evidence.\n\nAdditional evidence to pursue:\n- Documentary evidence of Weston's changed conduct after April 2025\n- Email communications between Weston and Liu re: Johnson during Q2-Q4 2025\n- Comparator data: how were other employees' expense discrepancies handled?\n- Whether the \"restructuring\" justification was applied to any other PM\n\n### Document Review Notes\n\nPlaintiff's Exhibit 3 (Compliance email of September 8, 2025) establishes\nthat Nexus Dynamics had an ongoing investigation as of that date. The\ndocument preservation directive creates an inference that management knew\nof Johnson's potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.",
+          "score": 0.8277325,
+          "paragraphIndex": 5,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "92080f75e42ababf980bb5c012d340f4ba25a850769976c8aacd17f63e01db07",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": " meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).\n\nHowever, a causal nexus must be shown between the protected activity and the\nadverse employment action. Temporal proximity — here, approximately eight\nmonths between the March 2025 report and the November 2025 termination — may\nbe insufficient on its own. The court in *Kotcher v. Rosa and Sullivan\nAppliance Ctr.*, 957 F.2d 59, 65 (2d Cir. 1992), held that a time gap of\neight to ten months requires additional circumstantial evidence.\n\nAdditional evidence to pursue:\n- Documentary evidence of Weston's changed conduct after April 2025\n- Email communications between Weston and Liu re: Johnson during Q2-Q4 2025\n- Comparator data: how were other employees' expense discrepancies handled?\n- Whether the \"restructuring\" justification was applied to any other PM\n\n### Document Review Notes\n\nPlaintiff's Exhibit 3 (Compliance email of September 8, 2025) establishes\nthat Nexus Dynamics had an ongoing investigation as of that date. The\ndocument preservation directive creates an inference that management knew\nof Johnson's potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.",
+          "score": 0.8277325,
+          "paragraphIndex": 7,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "9eaa4935caa3f68c199a92571a7620327bb03e452b9189b8d38ab07f672f72bf",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": " meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).\n\nHowever, a causal nexus must be shown between the protected activity and the\nadverse employment action. Temporal proximity — here, approximately eight\nmonths between the March 2025 report and the November 2025 termination — may\nbe insufficient on its own. The court in *Kotcher v. Rosa and Sullivan\nAppliance Ctr.*, 957 F.2d 59, 65 (2d Cir. 1992), held that a time gap of\neight to ten months requires additional circumstantial evidence.\n\nAdditional evidence to pursue:\n- Documentary evidence of Weston's changed conduct after April 2025\n- Email communications between Weston and Liu re: Johnson during Q2-Q4 2025\n- Comparator data: how were other employees' expense discrepancies handled?\n- Whether the \"restructuring\" justification was applied to any other PM\n\n### Document Review Notes\n\nPlaintiff's Exhibit 3 (Compliance email of September 8, 2025) establishes\nthat Nexus Dynamics had an ongoing investigation as of that date. The\ndocument preservation directive creates an inference that management knew\nof Johnson's potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.",
+          "score": 0.8277325,
+          "paragraphIndex": 9,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "a9eec1c2f996b047466f692579acff56ba4ccf2097ccf602d8311dbc68a1cc80",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        }
+      ],
+      "scope": {
+        "kind": "allMatters"
+      }
+    },
+    {
+      "role": "assistant",
+      "content": "According to the deposition transcript [deposition-transcript-johnson.txt paragraph 3], Tom Weston told Johnson that he had until October 17, 2025 to submit his written response.\n\nHowever, the incident summary [incident-summary-johnson.md paragraph 1] states that Johnson was given a deadline of October 10, 2025 to submit his written explanation. This appears to be a contradiction between the two sources.",
+      "timestamp": "2026-06-11T05:30:55.766Z",
+      "sources": [
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "chunkText": "out?\nA. Tom told me the Q2 expense review had found some discrepancies and\n   that I would need to submit a written explanation.\n\nQ. How did you respond?\nA. I told him I was happy to cooperate and that I had already saved\n   all the relevant documentation.\n\nQ. Did Mr. Weston tell you a deadline for submitting the explanation?\nA. He said I had until October 17, 2025 to submit my written response.\n   [CONTRADICTION-2: Transcript records the deadline as October 17, 2025.\n   The incident summary states the deadline given to Johnson was October 10, 2025.]\n\nQ. Did you meet that deadline?\nA. I submitted my response on October 15, 2025, two days before the deadline.\n\nQ. Let's talk about your relationship with Mr. Weston. Would you describe\n   it as positive?\nA. Mostly yes. We had occasional disagreements about project priorities,\n   but nothing serious.\n\nPAGE 4\n\nQ. In the eighteen months before your termination, did you ever raise any\n   concerns about Nexus Dynamics' business practices?\nA. Yes. In March 2025 I raised concerns about billing irregularities I\n   had noticed in vendor invoices.\n\nQ. Who did you raise those concerns with?\nA. I sent an email to the ethics hotline and also spoke directly with\n   Sandra Liu in HR.\n\nQ. And what response did you receive?\nA. Sandra said she would look into it. I never received a written follow-up.\n\nQ. Did you keep a copy of that email?\nA. Yes, I have that email.",
+          "score": 0.8533488,
+          "paragraphIndex": 3,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "9c689feecf0784157dd18d1e84d0660fcfe304c3a1f27110550bf5bdc856d8ff",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "verified": true
+        },
+        {
+          "path": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "chunkText": "forwarded documents to his personal email for safekeeping on\n> approximately September 9-10. This summary states no documents left company\n> systems. These accounts directly conflict on a material fact.]\n\n### October 3 Meeting — Written Response Deadline\n\nDuring the October 3, 2025 meeting with Tom Weston (manager) and Sandra Liu (HR),\nJohnson was given a deadline of **October 10, 2025** to submit his written\nexplanation of the Q2 expense discrepancies.\n\n> [CONTRADICTION-2 vs. deposition transcript: The transcript records the\n> deadline as October 17, 2025. The incident summary records it as October 10.\n> A seven-day discrepancy on a key compliance deadline is directly material.]\n\n### Severance Offer\n\nUpon termination, Nexus Dynamics presented Johnson with a severance agreement\noffering **eight (8) weeks of base salary continuation** in accordance with\ncompany policy for employees with five or more years of service.\n\n> [CONTRADICTION-3 vs. deposition transcript: The transcript records Johnson\n> stating he was offered four weeks of severance. The incident summary records\n> the offer as eight weeks. This discrepancy affects both damages calculation\n> and the question of whether Johnson understood the offer presented.]\n\n---\n\n## Timeline of Key Events",
+          "score": 0.83699185,
+          "paragraphIndex": 1,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "def2c0cc3ca1d1173817c3bc2d69a67e2272d62058acfe4d8d2bfee3f3333ae4",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/incident-summary-johnson.md",
+          "verified": true
+        },
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "chunkText": "nd when were you terminated?\nA. November 12, 2025.\n\nQ. Did you receive any written notice of the termination?\nA. No. They called me into HR and told me verbally.\n\nQ. Who was present in that meeting?\nA. Sandra Liu from HR, and my direct manager, Tom Weston.\n\nQ. Did Mr. Weston say anything about the reason for your termination?\nA. He said it was a \"restructuring,\" but he didn't give specifics.\n\nQ. Had you received any performance reviews in the six months prior?\nA. Yes, my last review was in August 2025. I received a \"Meets Expectations\" rating.\n\nQ. Was there any mention of performance concerns?\nA. No. My August review had no written performance concerns.\n\nPAGE 2\n\nQ. Let me direct your attention to September 2025. Were you aware of\n   an internal investigation by Nexus Dynamics at that time?\nA. No, I was not aware of any investigation involving me.\n\nQ. Do you recall receiving an email from Compliance on September 8, 2025?\nA. I receive many emails. I don't specifically recall one from Compliance\n   in September.\n\nQ. I am going to show you what has been marked as Plaintiff's Exhibit 3.\n   Is this an email you received?\nA. Yes, that appears to be an email to me from the Compliance department.\n\nQ. And what is the date on that email?\nA. September 8, 2025.\n\nQ. And what does it say?\nA. It says there is a review of expense reports from Q2 2025 and asks\n   me to preserve all related documents.",
+          "score": 0.83241254,
+          "paragraphIndex": 1,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "42550157313aa57c55fa05afff5c159bbd7bb6117657d0eff7a3a48dd2ac4faf",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt"
+        },
+        {
+          "path": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "chunkText": "ail.\n   Were you aware that Nexus Dynamics' IT policy requires all work documents\n   to remain on company-managed systems?\nA. I may have seen something about that policy, but I didn't consider it\n   relevant to preserving documents for a compliance review.\n\nQ. And regarding the October meeting with Mr. Weston — you said the\n   deadline was October 17. Do you have any written confirmation of that date?\nA. Tom told me verbally. I didn't receive it in writing.\n\nMR. HARTLEY: No further questions.\n\nMS. MARCHETTI: We'll reserve the right to re-examine.\n\n-------------------------------------------------------\nCERTIFICATE OF REPORTER\nI, Sandra Price, RPR, Certified Court Reporter, do hereby certify that\nthe foregoing is a true and accurate transcript of the deposition of\nMarcus Johnson taken on May 14, 2026.\n\nSandra Price, RPR\n-------------------------------------------------------",
+          "score": 0.82833034,
+          "paragraphIndex": 6,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "707438717071e0cecebafa9f5579cb7802cb7970d8b00d60f7f7ad4f97b48d39",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": " meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).\n\nHowever, a causal nexus must be shown between the protected activity and the\nadverse employment action. Temporal proximity — here, approximately eight\nmonths between the March 2025 report and the November 2025 termination — may\nbe insufficient on its own. The court in *Kotcher v. Rosa and Sullivan\nAppliance Ctr.*, 957 F.2d 59, 65 (2d Cir. 1992), held that a time gap of\neight to ten months requires additional circumstantial evidence.\n\nAdditional evidence to pursue:\n- Documentary evidence of Weston's changed conduct after April 2025\n- Email communications between Weston and Liu re: Johnson during Q2-Q4 2025\n- Comparator data: how were other employees' expense discrepancies handled?\n- Whether the \"restructuring\" justification was applied to any other PM\n\n### Document Review Notes\n\nPlaintiff's Exhibit 3 (Compliance email of September 8, 2025) establishes\nthat Nexus Dynamics had an ongoing investigation as of that date. The\ndocument preservation directive creates an inference that management knew\nof Johnson's potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.",
+          "score": 0.8277325,
+          "paragraphIndex": 3,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "52f0bafe6cdec88f11d3bf042c4be92e0a090a6bcd86c99a37f7c2126930943d",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": " meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).\n\nHowever, a causal nexus must be shown between the protected activity and the\nadverse employment action. Temporal proximity — here, approximately eight\nmonths between the March 2025 report and the November 2025 termination — may\nbe insufficient on its own. The court in *Kotcher v. Rosa and Sullivan\nAppliance Ctr.*, 957 F.2d 59, 65 (2d Cir. 1992), held that a time gap of\neight to ten months requires additional circumstantial evidence.\n\nAdditional evidence to pursue:\n- Documentary evidence of Weston's changed conduct after April 2025\n- Email communications between Weston and Liu re: Johnson during Q2-Q4 2025\n- Comparator data: how were other employees' expense discrepancies handled?\n- Whether the \"restructuring\" justification was applied to any other PM\n\n### Document Review Notes\n\nPlaintiff's Exhibit 3 (Compliance email of September 8, 2025) establishes\nthat Nexus Dynamics had an ongoing investigation as of that date. The\ndocument preservation directive creates an inference that management knew\nof Johnson's potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.",
+          "score": 0.8277325,
+          "paragraphIndex": 5,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "92080f75e42ababf980bb5c012d340f4ba25a850769976c8aacd17f63e01db07",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": " meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).\n\nHowever, a causal nexus must be shown between the protected activity and the\nadverse employment action. Temporal proximity — here, approximately eight\nmonths between the March 2025 report and the November 2025 termination — may\nbe insufficient on its own. The court in *Kotcher v. Rosa and Sullivan\nAppliance Ctr.*, 957 F.2d 59, 65 (2d Cir. 1992), held that a time gap of\neight to ten months requires additional circumstantial evidence.\n\nAdditional evidence to pursue:\n- Documentary evidence of Weston's changed conduct after April 2025\n- Email communications between Weston and Liu re: Johnson during Q2-Q4 2025\n- Comparator data: how were other employees' expense discrepancies handled?\n- Whether the \"restructuring\" justification was applied to any other PM\n\n### Document Review Notes\n\nPlaintiff's Exhibit 3 (Compliance email of September 8, 2025) establishes\nthat Nexus Dynamics had an ongoing investigation as of that date. The\ndocument preservation directive creates an inference that management knew\nof Johnson's potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.",
+          "score": 0.8277325,
+          "paragraphIndex": 7,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "9eaa4935caa3f68c199a92571a7620327bb03e452b9189b8d38ab07f672f72bf",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        },
+        {
+          "path": "/tmp/wedge-ws/huge-notes.md",
+          "chunkText": " meaning of § 740(2)(a). Case law\nin the Second Circuit suggests internal reporting to a company ethics hotline\ncan satisfy the disclosure requirement where the employer subsequently takes\nadverse action. See *Pipia v. Nassau Cnty.*, 34 N.Y.3d 350 (2019).\n\nHowever, a causal nexus must be shown between the protected activity and the\nadverse employment action. Temporal proximity — here, approximately eight\nmonths between the March 2025 report and the November 2025 termination — may\nbe insufficient on its own. The court in *Kotcher v. Rosa and Sullivan\nAppliance Ctr.*, 957 F.2d 59, 65 (2d Cir. 1992), held that a time gap of\neight to ten months requires additional circumstantial evidence.\n\nAdditional evidence to pursue:\n- Documentary evidence of Weston's changed conduct after April 2025\n- Email communications between Weston and Liu re: Johnson during Q2-Q4 2025\n- Comparator data: how were other employees' expense discrepancies handled?\n- Whether the \"restructuring\" justification was applied to any other PM\n\n### Document Review Notes\n\nPlaintiff's Exhibit 3 (Compliance email of September 8, 2025) establishes\nthat Nexus Dynamics had an ongoing investigation as of that date. The\ndocument preservation directive creates an inference that management knew\nof Johnson's potential evidentiary significance well before the termination.\n\nDefendant will likely argue that the termination decision was independent of\nthe compliance review. We need to identify the decision-makers and their\ncommunications timeline more precisely.",
+          "score": 0.8277325,
+          "paragraphIndex": 9,
+          "sourceType": "text",
+          "pageNumber": 0,
+          "id": "a9eec1c2f996b047466f692579acff56ba4ccf2097ccf602d8311dbc68a1cc80",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md"
+        }
+      ],
+      "scope": {
+        "kind": "allMatters"
+      }
+    }
+  ],
+  "provider": "ollama",
+  "model": "llama3.1:8b"
+}

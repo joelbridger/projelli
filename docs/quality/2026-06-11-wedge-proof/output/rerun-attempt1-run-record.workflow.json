@@ -1,0 +1,374 @@
+{
+  "schemaVersion": 1,
+  "runId": "run_1781156150891_h3ugmim",
+  "template": {
+    "id": "legal-deposition-contradiction-finder",
+    "name": "Deposition Contradiction Finder",
+    "description": "Flag candidate contradictions between a witness's deposition testimony and the rest of the matter record (other documents, emails, prior statements). Grounded in matter-scoped retrieval; every finding carries a citation you verify. Produces a structured Word deliverable.",
+    "version": "2.0.0",
+    "category": "legal",
+    "requiresVerification": true,
+    "verificationNote": "Verify every flagged contradiction against the original transcript before use. AI can misread nuance, context, or page breaks.",
+    "steps": [
+      {
+        "id": "interview",
+        "type": "interview",
+        "name": "Deposition Details",
+        "description": "Provide the transcript excerpts and the key claims you want scrutinized",
+        "config": {
+          "questions": [
+            {
+              "id": "matterName",
+              "question": "Matter name",
+              "description": "The case or matter name as you track it in your files.",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g., Smith v. Acme Corp."
+            },
+            {
+              "id": "witnessName",
+              "question": "Witness name",
+              "description": "Full name of the deponent whose transcript you are analyzing.",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g., Jane Doe"
+            },
+            {
+              "id": "depositionDate",
+              "question": "Deposition date",
+              "description": "Date the deposition was taken. Used for citation purposes in the output.",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g., May 15, 2026"
+            },
+            {
+              "id": "keyClaimsToScrutinize",
+              "question": "Key claims to scrutinize",
+              "description": "The specific factual assertions or storyline elements you want to test for consistency. Be specific — the more targeted this list, the more useful the output.",
+              "type": "textarea",
+              "required": true,
+              "placeholder": "e.g., Witness claims she never received the email. Witness claims the meeting on March 3 never happened. Witness claims she had no supervisory role over the plaintiff."
+            },
+            {
+              "id": "depositionExcerpts",
+              "question": "Deposition transcript excerpts",
+              "description": "Paste the relevant portions of the deposition transcript. Include page and line numbers (e.g., \"P. 42:3-18\") for each excerpt — the analysis will reference them. You can paste multiple excerpts; separate them with a blank line.",
+              "type": "textarea",
+              "required": true,
+              "placeholder": "P. 42:3-18\nQ: Did you receive the email?\nA: No, I never received anything from him.\n\nP. 87:9-21\nQ: How often did you communicate with the plaintiff?\nA: Rarely. Maybe once or twice a quarter."
+            },
+            {
+              "id": "priorStatements",
+              "question": "Prior statements to compare against (optional)",
+              "description": "Paste excerpts from earlier sworn statements, affidavits, interrogatory answers, or prior deposition testimony. If none, leave blank. Including these allows the analysis to flag contradictions between this deposition and earlier statements.",
+              "type": "textarea",
+              "required": false,
+              "placeholder": "e.g., Affidavit dated January 10, 2026: \"I received the email from Mr. Johnson and forwarded it to my supervisor immediately.\""
+            }
+          ]
+        }
+      },
+      {
+        "id": "analyze-contradictions",
+        "type": "analyze",
+        "name": "Flag Contradictions (cited)",
+        "description": "Retrieve the matter record, flag candidate contradictions, verify each citation, and produce a Word deliverable",
+        "config": {
+          "analyzeKind": "contradictions",
+          "outputFile": "Deposition Contradiction Analysis.docx",
+          "retrievalQueryTemplate": "Testimony and statements by {{witnessName}} relevant to: {{keyClaimsToScrutinize}}. Deposition excerpts: {{depositionExcerpts}}. Prior statements: {{priorStatements}}",
+          "topK": 12,
+          "pastedInputIds": [
+            "depositionExcerpts",
+            "priorStatements"
+          ],
+          "promptTemplate": "You are a tireless first-year associate assisting a licensed attorney. You FLAG candidate contradictions for the attorney to verify. You do not render judgments and you never provide legal advice. Your job is to organize the record so the attorney can exercise their own judgment.\n\nMatter: {{matterName}}\nWitness: {{witnessName}}\nDeposition date: {{depositionDate}}\n\nKey claims the attorney wants scrutinized:\n{{keyClaimsToScrutinize}}\n\nDeposition transcript excerpts the attorney pasted:\n{{depositionExcerpts}}\n\nPrior statements the attorney pasted to compare against:\n{{priorStatements}}\n\nBelow is additional context retrieved from THIS MATTER's documents and emails. Each source is numbered [N]. When you quote a statement, cite the source NUMBER it came from.\n\n{{retrievedContext}}\n\nIdentify candidate contradictions between the witness's testimony and other statements (elsewhere in the testimony, in prior statements, or in the retrieved matter sources). For EACH candidate contradiction return a finding with:\n  - statementA: the first statement, with the exact quote and the source NUMBER [N] it came from.\n  - statementB: the conflicting statement, with the exact quote and the source NUMBER [N] it came from.\n  - conflictRationale: a plain-language explanation of why they conflict.\n  - topic: a short heading grouping the finding.\n  - followUpQuestions: optional follow-up deposition questions.\n\nRules:\n  - Only cite statements that actually appear in the material above. If a quote is not in any numbered source, set its sourceNumber to 0. Never fabricate a citation.\n  - Do NOT invent contradictions. If the record does not support a conflict, do not report one. An empty findings list is a valid, honest answer.\n  - Quote exactly; do not paraphrase inside the quote field.",
+          "documentTitle": "Deposition Contradiction Analysis: {{witnessName}}",
+          "verificationBanner": "Each finding below was flagged by an AI associate and carries a citation. Verify every quote and page/line reference against the original transcript and source before relying on it.",
+          "systemPrompt": "You are a methodical, citation-focused legal research assistant helping a licensed attorney organize and analyze deposition testimony. You never provide legal advice and always frame your output as a starting point for the attorney's review. You do not speculate beyond what the record supports, and you never fabricate a citation. If the record is ambiguous, you note the ambiguity rather than resolve it."
+        }
+      }
+    ],
+    "requiredInputs": [],
+    "outputs": [
+      "Deposition Contradiction Analysis.docx"
+    ],
+    "namedOutputs": [
+      {
+        "id": "contradictions",
+        "name": "Contradiction findings",
+        "schema": "array"
+      },
+      {
+        "id": "followup_questions",
+        "name": "Suggested follow-up questions",
+        "schema": "array"
+      }
+    ]
+  },
+  "workflowFolderPath": "/tmp/wedge-ws/Deposition Contradiction Finder - 2026-06-11_05-35-50",
+  "currentStepIndex": 1,
+  "status": "completed",
+  "inputs": {
+    "interview_answers": {
+      "matterName": "Johnson v. Nexus Dynamics Corp.",
+      "witnessName": "Marcus Johnson",
+      "depositionDate": "May 28, 2026",
+      "keyClaimsToScrutinize": "Whether Johnson forwarded documents to his personal email or all materials stayed on company servers. The deadline he was given for his written response to the compliance review. How many weeks of severance he was offered.",
+      "depositionExcerpts": "Q. Did you preserve those documents? A. I believe I did. I forwarded them to my personal email for safekeeping. Q. Did Mr. Weston tell you a deadline for submitting the explanation? A. He said I had until October 17, 2025 to submit my written response. Q. At the time of your termination, did anyone at Nexus Dynamics explain the severance package being offered? A. Sandra Liu gave me a document describing a four-week severance.",
+      "priorStatements": ""
+    },
+    "matterName": "Johnson v. Nexus Dynamics Corp.",
+    "witnessName": "Marcus Johnson",
+    "depositionDate": "May 28, 2026",
+    "keyClaimsToScrutinize": "Whether Johnson forwarded documents to his personal email or all materials stayed on company servers. The deadline he was given for his written response to the compliance review. How many weeks of severance he was offered.",
+    "depositionExcerpts": "Q. Did you preserve those documents? A. I believe I did. I forwarded them to my personal email for safekeeping. Q. Did Mr. Weston tell you a deadline for submitting the explanation? A. He said I had until October 17, 2025 to submit my written response. Q. At the time of your termination, did anyone at Nexus Dynamics explain the severance package being offered? A. Sandra Liu gave me a document describing a four-week severance.",
+    "priorStatements": "",
+    "analyze-contradictions_findings": [
+      {
+        "topic": "Document preservation directive and management knowledge of Johnson's potential evidentiary significance",
+        "statementA": {
+          "locator": "huge-notes.md paragraph 3",
+          "quote": "The document preservation directive creates an inference that management knew of Johnson's potential evidentiary significance well before the termination.",
+          "citationId": "52f0bafe6cdec88f11d3bf042c4be92e0a090a6bcd86c99a37f7c2126930943d",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md",
+          "verdict": "verified"
+        },
+        "statementB": {
+          "locator": "huge-notes.md paragraph 7",
+          "quote": "Plaintiff's Exhibit 3 (Compliance email of September 8, 2025) establishes that Nexus Dynamics had an ongoing investigation as of that date. The document preservation directive creates an inference that management knew of Johnson's potential evidentiary significance well before the termination.",
+          "citationId": "9eaa4935caa3f68c199a92571a7620327bb03e452b9189b8d38ab07f672f72bf",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md",
+          "verdict": "verified"
+        },
+        "conflictRationale": "Statement A and B essentially rephrase the same idea, but statement A is slightly more concise.",
+        "verified": true,
+        "followUpQuestions": [
+          "Can you explain why you believe this inference supports a causal nexus between Johnson's protected activity and his termination?"
+        ]
+      },
+      {
+        "topic": "Temporal proximity between protected activity and adverse employment action",
+        "statementA": {
+          "locator": "deposition-transcript-johnson.txt paragraph 5",
+          "quote": "However, a causal nexus must be shown between the protected activity and the adverse employment action. Temporal proximity — here, approximately eight months between the March 2025 report and the November 2025 termination — may be insufficient on its own.",
+          "citationId": "b1d16415a92b37220f6682d9e6e61c518aa964391c734ed3916261eb42ee6caa",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "verdict": "textMismatch"
+        },
+        "statementB": {
+          "locator": "huge-notes.md paragraph 3",
+          "quote": "However, a causal nexus must be shown between the protected activity and the adverse employment action. Temporal proximity — here, approximately eight months between the March 2025 report and the November 2025 termination — may be insufficient on its own.",
+          "citationId": "52f0bafe6cdec88f11d3bf042c4be92e0a090a6bcd86c99a37f7c2126930943d",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md",
+          "verdict": "verified"
+        },
+        "conflictRationale": "Statement A and B are identical.",
+        "verified": false,
+        "followUpQuestions": [
+          "Can you explain why this temporal proximity is insufficient to establish a causal nexus?"
+        ]
+      },
+      {
+        "topic": "Causal nexus between protected activity and adverse employment action",
+        "statementA": {
+          "locator": "deposition-transcript-johnson.txt paragraph 5",
+          "quote": "However, a causal nexus must be shown between the protected activity and the adverse employment action.",
+          "citationId": "b1d16415a92b37220f6682d9e6e61c518aa964391c734ed3916261eb42ee6caa",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "verdict": "textMismatch"
+        },
+        "statementB": {
+          "locator": "huge-notes.md paragraph 3",
+          "quote": "However, a causal nexus must be shown between the protected activity and the adverse employment action.",
+          "citationId": "52f0bafe6cdec88f11d3bf042c4be92e0a090a6bcd86c99a37f7c2126930943d",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/huge-notes.md",
+          "verdict": "verified"
+        },
+        "conflictRationale": "Statement A and B are identical.",
+        "verified": false,
+        "followUpQuestions": [
+          "Can you describe any other factors that might help establish this causal nexus?"
+        ]
+      },
+      {
+        "topic": "Restructuring justification for Johnson's termination",
+        "statementA": {
+          "locator": "deposition-transcript-johnson.txt paragraph 1",
+          "quote": "Mr. Weston said it was a 'restructuring,' but he didn't give specifics.",
+          "citationId": "42550157313aa57c55fa05afff5c159bbd7bb6117657d0eff7a3a48dd2ac4faf",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "verdict": "textMismatch"
+        },
+        "statementB": {
+          "locator": "Not grounded in retrieved record",
+          "quote": "Whether the 'restructuring' justification was applied to any other PM",
+          "verdict": "unverified"
+        },
+        "conflictRationale": "Statement A implies that Johnson's termination was part of a broader restructuring effort, while statement B suggests that this might not be unique.",
+        "verified": false,
+        "followUpQuestions": [
+          "Can you describe the restructuring effort and its impact on other employees?"
+        ]
+      }
+    ],
+    "analyze-contradictions_summary": {
+      "total": 4,
+      "verified": 1,
+      "unverified": 3
+    },
+    "analyze-contradictions_file": "Deposition Contradiction Analysis.docx",
+    "analyze-contradictions_scope": {
+      "kind": "allMatters"
+    }
+  },
+  "stepOutputs": [
+    {
+      "interview_answers": {
+        "matterName": "Johnson v. Nexus Dynamics Corp.",
+        "witnessName": "Marcus Johnson",
+        "depositionDate": "May 28, 2026",
+        "keyClaimsToScrutinize": "Whether Johnson forwarded documents to his personal email or all materials stayed on company servers. The deadline he was given for his written response to the compliance review. How many weeks of severance he was offered.",
+        "depositionExcerpts": "Q. Did you preserve those documents? A. I believe I did. I forwarded them to my personal email for safekeeping. Q. Did Mr. Weston tell you a deadline for submitting the explanation? A. He said I had until October 17, 2025 to submit my written response. Q. At the time of your termination, did anyone at Nexus Dynamics explain the severance package being offered? A. Sandra Liu gave me a document describing a four-week severance.",
+        "priorStatements": ""
+      },
+      "matterName": "Johnson v. Nexus Dynamics Corp.",
+      "witnessName": "Marcus Johnson",
+      "depositionDate": "May 28, 2026",
+      "keyClaimsToScrutinize": "Whether Johnson forwarded documents to his personal email or all materials stayed on company servers. The deadline he was given for his written response to the compliance review. How many weeks of severance he was offered.",
+      "depositionExcerpts": "Q. Did you preserve those documents? A. I believe I did. I forwarded them to my personal email for safekeeping. Q. Did Mr. Weston tell you a deadline for submitting the explanation? A. He said I had until October 17, 2025 to submit my written response. Q. At the time of your termination, did anyone at Nexus Dynamics explain the severance package being offered? A. Sandra Liu gave me a document describing a four-week severance.",
+      "priorStatements": ""
+    },
+    {
+      "analyze-contradictions_findings": [
+        {
+          "topic": "Document preservation directive and management knowledge of Johnson's potential evidentiary significance",
+          "statementA": {
+            "locator": "huge-notes.md paragraph 3",
+            "quote": "The document preservation directive creates an inference that management knew of Johnson's potential evidentiary significance well before the termination.",
+            "citationId": "52f0bafe6cdec88f11d3bf042c4be92e0a090a6bcd86c99a37f7c2126930943d",
+            "matterId": "unassigned",
+            "sourceId": "/tmp/wedge-ws/huge-notes.md",
+            "verdict": "verified"
+          },
+          "statementB": {
+            "locator": "huge-notes.md paragraph 7",
+            "quote": "Plaintiff's Exhibit 3 (Compliance email of September 8, 2025) establishes that Nexus Dynamics had an ongoing investigation as of that date. The document preservation directive creates an inference that management knew of Johnson's potential evidentiary significance well before the termination.",
+            "citationId": "9eaa4935caa3f68c199a92571a7620327bb03e452b9189b8d38ab07f672f72bf",
+            "matterId": "unassigned",
+            "sourceId": "/tmp/wedge-ws/huge-notes.md",
+            "verdict": "verified"
+          },
+          "conflictRationale": "Statement A and B essentially rephrase the same idea, but statement A is slightly more concise.",
+          "verified": true,
+          "followUpQuestions": [
+            "Can you explain why you believe this inference supports a causal nexus between Johnson's protected activity and his termination?"
+          ]
+        },
+        {
+          "topic": "Temporal proximity between protected activity and adverse employment action",
+          "statementA": {
+            "locator": "deposition-transcript-johnson.txt paragraph 5",
+            "quote": "However, a causal nexus must be shown between the protected activity and the adverse employment action. Temporal proximity — here, approximately eight months between the March 2025 report and the November 2025 termination — may be insufficient on its own.",
+            "citationId": "b1d16415a92b37220f6682d9e6e61c518aa964391c734ed3916261eb42ee6caa",
+            "matterId": "unassigned",
+            "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+            "verdict": "textMismatch"
+          },
+          "statementB": {
+            "locator": "huge-notes.md paragraph 3",
+            "quote": "However, a causal nexus must be shown between the protected activity and the adverse employment action. Temporal proximity — here, approximately eight months between the March 2025 report and the November 2025 termination — may be insufficient on its own.",
+            "citationId": "52f0bafe6cdec88f11d3bf042c4be92e0a090a6bcd86c99a37f7c2126930943d",
+            "matterId": "unassigned",
+            "sourceId": "/tmp/wedge-ws/huge-notes.md",
+            "verdict": "verified"
+          },
+          "conflictRationale": "Statement A and B are identical.",
+          "verified": false,
+          "followUpQuestions": [
+            "Can you explain why this temporal proximity is insufficient to establish a causal nexus?"
+          ]
+        },
+        {
+          "topic": "Causal nexus between protected activity and adverse employment action",
+          "statementA": {
+            "locator": "deposition-transcript-johnson.txt paragraph 5",
+            "quote": "However, a causal nexus must be shown between the protected activity and the adverse employment action.",
+            "citationId": "b1d16415a92b37220f6682d9e6e61c518aa964391c734ed3916261eb42ee6caa",
+            "matterId": "unassigned",
+            "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+            "verdict": "textMismatch"
+          },
+          "statementB": {
+            "locator": "huge-notes.md paragraph 3",
+            "quote": "However, a causal nexus must be shown between the protected activity and the adverse employment action.",
+            "citationId": "52f0bafe6cdec88f11d3bf042c4be92e0a090a6bcd86c99a37f7c2126930943d",
+            "matterId": "unassigned",
+            "sourceId": "/tmp/wedge-ws/huge-notes.md",
+            "verdict": "verified"
+          },
+          "conflictRationale": "Statement A and B are identical.",
+          "verified": false,
+          "followUpQuestions": [
+            "Can you describe any other factors that might help establish this causal nexus?"
+          ]
+        },
+        {
+          "topic": "Restructuring justification for Johnson's termination",
+          "statementA": {
+            "locator": "deposition-transcript-johnson.txt paragraph 1",
+            "quote": "Mr. Weston said it was a 'restructuring,' but he didn't give specifics.",
+            "citationId": "42550157313aa57c55fa05afff5c159bbd7bb6117657d0eff7a3a48dd2ac4faf",
+            "matterId": "unassigned",
+            "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+            "verdict": "textMismatch"
+          },
+          "statementB": {
+            "locator": "Not grounded in retrieved record",
+            "quote": "Whether the 'restructuring' justification was applied to any other PM",
+            "verdict": "unverified"
+          },
+          "conflictRationale": "Statement A implies that Johnson's termination was part of a broader restructuring effort, while statement B suggests that this might not be unique.",
+          "verified": false,
+          "followUpQuestions": [
+            "Can you describe the restructuring effort and its impact on other employees?"
+          ]
+        }
+      ],
+      "analyze-contradictions_summary": {
+        "total": 4,
+        "verified": 1,
+        "unverified": 3
+      },
+      "analyze-contradictions_file": "Deposition Contradiction Analysis.docx",
+      "analyze-contradictions_scope": {
+        "kind": "allMatters"
+      }
+    }
+  ],
+  "completedAnswers": [
+    {
+      "stepName": "Deposition Details",
+      "answers": {
+        "matterName": "Johnson v. Nexus Dynamics Corp.",
+        "witnessName": "Marcus Johnson",
+        "depositionDate": "May 28, 2026",
+        "keyClaimsToScrutinize": "Whether Johnson forwarded documents to his personal email or all materials stayed on company servers. The deadline he was given for his written response to the compliance review. How many weeks of severance he was offered.",
+        "depositionExcerpts": "Q. Did you preserve those documents? A. I believe I did. I forwarded them to my personal email for safekeeping. Q. Did Mr. Weston tell you a deadline for submitting the explanation? A. He said I had until October 17, 2025 to submit my written response. Q. At the time of your termination, did anyone at Nexus Dynamics explain the severance package being offered? A. Sandra Liu gave me a document describing a four-week severance.",
+        "priorStatements": ""
+      }
+    }
+  ],
+  "startTime": "2026-06-11T05:35:50.891Z",
+  "artifacts": [
+    "Deposition Contradiction Analysis.docx"
+  ],
+  "endTime": "2026-06-11T05:41:24.980Z"
+}

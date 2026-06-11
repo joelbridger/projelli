@@ -88,3 +88,53 @@ LLM. A marker-free fixture variant is a follow-up item, not built here.
   union-level, not yet at single-run rubric level.
 - Option B's deferred ready-handoff item: CLOSED (claim 12).
 - Attorney-grade output quality: stays VG-7 item 3 (cannot be coded).
+
+## E. Wave 1 re-run, 2026-06-11
+
+Leg-3 runbook re-run on the same rig with every Wave 1 fix in (commits
+`dbdc4d5..45ab42d`). Environment deltas vs §A: huge-notes.md back IN the
+seeded workspace (F-501 fix under test) and the harness's F-502 workaround
+pin REMOVED from `seed-localstorage` (the product's local-only resolution
+under test — the seeding now writes only what onboarding itself persists).
+Fresh profile + workspace, headless Secret Service (`keyring OK`, zero
+`vectors key:` errors), 12G scope. Model source stated honestly: the
+embedder loaded from the exe-adjacent bundle (`resolve_cache_dir()` prefers
+it; same as the §A positive pass); no network was consulted. Chat and finder
+both ran on **llama3.1:8b** — with no pin, the product resolves local-only
+to the FIRST installed Ollama model, and llama3.1:8b now heads the tag list
+(it was pulled mid-§A for the pin; the §A chat used llama3.2:3b only because
+8B was not yet installed). Artifacts: `screenshots/rerun-*`, `output/rerun-*`,
+`logs/` (rss.csv / cgroup-mem.csv rerun segments after the `# rerun launch`
+marker; app.log rotations).
+
+### Per-finding verdicts
+
+| ID | Verdict | Evidence |
+|----|---------|----------|
+| **F-501** | **FIXED, verified at system level** | First index completed **4 files including huge-notes.md** (banner `rerun-02a/02b`: "Indexing workspace: 1 / 4 file" on huge-notes.md; 5 `chunks.lance` data fragments on disk; huge-notes chunks later served in live retrieval at score .828). Whole-scope cgroup peak for the ENTIRE session (index + chat + two finder runs) = **2.50 GiB** against the 12G cap; keepance-main RSS peak **2.05 GiB** — LOWER than the §A 3-file pass (3.70 / 3.34 GiB), vs four OOM kills at 3G/6G/12G before the fix. The first index takes minutes, not seconds (1,659 chunks through 32-chunk slices) — expected and stated. The release-mode bounded-memory test (`rag_embed_memory.rs`) passed the same morning: 1,659 chunks, VmHWM 1.74 GiB. |
+| **F-502** | **FIXED, verified at system level** | With NO pin and no cloud key, in local-only mode: Run workflow → the workflow folder + execution tab are created and **the interview renders** (`rerun-08b`), the run resolves product-side to the first installed Ollama model (ollama `/api/ps` showed llama3.1:8b loaded during the run), and completes to a real .docx — twice. The §A failure shape (dialog closes, nothing happens) is gone. The blocked-run banner (Ollama down / no models) was NOT exercised live — Ollama was up throughout; that surface is covered by `workflow-provider-resolution.test.ts` + the WorkflowPanel banner unit/e2e. |
+| **F-503** | **FIXED, verified at system level** | The deadline question produced a grounded two-sided answer with TWO filename-keyed citation chips (`rerun-05d-answer`), and the persisted chat (`output/rerun-local-chat-1.aichat.json`) carries **`verified: true` on both cited sources** (deposition §3, incident-summary §1) — §A had `verified` undefined on every source because no citation ever resolved. Honest nuance: llama3.1:8b emitted the `[filename paragraph N]` grammar natively this run, so the numeric-citation repair (`normalizeNumericCitations`) was not exercised end-to-end here; it is unit-proven (`workspace-command.test.ts`) and sits in front of the same verify chain that this run proves live. The chips' `data-verified="true"` follows from the persisted source flags (AIChatViewer derives the attribute from the exact path+paragraph match). |
+| **F-504** | **FIXED, verified at system level** | Clicking the deposition chip opened the file **scrolled to the cited passage with the landing line selected** — line 100 ("Tom told me the Q2 expense review had found some discrepancies…"), the first searchable line of the cited chunk, centered on screen (`rerun-06b`/`rerun-06c-scroll-evidence-crop`). §A opened the same click at line 1. |
+| **F-505** | **FIXED (test-verified)** | Accordion rows carry their own `chat-source-*` testid; wedge-proof e2e green (5 passed, zero expected-fails). Not separately re-exercised in the native pass. |
+| **F-506** | **FIXED (test-verified at full strength)** | The xlsx tripwire is flipped: `wedge-proof.spec.ts` "openpyxl formula cells render, recompute, and survive edit + save" passes as a NORMAL test, plus the new unit round-trip suite in `spreadsheet-io.test.ts`. Not re-driven on the native build (the fixture must never be edit-saved by hand; the e2e covers exactly that path). |
+| **F-507(a)** | **OBSERVED — model floor stands; rubric regressed (see F-510)** | Two attempts, identical §A inputs, llama3.1:8b: attempt 1 flagged 4 findings, attempt 2 flagged 14; the planted-fact rubric scored **0/5 clusters in both** (vs §A's 4/5 and 3/5). Not gated, per the plan's scope guard — and the regression is a feed-dynamics finding (F-510), not a model change: §A ran with huge-notes.md EXCLUDED from the store. |
+| **F-507(b)** | **FIXED at engine level, verified** | The model again omitted `sourceNumber` on every finding — and the quote-match recovery now grounds verbatim quotes anyway: attempt 1 finding 0 carries resolved `citationId`/`sourceId`/locator on BOTH sides with `verdict: "verified"` → run summary **`verified: 1`** and the completion banner read "1 verified against the matter record" (`rerun-09b-start2`, §A: 0 verified everywhere). Attempt 2: 9 of 28 statement-sides verified, 0 findings both-sides-verified, 14 sides stranded at `textMismatch` (paraphrased quotes) — exactly the carried Rust-verifier normalization residual (follow-up (f) below). |
+| **F-508** | **FIXED, verified-partially** | The fresh first index counted exactly **4** files (no .aichat/.workflow in the count), and after a chat + two workflow runs no artifact re-index was observed; every grounded finder source resolved to fixture files only. The §A "banner counts grow 3→4→6" behavior is gone. The INDEX_VERSION 5→6 migration path (existing stores re-index once) was not exercisable on a fresh workspace. |
+| **F-509** | **FIXED, verified at system level** | The sidebar stays fully visible beside an open workflow execution tab (`rerun-08h`, `rerun-08j`, `rerun-10b-settings`); §A had it crushed off-screen for the life of the tab. Ctrl+B now exists and is surfaced ("Toggle Sidebar Ctrl+B" in the command palette, `rerun-09g-complete2`). |
+| **F-510 (NEW)** | **Finder feed dilution once a large low-signal file joins the index** | With huge-notes.md indexed (1,659 chunks of litigation-notes filler), the finder's broad retrieval query feeds a diluted context: attempt 1's findings anchored on huge-notes content (all four), attempt 2 spread across 14 paraphrased findings; the three planted Johnson contradictions never surfaced, rubric 0/5 twice (assert exit 4 both, extractions banked). The deposition chunks WERE in the feed (17 of 28 statement-sides grounded to it), so this is retrieval/selection precision, not absence. §A's leg-1 truth (both sides of all 3 planted pairs at topK 12) was established with huge-notes EXCLUDED and should be re-proven against the full corpus in Wave 2. Candidate directions: matter-scoping the finder corpus (the fixture workspace ran "All matters" with no matters configured), per-source diversity caps at retrieval, and the verifier normalization in (f). NOT patched inline, per the prime directive. |
+
+### Additional observations (this run)
+
+- **Egress pulse suppression (Task 9 / VG-5a):** during local-model streaming the status bar showed only the green "On your machine. Nothing leaves" badge — no "Sending to your AI provider" pulse appeared at any point (`rerun-05c-streaming-statusbar`). Correct by design for local chats; the positive (pulse-appears) half needs a cloud key and stays unobserved here.
+- **Disk-encryption guidance (VG-6d-v1):** the Data Map renders the "Document files rely on your disk encryption" row with the per-OS check instructions (BitLocker / FileVault / LUKS) (`rerun-10j-datamap-scrolled`).
+- **Privilege surfaces:** "Include privileged" appears when Ask-my-workspace turns on (`rerun-04-toggles`); Privileged Matter Mode shows ON + auto-held in Settings → AI (`rerun-10g`). The per-message MAIL privilege control (VG-5c) was NOT observable — the fixture workspace has no imported mail; it is unit-tested and stays on the Windows/live-mail spot check.
+- **First-boot wizard renders on the unseeded profile** (`rerun-00-firstboot`) — the 3.0 welcome copy, "Skip for now" present.
+
+### Carried follow-ups from the wave's reviews (not blocking, logged here so they are not lost)
+
+- (a) The live two-client auto-republish exercise against the local firm backend (`scripts/run-firm-backend-local.sh`; member second-device → admin poll tick → member unwraps, plus the walled-member variant) has not been driven; VG-6a's unit suite (`matterKeyDistribution.test.ts`) is the wave's coverage.
+- (b) Identify the ~1532px intrinsic-width contributor inside the live workflow run view (now clipped safely by `min-w-0`), wrap it properly, and extend `workflow-tab-overflow.spec.ts` to the live focused-run state.
+- (c) `validateApiKeyLive` bypasses the egress pulse (its fetch does not route through `getCorsSafeFetch`); today the wizard overlay occludes the status bar at that moment, so it is cosmetic — route it through the instrumented fetch.
+- (d) Marker-free fixture variant: the `[CONTRADICTION-N]` annotations are indexed text and leak into answers (§A claim caveat); build the clean variant for honest rubric pressure.
+- (e) Cosmetic i18n nits: `common.actions.dismiss` missing in es/de (English aria-label leaks through); the "Include privileged" toggle name is hardcoded English; add the windows-default UA rationale comment.
+- (f) Task 4 review residuals: align the Rust verifier's text normalization with the TS side (case + curly quotes) so case/quote-drifted verbatim quotes verify instead of stranding at `textMismatch` (attempt 2 stranded 14 sides there); the PDF chip label says "paragraph" for page-keyed sources; audit `contentLength` measures the raw string, not the normalized one.
