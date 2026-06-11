@@ -61,6 +61,21 @@ export interface LicenseKey {
   status: "active" | "disabled";
 }
 
+export type IdpProvider = "entra" | "google" | "generic";
+
+export interface OrgIdpConfig {
+  org_id: string;
+  provider: IdpProvider;
+  /** OIDC issuer URL. Discovery is fetched from `${issuer}/.well-known/openid-configuration`. */
+  issuer: string;
+  client_id: string;
+  /** AES-256-GCM ciphertext (crypto.encryptSecret). Never returned over the API. */
+  client_secret_enc: string;
+  enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export type AuditAction =
   | "org.create"
   | "license.issue"
@@ -92,7 +107,12 @@ export type AuditAction =
   | "matter.keys.publish" // admin published wrapped matter keys for members
   | "matter.keys.fetch" // member fetched their wrapped matter key
   | "org.claim" // org claimed from unclaimed status via license key
-  | "webhook.lemonsqueezy"; // LemonSqueezy webhook processed
+  | "webhook.lemonsqueezy" // LemonSqueezy webhook processed
+  // ---- chunk 5: SSO (OIDC) ---------------------------------------------------
+  | "sso.config.set" // admin set/updated an org IdP configuration
+  | "sso.config.delete" // admin removed an org IdP configuration
+  | "sso.login" // user completed SSO sign-in
+  | "sso.login.rejected"; // SSO sign-in rejected (bad token, disabled, unknown user, etc.)
 
 export interface AuditEvent {
   id: number;

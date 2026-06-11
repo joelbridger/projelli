@@ -37,6 +37,7 @@ import type {
   Device,
   WrappedMatterKey,
   WebhookEvent,
+  OrgIdpConfig,
 } from "./types.ts";
 import type { AssuredProvider, BillingMeta, ManagedProviderKey } from "./assured-types.ts";
 
@@ -273,6 +274,22 @@ CREATE TABLE IF NOT EXISTS webhook_events (
   event_id        TEXT PRIMARY KEY,  -- LS event id (from meta.webhook_id or similar)
   processed_at    TEXT NOT NULL
   -- subscription_id added by migration; do not add here (breaks old schemas)
+);
+
+-- =====================================================================
+-- Chunk 5: SSO / OIDC — per-org IdP configuration (DECISION.md §6).
+-- One row per org (a firm has exactly one IdP configured at a time).
+-- client_secret_enc is AES-256-GCM ciphertext; never returned over API.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS org_idp_config (
+  org_id            TEXT PRIMARY KEY REFERENCES orgs(org_id),
+  provider          TEXT NOT NULL,
+  issuer            TEXT NOT NULL,
+  client_id         TEXT NOT NULL,
+  client_secret_enc TEXT NOT NULL,
+  enabled           INTEGER NOT NULL DEFAULT 0,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL
 );
 `;
 
@@ -1429,6 +1446,84 @@ export class Store {
       )
       .run(eventId, this.nowIso(), subscriptionId ?? null);
     return true;
+  }
+
+  // ===========================================================================
+  // Chunk 5 — SSO / OIDC IdP configuration
+  // ===========================================================================
+
+  /** Look up a user by normalised email (trim + lowercase). Returns User or null. */
+  getUserByEmailNorm(email: string): User | null {
+    const r = this.db
+      .query(`SELECT * FROM users WHERE email_norm = ?`)
+      .get(email.trim().toLowerCase()) as UserRow | null;
+    return r ? toUser(r) : null;
+  }
+
+  /** Get the org's IdP configuration, or null if not set. */
+  getOrgIdpConfig(orgId: string): OrgIdpConfig | null {
+    const r = this.db
+      .query(`SELECT * FROM org_idp_config WHERE org_id = ?`)
+      .get(orgId) as {
+      org_id: string;
+      provider: string;
+      issuer: string;
+      client_id: string;
+      client_secret_enc: string;
+      enabled: number;
+      created_at: string;
+      updated_at: string;
+    } | null;
+    if (!r) return null;
+    return {
+      org_id: r.org_id,
+      provider: r.provider as OrgIdpConfig["provider"],
+      issuer: r.issuer,
+      client_id: r.client_id,
+      client_secret_enc: r.client_secret_enc,
+      enabled: r.enabled === 1,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+    };
+  }
+
+  /** Upsert (insert or replace) the org's IdP configuration. Keyed on org_id. */
+  upsertOrgIdpConfig(input: {
+    org_id: string;
+    provider: string;
+    issuer: string;
+    client_id: string;
+    client_secret_enc: string;
+    enabled: boolean;
+  }): void {
+    const now = this.nowIso();
+    this.db
+      .query(
+        `INSERT INTO org_idp_config
+           (org_id, provider, issuer, client_id, client_secret_enc, enabled, created_at, updated_at)
+         VALUES ($org_id, $provider, $issuer, $client_id, $secret, $enabled, $now, $now)
+         ON CONFLICT(org_id) DO UPDATE SET
+           provider = $provider,
+           issuer = $issuer,
+           client_id = $client_id,
+           client_secret_enc = $secret,
+           enabled = $enabled,
+           updated_at = $now`,
+      )
+      .run({
+        $org_id: input.org_id,
+        $provider: input.provider,
+        $issuer: input.issuer,
+        $client_id: input.client_id,
+        $secret: input.client_secret_enc,
+        $enabled: input.enabled ? 1 : 0,
+        $now: now,
+      });
+  }
+
+  /** Delete the org's IdP configuration. No-op if not set. */
+  deleteOrgIdpConfig(orgId: string): void {
+    this.db.query(`DELETE FROM org_idp_config WHERE org_id = ?`).run(orgId);
   }
 
   // ===========================================================================
