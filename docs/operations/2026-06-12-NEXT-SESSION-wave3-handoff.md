@@ -2,7 +2,11 @@
 
 **Read this first.** Branch `keepance-3.0`, everything committed + pushed (`HEAD == origin/keepance-3.0 == 69703a4`, working tree clean). Plan of record: `docs/strategy/2026-06-10-vision-gap-closure-plan.md` (the 5 waves to 100% of the vision). Follow the **Token-Budget Operating Mode (Keepance only)** in `CLAUDE.md`: drive on Opus 4.8 at `high`; delegate well-specified implementation to Sonnet 4.6 subagents and mechanical work to `model: "haiku"`; **raise to `xhigh` only for the encrypted vault (VG-6d-v2) and the co-editing CRDT (VG-8)**; Fable 5 is break-glass only.
 
-## Status: Waves 1 + 2 COMPLETE
+## Status: Waves 1 + 2 + 3a COMPLETE — Wave 3b (encrypted vault) is next
+
+> **UPDATE 2026-06-11: Wave 3a (SSO / VG-6c) is DONE, live-verified, and pushed** (`HEAD == origin/keepance-3.0 == 634e5f8`). 13 tasks, subagent-driven with two-stage review each, plan at `docs/superpowers/plans/2026-06-11-wave3a-sso-oidc.md`, live-verified against a real Dex OIDC provider (`docs/quality/2026-06-11-wave3a-sso/RESULTS.md`), firm-tier "SSO" claim honestly re-instated (committed, NOT deployed). Details in the gap-closure plan's VG-6c STATUS line. **Suites green: backend 183, client 2907, rust 7, tsc clean.**
+>
+> **The ONLY remaining Wave 3 build is Wave 3b — the encrypted workspace vault (VG-6d-v2).** Per `CLAUDE.md`'s model policy this is the **xhigh** tier (data-loss-sensitive). It MUST start with `superpowers:brainstorming` → a written design doc + implementation plan + a destructive-failure test suite (kill mid-write, wrong key, lost keychain) BEFORE any vault code, and Jameson wanted to review that design before implementation. Do NOT redo Wave 3a. Reuse the existing ECDH escrow machinery (`src/modules/firm/keyWrap.ts`) and the AES-256-GCM primitives already in the codebase.
 
 - **Wave 1** (wedge proof + F-501..F-509 fix wave): done, verified. Do NOT redo.
 - **Wave 2** (ingest everything): **done, verified, this session.** All 14 tasks. The native leg-3 re-run is banked under `docs/quality/2026-06-11-wedge-proof/wave2-rerun/`; verdicts in RESULTS §F; strategy STATUS ticks on VG-2/2b/3c/3d/4c/6b/6e. The Task-12 letterhead review found and fixed a real fidelity bug (commit 560d82e) — the merge now reconciles generated content's hyperlinks/media/numbering into the template package.
