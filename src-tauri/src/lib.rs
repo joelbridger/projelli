@@ -130,6 +130,8 @@ pub fn run() {
             commands::mail::gmail_connect,
             commands::mail::gmail_is_connected,
             commands::mail::gmail_disconnect,
+            // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
+            commands::firm::sso::firm_sso_authenticate,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
