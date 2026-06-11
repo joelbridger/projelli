@@ -46,7 +46,7 @@ test.describe('Data-map onboarding accordion (Task 3) — 1366x720', () => {
   test('sections: at least 5 present, all closed by default', async ({ page }) => {
     await gotoAndNavigateToDataStep(page);
 
-    // DATA_MAP_ROWS has 6 rows
+    // DATA_MAP_ROWS has 7 rows
     const sections = page.getByTestId('data-map-section');
     const count = await sections.count();
     expect(count).toBeGreaterThanOrEqual(5);

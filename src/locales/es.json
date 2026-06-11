@@ -929,6 +929,18 @@
         "open-cta__sourceHash": "6cd386e81fb2613854d73cb21165215ab6b4cb9362c492ef123e915c9b4829b7"
       }
     },
+    "disk-encryption": {
+      "title": "Una cosa que revisar: el cifrado de tu disco",
+      "body": "Keepance guarda tus documentos como archivos normales en tu carpeta de trabajo, en tu equipo. Si el portátil se pierde o te lo roban, lo que los protege es el cifrado de disco completo de tu sistema operativo. Confirmar que está activado toma un minuto.",
+      "check-windows": "Windows: Configuración, luego Privacidad y seguridad, luego Cifrado del dispositivo (o busca BitLocker). Debe decir Activado.",
+      "check-macos": "Mac: Ajustes del Sistema, luego Privacidad y seguridad, luego FileVault. Debe decir que FileVault está activado.",
+      "check-linux": "Linux: la mayoría de los instaladores ofrecen cifrado de disco completo LUKS. Revisa la configuración de discos de tu distribución, o ejecuta lsblk y busca una entrada crypt.",
+      "title__locked": true,
+      "body__locked": true,
+      "check-windows__locked": true,
+      "check-macos__locked": true,
+      "check-linux__locked": true
+    },
     "api-key-card": {
       "title": "Siguiente paso: añade tu clave de IA",
       "title__sourceHash": "6c12e9c2353854280698e1a8efa880daeebe480cd0d533a784017fa309dcc3bd",

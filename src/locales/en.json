@@ -575,6 +575,13 @@
         "open-cta": "Open my workspace"
       }
     },
+    "disk-encryption": {
+      "title": "One thing to check: your disk encryption",
+      "body": "Keepance keeps your documents as normal files in your workspace folder, on your machine. If the laptop is lost or stolen, your operating system's full-disk encryption is what protects them. It takes a minute to confirm it is on.",
+      "check-windows": "Windows: Settings, then Privacy & security, then Device encryption (or search for BitLocker). It should say On.",
+      "check-macos": "Mac: System Settings, then Privacy & Security, then FileVault. It should say FileVault is turned on.",
+      "check-linux": "Linux: most installers offer LUKS full-disk encryption. Check your distribution's disk settings, or run lsblk and look for a crypt entry."
+    },
     "api-key-card": {
       "title": "Next step: add your AI key",
       "description": "Keepance uses your own API key from Anthropic, OpenAI, or Google. You only pay the provider for what you use. Keepance doesn't charge a subscription.",

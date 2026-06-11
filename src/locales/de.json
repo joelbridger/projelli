@@ -929,6 +929,18 @@
         "open-cta__sourceHash": "6cd386e81fb2613854d73cb21165215ab6b4cb9362c492ef123e915c9b4829b7"
       }
     },
+    "disk-encryption": {
+      "title": "Eine Sache zum Prüfen: deine Festplattenverschlüsselung",
+      "body": "Keepance speichert deine Dokumente als normale Dateien in deinem Arbeitsordner, auf deinem Rechner. Geht der Laptop verloren oder wird er gestohlen, schützt sie die Festplattenverschlüsselung deines Betriebssystems. Zu prüfen, ob sie eingeschaltet ist, dauert nur eine Minute.",
+      "check-windows": "Windows: Einstellungen, dann Datenschutz und Sicherheit, dann Geräteverschlüsselung (oder suche nach BitLocker). Dort sollte Ein stehen.",
+      "check-macos": "Mac: Systemeinstellungen, dann Datenschutz & Sicherheit, dann FileVault. Dort sollte stehen, dass FileVault aktiviert ist.",
+      "check-linux": "Linux: Die meisten Installer bieten LUKS-Festplattenverschlüsselung an. Prüfe die Datenträgereinstellungen deiner Distribution oder führe lsblk aus und suche nach einem crypt-Eintrag.",
+      "title__locked": true,
+      "body__locked": true,
+      "check-windows__locked": true,
+      "check-macos__locked": true,
+      "check-linux__locked": true
+    },
     "api-key-card": {
       "title": "Nächster Schritt: KI-Schlüssel hinzufügen",
       "title__sourceHash": "6c12e9c2353854280698e1a8efa880daeebe480cd0d533a784017fa309dcc3bd",

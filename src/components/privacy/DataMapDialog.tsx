@@ -39,6 +39,7 @@ import {
 import {
   Laptop,
   Cloud,
+  HardDrive,
   KeyRound,
   Mail,
   Server,
@@ -98,6 +99,13 @@ export const DATA_MAP_ROWS: MapRow[] = [
     tone: 'text-slate-700 bg-slate-100 dark:text-slate-300 dark:bg-slate-800/60',
     title: "The only thing Keepance’s own servers ever see is a license check",
     body: "Keepance contacts its own server for exactly one reason: to validate your license (a periodic check that your purchase is active). That request does not contain your documents, your prompts, or your client information, only what is needed to confirm the license.",
+  },
+  {
+    icon: HardDrive,
+    tone: 'text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40',
+    title: 'Document files rely on your disk encryption',
+    body: 'Your documents are normal files in your workspace folder. At-rest protection for those files comes from your operating system’s full-disk encryption: BitLocker on Windows, FileVault on macOS, LUKS on Linux. With it on, your whole workspace is protected if the machine is lost or stolen.',
+    caveat: 'How to check: Windows: Settings > Privacy & security > Device encryption. macOS: System Settings > Privacy & Security > FileVault. Linux: your distribution’s disk settings (LUKS).',
   },
 ];
 

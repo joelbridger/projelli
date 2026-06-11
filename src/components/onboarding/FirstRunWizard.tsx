@@ -34,6 +34,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { writeSampleFiles, getSamplesForProfession } from '@/onboarding/samples';
 import { AiSetupStep } from '@/components/onboarding/AiSetupStep';
+import { DiskEncryptionGuidance } from '@/components/onboarding/DiskEncryptionGuidance';
 import { DataMapDialog, DataMapContent } from '@/components/privacy/DataMapDialog';
 import { persistProfessionModelDefault, getModelForProfession } from '@/onboarding/professionModel';
 import { markAiSetupDeferred } from '@/onboarding/aiSetupState';
@@ -309,6 +310,12 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
               body={
                 <div data-testid="onboarding-data-step">
                   <DataMapContent variant="accordion" />
+                  {/* VG-6d-v1: until the encrypted vault ships, document files
+                      rely on OS full-disk encryption. Say so, with a per-OS
+                      "check it is on" line. */}
+                  <div className="mt-4">
+                    <DiskEncryptionGuidance />
+                  </div>
                 </div>
               }
               actions={
