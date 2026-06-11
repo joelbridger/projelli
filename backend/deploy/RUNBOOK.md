@@ -324,3 +324,18 @@ home-server + SQLite path is adequate and reversible.
 *Prepared 2026-06-09. No live infra was modified to produce this runbook; the only
 side effects were generating local secrets into the gitignored `backend/.env.production`
 and a throwaway-port boot smoke test.*
+
+---
+
+## §K — SECURITY: /admin/* blocked at the edge (2026-06-11, VG-6b finding)
+
+**Incident:** `POST https://api.keepance.com/admin/org` was reachable from the public internet, unauthenticated, and minted a Firm org + admin user + a valid license key (`handleCreateOrg`, `routes/admin.ts:171` — no `requireAdmin`, by design "billing-webhook driven behind a loopback allowlist"). But the `@firmapi` Caddy block was a blanket `reverse_proxy 127.0.0.1:5194` with no path filter, so the assumed loopback allowlist never existed at the edge. Blast radius: free self-provisioned Firm tier + a foothold into the `/assured/*` zero-retention proxy (provider-key/quota abuse). No existing-customer data exposed (0 orgs; E2EE + cross-org isolation intact).
+
+**Fix (live 2026-06-11):** added inside the `@firmapi` handle block, before the reverse_proxy:
+```caddy
+@admin path /admin/*
+respond @admin 403
+```
+Backup: `/etc/caddy/Caddyfile.bak-admin-block-20260611-115444`. Validated + `systemctl reload caddy`. Verified from the edge: `/admin/org` POST → 403, `/admin/seats` → 403, `/healthz` → 200, `/.well-known/seat-pubkey` → 200, `/org/claim` → 400 (reaches app), `/webhooks/lemonsqueezy` → 401 (reaches app). Normal provisioning is unaffected (LS webhook creates unclaimed orgs → buyer self-activates via `/org/claim`).
+
+**Defense-in-depth follow-up (tracked WAVE2-FU-02):** add an in-app guard to `handleCreateOrg` (real loopback-IP assertion or a shared `ADMIN_PROVISION_SECRET` header) so the backend no longer depends solely on the edge rule. The Assured exercise script uses the loopback route and keeps working after that guard lands.

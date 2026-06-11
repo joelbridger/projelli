@@ -445,3 +445,6 @@ A second Claude session ran in parallel with the engineering work and produced t
 
 ### WAVE2-FU-01 — MCP search tool prints ciphertext as passage text
 Pre-existing since WS-VEC encrypted `chunk_text` (commit 1e537d1): `src-tauri/src/mcp_bin/tools.rs` `search_workspace` pushes `hit.text` raw, which has been hex ciphertext ever since — the tool's output is unreadable for encrypted rows. The Wave 2 Task 10 commit fixed the PATH display (path_enc decrypt) but text display needs the same treatment (decrypt with the vector key; fail closed to a placeholder when the keychain is locked). Found by the Wave 2 Task 9/10 review, 2026-06-11.
+
+### WAVE2-FU-02 — Defense-in-depth: in-app guard on /admin/* (esp. handleCreateOrg)
+The /admin/* surface is now blocked at the Caddy edge (RUNBOOK §K, live 2026-06-11), but `handleCreateOrg` (`backend/src/routes/admin.ts:171`) still has NO in-app auth — it depends solely on the edge rule. Add a real loopback-IP assertion or a shared `ADMIN_PROVISION_SECRET` header check so a future edge-config regression can't re-expose org/license-key minting. Keep `/webhooks/lemonsqueezy` (HMAC) and `/org/claim` (key-as-secret) public. The Assured live-exercise script uses the loopback admin route, so it must keep working (pass the secret / run from loopback). Found during VG-6b, 2026-06-11.
