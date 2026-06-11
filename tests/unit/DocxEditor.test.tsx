@@ -688,13 +688,15 @@ describe('DocxEditor — Export (A6)', () => {
   });
 
   // Base invoke behavior: open returns a doc, save is observable, and the export
-  // commands resolve. Individual tests assert which command fired.
+  // commands resolve. Individual tests assert which command fired. LibreOffice
+  // is "installed" by default (VG-4a probes it before any PDF conversion).
   function wireInvoke() {
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === 'docx_open') return Promise.resolve(docWithRevisions());
       if (cmd === 'docx_save') return Promise.resolve(undefined);
       if (cmd === 'docx_export_copy') return Promise.resolve(undefined);
       if (cmd === 'docx_export_clean_copy') return Promise.resolve(undefined);
+      if (cmd === 'detect_libreoffice') return Promise.resolve('/usr/bin/soffice');
       if (cmd === 'convert_docx_to_pdf') return Promise.resolve('/tmp/agreement.pdf');
       return Promise.resolve(undefined);
     });
@@ -764,14 +766,43 @@ describe('DocxEditor — Export (A6)', () => {
     await waitFor(() => expect(saveFileMock).toHaveBeenCalledTimes(1));
   });
 
-  it('shows a friendly notice when LibreOffice is missing for PDF', async () => {
+  it('VG-4a: explains with the help notice when LibreOffice is not installed, never attempting the conversion', async () => {
     invokeMock.mockImplementation((cmd: string) => {
       if (cmd === 'docx_open') return Promise.resolve(docWithRevisions());
       if (cmd === 'docx_save') return Promise.resolve(undefined);
+      if (cmd === 'detect_libreoffice') return Promise.resolve(null);
+      return Promise.resolve(undefined);
+    });
+    renderEditor();
+    await openExportMenu();
+
+    fireEvent.click(screen.getByTestId('docx-export-pdf'));
+
+    // The dedicated explanation panel appears (plain language + install link).
+    const notice = await screen.findByTestId('libreoffice-help-notice');
+    expect(notice).toHaveTextContent('PDF export needs LibreOffice');
+    expect(notice).toHaveTextContent('Nothing leaves your machine.');
+    expect(notice).toHaveTextContent('libreoffice.org');
+
+    // The conversion was never attempted and nothing was saved.
+    expect(invokeMock).not.toHaveBeenCalledWith(
+      'convert_docx_to_pdf',
+      expect.anything(),
+    );
+    expect(saveFileMock).not.toHaveBeenCalled();
+
+    // Dismiss removes the panel.
+    fireEvent.click(within(notice).getByLabelText('Dismiss'));
+    expect(screen.queryByTestId('libreoffice-help-notice')).not.toBeInTheDocument();
+  });
+
+  it('still shows the friendly error notice when LibreOffice is present but the conversion fails', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(docWithRevisions());
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      if (cmd === 'detect_libreoffice') return Promise.resolve('/usr/bin/soffice');
       if (cmd === 'convert_docx_to_pdf') {
-        return Promise.reject(
-          new Error('LibreOffice is required to export a PDF, but it was not found'),
-        );
+        return Promise.reject(new Error('PDF conversion failed (soffice exited 1)'));
       }
       return Promise.resolve(undefined);
     });
@@ -782,7 +813,9 @@ describe('DocxEditor — Export (A6)', () => {
 
     const notice = await screen.findByTestId('docx-export-notice');
     expect(notice).toHaveAttribute('data-kind', 'error');
-    expect(notice).toHaveTextContent(/LibreOffice/);
+    expect(notice).toHaveTextContent(/conversion failed/i);
+    // The detect-and-explain panel is NOT for generic failures.
+    expect(screen.queryByTestId('libreoffice-help-notice')).not.toBeInTheDocument();
     // saveFile never reached (nothing to save).
     expect(saveFileMock).not.toHaveBeenCalled();
   });

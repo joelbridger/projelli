@@ -1264,7 +1264,15 @@
       "export-saved-pdf": "PDF-Kopie gespeichert.",
       "export-saved-clean": "Bereinigte Kopie ohne versteckte Metadaten gespeichert.",
       "export-saved-clean-final": "Bereinigte endgültige Kopie gespeichert: Änderungen angenommen, Kommentare und versteckte Metadaten entfernt.",
-      "export-dismiss": "Schließen"
+      "export-dismiss": "Schließen",
+      "pdf-needs-libreoffice-title": "Der PDF-Export benötigt LibreOffice",
+      "pdf-needs-libreoffice-body": "Keepance wandelt Word lokal mit LibreOffice in PDF um, einem kostenlosen Programm. Nichts verlässt Ihren Computer. Installieren Sie es und führen Sie den Export danach erneut aus.",
+      "pdf-libreoffice-copy": "Link kopieren",
+      "pdf-libreoffice-copied": "Kopiert",
+      "pdf-needs-libreoffice-title__locked": true,
+      "pdf-needs-libreoffice-body__locked": true,
+      "pdf-libreoffice-copy__locked": true,
+      "pdf-libreoffice-copied__locked": true
     },
     "docx-viewer": {
       "could-not-open": "{{fileName}} konnte nicht geöffnet werden",

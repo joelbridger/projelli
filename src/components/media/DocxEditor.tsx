@@ -65,6 +65,8 @@ import {
 import { cn } from '@/lib/utils';
 import { AutoSaveIndicator } from '@/components/editor/AutoSaveIndicator';
 import { DocxViewer } from '@/components/media/DocxViewer';
+import { LibreOfficeHelpNotice } from '@/components/media/LibreOfficeHelpNotice';
+import { detectLibreOffice } from '@/utils/tauri-commands';
 import {
   docxAuthorRevisions,
   docxConvertToPdf,
@@ -224,11 +226,15 @@ export function DocxEditor({
 
   // ---- A6: Export state ---------------------------------------------------
   // A transient status line under the toolbar after an export (success or a
-  // friendly error, e.g. LibreOffice missing for PDF). `busy` disables the menu.
+  // friendly error from the export itself). `busy` disables the menu.
   const [exportBusy, setExportBusy] = useState(false);
   const [exportNotice, setExportNotice] = useState<
     { kind: 'success' | 'error'; message: string } | null
   >(null);
+  // VG-4a: PDF export depends on an installed LibreOffice. When the probe
+  // says it's missing we show a dedicated explanation (what to install, why,
+  // copyable link) instead of letting the conversion fail with a raw error.
+  const [libreOfficeHelpOpen, setLibreOfficeHelpOpen] = useState(false);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstEditFiredRef = useRef(false);
@@ -433,6 +439,14 @@ export function DocxEditor({
 
   const handleExportPdf = useCallback(() => {
     void runExport(async (srcPath) => {
+      // VG-4a — never fail silently: probe LibreOffice BEFORE converting.
+      const soffice = await detectLibreOffice();
+      if (!soffice) {
+        setLibreOfficeHelpOpen(true);
+        return null;
+      }
+      // A retry after installing LibreOffice clears any stale help notice.
+      setLibreOfficeHelpOpen(false);
       // Convert the saved .docx to PDF (LibreOffice) -> temp path, then let the
       // user choose where to save the PDF (read bytes, write via saveFile).
       const pdfPath = await docxConvertToPdf(srcPath);
@@ -939,8 +953,15 @@ export function DocxEditor({
         />
       )}
 
-      {/* A6: export result (success or a friendly error, e.g. LibreOffice
-          missing for PDF). Light theme; dismissible. */}
+      {/* VG-4a: PDF export asked for but LibreOffice is not installed —
+          explain in plain language with a copyable install link. */}
+      {libreOfficeHelpOpen && (
+        <LibreOfficeHelpNotice onDismiss={() => setLibreOfficeHelpOpen(false)} />
+      )}
+
+      {/* A6: export result (success or a friendly error from the export
+          itself; a missing LibreOffice gets the panel above instead).
+          Light theme; dismissible. */}
       {exportNotice && (
         <div
           data-testid="docx-export-notice"

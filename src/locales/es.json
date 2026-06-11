@@ -1264,7 +1264,15 @@
       "export-saved-pdf": "Copia en PDF guardada.",
       "export-saved-clean": "Copia limpia guardada sin metadatos ocultos.",
       "export-saved-clean-final": "Copia final limpia guardada: cambios aceptados, comentarios y metadatos ocultos eliminados.",
-      "export-dismiss": "Descartar"
+      "export-dismiss": "Descartar",
+      "pdf-needs-libreoffice-title": "La exportación a PDF necesita LibreOffice",
+      "pdf-needs-libreoffice-body": "Keepance convierte Word a PDF localmente con LibreOffice, un programa gratuito. Nada sale de tu equipo. Instálalo y vuelve a ejecutar la exportación.",
+      "pdf-libreoffice-copy": "Copiar enlace",
+      "pdf-libreoffice-copied": "Copiado",
+      "pdf-needs-libreoffice-title__locked": true,
+      "pdf-needs-libreoffice-body__locked": true,
+      "pdf-libreoffice-copy__locked": true,
+      "pdf-libreoffice-copied__locked": true
     },
     "docx-viewer": {
       "could-not-open": "No se pudo abrir {{fileName}}",

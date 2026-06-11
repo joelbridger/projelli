@@ -684,7 +684,11 @@
       "export-saved-pdf": "Saved a PDF copy.",
       "export-saved-clean": "Saved a clean copy with hidden metadata removed.",
       "export-saved-clean-final": "Saved a clean final copy: changes accepted, comments and hidden metadata removed.",
-      "export-dismiss": "Dismiss"
+      "export-dismiss": "Dismiss",
+      "pdf-needs-libreoffice-title": "PDF export needs LibreOffice",
+      "pdf-needs-libreoffice-body": "Keepance converts Word to PDF locally using LibreOffice, a free program. Nothing leaves your machine. Install it, then run the export again.",
+      "pdf-libreoffice-copy": "Copy link",
+      "pdf-libreoffice-copied": "Copied"
     },
     "docx-viewer": {
       "could-not-open": "Couldn't open {{fileName}}",
