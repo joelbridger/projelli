@@ -6,8 +6,8 @@
  * produce a .docx deliverable, not a SCREAMING_SNAKE .md file.
  *
  * Tests:
- *   1. All 18 legal templates (including DepositionContradictionFinder) declare
- *      an outputFile ending in `.docx` (not `.md`).
+ *   1. All 19 legal templates (including DepositionContradictionFinder and the
+ *      VG-3d Issue Spotter) declare an outputFile ending in `.docx` (not `.md`).
  *
  *   2. The WorkflowEngine.writeDeliverable path for a .docx outputFile calls
  *      `writeFileBinary` (not `writeFile`), confirming the engine writes a real
@@ -29,8 +29,8 @@ import type { WorkflowTemplate, ContradictionAnalysisResult } from '../../src/ty
 // ─── 1. All legal templates declare .docx outputFile ─────────────────────────
 
 describe('F-112 — legal pack templates: all outputFiles are .docx', () => {
-  it('every legal template has 18 entries total', () => {
-    expect(LEGAL_TEMPLATES).toHaveLength(18);
+  it('every legal template has 19 entries total', () => {
+    expect(LEGAL_TEMPLATES).toHaveLength(19);
   });
 
   for (const template of LEGAL_TEMPLATES) {

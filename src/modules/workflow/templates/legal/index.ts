@@ -51,6 +51,7 @@ import { ParentingPlanDrafter } from './ParentingPlanDrafter';
 import { FinancialAffidavitOrganizer } from './FinancialAffidavitOrganizer';
 import { RealEstateClosingChecklist } from './RealEstateClosingChecklist';
 import { CitationFormatter } from './CitationFormatter';
+import { IssueSpotter } from './IssueSpotter';
 
 import type { WorkflowTemplate } from '@/types/workflow';
 
@@ -73,6 +74,7 @@ export const LEGAL_TEMPLATES: WorkflowTemplate[] = [
   FinancialAffidavitOrganizer,
   RealEstateClosingChecklist,
   CitationFormatter,
+  IssueSpotter,
 ];
 
 export {
@@ -94,4 +96,5 @@ export {
   FinancialAffidavitOrganizer,
   RealEstateClosingChecklist,
   CitationFormatter,
+  IssueSpotter,
 };
