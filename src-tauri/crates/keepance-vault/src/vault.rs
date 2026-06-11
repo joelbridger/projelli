@@ -89,6 +89,22 @@ fn should_skip_filename(name: &str) -> bool {
     name == ".keepance-vault.json" || name.starts_with(".kpv-tmp-")
 }
 
+/// Returns true if a DIRECTORY (by name) must NOT be walked into.
+///
+/// `.keepance/` holds Keepance-internal stores that are read DIRECTLY off disk by
+/// other subsystems — never through `WorkspaceService`/the vault layer:
+///   - `.keepance/vectors/`   the LanceDB search index (opened via `lancedb::connect`)
+///   - `.keepance/audit-enc.db`, `mail-enc.db`, `mail.db`  (opened via `rusqlite`)
+///   - `.keepance/mail/blobs/*.enc`  (already-encrypted mail blobs, read via `std::fs`)
+/// KPV1-wrapping any of these would corrupt those stores irrecoverably (SQLite/Lance
+/// would read the magic header as their own format). So we never descend into it.
+///
+/// Other dot-dirs (`.versions/`, `.trash/`, `AI Chats/`) ARE walked: they are accessed
+/// only through `WorkspaceService`, so encrypting them is correct and transparent.
+fn should_skip_dirname(name: &str) -> bool {
+    name == ".keepance"
+}
+
 /// Recursively encrypt every eligible file under `root` using `vmk`.
 ///
 /// - Sweeps orphan `.kpv-tmp-*` files before visiting each directory.
@@ -144,6 +160,11 @@ where
             .map_err(|e| VaultError::io(&path, e))?;
 
         if file_type.is_dir() {
+            // Never descend into Keepance-internal store dirs (read raw by other
+            // subsystems); encrypting their contents would corrupt those stores.
+            if should_skip_dirname(&name_str) {
+                continue;
+            }
             walk_and_apply(&path, vmk, op)?;
         } else if file_type.is_file() {
             op(&path, vmk)?;
