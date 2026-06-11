@@ -213,7 +213,7 @@ export function FirmAdminConsole() {
     const view = await getClient().ssoConfigGet();
     setSsoView(view);
     if (view.configured) {
-      setSsoProvider((view.provider as IdpProvider) ?? 'entra');
+      setSsoProvider(view.provider ?? 'entra');
       setSsoIssuer(view.issuer ?? '');
       setSsoClientId(view.client_id ?? '');
       setSsoEnabled(view.enabled ?? true);
@@ -730,17 +730,15 @@ export function FirmAdminConsole() {
       </Section>
 
       {/* Single sign-on (SSO) */}
-      <Section icon={ShieldCheck} title="Single sign-on (SSO)">
+      <Section icon={ShieldCheck} title={t('firm.admin.sso.section-title')}>
         <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
-          Let firm members sign in through your organization's identity provider.
-          Register this application with your IdP using the Redirect URI below, then
-          enter the credentials your IdP gives you.
+          {t('firm.admin.sso.description')}
         </p>
 
         {/* Redirect URI — read-only, copyable */}
         <div className="mb-3 space-y-1">
           <Label htmlFor="sso-redirect-uri" className="text-xs">
-            Redirect URI
+            {t('firm.admin.sso.redirect-uri-label')}
           </Label>
           <div className="flex items-center gap-2">
             <Input
@@ -754,7 +752,7 @@ export function FirmAdminConsole() {
               variant="ghost"
               size="sm"
               className="h-9 px-2"
-              title="Copy redirect URI"
+              title={t('firm.admin.sso.copy-redirect-uri-title')}
               onClick={() => {
                 if (ssoView?.redirect_uri) {
                   void navigator.clipboard.writeText(ssoView.redirect_uri);
@@ -765,7 +763,7 @@ export function FirmAdminConsole() {
             </Button>
           </div>
           <p className="text-[11px] text-muted-foreground">
-            Paste this URI into your IdP when registering the application.
+            {t('firm.admin.sso.redirect-uri-hint')}
           </p>
         </div>
 
@@ -773,7 +771,7 @@ export function FirmAdminConsole() {
           {/* Provider */}
           <div className="space-y-1">
             <Label htmlFor="sso-provider" className="text-xs">
-              Identity provider
+              {t('firm.admin.sso.provider-label')}
             </Label>
             <select
               id="sso-provider"
@@ -782,21 +780,21 @@ export function FirmAdminConsole() {
               onChange={(e) => { setSsoProvider(e.target.value as IdpProvider); }}
               className="h-9 rounded-md border border-input bg-background px-2 text-sm w-full"
             >
-              <option value="entra">Microsoft Entra ID (Azure AD)</option>
-              <option value="google">Google Workspace</option>
-              <option value="generic">Generic OIDC</option>
+              <option value="entra">{t('firm.admin.sso.provider-entra')}</option>
+              <option value="google">{t('firm.admin.sso.provider-google')}</option>
+              <option value="generic">{t('firm.admin.sso.provider-generic')}</option>
             </select>
             <p className="text-[11px] text-muted-foreground">
-              {ssoProvider === 'entra' && 'Register in Azure portal → App registrations → Redirect URIs.'}
-              {ssoProvider === 'google' && 'Register in Google Cloud Console → APIs & Services → Credentials.'}
-              {ssoProvider === 'generic' && 'Register the redirect URI with your OIDC-compatible identity provider.'}
+              {ssoProvider === 'entra' && t('firm.admin.sso.provider-hint-entra')}
+              {ssoProvider === 'google' && t('firm.admin.sso.provider-hint-google')}
+              {ssoProvider === 'generic' && t('firm.admin.sso.provider-hint-generic')}
             </p>
           </div>
 
           {/* Issuer URL */}
           <div className="space-y-1">
             <Label htmlFor="sso-issuer" className="text-xs">
-              Issuer URL
+              {t('firm.admin.sso.issuer-label')}
             </Label>
             <Input
               id="sso-issuer"
@@ -806,10 +804,10 @@ export function FirmAdminConsole() {
               onChange={(e) => { setSsoIssuer(e.target.value); }}
               placeholder={
                 ssoProvider === 'entra'
-                  ? 'https://login.microsoftonline.com/<tenant-id>/v2.0'
+                  ? t('firm.admin.sso.issuer-placeholder-entra')
                   : ssoProvider === 'google'
-                  ? 'https://accounts.google.com'
-                  : 'https://idp.example.com'
+                  ? t('firm.admin.sso.issuer-placeholder-google')
+                  : t('firm.admin.sso.issuer-placeholder-generic')
               }
             />
           </div>
@@ -817,21 +815,21 @@ export function FirmAdminConsole() {
           {/* Client ID */}
           <div className="space-y-1">
             <Label htmlFor="sso-client-id" className="text-xs">
-              Client ID
+              {t('firm.admin.sso.client-id-label')}
             </Label>
             <Input
               id="sso-client-id"
               data-testid="sso-client-id"
               value={ssoClientId}
               onChange={(e) => { setSsoClientId(e.target.value); }}
-              placeholder="Application (client) ID from your IdP"
+              placeholder={t('firm.admin.sso.client-id-placeholder')}
             />
           </div>
 
           {/* Client secret — write-only */}
           <div className="space-y-1">
             <Label htmlFor="sso-client-secret" className="text-xs">
-              Client secret
+              {t('firm.admin.sso.client-secret-label')}
             </Label>
             <Input
               id="sso-client-secret"
@@ -845,12 +843,12 @@ export function FirmAdminConsole() {
               placeholder={
                 ssoView?.has_secret && !ssoSecretTouched
                   ? ''
-                  : 'Client secret from your IdP'
+                  : t('firm.admin.sso.client-secret-placeholder')
               }
             />
             {ssoView?.has_secret && !ssoSecretTouched && (
               <p className="text-[11px] text-emerald-700">
-                Secret saved — leave blank to keep the existing secret.
+                {t('firm.admin.sso.secret-saved-hint')}
               </p>
             )}
           </div>
@@ -866,7 +864,7 @@ export function FirmAdminConsole() {
               className="h-4 w-4 rounded border-input accent-sky-700"
             />
             <Label htmlFor="sso-enabled" className="text-xs cursor-pointer">
-              SSO enabled for this organization
+              {t('firm.admin.sso.enabled-label')}
             </Label>
           </div>
 
@@ -898,10 +896,10 @@ export function FirmAdminConsole() {
                   setSsoClientSecret('');
                   // Re-fetch to get the canonical view (has_secret etc.)
                   await loadSsoConfig();
-                }, 'SSO configuration saved.')
+                }, t('firm.admin.sso.save-ok'))
               }
             >
-              Save SSO
+              {t('firm.admin.sso.save-action')}
             </Button>
             {ssoView?.configured && (
               <Button
@@ -922,10 +920,10 @@ export function FirmAdminConsole() {
                     setSsoSecretTouched(false);
                     setSsoEnabled(true);
                     await loadSsoConfig();
-                  }, 'SSO configuration removed.')
+                  }, t('firm.admin.sso.remove-ok'))
                 }
               >
-                Remove SSO
+                {t('firm.admin.sso.remove-action')}
               </Button>
             )}
           </div>

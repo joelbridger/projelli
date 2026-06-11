@@ -1191,7 +1191,35 @@
       "invite-failed": "Einladung fehlgeschlagen.",
       "wall-user-not-found": "Keine Benutzer-ID fur {{email}} gefunden. Laden Sie die Person zuerst ein, damit ihre ID im Cache gespeichert wird.",
       "auto-republish-ok": "Schlusselzugriff fur neu registrierte Gerate von {{count}} Mandat(en) gewahrt.",
-      "auto-republish-ok__locked": true
+      "auto-republish-ok__locked": true,
+      "sso": {
+        "section-title": "Single Sign-On (SSO)",
+        "description": "Ermoglichen Sie Kanzleimitgliedern, sich uber den Identitatsanbieter Ihrer Organisation anzumelden. Registrieren Sie diese Anwendung bei Ihrem IdP mit der unten stehenden Umleitungs-URI und geben Sie dann die Anmeldedaten ein, die Ihr IdP bereitstellt.",
+        "redirect-uri-label": "Umleitungs-URI",
+        "redirect-uri-hint": "Fugen Sie diese URI bei Ihrem IdP ein, wenn Sie die Anwendung registrieren.",
+        "copy-redirect-uri-title": "Umleitungs-URI kopieren",
+        "provider-label": "Identitatsanbieter",
+        "provider-entra": "Microsoft Entra ID (Azure AD)",
+        "provider-google": "Google Workspace",
+        "provider-generic": "Generisches OIDC",
+        "provider-hint-entra": "Im Azure-Portal registrieren: App-Registrierungen, Umleitungs-URIs.",
+        "provider-hint-google": "In der Google Cloud Console registrieren: APIs und Dienste, Anmeldedaten.",
+        "provider-hint-generic": "Registrieren Sie die Umleitungs-URI bei Ihrem OIDC-kompatiblen Identitatsanbieter.",
+        "issuer-label": "Aussteller-URL",
+        "issuer-placeholder-entra": "https://login.microsoftonline.com/<Mandanten-ID>/v2.0",
+        "issuer-placeholder-google": "https://accounts.google.com",
+        "issuer-placeholder-generic": "https://idp.beispiel.de",
+        "client-id-label": "Client-ID",
+        "client-id-placeholder": "Anwendungs-ID (Client-ID) von Ihrem IdP",
+        "client-secret-label": "Client-Secret",
+        "client-secret-placeholder": "Client-Secret von Ihrem IdP",
+        "secret-saved-hint": "Secret gespeichert - leer lassen, um das bestehende Secret zu behalten.",
+        "enabled-label": "SSO fur diese Organisation aktiviert",
+        "save-action": "SSO speichern",
+        "save-ok": "SSO-Konfiguration gespeichert.",
+        "remove-action": "SSO entfernen",
+        "remove-ok": "SSO-Konfiguration entfernt."
+      }
     }
   },
   "media": {

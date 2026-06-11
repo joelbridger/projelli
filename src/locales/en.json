@@ -1004,7 +1004,35 @@
       "invite-user-exists": "{{email}} already has an account. Use the admin console to add them, or ask them to accept an invitation.",
       "invite-failed": "Invite failed.",
       "wall-user-not-found": "No user ID found for {{email}}. Invite them first so their ID is cached.",
-      "auto-republish-ok": "Granted key access to newly registered devices for {{count}} matter(s)."
+      "auto-republish-ok": "Granted key access to newly registered devices for {{count}} matter(s).",
+      "sso": {
+        "section-title": "Single sign-on (SSO)",
+        "description": "Let firm members sign in through your organization's identity provider. Register this application with your IdP using the Redirect URI below, then enter the credentials your IdP gives you.",
+        "redirect-uri-label": "Redirect URI",
+        "redirect-uri-hint": "Paste this URI into your IdP when registering the application.",
+        "copy-redirect-uri-title": "Copy redirect URI",
+        "provider-label": "Identity provider",
+        "provider-entra": "Microsoft Entra ID (Azure AD)",
+        "provider-google": "Google Workspace",
+        "provider-generic": "Generic OIDC",
+        "provider-hint-entra": "Register in Azure portal → App registrations → Redirect URIs.",
+        "provider-hint-google": "Register in Google Cloud Console → APIs & Services → Credentials.",
+        "provider-hint-generic": "Register the redirect URI with your OIDC-compatible identity provider.",
+        "issuer-label": "Issuer URL",
+        "issuer-placeholder-entra": "https://login.microsoftonline.com/<tenant-id>/v2.0",
+        "issuer-placeholder-google": "https://accounts.google.com",
+        "issuer-placeholder-generic": "https://idp.example.com",
+        "client-id-label": "Client ID",
+        "client-id-placeholder": "Application (client) ID from your IdP",
+        "client-secret-label": "Client secret",
+        "client-secret-placeholder": "Client secret from your IdP",
+        "secret-saved-hint": "Secret saved — leave blank to keep the existing secret.",
+        "enabled-label": "SSO enabled for this organization",
+        "save-action": "Save SSO",
+        "save-ok": "SSO configuration saved.",
+        "remove-action": "Remove SSO",
+        "remove-ok": "SSO configuration removed."
+      }
     }
   },
   "privacy": {

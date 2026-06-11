@@ -1191,7 +1191,35 @@
       "invite-failed": "Error al invitar.",
       "wall-user-not-found": "No se encontró el ID de usuario para {{email}}. Primero invítalo para que su ID quede en caché.",
       "auto-republish-ok": "Acceso a claves concedido a los dispositivos recién registrados de {{count}} asunto(s).",
-      "auto-republish-ok__locked": true
+      "auto-republish-ok__locked": true,
+      "sso": {
+        "section-title": "Inicio de sesión único (SSO)",
+        "description": "Permite que los miembros de la firma inicien sesión a través del proveedor de identidad de tu organización. Registra esta aplicación en tu IdP con el URI de redirección que aparece abajo y luego introduce las credenciales que te proporcione tu IdP.",
+        "redirect-uri-label": "URI de redirección",
+        "redirect-uri-hint": "Pega este URI en tu IdP al registrar la aplicación.",
+        "copy-redirect-uri-title": "Copiar URI de redirección",
+        "provider-label": "Proveedor de identidad",
+        "provider-entra": "Microsoft Entra ID (Azure AD)",
+        "provider-google": "Google Workspace",
+        "provider-generic": "OIDC genérico",
+        "provider-hint-entra": "Regístrate en el portal de Azure: Registros de aplicaciones, URI de redirección.",
+        "provider-hint-google": "Regístrate en Google Cloud Console: APIs y servicios, Credenciales.",
+        "provider-hint-generic": "Registra el URI de redirección en tu proveedor de identidad compatible con OIDC.",
+        "issuer-label": "URL del emisor",
+        "issuer-placeholder-entra": "https://login.microsoftonline.com/<id-de-inquilino>/v2.0",
+        "issuer-placeholder-google": "https://accounts.google.com",
+        "issuer-placeholder-generic": "https://idp.ejemplo.com",
+        "client-id-label": "Client ID",
+        "client-id-placeholder": "ID de aplicación (client ID) de tu IdP",
+        "client-secret-label": "Client secret",
+        "client-secret-placeholder": "Client secret de tu IdP",
+        "secret-saved-hint": "Secreto guardado. Déjalo en blanco para conservar el secreto existente.",
+        "enabled-label": "SSO habilitado para esta organización",
+        "save-action": "Guardar SSO",
+        "save-ok": "Configuración SSO guardada.",
+        "remove-action": "Eliminar SSO",
+        "remove-ok": "Configuración SSO eliminada."
+      }
     }
   },
   "media": {
