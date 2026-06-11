@@ -103,6 +103,7 @@ import {
 } from '@/components/ui/dialog';
 import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/utils/file-utils';
 import { writeDroppedFiles } from '@/utils/fileDrop';
+import { requestScrollToParagraph } from '@/utils/scrollToParagraph';
 import {
   createBlankSpreadsheet,
   spreadsheetBytesToDataUrl,
@@ -3530,25 +3531,26 @@ This file contains rules and guidelines for AI assistants in this workspace.
           // M2 — Citations in AI responses navigate through here. We
           // resolve the retrieval path (workspace-relative) to the full
           // workspace path, then reuse the existing file-open pipeline.
-          // Paragraph index is carried through so the editor can scroll
-          // if/when it wires into the M2 spec's paragraph anchor.
-          onOpenFileAtPath={async (p, paragraphIndex) => {
+          // F-504: the cited chunk's text (`snippet`) is carried through
+          // so the editor can bring the exact passage on screen by search
+          // (the paragraph index is a CHUNK index, only good for an
+          // approximate fallback).
+          onOpenFileAtPath={async (p, paragraphIndex, snippet) => {
             if (!rootPath) return;
             const absPath = p.startsWith(rootPath)
               ? p
               : `${rootPath}/${p}`.replace(/\/+/g, '/');
             const name = absPath.split('/').pop() ?? absPath;
             await handleFileOpen(absPath, name);
-            // Paragraph scroll hook — editors that subscribe to this
-            // custom event can use the paragraph index to scroll. Kept
-            // decoupled so the editor integration can land later
-            // without touching this wiring.
-            if (typeof window !== 'undefined' && typeof paragraphIndex === 'number') {
-              window.dispatchEvent(
-                new CustomEvent('keepance:scroll-to-paragraph', {
-                  detail: { path: absPath, paragraphIndex },
-                }),
-              );
+            // F-504 — editor scroll request. requestScrollToParagraph both
+            // dispatches the event (already-mounted editors) and stashes a
+            // pending slot the freshly-mounted editor consumes (mount race).
+            if (typeof paragraphIndex === 'number') {
+              requestScrollToParagraph({
+                path: absPath,
+                paragraphIndex,
+                ...(snippet ? { snippet } : {}),
+              });
             }
           }}
           onRequestApiKeySetup={handleRequestApiKeySetup}

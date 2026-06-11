@@ -262,7 +262,13 @@ describe('WS-B/C scoped cited retrieval in chat', () => {
     const chip = await screen.findByTestId('chat-citation-pricing.md-3');
     expect(chip.getAttribute('data-verified')).toBe('true');
     act(() => fireEvent.click(chip));
-    expect(onOpen).toHaveBeenCalledWith('Acme/pricing.md', 3);
+    // F-504: the cited chunk's text rides along so the editor can scroll
+    // to the exact passage.
+    expect(onOpen).toHaveBeenCalledWith(
+      'Acme/pricing.md',
+      3,
+      'Premium tier priced at $49.',
+    );
     // no unverified warning when everything verifies
     expect(
       screen.queryByTestId('chat-message-1-unverified-warning'),

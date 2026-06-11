@@ -134,7 +134,15 @@ export function useInlineAiEdit(args: UseInlineAiEditArgs): {
       setAnchorCoords(null);
       return;
     }
-    setAnchorCoords(coords);
+    // Bail referentially when the anchor hasn't moved. `coords` is a fresh
+    // object every call and this callback's identity changes per render
+    // (the adapter is an inline literal), so the anchor effect re-runs on
+    // every render — returning an equal-but-new object here re-rendered
+    // forever once a PERSISTENT non-empty selection existed. The F-504
+    // citation landing selection was the first such selection to hit it.
+    setAnchorCoords((prev) =>
+      prev && prev.x === coords.x && prev.y === coords.y ? prev : coords,
+    );
   }, [adapter]);
 
   // Whenever doc changes, refresh. (Selection changes are driven by

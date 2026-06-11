@@ -23,6 +23,12 @@ import {
   type ShowToast,
 } from '@/modules/editor/smartPaste';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
+import {
+  SCROLL_TO_PARAGRAPH_EVENT,
+  consumePendingScroll,
+  resolveScrollPosition,
+  type ScrollToParagraphDetail,
+} from '@/utils/scrollToParagraph';
 import { InlineChatAnchor } from './InlineChatAnchor';
 import { StreamingDiffOverlay } from './StreamingDiffOverlay';
 import { codeMirrorAdapter, useInlineAiEdit } from './useInlineAiEdit';
@@ -420,6 +426,41 @@ export const MarkdownEditor = forwardRef<MarkdownEditorRef, MarkdownEditorProps>
       };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filePath, readOnly]); // Recreate when filePath or readOnly changes
+
+    // F-504 — bring the cited passage on screen. Citation clicks in the AI
+    // chat fire `keepance:scroll-to-paragraph` (App.tsx onOpenFileAtPath);
+    // the request resolves to a position by exact search for the cited
+    // chunk's first searchable line, falling back to an approximate chunk
+    // offset (resolveScrollPosition). Selects the landing line so the user
+    // sees WHERE the citation points, not just the right file. Declared
+    // AFTER the view-creation effect so the mount-time pending consume
+    // always finds a live view (effects run in declaration order); the
+    // pending slot covers the dispatch-before-mount race for freshly
+    // opened tabs, the event covers already-mounted editors.
+    useEffect(() => {
+      if (!filePath) return undefined;
+      const apply = (detail: ScrollToParagraphDetail) => {
+        const view = viewRef.current;
+        if (!view || detail.path !== filePath) return;
+        const pos = resolveScrollPosition(view.state.doc.toString(), detail);
+        const line = view.state.doc.lineAt(pos);
+        view.dispatch({
+          selection: { anchor: line.from, head: line.to },
+          effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
+        });
+      };
+      const pendingDetail = consumePendingScroll(filePath);
+      if (pendingDetail) apply(pendingDetail);
+      const handler = (e: Event) => {
+        const detail = (e as CustomEvent<ScrollToParagraphDetail>).detail;
+        // The live event reached this mounted editor — clear any matching
+        // pending slot so a later remount doesn't replay the request.
+        if (detail.path === filePath) consumePendingScroll(filePath);
+        apply(detail);
+      };
+      window.addEventListener(SCROLL_TO_PARAGRAPH_EVENT, handler);
+      return () => window.removeEventListener(SCROLL_TO_PARAGRAPH_EVENT, handler);
+    }, [filePath]);
 
     // Q13 — editor-level image drop. Only consumes drops whose first file
     // has an `image/*` MIME type; everything else falls through to the

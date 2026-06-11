@@ -44,6 +44,14 @@ vi.mock('@/modules/models/GeminiProvider', () => ({
 import { AIChatViewer } from '@/components/ai/AIChatViewer';
 import type { AIChatFile } from '@/types/ai';
 import { useAIChatStore } from '@/stores/aiChatStore';
+import {
+  SCROLL_TO_PARAGRAPH_EVENT,
+  approximateChunkOffset,
+  consumePendingScroll,
+  requestScrollToParagraph,
+  resolveScrollPosition,
+  type ScrollToParagraphDetail,
+} from '@/utils/scrollToParagraph';
 
 function buildChatWithCitations(): AIChatFile {
   return {
@@ -131,7 +139,13 @@ describe('Citation navigation (M2)', () => {
     );
     fireEvent.click(screen.getByTestId('chat-citation-pricing.md-3'));
     expect(open).toHaveBeenCalledTimes(1);
-    expect(open).toHaveBeenCalledWith('notes/pricing.md', 3);
+    // F-504 — the cited chunk's text rides along as the third arg so the
+    // editor can locate the passage by exact search.
+    expect(open).toHaveBeenCalledWith(
+      'notes/pricing.md',
+      3,
+      'Premium tier priced at $49.',
+    );
   });
 
   it('renders the sources accordion on messages that have retrieval', () => {
@@ -155,15 +169,19 @@ describe('Citation navigation (M2)', () => {
       />,
     );
     fireEvent.click(screen.getByTestId('chat-sources-toggle'));
-    // Multiple source buttons inside the expanded accordion, plus the
-    // inline citation buttons above. Use getAllByTestId and assert
-    // length >= 2 to stay resilient to the accordion rendering pattern.
+    // F-505 — accordion rows carry their OWN testid (chat-source-*), so
+    // the inline chip's chat-citation-* id stays unique even with the
+    // accordion open.
     expect(
-      screen.getAllByTestId('chat-citation-pricing.md-3').length,
-    ).toBeGreaterThanOrEqual(2);
+      screen.getByTestId('chat-source-pricing.md-3'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('chat-source-research.md-1'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByTestId('chat-citation-pricing.md-3')).toHaveLength(1);
   });
 
-  it('clicking a source row in the accordion opens the file', () => {
+  it('clicking a source row in the accordion opens the file with its snippet', () => {
     const open = vi.fn();
     render(
       <AIChatViewer
@@ -172,13 +190,12 @@ describe('Citation navigation (M2)', () => {
       />,
     );
     fireEvent.click(screen.getByTestId('chat-sources-toggle'));
-    // Find the accordion-level button (the last chat-citation-*-3
-    // element in the DOM is the accordion row, since inline citations
-    // come first in document order).
-    const all = screen.getAllByTestId('chat-citation-pricing.md-3');
-    const accordionRow = all[all.length - 1]!;
-    fireEvent.click(accordionRow);
-    expect(open).toHaveBeenCalledWith('notes/pricing.md', 3);
+    fireEvent.click(screen.getByTestId('chat-source-pricing.md-3'));
+    expect(open).toHaveBeenCalledWith(
+      'notes/pricing.md',
+      3,
+      'Premium tier priced at $49.',
+    );
   });
 
   it('shows a toast warning when the citation has no matching source', () => {
@@ -205,5 +222,119 @@ describe('Citation navigation (M2)', () => {
     expect(
       screen.getByTestId('chat-missing-source-warning').textContent,
     ).toMatch(/nowhere\.md/);
+  });
+});
+
+/**
+ * F-504 — the scroll plumbing itself. `requestScrollToParagraph` must both
+ * dispatch the live event (already-mounted editors) and stash a pending
+ * slot (the editor for a freshly-opened tab mounts AFTER the dispatch);
+ * `resolveScrollPosition` is the pure snippet → document-position logic
+ * the editor listener runs.
+ */
+describe('scroll-to-paragraph plumbing (F-504)', () => {
+  it('requestScrollToParagraph dispatches the event AND stashes a one-shot pending slot', () => {
+    const seen: ScrollToParagraphDetail[] = [];
+    const handler = (e: Event) =>
+      seen.push((e as CustomEvent<ScrollToParagraphDetail>).detail);
+    window.addEventListener(SCROLL_TO_PARAGRAPH_EVENT, handler);
+    try {
+      requestScrollToParagraph({
+        path: '/ws/a.md',
+        paragraphIndex: 4,
+        snippet: 'cited chunk text',
+      });
+    } finally {
+      window.removeEventListener(SCROLL_TO_PARAGRAPH_EVENT, handler);
+    }
+    expect(seen).toEqual([
+      { path: '/ws/a.md', paragraphIndex: 4, snippet: 'cited chunk text' },
+    ]);
+    // Pending slot: keyed by path, consumable exactly once.
+    expect(consumePendingScroll('/ws/other.md')).toBeNull();
+    expect(consumePendingScroll('/ws/a.md')).toEqual({
+      path: '/ws/a.md',
+      paragraphIndex: 4,
+      snippet: 'cited chunk text',
+    });
+    expect(consumePendingScroll('/ws/a.md')).toBeNull();
+  });
+
+  it('keeps only the LATEST pending request', () => {
+    requestScrollToParagraph({ path: '/ws/a.md', paragraphIndex: 1 });
+    requestScrollToParagraph({ path: '/ws/b.md', paragraphIndex: 2 });
+    expect(consumePendingScroll('/ws/a.md')).toBeNull();
+    expect(consumePendingScroll('/ws/b.md')).toEqual({
+      path: '/ws/b.md',
+      paragraphIndex: 2,
+    });
+  });
+
+  describe('resolveScrollPosition (snippet → document position)', () => {
+    const doc = [
+      '# Deposition notes',
+      '',
+      'Alpha paragraph with plenty of text in it.',
+      '',
+      'A. He said I had until October 17, 2025 to submit my written response.',
+      '',
+      'Tail block of the document.',
+    ].join('\n');
+
+    it('finds the cited chunk by exact search on its first searchable line', () => {
+      const snippet =
+        'He said I had until October 17, 2025 to submit my written response.';
+      expect(resolveScrollPosition(doc, { paragraphIndex: 12, snippet })).toBe(
+        doc.indexOf('He said I had until October 17'),
+      );
+    });
+
+    it('skips short leading lines (< 8 chars after trim) in the snippet', () => {
+      const snippet =
+        'A.\n   \nHe said I had until October 17, 2025 to submit my written response.';
+      expect(resolveScrollPosition(doc, { paragraphIndex: 0, snippet })).toBe(
+        doc.indexOf('He said I had until October 17'),
+      );
+    });
+
+    it('falls back to the approximate chunk offset when the snippet is absent or unfindable', () => {
+      expect(resolveScrollPosition(doc, { paragraphIndex: 0 })).toBe(0);
+      expect(
+        resolveScrollPosition(doc, {
+          paragraphIndex: 0,
+          snippet: 'text that exists nowhere in this document',
+        }),
+      ).toBe(0);
+    });
+
+    it('clamps the resolved position into the document', () => {
+      const pos = resolveScrollPosition('short doc', { paragraphIndex: 99 });
+      expect(pos).toBeGreaterThanOrEqual(0);
+      expect(pos).toBeLessThanOrEqual('short doc'.length);
+    });
+  });
+
+  describe('approximateChunkOffset (chunker byte-budget mirror)', () => {
+    it('chunk 0 starts at offset 0', () => {
+      expect(approximateChunkOffset('anything at all', 0)).toBe(0);
+    });
+
+    it('walks double-newline blocks and lands later chunks deeper in the doc, block-aligned', () => {
+      // 8 blocks of 600 bytes ≈ 4,800 bytes ≈ 3 chunks of 1,536.
+      const block = 'x'.repeat(600);
+      const doc = Array.from({ length: 8 }, () => block).join('\n\n');
+      const c1 = approximateChunkOffset(doc, 1);
+      const c2 = approximateChunkOffset(doc, 2);
+      expect(c1).toBeGreaterThan(0);
+      expect(c2).toBeGreaterThan(c1);
+      expect(c2).toBeLessThanOrEqual(doc.length);
+      // Offsets land at a block start, never mid-block.
+      expect(doc.slice(0, c1).endsWith('\n\n')).toBe(true);
+      expect(doc.slice(0, c2).endsWith('\n\n')).toBe(true);
+    });
+
+    it('clamps past-the-end chunk indexes to the document length', () => {
+      expect(approximateChunkOffset('tiny', 50)).toBe(4);
+    });
   });
 });

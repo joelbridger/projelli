@@ -136,10 +136,15 @@ interface AIChatViewerProps {
    * accordion. Resolves a workspace-relative path to a real file path
    * (stripping any parent folders the retriever returned) and opens it
    * in the editor. When provided, also opens the paragraph the citation
-   * references (editor integration left to the caller; the callback
-   * receives the paragraph index as an optional second arg).
+   * references (the callback receives the paragraph index as an optional
+   * second arg). F-504: the cited chunk's text rides along as the third
+   * arg so the editor can bring the exact passage on screen by search.
    */
-  onOpenFileAtPath?: (path: string, paragraphIndex?: number) => void | Promise<void>;
+  onOpenFileAtPath?: (
+    path: string,
+    paragraphIndex?: number,
+    snippet?: string,
+  ) => void | Promise<void>;
   className?: string;
 }
 
@@ -271,6 +276,7 @@ function renderMessageWithCitations(
     paragraphIndex: number,
     sourceType?: string,
     pageNumber?: number,
+    snippet?: string,
   ) => void,
   onMissingCitation: (basename: string) => void,
 ): React.ReactNode {
@@ -326,11 +332,14 @@ function renderMessageWithCitations(
         onClick={() => {
           if (resolved) {
             // A3: look up sourceType + pageNumber from the matched source.
+            // F-504: pass the cited chunk's text so the editor can scroll
+            // to the exact passage by search.
             onCitationClick(
               resolved,
               cite.paragraphIndex,
               matchedSource?.sourceType,
               matchedSource?.pageNumber,
+              matchedSource?.chunkText,
             );
           } else {
             onMissingCitation(cite.basename);
@@ -379,7 +388,13 @@ function ChatSourcesAccordion({
   onMissing,
 }: {
   sources: WorkspaceSource[];
-  onOpen: (path: string, paragraphIndex: number, sourceType?: string, pageNumber?: number) => void;
+  onOpen: (
+    path: string,
+    paragraphIndex: number,
+    sourceType?: string,
+    pageNumber?: number,
+    snippet?: string,
+  ) => void;
   onMissing: (path: string) => void;
 }): React.ReactElement | null {
   const [open, setOpen] = useState(false);
@@ -407,7 +422,10 @@ function ChatSourcesAccordion({
         <ul className="mt-1 ml-4 space-y-1 border-l pl-2 border-muted">
           {sources.map((s, idx) => {
             const base = citationBasename(s.path);
-            const testId = `chat-citation-${base}-${s.paragraphIndex}`;
+            // F-505 — the accordion rows carry their OWN testid; reusing the
+            // inline chip's `chat-citation-*` made bare getByTestId lookups
+            // resolve to two elements once the accordion was open.
+            const testId = `chat-source-${base}-${s.paragraphIndex}`;
             return (
               <li key={`${s.path}-${s.paragraphIndex}-${idx}`}>
                 <button
@@ -416,7 +434,7 @@ function ChatSourcesAccordion({
                   className="text-xs text-muted-foreground hover:text-foreground underline truncate max-w-full text-left"
                   title={s.path}
                   onClick={() => {
-                    if (s.path) onOpen(s.path, s.paragraphIndex, s.sourceType, s.pageNumber);
+                    if (s.path) onOpen(s.path, s.paragraphIndex, s.sourceType, s.pageNumber, s.chunkText);
                     else onMissing(base);
                   }}
                 >
@@ -2054,6 +2072,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
       paragraphIndex: number,
       sourceType?: string,
       pageNumber?: number,
+      snippet?: string,
     ) => {
       setMissingSourceWarning(null);
       // WS-B/C — email sources resolve to `mail:<message-id>`, not a file on
@@ -2076,7 +2095,9 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         // as a page number when the file extension is .pdf.
         void onOpenFileAtPath(path, pageNumber);
       } else {
-        void onOpenFileAtPath(path, paragraphIndex);
+        // F-504: forward the cited chunk's text so the editor can locate
+        // the passage by exact search instead of guessing from the index.
+        void onOpenFileAtPath(path, paragraphIndex, snippet);
       }
     },
     [onOpenFileAtPath],

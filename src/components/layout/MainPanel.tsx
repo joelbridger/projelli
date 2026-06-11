@@ -212,8 +212,13 @@ interface MainPanelProps {
   /**
    * M2 — forwarded to AIChatViewer so citation chips in assistant
    * responses can open the cited file at a specific paragraph index.
+   * F-504: `snippet` carries the cited chunk's text for passage scroll.
    */
-  onOpenFileAtPath?: (path: string, paragraphIndex?: number) => void | Promise<void>;
+  onOpenFileAtPath?: (
+    path: string,
+    paragraphIndex?: number,
+    snippet?: string,
+  ) => void | Promise<void>;
   /**
    * When the user clicks the UX-04 onboarding card's "Add API key" button,
    * this fires so the parent can switch to the AI Assistant sidebar + Keys

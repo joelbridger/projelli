@@ -8,9 +8,10 @@
  *      accordion, the per-message matter-scope chip, and citation
  *      click-through opening the right FILE — over SEEDED messages carrying
  *      real fixture text. (Render truth, not retrieval truth.) The
- *      passage-level half of click-through is a recorded product finding:
- *      see the expected-fail test below (scroll-to-paragraph has no
- *      listener), kept at full assertion strength as the fix tripwire.
+ *      passage-level half of click-through (formerly the F-504 expected-fail
+ *      tripwire) is fixed in the Wave 1 fix wave — the editor now listens
+ *      for `keepance:scroll-to-paragraph` and scrolls to the cited chunk by
+ *      snippet search — and is asserted as a normal test below.
  *   2. The F-116 refusal: "Ask my workspace" ON in a build without rag
  *      REFUSES instead of fabricating (the live send path up to the refusal
  *      runs for real; it returns before any provider/API-key code).
@@ -165,13 +166,10 @@ function citedChatFile(): string {
 /** Seed both fixture files + the cited chat and return the inline chip
  *  locators.
  *
- *  NOTE (selector corrected to match the UI, plan discipline): the sources
- *  accordion's expanded rows REUSE the chip testid
- *  (`chat-citation-${base}-${paragraphIndex}`, AIChatViewer.tsx:409), so once
- *  the accordion is open a bare getByTestId resolves to TWO elements and
- *  strict mode rejects it. Only the INLINE message chips carry the
- *  data-verified attribute (AIChatViewer.tsx:312-318) — scope on it so every
- *  assertion (and click-through) targets the inline chip. */
+ *  The accordion rows carry their own `chat-source-*` testid since the F-505
+ *  fix, so `chat-citation-*` is unique to the inline chips again. The
+ *  `[data-verified]` scoping below predates that fix and still works
+ *  unchanged (only inline chips carry the attribute). */
 async function openCitedChat(page: Page) {
   await seedMockTextFile(page, DEPO_PATH, depoText);
   await seedMockTextFile(page, SUMMARY_PATH, summaryText);
@@ -223,46 +221,40 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     await keep(page, testInfo, 'leg2-01-cited-answer');
 
     // Click-through: the chip opens the REAL seeded fixture file — its
-    // genuine content (read back through the mock-fs open path, not the chat)
-    // is on screen. The top-of-transcript caption can only come from the
-    // seeded fixture bytes.
+    // genuine content (read back through the mock-fs open path, not the
+    // chat) is on screen. Since the F-504 fix the editor lands AT the cited
+    // passage (fixture line ~108), not the top, so CodeMirror's virtualized
+    // viewport mounts the passage region instead of the caption. The Q line
+    // beside the cited answer exists only in the seeded fixture bytes (the
+    // chat message never contains it).
     await hardClick(verifiedChip);
     await expect(
-      page.getByText('IN THE UNITED STATES DISTRICT COURT'),
+      page.getByText('Did Mr. Weston tell you a deadline for submitting the explanation?'),
     ).toBeVisible({ timeout: 10_000 });
     await keep(page, testInfo, 'leg2-02-citation-clickthrough');
 
     expect(getErrors(), 'console errors').toHaveLength(0);
   });
 
-  test('FINDING (expected fail): citation click-through does NOT scroll to the cited passage', async ({
+  test('citation click-through scrolls the cited passage on screen (F-504 fixed)', async ({
     page,
   }, testInfo) => {
-    // PRODUCT FINDING — harness proves, never fixes (F-5xx row for the
-    // RESULTS.md ledger, Task 7): clicking a citation opens the right file
-    // but never navigates to the cited paragraph. App.tsx:3518-3536
-    // dispatches `keepance:scroll-to-paragraph` with the paragraph index,
-    // but NO editor subscribes to it (grep: the dispatch site is the only
-    // occurrence in src/; the inline comment says the editor integration
-    // "can land later"). The file opens at the top, and CodeMirror's
-    // virtualized viewport never mounts the passage at fixture line 108 —
-    // so the wedge promise "click-through opens the source PASSAGE"
-    // currently delivers only "opens the source FILE". Same code path runs
-    // under Tauri, so leg 3 will observe the same gap.
-    //
-    // The assertion below is the plan's original, at full strength. When the
-    // scroll listener lands, this test will "pass unexpectedly" and fail the
-    // suite — remove the test.fail() and fold the assertion into the
-    // click-through test above.
-    test.fail(
-      true,
-      'Known product gap: keepance:scroll-to-paragraph has no listener; cited passage not brought on screen',
-    );
+    // F-504 — FIXED in the Wave 1 fix wave. This was the expected-fail
+    // tripwire: App.tsx dispatched `keepance:scroll-to-paragraph` but no
+    // editor subscribed, so the file opened at the top and CodeMirror's
+    // virtualized viewport never mounted the passage at fixture line 108.
+    // Now the citation click chain carries the cited chunk's text
+    // (`snippet`) through onOpenFileAtPath, App.tsx stashes it via
+    // requestScrollToParagraph (pending slot survives the dispatch-before-
+    // mount race), and MarkdownEditor resolves it by exact search
+    // (resolveScrollPosition, scrollToParagraph.ts) and scrolls/selects the
+    // landing line. The assertion below is the plan's original, at full
+    // strength, now passing as a normal test.
 
     const { verifiedChip } = await openCitedChat(page);
     await expect(verifiedChip).toBeVisible();
     await hardClick(verifiedChip);
-    await keep(page, testInfo, 'leg2-02b-passage-not-scrolled');
+    await keep(page, testInfo, 'leg2-02b-passage-scrolled');
     await expect(
       page.getByText('until October 17, 2025 to submit my written response').first(),
     ).toBeVisible({ timeout: 10_000 });
