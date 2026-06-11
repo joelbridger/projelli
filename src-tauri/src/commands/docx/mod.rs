@@ -487,12 +487,15 @@ pub async fn docx_resolve_all(document: Value, action: String) -> Result<Documen
 /// header/footer/styles/sectPr with the generated document's content blocks (see
 /// `keepance_docx::merge_into_template`). Pure bytes-in / bytes-out, no disk I/O.
 pub fn apply_letterhead_bytes(generated: &[u8], template: &[u8]) -> Result<Vec<u8>, String> {
-    let generated_doc = keepance_docx::parse_docx_bytes(generated).map_err(|e| {
+    // Open BOTH as full packages: the merge copies the generated content's own
+    // hyperlink/image relationships and numbering definitions into the template
+    // package, so it needs the generated package, not just its DOM.
+    let generated_opened = open_docx_bytes(generated).map_err(|e| {
         format!("I could not read the generated document to apply the letterhead: {e}")
     })?;
     let template_opened = open_docx_bytes(template)
         .map_err(|e| format!("I could not read the letterhead template: {e}"))?;
-    let merged = merge_into_template(&generated_doc, template_opened);
+    let merged = merge_into_template(&generated_opened, template_opened);
     merged
         .save_bytes()
         .map_err(|e| format!("I could not write the letterheaded document: {e}"))
