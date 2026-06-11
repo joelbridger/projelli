@@ -118,7 +118,8 @@ pub async fn index_pdf_chunks(
 
     if all_chunks.is_empty() {
         // No extractable text. Delete any stale rows and return.
-        delete_path(table, path).await?;
+        // (VG-6e: delete matches the tokenized path column via the key.)
+        delete_path(table, path, key).await?;
         return Ok(0);
     }
 

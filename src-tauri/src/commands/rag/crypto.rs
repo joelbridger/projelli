@@ -15,11 +15,46 @@
 // only owns the KEY (which store it belongs to), never re-implements the cipher.
 
 use anyhow::{Context, Result};
+use hmac::{Hmac, Mac};
 use rand::RngCore;
+use sha2::Sha256;
 
 const KEYCHAIN_SERVICE: &str = "keepance-vectors-enc";
 const KEYCHAIN_KEY: &str = "master-key-v1";
 const KEY_LEN: usize = 32;
+
+/// VG-6e — domain-separation label for the path-token key derivation. The
+/// token key is DERIVED from the vector-store master key under this label,
+/// so the token keyspace is cryptographically independent of the AES-GCM
+/// use of the same master key (and of any future derived key, which must
+/// pick its own label).
+const PATH_TOKEN_DOMAIN: &[u8] = b"keepance-path-token-v1";
+
+/// VG-6e — deterministic keyed token for the queryable `path` / `source_id`
+/// columns: `hex(HMAC-SHA256(token_key, path))` where
+/// `token_key = HMAC-SHA256(master_key, "keepance-path-token-v1")`.
+///
+/// Determinism is the point: every equality predicate the store runs over
+/// `path` (upsert's stale-row delete, delete_path, the retag UPDATEs) keeps
+/// working verbatim in shape — `path = '<token>'` — while a raw-disk reader
+/// sees only an opaque 64-hex-char value, never the client/matter file map.
+/// Without the master key the token is not invertible and not even
+/// recognisable (an attacker cannot test path guesses without the key).
+/// Display recovery does NOT come from the token: the real path travels in
+/// the separate AES-256-GCM `path_enc` column and is decrypted on read.
+pub fn path_token(master_key: &[u8; KEY_LEN], path: &str) -> String {
+    type HmacSha256 = Hmac<Sha256>;
+    // Derive the domain-separated token key from the master key.
+    let mut kdf =
+        HmacSha256::new_from_slice(master_key).expect("HMAC accepts any key length");
+    kdf.update(PATH_TOKEN_DOMAIN);
+    let token_key = kdf.finalize().into_bytes();
+    // Token = HMAC over the plaintext path under the derived key.
+    let mut mac =
+        HmacSha256::new_from_slice(&token_key).expect("HMAC accepts any key length");
+    mac.update(path.as_bytes());
+    hex::encode(mac.finalize().into_bytes())
+}
 
 /// Get the vector-store master key from the OS keychain, creating and storing it
 /// on first call. Returns the 32-byte key as a fixed-size array.
@@ -45,5 +80,43 @@ pub fn get_or_create_master_key() -> Result<[u8; KEY_LEN]> {
             Ok(k)
         }
         Err(e) => Err(anyhow::anyhow!("vectors keychain read: {e}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const KEY_A: [u8; 32] = [0x11u8; 32];
+    const KEY_B: [u8; 32] = [0x22u8; 32];
+
+    #[test]
+    fn path_token_is_deterministic_for_same_key_and_path() {
+        let a = path_token(&KEY_A, "/ws/clients/smith-v-jones.md");
+        let b = path_token(&KEY_A, "/ws/clients/smith-v-jones.md");
+        assert_eq!(a, b, "the equality-predicate contract needs determinism");
+    }
+
+    #[test]
+    fn path_token_is_key_dependent() {
+        let a = path_token(&KEY_A, "/ws/clients/smith-v-jones.md");
+        let b = path_token(&KEY_B, "/ws/clients/smith-v-jones.md");
+        assert_ne!(a, b, "a different master key must produce a different token");
+    }
+
+    #[test]
+    fn path_token_is_64_hex_chars() {
+        let t = path_token(&KEY_A, "mail:AAMk-abc123");
+        assert_eq!(t.len(), 64, "HMAC-SHA256 hex is 64 chars");
+        assert!(t.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+    }
+
+    #[test]
+    fn path_token_distinct_paths_get_distinct_tokens() {
+        let a = path_token(&KEY_A, "/ws/a.md");
+        let b = path_token(&KEY_A, "/ws/b.md");
+        assert_ne!(a, b);
+        // And the token never carries the plaintext path bytes.
+        assert!(!path_token(&KEY_A, "/ws/very-identifiable.md").contains("very-identifiable"));
     }
 }

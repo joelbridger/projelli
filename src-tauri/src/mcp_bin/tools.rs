@@ -18,7 +18,7 @@
 
 use super::approval::{self, APPROVAL_MARKER};
 use super::protocol::JsonRpcError;
-use super::{embedder, extractor, resolve_workspace_path, store, ServerCtx};
+use super::{crypto, embedder, extractor, resolve_workspace_path, store, ServerCtx};
 use serde_json::{json, Value};
 use std::path::Path;
 
@@ -328,13 +328,37 @@ pub async fn search_workspace(ctx: &ServerCtx, args: Value) -> Result<Vec<Value>
         return Ok(vec![super::text_content("(no results)")]);
     }
 
+    // VG-6e: the store's path column holds keyed tokens; the real path is
+    // recovered by decrypting path_enc under the vector master key (same OS
+    // keychain entry the app uses). If the keychain is unreachable from this
+    // process, fall back to the honest placeholder rather than printing an
+    // opaque token as if it were a path.
+    let enc_key = crypto::get_or_create_master_key().ok();
+    let display_path = |hit: &store::StoredHit| -> String {
+        match hit.path_enc.as_deref() {
+            Some(enc) => enc_key
+                .as_ref()
+                .and_then(|k| {
+                    hex::decode(enc)
+                        .ok()
+                        .and_then(|bytes| {
+                            keepance_lib::commands::mail::crypto::decrypt_with_key(&bytes, k).ok()
+                        })
+                        .and_then(|v| String::from_utf8(v).ok())
+                })
+                .unwrap_or_else(|| "[path unavailable]".to_string()),
+            // Legacy pre-V10 row: the raw column is the plaintext path.
+            None => hit.path.clone(),
+        }
+    };
+
     let mut buf = String::new();
     for (i, hit) in raw.iter().enumerate() {
         let score = embedder::cosine_distance_to_score(hit.distance);
-        let rel_path = hit
-            .path
+        let path = display_path(hit);
+        let rel_path = path
             .strip_prefix(ctx.workspace_root.to_string_lossy().as_ref())
-            .unwrap_or(&hit.path)
+            .unwrap_or(&path)
             .trim_start_matches(['/', '\\']);
         buf.push_str(&format!(
             "[{}] {} (score {:.2}, paragraph {})\n",

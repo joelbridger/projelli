@@ -4531,6 +4531,7 @@ dependencies = [
  "futures-util",
  "hex",
  "hf-hub",
+ "hmac",
  "keepance-docx",
  "keyring",
  "lancedb",

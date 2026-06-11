@@ -101,6 +101,10 @@ arrow-schema = "55"
 # Stable hash for chunk ids (path + paragraph_index). std::hash defaults
 # don't guarantee cross-version stability, so use a known-good algorithm.
 sha2 = "0.10"
+# VG-6e — deterministic keyed path tokens for the vector store's queryable
+# path/source_id columns (rag/crypto.rs::path_token). Pairs with the existing
+# sha2 pin (hmac 0.12 sits on the same digest 0.10 generation).
+hmac = "0.12"
 # WalkDir for file walking in rag_index_workspace. Lighter than std::fs
 # recursion + handles symlinks correctly.
 walkdir = "2"

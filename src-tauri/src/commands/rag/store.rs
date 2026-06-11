@@ -2,11 +2,24 @@
 //
 // One dataset per workspace, living at `<workspace>/.keepance/vectors/`.
 // Schema (WS-B/C extension):
-//   id              : Utf8           — sha256(path || ":" || paragraph_index)
-//   path            : Utf8           — absolute source path
+//   id              : Utf8           — sha256(path || ":" || paragraph_index),
+//                                      computed from the PLAINTEXT path (the
+//                                      content-addressed citation contract is
+//                                      independent of the at-rest tokenization).
+//   path            : Utf8           — VG-6e: deterministic keyed TOKEN of the
+//                                      source path (crypto::path_token — HMAC-
+//                                      SHA256 under a key derived from the
+//                                      vector master key). NEVER plaintext.
+//                                      Deterministic so every equality
+//                                      predicate (upsert delete / delete_path /
+//                                      retag) keeps working.
 //   matter_id       : Utf8 NOT NULL  — confidentiality scope key (WS-B/C)
 //   source_id       : Utf8 NOT NULL  — originating source: file path (docs/pdf)
 //                                      or "mail:<message-id>" (email). WS-B/C.
+//                                      VG-6e: holds the SAME token as `path`
+//                                      (source_id == path by construction);
+//                                      the real value is recovered from
+//                                      `path_enc` on read.
 //   paragraph_index : UInt32         — chunk index inside the source
 //   text            : Utf8           — chunk text AT REST. Encrypted-at-rest
 //                                      (WS-VEC): hex-encoded AES-256-GCM blob
@@ -34,6 +47,13 @@
 //                                      sequential paragraph_index — the
 //                                      content-addressed citation contract is
 //                                      untouched.
+//   path_enc        : Utf8 NOT NULL  — VG-6e: the REAL source path, encrypted
+//                                      at rest (hex AES-256-GCM under the
+//                                      vector master key — the exact
+//                                      chunk-text pattern). Decrypted on read
+//                                      so Hit.path / Hit.source_id still hand
+//                                      the frontend real paths for display and
+//                                      click-through.
 //
 // WS-VEC — chunk text is a CONFIDENTIALITY GUARANTEE at rest. The `text` column
 // is encrypted with AES-256-GCM under the dedicated vector-store master key
@@ -46,9 +66,13 @@
 //     over out-of-scope rows). They are intentionally NOT encrypted here.
 //   - The `vector` column stays plaintext (similarity needs it); a leaked vector
 //     reveals only fuzzy, non-reversible semantics.
-//   - DOCUMENTED RESIDUAL (out of scope): `source_id` / `path` (file paths) and
-//     `matter_id` values, being queryable, still reveal the client/matter map to
-//     a disk reader. Opaque-id-ifying them is a separate follow-up.
+//   - VG-6e closed the former path residual: `path` / `source_id` hold opaque
+//     deterministic HMAC tokens (equality predicates keep working) and the real
+//     path is recovered from the encrypted `path_enc` column on read. The
+//     REMAINING residual, documented honestly (and in the user-facing Data
+//     Map): `matter_id` and `privilege` values stay readable on disk because
+//     isolation prefilters on them, and the embedding vectors are stored as
+//     plain floats by design.
 //
 // `id` is content-addressed by `(path, paragraph_index)` so re-indexing a
 // file is idempotent — we delete `path = ?` first and then append, avoiding
@@ -205,7 +229,15 @@ pub const UNASSIGNED_MATTER: &str = "unassigned";
 /// table predates transcript detection entirely — the one-time drop +
 /// re-index migration is what re-chunks the transcripts already sitting in a
 /// workspace through the page:line path.
-pub const INDEX_VERSION: u32 = 9;
+///
+/// 10: VG-6e — path/source_id tokenized + path_enc encrypted at rest. A pre-10
+/// table holds PLAINTEXT file paths in the queryable `path` / `source_id`
+/// columns (the documented Pillar-1 residual: a raw-disk reader could recover
+/// the client/matter file map). Version 10 writes deterministic HMAC tokens
+/// in those columns and the real path AES-256-GCM-encrypted in the new
+/// NOT-NULL `path_enc` column. We never leave plaintext paths behind: the
+/// one-time drop + re-index migration rewrites every row tokenized.
+pub const INDEX_VERSION: u32 = 10;
 
 /// Filename (under the vectors dir) holding the integer `INDEX_VERSION` the
 /// current `chunks` table was built with.
@@ -319,6 +351,11 @@ pub fn build_schema() -> SchemaRef {
         // ("startPage:startLine-endPage:endLine"); null on every other source.
         // Nullable + trailing so pre-V9 datasets still open during migration.
         Field::new("locator", DataType::Utf8, true),
+        // VG-6e: the real source path, encrypted at rest (hex AES-256-GCM
+        // under the vector master key — the chunk-text pattern). NOT NULL on
+        // every V10 row; a pre-V10 table simply lacks the column (reads fall
+        // back to the raw `path`, and the V10 migration re-indexes it away).
+        Field::new("path_enc", DataType::Utf8, false),
     ]))
 }
 
@@ -376,6 +413,11 @@ pub async fn open_or_create_table(conn: &Connection) -> Result<Table> {
 /// is the resolvable originating source for the citation contract. matter_id and
 /// privilege stay PLAINTEXT — retrieval isolation prefilters on them.
 ///
+/// VG-6e: the `path` / `source_id` COLUMNS hold the deterministic keyed token
+/// (`crypto::path_token`), never the plaintext path; the real path is written
+/// AES-256-GCM-encrypted into `path_enc` and recovered on read. `id` is still
+/// computed from the PLAINTEXT path, so citation ids are unchanged.
+///
 /// WS-PRIV: `privilege` is the litigation-safety status written to every row
 /// (NON-NULL — one of "none" | "attorney-client" | "work-product"). Privileged
 /// rows are excluded from retrieval by default.
@@ -405,7 +447,6 @@ pub fn build_batch(
         .iter()
         .map(|(c, _)| chunk_id(&c.path, c.paragraph_index))
         .collect();
-    let paths: Vec<&str> = rows.iter().map(|(c, _)| c.path.as_str()).collect();
     let para_idx: Vec<u32> = rows.iter().map(|(c, _)| c.paragraph_index).collect();
     let timestamps: Vec<i64> = vec![now; rows.len()];
 
@@ -421,6 +462,18 @@ pub fn build_batch(
         encrypted_texts.push(hex::encode(&blob));
     }
 
+    // VG-6e: the queryable path/source_id columns carry the deterministic
+    // keyed token; the real path is encrypted into path_enc (same key, same
+    // wire format as the text column). Plaintext paths are NEVER written.
+    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
+    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
+    for (c, _) in rows.iter() {
+        path_tokens.push(super::crypto::path_token(key, &c.path));
+        let blob = encrypt_with_key(c.path.as_bytes(), key)
+            .map_err(|e| anyhow::anyhow!("encrypt chunk path {}: {e}", c.path))?;
+        path_encs.push(hex::encode(&blob));
+    }
+
     let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
         rows.iter()
             .map(|(_, v)| Some(v.iter().copied().map(Some).collect::<Vec<_>>())),
@@ -428,10 +481,12 @@ pub fn build_batch(
     );
 
     let id_arr = StringArray::from_iter_values(ids.iter().map(|s| s.as_str()));
-    let path_arr = StringArray::from_iter_values(paths.iter().copied());
-    // WS-B/C: matter_id (one value, all rows) + source_id (== path per row).
+    let path_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
+    // WS-B/C: matter_id (one value, all rows) + source_id (== path per row —
+    // VG-6e: both columns hold the token).
     let matter_arr = StringArray::from(vec![matter_id; rows.len()]);
-    let src_arr = StringArray::from_iter_values(paths.iter().copied());
+    let src_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
+    let penc_arr = StringArray::from_iter_values(path_encs.iter().map(|s| s.as_str()));
     let pi_arr = UInt32Array::from(para_idx);
     let text_arr = StringArray::from_iter_values(encrypted_texts.iter().map(|s| s.as_str()));
     let ts_arr = Int64Array::from(timestamps);
@@ -500,6 +555,7 @@ pub fn build_batch(
             Arc::new(ext_arr),
             Arc::new(conf_arr),
             Arc::new(loc_arr),
+            Arc::new(penc_arr),
         ],
     )
     .context("RecordBatch::try_new failed for chunks batch")?;
@@ -542,7 +598,6 @@ pub fn build_batch_mail(
         .iter()
         .map(|(c, _)| chunk_id(&c.path, c.paragraph_index))
         .collect();
-    let paths: Vec<&str> = rows.iter().map(|(c, _)| c.path.as_str()).collect();
     let para_idx: Vec<u32> = rows.iter().map(|(c, _)| c.paragraph_index).collect();
     let timestamps = vec![now; rows.len()];
 
@@ -559,6 +614,18 @@ pub fn build_batch_mail(
         encrypted_texts.push(hex::encode(&blob));
     }
 
+    // VG-6e: same tokenization as build_batch — a "mail:<id>" key on disk is a
+    // re-identification surface exactly like a file path (message ids tie back
+    // to mailbox provider records), so it gets the same token + path_enc pair.
+    let mut path_tokens: Vec<String> = Vec::with_capacity(rows.len());
+    let mut path_encs: Vec<String> = Vec::with_capacity(rows.len());
+    for (c, _) in rows.iter() {
+        path_tokens.push(super::crypto::path_token(key, &c.path));
+        let blob = encrypt_with_key(c.path.as_bytes(), key)
+            .map_err(|e| anyhow::anyhow!("encrypt mail chunk path {}: {e}", c.path))?;
+        path_encs.push(hex::encode(&blob));
+    }
+
     let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
         rows.iter()
             .map(|(_, v)| Some(v.iter().copied().map(Some).collect::<Vec<_>>())),
@@ -566,10 +633,12 @@ pub fn build_batch_mail(
     );
 
     let id_arr = StringArray::from_iter_values(ids.iter().map(|s| s.as_str()));
-    let path_arr = StringArray::from_iter_values(paths.iter().copied());
-    // WS-B/C: matter_id (one value, all rows) + source_id (== path = "mail:<id>").
+    let path_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
+    // WS-B/C: matter_id (one value, all rows) + source_id (== path = "mail:<id>"
+    // — VG-6e: both columns hold the token).
     let matter_arr = StringArray::from(vec![matter_id; rows.len()]);
-    let src_arr = StringArray::from_iter_values(paths.iter().copied());
+    let src_arr = StringArray::from_iter_values(path_tokens.iter().map(|s| s.as_str()));
+    let penc_arr = StringArray::from_iter_values(path_encs.iter().map(|s| s.as_str()));
     let pi_arr = UInt32Array::from(para_idx);
     let text_arr = StringArray::from_iter_values(encrypted_texts.iter().map(|s| s.as_str()));
     let ts_arr = Int64Array::from(timestamps);
@@ -604,6 +673,7 @@ pub fn build_batch_mail(
             Arc::new(ext_arr),
             Arc::new(conf_arr),
             Arc::new(loc_arr),
+            Arc::new(penc_arr),
         ],
     )
     .context("RecordBatch::try_new failed for mail chunks batch")
@@ -628,7 +698,14 @@ pub async fn upsert_chunks_for_path(
 ) -> Result<()> {
     // Always delete first — even if `rows` is empty (the file may have
     // been emptied by the user) we want to drop stale chunks.
-    let predicate = format!("path = '{}'", path.replace('\'', "''"));
+    // VG-6e: the column holds the keyed token, so the predicate matches on
+    // the token computed from the same plaintext path + key. (The predicate
+    // string lands in LanceDB's transaction log — tokenizing it is part of
+    // the no-plaintext-paths-on-disk guarantee.)
+    let predicate = format!(
+        "path = '{}'",
+        sql_escape(&super::crypto::path_token(key, path))
+    );
     table
         .delete(&predicate)
         .await
@@ -674,7 +751,11 @@ pub async fn upsert_grouped(
     privilege: &str,
     key: &[u8; 32],
 ) -> Result<usize> {
-    let predicate = format!("path = '{}'", sql_escape(path));
+    // VG-6e: tokenized predicate — see upsert_chunks_for_path.
+    let predicate = format!(
+        "path = '{}'",
+        sql_escape(&super::crypto::path_token(key, path))
+    );
     table
         .delete(&predicate)
         .await
@@ -706,8 +787,14 @@ pub async fn upsert_grouped(
 
 /// Drop every row whose `path` matches. Used by the watcher when a file
 /// is deleted from the workspace.
-pub async fn delete_path(table: &Table, path: &str) -> Result<()> {
-    let predicate = format!("path = '{}'", path.replace('\'', "''"));
+///
+/// VG-6e: takes the PLAINTEXT path plus the vector master `key` and computes
+/// the stored token internally — callers never handle tokens.
+pub async fn delete_path(table: &Table, path: &str, key: &[u8; 32]) -> Result<()> {
+    let predicate = format!(
+        "path = '{}'",
+        sql_escape(&super::crypto::path_token(key, path))
+    );
     table
         .delete(&predicate)
         .await
@@ -733,9 +820,14 @@ pub async fn retag_privilege_for_path(
     table: &Table,
     path: &str,
     privilege: &str,
+    key: &[u8; 32],
 ) -> Result<u64> {
     let privilege = validate_privilege(privilege)?;
-    let predicate = format!("path = '{}'", sql_escape(path));
+    // VG-6e: tokenized predicate — the column holds the keyed token.
+    let predicate = format!(
+        "path = '{}'",
+        sql_escape(&super::crypto::path_token(key, path))
+    );
     // The update expression is a SQL string literal for the new privilege value.
     let value_expr = format!("'{}'", sql_escape(privilege));
     let result = table
@@ -765,9 +857,14 @@ pub async fn retag_matter_for_path(
     table: &Table,
     path: &str,
     matter_id: &str,
+    key: &[u8; 32],
 ) -> Result<u64> {
     let matter_id = validate_matter_id(matter_id)?;
-    let predicate = format!("path = '{}'", sql_escape(path));
+    // VG-6e: tokenized predicate — the column holds the keyed token.
+    let predicate = format!(
+        "path = '{}'",
+        sql_escape(&super::crypto::path_token(key, path))
+    );
     let value_expr = format!("'{}'", sql_escape(matter_id));
     let result = table
         .update()
@@ -816,6 +913,13 @@ pub struct StoredHit {
     // ("startPage:startLine-endPage:endLine"); None on every other source
     // (and pre-V9 rows). Citations read it as "Tr. 45:12-46:3".
     pub locator: Option<String>,
+    // VG-6e: hex AES-256-GCM ciphertext of the REAL source path. Present on
+    // every V10 row; None only on a pre-V10 row (whose `path` is then the raw
+    // plaintext — the migration re-indexes those away). Consumers (the
+    // rag_retrieve command, the MCP search tool, the test harnesses) decrypt
+    // this to recover the display path; `path`/`source_id` above hold the
+    // opaque keyed token on V10 rows.
+    pub path_enc: Option<String>,
 }
 
 /// Compose the LanceDB `only_if` PREFILTER predicate for a retrieval query from
@@ -973,6 +1077,11 @@ pub async fn nearest(
         let loc_col = batch
             .column_by_name("locator")
             .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        // VG-6e: read the encrypted-path column. Absent on pre-V10 tables →
+        // None (the raw `path` is then plaintext and passes through).
+        let penc_col = batch
+            .column_by_name("path_enc")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
 
         for i in 0..batch.num_rows() {
             let distance = dist_col.map(|c| c.value(i)).unwrap_or(0.0);
@@ -1002,6 +1111,9 @@ pub async fn nearest(
             let locator = loc_col
                 .filter(|c| !c.is_null(i))
                 .map(|c| c.value(i).to_string());
+            let path_enc = penc_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string());
             out.push(StoredHit {
                 id,
                 path: path_col.value(i).to_string(),
@@ -1017,6 +1129,7 @@ pub async fn nearest(
                 extraction,
                 extraction_confidence,
                 locator,
+                path_enc,
             });
         }
     }
@@ -1045,6 +1158,11 @@ pub struct ChunkRecord {
     /// verify for an explicitly-included query — but the value is surfaced so the
     /// caller can audit/label it.
     pub privilege: Option<String>,
+    /// VG-6e: hex AES-256-GCM ciphertext of the real source path (the
+    /// `source_id` field above holds the keyed token on V10 rows). None on a
+    /// pre-V10 row. Verification itself never needs the path; surfaced so a
+    /// caller that wants to display the verified source can decrypt it.
+    pub path_enc: Option<String>,
 }
 
 /// Look up at most one chunk by its content-addressed `id`. Optionally
@@ -1111,6 +1229,10 @@ pub async fn lookup_by_id(
         let priv_v = str_col("privilege")
             .filter(|c| !c.is_null(0))
             .map(|c| c.value(0).to_string());
+        // VG-6e: absent on pre-V10 tables → None.
+        let penc_v = str_col("path_enc")
+            .filter(|c| !c.is_null(0))
+            .map(|c| c.value(0).to_string());
         return Ok(Some(ChunkRecord {
             id: id_v,
             matter_id: matter_v,
@@ -1119,22 +1241,33 @@ pub async fn lookup_by_id(
             text: text_v,
             encrypted: enc_v,
             privilege: priv_v,
+            path_enc: penc_v,
         }));
     }
     Ok(None)
 }
 
-/// Collect the `path` of EVERY mail chunk (`path LIKE 'mail:%'`) into a set —
-/// one scan, path column only — so the mail RAG backfill can answer "is this
-/// message already indexed?" by set membership instead of issuing a
-/// `count_rows` query per message. Paths repeat once per chunk; the set
-/// collapses them to one entry per message.
-pub async fn list_indexed_mail_paths(table: &Table) -> Result<HashSet<String>> {
+/// Collect the PLAINTEXT path key ("mail:<id>") of EVERY mail chunk into a
+/// set — one scan — so the mail RAG backfill can answer "is this message
+/// already indexed?" by set membership instead of issuing a `count_rows`
+/// query per message. Paths repeat once per chunk; the set collapses them to
+/// one entry per message.
+///
+/// VG-6e: the `path` column holds opaque tokens now, so the former
+/// `path LIKE 'mail:%'` prefix scan is impossible BY DESIGN (a token kills
+/// prefixes). Mail rows are selected on the existing plaintext
+/// `source_type = 'mail'` column instead, and the plaintext "mail:<id>" keys
+/// are recovered by decrypting `path_enc` under the vector master `key` —
+/// the SAME plaintext the backfill's `format!("mail:{id}")` probes with, so
+/// set membership keeps working. A row whose path_enc is missing or fails to
+/// decrypt is skipped: the backfill then just re-indexes that message
+/// (delete-then-insert is idempotent — redundant work, never a gap).
+pub async fn list_indexed_mail_paths(table: &Table, key: &[u8; 32]) -> Result<HashSet<String>> {
     use futures_util::TryStreamExt;
     let mut stream = table
         .query()
-        .only_if("path LIKE 'mail:%'")
-        .select(Select::columns(&["path"]))
+        .only_if("source_type = 'mail'")
+        .select(Select::columns(&["path_enc"]))
         .execute()
         .await
         .context("list_indexed_mail_paths query execute failed")?;
@@ -1145,15 +1278,30 @@ pub async fn list_indexed_mail_paths(table: &Table) -> Result<HashSet<String>> {
         .await
         .context("list_indexed_mail_paths stream try_next failed")?
     {
-        let path_col = batch
-            .column_by_name("path")
-            .context("missing path column")?
+        let penc_col = batch
+            .column_by_name("path_enc")
+            .context("missing path_enc column")?
             .as_any()
             .downcast_ref::<StringArray>()
-            .context("path column is not StringArray")?;
-        for i in 0..path_col.len() {
-            if !path_col.is_null(i) {
-                out.insert(path_col.value(i).to_string());
+            .context("path_enc column is not StringArray")?;
+        for i in 0..penc_col.len() {
+            if penc_col.is_null(i) {
+                continue;
+            }
+            let decrypted = hex::decode(penc_col.value(i))
+                .ok()
+                .and_then(|blob| {
+                    crate::commands::mail::crypto::decrypt_with_key(&blob, key).ok()
+                })
+                .and_then(|v| String::from_utf8(v).ok());
+            match decrypted {
+                Some(p) => {
+                    out.insert(p);
+                }
+                None => log::warn!(
+                    "list_indexed_mail_paths: a mail row's path_enc did not decrypt; \
+                     the backfill will re-index that message"
+                ),
             }
         }
     }
@@ -1250,6 +1398,17 @@ mod tests {
         String::from_utf8(decrypt_with_key(&blob, key).expect("decrypt text column")).expect("utf8")
     }
 
+    /// VG-6e: recover a StoredHit's REAL path by decrypting `path_enc` under
+    /// `TEST_KEY`, exactly as the read path (`rag_retrieve`) does. The raw
+    /// `path` field holds the opaque keyed token on V10 rows.
+    fn stored_path(h: &StoredHit) -> String {
+        use crate::commands::mail::crypto::decrypt_with_key;
+        let enc = h.path_enc.as_deref().expect("V10 rows carry path_enc");
+        let blob = hex::decode(enc).expect("path_enc must be hex");
+        String::from_utf8(decrypt_with_key(&blob, &TEST_KEY).expect("decrypt path_enc"))
+            .expect("utf8 path")
+    }
+
     #[test]
     fn dataset_path_lives_under_dot_keepance() {
         let p = dataset_path(Path::new("/tmp/work"));
@@ -1290,6 +1449,7 @@ mod tests {
                 "extraction",
                 "extraction_confidence",
                 "locator",
+                "path_enc",
             ]
         );
     }
@@ -1299,8 +1459,10 @@ mod tests {
         // WS-B/C: a null matter_id is a confidentiality hazard. The schema must
         // forbid it (and source_id) at the column level.
         // WS-PRIV: a null privilege is a litigation-safety hazard — forbid it too.
+        // VG-6e: a V10 row without a recoverable path would be a permanently
+        // undisplayable hit — path_enc is NOT NULL at the column level too.
         let s = build_schema();
-        for name in ["matter_id", "source_id", "privilege"] {
+        for name in ["matter_id", "source_id", "privilege", "path_enc"] {
             let f = s.field_with_name(name).expect("field present");
             assert!(!f.is_nullable(), "{name} must be NOT NULL");
         }
@@ -1462,10 +1624,10 @@ mod tests {
         let batch = build_batch(&chunks, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
             .expect("build_batch");
         assert_eq!(batch.num_rows(), 2);
-        // 15 columns: id, path, matter_id, source_id, paragraph_index, text,
+        // 16 columns: id, path, matter_id, source_id, paragraph_index, text,
         // vector, indexed_at, source_type, page_number, encrypted, privilege,
-        // extraction, extraction_confidence, locator
-        assert_eq!(batch.num_columns(), 15);
+        // extraction, extraction_confidence, locator, path_enc
+        assert_eq!(batch.num_columns(), 16);
     }
 
     #[test]
@@ -1485,9 +1647,91 @@ mod tests {
         let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_NONE, None, &TEST_KEY).expect("build_batch");
         let matter_col = batch.column_by_name("matter_id").expect("matter_id col").as_string::<i32>();
         assert_eq!(matter_col.value(0), "matter-acme");
-        // source_id mirrors the path (the resolvable originating source).
+        // VG-6e: source_id mirrors the path COLUMN — both hold the same
+        // deterministic keyed token of the plaintext path, never the path.
+        let expected_token = super::super::crypto::path_token(&TEST_KEY, "/w/contract.md");
         let src_col = batch.column_by_name("source_id").expect("source_id col").as_string::<i32>();
-        assert_eq!(src_col.value(0), "/w/contract.md");
+        assert_eq!(src_col.value(0), expected_token);
+        let path_col = batch.column_by_name("path").expect("path col").as_string::<i32>();
+        assert_eq!(path_col.value(0), expected_token);
+    }
+
+    /// VG-6e — the batch-level halves of the residual closure: (b) the
+    /// queryable path/source_id columns never contain the plaintext path
+    /// bytes; (c) `path_enc` decrypts back to the exact plaintext path; and
+    /// the content-addressed `id` still hashes the PLAINTEXT path (the
+    /// citation contract is independent of the tokenization).
+    #[test]
+    fn build_batch_tokenizes_paths_and_path_enc_recovers_plaintext() {
+        use arrow_array::cast::AsArray;
+        use crate::commands::mail::crypto::decrypt_with_key;
+        let plain = "/ws/clients/very-identifiable-client-name.md";
+        let rows = vec![(
+            Chunk {
+                path: plain.into(),
+                paragraph_index: 3,
+                text: "engagement notes".into(),
+                start_offset: 0,
+                end_offset: 16,
+                locator: None,
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )];
+        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_NONE, None, &TEST_KEY)
+            .expect("build_batch");
+        for col_name in ["path", "source_id"] {
+            let col = batch.column_by_name(col_name).expect("col").as_string::<i32>();
+            let v = col.value(0);
+            assert!(
+                !v.contains("very-identifiable-client-name") && !v.contains("/ws/"),
+                "VG-6e LEAK: {col_name} column carries plaintext path bytes: {v:?}"
+            );
+            assert_eq!(v.len(), 64, "{col_name} must hold the 64-hex-char token");
+        }
+        // (c) path_enc → plaintext round trip.
+        let penc = batch.column_by_name("path_enc").expect("path_enc col").as_string::<i32>();
+        let blob = hex::decode(penc.value(0)).expect("hex");
+        let recovered =
+            String::from_utf8(decrypt_with_key(&blob, &TEST_KEY).expect("decrypt")).expect("utf8");
+        assert_eq!(recovered, plain);
+        // id is plaintext-derived, exactly as before V10.
+        let id_col = batch.column_by_name("id").expect("id col").as_string::<i32>();
+        assert_eq!(id_col.value(0), chunk_id(plain, 3));
+    }
+
+    /// VG-6e — same closure for the mail write path ("mail:<id>" keys are a
+    /// re-identification surface like file paths).
+    #[test]
+    fn build_batch_mail_tokenizes_paths_and_path_enc_recovers_plaintext() {
+        use arrow_array::cast::AsArray;
+        use crate::commands::mail::crypto::decrypt_with_key;
+        let plain = "mail:AAMk-very-identifiable-message-id";
+        let rows = vec![(
+            Chunk {
+                path: plain.into(),
+                paragraph_index: 0,
+                text: "mail body".into(),
+                start_offset: 0,
+                end_offset: 9,
+                locator: None,
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )];
+        let batch = build_batch_mail(&rows, &TEST_KEY, "matter-acme", PRIVILEGE_NONE)
+            .expect("build_batch_mail");
+        for col_name in ["path", "source_id"] {
+            let col = batch.column_by_name(col_name).expect("col").as_string::<i32>();
+            let v = col.value(0);
+            assert!(
+                !v.contains("mail:") && !v.contains("very-identifiable"),
+                "VG-6e LEAK: mail {col_name} column carries plaintext bytes: {v:?}"
+            );
+        }
+        let penc = batch.column_by_name("path_enc").expect("path_enc col").as_string::<i32>();
+        let blob = hex::decode(penc.value(0)).expect("hex");
+        let recovered =
+            String::from_utf8(decrypt_with_key(&blob, &TEST_KEY).expect("decrypt")).expect("utf8");
+        assert_eq!(recovered, plain);
     }
 
     #[test]
@@ -1663,11 +1907,13 @@ mod tests {
         let s = build_schema();
         let names: Vec<_> = s.fields().iter().map(|f| f.name().as_str()).collect();
         // Trailing so older datasets (pre-V8 rows) still open; nullable so
-        // native chunks simply leave them unset. (V9 appended `locator`
-        // after them — the locator-class columns stay a trailing block.)
-        assert_eq!(names[names.len() - 3], "extraction");
-        assert_eq!(names[names.len() - 2], "extraction_confidence");
-        assert_eq!(names[names.len() - 1], "locator");
+        // native chunks simply leave them unset. (V9 appended `locator`,
+        // V10 appended `path_enc` — the post-V7 additions stay one trailing
+        // block, in bump order.)
+        assert_eq!(names[names.len() - 4], "extraction");
+        assert_eq!(names[names.len() - 3], "extraction_confidence");
+        assert_eq!(names[names.len() - 2], "locator");
+        assert_eq!(names[names.len() - 1], "path_enc");
         for name in ["extraction", "extraction_confidence", "locator"] {
             let f = s.field_with_name(name).expect("field present");
             assert!(f.is_nullable(), "{name} must be nullable");
@@ -1805,10 +2051,11 @@ mod tests {
 
         let q = vec![0.10f32; EMBEDDING_DIM];
         let hits = nearest(&table, &q, 10, None, false).await.expect("nearest");
-        let scan = hits.iter().find(|h| h.path == "/scan.pdf").expect("scan hit");
+        // VG-6e: the raw path column holds tokens — resolve via path_enc.
+        let scan = hits.iter().find(|h| stored_path(h) == "/scan.pdf").expect("scan hit");
         assert_eq!(scan.extraction.as_deref(), Some("ocr"));
         assert!((scan.extraction_confidence.expect("conf") - 48.6).abs() < 0.001);
-        let native = hits.iter().find(|h| h.path == "/native.pdf").expect("native hit");
+        let native = hits.iter().find(|h| stored_path(h) == "/native.pdf").expect("native hit");
         assert_eq!(native.extraction, None);
         assert_eq!(native.extraction_confidence, None);
     }
@@ -2081,16 +2328,17 @@ mod tests {
         let q = vec![0.10f32; EMBEDDING_DIM];
 
         // Scoped to Matter A: only the Matter-A mail comes back.
+        // (VG-6e: the raw path column holds tokens — resolve via path_enc.)
         let hits_a = nearest(&table, &q, 10, Some("matter_a"), false).await.expect("nearest a");
-        let paths_a: Vec<&str> = hits_a.iter().map(|h| h.path.as_str()).collect();
-        assert!(paths_a.contains(&"mail:a-msg"), "Matter A scope must return Matter A mail");
-        assert!(!paths_a.contains(&"mail:b-msg"), "Matter A scope must NOT return Matter B mail");
+        let paths_a: Vec<String> = hits_a.iter().map(stored_path).collect();
+        assert!(paths_a.iter().any(|p| p == "mail:a-msg"), "Matter A scope must return Matter A mail");
+        assert!(!paths_a.iter().any(|p| p == "mail:b-msg"), "Matter A scope must NOT return Matter B mail");
 
         // Scoped to Matter B: only the Matter-B mail comes back.
         let hits_b = nearest(&table, &q, 10, Some("matter_b"), false).await.expect("nearest b");
-        let paths_b: Vec<&str> = hits_b.iter().map(|h| h.path.as_str()).collect();
-        assert!(paths_b.contains(&"mail:b-msg"));
-        assert!(!paths_b.contains(&"mail:a-msg"));
+        let paths_b: Vec<String> = hits_b.iter().map(stored_path).collect();
+        assert!(paths_b.iter().any(|p| p == "mail:b-msg"));
+        assert!(!paths_b.iter().any(|p| p == "mail:a-msg"));
     }
 
     /// Re-tagging a mail's matter IN PLACE moves which scope it surfaces under,
@@ -2104,19 +2352,22 @@ mod tests {
         add_mail_chunk(&table, "mail:movable", "matter_a", 0.10).await;
         let q = vec![0.10f32; EMBEDDING_DIM];
 
-        // Initially under Matter A.
+        // Initially under Matter A. (VG-6e: resolve real paths via path_enc.)
         let before = nearest(&table, &q, 10, Some("matter_a"), false).await.unwrap();
-        assert!(before.iter().any(|h| h.path == "mail:movable"));
+        assert!(before.iter().any(|h| stored_path(h) == "mail:movable"));
 
-        // Re-tag to Matter B in place.
-        let updated = retag_matter_for_path(&table, "mail:movable", "matter_b").await.expect("retag");
+        // Re-tag to Matter B in place (VG-6e: the retag takes the plaintext
+        // path + key and matches the tokenized predicate internally).
+        let updated = retag_matter_for_path(&table, "mail:movable", "matter_b", &TEST_KEY)
+            .await
+            .expect("retag");
         assert_eq!(updated, 1, "exactly one chunk re-tagged");
 
         // Now it is gone from Matter A and present under Matter B.
         let after_a = nearest(&table, &q, 10, Some("matter_a"), false).await.unwrap();
-        assert!(!after_a.iter().any(|h| h.path == "mail:movable"), "must leave Matter A after re-tag");
+        assert!(!after_a.iter().any(|h| stored_path(h) == "mail:movable"), "must leave Matter A after re-tag");
         let after_b = nearest(&table, &q, 10, Some("matter_b"), false).await.unwrap();
-        assert!(after_b.iter().any(|h| h.path == "mail:movable"), "must appear under Matter B after re-tag");
+        assert!(after_b.iter().any(|h| stored_path(h) == "mail:movable"), "must appear under Matter B after re-tag");
     }
 
     /// The backfill's batched skip-probe: ONE path-only scan returns every mail
@@ -2152,10 +2403,133 @@ mod tests {
             .await
             .expect("add file chunk");
 
-        let set = list_indexed_mail_paths(&table).await.expect("list mail paths");
+        // VG-6e: the probe selects mail rows on source_type and decrypts
+        // path_enc back to the SAME plaintext "mail:<id>" keys the backfill's
+        // membership check probes with.
+        let set = list_indexed_mail_paths(&table, &TEST_KEY).await.expect("list mail paths");
         assert_eq!(set.len(), 2, "exactly the two mail messages: {set:?}");
         assert!(set.contains("mail:msg-1"));
         assert!(set.contains("mail:msg-2"));
         assert!(!set.contains("notes/mail-policy.md"));
+    }
+
+    // -----------------------------------------------------------------------
+    // VG-6e — the tokenized predicate round trip and the raw-disk proof.
+    // -----------------------------------------------------------------------
+
+    /// (a) Every equality-predicate helper still hits the rows it should after
+    /// tokenization: upsert's stale-delete replaces rows, both retags update
+    /// them, and delete_path removes them — all addressed by PLAINTEXT path
+    /// from the caller's side, token-matched internally.
+    #[tokio::test]
+    async fn vg6e_tokenized_predicates_round_trip() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        let path = "/ws/clients/o'neil-engagement.md"; // quote exercises sql_escape too
+        let mk_rows = |text: &str| {
+            vec![(
+                Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: text.into(),
+                    start_offset: 0,
+                    end_offset: text.len(),
+                    locator: None,
+                },
+                vec![0.10f32; EMBEDDING_DIM],
+            )]
+        };
+        let q = vec![0.10f32; EMBEDDING_DIM];
+
+        // Upsert twice: the second write's internal tokenized delete must
+        // replace the first (idempotent re-index), never duplicate.
+        upsert_chunks_for_path(&table, path, mk_rows("v1"), SourceType::Text, "matter_a", PRIVILEGE_NONE, &TEST_KEY)
+            .await
+            .expect("first upsert");
+        upsert_chunks_for_path(&table, path, mk_rows("v2"), SourceType::Text, "matter_a", PRIVILEGE_NONE, &TEST_KEY)
+            .await
+            .expect("second upsert");
+        let hits = nearest(&table, &q, 10, Some("matter_a"), false).await.unwrap();
+        assert_eq!(hits.len(), 1, "re-upsert must replace, not duplicate");
+        assert_eq!(stored_path(&hits[0]), path);
+
+        // Both retags hit the row through the tokenized predicate.
+        let n = retag_privilege_for_path(&table, path, PRIVILEGE_ATTORNEY_CLIENT, &TEST_KEY)
+            .await
+            .expect("retag privilege");
+        assert_eq!(n, 1, "retag_privilege_for_path must hit the tokenized row");
+        let n = retag_matter_for_path(&table, path, "matter_b", &TEST_KEY)
+            .await
+            .expect("retag matter");
+        assert_eq!(n, 1, "retag_matter_for_path must hit the tokenized row");
+        let moved = nearest(&table, &q, 10, Some("matter_b"), true).await.unwrap();
+        assert!(moved.iter().any(|h| stored_path(h) == path));
+
+        // delete_path drops the rows through the tokenized predicate.
+        delete_path(&table, path, &TEST_KEY).await.expect("delete");
+        let gone = nearest(&table, &q, 10, Some("matter_b"), true).await.unwrap();
+        assert!(gone.is_empty(), "delete_path must remove the tokenized rows");
+    }
+
+    /// THE RAW-DISK PROOF (VG-6e, mirrors rag_matter_scope.rs's WS-VEC scan
+    /// `vec_chunk_text_is_encrypted_on_disk`): after a production write for a
+    /// re-identifiable client path, NO file under the LanceDB dataset dir —
+    /// data fragments, manifests, transaction logs (which carry the delete
+    /// PREDICATES) — contains the plaintext path bytes; and retrieval still
+    /// recovers the real path by decrypting path_enc.
+    #[tokio::test]
+    async fn vg6e_no_plaintext_path_bytes_on_disk_and_read_recovers_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        let secret_path = "/ws/clients/very-identifiable-client-name.md";
+        let rows = vec![(
+            Chunk {
+                path: secret_path.into(),
+                paragraph_index: 0,
+                text: "engagement notes for the matter".into(),
+                start_offset: 0,
+                end_offset: 31,
+                locator: None,
+            },
+            vec![0.10f32; EMBEDDING_DIM],
+        )];
+        // The PRODUCTION write shape (upsert = tokenized delete + add), so the
+        // transaction log this run leaves behind is exactly what ships.
+        upsert_chunks_for_path(&table, secret_path, rows, SourceType::Text, "matter_a", PRIVILEGE_NONE, &TEST_KEY)
+            .await
+            .expect("upsert");
+
+        // Read path first: the real path comes back via path_enc...
+        let q = vec![0.10f32; EMBEDDING_DIM];
+        let hits = nearest(&table, &q, 5, Some("matter_a"), false).await.unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(stored_path(&hits[0]), secret_path);
+        // ...while the raw queryable columns are opaque tokens.
+        assert!(!hits[0].path.contains("very-identifiable-client-name"));
+        assert_eq!(hits[0].path.len(), 64);
+
+        drop(table);
+        drop(conn);
+
+        // Scan EVERY file under the dataset dir for the identifying bytes.
+        let needle = b"very-identifiable-client-name";
+        let dataset_dir = dataset_path(dir.path());
+        let mut files_scanned = 0usize;
+        for entry in walkdir::WalkDir::new(&dataset_dir).into_iter().filter_map(|e| e.ok()) {
+            if entry.file_type().is_file() {
+                let bytes = std::fs::read(entry.path()).unwrap_or_default();
+                files_scanned += 1;
+                assert!(
+                    !bytes.windows(needle.len()).any(|w| w == needle),
+                    "VG-6e LEAK: plaintext path bytes found in {:?}",
+                    entry.path()
+                );
+            }
+        }
+        assert!(files_scanned > 0, "expected to scan at least one on-disk LanceDB file");
     }
 }

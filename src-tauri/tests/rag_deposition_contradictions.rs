@@ -37,9 +37,7 @@
 //! (this rig: ~/.local/share/keepance/models/e5-small is populated).
 
 use keepance_lib::commands::rag::chunker::Chunk;
-use keepance_lib::commands::rag::store::{
-    self, lookup_by_id, nearest, SourceType, PRIVILEGE_NONE,
-};
+use keepance_lib::commands::rag::store::{self, lookup_by_id, SourceType, PRIVILEGE_NONE};
 use keepance_lib::commands::rag::Verdict;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
@@ -63,6 +61,34 @@ fn decrypt_hit(h: &store::StoredHit) -> String {
     let blob = hex::decode(&h.text).expect("hit text must be hex ciphertext");
     String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt hit text"))
         .expect("utf8 plaintext")
+}
+
+/// VG-6e — the store's `path`/`source_id` columns hold opaque keyed tokens at
+/// rest; the real path rides the encrypted `path_enc` column and is decrypted
+/// on read (exactly what `rag_retrieve` does after `store::nearest`). This
+/// wrapper mirrors that production read path — same signature as
+/// `store::nearest`, so every retrieval call site and assertion below is
+/// unchanged and keeps reading REAL plaintext paths.
+async fn nearest(
+    table: &lancedb::Table,
+    query_vec: &[f32],
+    top_k: usize,
+    scope: Option<&str>,
+    include_privileged: bool,
+) -> anyhow::Result<Vec<store::StoredHit>> {
+    use keepance_lib::commands::mail::crypto::decrypt_with_key;
+    let mut hits = store::nearest(table, query_vec, top_k, scope, include_privileged).await?;
+    for h in &mut hits {
+        let enc = h.path_enc.as_deref().expect("V10 rows must carry path_enc");
+        let blob = hex::decode(enc).expect("path_enc must be hex ciphertext");
+        let plain = String::from_utf8(
+            decrypt_with_key(&blob, &VEC_KEY).expect("decrypt path_enc"),
+        )
+        .expect("utf8 path");
+        h.path = plain.clone();
+        h.source_id = Some(plain);
+    }
+    Ok(hits)
 }
 
 struct Source {

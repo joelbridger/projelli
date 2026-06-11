@@ -34,7 +34,7 @@ use std::sync::{Arc, Mutex};
 // Reuse the pure sub-modules of the main Tauri crate so the binary and the
 // host app share one implementation of the vector store + embedder + file
 // extractor. See `src-tauri/src/lib.rs` — `commands` is `pub` for this reason.
-use keepance_lib::commands::rag::{embedder, extractor, store};
+use keepance_lib::commands::rag::{crypto, embedder, extractor, store};
 
 mod approval;
 mod protocol;

@@ -371,7 +371,7 @@ async fn index_one_file(
         extractor::IndexKind::Text => {
             let Some(text) = extractor::read_text(file_path) else {
                 // File missing or too big — drop any existing rows for safety.
-                store::delete_path(table, &path_str).await?;
+                store::delete_path(table, &path_str, key).await?;
                 return Ok(());
             };
             // VG-3c — certified line-numbered deposition transcripts (.txt
@@ -406,7 +406,7 @@ async fn index_one_file(
         }
         extractor::IndexKind::Docx | extractor::IndexKind::Rtf => {
             let Some(bytes) = extractor::read_bytes(file_path) else {
-                store::delete_path(table, &path_str).await?;
+                store::delete_path(table, &path_str, key).await?;
                 return Ok(());
             };
             // The document's CURRENT READING as plain text: tracked
@@ -421,7 +421,7 @@ async fn index_one_file(
             let text = match extracted {
                 Ok(t) => t,
                 Err(e) => {
-                    store::delete_path(table, &path_str).await?;
+                    store::delete_path(table, &path_str, key).await?;
                     log::warn!(
                         "rag: skipping unreadable office file {}: {e:#}",
                         file_path.display()
@@ -440,7 +440,7 @@ async fn index_one_file(
         }
         extractor::IndexKind::Xlsx | extractor::IndexKind::Pptx => {
             let Some(bytes) = extractor::read_bytes(file_path) else {
-                store::delete_path(table, &path_str).await?;
+                store::delete_path(table, &path_str, key).await?;
                 return Ok(());
             };
             let sections = match kind {
@@ -450,7 +450,7 @@ async fn index_one_file(
             let sections = match sections {
                 Ok(s) => s,
                 Err(e) => {
-                    store::delete_path(table, &path_str).await?;
+                    store::delete_path(table, &path_str, key).await?;
                     log::warn!(
                         "rag: skipping unreadable office file {}: {e:#}",
                         file_path.display()
@@ -462,7 +462,7 @@ async fn index_one_file(
             // TEXT, not an error: drop stale rows, store nothing.
             let banded = build_section_chunks(&path_str, &sections);
             if banded.iter().all(|(_, chunks)| chunks.is_empty()) {
-                store::delete_path(table, &path_str).await?;
+                store::delete_path(table, &path_str, key).await?;
                 return Ok(());
             }
             let texts: Vec<String> = banded
@@ -518,7 +518,7 @@ async fn index_transcript(
 ) -> anyhow::Result<()> {
     let chunks = transcript::chunk_transcript(path_str, text);
     if chunks.is_empty() {
-        store::delete_path(table, path_str).await?;
+        store::delete_path(table, path_str, key).await?;
         return Ok(());
     }
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
@@ -557,7 +557,7 @@ async fn index_plain_text(
 ) -> anyhow::Result<()> {
     let chunks = chunker::chunk_text(path_str, text);
     if chunks.is_empty() {
-        store::delete_path(table, path_str).await?;
+        store::delete_path(table, path_str, key).await?;
         return Ok(());
     }
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
@@ -960,15 +960,42 @@ pub async fn rag_retrieve(
                 // Pre-WS-VEC plaintext row (migration re-indexes these): as-is.
                 h.text
             };
+            // VG-6e: the stored path/source_id columns hold keyed tokens; the
+            // real path rides the encrypted path_enc column. Decrypt it here
+            // so the frontend keeps receiving real paths for display and
+            // click-through. FAIL-CLOSED placeholder (the chunk-text pattern)
+            // when the keychain is locked or the blob is bad; a legacy
+            // pre-V10 row (no path_enc) passes its raw plaintext column
+            // through — the migration re-indexes those away anyway.
+            let (path, source_id) = match h.path_enc.as_deref() {
+                Some(enc) => {
+                    let decrypted = enc_key.as_ref().and_then(|k| {
+                        hex::decode(enc)
+                            .ok()
+                            .and_then(|bytes| {
+                                crate::commands::mail::crypto::decrypt_with_key(&bytes, k).ok()
+                            })
+                            .and_then(|v| String::from_utf8(v).ok())
+                    });
+                    match decrypted {
+                        Some(p) => (p.clone(), Some(p)),
+                        None => (
+                            "[path unavailable]".to_string(),
+                            Some("[path unavailable]".to_string()),
+                        ),
+                    }
+                }
+                None => (h.path, h.source_id),
+            };
             Hit {
-                path: h.path,
+                path,
                 chunk_text,
                 score: embedder::cosine_distance_to_score(h.distance),
                 paragraph_index: h.paragraph_index,
                 // WS-B/C: carry the citation key + scope + source for the answer layer.
                 id: if h.id.is_empty() { None } else { Some(h.id) },
                 matter_id: h.matter_id,
-                source_id: h.source_id,
+                source_id,
                 source_type: h.source_type,
                 page_number: h.page_number,
                 // WS-PRIV: carry the privilege status so an explicitly-included
@@ -1166,7 +1193,10 @@ pub async fn rag_delete_path(
         .execute()
         .await
         .map_err(|e| format!("open table: {e}"))?;
-    store::delete_path(&table, &path)
+    // VG-6e: the stored path column holds keyed tokens — deleting needs the
+    // vector master key to compute the matching token.
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+    store::delete_path(&table, &path, &key)
         .await
         .map_err(|e| format!("delete path: {e}"))?;
     Ok(())
@@ -1264,7 +1294,9 @@ pub async fn rag_retag_privilege(
         .execute()
         .await
         .map_err(|e| format!("open table: {e}"))?;
-    let updated = store::retag_privilege_for_path(&table, &path, &privilege)
+    // VG-6e: the retag matches the tokenized path column — needs the key.
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+    let updated = store::retag_privilege_for_path(&table, &path, &privilege, &key)
         .await
         .map_err(|e| format!("retag privilege: {e}"))?;
     Ok(updated as u32)
@@ -1302,7 +1334,9 @@ pub async fn rag_retag_matter(
         .execute()
         .await
         .map_err(|e| format!("open table: {e}"))?;
-    let updated = store::retag_matter_for_path(&table, &path, &matter_id)
+    // VG-6e: the retag matches the tokenized path column — needs the key.
+    let key = crypto::get_or_create_master_key().map_err(|e| format!("vectors key: {e}"))?;
+    let updated = store::retag_matter_for_path(&table, &path, &matter_id, &key)
         .await
         .map_err(|e| format!("retag matter: {e}"))?;
     Ok(updated as u32)

@@ -39,6 +39,7 @@ import {
 import {
   Laptop,
   Cloud,
+  Database,
   HardDrive,
   KeyRound,
   Mail,
@@ -113,6 +114,13 @@ export const DATA_MAP_ROWS: MapRow[] = [
     title: 'Document files rely on your disk encryption',
     body: 'Your documents are normal files in your workspace folder. At-rest protection for those files comes from your operating system’s full-disk encryption: BitLocker on Windows, FileVault on macOS, LUKS on Linux. With it on, your whole workspace is protected if the machine is lost or stolen.',
     caveat: 'How to check: Windows: Settings > Privacy & security > Device encryption. macOS: System Settings > Privacy & Security > FileVault. Linux: your distribution’s disk settings (LUKS).',
+  },
+  {
+    icon: Database,
+    tone: 'text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40',
+    title: 'What the search index itself stores',
+    body: 'To answer questions across your files, Keepance keeps a local search index inside your workspace folder. The passage text in it is encrypted at rest, and so are the file paths, so the index on its own does not reveal which clients or matters you have files for. Two things in it stay readable on disk, on purpose: the matter label and the privilege tag on each passage, because search isolation has to filter on them before anything is searched.',
+    caveat: 'The index also stores embedding vectors: lists of plain numbers that stand in for each passage’s meaning. They are not your text, and there is no practical way to read your words back out of them, but they sit on disk unencrypted. They exist, and this row exists so you know that.',
   },
 ];
 

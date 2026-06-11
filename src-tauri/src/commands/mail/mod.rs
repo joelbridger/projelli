@@ -340,10 +340,18 @@ pub async fn mail_retag_folder_matter(
         .await
         .map_err(|e| format!("open table: {e}"))?;
 
+    // VG-6e: the retag matches the tokenized path column — needs the VECTOR
+    // store key (not the mail key) to compute each "mail:<id>" token.
+    let vec_key = crate::commands::rag::crypto::get_or_create_master_key()
+        .map_err(|e| format!("vectors key: {e}"))?;
+
     let mut retagged = 0u32;
     for id in ids {
         let path_key = format!("mail:{}", id);
-        match crate::commands::rag::store::retag_matter_for_path(&table, &path_key, &matter_id).await
+        match crate::commands::rag::store::retag_matter_for_path(
+            &table, &path_key, &matter_id, &vec_key,
+        )
+        .await
         {
             Ok(rows) if rows > 0 => retagged += 1,
             Ok(_) => {}
@@ -493,10 +501,27 @@ pub async fn mail_backfill_rag(
     let table = crate::commands::rag::store::open_or_create_table(&conn)
         .await
         .map_err(|e| format!("open table: {e}"))?;
-    let indexed_paths = match crate::commands::rag::store::list_indexed_mail_paths(&table).await {
-        Ok(set) => set,
+    // VG-6e: the probe decrypts the path_enc column back to plaintext
+    // "mail:<id>" keys (the path column holds tokens now), so it needs the
+    // VECTOR-store key. Key unavailable degrades exactly like a failed scan:
+    // empty set → redundant re-index work, never a gap.
+    let indexed_paths = match crate::commands::rag::crypto::get_or_create_master_key() {
+        Ok(vec_key) => {
+            match crate::commands::rag::store::list_indexed_mail_paths(&table, &vec_key).await {
+                Ok(set) => set,
+                Err(e) => {
+                    log::warn!(
+                        "mail RAG backfill: indexed-paths scan failed (re-indexing all): {e:#}"
+                    );
+                    std::collections::HashSet::new()
+                }
+            }
+        }
         Err(e) => {
-            log::warn!("mail RAG backfill: indexed-paths scan failed (re-indexing all): {e:#}");
+            log::warn!(
+                "mail RAG backfill: vectors key unavailable for the indexed-paths scan \
+                 (re-indexing all): {e:#}"
+            );
             std::collections::HashSet::new()
         }
     };
@@ -844,8 +869,9 @@ async fn index_mail_text_internal(
 
     let chunks = crate::commands::rag::chunker::chunk_text(path_key, plaintext);
 
-    // Delete stale rows before inserting (idempotent).
-    crate::commands::rag::store::delete_path(&table, path_key)
+    // Delete stale rows before inserting (idempotent). VG-6e: the delete
+    // matches the tokenized path column via the vector key.
+    crate::commands::rag::store::delete_path(&table, path_key, &key)
         .await
         .context("delete stale mail chunks")?;
 
@@ -1155,8 +1181,16 @@ async fn mail_sync_all_inner(
                                 .execute()
                                 .await
                             {
-                                if let Err(e) = crate::commands::rag::store::delete_path(&table, &path_key).await {
-                                    log::warn!("S3 tombstone: delete RAG chunks for {} failed: {}", path_key, e);
+                                // VG-6e: the delete matches the tokenized path column — needs the vector key.
+                                match crate::commands::rag::crypto::get_or_create_master_key() {
+                                    Ok(vec_key) => {
+                                        if let Err(e) = crate::commands::rag::store::delete_path(&table, &path_key, &vec_key).await {
+                                            log::warn!("S3 tombstone: delete RAG chunks for {} failed: {}", path_key, e);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        log::warn!("S3 tombstone: vectors key unavailable for {}: {}", path_key, e);
+                                    }
                                 }
                             }
                         }
@@ -1254,8 +1288,16 @@ async fn mail_sync_all_inner(
                                     .execute()
                                     .await
                                 {
-                                    if let Err(e) = crate::commands::rag::store::delete_path(&table, &path_key).await {
-                                        log::warn!("S3 tombstone: delete RAG chunks for {} failed: {}", path_key, e);
+                                    // VG-6e: the delete matches the tokenized path column — needs the vector key.
+                                    match crate::commands::rag::crypto::get_or_create_master_key() {
+                                        Ok(vec_key) => {
+                                            if let Err(e) = crate::commands::rag::store::delete_path(&table, &path_key, &vec_key).await {
+                                                log::warn!("S3 tombstone: delete RAG chunks for {} failed: {}", path_key, e);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            log::warn!("S3 tombstone: vectors key unavailable for {}: {}", path_key, e);
+                                        }
                                     }
                                 }
                             }
@@ -1352,8 +1394,16 @@ async fn mail_sync_all_inner(
                                     .execute()
                                     .await
                                 {
-                                    if let Err(e) = crate::commands::rag::store::delete_path(&table, &path_key).await {
-                                        log::warn!("S3 tombstone: delete RAG chunks for {} failed: {}", path_key, e);
+                                    // VG-6e: the delete matches the tokenized path column — needs the vector key.
+                                    match crate::commands::rag::crypto::get_or_create_master_key() {
+                                        Ok(vec_key) => {
+                                            if let Err(e) = crate::commands::rag::store::delete_path(&table, &path_key, &vec_key).await {
+                                                log::warn!("S3 tombstone: delete RAG chunks for {} failed: {}", path_key, e);
+                                            }
+                                        }
+                                        Err(e) => {
+                                            log::warn!("S3 tombstone: vectors key unavailable for {}: {}", path_key, e);
+                                        }
                                     }
                                 }
                             }
