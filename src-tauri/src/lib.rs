@@ -132,6 +132,11 @@ pub fn run() {
             commands::mail::gmail_disconnect,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
+            // Wave 3b encrypted vault — per-workspace AES-256-GCM at-rest encryption.
+            commands::vault::vault_status,
+            commands::vault::vault_create,
+            commands::vault::vault_read_file,
+            commands::vault::vault_write_file,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

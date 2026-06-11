@@ -50,6 +50,8 @@ tauri-build = { version = "2.5.3", features = [] }
 # is a thin wrapper over this crate; all the real work lives here so it can be
 # tested in isolation. See crates/keepance-docx/.
 keepance-docx = { path = "crates/keepance-docx" }
+keepance-vault = { path = "crates/keepance-vault" }
+zeroize = "1"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"

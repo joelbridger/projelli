@@ -37,3 +37,5 @@ pub mod docx;
 // Wave 3a SSO (OIDC) — firm-tier desktop commands: loopback command that
 // drives the full OIDC dance (bind port → sso/start → browser → exchange).
 pub mod firm;
+// Wave 3b encrypted vault — create/status/read/write + keychain VMK integration.
+pub mod vault;
