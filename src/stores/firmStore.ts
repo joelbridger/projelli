@@ -22,6 +22,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { FirmApiClient, FirmApiError, type TokenSource } from '@/modules/firm/FirmApiClient';
+import { getFirmApiBase } from '@/modules/firm/firmConfig';
 import { verifySeatToken } from '@/modules/firm/seatToken';
 import {
   storeAuthTokens,
@@ -35,6 +36,7 @@ import {
 } from '@/modules/firm/firmEntitlement';
 import type { Entitlement } from '@/modules/licensing/entitlements';
 import type {
+  LoginResponse,
   PublicUser,
   Plan,
   ProfessionPack,
@@ -97,6 +99,14 @@ interface FirmState {
   // actions
   signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   /**
+   * Sign in through the firm's configured OIDC identity provider (e.g. Microsoft
+   * Entra ID, Google Workspace). The Tauri command `firm_sso_authenticate` drives
+   * the system browser flow and returns a standard LoginResponse JSON string; the
+   * store then runs the IDENTICAL post-login path as `signIn`.
+   * Only available on the desktop (Tauri) — the SSO loopback command requires it.
+   */
+  signInSso: (email: string) => Promise<void>;
+  /**
    * Claim an unclaimed org with the license key the buyer received from
    * LemonSqueezy. On success the session is populated exactly like signIn
    * (tokens persisted to keychain, org + user in store). The prefilled license
@@ -130,6 +140,62 @@ function emptyVerdict(): Pick<
   'serverVerdict' | 'offlineSeatValid' | 'isOffline'
 > {
   return { serverVerdict: 'unknown', offlineSeatValid: false, isOffline: false };
+}
+
+/**
+ * Shared post-login path: given a LoginResponse (from either password login or
+ * SSO code-exchange), store the auth tokens in the OS keychain, fetch org
+ * context + seat public key, and persist the session. Called by both `signIn`
+ * and `signInSso` so the two paths can never drift.
+ */
+async function establishSessionFromLogin(
+  res: LoginResponse,
+  set: (partial: Partial<FirmState> | ((s: FirmState) => Partial<FirmState>)) => void,
+  get: () => FirmState,
+): Promise<void> {
+  const user: PublicUser = res.user;
+  await storeAuthTokens(user.user_id, res.access_token, res.refresh_token);
+
+  // Fetch org context + the seat public key (for offline verification).
+  set({ accessToken: res.access_token });
+  let org: FirmOrg | null = null;
+  let seatPublicKeyPem: string | null = get().seatPublicKeyPem;
+  try {
+    const me = await new FirmApiClient(get().tokenSource()).me();
+    org = me.org;
+  } catch {
+    /* non-fatal; org fills in on next validate */
+  }
+  try {
+    seatPublicKeyPem = await new FirmApiClient().getSeatPublicKey();
+  } catch {
+    /* non-fatal; offline verify just won't run until we have it */
+  }
+
+  // Carry forward a prior seat for the SAME user (re-sign-in); otherwise
+  // start fresh.
+  const prevSession = get().session;
+  const prev = prevSession && prevSession.userId === user.user_id ? prevSession : null;
+  set({
+    session: {
+      userId: user.user_id,
+      email: user.email,
+      role: user.role,
+      org,
+      seatId: prev ? prev.seatId : null,
+      tier: prev ? prev.tier : null,
+      packs: prev ? prev.packs : [],
+      seats: prev ? prev.seats : 1,
+      lastValidatedAt: prev ? prev.lastValidatedAt : null,
+      activated: prev ? prev.activated : false,
+    },
+    seatPublicKeyPem,
+    isLoading: false,
+    error: null,
+    isOffline: false,
+  });
+  // If a seat was already activated on this machine, re-validate it.
+  if (get().session?.activated) void get().validateSeat();
 }
 
 export const useFirmStore = create<FirmState>()(
@@ -172,49 +238,7 @@ export const useFirmStore = create<FirmState>()(
         try {
           const bare = new FirmApiClient();
           const res = await bare.login(email.trim(), password);
-          const user: PublicUser = res.user;
-          await storeAuthTokens(user.user_id, res.access_token, res.refresh_token);
-
-          // Fetch org context + the seat public key (for offline verification).
-          set({ accessToken: res.access_token });
-          let org: FirmOrg | null = null;
-          let seatPublicKeyPem: string | null = get().seatPublicKeyPem;
-          try {
-            const me = await new FirmApiClient(get().tokenSource()).me();
-            org = me.org;
-          } catch {
-            /* non-fatal; org fills in on next validate */
-          }
-          try {
-            seatPublicKeyPem = await new FirmApiClient().getSeatPublicKey();
-          } catch {
-            /* non-fatal; offline verify just won't run until we have it */
-          }
-
-          // Carry forward a prior seat for the SAME user (re-sign-in); otherwise
-          // start fresh.
-          const prevSession = get().session;
-          const prev = prevSession && prevSession.userId === user.user_id ? prevSession : null;
-          set({
-            session: {
-              userId: user.user_id,
-              email: user.email,
-              role: user.role,
-              org,
-              seatId: prev ? prev.seatId : null,
-              tier: prev ? prev.tier : null,
-              packs: prev ? prev.packs : [],
-              seats: prev ? prev.seats : 1,
-              lastValidatedAt: prev ? prev.lastValidatedAt : null,
-              activated: prev ? prev.activated : false,
-            },
-            seatPublicKeyPem,
-            isLoading: false,
-            error: null,
-            isOffline: false,
-          });
-          // If a seat was already activated on this machine, re-validate it.
-          if (get().session?.activated) void get().validateSeat();
+          await establishSessionFromLogin(res, set, get);
           return { ok: true };
         } catch (err) {
           const message =
@@ -225,6 +249,26 @@ export const useFirmStore = create<FirmState>()(
                 : 'Sign-in failed';
           set({ isLoading: false, error: message, isOffline: !(err instanceof FirmApiError) });
           return { ok: false, error: message };
+        }
+      },
+
+      signInSso: async (email) => {
+        set({ isLoading: true, error: null });
+        try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const backendBase = getFirmApiBase();
+          const raw = await invoke<string>('firm_sso_authenticate', { backendBase, email });
+          const res = JSON.parse(raw) as LoginResponse;
+          await establishSessionFromLogin(res, set, get);
+        } catch (err) {
+          const message =
+            err instanceof FirmApiError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : 'SSO sign-in failed';
+          set({ isLoading: false, error: message, isOffline: !(err instanceof FirmApiError) });
+          throw err instanceof Error ? err : new Error(message);
         }
       },
 
