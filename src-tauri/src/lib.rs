@@ -141,6 +141,10 @@ pub fn run() {
             commands::vault::vault_unlock_with_recovery,
             commands::vault::vault_export_vmk_for_escrow,
             commands::vault::vault_set_escrow_wraps,
+            // Task 10: migration + escape-hatch + disable.
+            commands::vault::vault_encrypt_all,
+            commands::vault::vault_decrypt_all,
+            commands::vault::vault_disable,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

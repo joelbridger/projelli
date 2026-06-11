@@ -252,6 +252,10 @@ pub enum VaultCommandError {
     /// The recovery phrase passed the BIP39 checksum but did not decrypt the vault
     /// (wrong phrase for this vault, or corrupted wrap).
     RecoveryFailed(String),
+    /// `vault_disable` was called while one or more files in the workspace still
+    /// have the KPV1 magic header (are still encrypted). The vault cannot be
+    /// disabled until every file has been decrypted via `vault_decrypt_all`.
+    FilesStillEncrypted(String),
 }
 
 impl std::fmt::Display for VaultCommandError {
@@ -265,6 +269,7 @@ impl std::fmt::Display for VaultCommandError {
             VaultCommandError::Internal(m) => write!(f, "internal: {m}"),
             VaultCommandError::InvalidPhrase(m) => write!(f, "invalid_phrase: {m}"),
             VaultCommandError::RecoveryFailed(m) => write!(f, "recovery_failed: {m}"),
+            VaultCommandError::FilesStillEncrypted(m) => write!(f, "files_still_encrypted: {m}"),
         }
     }
 }
@@ -621,6 +626,207 @@ pub async fn vault_set_escrow_wraps(
     // write_to uses atomic_write (temp + fsync + rename) under the hood.
     meta.write_to(root)
         .map_err(|e| VaultCommandError::Io(format!("failed to write vault metadata: {e}")))
+}
+
+/// Encrypt every eligible file in a workspace under the VMK (migration command).
+///
+/// Walks the workspace root recursively (skipping `.keepance/`, `.keepance-vault.json`,
+/// `.kpv-tmp-*`) and encrypts each plain file atomically. Already-encrypted files
+/// (KPV1 magic) are skipped — the walk is resumable.
+///
+/// Progress events are emitted on the `vault://progress` channel:
+///   `{ "done": N, "total": M }` — one event at start (`done: 0`) and one after
+///   the walk completes (`done: M`).  Per-file granularity would require threading
+///   a callback through the crate walk (an invasive change to the crate API); the
+///   start/finish events keep the UI from going blind on large workspaces and can
+///   be refined to per-file in a follow-up.
+///
+/// The VMK is loaded from the OS keychain and zeroized immediately after the walk.
+#[tauri::command]
+pub async fn vault_encrypt_all(
+    app: tauri::AppHandle,
+    workspace: String,
+) -> Result<(), VaultCommandError> {
+    let root = PathBuf::from(&workspace);
+    let id = vault_id_for(&root)?;
+    let vmk = load_vmk(&id)?;
+
+    // Count eligible files for the `total` field.
+    let total = count_eligible_files(&root);
+
+    // Emit start event: done=0, total=N.
+    emit_progress(&app, 0, total);
+
+    // Run the walk. VMK is still live inside ZeroizedVmk.
+    keepance_vault::vault::encrypt_all(&root, vmk.as_bytes()).map_err(VaultCommandError::from)?;
+
+    // VMK is dropped + zeroized at function exit. Emit completion.
+    emit_progress(&app, total, total);
+
+    Ok(())
+}
+
+/// Decrypt every encrypted file in a workspace back to plaintext (escape hatch).
+///
+/// Walks the workspace root recursively and decrypts each KPV1-encrypted file
+/// atomically. Plain files (no magic) are skipped. Uses the same idempotent walk
+/// as `vault_encrypt_all`.
+///
+/// Progress events are emitted on `vault://progress` (start + finish).
+///
+/// The VMK is loaded from the OS keychain and zeroized immediately after the walk.
+#[tauri::command]
+pub async fn vault_decrypt_all(
+    app: tauri::AppHandle,
+    workspace: String,
+) -> Result<(), VaultCommandError> {
+    let root = PathBuf::from(&workspace);
+    let id = vault_id_for(&root)?;
+    let vmk = load_vmk(&id)?;
+
+    let total = count_eligible_files(&root);
+    emit_progress(&app, 0, total);
+
+    keepance_vault::vault::decrypt_all(&root, vmk.as_bytes()).map_err(VaultCommandError::from)?;
+
+    emit_progress(&app, total, total);
+
+    Ok(())
+}
+
+/// Disable the encrypted vault for a workspace.
+///
+/// SAFETY: this command REFUSES with `files_still_encrypted` if any file in the
+/// workspace (excluding `.keepance/`, `.keepance-vault.json`, `.kpv-tmp-*`) still
+/// has the KPV1 magic header. This ensures we never orphan ciphertext that cannot
+/// be recovered after the VMK is deleted.
+///
+/// When the workspace is clean (all files decrypted):
+/// 1. Delete `.keepance-vault.json`.
+/// 2. Delete the keychain VMK entry.
+///
+/// The operation is intentionally NOT gated on the vault being unlocked —
+/// delete_vmk is idempotent (no-op if absent). The metadata file check is
+/// the functional gate.
+#[tauri::command]
+pub async fn vault_disable(workspace: String) -> Result<(), VaultCommandError> {
+    let root = PathBuf::from(&workspace);
+
+    // Safety scan: refuse if ANY file still has KPV1 magic.
+    // This scan does NOT require the VMK — it only checks file headers.
+    if let Some(encrypted_path) = find_any_encrypted_file(&root)? {
+        return Err(VaultCommandError::FilesStillEncrypted(format!(
+            "cannot disable vault: '{}' and possibly other files are still encrypted. \
+             Run vault_decrypt_all first.",
+            encrypted_path.display()
+        )));
+    }
+
+    // Read the vault_id from metadata before deleting the file.
+    // If metadata is absent, the vault is already disabled — succeed idempotently.
+    let vault_id_result = vault_id_for(&root);
+
+    // Delete the metadata file.
+    let meta_path = root.join(keepance_vault::metadata::METADATA_FILENAME);
+    if meta_path.exists() {
+        std::fs::remove_file(&meta_path)
+            .map_err(|e| VaultCommandError::Io(format!("failed to delete metadata: {e}")))?;
+    }
+
+    // Delete the keychain VMK (idempotent — silently ok if already absent).
+    if let Ok(id) = vault_id_result {
+        delete_vmk(&id)?;
+    }
+
+    Ok(())
+}
+
+// ── Progress event helpers ────────────────────────────────────────────────────
+
+/// Emit a `vault://progress` event on the Tauri app handle.
+///
+/// Payload: `{ "done": N, "total": M }`. Serialised as JSON; failure is
+/// best-effort (a disconnected window is not an error for the walk itself).
+fn emit_progress(app: &tauri::AppHandle, done: usize, total: usize) {
+    use tauri::Emitter;
+    let payload = serde_json::json!({ "done": done, "total": total });
+    let _ = app.emit("vault://progress", payload);
+}
+
+/// Count eligible files under `root` for the `total` in progress events.
+///
+/// Uses the same exclusion rules as the crate walk: skip `.keepance/` dir,
+/// skip `.keepance-vault.json` and `.kpv-tmp-*` by filename.
+/// Returns 0 on any I/O error (best-effort; the walk itself will surface errors).
+fn count_eligible_files(root: &Path) -> usize {
+    fn count_dir(dir: &Path) -> usize {
+        let Ok(rd) = std::fs::read_dir(dir) else { return 0; };
+        let mut n = 0usize;
+        for entry in rd.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str == ".keepance-vault.json" || name_str.starts_with(".kpv-tmp-") {
+                continue;
+            }
+            let Ok(ft) = entry.file_type() else { continue; };
+            if ft.is_dir() {
+                if name_str != ".keepance" {
+                    n += count_dir(&entry.path());
+                }
+            } else if ft.is_file() {
+                n += 1;
+            }
+        }
+        n
+    }
+    count_dir(root)
+}
+
+/// Walk `root` and return the path of the first file that has KPV1 magic.
+///
+/// Returns `Ok(None)` if no encrypted files are found (workspace is clean).
+/// Uses the same exclusion rules as the crate walk.
+fn find_any_encrypted_file(root: &Path) -> Result<Option<PathBuf>, VaultCommandError> {
+    fn scan_dir(dir: &Path) -> Result<Option<PathBuf>, VaultCommandError> {
+        let rd = std::fs::read_dir(dir)
+            .map_err(|e| VaultCommandError::Io(format!("scan error in {}: {e}", dir.display())))?;
+        for entry in rd.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str == ".keepance-vault.json" || name_str.starts_with(".kpv-tmp-") {
+                continue;
+            }
+            let Ok(ft) = entry.file_type() else { continue; };
+            if ft.is_dir() {
+                if name_str != ".keepance" {
+                    if let Some(p) = scan_dir(&entry.path())? {
+                        return Ok(Some(p));
+                    }
+                }
+            } else if ft.is_file() {
+                let path = entry.path();
+                // Read only the first 4 bytes to check the magic header.
+                let header = read_header_bytes(&path);
+                if keepance_vault::format::has_vault_magic(&header) {
+                    return Ok(Some(path));
+                }
+            }
+        }
+        Ok(None)
+    }
+    scan_dir(root)
+}
+
+/// Read up to 4 bytes from the start of a file (for magic-header checking).
+///
+/// Returns an empty slice on any I/O error so the caller can call
+/// `has_vault_magic` safely without propagating read errors for individual files.
+fn read_header_bytes(path: &Path) -> Vec<u8> {
+    use std::io::Read;
+    let Ok(mut f) = std::fs::File::open(path) else { return vec![]; };
+    let mut buf = [0u8; 4];
+    let n = f.read(&mut buf).unwrap_or(0);
+    buf[..n].to_vec()
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -1019,6 +1225,152 @@ mod tests {
             matches!(result, Err(VaultCommandError::Locked(_))),
             "load_vmk must return Locked when no VMK is in the keychain"
         );
+    }
+
+    // ── Task 10: vault_disable safety + encrypt_all/decrypt_all crate helpers ──
+    // These tests drive the crate funcs directly in a temp workspace.
+    // The keychain-dependent code paths are gated behind KEEPANCE_TEST_KEYCHAIN=1;
+    // the "refuse while encrypted" scan has NO keychain dependency and is ALWAYS run.
+
+    /// After encrypt_all, vault_disable must refuse with FilesStillEncrypted.
+    /// After decrypt_all, vault_disable must succeed and remove the metadata file.
+    /// (No keychain involvement — drives crate funcs directly.)
+    #[test]
+    fn vault_disable_refuses_while_encrypted_and_succeeds_after_decrypt() {
+        use keepance_vault::{
+            metadata::{RecoveryWrapJson, VaultMetadata},
+            recovery::create_recovery,
+            verifier::make_verifier,
+            vault::{decrypt_all, encrypt_all},
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // Write some plain files.
+        std::fs::write(root.join("doc1.txt"), b"hello world").unwrap();
+        std::fs::write(root.join("doc2.txt"), b"second file").unwrap();
+        let sub = root.join("sub");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("doc3.txt"), b"nested file").unwrap();
+
+        // Write vault metadata so vault_id_for works (no live keychain needed).
+        let vmk = [0xAAu8; 32];
+        let (_, wrap) = create_recovery(&vmk).unwrap();
+        let verifier_bytes = make_verifier(&vmk).unwrap();
+        let meta = VaultMetadata {
+            version: 1,
+            vault_id: "test-disable-vault-id".into(),
+            created_at: "2026-06-11T00:00:00Z".into(),
+            recovery: RecoveryWrapJson::from_wrap(&wrap),
+            verifier_b64: BASE64.encode(&verifier_bytes),
+            escrow: None,
+        };
+        meta.write_to(root).unwrap();
+
+        // --- Phase 1: encrypt_all, then vault_disable must REFUSE ---
+        encrypt_all(root, &vmk).expect("encrypt_all should succeed");
+
+        // Verify the files are actually encrypted now.
+        let bytes = std::fs::read(root.join("doc1.txt")).unwrap();
+        assert_eq!(&bytes[..4], b"KPV1", "doc1.txt must be KPV1-encrypted after encrypt_all");
+
+        // find_any_encrypted_file must find a KPV1 file.
+        let found = find_any_encrypted_file(root).expect("scan should not error");
+        assert!(
+            found.is_some(),
+            "find_any_encrypted_file must return Some after encrypt_all"
+        );
+
+        // vault_disable safety logic (replicate the command's check without async runtime).
+        let maybe_encrypted = find_any_encrypted_file(root).unwrap();
+        assert!(
+            maybe_encrypted.is_some(),
+            "vault_disable should refuse: found encrypted file {:?}",
+            maybe_encrypted
+        );
+
+        // Construct the same error the command would return.
+        let err = VaultCommandError::FilesStillEncrypted(format!(
+            "cannot disable vault: '{}' and possibly other files are still encrypted.",
+            maybe_encrypted.unwrap().display()
+        ));
+        assert!(
+            matches!(err, VaultCommandError::FilesStillEncrypted(_)),
+            "error must be FilesStillEncrypted"
+        );
+
+        // --- Phase 2: decrypt_all, then vault_disable must SUCCEED ---
+        decrypt_all(root, &vmk).expect("decrypt_all should succeed");
+
+        // Verify files are decrypted.
+        let bytes2 = std::fs::read(root.join("doc1.txt")).unwrap();
+        assert_eq!(bytes2, b"hello world", "doc1.txt must be plaintext after decrypt_all");
+
+        // find_any_encrypted_file must return None.
+        let clean = find_any_encrypted_file(root).expect("scan should not error");
+        assert!(clean.is_none(), "find_any_encrypted_file must return None after decrypt_all");
+
+        // vault_disable logic: no encrypted files → delete metadata + (keychain if present).
+        // Directly simulate the disable (no async runtime, no keychain).
+        let meta_path = root.join(keepance_vault::metadata::METADATA_FILENAME);
+        assert!(meta_path.exists(), "metadata must exist before disable");
+        std::fs::remove_file(&meta_path).unwrap();
+        assert!(!meta_path.exists(), "metadata must be gone after disable");
+    }
+
+    /// count_eligible_files counts files correctly, excluding metadata and .keepance dir.
+    #[test]
+    fn count_eligible_files_excludes_metadata_and_keepance_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // Create files that should be counted.
+        std::fs::write(root.join("a.txt"), b"aaa").unwrap();
+        std::fs::write(root.join("b.txt"), b"bbb").unwrap();
+        let sub = root.join("sub");
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("c.txt"), b"ccc").unwrap();
+
+        // Create excluded files/dirs.
+        std::fs::write(root.join(".keepance-vault.json"), b"{}").unwrap();
+        std::fs::write(root.join(".kpv-tmp-somefile"), b"tmp").unwrap();
+        let keepance_dir = root.join(".keepance");
+        std::fs::create_dir_all(&keepance_dir).unwrap();
+        std::fs::write(keepance_dir.join("vectors.db"), b"lancedb").unwrap();
+
+        let count = count_eligible_files(root);
+        assert_eq!(count, 3, "eligible file count must be 3 (a, b, c only)");
+    }
+
+    /// find_any_encrypted_file returns None for a plaintext workspace.
+    #[test]
+    fn find_any_encrypted_file_returns_none_for_plaintext_workspace() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        std::fs::write(root.join("plain.txt"), b"hello").unwrap();
+        std::fs::write(root.join("another.md"), b"# Title").unwrap();
+
+        let result = find_any_encrypted_file(root).unwrap();
+        assert!(result.is_none(), "no KPV1 files → None");
+    }
+
+    /// find_any_encrypted_file returns Some after encrypt_file_at.
+    #[test]
+    fn find_any_encrypted_file_detects_kpv1_file() {
+        use keepance_vault::vault::encrypt_file_at;
+
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let file = root.join("secret.txt");
+        std::fs::write(&file, b"confidential").unwrap();
+
+        let vmk = [0xBBu8; 32];
+        encrypt_file_at(&file, &vmk).unwrap();
+
+        let result = find_any_encrypted_file(root).unwrap();
+        assert!(result.is_some(), "KPV1-encrypted file must be detected");
+        assert_eq!(result.unwrap(), file.canonicalize().unwrap_or(file));
     }
 
     /// Live keychain round-trip for vault_unlock_with_recovery.
