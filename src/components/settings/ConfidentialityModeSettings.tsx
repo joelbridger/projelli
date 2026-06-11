@@ -9,8 +9,8 @@
  *                 disabled. Nothing leaves the machine. Selecting this
  *                 constrains the model picker elsewhere.
  *   - Direct      Default. Your own key, straight to your chosen provider.
- *   - Assured     Coming soon — shown disabled so the future zero-retention
- *                 option is visible, but it is not selectable yet.
+ *   - Assured     Selectable once the firm admin sets a managed key; routed
+ *                 through the firm's zero-retention proxy (managed key + DPA).
  *
  * Also hosts the entry point to the full Data Map ("Where your data lives…").
  *
@@ -32,7 +32,7 @@ import {
   useConfidentialityMode,
   useSetConfidentialityMode,
 } from '@/hooks/useConfidentialityMode';
-import { modeIsComingSoon, type ConfidentialityMode } from '@/modules/privacy/egress';
+import { modeNeedsManagedKey, type ConfidentialityMode } from '@/modules/privacy/egress';
 import { DataMapDialog } from '@/components/privacy/DataMapDialog';
 import {
   usePrivilegedMatterMode,
@@ -108,8 +108,7 @@ export function ConfidentialityModeSettings() {
           // Assured is gated on a managed key being configured; others are always on.
           const disabled =
             (!!card.comingSoon && card.mode !== 'assured') ||
-            modeIsComingSoon(card.mode, assuredAvailable);
-          const notYetAvailable = card.mode === 'assured' && !assuredAvailable;
+            modeNeedsManagedKey(card.mode, assuredAvailable);
           return (
             <button
               key={card.mode}
@@ -147,7 +146,7 @@ export function ConfidentialityModeSettings() {
                 )}
                 {disabled && (
                   <span className="text-[10px] uppercase tracking-wide rounded-full px-1.5 py-0.5 bg-muted text-muted-foreground">
-                    {notYetAvailable ? 'Needs admin key' : 'Coming soon'}
+                    Needs admin key
                   </span>
                 )}
               </div>

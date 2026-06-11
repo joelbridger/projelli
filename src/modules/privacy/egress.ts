@@ -217,12 +217,13 @@ export function modeRestrictsToLocal(mode: ConfidentialityMode): boolean {
 }
 
 /**
- * True when the mode is shown in the UI but cannot be USED in the current
- * context. Assured is now a real path, but it is only usable when the firm has
- * a managed key configured for the active provider; the picker passes
- * `assuredAvailable` so the card can explain when it is not yet selectable.
+ * True when the mode is shown in the UI but cannot be USED yet because the firm
+ * has no managed key configured for the active provider. Assured is a real
+ * path; it becomes selectable once the firm admin sets a managed key. The
+ * picker passes `assuredAvailable` so the card can explain when it is not yet
+ * selectable.
  */
-export function modeIsComingSoon(
+export function modeNeedsManagedKey(
   mode: ConfidentialityMode,
   assuredAvailable = false,
 ): boolean {

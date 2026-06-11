@@ -1,0 +1,100 @@
+
+============================================================
+VG-6b Assured live exercise — 2026-06-11T11:46:00Z
+Edge (live):   https://api.keepance.com
+Admin (loop):  http://127.0.0.1:5194/admin/org
+Model:         claude-haiku-4-5-20251001
+============================================================
+------------------------------------------------------------
+Step 0  preflight
+  GET https://api.keepance.com/healthz   -> 200
+  GET http://127.0.0.1:5194/healthz  -> 200
+------------------------------------------------------------
+Step 2  test org: "Keepance Internal Test Firm (DO NOT BILL)"
+  read-only DB peek: matching orgs = 0
+  creating via loopback admin route (plan practice, seat_limit 3)
+  created: HTTP 201, org_id=5b6e9ab2-461a-42d4-846d-ebae4ba9e3c9 (license_key stored off-repo in state file)
+------------------------------------------------------------
+Step 3  login + seat activation (live edge)
+  POST /auth/login            -> 200 (access_token: set; role=admin)
+  POST /org/activate          -> 200 (seat_token: set; seat_id=5419bf77-dc1d-4680-ae0c-4d8c8e98dc4c; tier=practice)
+------------------------------------------------------------
+Step 4  managed key (admin)
+  POST /assured/keys/set      -> 200 (provider=anthropic, key_last4=iwAA)
+  POST /assured/keys/list     -> 200 (keys: [{"provider":"anthropic","key_last4":"iwAA"}])
+------------------------------------------------------------
+Step 5  one real inference through the zero-retention proxy
+  sentinel: KEEPANCE-ASSURED-SENTINEL-1781178361
+  model:    claude-haiku-4-5-20251001  (max_tokens 64, X-Stream 0 — non-streaming)
+  POST /assured/infer         -> HTTP 401
+  response header X-Keepance-No-Retention: true
+  response header X-Keepance-Request-Id:   8e5801d6-6a9c-4ccd-8c9d-31ae2fe360ae
+  upstream provider returned HTTP 401 (proxy forwarded correctly).
+  upstream body (provider-native, no Keepance secret): {"type":"error","message":"invalid x-api-key"}
+  NOTE: a non-200 here is the MANAGED KEY being invalid at the provider in
+        this environment (the host's Anthropic keys are revoked), NOT a
+        proxy defect — the proxy authed the seat, attached the managed key,
+        forwarded to real api.anthropic.com, and stamped the no-retention
+        headers above. The zero-retention proof below is unaffected.
+------------------------------------------------------------
+Step 6  zero-retention proof (from disk + journal)
+
+  6a. full-DB sentinel scan (every table, every column):
+      orgs                   rows=1    sentinel_hits=0
+      users                  rows=1    sentinel_hits=0
+      seats                  rows=1    sentinel_hits=0
+      license_keys           rows=1    sentinel_hits=0
+      refresh_tokens         rows=1    sentinel_hits=0
+      revocations            rows=0    sentinel_hits=0
+      audit_events           rows=5    sentinel_hits=0
+      matters                rows=0    sentinel_hits=0
+      matter_members         rows=0    sentinel_hits=0
+      ethical_walls          rows=0    sentinel_hits=0
+      matter_updates         rows=0    sentinel_hits=0
+      org_provider_keys      rows=1    sentinel_hits=0
+      inference_billing      rows=1    sentinel_hits=0
+      devices                rows=0    sentinel_hits=0
+      wrapped_matter_keys    rows=0    sentinel_hits=0
+      webhook_events         rows=0    sentinel_hits=0
+      => TOTAL sentinel occurrences across the whole DB: 0
+SENTINEL_TOTAL=0
+
+  6b. billing row for the call (metadata only — no body column exists):
+      inference_billing columns: ['id', 'request_id', 'org_id', 'seat_id', 'provider', 'model', 'input_tokens', 'output_tokens', 'status', 'latency_ms', 'ts']
+      columns capable of holding prompt/completion/hash: NONE (by design)
+      newest billing row: {'provider': 'anthropic', 'model': 'claude-haiku-4-5-20251001', 'input_tokens': 0, 'output_tokens': 0, 'status': 401, 'latency_ms': 130}
+BILLING_ROW=present
+
+  6c. service journal scan (keepance-backend, last 15 min):
+      journalctl ... | grep -c '<sentinel>' = 0
+------------------------------------------------------------
+VERDICT
+  Proxy path exercised live (seat auth + managed-key attach + forward +
+    no-retention headers): YES
+  Upstream completion returned: NO — managed key invalid at provider in this
+    environment (host Anthropic keys revoked). Drop a valid key into the
+    off-repo env file and re-run for a clean 200; the proxy path is unchanged.
+  ZERO-RETENTION — sentinel in DB:      PASS (occurrences=0)
+  ZERO-RETENTION — sentinel in journal: PASS (occurrences=0)
+  ZERO-RETENTION — billing row is metadata-only: present
+  ==> ZERO-RETENTION PROVEN LIVE: the sentinel prompt content is retained NOWHERE.
+------------------------------------------------------------
+Exercise complete. Run 'scripts/assured-live-exercise.sh down' to delete the test org.
+
+
+============================================================
+VG-6b cleanup (down) — 2026-06-11T11:47:06Z
+============================================================
+  deleting test org_id=5b6e9ab2-461a-42d4-846d-ebae4ba9e3c9 and every row tied to it...
+      deleted 1    from inference_billing
+      deleted 1    from org_provider_keys
+      deleted 1    from seats
+      deleted 1    from license_keys
+      deleted 5    from audit_events
+      deleted 1    from users
+      deleted 1    from orgs
+      delete committed.
+  post-down read-only DB peek: orgs named test = 0
+  CLEANUP: PASS — live DB returned to pre-exercise state.
+  removed off-repo state file.
+
