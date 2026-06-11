@@ -36,7 +36,8 @@ export interface RetrievedChunk {
   id?: string;
   matterId?: string;
   sourceId?: string;
-  sourceType?: 'text' | 'pdf' | 'mail';
+  /** VG-2b widens the union with the office formats (mirrors `RagHit`). */
+  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf';
   pageNumber?: number;
 }
 
@@ -159,11 +160,20 @@ export function buildRetrievedContextBlock(chunks: RetrievedChunk[]): string {
   return `<retrieved_context>\n${lines}\n</retrieved_context>`;
 }
 
-/** Human-readable locator label for a retrieved chunk. */
+/** Human-readable locator label for a retrieved chunk. VG-2b: sectioned
+ *  office sources label the honest locator ("sheet 2", "slide 3" — the
+ *  REAL 1-based number carried in pageNumber); docx/rtf chunk like text and
+ *  fall through to the paragraph branch. */
 function sourceLocator(c: RetrievedChunk): string {
   const base = basename(c.path);
   if (c.sourceType === 'pdf' && c.pageNumber != null) {
     return `${base} page ${String(c.pageNumber)}`;
+  }
+  if (c.sourceType === 'xlsx' && c.pageNumber != null) {
+    return `${base} sheet ${String(c.pageNumber)}`;
+  }
+  if (c.sourceType === 'pptx' && c.pageNumber != null) {
+    return `${base} slide ${String(c.pageNumber)}`;
   }
   if (c.sourceType === 'mail') {
     return `${base} (email)`;

@@ -16,6 +16,10 @@
 //!       query (retrievalQueryTemplate interpolated with the proof-run
 //!       interview inputs, DepositionContradictionFinder.ts:64) at its own
 //!       topK = 12 surfaces both sides of all three contradictions.
+//!   OFFICE (VG-2b) — the corpus's .docx members index through the SAME
+//!       extraction production uses (keepance-docx parse + plain-text walk),
+//!       a contract clause retrieves with a VERIFYING citation, and the
+//!       matter-isolation invariants hold over the bigger corpus.
 //!
 //! HONESTY BOUNDARY: this binary proves RETRIEVAL truth only. The actual
 //! contradiction-finding judgment is an LLM analyze step (legalAnalysis.ts)
@@ -24,11 +28,6 @@
 //! NOTE: under the Option B gate the embedder NEVER downloads implicitly —
 //! pre-provision the e5-small cache exactly as rag_matter_scope.rs documents
 //! (this rig: ~/.local/share/keepance/models/e5-small is populated).
-//!
-//! Corpus note: only text formats are rag-indexable today (extractor.rs:19);
-//! the corpus here is the fixtures' text members. intake-memo-acme.docx is
-//! NOT indexed — that is the documented extractor TODO, not a gap this
-//! harness owns.
 
 use keepance_lib::commands::rag::chunker::Chunk;
 use keepance_lib::commands::rag::store::{
@@ -69,8 +68,9 @@ struct Source {
 }
 
 /// The corpus: the REAL fixture files (read at test time, never inlined, so
-/// fixture edits keep the proof honest). Johnson = the contradiction pair;
-/// Acme = the isolation matter (its only rag-indexable file).
+/// fixture edits keep the proof honest). Johnson = the contradiction pair
+/// plus the services contract (VG-2b office member); Acme = the isolation
+/// matter (supply agreement + the intake memo, its .docx member).
 fn corpus() -> Vec<Source> {
     vec![
         Source {
@@ -84,11 +84,45 @@ fn corpus() -> Vec<Source> {
             file: "incident-summary-johnson.md",
         },
         Source {
+            matter_id: MATTER_JOHNSON,
+            source_id: "/matter-corpus/contract-services-agreement.docx",
+            file: "contract-services-agreement.docx",
+        },
+        Source {
             matter_id: MATTER_ACME_B,
             source_id: "/matter-corpus/matter-b-acme/acme-supply-agreement.txt",
             file: "matter-b-acme/acme-supply-agreement.txt",
         },
+        Source {
+            matter_id: MATTER_ACME_B,
+            source_id: "/matter-corpus/matter-b-acme/intake-memo-acme.docx",
+            file: "matter-b-acme/intake-memo-acme.docx",
+        },
     ]
+}
+
+/// Load a corpus member's plain text + its store-level SourceType, branching
+/// on extension EXACTLY the way production's `index_one_file` dispatch does:
+/// `.docx` goes through keepance-docx's parse + plain-text tree walk joined
+/// with "\n\n" (VG-2b); everything else is raw UTF-8.
+fn load_source(src: &Source) -> (String, SourceType) {
+    let path = format!("{FIXTURE_DIR}/{}", src.file);
+    if src.file.ends_with(".docx") {
+        let bytes =
+            std::fs::read(&path).unwrap_or_else(|e| panic!("read fixture {path}: {e}"));
+        let doc = keepance_docx::parse_docx_bytes(&bytes)
+            .unwrap_or_else(|e| panic!("parse fixture {path}: {e}"));
+        (
+            keepance_docx::extract_paragraph_texts(&doc).join("\n\n"),
+            SourceType::Docx,
+        )
+    } else {
+        (
+            std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("read fixture {path}: {e}")),
+            SourceType::Text,
+        )
+    }
 }
 
 struct Fixture {
@@ -106,9 +140,7 @@ async fn fixture() -> Arc<Fixture> {
             let table = store::open_or_create_table(&conn).await.expect("create table");
 
             for src in corpus() {
-                let path = format!("{FIXTURE_DIR}/{}", src.file);
-                let text = std::fs::read_to_string(&path)
-                    .unwrap_or_else(|e| panic!("read fixture {path}: {e}"));
+                let (text, source_type) = load_source(&src);
                 let chunks =
                     keepance_lib::commands::rag::chunker::chunk_text(src.source_id, &text);
                 let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
@@ -118,7 +150,7 @@ async fn fixture() -> Arc<Fixture> {
                 let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
                 let batch = store::build_batch(
                     &rows,
-                    SourceType::Text,
+                    source_type,
                     src.matter_id,
                     PRIVILEGE_NONE,
                     &VEC_KEY,
@@ -354,14 +386,70 @@ async fn johnson_contradiction_queries_scoped_to_acme_return_no_johnson_content(
 #[tokio::test]
 async fn acme_query_scoped_to_johnson_returns_no_acme_content() {
     let f = fixture().await;
-    let q = embed("how many units of Widget Model X must the supplier deliver each month").await;
+    // Acme-flavored queries (the second targets the intake memo's shipment
+    // narrative — the VG-2b .docx member) scoped to JOHNSON: zero Acme
+    // sources may surface, ever.
+    for query in [
+        "how many units of Widget Model X must the supplier deliver each month",
+        "what supply shipments did Road Runner fail to deliver",
+    ] {
+        let q = embed(query).await;
+        let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
+        for h in &hits {
+            assert_eq!(
+                h.matter_id.as_deref(),
+                Some(MATTER_JOHNSON),
+                "LEAK: {:?} returned under Johnson scope for {query:?}",
+                h.source_id
+            );
+            for acme_source in [
+                "/matter-corpus/matter-b-acme/acme-supply-agreement.txt",
+                "/matter-corpus/matter-b-acme/intake-memo-acme.docx",
+            ] {
+                assert_ne!(
+                    h.source_id.as_deref(),
+                    Some(acme_source),
+                    "LEAK: {acme_source} surfaced under Johnson scope for {query:?}"
+                );
+            }
+        }
+    }
+}
+
+// ===========================================================================
+// OFFICE (VG-2b) — Word documents are in the index through the production
+// extraction (keepance-docx plain-text walk): a contract clause retrieves
+// from the .docx with the right source, a content-addressed id, and a
+// citation that VERIFIES — and the office members obey matter isolation.
+// ===========================================================================
+
+#[tokio::test]
+async fn office_docx_clause_retrieves_and_verifies() {
+    let f = fixture().await;
+    assert_cited_passage(
+        &f,
+        "what hourly rate does the services agreement set for the firm's work",
+        MATTER_JOHNSON,
+        "/matter-corpus/contract-services-agreement.docx",
+        "blended hourly rate of $375 per hour",
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn acme_intake_memo_never_leaks_into_johnson_scope() {
+    let f = fixture().await;
+    // The contract-rate query under JOHNSON scope: the Acme intake memo (a
+    // .docx in ANOTHER matter, contract-flavored content) must never appear.
+    let q = embed("what hourly rate does the services agreement set for the firm's work").await;
     let hits = nearest(&f.table, &q, 8, Some(MATTER_JOHNSON), false).await.unwrap();
+    assert!(!hits.is_empty());
     for h in &hits {
         assert_eq!(h.matter_id.as_deref(), Some(MATTER_JOHNSON), "LEAK: {:?}", h.source_id);
         assert_ne!(
             h.source_id.as_deref(),
-            Some("/matter-corpus/matter-b-acme/acme-supply-agreement.txt"),
-            "LEAK: Acme supply agreement surfaced under Johnson scope"
+            Some("/matter-corpus/matter-b-acme/intake-memo-acme.docx"),
+            "LEAK: Acme intake memo surfaced under Johnson scope"
         );
     }
 }

@@ -7,8 +7,12 @@
 //     one `chunks` table. Schema lives in `store.rs`.
 //   - Chunker: paragraph-aware ~384-token windows with 64-token overlap
 //     (`chunker.rs`). Pure / unit-tested.
-//   - Extraction: text formats only for M1 (`extractor.rs`). Document
-//     formats (xlsx/docx/pptx/rtf) handled in a follow-up — see TODO.
+//   - Extraction: text formats read as raw UTF-8; office documents
+//     (docx/xlsx/pptx/rtf) extracted natively Rust-side (VG-2b) — docx via
+//     the keepance-docx tree walk, the rest via `office.rs`. The
+//     `extractor::classify` dispatch in `index_one_file` covers BOTH the
+//     full walk and the watcher (the watcher funnels into `rag_index_file`).
+//     PDFs arrive pre-extracted from the renderer via `rag_index_pdf_chunks`.
 //
 // Commands exposed to the frontend:
 //   - `rag_index_file(path)`               — extract → chunk → embed → upsert
@@ -321,11 +325,18 @@ fn resolve_privilege(privilege: Option<&str>) -> Result<String, String> {
     }
 }
 
-/// Internal: extract → chunk → embed → upsert for one file.
+/// Internal: extract → chunk → embed → upsert for one file, dispatching on
+/// `extractor::classify` (VG-2b — this single dispatch is what makes office
+/// documents land from BOTH the full walk and the watcher, which funnels
+/// into `rag_index_file`).
 ///
 /// WS-B/C: `matter_id` is the confidentiality scope the file is filed under
 /// (the caller supplies it; `UNASSIGNED_MATTER` when not yet categorized). Every
 /// written chunk carries it — index-time enforcement, layer one of scoping.
+///
+/// Failure stance: a corrupt/unreadable office file (incl. a zero-byte
+/// `.docx`) drops any stale rows, warns, and returns `Ok` — one bad file
+/// must never abort a workspace walk, and garbage must never be indexed.
 async fn index_one_file(
     table: &lancedb::Table,
     file_path: &Path,
@@ -335,14 +346,140 @@ async fn index_one_file(
     cancel: Option<&AtomicBool>,
 ) -> anyhow::Result<()> {
     let path_str = file_path.to_string_lossy().to_string();
-    let Some(text) = extractor::read_text(file_path) else {
-        // File missing or too big — drop any existing rows for safety.
-        store::delete_path(table, &path_str).await?;
+    let Some(kind) = extractor::classify(file_path) else {
+        // Callers gate on `is_indexable` (== classify().is_some()), so this
+        // arm is defensive only.
         return Ok(());
     };
-    let chunks = chunker::chunk_text(&path_str, &text);
+    match kind {
+        extractor::IndexKind::Text => {
+            let Some(text) = extractor::read_text(file_path) else {
+                // File missing or too big — drop any existing rows for safety.
+                store::delete_path(table, &path_str).await?;
+                return Ok(());
+            };
+            index_plain_text(
+                table,
+                &path_str,
+                &text,
+                store::SourceType::Text,
+                matter_id,
+                privilege,
+                key,
+                cancel,
+            )
+            .await
+        }
+        extractor::IndexKind::Docx | extractor::IndexKind::Rtf => {
+            let Some(bytes) = extractor::read_bytes(file_path) else {
+                store::delete_path(table, &path_str).await?;
+                return Ok(());
+            };
+            // The document's CURRENT READING as plain text: tracked
+            // insertions in, deletions out, no raw markup (text.rs); rtf
+            // decodes control words/escapes to text (office.rs).
+            let extracted: anyhow::Result<String> = match kind {
+                extractor::IndexKind::Docx => keepance_docx::parse_docx_bytes(&bytes)
+                    .map(|doc| keepance_docx::extract_paragraph_texts(&doc).join("\n\n"))
+                    .map_err(anyhow::Error::from),
+                _ => office::extract_rtf_text(&bytes),
+            };
+            let text = match extracted {
+                Ok(t) => t,
+                Err(e) => {
+                    store::delete_path(table, &path_str).await?;
+                    log::warn!(
+                        "rag: skipping unreadable office file {}: {e:#}",
+                        file_path.display()
+                    );
+                    return Ok(());
+                }
+            };
+            let source_type = match kind {
+                extractor::IndexKind::Docx => store::SourceType::Docx,
+                _ => store::SourceType::Rtf,
+            };
+            index_plain_text(
+                table, &path_str, &text, source_type, matter_id, privilege, key, cancel,
+            )
+            .await
+        }
+        extractor::IndexKind::Xlsx | extractor::IndexKind::Pptx => {
+            let Some(bytes) = extractor::read_bytes(file_path) else {
+                store::delete_path(table, &path_str).await?;
+                return Ok(());
+            };
+            let sections = match kind {
+                extractor::IndexKind::Xlsx => office::extract_xlsx_sections(&bytes),
+                _ => office::extract_pptx_sections(&bytes),
+            };
+            let sections = match sections {
+                Ok(s) => s,
+                Err(e) => {
+                    store::delete_path(table, &path_str).await?;
+                    log::warn!(
+                        "rag: skipping unreadable office file {}: {e:#}",
+                        file_path.display()
+                    );
+                    return Ok(());
+                }
+            };
+            // A valid package with no extractable sheets/slides is EMPTY
+            // TEXT, not an error: drop stale rows, store nothing.
+            let banded = build_section_chunks(&path_str, &sections);
+            if banded.iter().all(|(_, chunks)| chunks.is_empty()) {
+                store::delete_path(table, &path_str).await?;
+                return Ok(());
+            }
+            let texts: Vec<String> = banded
+                .iter()
+                .flat_map(|(_, chunks)| chunks.iter().map(|c| c.text.clone()))
+                .collect();
+            // F-501 — same bounded, cancel-aware embedding as every other
+            // index path; never a new unbatched embed call.
+            let Some(vectors) = embedder::embed_documents_batched(&texts, cancel).await? else {
+                return Ok(());
+            };
+            let mut vectors = vectors.into_iter();
+            let source_type_for = |number: u32| match kind {
+                extractor::IndexKind::Xlsx => store::SourceType::Xlsx { sheet_number: number },
+                _ => store::SourceType::Pptx { slide_number: number },
+            };
+            let groups: Vec<(store::SourceType, Vec<(chunker::Chunk, Vec<f32>)>)> = banded
+                .into_iter()
+                .map(|(number, chunks)| {
+                    let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks
+                        .into_iter()
+                        .map(|c| {
+                            let v = vectors.next().expect("one vector per chunk");
+                            (c, v)
+                        })
+                        .collect();
+                    (source_type_for(number), rows)
+                })
+                .collect();
+            store::upsert_grouped(table, &path_str, groups, matter_id, privilege, key).await?;
+            Ok(())
+        }
+    }
+}
+
+/// Shared tail of the unsectioned index paths (text / docx / rtf): chunk →
+/// embed (bounded + cancel-aware, F-501) → upsert under one `SourceType`.
+#[allow(clippy::too_many_arguments)] // internal seam; mirrors index_one_file's own signature
+async fn index_plain_text(
+    table: &lancedb::Table,
+    path_str: &str,
+    text: &str,
+    source_type: store::SourceType,
+    matter_id: &str,
+    privilege: &str,
+    key: &[u8; 32],
+    cancel: Option<&AtomicBool>,
+) -> anyhow::Result<()> {
+    let chunks = chunker::chunk_text(path_str, text);
     if chunks.is_empty() {
-        store::delete_path(table, &path_str).await?;
+        store::delete_path(table, path_str).await?;
         return Ok(());
     }
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
@@ -352,19 +489,50 @@ async fn index_one_file(
     let Some(vectors) = embedder::embed_documents_batched(&texts, cancel).await? else {
         return Ok(());
     };
-    let rows: Vec<(chunker::Chunk, Vec<f32>)> =
-        chunks.into_iter().zip(vectors).collect();
-    store::upsert_chunks_for_path(
-        table,
-        &path_str,
-        rows,
-        store::SourceType::Text,
-        matter_id,
-        privilege,
-        key,
-    )
-    .await?;
+    let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
+    store::upsert_chunks_for_path(table, path_str, rows, source_type, matter_id, privilege, key)
+        .await?;
     Ok(())
+}
+
+/// VG-2b — band a sectioned office document's chunks the way PDF pages band:
+/// `paragraph_index = section_idx * MAX_CHUNKS_PER_PAGE + sub_idx`, where
+/// `section_idx` is the ENUMERATION index over the extracted (non-empty)
+/// sections — NOT `OfficeSection.number`, which is the REAL 1-based
+/// sheet/slide number, may skip empties, and travels separately as the
+/// returned key for the `SourceType`/citation label.
+///
+/// Short sections become one chunk; long ones re-chunk through the standard
+/// text chunker. A pathological section (a worksheet can legally carry tens
+/// of thousands of cells) truncates at the band width with a warning so
+/// banding can never collide into the next section's `paragraph_index`
+/// range — chunk ids stay unique per (path, paragraph_index).
+fn build_section_chunks(
+    path: &str,
+    sections: &[office::OfficeSection],
+) -> Vec<(u32, Vec<chunker::Chunk>)> {
+    use pdf_indexer::MAX_CHUNKS_PER_PAGE;
+    let mut out = Vec::with_capacity(sections.len());
+    for (section_idx, section) in sections.iter().enumerate() {
+        let band_start = section_idx as u32 * MAX_CHUNKS_PER_PAGE;
+        let mut chunks = chunker::chunk_text(path, &section.text);
+        if chunks.len() > MAX_CHUNKS_PER_PAGE as usize {
+            log::warn!(
+                "rag: {} section {} ({}) produced {} chunks; truncating to the {} band width",
+                path,
+                section.number,
+                section.label,
+                chunks.len(),
+                MAX_CHUNKS_PER_PAGE
+            );
+            chunks.truncate(MAX_CHUNKS_PER_PAGE as usize);
+        }
+        for (sub_idx, c) in chunks.iter_mut().enumerate() {
+            c.paragraph_index = band_start + sub_idx as u32;
+        }
+        out.push((section.number, chunks));
+    }
+    out
 }
 
 /// Walk the active workspace and index every supported file. Emits
@@ -1266,6 +1434,66 @@ mod tests {
         );
         // An unknown value is rejected, never silently coerced.
         assert!(resolve_privilege(Some("bogus")).is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // VG-2b: sectioned-office banding — paragraph_index bands by ENUMERATION
+    // index; the REAL sheet/slide number travels separately for the label.
+    // -----------------------------------------------------------------------
+
+    fn section(number: u32, label: &str, text: &str) -> office::OfficeSection {
+        office::OfficeSection {
+            number,
+            label: label.to_string(),
+            text: text.to_string(),
+        }
+    }
+
+    #[test]
+    fn section_chunks_band_by_enumeration_index_not_section_number() {
+        // Sheet 2 was empty and skipped upstream: numbers are 1 and 3, but
+        // the banding must use the enumeration index (0, 1) — assuming
+        // number == idx+1 would leave a hole and mis-band.
+        let sections = vec![
+            section(1, "Summary", "First sheet text."),
+            section(3, "Damages", "Third sheet text."),
+        ];
+        let banded = build_section_chunks("/w/model.xlsx", &sections);
+        assert_eq!(banded.len(), 2);
+        assert_eq!(banded[0].0, 1, "real sheet number travels with the group");
+        assert_eq!(banded[1].0, 3, "real sheet number travels with the group");
+        assert_eq!(banded[0].1[0].paragraph_index, 0);
+        assert_eq!(
+            banded[1].1[0].paragraph_index,
+            pdf_indexer::MAX_CHUNKS_PER_PAGE,
+            "second extracted section bands at idx 1, regardless of its number"
+        );
+    }
+
+    #[test]
+    fn long_section_chunks_stay_within_their_band() {
+        let long_text = "cell value | another cell\n".repeat(400); // > one chunk
+        let sections = vec![
+            section(1, "Big", &long_text),
+            section(2, "After", "Short tail sheet."),
+        ];
+        let banded = build_section_chunks("/w/big.xlsx", &sections);
+        assert!(banded[0].1.len() >= 2, "long section must split into chunks");
+        for c in &banded[0].1 {
+            assert!(
+                c.paragraph_index < pdf_indexer::MAX_CHUNKS_PER_PAGE,
+                "section-0 chunk banded out of range: {}",
+                c.paragraph_index
+            );
+        }
+        // The next section starts exactly at its own band.
+        assert_eq!(banded[1].1[0].paragraph_index, pdf_indexer::MAX_CHUNKS_PER_PAGE);
+    }
+
+    #[test]
+    fn no_sections_produce_no_chunks() {
+        let banded = build_section_chunks("/w/empty.xlsx", &[]);
+        assert!(banded.is_empty());
     }
 
     #[test]

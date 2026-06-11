@@ -102,65 +102,27 @@ pub async fn index_pdf_chunks(
     let Some(vectors) = embed_documents_batched(&texts, None).await? else {
         return Ok(0);
     };
-    let count = all_chunks.len();
 
     // Each chunk carries a SourceType derived from its paragraph_index band.
     // paragraph_index = page_idx * MAX_CHUNKS_PER_PAGE + sub_idx
     // => page_number (1-based) = paragraph_index / MAX_CHUNKS_PER_PAGE + 1.
     //
-    // Because every chunk in a single upsert call shares the same SourceType,
-    // and different pages have different page_numbers, we group chunks by
-    // page and upsert each group separately.
-    use super::store::upsert_chunks_for_path;
-
-    // First, delete all existing rows for this path (upsert_chunks_for_path
-    // deletes then inserts; calling it per-group would double-delete). Do a
-    // single delete up front, then insert per-group without the delete.
-    {
-        let predicate = format!("path = '{}'", path.replace('\'', "''"));
-        table
-            .delete(&predicate)
-            .await
-            .map_err(|e| anyhow::anyhow!("delete failed for {}: {}", path, e))?;
-    }
-
-    // Group chunks by page (page_number = pi / MAX_CHUNKS_PER_PAGE + 1).
-    // We re-use upsert_chunks_for_path but suppress its internal delete so
-    // we don't wipe the rows we just inserted for the previous page group.
-    // Simpler: build all (Chunk, Vec<f32>) pairs and insert them in batches
-    // by page, each with the correct SourceType.
+    // Because every chunk in one batch shares one SourceType, and different
+    // pages have different page_numbers, group chunks by page and write the
+    // groups through `store::upsert_grouped` (single up-front delete, one
+    // table.add — the shared sectioned-source write path, VG-2b).
     let mut grouped: std::collections::BTreeMap<u32, Vec<(Chunk, Vec<f32>)>> =
         std::collections::BTreeMap::new();
     for (chunk, vec) in all_chunks.into_iter().zip(vectors) {
         let page_num = chunk.paragraph_index / MAX_CHUNKS_PER_PAGE + 1;
         grouped.entry(page_num).or_default().push((chunk, vec));
     }
+    let groups: Vec<(SourceType, Vec<(Chunk, Vec<f32>)>)> = grouped
+        .into_iter()
+        .map(|(page_num, rows)| (SourceType::Pdf { page_number: page_num }, rows))
+        .collect();
 
-    use arrow_array::RecordBatchIterator;
-    use arrow_schema::ArrowError;
-    use super::store::build_batch;
-    let mut batches: Vec<Result<arrow_array::RecordBatch, ArrowError>> = Vec::new();
-    for (page_num, rows) in &grouped {
-        let batch = build_batch(rows, SourceType::Pdf { page_number: *page_num }, matter_id, privilege, key)
-            .map_err(|e| ArrowError::ExternalError(e.into()))?;
-        batches.push(Ok(batch));
-    }
-    if !batches.is_empty() {
-        let schema = super::store::build_schema();
-        let iter = RecordBatchIterator::new(batches.into_iter(), schema);
-        table
-            .add(Box::new(iter))
-            .execute()
-            .await
-            .map_err(|e| anyhow::anyhow!("add pdf chunks batch failed: {}", e))?;
-    }
-
-    // Suppress unused warning when called from tests — upsert_chunks_for_path
-    // is imported but we handle insert ourselves above. Keep the import so the
-    // public API surface is testable.
-    let _ = upsert_chunks_for_path;
-
-    Ok(count)
+    super::store::upsert_grouped(table, path, groups, matter_id, privilege, key).await
 }
 
 #[cfg(test)]

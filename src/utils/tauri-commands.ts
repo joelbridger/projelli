@@ -109,9 +109,11 @@ export interface RagHit {
   matterId?: string;
   /** WS-B/C: resolvable source (`/path/to/file` or `mail:<id>`). */
   sourceId?: string;
-  /** A3: discriminates text vs PDF vs mail chunks. Absent on pre-A3 rows. */
-  sourceType?: 'text' | 'pdf' | 'mail';
-  /** A3: 1-based page number for PDF chunks. Absent on pre-A3 rows. */
+  /** A3: discriminates text vs PDF vs mail chunks. Absent on pre-A3 rows.
+   *  VG-2b adds the office formats (docx/xlsx/pptx/rtf). */
+  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf';
+  /** A3: 1-based page number for PDF chunks; VG-2b reuses it for the REAL
+   *  1-based sheet/slide number on xlsx/pptx chunks. Absent on pre-A3 rows. */
   pageNumber?: number;
   /** WS-PRIV: the chunk's privilege status. Present post-WS-PRIV. Default
    *  retrieval only ever returns `'none'`; a non-`none` value appears only on an

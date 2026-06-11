@@ -266,6 +266,28 @@ function renderMessageWithWorkspaceChip(content: string): React.ReactNode {
 }
 
 /**
+ * VG-2b (+ the Wave-1 follow-up (f) nit) — display label for a citation chip
+ * or sources-accordion row. Page-keyed sources say their honest locator:
+ * "p. N" for PDF pages, "sheet N" / "slide N" for office sections (the REAL
+ * 1-based number carried in pageNumber). Everything else keeps the paragraph
+ * anchor (§N). LABELS ONLY: the chip's resolution key and testid grammar
+ * (basename + paragraphIndex) are deliberately untouched.
+ */
+function citationDisplayLabel(
+  basename: string,
+  paragraphIndex: number,
+  sourceType?: string,
+  pageNumber?: number,
+): string {
+  if (pageNumber != null) {
+    if (sourceType === 'pdf') return `${basename} p. ${String(pageNumber)}`;
+    if (sourceType === 'xlsx') return `${basename} sheet ${String(pageNumber)}`;
+    if (sourceType === 'pptx') return `${basename} slide ${String(pageNumber)}`;
+  }
+  return `${basename} §${String(paragraphIndex)}`;
+}
+
+/**
  * M2 — Render an assistant response with any `[filename paragraph N]`
  * citations turned into clickable chips that navigate to the file. The
  * surrounding text is still rendered with the same markdown helper as
@@ -306,7 +328,6 @@ function renderMessageWithCitations(
       );
     }
     const resolved = resolveCitationPath(cite, sources ?? []);
-    const label = `${cite.basename} §${cite.paragraphIndex}`;
     const testId = `chat-citation-${cite.basename}-${cite.paragraphIndex}`;
     // WS-B/C — find the source this citation resolves to so we can reflect its
     // verification state. `verified === false` means the citation did NOT
@@ -319,6 +340,13 @@ function renderMessageWithCitations(
       (sources ?? []).find(
         (s) => s.path === resolved && s.paragraphIndex === cite.paragraphIndex,
       ) ?? (sources ?? []).find((s) => s.path === resolved);
+    // VG-2b/(f): page-keyed sources label "p. N" / "sheet N" / "slide N".
+    const label = citationDisplayLabel(
+      cite.basename,
+      cite.paragraphIndex,
+      matchedSource?.sourceType,
+      matchedSource?.pageNumber,
+    );
     const unverified = matchedSource?.verified === false;
     pieces.push(
       <button
@@ -447,7 +475,7 @@ function ChatSourcesAccordion({
                     else onMissing(base);
                   }}
                 >
-                  {base} §{s.paragraphIndex}
+                  {citationDisplayLabel(base, s.paragraphIndex, s.sourceType, s.pageNumber)}
                 </button>
               </li>
             );

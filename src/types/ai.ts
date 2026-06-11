@@ -106,9 +106,10 @@ export interface WorkspaceSource {
   chunkText: string;
   score: number;
   paragraphIndex: number;
-  /** A3: 'text' | 'pdf'; G4 adds 'mail'. Absent on pre-A3 rows. */
-  sourceType?: 'text' | 'pdf' | 'mail';
-  /** A3: 1-based page number for PDF chunks. Absent on pre-A3 rows. */
+  /** A3: 'text' | 'pdf'; G4 adds 'mail'; VG-2b adds the office formats. */
+  sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf';
+  /** A3: 1-based page number for PDF chunks; VG-2b reuses it for the REAL
+   *  1-based sheet/slide number on xlsx/pptx chunks. Absent on pre-A3 rows. */
   pageNumber?: number;
   /**
    * WS-B/C: the content-addressed chunk id (the citation key). Passed to

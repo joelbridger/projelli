@@ -80,6 +80,15 @@ pub enum SourceType {
     Pdf { page_number: u32 },
     /// Email message. `text` column holds hex-encoded AES-256-GCM ciphertext.
     Mail,
+    // VG-2b — office documents. Word-processing formats chunk like text
+    // (page_number 0); sectioned formats band like PDF pages so citations
+    // can say "sheet 2" / "slide 3". The numbers are the REAL 1-based
+    // sheet/slide numbers from the package (empty sections are skipped, so
+    // they are not necessarily contiguous).
+    Docx,
+    Rtf,
+    Xlsx { sheet_number: u32 },
+    Pptx { slide_number: u32 },
 }
 
 /// Name of the per-workspace LanceDB table that stores chunk embeddings.
@@ -154,7 +163,15 @@ pub const UNASSIGNED_MATTER: &str = "unassigned";
 /// walker now skips and would therefore never delete on their own. The
 /// migration drops + re-indexes once, purging those stale artifact rows so
 /// matter memory holds primary sources only.
-pub const INDEX_VERSION: u32 = 6;
+///
+/// 7: VG-2b — office formats (docx/xlsx/pptx/rtf) join the indexable set. No
+/// column change, but a pre-7 table predates office extraction entirely, so
+/// the one-time re-index is what guarantees the office documents already
+/// sitting in a workspace become retrievable at update — without waiting for
+/// each file to be touched. (The migration is `read_index_version <
+/// INDEX_VERSION`: end users see exactly ONE re-index per update no matter
+/// how many bumps a release carries.)
+pub const INDEX_VERSION: u32 = 7;
 
 /// Filename (under the vectors dir) holding the integer `INDEX_VERSION` the
 /// current `chunks` table was built with.
@@ -370,6 +387,13 @@ pub fn build_batch(
     let (st_str, pn_val): (&str, u32) = match source_type {
         SourceType::Text => ("text", 0),
         SourceType::Pdf { page_number } => ("pdf", page_number),
+        // VG-2b — office documents. docx/rtf band like text; xlsx/pptx put
+        // their REAL 1-based sheet/slide number in page_number (the citation
+        // label "sheet N" / "slide N" reads it back).
+        SourceType::Docx => ("docx", 0),
+        SourceType::Rtf => ("rtf", 0),
+        SourceType::Xlsx { sheet_number } => ("xlsx", sheet_number),
+        SourceType::Pptx { slide_number } => ("pptx", slide_number),
         // Mail chunks MUST go through build_batch_mail so source_type = "mail".
         // Fail loudly — this is a programmer error on a code-chosen enum, never
         // data-driven.
@@ -542,6 +566,55 @@ pub async fn upsert_chunks_for_path(
         .await
         .context("add chunks batch failed")?;
     Ok(())
+}
+
+/// Replace all rows for `path` with per-group batches, where every group
+/// carries its OWN `SourceType` — the write shape for SECTIONED sources
+/// (PDF pages, xlsx sheets, pptx slides) whose chunks differ in
+/// `source_type`/`page_number` across the same file.
+///
+/// Generalized out of `pdf_indexer.rs` (VG-2b): one up-front delete for the
+/// whole path (calling `upsert_chunks_for_path` per group would re-delete
+/// the groups already inserted), then ONE `table.add` over every group's
+/// batch. Idempotent re-index, exactly like `upsert_chunks_for_path`.
+/// Returns the number of rows inserted; an empty `groups` still deletes
+/// stale rows (the file may have emptied) and returns 0.
+pub async fn upsert_grouped(
+    table: &Table,
+    path: &str,
+    groups: Vec<(SourceType, Vec<(Chunk, Vec<f32>)>)>,
+    matter_id: &str,
+    privilege: &str,
+    key: &[u8; 32],
+) -> Result<usize> {
+    let predicate = format!("path = '{}'", sql_escape(path));
+    table
+        .delete(&predicate)
+        .await
+        .with_context(|| format!("delete failed for {}", path))?;
+
+    use arrow_schema::ArrowError;
+    let mut count = 0usize;
+    let mut batches: Vec<std::result::Result<RecordBatch, ArrowError>> = Vec::new();
+    for (source_type, rows) in &groups {
+        if rows.is_empty() {
+            continue;
+        }
+        count += rows.len();
+        let batch = build_batch(rows, *source_type, matter_id, privilege, key)
+            .map_err(|e| anyhow::anyhow!("build grouped batch for {}: {e}", path))?;
+        batches.push(Ok(batch));
+    }
+    if !batches.is_empty() {
+        let schema = build_schema();
+        let iter = RecordBatchIterator::new(batches.into_iter(), schema);
+        table
+            .add(Box::new(iter))
+            .execute()
+            .await
+            .context("add grouped chunks batch failed")?;
+    }
+    Ok(count)
 }
 
 /// Drop every row whose `path` matches. Used by the watcher when a file
@@ -1341,6 +1414,64 @@ mod tests {
             .expect("page_number column missing")
             .as_primitive::<arrow_array::types::UInt32Type>();
         assert_eq!(pn_col.value(0), 3);
+    }
+
+    // -----------------------------------------------------------------------
+    // VG-2b: office source types — word-processing formats band like text
+    // (page_number 0); sectioned formats carry their REAL 1-based sheet/slide
+    // number so citations can say "sheet 2" / "slide 3".
+    // -----------------------------------------------------------------------
+
+    fn one_row(path: &str) -> Vec<(Chunk, Vec<f32>)> {
+        vec![(
+            Chunk {
+                path: path.into(),
+                paragraph_index: 0,
+                text: "office text".into(),
+                start_offset: 0,
+                end_offset: 11,
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )]
+    }
+
+    fn batch_st_pn(batch: &RecordBatch) -> (String, u32) {
+        use arrow_array::cast::AsArray;
+        let st = batch
+            .column_by_name("source_type")
+            .expect("source_type col")
+            .as_string::<i32>()
+            .value(0)
+            .to_string();
+        let pn = batch
+            .column_by_name("page_number")
+            .expect("page_number col")
+            .as_primitive::<arrow_array::types::UInt32Type>()
+            .value(0);
+        (st, pn)
+    }
+
+    #[test]
+    fn build_batch_docx_and_rtf_band_like_text() {
+        let b = build_batch(&one_row("/a.docx"), SourceType::Docx, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+            .expect("build_batch docx");
+        assert_eq!(batch_st_pn(&b), ("docx".to_string(), 0));
+        let b = build_batch(&one_row("/a.rtf"), SourceType::Rtf, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+            .expect("build_batch rtf");
+        assert_eq!(batch_st_pn(&b), ("rtf".to_string(), 0));
+    }
+
+    #[test]
+    fn build_batch_xlsx_and_pptx_carry_real_section_numbers() {
+        // The number is the REAL 1-based sheet/slide number (empty sections
+        // are skipped upstream, so it is NOT necessarily contiguous with the
+        // enumeration index used for paragraph_index banding).
+        let b = build_batch(&one_row("/a.xlsx"), SourceType::Xlsx { sheet_number: 2 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+            .expect("build_batch xlsx");
+        assert_eq!(batch_st_pn(&b), ("xlsx".to_string(), 2));
+        let b = build_batch(&one_row("/a.pptx"), SourceType::Pptx { slide_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+            .expect("build_batch pptx");
+        assert_eq!(batch_st_pn(&b), ("pptx".to_string(), 3));
     }
 
     // -----------------------------------------------------------------------

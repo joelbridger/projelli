@@ -1,10 +1,14 @@
-// File-type detection + text extraction for the RAG indexer.
+// File-type detection + content access for the RAG indexer.
 //
-// M1 deliberately ships with TEXT FORMATS ONLY (`.md`, `.txt`, `.json`,
-// `.csv`). Document formats — `.xlsx`, `.docx`, `.pptx`, `.rtf` — already
-// have frontend extractors in `src/utils/{spreadsheet,docx,pptx,rtf}-io.ts`
-// and a Rust-side extractor would be a near-duplicate. They land in a
-// follow-up; the file walker silently skips them today.
+// Two families are indexable (VG-2b — the M1 "text formats only" scope
+// decision is closed by the vision gap closure plan):
+//   - TEXT_EXTENSIONS: read as raw UTF-8 (`read_text`) and chunked directly.
+//   - OFFICE_EXTENSIONS: read as bytes (`read_bytes`) and extracted natively
+//     Rust-side — docx via the keepance-docx tree walk, xlsx/pptx/rtf via
+//     `office.rs`. `index_one_file` dispatches on `classify`.
+//
+// PDFs are deliberately NOT here: extraction runs renderer-side (PDF.js)
+// and lands through `rag_index_pdf_chunks`.
 //
 // Centralizing the supported-extension list here also lets the workspace
 // walker filter aggressively before opening files (no point reading a 100MB
@@ -25,18 +29,53 @@ pub const TEXT_EXTENSIONS: &[&str] = &[
     "log", "yml", "yaml", "toml",
 ];
 
-/// TODO(M1-followup): extend with `.xlsx`, `.docx`, `.pptx`, `.rtf` once
-/// the Rust-side extractors land. Frontend already has them in
-/// `src/utils/{spreadsheet,docx,pptx,rtf}-io.ts` but they're TS modules.
-const _DOCUMENT_EXTENSIONS_TODO: &[&str] = &["xlsx", "docx", "pptx", "rtf"];
+/// VG-2b — office formats the Rust indexer extracts natively (docx via the
+/// keepance-docx tree walk; xlsx/pptx/rtf via office.rs). The M1 "text
+/// formats only" scope decision is closed by the vision gap closure plan.
+pub const OFFICE_EXTENSIONS: &[&str] = &["docx", "xlsx", "pptx", "rtf"];
+
+/// How an indexable file's content is extracted. Returned by `classify`;
+/// `index_one_file` dispatches on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndexKind {
+    /// Raw UTF-8 text (`TEXT_EXTENSIONS`) — read + chunk directly.
+    Text,
+    /// Word document — keepance-docx parse + plain-text tree walk.
+    Docx,
+    /// Workbook — per-sheet sections via `office::extract_xlsx_sections`.
+    Xlsx,
+    /// Slide deck — per-slide sections via `office::extract_pptx_sections`.
+    Pptx,
+    /// Rich Text — `office::extract_rtf_text`.
+    Rtf,
+}
+
+/// Classify a path into its extraction kind, or `None` when we don't index
+/// it. A basename starting with `~$` (the transient Word/Excel/PowerPoint
+/// lock file that exists while a document is open) is ALWAYS `None` — lock
+/// files are junk that would churn the watcher and carry no document text.
+pub fn classify(path: &Path) -> Option<IndexKind> {
+    let name = path.file_name()?.to_str()?;
+    if name.starts_with("~$") {
+        return None;
+    }
+    let ext = path.extension()?.to_str()?;
+    let ext_lower = ext.to_ascii_lowercase();
+    if TEXT_EXTENSIONS.iter().any(|t| *t == ext_lower) {
+        return Some(IndexKind::Text);
+    }
+    match ext_lower.as_str() {
+        "docx" => Some(IndexKind::Docx),
+        "xlsx" => Some(IndexKind::Xlsx),
+        "pptx" => Some(IndexKind::Pptx),
+        "rtf" => Some(IndexKind::Rtf),
+        _ => None,
+    }
+}
 
 /// Returns true if `path` has an extension we know how to index today.
 pub fn is_indexable(path: &Path) -> bool {
-    let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
-        return false;
-    };
-    let ext_lower = ext.to_ascii_lowercase();
-    TEXT_EXTENSIONS.iter().any(|t| *t == ext_lower)
+    classify(path).is_some()
 }
 
 /// Returns true if the path lives inside a directory we always skip
@@ -72,6 +111,25 @@ pub fn read_text(path: &Path) -> Option<String> {
     fs::read_to_string(path).ok()
 }
 
+/// Size cap for office packages (`read_bytes`). Larger than `MAX_FILE_BYTES`
+/// on purpose: office packages routinely carry embedded media (images in a
+/// deck, logos in a letterhead) that inflate the ZIP while the text-bearing
+/// XML parts stay small — and the extractors in `office.rs`/keepance-docx
+/// have their own decompression-bomb budgets past this gate.
+pub const MAX_OFFICE_FILE_BYTES: u64 = 50 * 1024 * 1024; // 50 MiB
+
+/// Read a file's raw bytes for the office extractors. Returns `None` on
+/// read errors or when the file exceeds `MAX_OFFICE_FILE_BYTES`, so the
+/// caller can skip and keep processing the rest of the workspace (mirrors
+/// `read_text`).
+pub fn read_bytes(path: &Path) -> Option<Vec<u8>> {
+    let meta = fs::metadata(path).ok()?;
+    if meta.len() > MAX_OFFICE_FILE_BYTES {
+        return None;
+    }
+    fs::read(path).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,17 +160,55 @@ mod tests {
     }
 
     #[test]
-    fn document_formats_skipped_in_m1() {
-        // Per the M1 scope decision: text formats only.
-        assert!(!is_indexable(&PathBuf::from("/a/x.xlsx")));
-        assert!(!is_indexable(&PathBuf::from("/a/x.docx")));
-        assert!(!is_indexable(&PathBuf::from("/a/x.pptx")));
-        assert!(!is_indexable(&PathBuf::from("/a/x.rtf")));
+    fn office_formats_are_indexable() {
+        // VG-2b closes the M1 "text formats only" scope decision: the Rust
+        // indexer extracts office documents natively (docx via keepance-docx,
+        // xlsx/pptx/rtf via office.rs), so the walker and the watcher both
+        // light up for them.
+        assert!(is_indexable(&PathBuf::from("/a/x.xlsx")));
+        assert!(is_indexable(&PathBuf::from("/a/x.docx")));
+        assert!(is_indexable(&PathBuf::from("/a/x.DOCX")));
+        assert!(is_indexable(&PathBuf::from("/a/x.pptx")));
+        assert!(is_indexable(&PathBuf::from("/a/x.rtf")));
+    }
+
+    #[test]
+    fn office_lock_files_are_never_indexable() {
+        // "~$contract.docx" is the transient Word/Excel/PowerPoint lock file
+        // that appears while a document is open. Indexing it would churn the
+        // watcher (it is created/deleted constantly) and it carries no
+        // document text.
+        assert!(!is_indexable(&PathBuf::from("/a/~$contract.docx")));
+        assert!(!is_indexable(&PathBuf::from("/a/~$model.xlsx")));
+        // The guard is on the basename, never on a directory component.
+        assert!(is_indexable(&PathBuf::from("/a/contract.docx")));
+    }
+
+    #[test]
+    fn pdf_stays_on_the_ts_extraction_path() {
+        // PDFs are extracted renderer-side (PDF.js) and indexed via
+        // rag_index_pdf_chunks; the Rust walk must keep skipping them.
+        assert!(!is_indexable(&PathBuf::from("/a/x.pdf")));
     }
 
     #[test]
     fn no_extension_not_indexable() {
         assert!(!is_indexable(&PathBuf::from("/a/no-ext")));
+    }
+
+    #[test]
+    fn classify_maps_extensions_to_kinds() {
+        assert_eq!(classify(&PathBuf::from("/a/x.md")), Some(IndexKind::Text));
+        assert_eq!(classify(&PathBuf::from("/a/x.csv")), Some(IndexKind::Text));
+        assert_eq!(classify(&PathBuf::from("/a/x.docx")), Some(IndexKind::Docx));
+        assert_eq!(classify(&PathBuf::from("/a/x.xlsx")), Some(IndexKind::Xlsx));
+        assert_eq!(classify(&PathBuf::from("/a/x.pptx")), Some(IndexKind::Pptx));
+        assert_eq!(classify(&PathBuf::from("/a/x.rtf")), Some(IndexKind::Rtf));
+        // Case-insensitive, like the text extensions always were.
+        assert_eq!(classify(&PathBuf::from("/a/x.XLSX")), Some(IndexKind::Xlsx));
+        assert_eq!(classify(&PathBuf::from("/a/x.pdf")), None);
+        assert_eq!(classify(&PathBuf::from("/a/~$x.docx")), None);
+        assert_eq!(classify(&PathBuf::from("/a/no-ext")), None);
     }
 
     #[test]

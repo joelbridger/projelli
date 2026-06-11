@@ -5,6 +5,12 @@
 //! Unmodeled Raw blocks/inlines (tables, hyperlinks, sdt, …) contribute
 //! their visible `<w:t>` text via a guarded XML walk — raw markup must
 //! never leak into the search index.
+//!
+//! Scope: the DOCUMENT BODY only. Headers, footers, and footnotes live in
+//! separate package parts the parse never models, so they are NOT part of
+//! the extracted text (a letterhead repeating on every page would pollute
+//! retrieval anyway). Tracked-MOVE text (`w:moveFrom`/`w:moveTo` both render
+//! as runs) can appear twice; duplication in search text is harmless.
 
 use quick_xml::events::Event;
 use quick_xml::reader::Reader;
