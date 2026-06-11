@@ -194,6 +194,7 @@ async fn await_sso_redirect(
             }
             SsoRedirect::None => {
                 let _ = socket.write_all(html_err).await;
+                let _ = socket.flush().await;
                 Err(anyhow!("no_code_in_redirect"))
             }
         }
