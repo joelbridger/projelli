@@ -37,6 +37,8 @@ export interface UseFirmResult {
   error: string | null;
   assuredProviders: AssuredProvider[];
   signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  /** Sign in via the firm's OIDC identity provider (Tauri desktop only). */
+  signInSso: (email: string) => Promise<void>;
   claimOrg: (
     licenseKey: string,
     email: string,
@@ -63,6 +65,7 @@ export function useFirm(): UseFirmResult {
     })),
   );
   const signIn = useFirmStore((s) => s.signIn);
+  const signInSso = useFirmStore((s) => s.signInSso);
   const claimOrg = useFirmStore((s) => s.claimOrg);
   const activateSeat = useFirmStore((s) => s.activateSeat);
   const signOut = useFirmStore((s) => s.signOut);
@@ -108,6 +111,7 @@ export function useFirm(): UseFirmResult {
     error: store.error,
     assuredProviders: store.assuredProviders,
     signIn,
+    signInSso,
     claimOrg,
     activateSeat,
     signOut: doSignOut,

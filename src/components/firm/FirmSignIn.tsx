@@ -25,6 +25,7 @@ import {
   AlertCircle,
   ChevronLeft,
 } from 'lucide-react';
+import { isTauri } from '@tauri-apps/api/core';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -360,6 +361,33 @@ export function FirmSignIn() {
                 <p data-testid="firm-error" className="text-xs text-rose-700 dark:text-rose-300">
                   {localError ?? firm.error}
                 </p>
+              )}
+              {isTauri() && (
+                <>
+                  <div className="my-3 flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="h-px flex-1 bg-border" />
+                    or
+                    <span className="h-px flex-1 bg-border" />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="firm-sso-submit"
+                    className="w-full gap-1.5"
+                    disabled={!email || firm.isLoading}
+                    onClick={() => {
+                      setLocalError(null);
+                      void firm.signInSso(email).catch((err: unknown) => {
+                        setLocalError(err instanceof Error ? err.message : 'SSO sign-in failed');
+                      });
+                    }}
+                  >
+                    Sign in with SSO
+                  </Button>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Use your firm's Microsoft, Google, or company login. Your admin sets this up.
+                  </p>
+                </>
               )}
               <button
                 type="button"
