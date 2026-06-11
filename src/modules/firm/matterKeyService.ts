@@ -15,6 +15,11 @@
  * Cross-member key distribution (publishMatterKeyToMembers) and admin escrow
  * are implemented in this file. Each member's device receives a wrapped copy of
  * the per-matter AES-256 key; epoch rotation re-wraps to all remaining members.
+ *
+ * VG-6a adds the auto-republish half: deviceSetFingerprint + the
+ * autoRepublishHeldMatterKeys poll body, so an admin client notices when a
+ * member registers a NEW device and re-wraps held matter keys without a human
+ * clicking "Re-publish keys". Walled users stay excluded at every layer.
  */
 
 import { generateMatterKey } from './matterCrypto';
@@ -22,6 +27,7 @@ import { storeMatterKey, loadMatterKey, clearMatterKey } from './firmKeychain';
 import { FirmApiClient, FirmApiError } from './FirmApiClient';
 import { wrapMatterKey, unwrapMatterKey } from './keyWrap';
 import { getOrCreateDeviceKeypair } from './deviceKeys';
+import type { FirmMatter } from './contract';
 
 /** Load the stored matter key (base64), or null if none on this machine. */
 export async function getMatterKey(matterId: string): Promise<string | null> {
@@ -59,6 +65,58 @@ export async function forgetMatterKey(matterId: string): Promise<void> {
 
 // ── Cross-member key distribution (implements the deferred follow-up) ───────
 
+interface EligibleDevice {
+  user_id: string;
+  device_id: string;
+  pubkey_jwk: JsonWebKey;
+}
+
+/**
+ * Roster + escrow + device expansion for a matter: non-walled members plus
+ * org admins, with walled users' devices dropped. Shared by the manual
+ * publish and the VG-6a auto-republish poll.
+ *
+ * The device-level wall filter is the invariant backstop: even if the server
+ * returned a walled user's device (a walled admin, or a misbehaving relay),
+ * it never becomes eligible for a wrapped key.
+ */
+async function eligibleDevices(
+  client: FirmApiClient,
+  matterId: string,
+): Promise<{ devices: EligibleDevice[]; walledSkipped: number }> {
+  // Fetch the member roster + wall list.
+  const membersResp = await client.listMatterMembers(matterId);
+  const walledUserIds = new Set(membersResp.walls.map((w) => w.user_id));
+
+  // Determine the set of user IDs to wrap for:
+  // members (non-walled) + all org admins (escrow).
+  const memberUserIds = membersResp.members
+    .map((m) => m.user_id)
+    .filter((uid) => !walledUserIds.has(uid));
+
+  // Fetch org admins for escrow.
+  const adminResp = await client.listOrgAdmins();
+  const adminUserIds = adminResp.admins.map((a) => a.user_id);
+
+  // Union of members + admins (admins may already be members).
+  const allUserIds = Array.from(new Set([...memberUserIds, ...adminUserIds]));
+
+  // Fetch devices for all users, then drop walled users' devices.
+  const devicesResp = await client.fetchOrgUserDevices(allUserIds);
+
+  const devices: EligibleDevice[] = [];
+  let walledSkipped = 0;
+  for (const device of devicesResp.devices) {
+    if (walledUserIds.has(device.user_id)) {
+      walledSkipped++;
+      continue;
+    }
+    devices.push(device);
+  }
+
+  return { devices, walledSkipped };
+}
+
 /**
  * Wrap the current local matter key to every authorized member's device and
  * POST it to the backend.
@@ -85,35 +143,12 @@ export async function publishMatterKeyToMembers(
     );
   }
 
-  // 2. Fetch the member roster + wall list.
-  const membersResp = await client.listMatterMembers(matterId);
-  const walledUserIds = new Set(membersResp.walls.map((w) => w.user_id));
+  // 2. Roster + escrow + device expansion (walled users' devices dropped).
+  const { devices, walledSkipped } = await eligibleDevices(client, matterId);
 
-  // 3. Determine the set of user IDs to wrap for.
-  //    Members (non-walled) + all org admins (escrow).
-  const memberUserIds = membersResp.members
-    .map((m) => m.user_id)
-    .filter((uid) => !walledUserIds.has(uid));
-
-  // Fetch org admins for escrow.
-  const adminResp = await client.listOrgAdmins();
-  const adminUserIds = adminResp.admins.map((a) => a.user_id);
-
-  // Union of members + admins (admins may already be members).
-  const allUserIds = Array.from(new Set([...memberUserIds, ...adminUserIds]));
-
-  // 4. Fetch devices for all users.
-  const devicesResp = await client.fetchOrgUserDevices(allUserIds);
-
-  // 5. Wrap the matter key for each device (excluding walled users' devices).
+  // 3. Wrap the matter key for each eligible device.
   const wrapped: Array<{ user_id: string; device_id: string; wrapped_key_b64: string }> = [];
-  let skippedWalled = 0;
-
-  for (const device of devicesResp.devices) {
-    if (walledUserIds.has(device.user_id)) {
-      skippedWalled++;
-      continue;
-    }
+  for (const device of devices) {
     const wrappedKeyB64 = await wrapMatterKey(matterKeyB64, device.pubkey_jwk, epoch);
     wrapped.push({
       user_id: device.user_id,
@@ -122,10 +157,58 @@ export async function publishMatterKeyToMembers(
     });
   }
 
-  // 6. POST the publish payload.
+  // 4. POST the publish payload.
   await client.publishMatterKeys(matterId, { epoch, wrapped });
 
-  return { published: wrapped.length, skippedWalled };
+  return { published: wrapped.length, skippedWalled: walledSkipped };
+}
+
+/**
+ * Stable fingerprint of (epoch, device set) — drift means "someone
+ * registered or lost a device since we last wrapped keys".
+ */
+export function deviceSetFingerprint(
+  devices: Array<{ user_id: string; device_id: string }>,
+  epoch: number,
+): string {
+  return `${String(epoch)}:` + devices.map((d) => `${d.user_id}/${d.device_id}`).sort().join(',');
+}
+
+/**
+ * VG-6a — auto-republish wrapped matter keys when a member registers a new
+ * device. For every matter whose key THIS client holds: compute the current
+ * device-set fingerprint; on drift from `lastFingerprints`, re-run the full
+ * publish (idempotent server-side) and record the new fingerprint. Errors
+ * on one matter never block the rest. The honest member-side waiting state
+ * remains the fallback for matters whose key holder is offline.
+ *
+ * Wall invariant: the fingerprint is computed over ELIGIBLE devices only
+ * (walled users' devices are dropped by eligibleDevices), so a walled
+ * member registering a new device causes no drift and no publish; and the
+ * publish itself wraps only to eligible devices.
+ */
+export async function autoRepublishHeldMatterKeys(
+  client: FirmApiClient,
+  matters: Array<Pick<FirmMatter, 'matter_id' | 'key_epoch'>>,
+  lastFingerprints: Record<string, string>,
+): Promise<{ republishedMatterIds: string[]; fingerprints: Record<string, string> }> {
+  const fingerprints = { ...lastFingerprints };
+  const republishedMatterIds: string[] = [];
+  for (const m of matters) {
+    try {
+      const key = await loadMatterKey(m.matter_id);
+      if (!key) continue; // not the key holder on this device
+      const { devices } = await eligibleDevices(client, m.matter_id);
+      const fp = deviceSetFingerprint(devices, m.key_epoch);
+      if (fingerprints[m.matter_id] === fp) continue;
+      await publishMatterKeyToMembers(client, m.matter_id, m.key_epoch);
+      fingerprints[m.matter_id] = fp;
+      republishedMatterIds.push(m.matter_id);
+    } catch {
+      // Quiet: next poll retries; the manual Re-publish button still exists.
+    }
+  }
+  return { republishedMatterIds, fingerprints };
 }
 
 /**

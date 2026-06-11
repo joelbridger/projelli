@@ -1177,7 +1177,9 @@
       "republish-keys-ok": "Schlussel an alle registrierten Gerate gesendet.",
       "invite-user-exists": "{{email}} hat bereits ein Konto. Verwenden Sie die Administratorkonsole, um die Person hinzuzufugen, oder bitten Sie sie, eine Einladung anzunehmen.",
       "invite-failed": "Einladung fehlgeschlagen.",
-      "wall-user-not-found": "Keine Benutzer-ID fur {{email}} gefunden. Laden Sie die Person zuerst ein, damit ihre ID im Cache gespeichert wird."
+      "wall-user-not-found": "Keine Benutzer-ID fur {{email}} gefunden. Laden Sie die Person zuerst ein, damit ihre ID im Cache gespeichert wird.",
+      "auto-republish-ok": "Schlusselzugriff fur neu registrierte Gerate von {{count}} Mandat(en) gewahrt.",
+      "auto-republish-ok__locked": true
     }
   },
   "media": {

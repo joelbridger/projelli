@@ -23,7 +23,7 @@
  * yet in the cache, we fall back to showing their truncated user_id.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   FolderPlus,
@@ -41,7 +41,10 @@ import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { useFirm } from '@/hooks/useFirm';
 import { useFirmStore } from '@/stores/firmStore';
-import { publishMatterKeyToMembers } from '@/modules/firm/matterKeyService';
+import {
+  publishMatterKeyToMembers,
+  autoRepublishHeldMatterKeys,
+} from '@/modules/firm/matterKeyService';
 import { AuditService } from '@/modules/audit/AuditService';
 import type {
   FirmMatter,
@@ -62,6 +65,34 @@ function generateTempPassword(): string {
   const arr = new Uint8Array(16);
   crypto.getRandomValues(arr);
   return Array.from(arr, (b) => chars[b % chars.length]!).join('');
+}
+
+// ── VG-6a — persisted device-set fingerprints for the auto-republish poll ───
+// Stored in localStorage so a reopened console doesn't re-wrap an unchanged
+// org. Only fingerprints live here (user/device ids + epoch), never keys.
+
+const PUBLISH_FP_STORAGE_KEY = 'keepance_firm_key_publish_fp';
+
+function readPublishFingerprints(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(PUBLISH_FP_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, string>;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function writePublishFingerprints(fingerprints: Record<string, string>): void {
+  try {
+    localStorage.setItem(PUBLISH_FP_STORAGE_KEY, JSON.stringify(fingerprints));
+  } catch {
+    // Storage unavailable: fingerprints just won't persist across sessions.
+  }
 }
 
 function Section({
@@ -181,6 +212,29 @@ export function FirmAdminConsole() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firm.role]);
+
+  // VG-6a — auto-publish poll: while the admin console is open, newly
+  // registered member devices get wrapped keys within a poll interval,
+  // so the member's "waiting for your firm admin" state usually resolves
+  // without a human dance. Fingerprints persist across sessions so a
+  // reopened console doesn't re-wrap an unchanged org.
+  const fpRef = useRef<Record<string, string>>(readPublishFingerprints());
+  useEffect(() => {
+    if (firm.role !== 'admin' || matters.length === 0) return undefined;
+    let cancelled = false;
+    const tick = async () => {
+      const res = await autoRepublishHeldMatterKeys(getClient(), matters, fpRef.current);
+      if (cancelled) return;
+      fpRef.current = res.fingerprints;
+      writePublishFingerprints(res.fingerprints);
+      if (res.republishedMatterIds.length > 0) {
+        setNotice(t('firm.admin.auto-republish-ok', { count: res.republishedMatterIds.length }));
+      }
+    };
+    void tick();
+    const id = setInterval(() => void tick(), 60_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [firm.role, matters, getClient, t]);
 
   /** Invite a member by email: create user if needed, then add to matter. */
   const handleInvite = async (matterId: string) => {

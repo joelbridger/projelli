@@ -1177,7 +1177,9 @@
       "republish-keys-ok": "Claves enviadas a todos los dispositivos registrados.",
       "invite-user-exists": "{{email}} ya tiene una cuenta. Usa la consola de administración para añadirlo, o pídele que acepte una invitación.",
       "invite-failed": "Error al invitar.",
-      "wall-user-not-found": "No se encontró el ID de usuario para {{email}}. Primero invítalo para que su ID quede en caché."
+      "wall-user-not-found": "No se encontró el ID de usuario para {{email}}. Primero invítalo para que su ID quede en caché.",
+      "auto-republish-ok": "Acceso a claves concedido a los dispositivos recién registrados de {{count}} asunto(s).",
+      "auto-republish-ok__locked": true
     }
   },
   "media": {

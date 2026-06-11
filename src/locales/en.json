@@ -990,7 +990,8 @@
       "republish-keys-ok": "Keys sent to all registered devices.",
       "invite-user-exists": "{{email}} already has an account. Use the admin console to add them, or ask them to accept an invitation.",
       "invite-failed": "Invite failed.",
-      "wall-user-not-found": "No user ID found for {{email}}. Invite them first so their ID is cached."
+      "wall-user-not-found": "No user ID found for {{email}}. Invite them first so their ID is cached.",
+      "auto-republish-ok": "Granted key access to newly registered devices for {{count}} matter(s)."
     }
   },
   "privacy": {

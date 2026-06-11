@@ -1,6 +1,8 @@
 /**
- * matterKeyDistribution — integration tests for publishMatterKeyToMembers
- * and obtainMatterKey, all against a mocked FirmApiClient.
+ * matterKeyDistribution — integration tests for publishMatterKeyToMembers,
+ * obtainMatterKey, and the VG-6a auto-republish poll helpers
+ * (deviceSetFingerprint + autoRepublishHeldMatterKeys), all against a mocked
+ * FirmApiClient.
  *
  * Adversarial cases:
  *   - 403 → null and keychain untouched
@@ -10,6 +12,9 @@
  *     they are not matter members
  *   - success path stores the unwrapped key in the keychain
  *   - epoch rotation: publishMatterKeyToMembers uses the CURRENT epoch
+ *   - WALL invariant under auto-republish: a walled member's new device never
+ *     triggers drift and never receives a wrapped key, even if the relay
+ *     injects the walled user's devices into the device-listing response
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -41,7 +46,12 @@ vi.mock('@/modules/models/fetchUtils', () => ({
 }));
 
 import { FirmApiClient, FirmApiError } from '@/modules/firm/FirmApiClient';
-import { publishMatterKeyToMembers, obtainMatterKey } from '@/modules/firm/matterKeyService';
+import {
+  publishMatterKeyToMembers,
+  obtainMatterKey,
+  deviceSetFingerprint,
+  autoRepublishHeldMatterKeys,
+} from '@/modules/firm/matterKeyService';
 import { storeMatterKey, loadMatterKey } from '@/modules/firm/firmKeychain';
 import { getOrCreateDeviceKeypair, _resetDeviceCache } from '@/modules/firm/deviceKeys';
 import { generateMatterKey } from '@/modules/firm/matterCrypto';
@@ -270,5 +280,312 @@ describe('obtainMatterKey', () => {
     // Nothing stored in keychain on unexpected error
     const stored = await loadMatterKey('matter-500');
     expect(stored).toBeNull();
+  });
+});
+
+// ── VG-6a — device-set fingerprint + auto-republish poll ────────────────────
+
+describe('deviceSetFingerprint', () => {
+  it('is order-independent over the device set', () => {
+    const a = deviceSetFingerprint(
+      [
+        { user_id: 'alice', device_id: 'd1' },
+        { user_id: 'bob', device_id: 'd2' },
+      ],
+      1,
+    );
+    const b = deviceSetFingerprint(
+      [
+        { user_id: 'bob', device_id: 'd2' },
+        { user_id: 'alice', device_id: 'd1' },
+      ],
+      1,
+    );
+    expect(a).toBe(b);
+  });
+
+  it('changes when the epoch changes', () => {
+    const devices = [{ user_id: 'alice', device_id: 'd1' }];
+    expect(deviceSetFingerprint(devices, 1)).not.toBe(deviceSetFingerprint(devices, 2));
+  });
+
+  it('changes when a device is added', () => {
+    const before = deviceSetFingerprint([{ user_id: 'alice', device_id: 'd1' }], 1);
+    const after = deviceSetFingerprint(
+      [
+        { user_id: 'alice', device_id: 'd1' },
+        { user_id: 'alice', device_id: 'd2' },
+      ],
+      1,
+    );
+    expect(before).not.toBe(after);
+  });
+});
+
+describe('autoRepublishHeldMatterKeys', () => {
+  beforeEach(() => {
+    keychainStore.clear();
+    fetchMock.mockReset();
+    invokeMock.mockClear();
+    _resetDeviceCache();
+  });
+
+  it('republishes exactly once when a matter device set grew, and records the new fingerprint', async () => {
+    const matterKeyB64 = await generateMatterKey();
+    await storeMatterKey('matter-grow', matterKeyB64);
+    const alice = await generateMemberKeyPair();
+
+    const client = mockClient();
+    vi.spyOn(client, 'listMatterMembers').mockResolvedValue({
+      matter_id: 'matter-grow',
+      key_epoch: 1,
+      members: [
+        { matter_id: 'matter-grow', user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
+      ],
+      walls: [],
+    });
+    vi.spyOn(client, 'listOrgAdmins').mockResolvedValue({ admins: [] });
+    // Alice now has TWO devices; the recorded fingerprint only knew the first.
+    vi.spyOn(client, 'fetchOrgUserDevices').mockResolvedValue({
+      devices: [
+        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk, label: 'laptop' },
+        { user_id: 'alice', device_id: 'alice-d2', pubkey_jwk: alice.publicJwk, label: 'new desktop' },
+      ],
+    });
+    const publishSpy = vi
+      .spyOn(client, 'publishMatterKeys')
+      .mockImplementation(async (_matterId, payload) => ({ ok: true, stored: payload.wrapped.length }));
+
+    const before = deviceSetFingerprint([{ user_id: 'alice', device_id: 'alice-d1' }], 1);
+    const res = await autoRepublishHeldMatterKeys(
+      client,
+      [{ matter_id: 'matter-grow', key_epoch: 1 }],
+      { 'matter-grow': before },
+    );
+
+    expect(publishSpy).toHaveBeenCalledTimes(1);
+    expect(res.republishedMatterIds).toEqual(['matter-grow']);
+    expect(res.fingerprints['matter-grow']).toBe(
+      deviceSetFingerprint(
+        [
+          { user_id: 'alice', device_id: 'alice-d1' },
+          { user_id: 'alice', device_id: 'alice-d2' },
+        ],
+        1,
+      ),
+    );
+  });
+
+  it('publishes nothing when the device set is unchanged', async () => {
+    const matterKeyB64 = await generateMatterKey();
+    await storeMatterKey('matter-same', matterKeyB64);
+    const alice = await generateMemberKeyPair();
+
+    const client = mockClient();
+    vi.spyOn(client, 'listMatterMembers').mockResolvedValue({
+      matter_id: 'matter-same',
+      key_epoch: 1,
+      members: [
+        { matter_id: 'matter-same', user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
+      ],
+      walls: [],
+    });
+    vi.spyOn(client, 'listOrgAdmins').mockResolvedValue({ admins: [] });
+    vi.spyOn(client, 'fetchOrgUserDevices').mockResolvedValue({
+      devices: [
+        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk, label: 'laptop' },
+      ],
+    });
+    const publishSpy = vi.spyOn(client, 'publishMatterKeys');
+
+    const current = deviceSetFingerprint([{ user_id: 'alice', device_id: 'alice-d1' }], 1);
+    const res = await autoRepublishHeldMatterKeys(
+      client,
+      [{ matter_id: 'matter-same', key_epoch: 1 }],
+      { 'matter-same': current },
+    );
+
+    expect(publishSpy).not.toHaveBeenCalled();
+    expect(res.republishedMatterIds).toEqual([]);
+    expect(res.fingerprints['matter-same']).toBe(current);
+  });
+
+  it('skips a matter with no local key without touching the network at all', async () => {
+    const client = mockClient();
+    const membersSpy = vi.spyOn(client, 'listMatterMembers');
+    const adminsSpy = vi.spyOn(client, 'listOrgAdmins');
+    const devicesSpy = vi.spyOn(client, 'fetchOrgUserDevices');
+    const publishSpy = vi.spyOn(client, 'publishMatterKeys');
+
+    const res = await autoRepublishHeldMatterKeys(
+      client,
+      [{ matter_id: 'matter-not-held', key_epoch: 3 }],
+      {},
+    );
+
+    // Key-first ordering: not the holder → no network call of any kind.
+    expect(membersSpy).not.toHaveBeenCalled();
+    expect(adminsSpy).not.toHaveBeenCalled();
+    expect(devicesSpy).not.toHaveBeenCalled();
+    expect(publishSpy).not.toHaveBeenCalled();
+    expect(res.republishedMatterIds).toEqual([]);
+    expect(res.fingerprints).toEqual({});
+  });
+
+  it('one matter publish failure does not abort the others, and the failed fingerprint is not recorded', async () => {
+    await storeMatterKey('matter-bad', await generateMatterKey());
+    await storeMatterKey('matter-good', await generateMatterKey());
+    const alice = await generateMemberKeyPair();
+
+    const client = mockClient();
+    vi.spyOn(client, 'listMatterMembers').mockImplementation(async (matterId: string) => ({
+      matter_id: matterId,
+      key_epoch: 1,
+      members: [
+        { matter_id: matterId, user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
+      ],
+      walls: [],
+    }));
+    vi.spyOn(client, 'listOrgAdmins').mockResolvedValue({ admins: [] });
+    vi.spyOn(client, 'fetchOrgUserDevices').mockResolvedValue({
+      devices: [
+        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk, label: 'laptop' },
+      ],
+    });
+    const publishSpy = vi
+      .spyOn(client, 'publishMatterKeys')
+      .mockImplementation(async (matterId, payload) => {
+        if (matterId === 'matter-bad') throw new FirmApiError(500, 'server_error', 'boom');
+        return { ok: true, stored: payload.wrapped.length };
+      });
+
+    const res = await autoRepublishHeldMatterKeys(
+      client,
+      [
+        { matter_id: 'matter-bad', key_epoch: 1 },
+        { matter_id: 'matter-good', key_epoch: 1 },
+      ],
+      {},
+    );
+
+    // Both matters were ATTEMPTED (the failure did not abort the loop) ...
+    expect(publishSpy).toHaveBeenCalledTimes(2);
+    // ... but only the successful one is reported and fingerprinted.
+    expect(res.republishedMatterIds).toEqual(['matter-good']);
+    expect(res.fingerprints['matter-good']).toBeDefined();
+    // No fingerprint for the failed matter → the next poll retries it.
+    expect(res.fingerprints['matter-bad']).toBeUndefined();
+  });
+
+  it('WALL: a walled member registering a new device causes no drift and no publish', async () => {
+    await storeMatterKey('matter-wall', await generateMatterKey());
+    const alice = await generateMemberKeyPair();
+    const mallory = await generateMemberKeyPair();
+
+    const client = mockClient();
+    vi.spyOn(client, 'listMatterMembers').mockResolvedValue({
+      matter_id: 'matter-wall',
+      key_epoch: 1,
+      members: [
+        { matter_id: 'matter-wall', user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
+        { matter_id: 'matter-wall', user_id: 'mallory', org_id: 'org-1', role: 'editor', created_at: '' },
+      ],
+      walls: [
+        { matter_id: 'matter-wall', user_id: 'mallory', org_id: 'org-1', reason: 'conflict', created_by: 'admin', created_at: '' },
+      ],
+    });
+    vi.spyOn(client, 'listOrgAdmins').mockResolvedValue({ admins: [] });
+    // ADVERSARIAL relay: returns the walled user's devices (including a brand
+    // new one) even though a correct server is only asked for non-walled users.
+    const devicesSpy = vi.spyOn(client, 'fetchOrgUserDevices').mockResolvedValue({
+      devices: [
+        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk, label: 'laptop' },
+        { user_id: 'mallory', device_id: 'mallory-d1', pubkey_jwk: mallory.publicJwk, label: 'old' },
+        { user_id: 'mallory', device_id: 'mallory-d2', pubkey_jwk: mallory.publicJwk, label: 'NEW device' },
+      ],
+    });
+    const publishSpy = vi.spyOn(client, 'publishMatterKeys');
+
+    // Recorded fingerprint reflects the eligible set before mallory's new
+    // device existed: just alice-d1. Walled devices were never part of it.
+    const before = deviceSetFingerprint([{ user_id: 'alice', device_id: 'alice-d1' }], 1);
+    const res = await autoRepublishHeldMatterKeys(
+      client,
+      [{ matter_id: 'matter-wall', key_epoch: 1 }],
+      { 'matter-wall': before },
+    );
+
+    // Walled devices are invisible to drift detection: no republish at all.
+    expect(publishSpy).not.toHaveBeenCalled();
+    expect(res.republishedMatterIds).toEqual([]);
+    expect(res.fingerprints['matter-wall']).toBe(before);
+    // And the device listing never asked the server for the walled user.
+    expect(devicesSpy).toHaveBeenCalledWith(expect.not.arrayContaining(['mallory']));
+  });
+
+  it('WALL: a drift republish never wraps keys to a walled member device, even when the relay injects them', async () => {
+    const matterKeyB64 = await generateMatterKey();
+    await storeMatterKey('matter-wall-grow', matterKeyB64);
+    const alice = await generateMemberKeyPair();
+    const mallory = await generateMemberKeyPair();
+
+    const client = mockClient();
+    vi.spyOn(client, 'listMatterMembers').mockResolvedValue({
+      matter_id: 'matter-wall-grow',
+      key_epoch: 2,
+      members: [
+        { matter_id: 'matter-wall-grow', user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
+        { matter_id: 'matter-wall-grow', user_id: 'mallory', org_id: 'org-1', role: 'editor', created_at: '' },
+      ],
+      walls: [
+        { matter_id: 'matter-wall-grow', user_id: 'mallory', org_id: 'org-1', reason: 'conflict', created_by: 'admin', created_at: '' },
+      ],
+    });
+    vi.spyOn(client, 'listOrgAdmins').mockResolvedValue({ admins: [] });
+    // Drift: alice registered a second device. The misbehaving relay ALSO
+    // injects walled mallory's devices into the listing response.
+    vi.spyOn(client, 'fetchOrgUserDevices').mockResolvedValue({
+      devices: [
+        { user_id: 'alice', device_id: 'alice-d1', pubkey_jwk: alice.publicJwk, label: 'laptop' },
+        { user_id: 'alice', device_id: 'alice-d2', pubkey_jwk: alice.publicJwk, label: 'new desktop' },
+        { user_id: 'mallory', device_id: 'mallory-d1', pubkey_jwk: mallory.publicJwk, label: 'old' },
+        { user_id: 'mallory', device_id: 'mallory-d2', pubkey_jwk: mallory.publicJwk, label: 'NEW device' },
+      ],
+    });
+    let publishPayload: { epoch: number; wrapped: Array<{ user_id: string; device_id: string }> } | null = null;
+    const publishSpy = vi
+      .spyOn(client, 'publishMatterKeys')
+      .mockImplementation(async (_matterId, payload) => {
+        publishPayload = payload;
+        return { ok: true, stored: payload.wrapped.length };
+      });
+
+    const before = deviceSetFingerprint([{ user_id: 'alice', device_id: 'alice-d1' }], 2);
+    const res = await autoRepublishHeldMatterKeys(
+      client,
+      [{ matter_id: 'matter-wall-grow', key_epoch: 2 }],
+      { 'matter-wall-grow': before },
+    );
+
+    // Drift from alice's new device → exactly one publish ...
+    expect(publishSpy).toHaveBeenCalledTimes(1);
+    expect(res.republishedMatterIds).toEqual(['matter-wall-grow']);
+    // ... whose payload contains alice's devices ONLY. Walled mallory gets
+    // NOTHING, not even for her pre-existing device.
+    expect(publishPayload).not.toBeNull();
+    const wrappedDeviceIds = publishPayload!.wrapped.map((w) => w.device_id).sort();
+    expect(wrappedDeviceIds).toEqual(['alice-d1', 'alice-d2']);
+    expect(publishPayload!.wrapped.map((w) => w.user_id)).not.toContain('mallory');
+    // The recorded fingerprint covers ELIGIBLE devices only, so injected
+    // walled devices cannot poison drift detection into republish churn.
+    expect(res.fingerprints['matter-wall-grow']).toBe(
+      deviceSetFingerprint(
+        [
+          { user_id: 'alice', device_id: 'alice-d1' },
+          { user_id: 'alice', device_id: 'alice-d2' },
+        ],
+        2,
+      ),
+    );
   });
 });
