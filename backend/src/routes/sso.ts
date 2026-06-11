@@ -25,7 +25,7 @@ const REDIRECT_URI = `${config.ssoCallbackBase.replace(/\/$/, "")}/auth/sso/call
 function requireAdminClaims(req: Request): { ok: true; orgId: string; userId: string } | { ok: false; resp: Response } {
   const auth = authenticate(req);
   if (!auth.ok) return { ok: false, resp: error("unauthorized", 401, auth.reason) };
-  if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_only") };
+  if (auth.claims.role !== "admin") return { ok: false, resp: error("forbidden", 403, "admin_required") };
   return { ok: true, orgId: auth.claims.org_id, userId: auth.claims.sub };
 }
 
@@ -35,16 +35,17 @@ function requireAdminClaims(req: Request): { ok: true; orgId: string; userId: st
 
 export async function handleSsoConfigSet(req: Request, store: Store): Promise<Response> {
   const a = requireAdminClaims(req); if (!a.ok) return a.resp;
-  const body = await readJson<any>(req);
+  const body = await readJson<{ provider?: unknown; issuer?: unknown; client_id?: unknown; client_secret?: unknown; enabled?: unknown }>(req);
   if (!body) return error("invalid_json", 400);
   const { provider, issuer, client_id, client_secret, enabled } = body;
-  if (!VALID_PROVIDERS.has(provider)) return error("invalid_provider", 400);
-  if (typeof issuer !== "string" || !/^https:\/\//.test(issuer)) return error("invalid_issuer", 400, "issuer must be an https URL");
-  if (typeof client_id !== "string" || !client_id.trim()) return error("invalid_client_id", 400);
-  if (typeof client_secret !== "string" || !client_secret.trim()) return error("invalid_client_secret", 400);
+  if (typeof provider !== "string" || !VALID_PROVIDERS.has(provider)) return error("invalid_provider", 400);
+  // Length caps mirror http.isNonEmptyString's 512 default; the secret gets a generous 4 KB.
+  if (typeof issuer !== "string" || issuer.length > 512 || !/^https:\/\//.test(issuer.trim())) return error("invalid_issuer", 400, "issuer must be an https URL");
+  if (typeof client_id !== "string" || !client_id.trim() || client_id.length > 512) return error("invalid_client_id", 400);
+  if (typeof client_secret !== "string" || !client_secret.trim() || client_secret.length > 4096) return error("invalid_client_secret", 400);
   store.upsertOrgIdpConfig({
     org_id: a.orgId, provider: provider as IdpProvider, issuer: issuer.trim(), client_id: client_id.trim(),
-    client_secret_enc: encryptSecret(client_secret), enabled: !!enabled,
+    client_secret_enc: encryptSecret(client_secret.trim()), enabled: !!enabled,
   });
   store.audit({ org_id: a.orgId, actor_user_id: a.userId, action: "sso.config.set", target: a.orgId, detail: { provider, enabled: !!enabled } });
   return json({ ok: true, redirect_uri: REDIRECT_URI });

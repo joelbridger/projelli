@@ -45,6 +45,10 @@ test("admin can set, get (secret-free), and delete SSO config; member is forbidd
 
   const memberForbidden = await post("/org/sso/config/get", {}, memberToken);
   expect(memberForbidden.status).toBe(403);
+  // Members cannot mutate config either, and unauthenticated callers are rejected.
+  expect((await post("/org/sso/config/set", { provider: "generic", issuer: "https://idp.example.com", client_id: "x", client_secret: "y", enabled: true }, memberToken)).status).toBe(403);
+  expect((await post("/org/sso/config/delete", {}, memberToken)).status).toBe(403);
+  expect((await post("/org/sso/config/get", {})).status).toBe(401);
 
   const del = await post("/org/sso/config/delete", {}, adminToken);
   expect(del.status).toBe(200);
