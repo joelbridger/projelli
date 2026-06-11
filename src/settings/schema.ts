@@ -421,6 +421,15 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     ],
   },
   {
+    key: 'letterheadTemplatePath',
+    category: 'files',
+    label: 'Letterhead Template',
+    description:
+      'Path to a Word document whose letterhead (headers, footers, styles) new documents and workflow deliverables start from. Pick one with the file tree right-click menu.',
+    type: 'text',
+    defaultValue: '',
+  },
+  {
     key: 'trashRetention',
     category: 'files',
     label: 'Trash Retention',

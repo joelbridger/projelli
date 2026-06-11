@@ -304,9 +304,12 @@ export class WorkflowEngine {
   private async writeDeliverable(outputFile: string, markdownContent: string): Promise<void> {
     const isDocx = outputFile.toLowerCase().endsWith('.docx');
     if (isDocx && this.fileOps.writeFileBinary) {
-      const { markdownToDocxBytes } = await import('@/utils/docx-io');
+      const { markdownToDocxBytes, applyLetterheadIfConfigured } = await import('@/utils/docx-io');
       const bytes = await markdownToDocxBytes(markdownContent, outputFile);
-      await this.fileOps.writeFileBinary(outputFile, bytes);
+      // VG-4c — put the deliverable on the firm letterhead if one is configured
+      // (opt-in; fail-open: pass-through when unset, not in Tauri, or on error).
+      const finalBytes = await applyLetterheadIfConfigured(bytes);
+      await this.fileOps.writeFileBinary(outputFile, finalBytes);
       return;
     }
     if (isDocx) {
@@ -433,7 +436,12 @@ export class WorkflowEngine {
           : {}),
     };
     const bytes = await this.analyzeDeps.serializeContradictions(result, meta);
-    await this.fileOps.writeFileBinary(config.outputFile, bytes);
+    // VG-4c — put the deliverable on the firm letterhead if one is configured
+    // (opt-in; fail-open). Applied to the serialized bytes, AFTER the retrieval
+    // note is rendered into `meta`, so the disclosure is never disturbed.
+    const { applyLetterheadIfConfigured } = await import('@/utils/docx-io');
+    const finalBytes = await applyLetterheadIfConfigured(bytes);
+    await this.fileOps.writeFileBinary(config.outputFile, finalBytes);
 
     // Record the analyze tool call. The scope + retrieval query + counts make
     // the run auditable: what matter it was confined to, what it searched for,

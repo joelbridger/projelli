@@ -1878,6 +1878,25 @@ function App() {
     }
   }, [rootPath, setFileTree, openFile, prompt]);
 
+  // VG-4c — pick a Word file as the firm letterhead template. Stores its path
+  // in the `letterheadTemplatePath` setting; new documents and workflow
+  // deliverables then start from it. Confirms via the standard dialog.
+  const handleSetLetterheadTemplate = useCallback(
+    (path: string) => {
+      useSettingsStore.getState().setSetting('letterheadTemplatePath', path);
+      const name = path.split('/').pop() ?? path;
+      void confirm(
+        `New documents and workflow deliverables will now start from "${name}". You can change or clear this in Settings under Files & Workspace.`,
+        {
+          title: 'Letterhead template set',
+          confirmLabel: 'Got it',
+          cancelLabel: 'Close',
+        },
+      );
+    },
+    [confirm],
+  );
+
   // Handle create blank .docx file at root (goes to docs folder)
   const handleCreateDocxAtRoot = useCallback(async () => {
     if (!workspaceServiceRef.current || !rootPath) return;
@@ -1892,7 +1911,29 @@ function App() {
     const fileName = name.endsWith('.docx') ? name : `${name}.docx`;
     const filePath = `${rootPath}/docs/${fileName}`;
     try {
-      const bytes = await createBlankDocx();
+      // VG-4c — a new document is a straight byte copy of the letterhead
+      // template when one is configured and readable (headers/footers/styles/
+      // body all come along, trivially correct). On any read failure, fall
+      // back to a blank document so creation never blocks.
+      const templatePath = useSettingsStore
+        .getState()
+        .getSetting<string>('letterheadTemplatePath');
+      let bytes: Uint8Array | null = null;
+      if (templatePath && templatePath.trim()) {
+        try {
+          const templateBuf = await workspaceServiceRef.current.readFileBinary(templatePath);
+          bytes = new Uint8Array(templateBuf);
+        } catch (readError) {
+          console.warn(
+            'Could not read the letterhead template; creating a blank document instead.',
+            readError,
+          );
+          bytes = null;
+        }
+      }
+      if (!bytes) {
+        bytes = await createBlankDocx();
+      }
       const buffer = new ArrayBuffer(bytes.byteLength);
       new Uint8Array(buffer).set(bytes);
       await workspaceServiceRef.current.writeFileBinary(filePath, buffer);
@@ -3454,6 +3495,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
               onCreateCsvAtRoot={handleCreateCsvAtRoot}
               onCreateDocxAtRoot={handleCreateDocxAtRoot}
               onCreatePptxAtRoot={handleCreatePptxAtRoot}
+              onSetLetterheadTemplate={handleSetLetterheadTemplate}
               onCreateSourceFileAtRoot={handleCreateSourceFileAtRoot}
               onCreateFolderAtRoot={handleCreateFolderAtRoot}
               onUploadFiles={handleUploadFiles}

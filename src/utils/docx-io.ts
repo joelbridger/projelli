@@ -1231,3 +1231,85 @@ export function docxBytesToDataUrl(bytes: Uint8Array): string {
   }
   return `data:${mime};base64,${btoa(binary)}`;
 }
+
+// ---------------------------------------------------------------------------
+// VG-4c — firm letterhead
+// ---------------------------------------------------------------------------
+
+/** Encode bytes to base64 in chunks (avoids the call-stack limit `btoa` hits
+ *  when spread over a large byte array). */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    const slice = bytes.subarray(i, i + CHUNK);
+    binary += String.fromCharCode(...slice);
+  }
+  return btoa(binary);
+}
+
+/** Decode a base64 string back to bytes. */
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    out[i] = binary.charCodeAt(i);
+  }
+  return out;
+}
+
+/**
+ * VG-4c — the single choke point that puts a workflow deliverable (or any
+ * generated `.docx`) onto the firm letterhead, if one is configured.
+ *
+ * Behavior, in order, and ALWAYS opt-in / fail-open:
+ *   - Not in the desktop app (no native engine) -> return `bytes` unchanged.
+ *   - No `letterheadTemplatePath` set -> return `bytes` unchanged (the feature
+ *     is off until the user picks a template).
+ *   - Template unreadable, or the merge command errors -> `console.warn` and
+ *     return `bytes` unchanged. A deliverable must never fail because of the
+ *     letterhead.
+ *
+ * Only when a template is set, readable, and the merge succeeds does this
+ * return the letterheaded bytes. New blank documents do NOT go through here —
+ * they are a straight byte copy of the template (see `handleCreateDocxAtRoot`),
+ * which is trivially correct.
+ */
+export async function applyLetterheadIfConfigured(bytes: Uint8Array): Promise<Uint8Array> {
+  // Lazy imports so this module stays usable in the browser/test bundle.
+  const { isTauri } = await import('@tauri-apps/api/core');
+  if (!isTauri()) return bytes;
+
+  const { useSettingsStore } = await import('@/stores/settingsStore');
+  const templatePath = useSettingsStore
+    .getState()
+    .getSetting<string>('letterheadTemplatePath');
+  if (!templatePath || !templatePath.trim()) return bytes;
+
+  try {
+    // Resolve a workspace-relative template path to absolute (mirrors the
+    // docx command wrappers), then read its bytes via the Tauri fs plugin.
+    const { useWorkspaceStore } = await import('@/stores/workspaceStore');
+    const { resolveWorkspacePath } = await import('@/modules/workspace/pathResolve');
+    const rootPath = useWorkspaceStore.getState().rootPath;
+    const absoluteTemplatePath = rootPath
+      ? resolveWorkspacePath(rootPath, templatePath)
+      : templatePath;
+
+    const fs = await import('@tauri-apps/plugin-fs');
+    const templateBytes = await fs.readFile(absoluteTemplatePath);
+
+    const { docxApplyLetterhead } = await import('@/utils/docx-commands');
+    const mergedB64 = await docxApplyLetterhead(
+      bytesToBase64(bytes),
+      bytesToBase64(templateBytes),
+    );
+    return base64ToBytes(mergedB64);
+  } catch (err) {
+    console.warn(
+      'Could not apply the letterhead template; writing the document without it.',
+      err,
+    );
+    return bytes;
+  }
+}

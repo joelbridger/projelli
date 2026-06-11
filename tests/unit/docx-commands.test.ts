@@ -18,6 +18,7 @@ import {
   docxResolveAll,
   docxAuthorRevision,
   docxAuthorRevisions,
+  docxApplyLetterhead,
   isDocxEngineAvailable,
 } from '@/utils/docx-commands';
 import type { DocumentJson, DocxAiEdit } from '@/types/docx';
@@ -111,6 +112,16 @@ describe('docx-commands (Tauri available)', () => {
       author: 'You',
       date: null,
     });
+  });
+
+  it('docxApplyLetterhead passes both base64 documents and returns the merged base64', async () => {
+    invokeMock.mockResolvedValue('bWVyZ2Vk'); // "merged"
+    const out = await docxApplyLetterhead('Z2Vu', 'dG1wbA==');
+    expect(invoke).toHaveBeenCalledWith('docx_apply_letterhead', {
+      generatedB64: 'Z2Vu',
+      templateB64: 'dG1wbA==',
+    });
+    expect(out).toBe('bWVyZ2Vk');
   });
 });
 

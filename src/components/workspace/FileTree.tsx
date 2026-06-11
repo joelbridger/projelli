@@ -116,6 +116,12 @@ interface FileTreeProps {
   onCreateDocxAtRoot?: () => void;
   onCreatePptxAtRoot?: () => void;
   /**
+   * VG-4c: set this `.docx` as the firm letterhead template. Shown only on
+   * `.docx` files in the per-file menu; the handler writes the
+   * `letterheadTemplatePath` setting and confirms.
+   */
+  onSetLetterheadTemplate?: (path: string) => void;
+  /**
    * UX-16: optional confirm dialog. When provided, replaces the
    * built-in window.confirm() for bulk delete with a proper modal. If
    * not provided, falls back to window.confirm() (test mode / storybook).
@@ -160,6 +166,7 @@ export function FileTree({
   onCreateCsvAtRoot,
   onCreateDocxAtRoot,
   onCreatePptxAtRoot,
+  onSetLetterheadTemplate,
   onConfirm,
   onDropAIMessage,
 }: FileTreeProps) {
@@ -539,6 +546,7 @@ export function FileTree({
               onMove={onMove}
               onDownload={onDownload}
               onCreateWhiteboard={onCreateWhiteboard}
+              onSetLetterheadTemplate={onSetLetterheadTemplate}
               dragOverPath={dragOverPath}
               setDragOverPath={setDragOverPath}
               togglePathSelection={togglePathSelection}
@@ -588,6 +596,7 @@ interface FileTreeItemProps {
   onMove: ((sourcePath: string, targetPath: string) => Promise<void>) | undefined;
   onDownload: ((path: string, name: string) => void) | undefined;
   onCreateWhiteboard: ((parentPath: string) => void) | undefined;
+  onSetLetterheadTemplate: ((path: string) => void) | undefined;
   dragOverPath: string | null;
   setDragOverPath: (path: string | null) => void;
   togglePathSelection: (path: string) => void;
@@ -619,6 +628,7 @@ function FileTreeItem({
   onMove,
   onDownload,
   onCreateWhiteboard,
+  onSetLetterheadTemplate,
   dragOverPath,
   setDragOverPath,
   togglePathSelection,
@@ -931,6 +941,19 @@ function FileTreeItem({
                   Download
                 </DropdownMenuItem>
               )}
+              {/* VG-4c: pick this Word file as the firm letterhead template.
+                  New documents and workflow deliverables start from it. */}
+              {!isFolder &&
+                onSetLetterheadTemplate &&
+                node.name.toLowerCase().endsWith('.docx') && (
+                  <DropdownMenuItem
+                    data-testid="use-as-letterhead"
+                    onClick={() => { onSetLetterheadTemplate(node.path); setIsMenuOpen(false); }}
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-2" />
+                    Use as letterhead template
+                  </DropdownMenuItem>
+                )}
               {/* WS-PRIV: tag this file's privilege. Files only — privilege is
                   per-source. Changing it re-tags the file's indexed chunks so it
                   is excluded from AI retrieval by default. */}
@@ -976,6 +999,7 @@ function FileTreeItem({
               onMove={onMove}
               onDownload={onDownload}
               onCreateWhiteboard={onCreateWhiteboard}
+              onSetLetterheadTemplate={onSetLetterheadTemplate}
               dragOverPath={dragOverPath}
               setDragOverPath={setDragOverPath}
               togglePathSelection={togglePathSelection}

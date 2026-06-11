@@ -42,6 +42,7 @@ workflow features.
 | `huge-notes.md` | ~2MB of generated legal-flavored markdown. Tests large-file handling. |
 | `empty.docx` | Zero-byte file (deliberately invalid). Tests graceful error handling. |
 | `Müller — Schäfer engagement (draft 2).docx` | Valid minimal docx exercising unicode characters, spaces, and parentheses in the filename. Tests file-tree handling of unusual names. |
+| `letterhead-template.docx` | **VG-4c letterhead fixture.** A docx whose package carries a section HEADER (`MARCHETTI & ASSOCIATES LLP` + address, in `word/header1.xml`) and a FOOTER with a live PAGE-number field (`word/footer1.xml`), plus an empty body. The letterhead merge re-houses a generated document's content into this package (header/footer parts and the binding body-level `sectPr` preserved). |
 
 ### Planted Contradictions (deposition vs. summary)
 

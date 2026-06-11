@@ -214,3 +214,26 @@ export async function docxConvertToPdf(srcPath: string): Promise<string> {
   if (!isTauri()) throw new Error(BROWSER_ERROR);
   return invoke<string>('convert_docx_to_pdf', { inputPath: toAbsoluteDocxPath(srcPath) });
 }
+
+/**
+ * VG-4c — re-house a generated `.docx`'s content inside a firm letterhead
+ * template package. Both arguments are base64-encoded `.docx` bytes; the return
+ * is the base64-encoded letterheaded document. Operates on in-memory bytes (a
+ * workflow deliverable is generated in memory before it is written), so unlike
+ * the other commands it takes no file path.
+ *
+ * @throws in browser/test mode, or with the engine's error string if either
+ *   document can't be parsed. The `applyLetterheadIfConfigured` choke point in
+ *   `docx-io.ts` turns any throw into a pass-through (a deliverable must never
+ *   fail because of the letterhead).
+ */
+export async function docxApplyLetterhead(
+  generatedB64: string,
+  templateB64: string,
+): Promise<string> {
+  if (!isTauri()) throw new Error(BROWSER_ERROR);
+  return invoke<string>('docx_apply_letterhead', {
+    generatedB64,
+    templateB64,
+  });
+}

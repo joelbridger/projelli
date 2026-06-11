@@ -101,6 +101,9 @@ pub fn run() {
             // "clean copy" (strip hidden metadata, optionally accept-all + drop comments).
             commands::docx::docx_export_copy,
             commands::docx::docx_export_clean_copy,
+            // VG-4c: re-house generated deliverable bytes inside a firm
+            // letterhead template package (sectPr-safe).
+            commands::docx::docx_apply_letterhead,
             // Phase 1 email — Microsoft 365 import.
             commands::mail::mail_set_workspace,
             commands::mail::mail_begin_login,

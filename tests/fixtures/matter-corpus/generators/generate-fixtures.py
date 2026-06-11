@@ -1068,6 +1068,79 @@ def make_unicode_docx():
 
 
 # ---------------------------------------------------------------------------
+# VG-4c (Wave 2 Task 12) — firm letterhead template. A .docx whose package
+# carries a section HEADER (firm name + address) and a FOOTER (page number
+# field) plus an essentially empty body. The letterhead merge re-houses a
+# generated document's body inside THIS package, so new documents and workflow
+# deliverables come out on the firm's letterhead. The header/footer live in
+# their own package parts (word/header*.xml, word/footer*.xml) which the merge
+# preserves verbatim; the binding sectPr is what the merge carries over.
+# ---------------------------------------------------------------------------
+
+# The header line the letterhead stamps on every page. Tests assert the merged
+# package keeps the header part; the wording is firm letterhead, not user copy.
+LETTERHEAD_FIRM_LINE = "MARCHETTI & ASSOCIATES LLP"
+LETTERHEAD_ADDRESS_LINE = "1200 Commerce Drive, New York"
+
+
+def _footer_page_number_field(paragraph):
+    """Insert a Word PAGE field into `paragraph` so the footer shows the live
+    page number (the real letterhead footer pattern). python-docx has no
+    first-class field API, so we author the field run group by hand."""
+    run = paragraph.add_run()
+    fld_begin = OxmlElement("w:fldChar")
+    fld_begin.set(qn("w:fldCharType"), "begin")
+    instr = OxmlElement("w:instrText")
+    instr.set(qn("xml:space"), "preserve")
+    instr.text = " PAGE "
+    fld_sep = OxmlElement("w:fldChar")
+    fld_sep.set(qn("w:fldCharType"), "separate")
+    fld_end = OxmlElement("w:fldChar")
+    fld_end.set(qn("w:fldCharType"), "end")
+    r = run._r
+    r.append(fld_begin)
+    r.append(instr)
+    r.append(fld_sep)
+    r.append(fld_end)
+
+
+def make_letterhead_template():
+    if not HAS_DOCX:
+        print("SKIP: letterhead-template.docx (no python-docx)")
+        return
+    path = out("letterhead-template.docx")
+    doc = DocxDocument()
+
+    section = doc.sections[0]
+
+    # Header: firm name (bold) + address line. Lands in word/header*.xml.
+    header = section.header
+    header.is_linked_to_previous = False
+    h1 = header.paragraphs[0]
+    h1.text = ""
+    run = h1.add_run(LETTERHEAD_FIRM_LINE)
+    run.bold = True
+    run.font.size = Pt(14)
+    h2 = header.add_paragraph(LETTERHEAD_ADDRESS_LINE)
+    for r in h2.runs:
+        r.font.size = Pt(9)
+
+    # Footer: a live PAGE-number field. Lands in word/footer*.xml.
+    footer = section.footer
+    footer.is_linked_to_previous = False
+    f1 = footer.paragraphs[0]
+    f1.text = "Page "
+    _footer_page_number_field(f1)
+
+    # Body: a single empty paragraph. The letterhead carries no body content of
+    # its own; the merge replaces the body with the generated document's blocks.
+    doc.add_paragraph("")
+
+    doc.save(str(path))
+    print(f"CREATED: {path.name}")
+
+
+# ---------------------------------------------------------------------------
 # 12. Scanned PDFs (VG-2 OCR pipeline fixtures) — image-only pages, no text
 # layer, so extractPdfText reports scanned: true and the OCR pipeline runs.
 # ---------------------------------------------------------------------------
@@ -1360,6 +1433,7 @@ if __name__ == "__main__":
         ("matter-b", make_matter_b),
         ("scanned-filing", make_scanned_filing_stamped),
         ("scanned-fax", make_scanned_fax_noisy),
+        ("letterhead-template", make_letterhead_template),
     ]
     only = set(sys.argv[1:])
     unknown = only - {name for name, _ in MAKERS}

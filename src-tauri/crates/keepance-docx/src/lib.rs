@@ -32,6 +32,7 @@
 
 pub mod author;
 pub mod error;
+pub mod letterhead;
 pub mod model;
 pub mod package;
 pub mod parse;
@@ -48,6 +49,7 @@ pub mod validate;
 pub mod fixture;
 
 pub use error::{DocxError, Result};
+pub use letterhead::merge_into_template;
 pub use model::{
     BlockContent, Comment, Document, Inline, Paragraph, RevisionKind, RevisionMeta, Run,
     DOM_FORMAT_VERSION,
