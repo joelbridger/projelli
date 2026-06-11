@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 1,
+  "runId": "run_1781137775664_rr1r2ou",
+  "template": {
+    "id": "legal-deposition-contradiction-finder",
+    "name": "Deposition Contradiction Finder",
+    "description": "Flag candidate contradictions between a witness's deposition testimony and the rest of the matter record (other documents, emails, prior statements). Grounded in matter-scoped retrieval; every finding carries a citation you verify. Produces a structured Word deliverable.",
+    "version": "2.0.0",
+    "category": "legal",
+    "requiresVerification": true,
+    "verificationNote": "Verify every flagged contradiction against the original transcript before use. AI can misread nuance, context, or page breaks.",
+    "steps": [
+      {
+        "id": "interview",
+        "type": "interview",
+        "name": "Deposition Details",
+        "description": "Provide the transcript excerpts and the key claims you want scrutinized",
+        "config": {
+          "questions": [
+            {
+              "id": "matterName",
+              "question": "Matter name",
+              "description": "The case or matter name as you track it in your files.",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g., Smith v. Acme Corp."
+            },
+            {
+              "id": "witnessName",
+              "question": "Witness name",
+              "description": "Full name of the deponent whose transcript you are analyzing.",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g., Jane Doe"
+            },
+            {
+              "id": "depositionDate",
+              "question": "Deposition date",
+              "description": "Date the deposition was taken. Used for citation purposes in the output.",
+              "type": "text",
+              "required": true,
+              "placeholder": "e.g., May 15, 2026"
+            },
+            {
+              "id": "keyClaimsToScrutinize",
+              "question": "Key claims to scrutinize",
+              "description": "The specific factual assertions or storyline elements you want to test for consistency. Be specific — the more targeted this list, the more useful the output.",
+              "type": "textarea",
+              "required": true,
+              "placeholder": "e.g., Witness claims she never received the email. Witness claims the meeting on March 3 never happened. Witness claims she had no supervisory role over the plaintiff."
+            },
+            {
+              "id": "depositionExcerpts",
+              "question": "Deposition transcript excerpts",
+              "description": "Paste the relevant portions of the deposition transcript. Include page and line numbers (e.g., \"P. 42:3-18\") for each excerpt — the analysis will reference them. You can paste multiple excerpts; separate them with a blank line.",
+              "type": "textarea",
+              "required": true,
+              "placeholder": "P. 42:3-18\nQ: Did you receive the email?\nA: No, I never received anything from him.\n\nP. 87:9-21\nQ: How often did you communicate with the plaintiff?\nA: Rarely. Maybe once or twice a quarter."
+            },
+            {
+              "id": "priorStatements",
+              "question": "Prior statements to compare against (optional)",
+              "description": "Paste excerpts from earlier sworn statements, affidavits, interrogatory answers, or prior deposition testimony. If none, leave blank. Including these allows the analysis to flag contradictions between this deposition and earlier statements.",
+              "type": "textarea",
+              "required": false,
+              "placeholder": "e.g., Affidavit dated January 10, 2026: \"I received the email from Mr. Johnson and forwarded it to my supervisor immediately.\""
+            }
+          ]
+        }
+      },
+      {
+        "id": "analyze-contradictions",
+        "type": "analyze",
+        "name": "Flag Contradictions (cited)",
+        "description": "Retrieve the matter record, flag candidate contradictions, verify each citation, and produce a Word deliverable",
+        "config": {
+          "analyzeKind": "contradictions",
+          "outputFile": "Deposition Contradiction Analysis.docx",
+          "retrievalQueryTemplate": "Testimony and statements by {{witnessName}} relevant to: {{keyClaimsToScrutinize}}. Deposition excerpts: {{depositionExcerpts}}. Prior statements: {{priorStatements}}",
+          "topK": 12,
+          "promptTemplate": "You are a tireless first-year associate assisting a licensed attorney. You FLAG candidate contradictions for the attorney to verify. You do not render judgments and you never provide legal advice. Your job is to organize the record so the attorney can exercise their own judgment.\n\nMatter: {{matterName}}\nWitness: {{witnessName}}\nDeposition date: {{depositionDate}}\n\nKey claims the attorney wants scrutinized:\n{{keyClaimsToScrutinize}}\n\nDeposition transcript excerpts the attorney pasted:\n{{depositionExcerpts}}\n\nPrior statements the attorney pasted to compare against:\n{{priorStatements}}\n\nBelow is additional context retrieved from THIS MATTER's documents and emails. Each source is numbered [N]. When you quote a statement, cite the source NUMBER it came from.\n\n{{retrievedContext}}\n\nIdentify candidate contradictions between the witness's testimony and other statements (elsewhere in the testimony, in prior statements, or in the retrieved matter sources). For EACH candidate contradiction return a finding with:\n  - statementA: the first statement, with the exact quote and the source NUMBER [N] it came from.\n  - statementB: the conflicting statement, with the exact quote and the source NUMBER [N] it came from.\n  - conflictRationale: a plain-language explanation of why they conflict.\n  - topic: a short heading grouping the finding.\n  - followUpQuestions: optional follow-up deposition questions.\n\nRules:\n  - Only cite statements that actually appear in the material above. If a quote is not in any numbered source, set its sourceNumber to 0. Never fabricate a citation.\n  - Do NOT invent contradictions. If the record does not support a conflict, do not report one. An empty findings list is a valid, honest answer.\n  - Quote exactly; do not paraphrase inside the quote field.",
+          "documentTitle": "Deposition Contradiction Analysis: {{witnessName}}",
+          "verificationBanner": "Each finding below was flagged by an AI associate and carries a citation. Verify every quote and page/line reference against the original transcript and source before relying on it.",
+          "systemPrompt": "You are a methodical, citation-focused legal research assistant helping a licensed attorney organize and analyze deposition testimony. You never provide legal advice and always frame your output as a starting point for the attorney's review. You do not speculate beyond what the record supports, and you never fabricate a citation. If the record is ambiguous, you note the ambiguity rather than resolve it."
+        }
+      }
+    ],
+    "requiredInputs": [],
+    "outputs": [
+      "Deposition Contradiction Analysis.docx"
+    ],
+    "namedOutputs": [
+      {
+        "id": "contradictions",
+        "name": "Contradiction findings",
+        "schema": "array"
+      },
+      {
+        "id": "followup_questions",
+        "name": "Suggested follow-up questions",
+        "schema": "array"
+      }
+    ]
+  },
+  "workflowFolderPath": "/tmp/wedge-ws/Deposition Contradiction Finder - 2026-06-11_00-29-35",
+  "currentStepIndex": 1,
+  "status": "completed",
+  "inputs": {
+    "interview_answers": {
+      "matterName": "Johnson v. Nexus Dynamics Corp.",
+      "witnessName": "Marcus Johnson",
+      "depositionDate": "May 28, 2026",
+      "keyClaimsToScrutinize": "Whether Johnson forwarded documents to his personal email or all materials stayed on company servers. The deadline he was given for his written response to the compliance review. How many weeks of severance he was offered.",
+      "depositionExcerpts": "Q. Did you preserve those documents? A. I believe I did. I forwarded them to my personal email for safekeeping. Q. Did Mr. Weston tell you a deadline for submitting the explanation? A. He said I had until October 17, 2025 to submit my written response. Q. At the time of your termination, did anyone at Nexus Dynamics explain the severance package being offered? A. Sandra Liu gave me a document describing a four-week severance.",
+      "priorStatements": ""
+    },
+    "matterName": "Johnson v. Nexus Dynamics Corp.",
+    "witnessName": "Marcus Johnson",
+    "depositionDate": "May 28, 2026",
+    "keyClaimsToScrutinize": "Whether Johnson forwarded documents to his personal email or all materials stayed on company servers. The deadline he was given for his written response to the compliance review. How many weeks of severance he was offered.",
+    "depositionExcerpts": "Q. Did you preserve those documents? A. I believe I did. I forwarded them to my personal email for safekeeping. Q. Did Mr. Weston tell you a deadline for submitting the explanation? A. He said I had until October 17, 2025 to submit my written response. Q. At the time of your termination, did anyone at Nexus Dynamics explain the severance package being offered? A. Sandra Liu gave me a document describing a four-week severance.",
+    "priorStatements": "",
+    "analyze-contradictions_findings": [
+      {
+        "topic": "Document Preservation",
+        "statementA": {
+          "locator": "deposition-transcript-johnson.txt paragraph 2",
+          "quote": "I believe I did. I forwarded them to my personal email for safekeeping.",
+          "citationId": "d3653c718e81ad62830070273015590cf74746c7dfe6a22c8e6ef837246e009f",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "verdict": "verified"
+        },
+        "statementB": {
+          "locator": "Not grounded in retrieved record",
+          "quote": "all relevant documents remained on company servers only",
+          "verdict": "unverified"
+        },
+        "conflictRationale": "The witness claims to have preserved the documents by forwarding them to their personal email, while the incident summary states that all documents stayed within company systems.",
+        "verified": false
+      },
+      {
+        "topic": "Document Preservation",
+        "statementA": {
+          "locator": "deposition-transcript-johnson.txt paragraph 2",
+          "quote": "I think it was September 9 or 10. Within a day or two of receiving the Compliance email.",
+          "citationId": "d3653c718e81ad62830070273015590cf74746c7dfe6a22c8e6ef837246e009f",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+          "verdict": "verified"
+        },
+        "statementB": {
+          "locator": "Not grounded in retrieved record",
+          "quote": "Following receipt of the Compliance Department's document preservation notice dated September 8, 2025",
+          "verdict": "unverified"
+        },
+        "conflictRationale": "The witness claims to have forwarded the documents around September 9-10, while the incident summary states that they were received on September 8.",
+        "verified": false
+      },
+      {
+        "topic": "Deadline for Written Explanation",
+        "statementA": {
+          "locator": "Local Chat 1.aichat paragraph 23",
+          "quote": "He said I had until October 17, 2025 to submit my written response.",
+          "citationId": "dd7591a1e4d430a693b38db57645fa4f14286f3de1cf34521618fa14455dd819",
+          "matterId": "unassigned",
+          "sourceId": "/tmp/wedge-ws/AI Chats/2026-06-11/Local Chat 1.aichat",
+          "verdict": "verified"
+        },
+        "statementB": {
+          "locator": "Not grounded in retrieved record",
+          "quote": "The deadline given to Johnson was October 10, 2025",
+          "verdict": "unverified"
+        },
+        "conflictRationale": "The witness claims the deadline for submitting a written explanation was October 17, while the incident summary states it was October 10.",
+        "verified": false
+      }
+    ],
+    "analyze-contradictions_summary": {
+      "total": 3,
+      "verified": 0,
+      "unverified": 3
+    },
+    "analyze-contradictions_file": "Deposition Contradiction Analysis.docx",
+    "analyze-contradictions_scope": {
+      "kind": "allMatters"
+    }
+  },
+  "stepOutputs": [
+    {
+      "interview_answers": {
+        "matterName": "Johnson v. Nexus Dynamics Corp.",
+        "witnessName": "Marcus Johnson",
+        "depositionDate": "May 28, 2026",
+        "keyClaimsToScrutinize": "Whether Johnson forwarded documents to his personal email or all materials stayed on company servers. The deadline he was given for his written response to the compliance review. How many weeks of severance he was offered.",
+        "depositionExcerpts": "Q. Did you preserve those documents? A. I believe I did. I forwarded them to my personal email for safekeeping. Q. Did Mr. Weston tell you a deadline for submitting the explanation? A. He said I had until October 17, 2025 to submit my written response. Q. At the time of your termination, did anyone at Nexus Dynamics explain the severance package being offered? A. Sandra Liu gave me a document describing a four-week severance.",
+        "priorStatements": ""
+      },
+      "matterName": "Johnson v. Nexus Dynamics Corp.",
+      "witnessName": "Marcus Johnson",
+      "depositionDate": "May 28, 2026",
+      "keyClaimsToScrutinize": "Whether Johnson forwarded documents to his personal email or all materials stayed on company servers. The deadline he was given for his written response to the compliance review. How many weeks of severance he was offered.",
+      "depositionExcerpts": "Q. Did you preserve those documents? A. I believe I did. I forwarded them to my personal email for safekeeping. Q. Did Mr. Weston tell you a deadline for submitting the explanation? A. He said I had until October 17, 2025 to submit my written response. Q. At the time of your termination, did anyone at Nexus Dynamics explain the severance package being offered? A. Sandra Liu gave me a document describing a four-week severance.",
+      "priorStatements": ""
+    },
+    {
+      "analyze-contradictions_findings": [
+        {
+          "topic": "Document Preservation",
+          "statementA": {
+            "locator": "deposition-transcript-johnson.txt paragraph 2",
+            "quote": "I believe I did. I forwarded them to my personal email for safekeeping.",
+            "citationId": "d3653c718e81ad62830070273015590cf74746c7dfe6a22c8e6ef837246e009f",
+            "matterId": "unassigned",
+            "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+            "verdict": "verified"
+          },
+          "statementB": {
+            "locator": "Not grounded in retrieved record",
+            "quote": "all relevant documents remained on company servers only",
+            "verdict": "unverified"
+          },
+          "conflictRationale": "The witness claims to have preserved the documents by forwarding them to their personal email, while the incident summary states that all documents stayed within company systems.",
+          "verified": false
+        },
+        {
+          "topic": "Document Preservation",
+          "statementA": {
+            "locator": "deposition-transcript-johnson.txt paragraph 2",
+            "quote": "I think it was September 9 or 10. Within a day or two of receiving the Compliance email.",
+            "citationId": "d3653c718e81ad62830070273015590cf74746c7dfe6a22c8e6ef837246e009f",
+            "matterId": "unassigned",
+            "sourceId": "/tmp/wedge-ws/deposition-transcript-johnson.txt",
+            "verdict": "verified"
+          },
+          "statementB": {
+            "locator": "Not grounded in retrieved record",
+            "quote": "Following receipt of the Compliance Department's document preservation notice dated September 8, 2025",
+            "verdict": "unverified"
+          },
+          "conflictRationale": "The witness claims to have forwarded the documents around September 9-10, while the incident summary states that they were received on September 8.",
+          "verified": false
+        },
+        {
+          "topic": "Deadline for Written Explanation",
+          "statementA": {
+            "locator": "Local Chat 1.aichat paragraph 23",
+            "quote": "He said I had until October 17, 2025 to submit my written response.",
+            "citationId": "dd7591a1e4d430a693b38db57645fa4f14286f3de1cf34521618fa14455dd819",
+            "matterId": "unassigned",
+            "sourceId": "/tmp/wedge-ws/AI Chats/2026-06-11/Local Chat 1.aichat",
+            "verdict": "verified"
+          },
+          "statementB": {
+            "locator": "Not grounded in retrieved record",
+            "quote": "The deadline given to Johnson was October 10, 2025",
+            "verdict": "unverified"
+          },
+          "conflictRationale": "The witness claims the deadline for submitting a written explanation was October 17, while the incident summary states it was October 10.",
+          "verified": false
+        }
+      ],
+      "analyze-contradictions_summary": {
+        "total": 3,
+        "verified": 0,
+        "unverified": 3
+      },
+      "analyze-contradictions_file": "Deposition Contradiction Analysis.docx",
+      "analyze-contradictions_scope": {
+        "kind": "allMatters"
+      }
+    }
+  ],
+  "completedAnswers": [
+    {
+      "stepName": "Deposition Details",
+      "answers": {
+        "matterName": "Johnson v. Nexus Dynamics Corp.",
+        "witnessName": "Marcus Johnson",
+        "depositionDate": "May 28, 2026",
+        "keyClaimsToScrutinize": "Whether Johnson forwarded documents to his personal email or all materials stayed on company servers. The deadline he was given for his written response to the compliance review. How many weeks of severance he was offered.",
+        "depositionExcerpts": "Q. Did you preserve those documents? A. I believe I did. I forwarded them to my personal email for safekeeping. Q. Did Mr. Weston tell you a deadline for submitting the explanation? A. He said I had until October 17, 2025 to submit my written response. Q. At the time of your termination, did anyone at Nexus Dynamics explain the severance package being offered? A. Sandra Liu gave me a document describing a four-week severance.",
+        "priorStatements": ""
+      }
+    }
+  ],
+  "startTime": "2026-06-11T00:29:35.664Z",
+  "artifacts": [
+    "Deposition Contradiction Analysis.docx"
+  ],
+  "endTime": "2026-06-11T00:32:23.126Z"
+}

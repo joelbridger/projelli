@@ -1,0 +1,18 @@
+Running as unit: run-rd379987f997c401bb1719321565a12e2.scope; invocation ID: e2a4b58890d843d587608bb6234182ed
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+[2026-06-10][23:53:59][keepance_lib::commands::rag][INFO] rag: migrating pre-3.0 vector store (re-index under matter scope)
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:53:59][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:54:02][lance_index::scalar::expression][INFO] visit_node: depth=0

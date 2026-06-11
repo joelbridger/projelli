@@ -33,6 +33,16 @@
 #     proof) and would bump the indexable count past the expected 4 files
 #     (extractor.rs TEXT_EXTENSIONS over the corpus = deposition .txt,
 #     incident-summary .md, huge-notes.md, acme-supply-agreement.txt).
+#   · huge-notes.md ALSO stays OUT (Task 7, 2026-06-11 — RESULTS.md F-501):
+#     first-indexing it oom-killed the real app at 3G (twice), 6G and 12G
+#     caps, identical phase, monotonic ~1.5 GB/s growth with no release
+#     (logs/cgroup-mem.csv; index_one_file embeds all ~1,400 chunks of the
+#     2 MB file through one embed_documents call → fastembed's internal
+#     256-sequence batches). None of the wedge claims live in that file
+#     (leg 1's corpus never included it), so the positive pass runs on the
+#     3 indexable survivors and the OOM is a logged P1 finding, not fixed
+#     here. Expected banner/status count for this harness is therefore
+#     "3 files", not the plan's original 4.
 #
 # OUT OF SCOPE on this rig (stays on the Windows spot check): live mail
 # import (TLS-only IMAP vs the plaintext greenmail fixture, F-419) and the
@@ -162,7 +172,8 @@ cmd_up() {
   rm -rf "$PROFILE" "$WS"
   mkdir -p "$PROFILE/data/keepance/models" "$PROFILE/config" "$PROFILE/cache" "$WS"
   cp -a "$MODEL_SRC" "$PROFILE/data/keepance/models/e5-small"
-  rsync -a --exclude generators --exclude README.md \
+  # huge-notes.md excluded — F-501 (embedding it oom-kills the app; header).
+  rsync -a --exclude generators --exclude README.md --exclude huge-notes.md \
     "$REPO/tests/fixtures/matter-corpus/" "$WS/"
   echo "workspace files:"; ls "$WS"
   echo "up OK — next: $0 launch   (run it in the background; it blocks)"
@@ -200,7 +211,22 @@ wedge_launch_inner() {
   # trap would never fire, and the sampler loop would be orphaned.
   trap 'kill "$sampler" 2>/dev/null || true; rm -f "$SAMPLER_PID"' EXIT
 
-  systemd-run --user --scope -p MemoryMax=3G -p MemorySwapMax=0 \
+  # MemoryMax RECALIBRATED 3G→12G during Task 7 (2026-06-11). The campaign's
+  # 3G bound was measured on a run whose embedder never embedded a document
+  # (F-415/F-416 — the model never downloaded). REAL first-indexing of the
+  # fixture corpus oom-killed the scope at 3G twice AND at 6G once, at the
+  # identical phase (journal 'Failed with result oom-kill'; 1 s curve in
+  # logs/cgroup-mem.csv: 188 MB → 6.0 GiB in ~5 s). Grounded mechanism, the
+  # RESULTS.md finding: index_one_file embeds EVERY chunk of a file in one
+  # embed_documents call (rag/mod.rs:343, batch_size None) and fastembed
+  # 4.9.1 then batches 256 sequences internally (DEFAULT_BATCH_SIZE,
+  # text_embedding/impl.rs:292); huge-notes.md (2 MB ≈ 1,400 chunks of ~384
+  # tokens, chunker.rs:15) makes fp32 BERT attention buffers of ~5 GB per
+  # internal batch. 12G lets the bounded one-time spike complete and STILL
+  # guards the box (the incident-class leak was an unbounded accelerating
+  # climb; preflight checks available RAM; MemorySwapMax=0 keeps the scope
+  # un-swappable). The spike is logged as a product finding, not fixed here.
+  systemd-run --user --scope -p MemoryMax=12G -p MemorySwapMax=0 \
     --slice=wedgeproof \
     env DISPLAY="$DISP" GDK_BACKEND=x11 \
         XDG_DATA_HOME="$PROFILE/data" \
@@ -295,6 +321,17 @@ cmd_down() {
 # one boot (App.tsx:798 writes `theme` on startup), so the flow is:
 # launch (background) → wait for the window → down → seed-localstorage →
 # launch again.
+#
+# Also seeds `keepance:settings` (zustand-persist, settingsStore.ts:125) with
+# EXACTLY what the skipped onboarding would have persisted had the operator
+# chosen "Keep everything on your computer": confidentialityMode=local-only
+# (AiSetupStep.tsx:465 → setMode('local-only')). Without it the fresh profile
+# defaults to 'direct' (egress.ts:65), the Ollama new-chat button never
+# renders (AIAssistantPane.tsx gates it on modeRestrictsToLocal), and the
+# workflow start dialog would not be the campaign's "$0 / runs on your local
+# AI model" local path. featuresTourCompleted=true keeps the v1.6 auto-tour
+# from obstructing the attended pass (same onboarding-class UI the seeding
+# already skips).
 cmd_seed_localstorage() {
   # Rig-verified layout (webkit2gtk on this box): flat per-origin file
   #   <profile>/data/com.keepance.app/localstorage/http_localhost_5173.localstorage
@@ -320,6 +357,39 @@ recent = json.dumps([{
     "lastOpened": datetime.now(timezone.utc).isoformat(),
 }])
 now = datetime.now(timezone.utc).isoformat()
+# Mirror of the zustand-persist payload onboarding would have written
+# (settingsStore partialize: values/_migrated/featuresTourCompleted/language).
+#
+# templateModelOverrides pins the Deposition Contradiction Finder to the
+# local model — byte-identical to what Settings → Templates writes via
+# handleProviderChange (TemplateModelSettings.tsx: firstModelFor('ollama')
+# = 'llama3.1:8b'). Two reasons it is seeded rather than clicked (Task 7):
+#   1. F-502 (RESULTS.md): without a pin, a local-only run silently no-ops —
+#      handleStartWorkflow resolves provider from template pins + cloud keys
+#      only (App.tsx:2306-2360 ignores confidentialityMode), lands on
+#      'needs-provider', and returns before any workflow tab exists, so the
+#      error banner (WorkflowExecutionTab.tsx:318) has nowhere to render.
+#   2. The Settings provider <select> opens a native GTK popup that is
+#      input-isolated on a no-WM Xvfb (same class as the GTK file chooser);
+#      the pin cannot be clicked headless. The Settings surface itself is
+#      screenshot-proven (run-08f..run-08i).
+settings = json.dumps({
+    "state": {
+        "values": {
+            "confidentialityMode": "local-only",
+            "templateModelOverrides": {
+                "legal-deposition-contradiction-finder": {
+                    "provider": "ollama",
+                    "model": "llama3.1:8b",
+                }
+            },
+        },
+        "_migrated": True,
+        "featuresTourCompleted": True,
+        "language": None,
+    },
+    "version": 0,
+})
 
 conn = sqlite3.connect(db)
 conn.execute(
@@ -330,6 +400,7 @@ for key, value in [
     ("keepance_recent_workspaces", recent),
     ("keepance_onboarding_complete", "true"),
     ("keepance_onboarding_completed_at", now),
+    ("keepance:settings", settings),
 ]:
     conn.execute(
         "INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
@@ -371,17 +442,25 @@ cmd_assert() {
 
   say "contradiction-finder .docx rubric"
   local docx rubric_rc=0
-  docx=$(find "$WS" -name 'Deposition Contradiction Analysis.docx' 2>/dev/null | head -1 || true)
+  # Newest docx wins — the two-attempt rule means re-runs leave siblings.
+  docx=$(find "$WS" -name 'Deposition Contradiction Analysis.docx' -printf '%T@ %p\n' 2>/dev/null \
+    | sort -rn | head -1 | cut -d' ' -f2- || true)
   [ -n "$docx" ] || { echo "FAIL(3): no 'Deposition Contradiction Analysis.docx' under $WS"; exit 3; }
   echo "found: $docx"
   mkdir -p "$ART/output"
   cp "$docx" "$ART/output/"
-  python3 - "$docx" <<'PY' || rubric_rc=4
-import re, sys, zipfile
+  # Extraction goes to ART/output ONLY — never next to the docx: the
+  # workspace indexes .txt, so an in-workspace extraction would feed the
+  # analysis text back into the semantic store and contaminate any re-run
+  # (burned once on attempt 1, Task 7).
+  ART="$ART" python3 - "$docx" <<'PY' || rubric_rc=4
+import os, re, sys, zipfile
 
 xml = zipfile.ZipFile(sys.argv[1]).read("word/document.xml").decode("utf-8", "replace")
 text = re.sub(r"<[^>]+>", " ", xml)
-open(sys.argv[1] + ".extracted.txt", "w").write(text)
+out = os.path.join(os.environ["ART"], "output",
+                   os.path.basename(sys.argv[1]) + ".extracted.txt")
+open(out, "w").write(text)
 
 clusters = {
     "C1 personal-email forwarding": bool(re.search(r"personal\s+e-?mail", text, re.I)),
@@ -398,8 +477,8 @@ else:
     print("RUBRIC: FAIL — missing clusters above (diagnose: run-record retrievedChunks vs LLM quality)")
     sys.exit(1)
 PY
-  # Bank the extracted text even on a rubric FAIL — it IS the diagnostic.
-  cp "$docx.extracted.txt" "$ART/output/" 2>/dev/null || true
+  # (Extraction already lands in ART/output above — banked on PASS and FAIL;
+  # it IS the diagnostic.)
   [ "$rubric_rc" -eq 0 ] || exit "$rubric_rc"
 
   say "artifacts banked"

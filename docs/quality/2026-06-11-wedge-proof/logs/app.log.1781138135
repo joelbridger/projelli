@@ -1,0 +1,45 @@
+Running as unit: run-rdc419daa94604669ba38f55d6fadb810.scope; invocation ID: 152bfb4675be47ed81d9c269eead0964
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+[2026-06-11][00:16:25][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:16:32][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:16:32][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:16:32][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:16:32][lance::io::commit][INFO] Auto cleanup triggered: RemovalStats { bytes_removed: 0, old_versions: 0 }
+[2026-06-11][00:18:10][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:18:11][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:20:37][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:20:41][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:21:53][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:21:56][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:22:43][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:25:18][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:29:36][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:29:38][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:31:17][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:31:20][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:32:23][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:32:23][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:32:23][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:32:23][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:32:23][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:32:23][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:32:23][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:32:23][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:32:23][lance_index::scalar::expression][INFO] visit_node: depth=1
+[2026-06-11][00:32:25][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-11][00:32:25][lance::io::commit][INFO] Auto cleanup triggered: RemovalStats { bytes_removed: 0, old_versions: 0 }

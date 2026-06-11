@@ -1,0 +1,3 @@
+Running as unit: run-r6981ba6ad45046d9a62849433d9ce6a0.scope; invocation ID: bb3f8f9f62514d489dfb1077ba41ae4c
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering

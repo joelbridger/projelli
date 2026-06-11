@@ -1,0 +1,6 @@
+Running as unit: run-r58fcc7e492e1424db612a56bd971c9fb.scope; invocation ID: 76534bdfd87b4f95801bafee531efd21
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+[2026-06-10][23:51:39][keepance_lib::commands::rag][INFO] rag: migrating pre-3.0 vector store (re-index under matter scope)
+[2026-06-10][23:51:39][lance_index::scalar::expression][INFO] visit_node: depth=0
+[2026-06-10][23:51:42][lance_index::scalar::expression][INFO] visit_node: depth=0

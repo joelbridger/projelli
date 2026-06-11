@@ -1,0 +1,4 @@
+Running as unit: run-r1a5ab89b25bf42bd81d6d249e5696802.scope; invocation ID: 2e80d269089b4133862eef0fcf63a41a
+libEGL warning: DRI3 error: Could not get DRI3 device
+libEGL warning: Ensure your X server supports DRI3 to get accelerated rendering
+[2026-06-10][23:49:18][lance_index::scalar::expression][INFO] visit_node: depth=0
