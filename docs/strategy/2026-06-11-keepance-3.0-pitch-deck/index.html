@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Keepance 3.0 · The private intelligence layer for a law practice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;600;700;800&family=Hanken+Grotesk:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #FBFCFE;
+    --surface: #FFFFFF;
+    --panel: #F2F6FC;
+    --panel-2: #E9F0FB;
+    --ink: #0B1322;
+    --ink-soft: #243149;
+    --muted: #5A6B85;
+    --faint: #8A99B3;
+    --line: #E1E8F3;
+    --line-strong: #CBD7EA;
+    --blue: #2456E6;
+    --blue-deep: #15327F;
+    --blue-soft: #EAF0FF;
+    --verify: #14875A;
+    --verify-soft: #E2F4EC;
+    --egress: #B3701A;
+    --egress-soft: #FAEEDC;
+    --shadow-sm: 0 1px 2px rgba(15,32,80,.06), 0 2px 8px rgba(15,32,80,.05);
+    --shadow-md: 0 6px 18px rgba(15,32,80,.08), 0 18px 50px rgba(15,32,80,.08);
+    --shadow-lg: 0 12px 30px rgba(15,32,80,.10), 0 36px 90px rgba(15,32,80,.12);
+    --font-display: 'Schibsted Grotesk', 'Hanken Grotesk', system-ui, sans-serif;
+    --font-body: 'Hanken Grotesk', system-ui, sans-serif;
+    --font-mono: 'Geist Mono', ui-monospace, monospace;
+    --r: 16px;
+    --r-sm: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+  }
+
+  /* ---------- Deck mechanics ---------- */
+  .deck { position: fixed; inset: 0; }
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    padding: clamp(40px, 6vh, 84px) clamp(40px, 7vw, 140px);
+    opacity: 0; visibility: hidden;
+    transform: translateY(14px) scale(.992);
+    transition: opacity .5s ease, transform .55s cubic-bezier(.22,.61,.36,1), visibility .5s;
+    overflow: hidden;
+  }
+  .slide.active { opacity: 1; visibility: visible; transform: none; }
+  .slide.active .reveal { animation: rise .7s cubic-bezier(.22,.61,.36,1) backwards; }
+  .slide.active .reveal:nth-child(1) { animation-delay: .05s; }
+  .slide.active .reveal:nth-child(2) { animation-delay: .12s; }
+  .slide.active .reveal:nth-child(3) { animation-delay: .19s; }
+  .slide.active .reveal:nth-child(4) { animation-delay: .26s; }
+  .slide.active .reveal:nth-child(5) { animation-delay: .33s; }
+  .slide.active .reveal:nth-child(6) { animation-delay: .40s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+
+  /* chrome: progress + counter + brand */
+  .chrome { position: fixed; z-index: 50; pointer-events: none; }
+  .progress { top: 0; left: 0; right: 0; height: 4px; background: transparent; }
+  .progress > span { display: block; height: 100%; width: 0;
+    background: linear-gradient(90deg, var(--blue-deep), var(--blue)); transition: width .45s ease; }
+  .brandtag { bottom: 26px; left: clamp(40px, 7vw, 140px);
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: .04em; color: var(--faint); }
+  .brandtag b { color: var(--blue-deep); font-weight: 600; }
+  .counter { bottom: 24px; right: clamp(40px, 7vw, 140px);
+    font-family: var(--font-mono); font-size: 12px; color: var(--faint); }
+  .counter b { color: var(--ink); font-weight: 600; }
+  .nav-hint { bottom: 24px; left: 50%; transform: translateX(-50%);
+    font-family: var(--font-mono); font-size: 11px; color: var(--faint);
+    pointer-events: auto; }
+  .nav-hint kbd { background: var(--panel); border: 1px solid var(--line-strong);
+    border-radius: 5px; padding: 1px 6px; font-family: var(--font-mono); color: var(--muted); }
+
+  .arrows { position: fixed; z-index: 51; bottom: 22px; right: clamp(40px, 7vw, 140px);
+    display: flex; gap: 8px; }
+  .arrows button { width: 34px; height: 30px; border: 1px solid var(--line-strong);
+    background: var(--surface); border-radius: 8px; cursor: pointer; color: var(--ink-soft);
+    font-size: 14px; display: grid; place-items: center; box-shadow: var(--shadow-sm); transition: .18s; }
+  .arrows button:hover { border-color: var(--blue); color: var(--blue); transform: translateY(-1px); }
+  .counter { right: calc(clamp(40px, 7vw, 140px) + 96px); }
+
+  /* ---------- Typography ---------- */
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 700; line-height: 1.04; letter-spacing: -.018em; }
+  .eyebrow { font-family: var(--font-mono); font-size: clamp(11px, .85vw, 13px);
+    letter-spacing: .16em; text-transform: uppercase; color: var(--blue);
+    display: inline-flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--blue); display: inline-block; }
+  .lead { font-size: clamp(17px, 1.45vw, 22px); color: var(--ink-soft); line-height: 1.5; max-width: 60ch; font-weight: 400; }
+  .dim { color: var(--muted); }
+  .blue { color: var(--blue); }
+  .deepblue { color: var(--blue-deep); }
+  strong { font-weight: 700; color: var(--ink); }
+  .slide-h { font-size: clamp(30px, 3.6vw, 54px); margin-bottom: 8px; }
+  .slide-sub { font-size: clamp(15px, 1.25vw, 19px); color: var(--muted); max-width: 64ch; line-height: 1.5; margin-bottom: clamp(24px, 3.5vh, 44px); }
+  .head-row { margin-bottom: clamp(20px, 3vh, 40px); }
+
+  /* ---------- Reusable bits ---------- */
+  .pill { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-mono);
+    font-size: 12px; padding: 5px 11px; border-radius: 100px; border: 1px solid var(--line-strong);
+    background: var(--surface); color: var(--ink-soft); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .dot.b { background: var(--blue); } .dot.g { background: var(--verify); } .dot.a { background: var(--egress); }
+
+  .grid { display: grid; gap: clamp(14px, 1.6vw, 22px); }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+
+  .card { background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--r); padding: clamp(18px, 1.8vw, 28px); box-shadow: var(--shadow-sm); position: relative; }
+  .card .k { font-family: var(--font-mono); font-size: 12px; color: var(--faint); }
+  .card h3 { font-size: clamp(18px, 1.5vw, 23px); margin: 12px 0 8px; letter-spacing: -.01em; }
+  .card p { color: var(--muted); font-size: clamp(13.5px, 1vw, 15.5px); line-height: 1.5; }
+  .card .num { font-family: var(--font-display); font-weight: 800; color: var(--blue-soft);
+    font-size: 30px; line-height: 1; -webkit-text-stroke: 1.4px var(--blue); }
+
+  .accent-top { border-top: 3px solid var(--blue); }
+
+  ul.clean { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  ul.clean li { display: flex; gap: 12px; align-items: flex-start; color: var(--ink-soft); font-size: clamp(14px,1.05vw,17px); line-height: 1.45; }
+  ul.clean li .tick { flex: none; width: 20px; height: 20px; border-radius: 6px; background: var(--verify-soft);
+    color: var(--verify); display: grid; place-items: center; font-size: 12px; font-weight: 700; margin-top: 2px; }
+  ul.clean li .soon { background: var(--blue-soft); color: var(--blue); }
+
+  .kicker-num { font-family: var(--font-display); font-weight: 800; font-size: clamp(40px,5vw,76px);
+    color: var(--blue); line-height: .9; letter-spacing: -.03em; }
+
+  /* ---------- Slide 1: cover ---------- */
+  .cover { justify-content: center; }
+  .cover .mark { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; }
+  .cover .logo { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(140deg, var(--blue), var(--blue-deep));
+    display: grid; place-items: center; color: #fff; font-family: var(--font-display); font-weight: 800; font-size: 19px; box-shadow: var(--shadow-md); }
+  .cover .wordmark { font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: -.01em; }
+  .cover h1 { font-size: clamp(40px, 6.3vw, 104px); font-weight: 800; letter-spacing: -.03em; max-width: 17ch; }
+  .cover h1 em { font-style: normal; color: var(--blue); }
+  .cover .sub { margin-top: 28px; font-size: clamp(17px, 1.7vw, 26px); color: var(--ink-soft); max-width: 56ch; line-height: 1.45; }
+  .cover .meta { margin-top: 46px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .cover .bg-orb { position: absolute; border-radius: 50%; filter: blur(60px); opacity: .5; z-index: -1; }
+  .orb1 { width: 520px; height: 520px; background: radial-gradient(circle, #cfe0ff, transparent 68%); top: -160px; right: -120px; }
+  .orb2 { width: 420px; height: 420px; background: radial-gradient(circle, #e6ecfb, transparent 70%); bottom: -160px; left: -100px; }
+
+  /* product frame (slide: how it works) */
+  .frame { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 14px;
+    box-shadow: var(--shadow-lg); overflow: hidden; }
+  .frame .bar { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .frame .bar .tl { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); }
+  .frame .bar .addr { margin-left: 10px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  .frame .egress { margin-left: auto; }
+  .egress-chip { font-family: var(--font-mono); font-size: 11.5px; padding: 4px 10px; border-radius: 100px;
+    background: var(--verify-soft); color: var(--verify); display: inline-flex; align-items: center; gap: 7px; border: 1px solid #bfe6d2; }
+  .frame .body { padding: clamp(16px, 1.6vw, 26px); display: grid; grid-template-columns: 1fr; gap: 14px; }
+  .q { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 13px 16px;
+    font-size: clamp(14px,1.1vw,16.5px); color: var(--ink-soft); }
+  .q .you { font-family: var(--font-mono); font-size: 11px; color: var(--faint); display: block; margin-bottom: 5px; }
+  .a { border: 1px solid var(--line); border-radius: 10px; padding: 15px 17px; background: var(--surface); }
+  .a .ans { font-size: clamp(14px,1.1vw,16.5px); color: var(--ink); line-height: 1.55; }
+  .cite { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11.5px;
+    background: var(--blue-soft); color: var(--blue-deep); border: 1px solid #c9d8ff; border-radius: 6px; padding: 2px 8px;
+    text-decoration: none; vertical-align: middle; }
+  .cite .v { color: var(--verify); }
+  .verified-row { margin-top: 13px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .verified-row .lab { font-family: var(--font-mono); font-size: 11px; color: var(--faint); }
+
+  /* spectrum */
+  .spectrum { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+  .rung { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--surface); box-shadow: var(--shadow-sm); }
+  .rung .top { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+  .rung .top .name { font-family: var(--font-display); font-weight: 700; font-size: clamp(16px,1.3vw,20px); }
+  .rung .body { padding: 16px 20px; }
+  .rung .body p { color: var(--muted); font-size: clamp(13px,.98vw,15px); line-height: 1.5; }
+  .rung .lvl { font-family: var(--font-mono); font-size: 11px; padding: 3px 9px; border-radius: 100px; }
+  .lvl.local { background: var(--verify-soft); color: var(--verify); }
+  .lvl.byok { background: var(--blue-soft); color: var(--blue); }
+  .lvl.assured { background: var(--egress-soft); color: var(--egress); }
+
+  /* roadmap waves */
+  .wave { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: start;
+    padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .wave:last-child { border-bottom: 0; }
+  .wave .wtag { font-family: var(--font-mono); font-size: 12px; color: var(--blue); white-space: nowrap;
+    border: 1px solid var(--line-strong); border-radius: 8px; padding: 6px 11px; background: var(--surface); }
+  .wave.done .wtag { color: var(--verify); border-color: #bfe6d2; background: var(--verify-soft); }
+  .wave h3 { font-size: clamp(16px,1.25vw,20px); margin-bottom: 4px; }
+  .wave p { color: var(--muted); font-size: clamp(13px,.98vw,15px); line-height: 1.45; }
+  .status-chip { font-family: var(--font-mono); font-size: 10.5px; padding: 2px 8px; border-radius: 100px; margin-left: 8px; vertical-align: middle; }
+  .sc-live { background: var(--verify-soft); color: var(--verify); }
+  .sc-next { background: var(--blue-soft); color: var(--blue); }
+
+  /* pricing */
+  .price { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); padding: 24px; box-shadow: var(--shadow-sm); position: relative; }
+  .price.feature { border-color: var(--blue); box-shadow: var(--shadow-md); }
+  .price .tier { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .price .amt { font-family: var(--font-display); font-weight: 800; font-size: clamp(28px,2.8vw,42px); margin: 10px 0 2px; letter-spacing: -.02em; }
+  .price .amt span { font-family: var(--font-body); font-weight: 500; font-size: 15px; color: var(--faint); }
+  .price .who { color: var(--muted); font-size: 14px; line-height: 1.4; margin-bottom: 14px; min-height: 40px; }
+  .price ul { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+  .price li { font-size: 13.5px; color: var(--ink-soft); display: flex; gap: 9px; }
+  .price li::before { content: "+"; color: var(--blue); font-weight: 700; }
+  .badge { position: absolute; top: -11px; right: 18px; background: var(--blue); color: #fff;
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .05em; padding: 4px 10px; border-radius: 100px; }
+
+  /* big quote */
+  .quote { display: flex; flex-direction: column; justify-content: center; }
+  .quote blockquote { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 3.6vw, 52px);
+    line-height: 1.18; letter-spacing: -.02em; max-width: 22ch; }
+  .quote blockquote b { color: var(--blue); }
+  .quote .by { margin-top: 28px; color: var(--muted); font-size: 15px; font-family: var(--font-mono); }
+
+  /* enemies row */
+  .enemy { border: 1px solid var(--line); border-radius: var(--r); padding: 26px; background: var(--surface); box-shadow: var(--shadow-sm); }
+  .enemy .icon { font-size: 26px; margin-bottom: 14px; display: block; }
+  .enemy h3 { font-size: clamp(17px,1.4vw,21px); margin-bottom: 8px; }
+  .enemy p { color: var(--muted); font-size: clamp(13px,1vw,15px); line-height: 1.5; }
+
+  .two-col { display: grid; grid-template-columns: 1.05fr .95fr; gap: clamp(30px,4vw,70px); align-items: center; height: 100%; }
+  .fill { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+  .statline { display: flex; gap: clamp(28px,4vw,64px); flex-wrap: wrap; margin-top: 30px; }
+  .statline .s .v { font-family: var(--font-display); font-weight: 800; font-size: clamp(26px,2.6vw,40px); color: var(--blue-deep); letter-spacing: -.02em; }
+  .statline .s .l { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  .score { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 40px; }
+  .scorebar { }
+  .scorebar .row { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 7px; color: var(--ink-soft); }
+  .scorebar .track { height: 8px; background: var(--panel-2); border-radius: 100px; overflow: hidden; }
+  .scorebar .track > span { display: block; height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--blue-deep), var(--blue)); }
+  .scorebar .track.g > span { background: linear-gradient(90deg, #0f6b46, var(--verify)); }
+
+  @media (max-width: 880px) {
+    .g3,.g4,.spectrum,.scon,.two-col,.scope,.g2 { grid-template-columns: 1fr !important; }
+    .slide { padding: 60px 28px; }
+  }
+
+  /* ---------- Print to PDF ---------- */
+  @media print {
+    body { overflow: visible; }
+    .chrome, .arrows, .nav-hint { display: none !important; }
+    .deck { position: static; }
+    .slide { position: relative; opacity: 1 !important; visibility: visible !important; transform: none !important;
+      page-break-after: always; break-after: page; height: 100vh; width: 100vw; border-bottom: 1px solid #eee; }
+    .slide.active .reveal { animation: none !important; }
+    @page { size: landscape; margin: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="chrome progress"><span id="bar"></span></div>
+<div class="chrome brandtag"><b>Keepance 3.0</b></div>
+<div class="chrome counter"><b id="cur">1</b> / <span id="tot">16</span></div>
+<div class="chrome nav-hint">Use <kbd>←</kbd> <kbd>→</kbd> to move &nbsp;·&nbsp; press <kbd>P</kbd> to save as PDF</div>
+<div class="arrows"><button id="prev" aria-label="Previous">←</button><button id="next" aria-label="Next">→</button></div>
+
+<div class="deck" id="deck">
+
+  <!-- 1 · COVER -->
+  <section class="slide cover active">
+    <div class="bg-orb orb1"></div>
+    <div class="bg-orb orb2"></div>
+    <div class="mark reveal">
+      <div class="logo">K</div>
+      <div class="wordmark">Keepance</div>
+      <span class="pill" style="margin-left:6px"><span class="dot g"></span> Version 3.0 · live today</span>
+    </div>
+    <h1 class="reveal">The private intelligence layer for a <em>law practice</em>.</h1>
+    <p class="sub reveal">The private place your whole practice lives and answers you back. Your clients' data never leaves your control, and every answer is cited.</p>
+    <div class="meta reveal">
+      <span class="pill"><span class="dot b"></span> Local-first AI</span>
+      <span class="pill"><span class="dot b"></span> Word-native</span>
+      <span class="pill"><span class="dot b"></span> Cited &amp; verifiable</span>
+      <span class="pill"><span class="dot b"></span> Built for litigation</span>
+    </div>
+  </section>
+
+  <!-- 2 · THE PROBLEM -->
+  <section class="slide">
+    <div class="head-row reveal">
+      <span class="eyebrow">The problem, in plain terms</span>
+      <h2 class="slide-h">Every lawyer fights the same three things, every single day.</h2>
+      <p class="slide-sub">These are the real incumbents. Not Notion, not another note app. Three tools that fail at the worst moment.</p>
+    </div>
+    <div class="grid g3" style="flex:1; align-content:center">
+      <div class="enemy reveal">
+        <span class="icon">🔍</span>
+        <h3>Outlook search that can't find anything</h3>
+        <p>You know you emailed it. You just can't get it back. The one document you need is buried in ten years of mail.</p>
+      </div>
+      <div class="enemy reveal">
+        <span class="icon">📓</span>
+        <h3>The legal pad you carry into deposition prep</h3>
+        <p>Reading hundreds of pages by hand, hunting for the one contradiction. The documents are your weekends.</p>
+      </div>
+      <div class="enemy reveal">
+        <span class="icon">🚫</span>
+        <h3>The ChatGPT you're afraid to paste a client's name into</h3>
+        <p>The AI that could help is the one you can't use, because the moment you paste privileged work, you've lost control of it.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · WHAT IT IS -->
+  <section class="slide quote">
+    <span class="eyebrow reveal">What Keepance is</span>
+    <blockquote class="reveal">Ask a plain question. Get the exact email or document back, <b>with a citation you can click and verify</b>. Privately.</blockquote>
+    <p class="by reveal">That moment is the whole product. A lawyer in our research called it "the reason I'd actually pull out a credit card."</p>
+  </section>
+
+  <!-- 4 · THE CATEGORY SHIFT -->
+  <section class="slide">
+    <div class="head-row reveal">
+      <span class="eyebrow">Why 3.0 is different</span>
+      <h2 class="slide-h">We stopped selling a "workspace." We started selling an outcome.</h2>
+    </div>
+    <div class="two-col" style="height:auto; flex:1; align-items:center">
+      <div class="reveal">
+        <div class="card" style="border-style:dashed; box-shadow:none; background:var(--panel)">
+          <span class="k">Keepance 1.0 to 2.x</span>
+          <h3 style="color:var(--muted)">"A local-first AI workspace for confidential work."</h3>
+          <p>Abstract. It sounded cloudy and corporate. It dropped us into a fight with Notion and Obsidian, on the wrong axis, against the wrong enemy.</p>
+        </div>
+      </div>
+      <div class="reveal">
+        <div class="card accent-top">
+          <span class="k blue">Keepance 3.0</span>
+          <h3>"The private intelligence layer for a law practice."</h3>
+          <p>Concrete. It names the customer, the job, and the promise. Word is the format. Citations are the price of admission. Lawyers never see code, and never see Markdown again.</p>
+        </div>
+      </div>
+    </div>
+    <p class="lead reveal" style="margin-top:30px; text-align:center; align-self:center">This single reframe drives every decision that follows.</p>
+  </section>
+
+  <!-- 5 · THE THREE JOBS -->
+  <section class="slide">
+    <div class="head-row reveal">
+      <span class="eyebrow">The product, in three jobs</span>
+      <h2 class="slide-h">Get in the door. Become indispensable. Finish the work.</h2>
+      <p class="slide-sub">Viability is a sequence, not a feature list: a job that wins the first five minutes, a job that gives lawyers their weekends back, and a job that ships the real deliverable.</p>
+    </div>
+    <div class="grid g3" style="flex:1; align-content:center">
+      <div class="card accent-top reveal">
+        <span class="num">1</span>
+        <h3>Find anything, privately</h3>
+        <p>Cited recall across your email, documents, and past matters. The daily, universal pain. This is the wedge that gets the credit card out.</p>
+      </div>
+      <div class="card accent-top reveal">
+        <span class="num">2</span>
+        <h3>The tireless associate</h3>
+        <p>Surface every contradiction across transcripts and emails, build the timeline, triage discovery, spot the issues. It flags, you verify. Every claim cited.</p>
+      </div>
+      <div class="card accent-top reveal">
+        <span class="num">3</span>
+        <h3>Real Word deliverables</h3>
+        <p>Draft, redline, and ship in Microsoft Word and PDF, on your letterhead, with tracked changes intact. The place work gets finished, not just started.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 · HOW IT WORKS -->
+  <section class="slide">
+    <div class="head-row reveal">
+      <span class="eyebrow">How the magic moment actually works</span>
+      <h2 class="slide-h">You ask. It answers from your own files, and shows its work.</h2>
+    </div>
+    <div class="reveal" style="flex:1; display:flex; align-items:center">
+      <div class="frame" style="width:100%; max-width:980px; margin:0 auto">
+        <div class="bar">
+          <span class="tl"></span><span class="tl"></span><span class="tl"></span>
+          <span class="addr">keepance · matter: Hartley v. Coastal Logistics</span>
+          <span class="egress"><span class="egress-chip"><span class="dot g"></span> This is going to: your machine only</span></span>
+        </div>
+        <div class="body">
+          <div class="q"><span class="you">You</span>Did the defendant ever admit the shipment left the dock before the inspection?</div>
+          <div class="a">
+            <div class="ans">Yes. In his deposition he testified the truck "was already loaded and gone by the time the inspector showed up," which contradicts his signed incident report stating the inspection happened first. <a class="cite" href="#"><span class="v">✓</span> Tr. 45:12</a> <a class="cite" href="#"><span class="v">✓</span> incident-report.docx</a></div>
+            <div class="verified-row">
+              <span class="lab">CITATIONS</span>
+              <span class="pill"><span class="dot g"></span> Verified against source on disk</span>
+              <span class="pill" style="font-family:var(--font-mono)">click to open the exact passage</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="slide-sub reveal" style="margin:18px auto 0; text-align:center">If it can't ground an answer in your files, it refuses rather than guessing. No hallucinations dressed up as confidence.</p>
+  </section>
+
+  <!-- 7 · THE MOAT -->
+  <section class="slide">
+    <div class="head-row reveal">
+      <span class="eyebrow">Why this is defensible, not just good</span>
+      <h2 class="slide-h">Four moats a funded competitor cannot simply copy.</h2>
+    </div>
+    <div class="grid g4" style="flex:1; align-content:center">
+      <div class="card reveal">
+        <span class="k">Moat 01</span>
+        <h3>Confidentiality you control</h3>
+        <p>Microsoft Copilot can't promise "we never see your data." Their architecture depends on seeing it. Ours doesn't. That's structural, not a feature race.</p>
+      </div>
+      <div class="card reveal">
+        <span class="k">Moat 02</span>
+        <h3>Honesty as the brand</h3>
+        <p>We tell lawyers the literal truth about where every byte goes, before they find it themselves. For people who read fine print for a living, that wins.</p>
+      </div>
+      <div class="card reveal">
+        <span class="k">Moat 03</span>
+        <h3>Data gravity</h3>
+        <p>Once your whole practice is ingested and privately searchable, leaving is unthinkable. The longer they use it, the more it is the brain of the practice.</p>
+      </div>
+      <div class="card reveal">
+        <span class="k">Moat 04</span>
+        <h3>Proof that compounds</h3>
+        <p>Trust in law travels lawyer to lawyer. Named advocates, bar-section credibility, and firm assurance. Each vouch lowers the cost of the next ten.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 · CONFIDENTIALITY SPECTRUM -->
+  <section class="slide">
+    <div class="head-row reveal">
+      <span class="eyebrow">The trust layer</span>
+      <h2 class="slide-h">You choose how private each matter is. We prove it on screen.</h2>
+      <p class="slide-sub">Confidentiality is a spectrum the lawyer controls per matter, with an always-visible egress indicator and a one-screen data map you can hand to a worried client.</p>
+    </div>
+    <div class="spectrum reveal" style="flex:1; align-content:center">
+      <div class="rung">
+        <div class="top"><span class="name">Local-only</span><span class="lvl local">nothing leaves</span></div>
+        <div class="body"><p>Runs on a model on your own machine. Nothing ever leaves the building. Paranoid mode for the most sensitive matter.</p></div>
+      </div>
+      <div class="rung">
+        <div class="top"><span class="name">Your key, direct</span><span class="lvl byok">no middleman</span></div>
+        <div class="body"><p>Your own AI key. Requests go straight from your machine to the provider, never through a Keepance server. No markup on usage, ever.</p></div>
+      </div>
+      <div class="rung">
+        <div class="top"><span class="name">Assured</span><span class="lvl assured">firm-grade</span></div>
+        <div class="body"><p>A zero-retention, single-tenant route for firms, with a signed agreement so a risk committee can say yes. Proven to retain nothing.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 · WHO IT'S FOR -->
+  <section class="slide">
+    <div class="two-col">
+      <div class="fill reveal">
+        <span class="eyebrow">Who it's for</span>
+        <h2 class="slide-h" style="margin-bottom:18px">Land with the solo. Grow into the firm.</h2>
+        <p class="lead">The confidentiality-anxious solo is the on-ramp: cheap to reach, and the distribution engine, because lawyers adopt what other lawyers vouch for. The center of gravity is the small and mid-size, litigation-heavy firm, where the pain is deepest and the budgets are real.</p>
+        <div class="statline">
+          <div class="s"><div class="v">Solo</div><div class="l">the wedge that spreads</div></div>
+          <div class="s"><div class="v">→ Firm</div><div class="l">where durable revenue lives</div></div>
+          <div class="s"><div class="v">Law first</div><div class="l">depth beats breadth</div></div>
+        </div>
+      </div>
+      <div class="reveal">
+        <div class="card" style="padding:0; overflow:hidden">
+          <div style="padding:24px 26px; border-bottom:1px solid var(--line)">
+            <span class="k blue">The expansion path</span>
+            <h3 style="margin-top:8px">Search → analysis → drafting → the whole matter → the whole firm.</h3>
+          </div>
+          <div style="padding:22px 26px">
+            <ul class="clean">
+              <li><span class="tick">✓</span> A solo finds an email in seconds and tells their bar section.</li>
+              <li><span class="tick">✓</span> They tear through a deposition over a weekend that used to take days.</li>
+              <li><span class="tick">✓</span> They bring it to their firm. The firm needs shared matters and ethical walls.</li>
+              <li><span class="tick">✓</span> Now it's the intelligence layer for the whole practice.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 · SEVEN PILLARS -->
+  <section class="slide">
+    <div class="head-row reveal">
+      <span class="eyebrow">The whole product, on one slide</span>
+      <h2 class="slide-h">Seven pillars: three that win the customer, four that keep them.</h2>
+    </div>
+    <div class="grid reveal" style="grid-template-columns:repeat(4,1fr); gap:14px; flex:1; align-content:center">
+      <div class="card"><span class="k">01</span><h3>Ingest everything</h3><p>Email, documents, PDFs with OCR, prior matters, transcripts. Encrypted, resumable, private.</p></div>
+      <div class="card"><span class="k">02</span><h3>Cited recall</h3><p>Ask in plain English, get the exact source back with a verifiable citation.</p></div>
+      <div class="card"><span class="k">03</span><h3>The litigation associate</h3><p>Contradiction finder, timeline, privilege log, issue spotter. All cited, all propose-don't-decide.</p></div>
+      <div class="card"><span class="k">04</span><h3>Office-native deliverables</h3><p>Word, PDF, Excel with full fidelity. Track changes, styles, tables, letterhead.</p></div>
+      <div class="card"><span class="k">05</span><h3>Trust &amp; confidentiality</h3><p>The spectrum, the egress indicator, the data map, audit trail, privilege tagging.</p></div>
+      <div class="card"><span class="k">06</span><h3>Team &amp; firm layer</h3><p>Shared matters, ethical walls, multi-seat, the firm assurance package.</p></div>
+      <div class="card"><span class="k">07</span><h3>Fits your stack</h3><p>Sits beside Clio, Outlook, Word, and firm document management. It never replaces your system of record.</p></div>
+      <div class="card accent-top" style="background:var(--blue-soft); border-color:#cad9ff"><span class="k deepblue">The shape</span><h3 class="deepblue">Wedge → depth → close.</h3><p style="color:var(--blue-deep)">Pillars 1-3 win the lawyer. Pillars 4-7 make it defensible and let it grow to a firm.</p></div>
+    </div>
+  </section>
+
+  <!-- 11 · BUSINESS MODEL -->
+  <section class="slide">
+    <div class="head-row reveal">
+      <span class="eyebrow">The business model</span>
+      <h2 class="slide-h">Land and expand, priced for the sequence.</h2>
+      <p class="slide-sub">A genuine free trial with no card on the on-ramp, then honest per-seat annual pricing. Solos spread the word. Firms pay the bills. Data gravity keeps both.</p>
+    </div>
+    <div class="grid g3 reveal" style="flex:1; align-content:center; align-items:stretch">
+      <div class="price">
+        <div class="tier">Solo</div>
+        <div class="amt">$468<span> / year</span></div>
+        <div class="who">The confidentiality-anxious solo. The wedge, the trial, the credit-card moment.</div>
+        <ul><li>Cited private recall</li><li>Word-native drafting</li><li>Local-only &amp; bring-your-own-key</li></ul>
+      </div>
+      <div class="price feature">
+        <span class="badge">The working lawyer</span>
+        <div class="tier">Professional</div>
+        <div class="amt">$948<span> / year</span></div>
+        <div class="who">The depth and the deliverables. The litigation associate, the practice packs.</div>
+        <ul><li>Everything in Solo</li><li>Contradiction finder &amp; analysis</li><li>Full deliverables suite</li></ul>
+      </div>
+      <div class="price">
+        <div class="tier">Firm</div>
+        <div class="amt">$1,548<span> / seat / yr</span></div>
+        <div class="who">Shared matters, ethical walls, and the assurance a risk committee needs. Min. 3 seats.</div>
+        <ul><li>End-to-end-encrypted firm tier</li><li>Assured zero-retention route</li><li>Agreement &amp; assurance package</li></ul>
+      </div>
+    </div>
+    <p class="slide-sub reveal" style="margin:22px auto 0; text-align:center">Bring-your-own-key, no markup on AI usage. The total cost is told up front, as honesty. A lawyer surprised by a second bill tells thirty other lawyers.</p>
+  </section>
+
+  <!-- 12 · WHAT WE HAVE TODAY -->
+  <section class="slide">
+    <div class="head-row reveal">
+      <span class="eyebrow">Where we are today · shipped and live</span>
+      <h2 class="slide-h">Version 3.0 is real, signed, selling, and proven on a real machine.</h2>
+      <p class="slide-sub">This is not a prototype. The hard two-thirds of the vision (the Word engine, cited retrieval, refuse-rather-than-hallucinate, encryption at rest, the encrypted firm tier) is built and verified.</p>
+    </div>
+    <div class="grid g2 reveal" style="flex:1; align-content:center; gap:14px 56px">
+      <ul class="clean">
+        <li><span class="tick">✓</span> <span><strong>v3.1.0 published and live</strong>, with signed installers for Windows, Mac (Apple Silicon and Intel), and Linux, plus automatic updates.</span></li>
+        <li><span class="tick">✓</span> <span><strong>The magic moment, witnessed end to end on a real machine</strong>: a cited answer over your own files, click to verify, contradiction found, exported to Word.</span></li>
+        <li><span class="tick">✓</span> <span><strong>In-house Word engine</strong>: open a .docx, let the AI redline it with tracked changes, send it back. No Markdown, ever.</span></li>
+        <li><span class="tick">✓</span> <span><strong>Matter isolation</strong>: a question about one client can never return another client's files. Enforced by cryptography, not by hiding.</span></li>
+      </ul>
+      <ul class="clean">
+        <li><span class="tick">✓</span> <span><strong>All three privacy modes live</strong>, including Assured mode proven to retain nothing against the live backend.</span></li>
+        <li><span class="tick">✓</span> <span><strong>OCR for scanned filings</strong>: court-stamped paper and faxes are now searchable, fully on your machine.</span></li>
+        <li><span class="tick">✓</span> <span><strong>Word, Excel and PowerPoint content searchable</strong>, plus deposition transcript citations down to the line ("Tr. 45:12").</span></li>
+        <li><span class="tick">✓</span> <span><strong>Encrypted firm tier live</strong> at api.keepance.com: shared matters, ethical walls by key denial, real subscriptions selling.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 13 · WHERE WE'RE GOING -->
+  <section class="slide">
+    <div class="head-row reveal">
+      <span class="eyebrow">Where we're going · the march to 100%</span>
+      <h2 class="slide-h">A board mandate: complete the vision document. Zero exceptions.</h2>
+    </div>
+    <div class="reveal" style="flex:1; align-content:center; overflow:auto">
+      <div class="wave done">
+        <span class="wtag">Wave 1 · done</span>
+        <div><h3>Prove the wedge, harden the basics <span class="status-chip sc-live">shipped</span></h3><p>The flagship moment verified on a real machine. Nine first-run defects found and fixed. Memory, citations, and click-to-source all green.</p></div>
+      </div>
+      <div class="wave done">
+        <span class="wtag">Wave 2 · ~done</span>
+        <div><h3>Ingest everything <span class="status-chip sc-live">shipped</span></h3><p>OCR, Office-document content into the index, transcript line citations, at-rest path encryption, Assured zero-retention proven live, letterhead, the issue spotter.</p></div>
+      </div>
+      <div class="wave">
+        <span class="wtag">Wave 3 · next</span>
+        <div><h3>The firm-sale layer <span class="status-chip sc-next">building</span></h3><p>Single sign-on (Microsoft Entra ID, then Google), and a real encrypted workspace vault with recovery and admin escrow.</p></div>
+      </div>
+      <div class="wave">
+        <span class="wtag">Wave 4 · next</span>
+        <div><h3>Live co-editing <span class="status-chip sc-next">building</span></h3><p>Multiple lawyers editing the same Word document at once, end-to-end encrypted, with tracked-change attribution and offline convergence.</p></div>
+      </div>
+      <div class="wave">
+        <span class="wtag">Wave 5 · next</span>
+        <div><h3>Fits your stack, for real <span class="status-chip sc-next">building</span></h3><p>Connectors: Clio first, then Word and Outlook add-ins, then NetDocuments and iManage. Positioning becomes real integration.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14 · SCOREBOARD / HONESTY -->
+  <section class="slide">
+    <div class="two-col">
+      <div class="fill reveal">
+        <span class="eyebrow">The discipline that makes it credible</span>
+        <h2 class="slide-h" style="margin-bottom:18px">Two-thirds built and verified. And it's the hard two-thirds.</h2>
+        <p class="lead">We will only claim a feature on the website the day it ships. That rule is the brand. It is why this deck separates what is live from what is coming, and why a firm's diligence will find the claims true.</p>
+        <div class="statline">
+          <div class="s"><div class="v">~66%</div><div class="l">of the vision built &amp; verified</div></div>
+          <div class="s"><div class="v">5 waves</div><div class="l">to 100%, zero exceptions</div></div>
+        </div>
+      </div>
+      <div class="reveal">
+        <div class="card">
+          <span class="k blue">Vision coverage</span>
+          <div class="scorebar" style="margin-top:18px; display:flex; flex-direction:column; gap:16px">
+            <div><div class="row"><span>Word engine &amp; deliverables</span><span class="deepblue">Live</span></div><div class="track g"><span style="width:96%"></span></div></div>
+            <div><div class="row"><span>Cited recall &amp; verification</span><span class="deepblue">Live</span></div><div class="track g"><span style="width:94%"></span></div></div>
+            <div><div class="row"><span>Trust &amp; confidentiality layer</span><span class="deepblue">Live</span></div><div class="track g"><span style="width:90%"></span></div></div>
+            <div><div class="row"><span>Encrypted firm tier</span><span class="deepblue">Live</span></div><div class="track g"><span style="width:85%"></span></div></div>
+            <div><div class="row"><span>SSO &amp; encrypted vault</span><span class="blue">Building</span></div><div class="track"><span style="width:35%"></span></div></div>
+            <div><div class="row"><span>Connectors (Clio, DMS, add-ins)</span><span class="blue">Building</span></div><div class="track"><span style="width:20%"></span></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15 · THE ONE-SENTENCE TEST -->
+  <section class="slide quote">
+    <span class="eyebrow reveal">The one-sentence test</span>
+    <blockquote class="reveal">"It's the private place my whole practice lives, it finds anything I've ever emailed or filed in seconds, it helps me tear through depositions, and <b>my clients' data never leaves my control</b>."</blockquote>
+    <p class="by reveal">If a senior litigator says that to the lawyer in the next office, we've won. Everything we build is in service of making that the sentence lawyers actually say.</p>
+  </section>
+
+  <!-- 16 · CLOSE -->
+  <section class="slide cover" style="justify-content:center">
+    <div class="bg-orb orb1"></div>
+    <div class="bg-orb orb2"></div>
+    <div class="mark reveal">
+      <div class="logo">K</div>
+      <div class="wordmark">Keepance</div>
+    </div>
+    <h1 class="reveal" style="font-size:clamp(34px,5vw,80px)">Private by architecture.<br/>Cited by default.<br/><em>Built for the way lawyers actually work.</em></h1>
+    <p class="sub reveal">Live and selling today. On a clear, funded path to completing the entire vision, with nothing claimed before it ships.</p>
+    <div class="meta reveal">
+      <span class="pill"><span class="dot g"></span> keepance.com</span>
+      <span class="pill"><span class="dot b"></span> Solo · Professional · Firm</span>
+      <span class="pill"><span class="dot b"></span> Win · Mac · Linux, signed &amp; auto-updating</span>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const bar = document.getElementById('bar');
+  const cur = document.getElementById('cur');
+  document.getElementById('tot').textContent = slides.length;
+  let i = 0;
+
+  function go(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle('active', k === i));
+    bar.style.width = ((i) / (slides.length - 1) * 100) + '%';
+    cur.textContent = i + 1;
+  }
+  function next() { go(i + 1); }
+  function prev() { go(i - 1); }
+
+  document.getElementById('next').onclick = next;
+  document.getElementById('prev').onclick = prev;
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(slides.length - 1);
+    else if (e.key.toLowerCase() === 'p') window.print();
+  });
+  // swipe on touch
+  let sx = 0;
+  document.addEventListener('touchstart', e => sx = e.touches[0].clientX, {passive:true});
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - sx;
+    if (Math.abs(dx) > 50) dx < 0 ? next() : prev();
+  }, {passive:true});
+
+  go(0);
+</script>
+</body>
+</html>
