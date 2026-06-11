@@ -134,6 +134,13 @@ native-tls = "0.2"
 # open for launching the system browser to the Google auth URL.
 base64 = "0.22"
 open = "5"
+# VG-2b office extraction (`commands/rag/office.rs`): .xlsx/.pptx are OOXML
+# ZIPs of XML parts; .rtf is a plain byte stream. Same crates at the SAME
+# versions keepance-docx already pins (crates/keepance-docx/Cargo.toml) so
+# the lockfile gains zero new packages — the in-house OOXML philosophy
+# ("only generic XML/ZIP/serde crates"; calamine rejected in planning).
+zip = "4"
+quick-xml = "0.38"
 
 # Auto-updater. Desktop-only — Tauri mobile builds skip these targets so
 # the cfg() filter keeps the iOS/Android crate graph slim.

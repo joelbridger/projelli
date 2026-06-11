@@ -4539,6 +4539,7 @@ dependencies = [
  "native-tls",
  "notify",
  "open",
+ "quick-xml",
  "rand 0.8.5",
  "reqwest",
  "rusqlite",
@@ -4560,6 +4561,7 @@ dependencies = [
  "tokio-native-tls",
  "walkdir",
  "wiremock",
+ "zip",
 ]
 
 [[package]]

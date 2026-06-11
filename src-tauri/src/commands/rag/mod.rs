@@ -27,6 +27,7 @@ pub mod crypto;
 pub mod embedder;
 pub mod extractor;
 pub mod model_download;
+pub mod office;
 pub mod pdf_indexer;
 pub mod store;
 
