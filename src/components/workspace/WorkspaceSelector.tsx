@@ -9,10 +9,13 @@ import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { WebFSBackend, createWebFSBackend } from '@/modules/workspace/WebFSBackend';
 import { WorkspaceService, createWorkspaceService } from '@/modules/workspace/WorkspaceService';
 import { createFSBackend, isTauriEnvironment } from '@/modules/workspace/BackendFactory';
+import { vaultStatus } from '@/modules/vault/vaultClient';
 import { DEFAULT_WORKSPACE_FOLDERS } from '@/modules/workspace/types';
 import { openExternal } from '@/utils/openExternal';
 import { KeepanceLogo } from '@/components/brand/KeepanceLogo';
 import { GradientGlow } from '@/components/brand/GradientGlow';
+import { VaultLockedPrompt } from '@/components/vault/VaultLockedPrompt';
+import { VaultEscapeHatchDialog } from '@/components/vault/VaultEscapeHatchDialog';
 import {
   FolderOpen,
   FolderPlus,
@@ -140,16 +143,73 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
   const [error, setError] = useState<string | null>(null);
   const isTauri = isTauriEnvironment();
 
+  // Vault-locked state: when a Tauri workspace has its vault locked (no key on
+  // this machine), we show VaultLockedPrompt instead of proceeding.
+  const [lockedWorkspacePath, setLockedWorkspacePath] = useState<string | null>(null);
+  const [showEscapeHatch, setShowEscapeHatch] = useState(false);
+
   const { recentWorkspaces, addRecentWorkspace, setRootPath, setFileTree, expandAllFolders } = useWorkspaceStore();
+
+  /**
+   * Shared workspace-open logic used by all three entry points (browse, recent,
+   * create-then-open).  Checks vault status before proceeding: if the vault is
+   * locked, stores the path in `lockedWorkspacePath` and surfaces
+   * VaultLockedPrompt instead of opening normally.
+   */
+  const openWorkspacePath = async (workspacePath: string) => {
+    // Vault check — Tauri only; browser workspaces can never be vaulted.
+    if (isTauri) {
+      try {
+        const status = await vaultStatus(workspacePath);
+        if (status.enabled && status.locked) {
+          setLockedWorkspacePath(workspacePath);
+          return; // Show VaultLockedPrompt — caller resumes via handleVaultUnlocked.
+        }
+      } catch {
+        // vault_status failure is non-fatal (command may not be registered yet).
+      }
+    }
+
+    const backend = await createFSBackend(workspacePath);
+    const service = createWorkspaceService();
+    const workspace = await service.initialize(backend, workspacePath);
+
+    setRootPath(workspace.rootPath);
+    const fileTree = await service.getFileTree();
+    setFileTree(fileTree);
+    expandAllFolders();
+
+    addRecentWorkspace({
+      path: workspace.rootPath,
+      name: workspace.name,
+      lastOpened: new Date(),
+    });
+
+    onWorkspaceSelected(service);
+  };
+
+  /** Called by VaultLockedPrompt when the vault is successfully unlocked. */
+  const handleVaultUnlocked = async () => {
+    if (!lockedWorkspacePath) return;
+    const path = lockedWorkspacePath;
+    setLockedWorkspacePath(null);
+    setIsLoading(true);
+    setError(null);
+    try {
+      await openWorkspacePath(path);
+    } catch (err) {
+      console.error('[WorkspaceSelector] Failed to open workspace after vault unlock:', err);
+      setError(err instanceof Error ? err.message : 'Failed to open workspace');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSelectFolder = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      let backend;
-      let rootPath: string;
-
       if (isTauri) {
         const { open } = await import('@tauri-apps/plugin-dialog');
         const selectedPath = await open({
@@ -164,8 +224,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         }
 
         console.log('[WorkspaceSelector] Selected path from dialog:', selectedPath);
-        backend = await createFSBackend(selectedPath as string);
-        rootPath = selectedPath as string;
+        await openWorkspacePath(selectedPath as string);
       } else {
         if (!WebFSBackend.isSupported()) {
           setError('File System Access API is not supported in this browser. Please use Chrome, Edge, or Opera.');
@@ -174,25 +233,24 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
         }
         const webBackend = createWebFSBackend();
         const handle = await webBackend.openDirectoryPicker();
-        backend = webBackend;
-        rootPath = '/' + handle.name;
+        const rootPath = '/' + handle.name;
+
+        const service = createWorkspaceService();
+        const workspace = await service.initialize(webBackend, rootPath);
+
+        setRootPath(workspace.rootPath);
+        const fileTree = await service.getFileTree();
+        setFileTree(fileTree);
+        expandAllFolders();
+
+        addRecentWorkspace({
+          path: workspace.rootPath,
+          name: workspace.name,
+          lastOpened: new Date(),
+        });
+
+        onWorkspaceSelected(service);
       }
-
-      const service = createWorkspaceService();
-      const workspace = await service.initialize(backend, rootPath);
-
-      setRootPath(workspace.rootPath);
-      const fileTree = await service.getFileTree();
-      setFileTree(fileTree);
-      expandAllFolders();
-
-      addRecentWorkspace({
-        path: workspace.rootPath,
-        name: workspace.name,
-        lastOpened: new Date(),
-      });
-
-      onWorkspaceSelected(service);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         return;
@@ -275,22 +333,7 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
     setError(null);
 
     try {
-      const backend = await createFSBackend(workspacePath);
-      const service = createWorkspaceService();
-      const workspace = await service.initialize(backend, workspacePath);
-
-      setRootPath(workspace.rootPath);
-      const fileTree = await service.getFileTree();
-      setFileTree(fileTree);
-      expandAllFolders();
-
-      addRecentWorkspace({
-        path: workspace.rootPath,
-        name: workspace.name,
-        lastOpened: new Date(),
-      });
-
-      onWorkspaceSelected(service);
+      await openWorkspacePath(workspacePath);
     } catch (err) {
       console.error('[WorkspaceSelector] Failed to open recent workspace:', err);
       setError(err instanceof Error ? err.message : 'Failed to open workspace');
@@ -344,6 +387,40 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
 
       {/* Main content — centered vertically with some top padding */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-16 w-full max-w-2xl">
+
+        {/* Vault-locked prompt — replaces the normal workspace picker when a
+            selected workspace has its vault locked (no key on this machine). */}
+        {lockedWorkspacePath && (
+          <>
+            <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-4">
+              <VaultLockedPrompt
+                workspace={lockedWorkspacePath}
+                onUnlocked={handleVaultUnlocked}
+                onEscapeHatch={() => setShowEscapeHatch(true)}
+              />
+              <button
+                type="button"
+                className="mt-4 text-xs text-slate-500 hover:text-slate-700 underline underline-offset-2"
+                onClick={() => setLockedWorkspacePath(null)}
+              >
+                Back to workspace selection
+              </button>
+            </div>
+            <VaultEscapeHatchDialog
+              open={showEscapeHatch}
+              onOpenChange={setShowEscapeHatch}
+              workspace={lockedWorkspacePath}
+              onComplete={() => {
+                setShowEscapeHatch(false);
+                setLockedWorkspacePath(null);
+              }}
+            />
+          </>
+        )}
+
+        {/* Normal workspace picker content (hidden while vault-locked prompt shows) */}
+        {!lockedWorkspacePath && (
+          <>
 
         {/* Logo area with gradient glow */}
         <div className="relative flex flex-col items-center mb-8">
@@ -472,6 +549,8 @@ export function WorkspaceSelector({ open, onWorkspaceSelected, onDismiss }: Work
             formatDate={formatDate}
           />
         )}
+          </> // close {!lockedWorkspacePath && (<>
+        )} {/* end !lockedWorkspacePath */}
       </div>
 
       {/* Footer */}
