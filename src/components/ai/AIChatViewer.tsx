@@ -68,6 +68,7 @@ import {
   DEFAULT_WORKSPACE_TOP_K,
   buildWorkspaceContextBlock,
   citationBasename,
+  normalizeNumericCitations,
   parseCitations,
   parseWorkspaceCommand,
   resolveCitationPath,
@@ -1645,14 +1646,17 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           // WS-B/C — verify citations against the local store now the full
           // answer is in. Update the streamed message's sources with the
           // verification flags so unverified citations are surfaced.
+          // F-503 — repair number-keyed local-model citations BEFORE
+          // verification so the verify loop and chips see resolvable cites.
+          const normalizedAnswer = normalizeNumericCitations(accumulated, retrievedSources);
           const verifiedStreamSources =
             retrievedSources.length > 0
-              ? await verifyCitations(accumulated, retrievedSources, emitCitationVerified)
+              ? await verifyCitations(normalizedAnswer, retrievedSources, emitCitationVerified)
               : retrievedSources;
 
           const finalStreamingMessage: ChatMessage = {
             ...streamingMessage,
-            content: accumulated,
+            content: normalizedAnswer,
             ...(verifiedStreamSources.length > 0
               ? { sources: verifiedStreamSources }
               : {}),
@@ -1679,14 +1683,17 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           // WS-B/C — verify the citations in the answer against the local
           // store BEFORE presenting them. Verified sources are marked safe;
           // any citation that doesn't verify flags its source in the UI.
+          // F-503 — repair number-keyed local-model citations BEFORE
+          // verification so the verify loop and chips see resolvable cites.
+          const normalizedContent = normalizeNumericCitations(response.content, retrievedSources);
           const verifiedSources =
             retrievedSources.length > 0
-              ? await verifyCitations(response.content, retrievedSources, emitCitationVerified)
+              ? await verifyCitations(normalizedContent, retrievedSources, emitCitationVerified)
               : retrievedSources;
 
           const assistantMessage: ChatMessage = {
             role: 'assistant',
-            content: response.content,
+            content: normalizedContent,
             timestamp: new Date().toISOString(),
             // M2 — attach retrieval sources so the accordion + citation
             // chips rendered below the bubble have data to resolve.

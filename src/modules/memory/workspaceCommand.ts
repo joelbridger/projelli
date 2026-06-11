@@ -181,6 +181,39 @@ export function parseCitations(content: string): ParsedCitation[] {
 }
 
 /**
+ * F-503 — deterministic repair of number-keyed citations from small local
+ * models. The `<workspace_context>` block numbers sources `[1]..[N]`
+ * (buildWorkspaceContextBlock above); a 3B model sometimes cites the NUMBER
+ * (`[1 paragraph 3]`, `[1 §3]`, or bare `[1]`) instead of the filename, so
+ * resolution, live verification, and click-through all fail. Rewrite the
+ * number through the message's ordered sources to the real
+ * `[<basename> paragraph <paragraphIndex>]`. Pure text -> text; citations
+ * that already carry a filename are untouched; bare `[N]` is only rewritten
+ * when 1 <= N <= sources.length (markdown links `[1](url)` excluded).
+ */
+export function normalizeNumericCitations(
+  content: string,
+  sources: ReadonlyArray<{ path: string; paragraphIndex: number }>,
+): string {
+  if (sources.length === 0) return content;
+  const rewrite = (n: number): string | null => {
+    const src = sources[n - 1];
+    if (!src) return null;
+    return `[${citationBasename(src.path)} paragraph ${String(src.paragraphIndex)}]`;
+  };
+  let out = content.replace(
+    /\[(\d{1,3})\s+(?:paragraph\s+|§\s*)\d+\]/gi,
+    (match, nStr: string) => rewrite(Number.parseInt(nStr, 10)) ?? match,
+  );
+  out = out.replace(/\[(\d{1,3})\](?!\()/g, (match, nStr: string) => {
+    const n = Number.parseInt(nStr, 10);
+    if (n < 1 || n > sources.length) return match;
+    return rewrite(n) ?? match;
+  });
+  return out;
+}
+
+/**
  * Resolve a citation basename to a real workspace-relative path using the
  * list of hits that came back from retrieval. Ambiguity is resolved by
  * preferring the hit with matching `paragraphIndex`; if multiple hits

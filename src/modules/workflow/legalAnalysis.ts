@@ -177,13 +177,51 @@ function basename(path: string): string {
   return last && last.length > 0 ? last : path;
 }
 
+/** Normalize for containment matching: lowercase, straight quotes,
+ *  collapsed whitespace. */
+function normalizeQuote(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Quotes shorter than this can match accidentally; refuse to ground them. */
+const MIN_QUOTE_MATCH_CHARS = 20;
+
+/**
+ * F-507(b) — recover a missing/invalid sourceNumber by verbatim quote
+ * containment against the retrieved chunks (the "quote match" half this
+ * module's header always promised). Deterministic: first matching chunk in
+ * the numbered-context order wins. A fabricated quote matches nothing and
+ * the finding stays honestly unverified.
+ */
+export function groundQuoteToChunk(quote: string, chunks: RetrievedChunk[]): number {
+  const needle = normalizeQuote(quote);
+  if (needle.length < MIN_QUOTE_MATCH_CHARS) return -1;
+  return chunks.findIndex((c) => normalizeQuote(c.chunkText).includes(needle));
+}
+
 /** Resolve a model-returned source pointer back to a real retrieved chunk and
  *  build a `FindingSource` carrying the verifiable citation id (when grounded). */
 function resolveSource(raw: RawFindingSource, chunks: RetrievedChunk[]): FindingSource {
   // sourceNumber is 1-based; 0 (or out of range) means the model could not
   // ground this side in the retrieved context — a hallucinated reference.
+  // (`raw.sourceNumber` may be undefined from a sloppy model: undefined - 1
+  // is NaN, NaN >= 0 is false, so the quote-match fallback runs.)
   const idx = raw.sourceNumber - 1;
-  const chunk = idx >= 0 && idx < chunks.length ? chunks[idx] : undefined;
+  let chunk = idx >= 0 && idx < chunks.length ? chunks[idx] : undefined;
+  // F-507(b): local models routinely omit sourceNumber even when the quote
+  // is verbatim from the numbered context (RESULTS.md claim 10 — both runs
+  // returned sourceNumber: None on every finding). Recover by quote match.
+  // The structured output is untrusted, so `raw.quote` may itself be absent;
+  // a missing quote grounds nothing (and must not crash the run).
+  if (!chunk && raw.quote) {
+    const found = groundQuoteToChunk(raw.quote, chunks);
+    if (found >= 0) chunk = chunks[found];
+  }
   if (!chunk) {
     return {
       locator: 'Not grounded in retrieved record',

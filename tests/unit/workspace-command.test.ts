@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildWorkspaceContextBlock,
   citationBasename,
+  normalizeNumericCitations,
   parseCitations,
   parseWorkspaceCommand,
   resolveCitationPath,
@@ -278,5 +279,36 @@ describe('resolveCitationPath', () => {
   it('returns null with empty hits', () => {
     const cite = parseCitations('[pricing.md paragraph 3]')[0]!;
     expect(resolveCitationPath(cite, [])).toBe(null);
+  });
+});
+
+describe('normalizeNumericCitations (F-503)', () => {
+  const sources = [
+    { path: '/ws/matter/deposition-transcript-johnson.txt', paragraphIndex: 12 },
+    { path: '/ws/matter/incident-summary-johnson.md', paragraphIndex: 8 },
+  ];
+
+  it('rewrites [N paragraph M] to the numbered source basename + its real paragraph', () => {
+    expect(normalizeNumericCitations('The date conflicts [1 paragraph 3].', sources)).toBe(
+      'The date conflicts [deposition-transcript-johnson.txt paragraph 12].',
+    );
+  });
+
+  it('rewrites [N §M] and bare [N]', () => {
+    expect(normalizeNumericCitations('See [2 §1] and [1].', sources)).toBe(
+      'See [incident-summary-johnson.md paragraph 8] and [deposition-transcript-johnson.txt paragraph 12].',
+    );
+  });
+
+  it('leaves filename citations, out-of-range numbers, and markdown links alone', () => {
+    const text = 'Cited [notes.md paragraph 2], [9 paragraph 1], [3], and [1](https://x).';
+    expect(normalizeNumericCitations(text, sources)).toBe(
+      'Cited [notes.md paragraph 2], [9 paragraph 1], [3], and [1](https://x).',
+    );
+    // [9 …] and [3] are out of range for 2 sources; [1](…) is a link.
+  });
+
+  it('is a no-op with no sources', () => {
+    expect(normalizeNumericCitations('See [1 paragraph 2].', [])).toBe('See [1 paragraph 2].');
   });
 });
