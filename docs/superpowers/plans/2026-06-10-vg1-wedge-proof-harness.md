@@ -61,7 +61,7 @@ No product source file is modified by any task. If executing a task appears to r
 **Files:**
 - Create: `src-tauri/tests/rag_deposition_contradictions.rs`
 
-- [ ] **Step 1: Read the pattern source first**
+- [x] **Step 1: Read the pattern source first**
 
 ```bash
 sed -n '1,120p' ~/keepance/src-tauri/tests/rag_matter_scope.rs
@@ -70,7 +70,7 @@ sed -n '370,400p' ~/keepance/src-tauri/tests/rag_matter_scope.rs
 
 Mirror its imports, fixture OnceCell, `decrypt_hit`, and `verify` exactly — do not invent new plumbing.
 
-- [ ] **Step 2: Create the test file**
+- [x] **Step 2: Create the test file**
 
 Create `src-tauri/tests/rag_deposition_contradictions.rs`:
 
@@ -319,7 +319,7 @@ async fn c1_summary_side_company_servers_only_retrieves_and_verifies() {
 }
 ```
 
-- [ ] **Step 3: Run it**
+- [x] **Step 3: Run it**
 
 ```bash
 cd ~/keepance/src-tauri && cargo test --test rag_deposition_contradictions 2>&1 | tail -8
@@ -327,7 +327,7 @@ cd ~/keepance/src-tauri && cargo test --test rag_deposition_contradictions 2>&1 
 
 Expected: compiles; 2 tests PASS (first run loads the embedder from the rig's cache — slow once, offline). A FAILURE here is a finding: record the panic message verbatim; do not weaken the assertion. If the failure is a wording mismatch with the fixture text, fix the needle to the fixture's exact words (cite the fixture line in the commit message).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd ~/keepance && git add src-tauri/tests/rag_deposition_contradictions.rs
@@ -341,7 +341,7 @@ git commit -m "test(rag): VG-1 leg 1 scaffold — real-fixture corpus + CONTRADI
 **Files:**
 - Modify: `src-tauri/tests/rag_deposition_contradictions.rs`
 
-- [ ] **Step 1: Append the remaining tests**
+- [x] **Step 1: Append the remaining tests**
 
 Append to the file (after the C1 tests):
 
@@ -530,7 +530,7 @@ async fn finder_retrieval_query_at_top_k_12_feeds_both_sides_of_all_three_contra
 }
 ```
 
-- [ ] **Step 2: Run the full leg-1 binary**
+- [x] **Step 2: Run the full leg-1 binary**
 
 ```bash
 cd ~/keepance/src-tauri && cargo test --test rag_deposition_contradictions 2>&1 | tail -8
@@ -538,7 +538,7 @@ cd ~/keepance/src-tauri && cargo test --test rag_deposition_contradictions 2>&1 
 
 Expected: 7 tests PASS. Any failure → record the panic verbatim as a finding (it goes into `RESULTS.md` in Task 7 / the ledger in Task 8); only needle-vs-fixture wording mismatches may be corrected.
 
-- [ ] **Step 3: Confirm the rest of the Rust suite is untouched**
+- [x] **Step 3: Confirm the rest of the Rust suite is untouched**
 
 ```bash
 cd ~/keepance/src-tauri && cargo test 2>&1 | tail -10
@@ -546,7 +546,7 @@ cd ~/keepance/src-tauri && cargo test 2>&1 | tail -10
 
 Expected: all binaries green (this plan adds one binary, modifies none).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd ~/keepance && git add src-tauri/tests/rag_deposition_contradictions.rs
@@ -560,7 +560,7 @@ git commit -m "test(rag): VG-1 leg 1 complete — C2/C3 both-sides retrieval, Ac
 **Files:**
 - Create: `tests/e2e/wedge-proof.spec.ts`
 
-- [ ] **Step 1: Read the seam precedents first**
+- [x] **Step 1: Read the seam precedents first**
 
 ```bash
 sed -n '34,55p' ~/keepance/tests/e2e/spreadsheet-improvements.spec.ts   # __openTestFile pattern
@@ -568,7 +568,7 @@ sed -n '157,176p' ~/keepance/tests/campaign/sweep/viewers.spec.ts        # .aich
 sed -n '680,706p' ~/keepance/src/App.tsx                                 # __mockWorkspaceFs.seed
 ```
 
-- [ ] **Step 2: Create the spec with the part-A tests**
+- [x] **Step 2: Create the spec with the part-A tests**
 
 Create `tests/e2e/wedge-proof.spec.ts`:
 
@@ -823,7 +823,7 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
 });
 ```
 
-- [ ] **Step 3: Run part A**
+- [x] **Step 3: Run part A**
 
 ```bash
 cd ~/keepance && npx playwright test tests/e2e/wedge-proof.spec.ts --project=chromium 2>&1 | tail -8
@@ -831,7 +831,7 @@ cd ~/keepance && npx playwright test tests/e2e/wedge-proof.spec.ts --project=chr
 
 Expected: 2 passed (webServer auto-starts/reuses the dev server). If a testid or copy assertion fails, verify against the source lines cited in the spec comments before touching anything — a genuine mismatch is a finding.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd ~/keepance && git add tests/e2e/wedge-proof.spec.ts
@@ -845,7 +845,7 @@ git commit -m "test(e2e): VG-1 leg 2 scaffold — cited-answer UI glue, click-th
 **Files:**
 - Modify: `tests/e2e/wedge-proof.spec.ts`
 
-- [ ] **Step 1: Append the part-B tests**
+- [x] **Step 1: Append the part-B tests**
 
 Append inside the same `test.describe` block:
 
@@ -957,7 +957,7 @@ Append inside the same `test.describe` block:
   });
 ```
 
-- [ ] **Step 2: Run the whole leg-2 spec**
+- [x] **Step 2: Run the whole leg-2 spec**
 
 ```bash
 cd ~/keepance && npx playwright test tests/e2e/wedge-proof.spec.ts --project=chromium 2>&1 | tail -8
@@ -965,7 +965,7 @@ cd ~/keepance && npx playwright test tests/e2e/wedge-proof.spec.ts --project=chr
 
 Expected: 4 passed. Known judgment points: (a) the computed-total text rendering may be locale-formatted (e.g. `355,250` or `355250`) — check what the viewer actually renders and assert THAT (a `toContainText(/355,?250/)` regex is acceptable); (b) `fallback-slide-{n}` numbering is 1-based per `slide.number` — if slide 2's testid differs, read `PresentationViewer.tsx`'s fallback render block and match it.
 
-- [ ] **Step 3: Typecheck + commit**
+- [x] **Step 3: Typecheck + commit**
 
 ```bash
 cd ~/keepance && npx tsc --noEmit && git add tests/e2e/wedge-proof.spec.ts
@@ -981,7 +981,7 @@ git commit -m "test(e2e): VG-1 leg 2 complete — xlsx open/edit/save/reopen for
 
 This script owns everything around the attended UI pass: it never drives the UI itself (no scriptable selector layer exists for webkit2gtk on this rig — the campaign's method is xdotool + screenshots, which Task 7's runbook codifies). Subcommands: `preflight | up | launch [--fresh-model] | shot <name> | click <x> <y> | key <keys> | type <text> | seed-localstorage | assert | down` (`seed-localstorage` and `assert` are Task 6).
 
-- [ ] **Step 1: Write the script (env + preflight + up + launch + xdotool helpers + down)**
+- [x] **Step 1: Write the script (env + preflight + up + launch + xdotool helpers + down)**
 
 Create `scripts/wedge-proof-native.sh`:
 
@@ -1145,7 +1145,7 @@ esac
 chmod +x ~/keepance/scripts/wedge-proof-native.sh
 ```
 
-- [ ] **Step 2: Install the headless keychain (one-time, needs sudo)**
+- [x] **Step 2: Install the headless keychain (one-time, needs sudo)**
 
 ```bash
 sudo apt-get install -y gnome-keyring
@@ -1153,7 +1153,7 @@ sudo apt-get install -y gnome-keyring
 
 Expected: installs 46.1-2ubuntu0.2 (verified apt candidate). If sudo is unavailable in the execution context, STOP and flag — leg 3 cannot index without it (this is the keychain discovery in the plan header).
 
-- [ ] **Step 3: Preflight + syntax check**
+- [x] **Step 3: Preflight + syntax check**
 
 ```bash
 cd ~/keepance && bash -n scripts/wedge-proof-native.sh && ./scripts/wedge-proof-native.sh preflight
@@ -1161,7 +1161,7 @@ cd ~/keepance && bash -n scripts/wedge-proof-native.sh && ./scripts/wedge-proof-
 
 Expected: `preflight OK` (memory line, ollama line, model cache, keyring installed). Do NOT run `up`/`launch` yet — that is Task 6's smoke.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd ~/keepance && git add scripts/wedge-proof-native.sh
@@ -1175,7 +1175,7 @@ git commit -m "feat(harness): VG-1 leg 3 environment script — Xvfb, quiesced f
 **Files:**
 - Modify: `scripts/wedge-proof-native.sh`
 
-- [ ] **Step 1: Add `cmd_seed_localstorage`**
+- [x] **Step 1: Add `cmd_seed_localstorage`**
 
 Insert above the `case` dispatcher. Method proven by the campaign (`leak-investigation.md:54`): write `keepance_recent_workspaces` (+ the two onboarding-complete keys) as UTF-16-LE BLOBs into the WebKit localStorage sqlite for the `http://localhost:5173` origin. The storage file exists only after one boot, so the flow is: `launch` (background) → wait for the window → `down` → `seed-localstorage` → `launch` again.
 
@@ -1232,7 +1232,7 @@ PY
 }
 ```
 
-- [ ] **Step 2: Add `cmd_assert`**
+- [x] **Step 2: Add `cmd_assert`**
 
 ```bash
 # Disk-truth assertions + artifact collection after the attended pass.
@@ -1290,7 +1290,7 @@ PY
 }
 ```
 
-- [ ] **Step 3: Bring-up smoke (no UI driving yet)**
+- [x] **Step 3: Bring-up smoke (no UI driving yet)**
 
 ```bash
 cd ~/keepance && bash -n scripts/wedge-proof-native.sh
@@ -1312,7 +1312,7 @@ sleep 20 && ./scripts/wedge-proof-native.sh shot smoke-seeded
 
 Expected: `smoke-seeded.png` shows the workspace SELECTOR with the seeded `wedge-ws` Recent entry visible (onboarding skipped). If the wizard still shows, the localStorage keys/origin didn't take — inspect with `sqlite3 <db> 'SELECT key FROM ItemTable'` and fix the find-glob, not the app.
 
-- [ ] **Step 4: Commit (include the smoke shots)**
+- [x] **Step 4: Commit (include the smoke shots)**
 
 ```bash
 cd ~/keepance && git add scripts/wedge-proof-native.sh docs/quality/2026-06-11-wedge-proof/
@@ -1330,7 +1330,7 @@ git commit -m "feat(harness): VG-1 leg 3 — localStorage seeding, docx fact-rub
 
 This task is executed BY an agent driving xdotool + `shot` between steps (the campaign's proven method), with the script doing everything mechanical. Write `RUNBOOK.md` FIRST (it is the repeatable procedure — the deliverable that makes this "a harness, not a one-off"), then perform it.
 
-- [ ] **Step 1: Write `RUNBOOK.md`**
+- [x] **Step 1: Write `RUNBOOK.md`**
 
 Contents (write it out fully; summary of required sections):
 
@@ -1356,11 +1356,11 @@ Contents (write it out fully; summary of required sections):
    - Memory kill (cgroup OOM): check `rss.csv`, re-run with nothing else heavy on the box; the 3G cap stays (it is the campaign-calibrated bound).
 6. **Artifact manifest** — what must exist in `screenshots/ logs/ output/` for the run to count, and the RESULTS.md template (per-item PASS/FAIL + finding rows `F-5xx | severity | what | evidence`).
 
-- [ ] **Step 2: Execute the runbook** (attended; background `launch`; `shot` at every step; bank everything)
+- [x] **Step 2: Execute the runbook** (attended; background `launch`; `shot` at every step; bank everything)
 
-- [ ] **Step 3: Write `RESULTS.md`** — per-item table (indexing populated, cited answer, verify+click-through, finder run, rubric output verbatim, Option B handoff), every finding as F-5xx, and the two explicit out-of-scope lines (mail, live-audit) pointing at the Windows spot check.
+- [x] **Step 3: Write `RESULTS.md`** — per-item table (indexing populated, cited answer, verify+click-through, finder run, rubric output verbatim, Option B handoff), every finding as F-5xx, and the two explicit out-of-scope lines (mail, live-audit) pointing at the Windows spot check.
 
-- [ ] **Step 4: Run `assert` one final time and commit everything**
+- [x] **Step 4: Run `assert` one final time and commit everything**
 
 ```bash
 cd ~/keepance && ./scripts/wedge-proof-native.sh assert
@@ -1380,7 +1380,7 @@ Expected at the end of this task: `RESULTS.md` shows the rubric verdict, `output
 - Modify: `docs/strategy/2026-06-10-vision-gap-closure-plan.md`
 - Modify: `CHANGELOG.md`
 
-- [ ] **Step 1: Add the wedge-proof section to the coverage ledger**
+- [x] **Step 1: Add the wedge-proof section to the coverage ledger**
 
 Append a new section (match the ledger's column format exactly — `ID | Surface | Where | Covered by | Result | Findings`):
 
@@ -1404,7 +1404,7 @@ Append a new section (match the ledger's column format exactly — `ID | Surface
 
 Fill `<result>` cells from the actual Task 2/4/7 outcomes (`pass` or the F-5xx finding id). Also update the three existing ledger/native rows that reference F-117, F-415, F-422 with a pointer: `→ see W. Wedge proof (2026-06-11)`.
 
-- [ ] **Step 2: Tick VG-1 in the gap-closure plan**
+- [x] **Step 2: Tick VG-1 in the gap-closure plan**
 
 In `docs/strategy/2026-06-10-vision-gap-closure-plan.md` §2 ("Already closed") add one row:
 
@@ -1414,7 +1414,7 @@ In `docs/strategy/2026-06-10-vision-gap-closure-plan.md` §2 ("Already closed") 
 
 (Adjust wording to the actual result; if leg 3 logged findings, say "executed, N findings open" instead of overclaiming.)
 
-- [ ] **Step 3: CHANGELOG**
+- [x] **Step 3: CHANGELOG**
 
 Under `## [Unreleased]`:
 
@@ -1423,7 +1423,7 @@ Under `## [Unreleased]`:
 - **Wedge-proof harness (VG-1).** Three repeatable proof legs for the core promise (ask → cited answer → verify → click-through → contradiction finder completes): a Rust retrieval-truth suite over the real Johnson fixtures (`src-tauri/tests/rag_deposition_contradictions.rs`), a browser UI-wiring spec (`tests/e2e/wedge-proof.spec.ts` — wiring only; browser has no rag), and a scripted real-machine pass (`scripts/wedge-proof-native.sh` + `docs/quality/2026-06-11-wedge-proof/RUNBOOK.md`) with banked screenshots, logs, and the contradiction-finder's `.docx` output checked against a fact rubric.
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd ~/keepance && git add docs/quality/2026-06-10-v3-usability-campaign/coverage-ledger.md docs/strategy/2026-06-10-vision-gap-closure-plan.md CHANGELOG.md
