@@ -29,6 +29,7 @@ import {
   FolderPlus,
   Users,
   ShieldX,
+  ShieldCheck,
   RefreshCw,
   Trash2,
   KeyRound,
@@ -53,7 +54,10 @@ import type {
   AssuredProvider,
   ManagedKeyInfo,
   OrgUserEntry,
+  SsoConfigView,
+  IdpProvider,
 } from '@/modules/firm/contract';
+import type { SsoConfigSetRequest } from '@/modules/firm/contract';
 
 const audit = new AuditService('firm');
 
@@ -139,6 +143,15 @@ export function FirmAdminConsole() {
   const [tempPassword, setTempPassword] = useState<string | null>(null);
   const [tempPasswordEmail, setTempPasswordEmail] = useState<string | null>(null);
 
+  // SSO configuration state
+  const [ssoView, setSsoView] = useState<SsoConfigView | null>(null);
+  const [ssoProvider, setSsoProvider] = useState<IdpProvider>('entra');
+  const [ssoIssuer, setSsoIssuer] = useState('');
+  const [ssoClientId, setSsoClientId] = useState('');
+  const [ssoClientSecret, setSsoClientSecret] = useState('');
+  const [ssoEnabled, setSsoEnabled] = useState(true);
+  const [ssoSecretTouched, setSsoSecretTouched] = useState(false);
+
   // Local cache: email -> user_id (kept for backward compat; populated from
   // listOrgUsers on load so the wall-by-email flow resolves without requiring
   // a prior invite).
@@ -196,6 +209,20 @@ export function FirmAdminConsole() {
     }
   }, [getClient]);
 
+  const loadSsoConfig = useCallback(async () => {
+    const view = await getClient().ssoConfigGet();
+    setSsoView(view);
+    if (view.configured) {
+      setSsoProvider((view.provider as IdpProvider) ?? 'entra');
+      setSsoIssuer(view.issuer ?? '');
+      setSsoClientId(view.client_id ?? '');
+      setSsoEnabled(view.enabled ?? true);
+      // Never pre-populate the secret; let the user know a saved secret exists
+      setSsoClientSecret('');
+      setSsoSecretTouched(false);
+    }
+  }, [getClient]);
+
   const loadMembers = useCallback(
     async (matterId: string) => {
       const res = await getClient().listMatterMembers(matterId);
@@ -208,7 +235,7 @@ export function FirmAdminConsole() {
   useEffect(() => {
     if (firm.role !== 'admin') return;
     void run(async () => {
-      await Promise.all([loadMatters(), loadSeats(), loadManagedKeys(), loadOrgUsers()]);
+      await Promise.all([loadMatters(), loadSeats(), loadManagedKeys(), loadOrgUsers(), loadSsoConfig()]);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firm.role]);
@@ -375,7 +402,7 @@ export function FirmAdminConsole() {
           disabled={busy}
           onClick={() =>
             void run(async () => {
-              await Promise.all([loadMatters(), loadSeats(), loadManagedKeys(), loadOrgUsers()]);
+              await Promise.all([loadMatters(), loadSeats(), loadManagedKeys(), loadOrgUsers(), loadSsoConfig()]);
               if (selectedMatter) await loadMembers(selectedMatter);
             })
           }
@@ -700,6 +727,202 @@ export function FirmAdminConsole() {
             </li>
           ))}
         </ul>
+      </Section>
+
+      {/* Single sign-on (SSO) */}
+      <Section icon={ShieldCheck} title="Single sign-on (SSO)">
+        <p className="mb-3 text-xs text-muted-foreground leading-relaxed">
+          Let firm members sign in through your organization's identity provider.
+          Register this application with your IdP using the Redirect URI below, then
+          enter the credentials your IdP gives you.
+        </p>
+
+        {/* Redirect URI — read-only, copyable */}
+        <div className="mb-3 space-y-1">
+          <Label htmlFor="sso-redirect-uri" className="text-xs">
+            Redirect URI
+          </Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="sso-redirect-uri"
+              readOnly
+              value={ssoView?.redirect_uri ?? ''}
+              className="flex-1 font-mono text-xs bg-muted/40"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-9 px-2"
+              title="Copy redirect URI"
+              onClick={() => {
+                if (ssoView?.redirect_uri) {
+                  void navigator.clipboard.writeText(ssoView.redirect_uri);
+                }
+              }}
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Paste this URI into your IdP when registering the application.
+          </p>
+        </div>
+
+        <div className="space-y-3">
+          {/* Provider */}
+          <div className="space-y-1">
+            <Label htmlFor="sso-provider" className="text-xs">
+              Identity provider
+            </Label>
+            <select
+              id="sso-provider"
+              data-testid="sso-provider"
+              value={ssoProvider}
+              onChange={(e) => { setSsoProvider(e.target.value as IdpProvider); }}
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm w-full"
+            >
+              <option value="entra">Microsoft Entra ID (Azure AD)</option>
+              <option value="google">Google Workspace</option>
+              <option value="generic">Generic OIDC</option>
+            </select>
+            <p className="text-[11px] text-muted-foreground">
+              {ssoProvider === 'entra' && 'Register in Azure portal → App registrations → Redirect URIs.'}
+              {ssoProvider === 'google' && 'Register in Google Cloud Console → APIs & Services → Credentials.'}
+              {ssoProvider === 'generic' && 'Register the redirect URI with your OIDC-compatible identity provider.'}
+            </p>
+          </div>
+
+          {/* Issuer URL */}
+          <div className="space-y-1">
+            <Label htmlFor="sso-issuer" className="text-xs">
+              Issuer URL
+            </Label>
+            <Input
+              id="sso-issuer"
+              type="url"
+              data-testid="sso-issuer"
+              value={ssoIssuer}
+              onChange={(e) => { setSsoIssuer(e.target.value); }}
+              placeholder={
+                ssoProvider === 'entra'
+                  ? 'https://login.microsoftonline.com/<tenant-id>/v2.0'
+                  : ssoProvider === 'google'
+                  ? 'https://accounts.google.com'
+                  : 'https://idp.example.com'
+              }
+            />
+          </div>
+
+          {/* Client ID */}
+          <div className="space-y-1">
+            <Label htmlFor="sso-client-id" className="text-xs">
+              Client ID
+            </Label>
+            <Input
+              id="sso-client-id"
+              data-testid="sso-client-id"
+              value={ssoClientId}
+              onChange={(e) => { setSsoClientId(e.target.value); }}
+              placeholder="Application (client) ID from your IdP"
+            />
+          </div>
+
+          {/* Client secret — write-only */}
+          <div className="space-y-1">
+            <Label htmlFor="sso-client-secret" className="text-xs">
+              Client secret
+            </Label>
+            <Input
+              id="sso-client-secret"
+              type="password"
+              data-testid="sso-client-secret"
+              value={ssoClientSecret}
+              onChange={(e) => {
+                setSsoClientSecret(e.target.value);
+                setSsoSecretTouched(true);
+              }}
+              placeholder={
+                ssoView?.has_secret && !ssoSecretTouched
+                  ? ''
+                  : 'Client secret from your IdP'
+              }
+            />
+            {ssoView?.has_secret && !ssoSecretTouched && (
+              <p className="text-[11px] text-emerald-700">
+                Secret saved — leave blank to keep the existing secret.
+              </p>
+            )}
+          </div>
+
+          {/* Enabled toggle */}
+          <div className="flex items-center gap-2">
+            <input
+              id="sso-enabled"
+              type="checkbox"
+              data-testid="sso-enabled"
+              checked={ssoEnabled}
+              onChange={(e) => { setSsoEnabled(e.target.checked); }}
+              className="h-4 w-4 rounded border-input accent-sky-700"
+            />
+            <Label htmlFor="sso-enabled" className="text-xs cursor-pointer">
+              SSO enabled for this organization
+            </Label>
+          </div>
+
+          {/* Save + Remove */}
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              type="button"
+              size="sm"
+              data-testid="sso-save"
+              disabled={busy || !ssoIssuer.trim() || !ssoClientId.trim()}
+              onClick={() =>
+                void run(async () => {
+                  const req: SsoConfigSetRequest = {
+                    provider: ssoProvider,
+                    issuer: ssoIssuer.trim(),
+                    client_id: ssoClientId.trim(),
+                    client_secret: ssoClientSecret,
+                    enabled: ssoEnabled,
+                  };
+                  const res = await getClient().ssoConfigSet(req);
+                  setSsoSecretTouched(false);
+                  setSsoClientSecret('');
+                  // Re-fetch to get the canonical view (has_secret etc.)
+                  await loadSsoConfig();
+                  setSsoView((prev) => ({ ...(prev ?? { configured: true, redirect_uri: res.redirect_uri }), configured: true }));
+                }, 'SSO configuration saved.')
+              }
+            >
+              Save SSO
+            </Button>
+            {ssoView?.configured && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                data-testid="sso-delete"
+                disabled={busy}
+                className="text-rose-700 border-rose-300 hover:bg-rose-50"
+                onClick={() =>
+                  void run(async () => {
+                    await getClient().ssoConfigDelete();
+                    setSsoView((prev) => prev ? { ...prev, configured: false } : null);
+                    setSsoIssuer('');
+                    setSsoClientId('');
+                    setSsoClientSecret('');
+                    setSsoSecretTouched(false);
+                    setSsoEnabled(true);
+                    await loadSsoConfig();
+                  }, 'SSO configuration removed.')
+                }
+              >
+                Remove SSO
+              </Button>
+            )}
+          </div>
+        </div>
       </Section>
 
       {/* Assured managed keys */}
