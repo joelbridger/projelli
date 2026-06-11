@@ -9,6 +9,7 @@
  * The 3 confirmation positions are fixed at mount (never change on re-render).
  */
 import { useState, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Copy, Check, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,7 @@ function pickThreePositions(): [number, number, number] {
 }
 
 export function RecoveryPhraseCeremony({ phrase, onConfirmed }: RecoveryPhraseCeremonyProps) {
+  const { t } = useTranslation();
   const words = useMemo(() => phrase.split(/\s+/).filter(Boolean), [phrase]);
 
   // Fixed at mount — never changes on re-render
@@ -63,14 +65,13 @@ export function RecoveryPhraseCeremony({ phrase, onConfirmed }: RecoveryPhraseCe
       >
         <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-red-600" aria-hidden />
         <p className="text-sm font-bold text-red-800">
-          Keepance cannot recover this for you. If you lose this phrase and your device's
-          keychain, your encrypted files will be permanently inaccessible.
+          {t('vault.ceremony.cannot-recover-warning')}
         </p>
       </div>
 
       {/* 24-word grid */}
       <div>
-        <p className="mb-3 text-sm font-medium text-slate-700">Your 24-word recovery phrase</p>
+        <p className="mb-3 text-sm font-medium text-slate-700">{t('vault.ceremony.phrase-label')}</p>
         <div className="grid grid-cols-4 gap-2 rounded-lg border border-slate-200 bg-slate-50 p-4">
           {words.map((word, idx) => (
             <div key={idx} className="flex items-center gap-1.5 text-sm">
@@ -89,9 +90,9 @@ export function RecoveryPhraseCeremony({ phrase, onConfirmed }: RecoveryPhraseCe
           onClick={handleCopy}
         >
           {copies ? (
-            <><Check className="h-3.5 w-3.5 text-green-600" aria-hidden /> Copied</>
+            <><Check className="h-3.5 w-3.5 text-green-600" aria-hidden /> {t('vault.ceremony.copied')}</>
           ) : (
-            <><Copy className="h-3.5 w-3.5" aria-hidden /> Copy phrase</>
+            <><Copy className="h-3.5 w-3.5" aria-hidden /> {t('vault.ceremony.copy-phrase')}</>
           )}
         </Button>
       </div>
@@ -99,7 +100,7 @@ export function RecoveryPhraseCeremony({ phrase, onConfirmed }: RecoveryPhraseCe
       {/* Confirmation inputs */}
       <div className="rounded-lg border border-slate-200 bg-white p-4">
         <p className="mb-4 text-sm font-medium text-slate-700">
-          Confirm you've saved the phrase — enter the words at these positions:
+          {t('vault.ceremony.confirm-prompt')}
         </p>
         <div className="flex flex-col gap-3">
           {positions.map((pos) => (
@@ -108,12 +109,12 @@ export function RecoveryPhraseCeremony({ phrase, onConfirmed }: RecoveryPhraseCe
                 htmlFor={`confirm-input-${pos}`}
                 className="w-24 shrink-0 text-sm text-slate-600"
               >
-                Word #{pos}
+                {t('vault.ceremony.word-label', { pos })}
               </Label>
               <Input
                 id={`confirm-input-${pos}`}
                 data-testid={`confirm-input-${pos}`}
-                placeholder={`Word #${pos}`}
+                placeholder={t('vault.ceremony.word-placeholder', { pos })}
                 value={confirmValues[pos] ?? ''}
                 onChange={(e) =>
                   setConfirmValues((prev) => ({ ...prev, [pos]: e.target.value }))
@@ -134,7 +135,7 @@ export function RecoveryPhraseCeremony({ phrase, onConfirmed }: RecoveryPhraseCe
         onClick={() => { if (allCorrect) onConfirmed(); }}
         className="w-full bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
       >
-        Activate
+        {t('vault.ceremony.activate')}
       </Button>
     </div>
   );

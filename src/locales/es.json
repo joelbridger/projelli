@@ -1515,5 +1515,64 @@
       "privilege-clear__locked": true,
       "privilege-note__locked": true
     }
+  },
+  "vault": {
+    "ceremony": {
+      "cannot-recover-warning": "Keepance no puede recuperar esto por ti. Si pierdes esta frase y el llavero de tu dispositivo, tus archivos cifrados serán permanentemente inaccesibles.",
+      "phrase-label": "Tu frase de recuperación de 24 palabras",
+      "copy-phrase": "Copiar frase",
+      "copied": "Copiado",
+      "confirm-prompt": "Confirma que has guardado la frase. Introduce las palabras en estas posiciones:",
+      "word-label": "Palabra n.° {{pos}}",
+      "word-placeholder": "Palabra n.° {{pos}}",
+      "activate": "Activar"
+    },
+    "enable": {
+      "title": "Cifrar este espacio de trabajo",
+      "subtitle": "AES-256 en reposo, transparente en Keepance",
+      "detail": "Cuando está activado, cada archivo de documento en este espacio de trabajo se almacena como texto cifrado en el disco. Keepance los descifra de forma transparente para que tu flujo de trabajo no cambie.",
+      "bullet-names-visible": "Los nombres de archivo y la estructura de carpetas siguen siendo visibles",
+      "bullet-phrase-once": "Se genera una frase de recuperación de 24 palabras una sola vez. Debes guardarla.",
+      "bullet-no-recovery": "Si pierdes la frase y el llavero, los archivos no se pueden recuperar",
+      "bullet-firm-escrow": "Un administrador de la firma puede recuperar esta caja fuerte mediante custodia",
+      "cancel": "Cancelar",
+      "enable-button": "Activar caja fuerte",
+      "setting-up": "Configurando...",
+      "loading-phrase": "Cargando frase...",
+      "ceremony-heading": "Guarda tu frase de recuperación",
+      "ceremony-subheading": "Anótala en un lugar seguro. Se muestra solo una vez.",
+      "escrow-notice": "Un administrador de la firma podrá recuperar esta caja fuerte en tu nombre usando la clave de custodia de la firma. Esto se suma a tu frase de recuperación personal.",
+      "confirm-continue": "Confirmar y continuar",
+      "encrypting-title": "Cifrando los archivos del espacio de trabajo...",
+      "encrypting-subtitle": "Puede tardar un momento en espacios de trabajo grandes.",
+      "done-title": "Espacio de trabajo cifrado",
+      "done-subtitle": "Todos los archivos están ahora protegidos en reposo.",
+      "done-button": "Listo"
+    },
+    "locked": {
+      "title": "Caja fuerte bloqueada",
+      "subtitle": "Este espacio de trabajo está cifrado y la clave no está en este equipo.",
+      "explanation": "Introduce tu frase de recuperación de 24 palabras para desbloquear esta caja fuerte. Keepance restaurará la clave en tu llavero para que puedas abrir este espacio de trabajo con normalidad a partir de ahora.",
+      "phrase-hint": "Las frases de recuperación son 24 palabras separadas por espacios.",
+      "phrase-label": "Frase de recuperación",
+      "phrase-placeholder": "palabra1 palabra2 palabra3 ...",
+      "escape-hatch": "Desactivar caja fuerte y descifrar archivos",
+      "unlock": "Desbloquear",
+      "error-invalid-phrase": "Esa frase tiene un formato no válido. Comprueba cada palabra y vuelve a intentarlo.",
+      "error-recovery-failed": "Esa frase es válida, pero no coincide con esta caja fuerte. Asegúrate de que estás usando la frase de recuperación correcta."
+    },
+    "escape-hatch": {
+      "title": "Descifrar este espacio de trabajo y desactivar la caja fuerte",
+      "description": "Esto convertirá cada archivo cifrado de vuelta a un archivo normal sin cifrar en este disco. La caja fuerte se desactivará y eliminará de este espacio de trabajo.",
+      "warning-title": "Después de esto, la protección en reposo vuelve solo al cifrado de disco del sistema operativo.",
+      "warning-body": "Tus archivos serán legibles por cualquier proceso que tenga acceso a esta carpeta. Asegúrate de que el cifrado de disco completo de tu sistema operativo está activado si manejas documentos sensibles.",
+      "working": "Descifrando archivos... puede tardar un momento en espacios de trabajo grandes.",
+      "done-message": "Todos los archivos han sido descifrados y la caja fuerte ha sido eliminada. Tus archivos son archivos normales sin cifrar en el disco.",
+      "cancel": "Cancelar",
+      "confirm-button": "Descifrar y desactivar caja fuerte",
+      "try-again": "Intentar de nuevo",
+      "working-button": "Procesando...",
+      "done-button": "Listo"
+    }
   }
 }

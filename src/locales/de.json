@@ -1515,5 +1515,64 @@
       "privilege-clear__locked": true,
       "privilege-note__locked": true
     }
+  },
+  "vault": {
+    "ceremony": {
+      "cannot-recover-warning": "Keepance kann dies nicht fur Sie wiederherstellen. Wenn Sie diesen Satz und den Schlussel Ihres Gerats verlieren, sind Ihre verschlusselten Dateien dauerhaft nicht mehr zuganglich.",
+      "phrase-label": "Ihr 24-Worter-Wiederherstellungssatz",
+      "copy-phrase": "Satz kopieren",
+      "copied": "Kopiert",
+      "confirm-prompt": "Bestatigen Sie, dass Sie den Satz gespeichert haben. Geben Sie die Worter an diesen Positionen ein:",
+      "word-label": "Wort Nr. {{pos}}",
+      "word-placeholder": "Wort Nr. {{pos}}",
+      "activate": "Aktivieren"
+    },
+    "enable": {
+      "title": "Diesen Arbeitsbereich verschlusseln",
+      "subtitle": "AES-256 im Ruhezustand, transparent in Keepance",
+      "detail": "Wenn aktiviert, wird jede Dokumentdatei in diesem Arbeitsbereich als Chiffretext auf dem Datentrager gespeichert. Keepance entschlusselt sie transparent, sodass Ihr Arbeitsablauf unverandert bleibt.",
+      "bullet-names-visible": "Dateinamen und Ordnerstruktur bleiben sichtbar",
+      "bullet-phrase-once": "Ein 24-Worter-Wiederherstellungssatz wird einmalig erzeugt. Sie mussen ihn speichern.",
+      "bullet-no-recovery": "Wenn Sie den Satz und den Keychain-Schlussel verlieren, konnen die Dateien nicht wiederhergestellt werden",
+      "bullet-firm-escrow": "Ein Kanzleiadmin kann diesen Tresor uber Hinterlegung wiederherstellen",
+      "cancel": "Abbrechen",
+      "enable-button": "Tresor aktivieren",
+      "setting-up": "Wird eingerichtet...",
+      "loading-phrase": "Satz wird geladen...",
+      "ceremony-heading": "Ihren Wiederherstellungssatz sichern",
+      "ceremony-subheading": "Notieren Sie ihn an einem sicheren Ort. Wird nur einmal angezeigt.",
+      "escrow-notice": "Ein Kanzleiadmin kann diesen Tresor in Ihrem Namen mithilfe des Hinterlegungsschlussels der Kanzlei wiederherstellen. Dies erganzt Ihren personlichen Wiederherstellungssatz.",
+      "confirm-continue": "Bestatigen und fortfahren",
+      "encrypting-title": "Arbeitsbereichsdateien werden verschlusselt...",
+      "encrypting-subtitle": "Dies kann bei grossen Arbeitsbereichen einen Moment dauern.",
+      "done-title": "Arbeitsbereich verschlusselt",
+      "done-subtitle": "Alle Dateien sind jetzt im Ruhezustand geschutzt.",
+      "done-button": "Fertig"
+    },
+    "locked": {
+      "title": "Tresor gesperrt",
+      "subtitle": "Dieser Arbeitsbereich ist verschlusselt und der Schlussel befindet sich nicht auf diesem Gerat.",
+      "explanation": "Geben Sie Ihren 24-Worter-Wiederherstellungssatz ein, um diesen Tresor zu entsperren. Keepance stellt den Schlussel in Ihrem Keychain wieder her, sodass Sie diesen Arbeitsbereich von nun an normal offnen konnen.",
+      "phrase-hint": "Wiederherstellungssatze bestehen aus 24 durch Leerzeichen getrennten Wortern.",
+      "phrase-label": "Wiederherstellungssatz",
+      "phrase-placeholder": "wort1 wort2 wort3 ...",
+      "escape-hatch": "Tresor deaktivieren und Dateien entschlusseln",
+      "unlock": "Entsperren",
+      "error-invalid-phrase": "Dieser Satz hat ein ungultiges Format. Pruefen Sie jedes Wort und versuchen Sie es erneut.",
+      "error-recovery-failed": "Dieser Satz ist gultig, stimmt aber nicht mit diesem Tresor uberein. Vergewissern Sie sich, dass Sie den richtigen Wiederherstellungssatz verwenden."
+    },
+    "escape-hatch": {
+      "title": "Diesen Arbeitsbereich entschlusseln und den Tresor deaktivieren",
+      "description": "Dadurch wird jede verschlusselte Datei wieder in eine normale, unverschlusselte Datei auf diesem Datentrager umgewandelt. Der Tresor wird deaktiviert und aus diesem Arbeitsbereich entfernt.",
+      "warning-title": "Danach kehrt der Schutz im Ruhezustand zur Betriebssystem-Festplattenverschlusselung zuruck.",
+      "warning-body": "Ihre Dateien konnen von jedem Prozess gelesen werden, der Zugriff auf diesen Ordner hat. Stellen Sie sicher, dass die Festplattenverschlusselung Ihres Betriebssystems aktiviert ist, wenn Sie mit sensiblen Dokumenten arbeiten.",
+      "working": "Dateien werden entschlusselt... dies kann bei grossen Arbeitsbereichen einen Moment dauern.",
+      "done-message": "Alle Dateien wurden entschlusselt und der Tresor wurde entfernt. Ihre Dateien sind normale unverschlusselte Dateien auf dem Datentrager.",
+      "cancel": "Abbrechen",
+      "confirm-button": "Entschlusseln und Tresor deaktivieren",
+      "try-again": "Erneut versuchen",
+      "working-button": "Wird verarbeitet...",
+      "done-button": "Fertig"
+    }
   }
 }

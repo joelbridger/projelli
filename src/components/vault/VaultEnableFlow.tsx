@@ -17,6 +17,7 @@
  *   onCancel      — called when the user dismisses before completing.
  */
 
+import { useTranslation } from 'react-i18next';
 import { useVaultStore } from '@/stores/vaultStore';
 import { RecoveryPhraseCeremony } from './RecoveryPhraseCeremony';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ export function VaultEnableFlow({
   onComplete,
   onCancel,
 }: VaultEnableFlowProps) {
+  const { t } = useTranslation();
   const { phase, status, error, recoveryPhrase, enableVault, continueEnableAfterCeremony, reset } =
     useVaultStore();
 
@@ -63,18 +65,18 @@ export function VaultEnableFlow({
             <Lock className="h-5 w-5 text-blue-600" aria-hidden />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-slate-900">Encrypt this workspace</h3>
-            <p className="text-sm text-slate-500">AES-256 at rest, transparent in Keepance</p>
+            <h3 className="text-base font-semibold text-slate-900">{t('vault.enable.title')}</h3>
+            <p className="text-sm text-slate-500">{t('vault.enable.subtitle')}</p>
           </div>
         </div>
 
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 space-y-2">
-          <p>When enabled, every document file in this workspace is stored as ciphertext on disk. Keepance decrypts them transparently so your workflow is unchanged.</p>
+          <p>{t('vault.enable.detail')}</p>
           <ul className="list-disc pl-4 space-y-1">
-            <li>File names and folder structure remain visible</li>
-            <li>A 24-word recovery phrase is generated once — you must save it</li>
-            <li>If you lose the phrase and the keychain, files cannot be recovered</li>
-            {isFirm && <li>A firm admin can recover this vault via escrow</li>}
+            <li>{t('vault.enable.bullet-names-visible')}</li>
+            <li>{t('vault.enable.bullet-phrase-once')}</li>
+            <li>{t('vault.enable.bullet-no-recovery')}</li>
+            {isFirm && <li>{t('vault.enable.bullet-firm-escrow')}</li>}
           </ul>
         </div>
 
@@ -84,7 +86,7 @@ export function VaultEnableFlow({
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={handleCancel} className="border-slate-300 text-slate-700">
-            Cancel
+            {t('vault.enable.cancel')}
           </Button>
           <Button
             type="button"
@@ -93,9 +95,9 @@ export function VaultEnableFlow({
             className="bg-blue-600 text-white hover:bg-blue-700"
           >
             {status === 'loading' ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> Setting up&hellip;</>
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> {t('vault.enable.setting-up')}</>
             ) : (
-              'Enable vault'
+              t('vault.enable.enable-button')
             )}
           </Button>
         </div>
@@ -106,7 +108,7 @@ export function VaultEnableFlow({
   // ── Ceremony ──────────────────────────────────────────────────────────────────
   if (phase === 'ceremony') {
     if (!recoveryPhrase) {
-      return <p className="text-sm text-slate-500">Loading phrase&hellip;</p>;
+      return <p className="text-sm text-slate-500">{t('vault.enable.loading-phrase')}</p>;
     }
     return (
       <div className="flex flex-col gap-4 p-1">
@@ -115,8 +117,8 @@ export function VaultEnableFlow({
             <KeyRound className="h-5 w-5 text-amber-600" aria-hidden />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-slate-900">Save your recovery phrase</h3>
-            <p className="text-sm text-slate-500">Write it down somewhere safe — shown once only</p>
+            <h3 className="text-base font-semibold text-slate-900">{t('vault.enable.ceremony-heading')}</h3>
+            <p className="text-sm text-slate-500">{t('vault.enable.ceremony-subheading')}</p>
           </div>
         </div>
         <RecoveryPhraseCeremony phrase={recoveryPhrase} onConfirmed={handleCeremonyConfirmed} />
@@ -129,8 +131,7 @@ export function VaultEnableFlow({
     return (
       <div className="flex flex-col gap-5 p-1">
         <p className="text-sm text-slate-700">
-          A firm admin will be able to recover this vault on your behalf using the firm's
-          escrow key. This is in addition to your personal recovery phrase.
+          {t('vault.enable.escrow-notice')}
         </p>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex justify-end gap-2">
@@ -141,9 +142,9 @@ export function VaultEnableFlow({
             className="bg-blue-600 text-white hover:bg-blue-700"
           >
             {status === 'loading' ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> Setting up&hellip;</>
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> {t('vault.enable.setting-up')}</>
             ) : (
-              'Confirm and continue'
+              t('vault.enable.confirm-continue')
             )}
           </Button>
         </div>
@@ -157,8 +158,8 @@ export function VaultEnableFlow({
       <div className="flex flex-col items-center gap-4 py-8">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" aria-hidden />
         <div className="text-center">
-          <p className="font-medium text-slate-800">Encrypting workspace files&hellip;</p>
-          <p className="text-sm text-slate-500">This may take a moment for large workspaces.</p>
+          <p className="font-medium text-slate-800">{t('vault.enable.encrypting-title')}</p>
+          <p className="text-sm text-slate-500">{t('vault.enable.encrypting-subtitle')}</p>
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
       </div>
@@ -173,8 +174,8 @@ export function VaultEnableFlow({
           <ShieldCheck className="h-6 w-6 text-green-600" aria-hidden />
         </div>
         <div className="text-center">
-          <p className="font-semibold text-slate-900">Workspace encrypted</p>
-          <p className="text-sm text-slate-500">All files are now protected at rest.</p>
+          <p className="font-semibold text-slate-900">{t('vault.enable.done-title')}</p>
+          <p className="text-sm text-slate-500">{t('vault.enable.done-subtitle')}</p>
         </div>
         <Button
           type="button"
@@ -184,7 +185,7 @@ export function VaultEnableFlow({
           }}
           className="bg-blue-600 text-white hover:bg-blue-700"
         >
-          Done
+          {t('vault.enable.done-button')}
         </Button>
       </div>
     );

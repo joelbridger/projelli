@@ -109,11 +109,18 @@ export const DATA_MAP_ROWS: MapRow[] = [
     body: "Keepance contacts its own server for exactly one reason: to validate your license (a periodic check that your purchase is active). That request does not contain your documents, your prompts, or your client information, only what is needed to confirm the license.",
   },
   {
+    icon: KeyRound,
+    tone: "text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40",
+    title: "Keepance can encrypt this workspace’s files with AES-256",
+    body: "When you enable the vault, every document file is stored as ciphertext on disk (AES-256-GCM). Keepance decrypts files transparently as you work, so your day-to-day experience is unchanged. A 24-word recovery phrase is generated once and never stored by Keepance. If you lose that phrase and your device’s keychain, Keepance cannot recover your files. For firm workspaces, a firm admin holds an escrow copy and can recover the vault on your behalf.",
+    caveat: "File names and folder structure remain visible on disk regardless of vault status. Only the contents of individual files are encrypted. The recovery phrase is the sole backstop for solo users.",
+  },
+  {
     icon: HardDrive,
-    tone: 'text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40',
-    title: 'Document files rely on your disk encryption',
-    body: 'Your documents are normal files in your workspace folder. At-rest protection for those files comes from your operating system’s full-disk encryption: BitLocker on Windows, FileVault on macOS, LUKS on Linux. With it on, your whole workspace is protected if the machine is lost or stolen.',
-    caveat: 'How to check: Windows: Settings > Privacy & security > Device encryption. macOS: System Settings > Privacy & Security > FileVault. Linux: your distribution’s disk settings (LUKS).',
+    tone: "text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40",
+    title: "Document files rely on your disk encryption",
+    body: "Your documents are normal files in your workspace folder. At-rest protection for those files comes from your operating system’s full-disk encryption: BitLocker on Windows, FileVault on macOS, LUKS on Linux. With it on, your whole workspace is protected if the machine is lost or stolen.",
+    caveat: "How to check: Windows: Settings > Privacy & security > Device encryption. macOS: System Settings > Privacy & Security > FileVault. Linux: your distribution’s disk settings (LUKS).",
   },
   {
     icon: Database,

@@ -70,6 +70,7 @@ describe('en.json structure snapshot', () => {
         "shortcuts-overlay": 2,
         "tts": 1,
         "updater": 2,
+        "vault": 49,
         "version": 17,
         "whats-new": 4,
         "whiteboard": 1,
@@ -81,8 +82,8 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 758 = 732 + the 26 VG-6c SSO admin keys (firm.admin.sso.*).
-    expect(flat.length).toBe(758);
+    // 807 = 758 + the 49 vault namespace keys (Task 16, Wave 3b).
+    expect(flat.length).toBe(807);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

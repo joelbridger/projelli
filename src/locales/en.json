@@ -1066,5 +1066,64 @@
       "privilege-clear": "Not privileged",
       "privilege-note": "Excluded from AI retrieval by default. The Include privileged toggle in chat is the only way to bring it back in."
     }
+  },
+  "vault": {
+    "ceremony": {
+      "cannot-recover-warning": "Keepance cannot recover this for you. If you lose this phrase and your device's keychain, your encrypted files will be permanently inaccessible.",
+      "phrase-label": "Your 24-word recovery phrase",
+      "copy-phrase": "Copy phrase",
+      "copied": "Copied",
+      "confirm-prompt": "Confirm you've saved the phrase. Enter the words at these positions:",
+      "word-label": "Word #{{pos}}",
+      "word-placeholder": "Word #{{pos}}",
+      "activate": "Activate"
+    },
+    "enable": {
+      "title": "Encrypt this workspace",
+      "subtitle": "AES-256 at rest, transparent in Keepance",
+      "detail": "When enabled, every document file in this workspace is stored as ciphertext on disk. Keepance decrypts them transparently so your workflow is unchanged.",
+      "bullet-names-visible": "File names and folder structure remain visible",
+      "bullet-phrase-once": "A 24-word recovery phrase is generated once. You must save it.",
+      "bullet-no-recovery": "If you lose the phrase and the keychain, files cannot be recovered",
+      "bullet-firm-escrow": "A firm admin can recover this vault via escrow",
+      "cancel": "Cancel",
+      "enable-button": "Enable vault",
+      "setting-up": "Setting up...",
+      "loading-phrase": "Loading phrase...",
+      "ceremony-heading": "Save your recovery phrase",
+      "ceremony-subheading": "Write it down somewhere safe. Shown once only.",
+      "escrow-notice": "A firm admin will be able to recover this vault on your behalf using the firm's escrow key. This is in addition to your personal recovery phrase.",
+      "confirm-continue": "Confirm and continue",
+      "encrypting-title": "Encrypting workspace files...",
+      "encrypting-subtitle": "This may take a moment for large workspaces.",
+      "done-title": "Workspace encrypted",
+      "done-subtitle": "All files are now protected at rest.",
+      "done-button": "Done"
+    },
+    "locked": {
+      "title": "Vault locked",
+      "subtitle": "This workspace is encrypted and the key is not on this machine.",
+      "explanation": "Enter your 24-word recovery phrase to unlock this vault. Keepance will restore the key to your keychain so you can open this workspace normally from now on.",
+      "phrase-hint": "Recovery phrases are 24 words separated by spaces.",
+      "phrase-label": "Recovery phrase",
+      "phrase-placeholder": "word1 word2 word3 ...",
+      "escape-hatch": "Turn off vault and decrypt files",
+      "unlock": "Unlock",
+      "error-invalid-phrase": "That phrase has an invalid format. Check each word and try again.",
+      "error-recovery-failed": "That phrase is valid, but it does not match this vault. Make sure you are using the correct recovery phrase."
+    },
+    "escape-hatch": {
+      "title": "Decrypt this workspace and turn off the vault",
+      "description": "This will convert every encrypted file back to a normal, unencrypted file on this disk. The vault will be disabled and removed from this workspace.",
+      "warning-title": "After this, at-rest protection reverts to OS disk encryption only.",
+      "warning-body": "Your files will be readable by any process that has access to this folder. Make sure your operating system's full-disk encryption is enabled if you handle sensitive documents.",
+      "working": "Decrypting files... this may take a moment for large workspaces.",
+      "done-message": "All files have been decrypted and the vault has been removed. Your files are normal unencrypted files on disk.",
+      "cancel": "Cancel",
+      "confirm-button": "Decrypt and turn off vault",
+      "try-again": "Try again",
+      "working-button": "Working...",
+      "done-button": "Done"
+    }
   }
 }

@@ -17,6 +17,7 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ShieldOff, Loader2, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
@@ -44,6 +45,7 @@ export function VaultEscapeHatchDialog({
   workspace,
   onComplete,
 }: VaultEscapeHatchDialogProps) {
+  const { t } = useTranslation();
   const [phase, setPhase] = useState<Phase>('confirm');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -87,12 +89,11 @@ export function VaultEscapeHatchDialog({
               <ShieldOff className="h-4 w-4 text-orange-600" aria-hidden />
             </div>
             <DialogTitle className="text-base font-semibold text-slate-900">
-              Decrypt this workspace and turn off the vault
+              {t('vault.escape-hatch.title')}
             </DialogTitle>
           </div>
           <DialogDescription className="text-sm text-slate-500 mt-1">
-            This will convert every encrypted file back to a normal, unencrypted file
-            on this disk. The vault will be disabled and removed from this workspace.
+            {t('vault.escape-hatch.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -102,11 +103,9 @@ export function VaultEscapeHatchDialog({
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden />
               <div className="space-y-1">
-                <p className="font-medium">After this, at-rest protection reverts to OS disk encryption only.</p>
+                <p className="font-medium">{t('vault.escape-hatch.warning-title')}</p>
                 <p>
-                  Your files will be readable by any process that has access to this folder.
-                  Make sure your operating system's full-disk encryption is enabled if you
-                  handle sensitive documents.
+                  {t('vault.escape-hatch.warning-body')}
                 </p>
               </div>
             </div>
@@ -118,7 +117,7 @@ export function VaultEscapeHatchDialog({
           <div className="flex flex-col items-center gap-3 py-4">
             <Loader2 className="h-7 w-7 animate-spin text-blue-600" aria-hidden />
             <p className="text-sm text-slate-700 text-center">
-              Decrypting files&hellip; this may take a moment for large workspaces.
+              {t('vault.escape-hatch.working')}
             </p>
           </div>
         )}
@@ -126,8 +125,7 @@ export function VaultEscapeHatchDialog({
         {/* Done state */}
         {phase === 'done' && (
           <p className="text-sm text-slate-700">
-            All files have been decrypted and the vault has been removed.
-            Your files are normal unencrypted files on disk.
+            {t('vault.escape-hatch.done-message')}
           </p>
         )}
 
@@ -151,7 +149,7 @@ export function VaultEscapeHatchDialog({
                 onClick={handleCancel}
                 className="border-slate-300 text-slate-700"
               >
-                Cancel
+                {t('vault.escape-hatch.cancel')}
               </Button>
               <Button
                 type="button"
@@ -159,14 +157,14 @@ export function VaultEscapeHatchDialog({
                 onClick={handleConfirm}
                 className="bg-orange-600 text-white hover:bg-orange-700"
               >
-                Decrypt and turn off vault
+                {t('vault.escape-hatch.confirm-button')}
               </Button>
             </>
           )}
           {phase === 'working' && (
             <Button type="button" disabled className="bg-orange-600 text-white opacity-50">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
-              Working&hellip;
+              {t('vault.escape-hatch.working-button')}
             </Button>
           )}
           {phase === 'done' && (
@@ -175,7 +173,7 @@ export function VaultEscapeHatchDialog({
               onClick={handleClose}
               className="bg-blue-600 text-white hover:bg-blue-700"
             >
-              Done
+              {t('vault.escape-hatch.done-button')}
             </Button>
           )}
           {phase === 'error' && (
@@ -186,7 +184,7 @@ export function VaultEscapeHatchDialog({
                 onClick={handleClose}
                 className="border-slate-300 text-slate-700"
               >
-                Cancel
+                {t('vault.escape-hatch.cancel')}
               </Button>
               <Button
                 type="button"
@@ -194,7 +192,7 @@ export function VaultEscapeHatchDialog({
                 onClick={handleConfirm}
                 className="bg-orange-600 text-white hover:bg-orange-700"
               >
-                Try again
+                {t('vault.escape-hatch.try-again')}
               </Button>
             </>
           )}

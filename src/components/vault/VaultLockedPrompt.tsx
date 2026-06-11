@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Lock, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useVaultStore } from '@/stores/vaultStore';
@@ -24,18 +25,14 @@ interface VaultLockedPromptProps {
 }
 
 /**
- * Returns a user-friendly message for a typed Tauri vault error string.
+ * Returns a user-friendly i18n key for a typed Tauri vault error string.
  * The Rust backend returns snake_case error codes; we translate them here.
  */
-function friendlyError(err: string | null): string {
-  if (!err) return '';
-  if (err === 'invalid_phrase') {
-    return 'That phrase has an invalid format. Check each word and try again.';
-  }
-  if (err === 'recovery_failed') {
-    return 'That phrase is valid, but it does not match this vault. Make sure you are using the correct recovery phrase.';
-  }
-  return err;
+function errorKey(err: string | null): string | null {
+  if (!err) return null;
+  if (err === 'invalid_phrase') return 'vault.locked.error-invalid-phrase';
+  if (err === 'recovery_failed') return 'vault.locked.error-recovery-failed';
+  return null;
 }
 
 export function VaultLockedPrompt({
@@ -43,6 +40,7 @@ export function VaultLockedPrompt({
   onUnlocked,
   onEscapeHatch,
 }: VaultLockedPromptProps) {
+  const { t } = useTranslation();
   const { status, error, unlockWithRecovery, clearError } = useVaultStore();
   const [phrase, setPhrase] = useState('');
   // Track whether we have an unlock attempt in flight so we can detect success.
@@ -76,9 +74,9 @@ export function VaultLockedPrompt({
           <Lock className="h-5 w-5 text-amber-600" aria-hidden />
         </div>
         <div>
-          <h3 className="text-base font-semibold text-slate-900">Vault locked</h3>
+          <h3 className="text-base font-semibold text-slate-900">{t('vault.locked.title')}</h3>
           <p className="text-sm text-slate-500">
-            This workspace is encrypted and the key is not on this machine.
+            {t('vault.locked.subtitle')}
           </p>
         </div>
       </div>
@@ -86,11 +84,10 @@ export function VaultLockedPrompt({
       {/* Explanation */}
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 space-y-1">
         <p>
-          Enter your 24-word recovery phrase to unlock this vault. Keepance will restore
-          the key to your keychain so you can open this workspace normally from now on.
+          {t('vault.locked.explanation')}
         </p>
         <p className="text-slate-500 text-xs">
-          Recovery phrases are 24 words separated by spaces.
+          {t('vault.locked.phrase-hint')}
         </p>
       </div>
 
@@ -100,13 +97,13 @@ export function VaultLockedPrompt({
           htmlFor="vault-recovery-phrase"
           className="text-sm font-medium text-slate-700"
         >
-          Recovery phrase
+          {t('vault.locked.phrase-label')}
         </label>
         <textarea
           id="vault-recovery-phrase"
           data-testid="recovery-phrase-input"
           rows={3}
-          placeholder="word1 word2 word3 ..."
+          placeholder={t('vault.locked.phrase-placeholder')}
           value={phrase}
           onChange={(e) => setPhrase(e.target.value)}
           className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
@@ -123,7 +120,7 @@ export function VaultLockedPrompt({
           className="text-sm text-red-600"
           role="alert"
         >
-          {friendlyError(error)}
+          {errorKey(error) ? t(errorKey(error)!) : error}
         </p>
       )}
 
@@ -135,7 +132,7 @@ export function VaultLockedPrompt({
             onClick={onEscapeHatch}
             className="text-xs text-slate-500 hover:text-slate-700 underline underline-offset-2"
           >
-            Turn off vault and decrypt files
+            {t('vault.locked.escape-hatch')}
           </button>
         )}
         <div className="flex gap-2 ml-auto">
@@ -146,7 +143,7 @@ export function VaultLockedPrompt({
             className="bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
           >
             <KeyRound className="mr-2 h-4 w-4" aria-hidden />
-            Unlock
+            {t('vault.locked.unlock')}
           </Button>
         </div>
       </div>
