@@ -406,6 +406,28 @@ export interface InferenceBillingResponse {
 }
 
 // ---------------------------------------------------------------------------
+// SSO (OIDC) admin config
+// ---------------------------------------------------------------------------
+export type IdpProvider = "entra" | "google" | "generic";
+export interface SsoConfigSetRequest {
+  provider: IdpProvider;
+  issuer: string;
+  client_id: string;
+  client_secret: string; // write-only; never returned
+  enabled: boolean;
+}
+export interface SsoConfigView {
+  configured: boolean;
+  provider?: IdpProvider;
+  issuer?: string;
+  client_id?: string;
+  enabled?: boolean;
+  has_secret?: boolean;
+  /** The redirect URI the firm must register with their IdP. */
+  redirect_uri: string;
+}
+
+// ---------------------------------------------------------------------------
 // Errors (generic envelope used by 4xx/5xx that aren't a typed shape above)
 // ---------------------------------------------------------------------------
 export interface ApiError {
@@ -451,4 +473,11 @@ export const ENDPOINTS = {
   assuredKeyList: { method: "POST", path: "/assured/keys/list" },
   assuredKeyDelete: { method: "POST", path: "/assured/keys/delete" },
   assuredBilling: { method: "POST", path: "/assured/billing" },
+  // SSO (OIDC) admin config + member flow.
+  ssoConfigSet: { method: "POST", path: "/org/sso/config/set" },
+  ssoConfigGet: { method: "POST", path: "/org/sso/config/get" },
+  ssoConfigDelete: { method: "POST", path: "/org/sso/config/delete" },
+  ssoStart: { method: "POST", path: "/auth/sso/start" },
+  ssoCallback: { method: "GET", path: "/auth/sso/callback" },
+  ssoExchange: { method: "POST", path: "/auth/sso/exchange" },
 } as const;

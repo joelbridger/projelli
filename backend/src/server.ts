@@ -52,6 +52,7 @@ import {
 import { handleDeviceRegister, handleListUsersDevices, handleListOrgAdmins } from "./routes/devices.ts";
 import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine } from "./routes/matterKeys.ts";
 import { handleOrgClaim } from "./routes/claim.ts";
+import { handleSsoConfigSet, handleSsoConfigGet, handleSsoConfigDelete } from "./routes/sso.ts";
 import { handleLemonSqueezyWebhook } from "./routes/webhooks.ts";
 import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
@@ -164,6 +165,9 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/org/users" && method === "POST") return await handleCreateUser(req, store);
         if (path === "/org/users/list" && method === "POST") return handleListOrgUsers(req, store);
         if (path === "/org/audit" && (method === "POST" || method === "GET")) return handleAudit(req, store);
+        if (path === "/org/sso/config/set" && method === "POST") return await handleSsoConfigSet(req, store);
+        if (path === "/org/sso/config/get" && method === "POST") return handleSsoConfigGet(req, store);
+        if (path === "/org/sso/config/delete" && method === "POST") return handleSsoConfigDelete(req, store);
 
         // --- Assured zero-retention inference proxy (chunk 3, DECISION.md §5) ---
         // The proxy endpoint takes the request BODY as an opaque stream and pipes
