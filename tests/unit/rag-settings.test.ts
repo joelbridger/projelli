@@ -59,11 +59,13 @@ describe('MemoryService toggle', () => {
     // WS-B/C: retrieve defaults to an explicit cross-matter scope (no silent
     // "everything" — the command requires a named scope).
     // WS-PRIV: includePrivileged defaults to false (privileged content excluded).
+    // F-510: perSourceCap defaults to undefined (no per-source cap).
     expect(tauri.ragRetrieve).toHaveBeenCalledWith(
       'hello',
       5,
       { kind: 'allMatters' },
       false,
+      undefined,
     );
     expect(hits).toHaveLength(1);
     expect(hits[0]?.chunkText).toBe('hello');
@@ -78,6 +80,7 @@ describe('MemoryService toggle', () => {
       5,
       { kind: 'matter', matterId: 'm-1' },
       false,
+      undefined,
     );
   });
 

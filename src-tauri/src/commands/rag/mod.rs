@@ -714,6 +714,43 @@ pub async fn rag_index_workspace(
     Ok(())
 }
 
+/// F-510 — per-source diversity cap. A single large low-signal file can
+/// dominate a broad retrieval feed (huge-notes.md fed all four of finder
+/// attempt 1's findings; rubric 0/5). Keep hits in descending-score order,
+/// admit at most `cap` per source (source_id, falling back to path), stop
+/// at `top_k`. `cap == 0` means "no cap" so a default-constructed call can
+/// never silently empty the feed.
+///
+/// Pure, deterministic, and rank-preserving: the input order IS the ranking
+/// and the output is a subsequence of it (the map below only counts — it
+/// never reorders). `pub` so the leg-1 harness
+/// (tests/rag_deposition_contradictions.rs) proves the PRODUCTION cap over
+/// the real fixture corpus instead of a reimplementation.
+pub fn cap_per_source(hits: Vec<Hit>, cap: usize, top_k: usize) -> Vec<Hit> {
+    if cap == 0 {
+        let mut out = hits;
+        out.truncate(top_k);
+        return out;
+    }
+    let mut admitted: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    let mut out: Vec<Hit> = Vec::with_capacity(top_k.min(hits.len()));
+    for hit in hits {
+        if out.len() >= top_k {
+            break;
+        }
+        let key = hit
+            .source_id
+            .clone()
+            .unwrap_or_else(|| hit.path.clone());
+        let count = admitted.entry(key).or_insert(0);
+        if *count < cap {
+            *count += 1;
+            out.push(hit);
+        }
+    }
+    out
+}
+
 /// Embed `query` and return the top-k nearest stored chunks, scoped to a matter.
 ///
 /// WS-B/C — THE SECURITY CORE. `scope` is REQUIRED (no implicit cross-matter
@@ -737,6 +774,15 @@ pub async fn rag_index_workspace(
 /// never persisted. If decryption fails (key unavailable, tampered data), the
 /// chunk text is returned as "[content unavailable]" — retrieval never panics or
 /// fails due to a single bad chunk.
+///
+/// F-510 — `per_source_cap` (camelCase `perSourceCap` over IPC) is an OPTIONAL
+/// per-source diversity cap: absent (every existing caller) = behavior
+/// unchanged. `Some(cap > 0)` overfetches `top_k * 4` (defensively capped at
+/// 200), then `cap_per_source` admits at most `cap` hits per source and
+/// truncates to `top_k`. The privilege/matter PREFILTER above is untouched —
+/// the cap runs over already-scoped hits, so it can only NARROW a feed, never
+/// widen it; it cannot weaken isolation. Today only the contradiction finder
+/// passes a cap (perSourceCap: 4); chat retrieval is unchanged.
 #[tauri::command]
 pub async fn rag_retrieve(
     state: State<'_, RagState>,
@@ -744,6 +790,7 @@ pub async fn rag_retrieve(
     top_k: u32,
     scope: RetrievalScope,
     include_privileged: Option<bool>,
+    per_source_cap: Option<u32>,
 ) -> Result<Vec<Hit>, String> {
     if query.trim().is_empty() || top_k == 0 {
         return Ok(Vec::new());
@@ -751,6 +798,14 @@ pub async fn rag_retrieve(
     // WS-PRIV: absent (legacy callers) or false → EXCLUDE privileged content.
     // Only an explicit `true` flips it. The default is the safe one.
     let include_privileged = include_privileged.unwrap_or(false);
+    // F-510: cap == 0 (or absent) = no cap. With a cap we OVERFETCH so the
+    // per-source filter has candidates from other sources to fill from.
+    let cap = per_source_cap.unwrap_or(0) as usize;
+    let fetch_k = if cap > 0 {
+        (top_k as usize).saturating_mul(4).min(200)
+    } else {
+        top_k as usize
+    };
     // Resolve + validate the scope into the store-level filter argument BEFORE
     // any work. Matter ids are validated here (defence-in-depth before the SQL
     // prefilter). AllMatters → None (no filter; deliberate cross-matter).
@@ -792,7 +847,7 @@ pub async fn rag_retrieve(
     let raw = store::nearest(
         &table,
         &qvec,
-        top_k as usize,
+        fetch_k,
         scope_filter.as_deref(),
         include_privileged,
     )
@@ -847,6 +902,13 @@ pub async fn rag_retrieve(
     // LanceDB returns by ascending distance, which corresponds to
     // descending score, but sort defensively.
     hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    // F-510: apply the per-source diversity cap AFTER decrypt/sort, over the
+    // already-scoped overfetched candidates, then truncate to the caller's
+    // top_k. No cap requested = the overfetch never happened (fetch_k ==
+    // top_k) and this is a no-op.
+    if cap > 0 {
+        hits = cap_per_source(hits, cap, top_k as usize);
+    }
     Ok(hits)
 }
 
@@ -1141,6 +1203,44 @@ pub fn manage_state<R: tauri::Runtime>(app: &tauri::App<R>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---- F-510 per-source diversity cap ------------------------------------
+
+    /// Minimal Hit for cap tests: path/source_id = `source`, rest minimal.
+    fn mini_hit(source: &str, score: f32) -> Hit {
+        Hit {
+            path: source.into(),
+            chunk_text: String::new(),
+            score,
+            paragraph_index: 0,
+            id: None,
+            matter_id: None,
+            source_id: Some(source.into()),
+            source_type: None,
+            page_number: None,
+            privilege: None,
+        }
+    }
+
+    #[test]
+    fn cap_per_source_keeps_score_order_and_caps_dominant_sources() {
+        let hits = vec![
+            mini_hit("/a", 0.9), mini_hit("/a", 0.89), mini_hit("/a", 0.88),
+            mini_hit("/b", 0.87), mini_hit("/a", 0.86), mini_hit("/c", 0.85),
+            mini_hit("/a", 0.84),
+        ];
+        let out = cap_per_source(hits, 2, 4);
+        let sources: Vec<_> = out.iter().map(|h| h.path.clone()).collect();
+        assert_eq!(sources, vec!["/a", "/a", "/b", "/c"]); // /a capped at 2, order kept
+    }
+
+    #[test]
+    fn cap_per_source_zero_cap_and_short_input_are_safe() {
+        assert!(cap_per_source(vec![], 4, 12).is_empty());
+        let hits = vec![mini_hit("/a", 0.9)];
+        assert_eq!(cap_per_source(hits.clone(), 0, 12).len(), hits.len()); // 0 = no cap (defensive)
+        assert_eq!(cap_per_source(hits, 4, 0).len(), 0);
+    }
 
     /// Build a Hit with WS-B/C citation/scope fields populated, for serde tests.
     fn sample_hit() -> Hit {

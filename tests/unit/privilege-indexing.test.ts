@@ -94,11 +94,13 @@ describe('MemoryService carries privilege + default-excludes it', () => {
 
   it('retrieve EXCLUDES privileged content by default (includePrivileged=false)', async () => {
     await MemoryService.retrieve('q', 5, { kind: 'matter', matterId: 'm1' });
+    // F-510: the 5th arg is perSourceCap (default undefined — no cap).
     expect(mocks.ragRetrieve).toHaveBeenCalledWith(
       'q',
       5,
       { kind: 'matter', matterId: 'm1' },
       false,
+      undefined,
     );
   });
 
@@ -109,6 +111,7 @@ describe('MemoryService carries privilege + default-excludes it', () => {
       5,
       { kind: 'matter', matterId: 'm1' },
       true,
+      undefined,
     );
   });
 

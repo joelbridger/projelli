@@ -43,11 +43,14 @@ export interface RetrievedChunk {
 
 /** Inject the real RAG retrieval. Matter scope + privilege handling are the
  *  caller's responsibility — the engine passes the ACTIVE matter scope and
- *  leaves privilege EXCLUDED (the safe default). */
+ *  leaves privilege EXCLUDED (the safe default). `perSourceCap` (F-510) is the
+ *  optional per-source diversity cap forwarded to the backend; omitted = no
+ *  cap (chat retrieval and every pre-F-510 caller are unchanged). */
 export type RetrieveFn = (
   query: string,
   topK: number,
   scope: RetrievalScope,
+  perSourceCap?: number,
 ) => Promise<RetrievedChunk[]>;
 
 /** A citation verdict, mirroring `CitationVerdict` from tauri-commands but
@@ -313,7 +316,9 @@ export async function runContradictionAnalysis(
   let retrievalUnavailable = false;
   if (retrievalQuery) {
     try {
-      chunks = await retrieve(retrievalQuery, topK, scope);
+      // F-510: the template's per-source diversity cap rides along (the
+      // finder passes 4) so one large file cannot drown the finder's feed.
+      chunks = await retrieve(retrievalQuery, topK, scope, config.perSourceCap);
     } catch (err) {
       // VG-3b — retrieval down (no index yet, model missing, store error).
       // Fall back to the attorney's pasted excerpts ONLY, and say so in the

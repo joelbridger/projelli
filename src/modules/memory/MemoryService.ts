@@ -280,16 +280,21 @@ export const MemoryService = {
    *
    *  WS-PRIV: `includePrivileged` defaults to `false` — attorney-client and
    *  work-product content is EXCLUDED by default. Pass `true` only for a
-   *  deliberate, user-initiated query that opts privileged sources in. */
+   *  deliberate, user-initiated query that opts privileged sources in.
+   *
+   *  F-510: `perSourceCap` optionally caps how many hits one source document
+   *  may contribute (rank-preserving; the backend overfetches then caps).
+   *  Omitted = no cap — chat retrieval and every existing caller unchanged. */
   async retrieve(
     query: string,
     topK: number,
     scope: RetrievalScope = { kind: 'allMatters' },
     includePrivileged = false,
+    perSourceCap?: number,
   ): Promise<RagHit[]> {
     if (!isMemoryEnabled()) return [];
     if (!query.trim() || topK <= 0) return [];
-    return ragRetrieve(query, topK, scope, includePrivileged);
+    return ragRetrieve(query, topK, scope, includePrivileged, perSourceCap);
   },
 
   /** Index a single PDF file into the RAG store. Reads bytes via the

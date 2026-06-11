@@ -307,17 +307,30 @@ export async function ragIndexPdfChunks(
  *  WS-PRIV: `includePrivileged` defaults to `false` (omitted) — attorney-client
  *  and work-product content is EXCLUDED by default. Pass `true` only for a
  *  deliberate, user-initiated "include privileged sources" query. The exclusion
- *  composes with the matter scope as a single backend prefilter. */
+ *  composes with the matter scope as a single backend prefilter.
+ *
+ *  F-510: `perSourceCap` is an optional per-source diversity cap — at most
+ *  that many hits per source document (the backend overfetches, then caps,
+ *  preserving rank order). Omitted = no cap; today only the contradiction
+ *  finder's feed passes one. The cap runs over already-scoped hits, so it can
+ *  only narrow a result set, never widen it. */
 export async function ragRetrieve(
   query: string,
   topK: number,
   scope: RetrievalScope,
   includePrivileged?: boolean,
+  perSourceCap?: number,
 ): Promise<RagHit[]> {
   if (!isTauri()) {
     throw new Error('RAG is only available in the desktop app.');
   }
-  return invoke<RagHit[]>('rag_retrieve', { query, topK, scope, includePrivileged });
+  return invoke<RagHit[]>('rag_retrieve', {
+    query,
+    topK,
+    scope,
+    includePrivileged,
+    perSourceCap,
+  });
 }
 
 /** WS-PRIV — update a source's privilege and re-tag its already-indexed chunks

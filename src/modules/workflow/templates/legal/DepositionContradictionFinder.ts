@@ -126,6 +126,11 @@ export const DepositionContradictionFinder: WorkflowTemplate = {
         outputFile: 'Deposition Contradiction Analysis.docx',
         retrievalQueryTemplate,
         topK: 12,
+        // F-510 — per-source diversity cap: at most 4 of the 12 retrieved
+        // chunks may come from any single source document, so one large
+        // low-signal file cannot drown out the deposition/summary sides the
+        // finder needs to cite both halves of a contradiction.
+        perSourceCap: 4,
         // VG-3b — these interview answers are attorney-pasted material the
         // analysis honestly falls back to when workspace retrieval is down.
         pastedInputIds: ['depositionExcerpts', 'priorStatements'],

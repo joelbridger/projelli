@@ -523,3 +523,173 @@ async fn finder_retrieval_query_at_top_k_12_feeds_both_sides_of_all_three_contra
         );
     }
 }
+
+// ===========================================================================
+// F-510 — FINDER FEED PRECISION under a large low-signal file.
+//
+// RESULTS §E F-510: with huge-notes.md (~1,659 chunks of litigation-notes
+// filler) legitimately indexed (the F-501 fix), the finder's single broad
+// query at topK 12 fed a DILUTED context — attempt 1 anchored all four
+// findings on huge-notes content and the planted-fact rubric went 0/5. The
+// deposition/summary chunks WERE retrievable (selection precision, not
+// absence). The fix is rag_retrieve's optional per-source diversity cap
+// (overfetch top_k*4, cap_per_source, truncate), finder-only via
+// perSourceCap: 4.
+//
+// These tests build a SECOND fixture: the full corpus PLUS huge-notes.md
+// indexed under MATTER_JOHNSON — the worst case, IN-SCOPE dilution that no
+// matter scoping can filter. Embedding ~1,659 filler chunks is heavy, so
+// both tests are #[ignore]d (same convention as rag_embed_memory.rs) and run
+// explicitly with `-- --ignored`.
+// ===========================================================================
+
+/// The filler corpus: everything `corpus()` indexes plus huge-notes.md in the
+/// Johnson matter.
+fn corpus_with_filler() -> Vec<Source> {
+    let mut sources = corpus();
+    sources.push(Source {
+        matter_id: MATTER_JOHNSON,
+        source_id: "/matter-corpus/huge-notes.md",
+        file: "huge-notes.md",
+    });
+    sources
+}
+
+static FIXTURE_FILLER: OnceCell<Arc<Fixture>> = OnceCell::const_new();
+
+/// Like `fixture()` but over `corpus_with_filler()`, in its own tempdir, and
+/// embedding through the production BATCHED path — pushing all of
+/// huge-notes.md through one unbatched `embed_documents` call is exactly the
+/// F-501 OOM shape this rig already proved out in rag_embed_memory.rs.
+async fn fixture_with_filler() -> Arc<Fixture> {
+    FIXTURE_FILLER
+        .get_or_init(|| async {
+            let dir = tempfile::tempdir().expect("tempdir");
+            let conn = store::open_connection(dir.path()).await.expect("open connection");
+            let table = store::open_or_create_table(&conn).await.expect("create table");
+
+            for src in corpus_with_filler() {
+                let (text, source_type) = load_source(&src);
+                let chunks =
+                    keepance_lib::commands::rag::chunker::chunk_text(src.source_id, &text);
+                let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
+                let vectors =
+                    keepance_lib::commands::rag::embedder::embed_documents_batched(&texts, None)
+                        .await
+                        .expect("embed documents (is the e5-small cache provisioned?)")
+                        .expect("not cancelled");
+                let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
+                let batch = store::build_batch(
+                    &rows,
+                    source_type,
+                    src.matter_id,
+                    PRIVILEGE_NONE,
+                    &VEC_KEY,
+                )
+                .expect("build batch");
+                let schema = batch.schema();
+                use arrow_array::RecordBatchIterator;
+                table
+                    .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+                    .execute()
+                    .await
+                    .expect("add batch");
+            }
+
+            Arc::new(Fixture { table, _dir: dir })
+        })
+        .await
+        .clone()
+}
+
+/// OBSERVATION, not a gate: the finder's own query at its own topK 12 against
+/// the filler corpus, RAW (no cap). Prints the per-source composition so the
+/// dilution RESULTS §E describes is recorded honestly (run with --nocapture).
+/// Asserts nothing — the capped test below is the gate.
+#[tokio::test]
+#[ignore]
+async fn f510_raw_finder_feed_composition_with_filler_is_recorded() {
+    let f = fixture_with_filler().await;
+    let q = embed(FINDER_QUERY).await;
+    let hits = nearest(&f.table, &q, 12, Some(MATTER_JOHNSON), false).await.unwrap();
+
+    let mut counts: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for h in &hits {
+        let key = h.source_id.clone().unwrap_or_else(|| h.path.clone());
+        *counts.entry(key).or_insert(0) += 1;
+    }
+    println!("F-510 raw finder feed (topK 12, huge-notes.md indexed in-matter), per-source:");
+    for (src, n) in &counts {
+        println!("  {n:>2}  {src}");
+    }
+}
+
+/// THE GATE: the production cap arithmetic — rag_retrieve's own overfetch
+/// (top_k 12 * 4 = 48) followed by the PRODUCTION `cap_per_source` (cap 4,
+/// truncate to 12) — recovers BOTH sides of ALL THREE contradictions even
+/// with huge-notes.md indexed in the same matter. Hits are built exactly as
+/// rag_retrieve builds them (decrypt + distance→score + defensive sort), so
+/// this proves the shipped function, not a reimplementation.
+///
+/// The six needles are duplicated VERBATIM from
+/// `finder_retrieval_query_at_top_k_12_feeds_both_sides_of_all_three_contradictions`
+/// (that test is a tripwire and stays byte-untouched — keep the lists in sync).
+#[tokio::test]
+#[ignore]
+async fn f510_capped_finder_feed_contains_both_sides_of_all_three() {
+    use keepance_lib::commands::rag::embedder::cosine_distance_to_score;
+    use keepance_lib::commands::rag::{cap_per_source, Hit};
+
+    let f = fixture_with_filler().await;
+    let q = embed(FINDER_QUERY).await;
+    // Production overfetch: top_k 12 * 4 = 48 (rag_retrieve's own arithmetic).
+    let raw = nearest(&f.table, &q, 48, Some(MATTER_JOHNSON), false).await.unwrap();
+
+    // Build Hits the way rag_retrieve does, then apply the PRODUCTION cap.
+    let mut hits: Vec<Hit> = raw
+        .iter()
+        .map(|h| Hit {
+            path: h.path.clone(),
+            chunk_text: decrypt_hit(h),
+            score: cosine_distance_to_score(h.distance),
+            paragraph_index: h.paragraph_index,
+            id: Some(h.id.clone()),
+            matter_id: h.matter_id.clone(),
+            source_id: h.source_id.clone(),
+            source_type: h.source_type.clone(),
+            page_number: h.page_number,
+            privilege: h.privilege.clone(),
+        })
+        .collect();
+    hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+    let hits = cap_per_source(hits, 4, 12);
+
+    assert!(!hits.is_empty());
+    assert!(hits.len() <= 12, "cap must truncate to the finder's topK");
+
+    // Scope hygiene inside the capped feed (the cap may only NARROW the
+    // already-scoped feed — never widen it).
+    for h in &hits {
+        assert_eq!(h.matter_id.as_deref(), Some(MATTER_JOHNSON), "LEAK: {:?}", h.source_id);
+    }
+
+    // With the cap, the planted sides survive the filler: both sides of all
+    // three contradictions are in the capped feed.
+    let joined = hits.iter().map(|h| h.chunk_text.clone()).collect::<Vec<_>>().join("\n---\n");
+    for needle in [
+        "I forwarded them to my personal email for safekeeping", // C1 transcript
+        // C1 summary — fixture-exact incl. the hard line wrap
+        // (incident-summary-johnson.md:29-30; same correction as the C1 test).
+        "all relevant documents\nremained on company servers only",
+        "October 17, 2025",  // C2 transcript
+        "October 10, 2025",  // C2 summary
+        "four-week severance", // C3 transcript
+        "eight (8) weeks",   // C3 summary
+    ] {
+        assert!(
+            joined.contains(needle),
+            "FINDING: CAPPED finder feed (overfetch 48, cap 4, topK 12) does not \
+             contain {needle:?} — the diversity cap did not recover this side"
+        );
+    }
+}

@@ -108,11 +108,13 @@ describe('MemoryService indexing carries matter id', () => {
     mocks.ragRetrieve.mockResolvedValue([]);
     await MemoryService.retrieve('q', 5, { kind: 'matter', matterId: 'm1' });
     // WS-PRIV: a 4th arg carries includePrivileged (default false — exclude).
+    // F-510: a 5th arg carries perSourceCap (default undefined — no cap).
     expect(mocks.ragRetrieve).toHaveBeenCalledWith(
       'q',
       5,
       { kind: 'matter', matterId: 'm1' },
       false,
+      undefined,
     );
   });
 

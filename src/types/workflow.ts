@@ -118,6 +118,9 @@ export interface AnalyzeStepConfig {
   retrievalQueryTemplate: string;
   /** How many context chunks to retrieve. Defaults to 12 when omitted. */
   topK?: number;
+  /** F-510 — max retrieved chunks admitted per source document. Keeps one
+   *  large low-signal file from drowning the feed. Omitted = no cap. */
+  perSourceCap?: number;
   /**
    * The analysis prompt. Interpolated with inputs PLUS a `{{retrievedContext}}`
    * variable holding the formatted, numbered source list. The model is asked to

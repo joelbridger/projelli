@@ -268,6 +268,9 @@ export type AuditEvent =
         hitCount: number;
         /** Highest similarity score across hits, or null when there were none. */
         topScore: number | null;
+        /** F-510 — per-source diversity cap applied to this retrieval (the
+         *  contradiction finder passes 4). Absent = uncapped. */
+        perSourceCap?: number;
       };
     }
   /**

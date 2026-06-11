@@ -2587,8 +2587,10 @@ function App() {
           // shared structured-deliverable serializer.
           analyzeDeps: {
             getScope: (): RetrievalScope => getActiveScope() as RetrievalScope,
-            retrieve: async (query, topK, scope) => {
-              const hits = await MemoryService.retrieve(query, topK, scope);
+            retrieve: async (query, topK, scope, perSourceCap) => {
+              // F-510 — the finder's per-source diversity cap rides through
+              // (privilege stays EXCLUDED, the 4th positional default).
+              const hits = await MemoryService.retrieve(query, topK, scope, false, perSourceCap);
               // Audit (3.0 provenance) — the litigation `analyze` step runs a
               // matter-scoped, privilege-EXCLUDED retrieval (the safe default on
               // MemoryService.retrieve). Record the scope, the privilege
@@ -2614,7 +2616,14 @@ function App() {
               addAuditEntry(auditEventToEntry({
                 type: 'retrieval_executed',
                 timestamp: new Date().toISOString(),
-                payload: { query, scope: auditScope, hitCount: hits.length, topScore },
+                payload: {
+                  query,
+                  scope: auditScope,
+                  hitCount: hits.length,
+                  topScore,
+                  // F-510 — record the diversity cap only when one was applied.
+                  ...(perSourceCap !== undefined ? { perSourceCap } : {}),
+                },
               }));
               return hits;
             },

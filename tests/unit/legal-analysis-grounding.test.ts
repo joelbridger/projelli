@@ -108,6 +108,37 @@ describe('runContradictionAnalysis recovers omitted sourceNumber by quote (F-503
   });
 });
 
+describe('runContradictionAnalysis forwards the per-source diversity cap (F-510)', () => {
+  it('passes config.perSourceCap through to retrieve', async () => {
+    const provider = createMockProvider();
+    provider.structuredOutput = (async () => ({ findings: [] })) as Provider['structuredOutput'];
+
+    const config: AnalyzeStepConfig = {
+      analyzeKind: 'contradictions',
+      retrievalQueryTemplate: 'q',
+      promptTemplate: 'p',
+      outputFile: 'o.docx',
+      perSourceCap: 4,
+    };
+    const scope: RetrievalScope = { kind: 'matter', matterId: 'm1' };
+    const retrieve = vi.fn(async () => chunks);
+
+    await runContradictionAnalysis({
+      provider,
+      config,
+      inputs: {},
+      scope,
+      retrieve,
+      verify: vi.fn(async () => 'verified' as const),
+      interpolate: (tpl) => tpl,
+    });
+
+    // The finder's feed gets the diversity cap (4) alongside its topK (12
+    // default) and scope; callers without a cap keep the old behavior.
+    expect(retrieve).toHaveBeenCalledWith('q', 12, scope, 4);
+  });
+});
+
 describe('runContradictionAnalysis honest fallback when retrieval is unavailable (VG-3b)', () => {
   const scope: RetrievalScope = { kind: 'matter', matterId: 'm1' };
 
