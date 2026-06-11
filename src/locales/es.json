@@ -1449,5 +1449,19 @@
       "title-privileged-matter": "Activado porque el asunto activo es privilegiado. Los complementos de red y los servidores MCP están desactivados.",
       "title-local-only": "Activado porque está seleccionado Solo local. Los complementos de red y los servidores MCP están desactivados."
     }
+  },
+  "mail": {
+    "viewer": {
+      "privilege-label": "Privilegio",
+      "privilege-mark-ac": "Privilegio abogado-cliente",
+      "privilege-mark-wp": "Producto del trabajo",
+      "privilege-clear": "Sin privilegio",
+      "privilege-note": "Excluido de la recuperación de la IA de forma predeterminada. El interruptor Include privileged del chat es la única forma de volver a incluir el mensaje.",
+      "privilege-label__locked": true,
+      "privilege-mark-ac__locked": true,
+      "privilege-mark-wp__locked": true,
+      "privilege-clear__locked": true,
+      "privilege-note__locked": true
+    }
   }
 }

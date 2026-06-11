@@ -7,7 +7,11 @@
  * / date and the (already plain-text) body, plus an attachment-name list.
  *
  * v1 mail is read-only: no reply, no compose, no folder tree, no attachment
- * download (names only). The body stored on disk was already stripped to text by
+ * download (names only). The one write the viewer offers is METADATA: a
+ * per-message privilege control (VG-5c) that tags this message
+ * attorney-client / work-product / not privileged, mirroring the file
+ * privilege pattern, so a privileged email is excluded from default AI
+ * retrieval. The body stored on disk was already stripped to text by
  * the sync layer (`normalize::html_to_text`), so it contains no markup; we render
  * it as React TEXT content (never `dangerouslySetInnerHTML`), which React escapes
  * — there is no HTML-injection surface. `stripResidualTags` is a defensive second
@@ -17,8 +21,15 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Mail, Calendar, Paperclip, Loader2, AlertTriangle } from 'lucide-react';
+import { Mail, Calendar, Paperclip, Loader2, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { mailGetMessage, type MailView } from '@/utils/mail-commands';
+import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
+import {
+  ALL_PRIVILEGE_STATUSES,
+  isPrivileged,
+  type Privilege,
+} from '@/types/privilege';
 
 export interface EmailViewerProps {
   /** Message id or `mail:<id>` citation source id. */
@@ -41,10 +52,38 @@ function displayId(sourceId: string): string {
   return sourceId.startsWith('mail:') ? sourceId.slice('mail:'.length) : sourceId;
 }
 
+/**
+ * The `mail:<id>` source id this message's indexed chunks were written under
+ * (WS-PRIV). The viewer's `sourceId` prop may arrive with or without the
+ * `mail:` prefix (citation-opened tabs carry it; some callers pass the bare
+ * message id), so strip any existing prefix first to avoid `mail:mail:<id>`.
+ */
+function privilegeSourceId(sourceId: string): string {
+  return `mail:${displayId(sourceId)}`;
+}
+
+/** Locale key for each privilege action, in the file UI's wording. */
+const PRIVILEGE_OPTION_KEYS: Record<Privilege, string> = {
+  'none': 'mail.viewer.privilege-clear',
+  'attorney-client': 'mail.viewer.privilege-mark-ac',
+  'work-product': 'mail.viewer.privilege-mark-wp',
+};
+
 export function EmailViewer({ sourceId, className }: EmailViewerProps) {
+  const { t } = useTranslation();
   const [message, setMessage] = useState<MailView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Privilege (WS-PRIV / VG-5c) — per-message tagging, mirroring the file
+  // privilege control (`PrivilegeMenuItems`): write the privilege store with
+  // the `mail:<id>` source id and let the store subscription in
+  // `usePrivilegeWiring` re-tag the message's indexed chunks in place via
+  // `rag_retag_privilege`. Same three values, same store path, no extra
+  // service call here.
+  const mailSourceId = privilegeSourceId(sourceId);
+  const privilege = usePrivilegeForSource(mailSourceId);
+  const setPrivilege = usePrivilegeStore((s) => s.setPrivilege);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,6 +204,55 @@ export function EmailViewer({ sourceId, className }: EmailViewerProps) {
             )}
           </div>
         )}
+
+        {/* Privilege control (WS-PRIV / VG-5c) — tag THIS message. Compact
+            radio row; the active status is highlighted. When privileged, a
+            one-line consequence note states the retrieval effect. */}
+        <div
+          data-testid="email-privilege-control"
+          data-privilege={privilege}
+          className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2"
+        >
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+              {t('mail.viewer.privilege-label')}
+            </span>
+            <div
+              role="radiogroup"
+              aria-label={t('mail.viewer.privilege-label')}
+              className="flex overflow-hidden rounded-md border border-slate-200"
+            >
+              {ALL_PRIVILEGE_STATUSES.map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  role="radio"
+                  aria-checked={privilege === status}
+                  data-testid={`email-privilege-option-${status}`}
+                  onClick={() => {
+                    setPrivilege(mailSourceId, status);
+                  }}
+                  className={`border-l border-slate-200 px-2 py-1 text-[11px] leading-tight first:border-l-0 ${
+                    privilege === status
+                      ? 'bg-[#0A2540] font-medium text-white'
+                      : 'bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {t(PRIVILEGE_OPTION_KEYS[status])}
+                </button>
+              ))}
+            </div>
+          </div>
+          {isPrivileged(privilege) && (
+            <p
+              data-testid="email-privilege-note"
+              className="mt-1.5 text-[11px] leading-snug text-amber-700"
+            >
+              {t('mail.viewer.privilege-note')}
+            </p>
+          )}
+        </div>
 
         {/* Body — rendered as plain text (React escapes it); preserve wrapping. */}
         <div className="mt-5 border-t border-slate-100 pt-5">

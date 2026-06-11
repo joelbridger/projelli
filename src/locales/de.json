@@ -1449,5 +1449,19 @@
       "title-privileged-matter": "Aktiviert, weil das aktive Mandat privilegiert ist. Netzwerk-Plugins und MCP-Server sind deaktiviert.",
       "title-local-only": "Aktiviert, weil Nur lokal ausgewählt ist. Netzwerk-Plugins und MCP-Server sind deaktiviert."
     }
+  },
+  "mail": {
+    "viewer": {
+      "privilege-label": "Privileg",
+      "privilege-mark-ac": "Anwalt-Mandanten-Privileg",
+      "privilege-mark-wp": "Arbeitsprodukt",
+      "privilege-clear": "Nicht privilegiert",
+      "privilege-note": "Standardmäßig vom KI-Abruf ausgeschlossen. Der Schalter Include privileged im Chat ist der einzige Weg, die Nachricht wieder einzubeziehen.",
+      "privilege-label__locked": true,
+      "privilege-mark-ac__locked": true,
+      "privilege-mark-wp__locked": true,
+      "privilege-clear__locked": true,
+      "privilege-note__locked": true
+    }
   }
 }

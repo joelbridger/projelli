@@ -1015,5 +1015,14 @@
       "title-privileged-matter": "On because the active matter is privileged. Network plugins and MCP servers are disabled.",
       "title-local-only": "On because Local-only is selected. Network plugins and MCP servers are disabled."
     }
+  },
+  "mail": {
+    "viewer": {
+      "privilege-label": "Privilege",
+      "privilege-mark-ac": "Attorney-Client Privileged",
+      "privilege-mark-wp": "Work Product",
+      "privilege-clear": "Not privileged",
+      "privilege-note": "Excluded from AI retrieval by default. The Include privileged toggle in chat is the only way to bring it back in."
+    }
   }
 }
