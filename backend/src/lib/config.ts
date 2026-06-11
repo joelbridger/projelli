@@ -159,6 +159,13 @@ export const config = {
    *  client treats tokens uniformly; the seat-token issuer is the firm host. */
   issuer: str("TOKEN_ISSUER", "licenses.keepance.com"),
 
+  // ---- SSO (OIDC) — Wave 3a -------------------------------------------------
+  /** Public base URL the IdP redirects back to: `${ssoCallbackBase}/auth/sso/callback`.
+   *  Must match the redirect URI the firm registers with their IdP. */
+  ssoCallbackBase: str("SSO_CALLBACK_BASE", "https://api.keepance.com"),
+  ssoStateTtlSeconds: num("SSO_STATE_TTL_SECONDS", 600),
+  ssoCodeTtlSeconds: num("SSO_CODE_TTL_SECONDS", 120),
+
   // ---- LemonSqueezy webhook (chunk 4) --------------------------------------
   /** HMAC-SHA256 signing secret for verifying X-Signature on LS webhooks.
    *  Set in production; empty string in dev/tests (tests set it directly). */
