@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRagStatus } from '@/hooks/useRagStatus';
 import { MemoryService } from '@/modules/memory/MemoryService';
+import { useOcrProgressStore } from '@/modules/memory/ocrProgressStore';
 
 export interface RagProgressBannerProps {
   /** Override the live hook for tests. */
@@ -26,6 +27,12 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
   const live = useRagStatus();
   const snap = status ?? live;
   const [doneVisible, setDoneVisible] = useState(false);
+  // VG-2 — live OCR progress. OCR is honest work (~0.5 s per scanned page),
+  // so the banner says exactly which page the local engine is reading.
+  const ocr = useOcrProgressStore((s) => s.current);
+  const ocrLine = ocr
+    ? t('memory.ocr-progress', { page: ocr.page, total: ocr.totalPages })
+    : null;
 
   // Auto-dismiss the "done" banner after a few seconds so it doesn't stick
   // around forever after an initial workspace index.
@@ -62,6 +69,11 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
               {current}
             </div>
           )}
+          {ocrLine && (
+            <div data-testid="rag-ocr-progress" className="truncate text-muted-foreground">
+              {ocrLine}
+            </div>
+          )}
         </div>
         <div className="w-32 h-1.5 bg-background rounded-full overflow-hidden border" aria-hidden="true">
           <div
@@ -79,6 +91,23 @@ export function RagProgressBanner({ status }: RagProgressBannerProps) {
         >
           Cancel
         </button>
+      </div>
+    );
+  }
+
+  // VG-2 — OCR running outside a workspace walk (e.g. the file watcher
+  // re-indexing one scanned PDF): show the OCR line as its own slim banner.
+  if (ocrLine) {
+    return (
+      <div
+        data-testid="rag-progress-banner"
+        role="status"
+        aria-live="polite"
+        className="flex items-center gap-3 px-4 py-2 border-b bg-muted/40 text-xs"
+      >
+        <span data-testid="rag-ocr-progress" className="truncate text-foreground">
+          {ocrLine}
+        </span>
       </div>
     );
   }

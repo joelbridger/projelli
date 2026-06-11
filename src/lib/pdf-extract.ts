@@ -28,6 +28,22 @@ export interface PdfExtractionResult {
 /** Threshold for scanned-PDF detection: total chars across all pages. */
 const SCANNED_THRESHOLD = 100;
 
+/** VG-2 — per-PAGE OCR threshold: a page whose extracted text trims to fewer
+ *  than this many characters is treated as a scanned/image page. Deliberately
+ *  separate from the whole-file `SCANNED_THRESHOLD` so a mixed native/scanned
+ *  filing OCRs only its scanned pages while the native pages keep their
+ *  extracted text. */
+const PAGE_OCR_THRESHOLD = 25;
+
+/**
+ * VG-2 — does this page's extracted text indicate an image-only (scanned)
+ * page that needs OCR? Pure; the OCR pipeline in MemoryService maps it over
+ * `PdfExtractionResult.pages`.
+ */
+export function pageNeedsOcr(pageText: string): boolean {
+  return pageText.trim().length < PAGE_OCR_THRESHOLD;
+}
+
 let workerConfigured = false;
 
 /**
@@ -120,4 +136,77 @@ export async function extractPdfText(bytes: Uint8Array): Promise<PdfExtractionRe
   const scanned = totalChars < SCANNED_THRESHOLD;
 
   return { pages, pageCount, encrypted: false, scanned };
+}
+
+/**
+ * VG-2 — render ONE page of a PDF to PNG bytes for the local OCR engine.
+ *
+ * `pageIndex` is 0-based. `scale = 2` renders at twice the PDF's nominal
+ * point size (a US-letter page becomes ~1224 px wide — comfortably inside
+ * the resolution band the OCR spike calibrated against).
+ *
+ * Memory discipline (F-501): renders ONE page per call and releases the
+ * canvas before returning; the pipeline calls it sequentially, never for all
+ * pages at once. Prefers `OffscreenCanvas` (no DOM churn) and falls back to a
+ * detached `<canvas>` element for engines without it.
+ *
+ * Only callable in a real browser/webview (the OCR pipeline gates on
+ * `isOcrEngineAvailable()` first); throws under jsdom/Node where no canvas
+ * implementation exists.
+ */
+export async function renderPdfPageToPng(
+  bytes: Uint8Array,
+  pageIndex: number,
+  scale = 2,
+): Promise<Uint8Array> {
+  await ensureWorkerConfigured();
+  const pdfjsLib = await import('pdfjs-dist');
+  // PDF.js TRANSFERS the data buffer to its worker (detaching it in this
+  // thread), so hand it a private copy — the caller's bytes survive for the
+  // next page's render call. Caught live in the Task 8 browser sanity run:
+  // without the copy, page 2 of a multi-page OCR batch throws DataCloneError.
+  const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+  try {
+    const page = await pdf.getPage(pageIndex + 1); // PDF.js pages are 1-based
+    const viewport = page.getViewport({ scale });
+    const width = Math.max(1, Math.ceil(viewport.width));
+    const height = Math.max(1, Math.ceil(viewport.height));
+
+    let blob: Blob;
+    if (typeof OffscreenCanvas !== 'undefined') {
+      const canvas = new OffscreenCanvas(width, height);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('2d canvas context unavailable for PDF page render');
+      // pdfjs 5.x render API: when rendering via a context (OffscreenCanvas
+      // has no HTMLCanvasElement), `canvas` must be explicitly null.
+      await page.render({
+        canvas: null,
+        canvasContext: ctx as unknown as CanvasRenderingContext2D,
+        viewport,
+      }).promise;
+      blob = await canvas.convertToBlob({ type: 'image/png' });
+    } else {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      await page.render({ canvas, viewport }).promise;
+      blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((b) => {
+          if (b) {
+            resolve(b);
+          } else {
+            reject(new Error('canvas.toBlob returned null'));
+          }
+        }, 'image/png');
+      });
+      // Release the bitmap memory eagerly (the element is detached, but the
+      // backing store lives until the canvas is resized or collected).
+      canvas.width = 0;
+      canvas.height = 0;
+    }
+    return new Uint8Array(await blob.arrayBuffer());
+  } finally {
+    // Free PDF.js worker-side page/document resources for this render.
+    await pdf.destroy().catch(() => undefined);
+  }
 }

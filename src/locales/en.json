@@ -728,7 +728,13 @@
     "rag-banner": {
       "ready_one": "Memory ready, indexed 1 file.",
       "ready_other": "Memory ready, indexed {{count}} files."
-    }
+    },
+    "ocr-progress": "Reading scanned pages with local OCR: page {{page}} of {{total}}. Nothing leaves your machine."
+  },
+  "citation": {
+    "scanned": "scanned",
+    "scanned-low": "low-confidence scan",
+    "scanned-low-title": "This passage was read from a scanned page by local OCR with low confidence. Open the source and verify before relying on it."
   },
   "model-download": {
     "title": "Setting up private search",

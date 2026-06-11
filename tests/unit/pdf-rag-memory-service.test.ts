@@ -19,9 +19,15 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 // --- Mock pdf-extract so we control the extraction result ---
-vi.mock('@/lib/pdf-extract', () => ({
-  extractPdfText: vi.fn(),
-}));
+// Partial mock (VG-2): the OCR pipeline also reads the REAL `pageNeedsOcr`
+// from this module, so only the extraction entry point is stubbed.
+vi.mock('@/lib/pdf-extract', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/pdf-extract')>();
+  return {
+    ...actual,
+    extractPdfText: vi.fn(),
+  };
+});
 
 import {
   isPdfIndexingEnabled,

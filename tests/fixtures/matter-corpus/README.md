@@ -10,10 +10,17 @@ Fixture corpus for the Keepance 3.0 quality campaign. Used by:
 python3 tests/fixtures/matter-corpus/generators/generate-fixtures.py
 ```
 
-Requires: `python-docx`, `openpyxl`, `python-pptx`
+Requires: `python-docx`, `openpyxl`, `python-pptx` (+ `pillow` for the scanned PDFs)
 
 ```bash
-pip3 install python-docx openpyxl python-pptx
+pip3 install python-docx openpyxl python-pptx pillow
+```
+
+Regenerate a subset by naming makers (avoids rewriting every committed binary —
+docx/xlsx/pptx zips embed timestamps):
+
+```bash
+python3 tests/fixtures/matter-corpus/generators/generate-fixtures.py scanned-filing scanned-fax
 ```
 
 ## Matter A — Johnson v. Nexus Dynamics Corp.
@@ -28,6 +35,8 @@ workflow features.
 | `incident-summary-johnson.md` | Matter summary contradicting the deposition in 3 places. Used by the Deposition Contradiction Finder workflow. |
 | `contract-services-agreement.docx` | Simple valid docx, 5 clauses. General contract review fixture. |
 | `scanned-exhibit.pdf` | Minimal valid 1-page PDF (hand-built bytes). Exhibit A placeholder. Tests PDF viewer. |
+| `scanned-filing-stamped.pdf` | **VG-2 OCR fixture.** 2 IMAGE-ONLY pages at 200 dpi (no text layer; `extractPdfText` reports `scanned: true`): a clean motion-style court order with a FILED stamp box. Page 2 carries the planted quotable sentence `"Defendant's motion to compel production of the September audit file is DENIED."` (the `SCANNED_FILING_SENTENCE` constant in the generator). OCR confidence ~95 — the GOOD scan. |
+| `scanned-fax-noisy.pdf` | **VG-2 OCR fixture.** 1 IMAGE-ONLY page engineered to land BELOW the `OCR_LOW_CONFIDENCE = 60` disclosure threshold: 5% salt-and-pepper noise + 3 deg rotation + 0.8 px blur (the plan's first recipe measured 63-66 — too high). Measured: native tesseract 5.3.4 ~48.6, tesseract-wasm in-renderer 47.6. Deterministic (seed 42). |
 | `damages-model.xlsx` | Damages calculation spreadsheet. Tests spreadsheet viewer. |
 | `exhibit-deck.pptx` | 2-slide presentation. Tests presentation viewer. |
 | `huge-notes.md` | ~2MB of generated legal-flavored markdown. Tests large-file handling. |

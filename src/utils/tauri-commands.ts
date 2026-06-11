@@ -119,7 +119,21 @@ export interface RagHit {
    *  retrieval only ever returns `'none'`; a non-`none` value appears only on an
    *  explicitly include-privileged query, so the UI can label it. */
   privilege?: 'none' | 'attorney-client' | 'work-product';
+  /** VG-2: `'ocr'` when this chunk's text was read from a scanned page by the
+   *  local OCR engine. Absent on natively-extracted chunks. */
+  extraction?: 'ocr';
+  /** VG-2: mean OCR word confidence (0-100) for the chunk's page. Absent on
+   *  native chunks. Below `OCR_LOW_CONFIDENCE` the UI labels the citation a
+   *  low-confidence scan. */
+  extractionConfidence?: number;
 }
+
+/** VG-2 — the OCR confidence disclosure threshold (0-100 scale). A chunk with
+ *  `extraction === 'ocr'` and `extractionConfidence` below this is labelled a
+ *  low-confidence scan in citations and finder locators, so nobody relies on a
+ *  shaky scan without opening the source. One shared constant: the chat chips,
+ *  the sources accordion, and the finder deliverable all read it. */
+export const OCR_LOW_CONFIDENCE = 60;
 
 /** WS-B/C — the REQUIRED retrieval scope. A caller cannot omit scope and
  *  silently search every matter; it must name `matter` or `allMatters`.
@@ -277,6 +291,12 @@ export async function ragDeletePath(path: string): Promise<void> {
  * Index pre-extracted PDF page text into the RAG store. Called after
  * `extractPdfText` produces page strings in the renderer process.
  *
+ * VG-2: `pageConfidences` is aligned with `pages` — a number marks a page
+ * whose text came from the local OCR engine (mean word confidence, 0-100);
+ * `undefined` entries (serialized as null) are natively-extracted pages.
+ * Omit the array entirely for an all-native PDF. The Rust side stamps
+ * OCR pages' chunks with `extraction = "ocr"` + the confidence.
+ *
  * Returns the number of chunks stored (0 if all pages were empty or skipped).
  * Throws in browser mode (RAG requires Tauri).
  */
@@ -286,13 +306,23 @@ export async function ragIndexPdfChunks(
   pageCount: number,
   matterId?: string,
   privilege?: string,
+  pageConfidences?: (number | undefined)[],
 ): Promise<number> {
   if (!isTauri()) {
     throw new Error('RAG PDF indexing is only available in the desktop app.');
   }
   // WS-PRIV: omitting privilege indexes as "none"; pass the source's status to
   // exclude a privileged PDF from default retrieval.
-  return invoke<number>('rag_index_pdf_chunks', { path, pages, pageCount, matterId, privilege });
+  // VG-2: JSON serialization turns undefined array entries into null, which the
+  // Rust command reads as Option::None per page.
+  return invoke<number>('rag_index_pdf_chunks', {
+    path,
+    pages,
+    pageCount,
+    matterId,
+    privilege,
+    pageConfidences,
+  });
 }
 
 /** Query the local RAG store, scoped to a matter. Returns up to `topK` hits

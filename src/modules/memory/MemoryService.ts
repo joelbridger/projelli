@@ -91,6 +91,38 @@ export function isPdfIndexingEnabled(): boolean {
   }
 }
 
+// VG-2 — OCR toggle reader (`ocrScannedPdfs`, default ON). Mirrors the PDF
+// indexing toggle pattern. When ON and the engine is available, scanned pages
+// are read by the local OCR engine instead of being skipped.
+
+/** Reader type for the OCR toggle. Pluggable for tests. */
+export type OcrScannedPdfsEnabledReader = () => boolean;
+
+/** Default is ON — scanned pages should be searchable out of the box. */
+const DEFAULT_OCR_ENABLED_READER: OcrScannedPdfsEnabledReader = () => true;
+
+let isOcrEnabledReader: OcrScannedPdfsEnabledReader = DEFAULT_OCR_ENABLED_READER;
+
+/** Install a reader for `ocrScannedPdfs`. Called from `useMemoryWiring`
+ *  alongside the other toggle readers. */
+export function setOcrScannedPdfsEnabledReader(reader: OcrScannedPdfsEnabledReader): void {
+  isOcrEnabledReader = reader;
+}
+
+/** Reset to the always-on default. Test helper. */
+export function resetOcrScannedPdfsEnabledReader(): void {
+  isOcrEnabledReader = DEFAULT_OCR_ENABLED_READER;
+}
+
+/** Current value of the OCR toggle (defaults ON, like the schema default). */
+export function isOcrScannedPdfsEnabled(): boolean {
+  try {
+    return isOcrEnabledReader();
+  } catch {
+    return true;
+  }
+}
+
 // WS-B/C — matter resolver. The indexer must tag every chunk with the matter
 // the file belongs to, so retrieval can prefilter by matter. Pluggable so
 // MemoryService stays free of the matter store (and tests can stub it).
@@ -300,7 +332,15 @@ export const MemoryService = {
   /** Index a single PDF file into the RAG store. Reads bytes via the
    *  provided workspace service, extracts text with PDF.js (via dynamic
    *  import of src/lib/pdf-extract.ts from A2), then calls the Rust-side
-   *  rag_index_pdf_chunks command. No-op if memory or PDF indexing is disabled. */
+   *  rag_index_pdf_chunks command. No-op if memory or PDF indexing is disabled.
+   *
+   *  VG-2: pages whose text layer is empty (per-page `pageNeedsOcr`) are read
+   *  by the LOCAL OCR engine when the `ocrScannedPdfs` toggle is on and the
+   *  engine is available, so scanned filings become searchable. Per-page mean
+   *  word confidence rides along to the store (`pageConfidences`) so citations
+   *  can disclose OCR provenance and low confidence. Toggle off or engine
+   *  unavailable keeps the previous honest behaviour: a fully scanned file is
+   *  skipped with `reason: 'scanned'`; a mixed file indexes its native pages. */
   async indexPdfFile(
     path: string,
     workspaceService: { readBinary: (path: string) => Promise<ArrayBuffer> },
@@ -320,25 +360,80 @@ export const MemoryService = {
     }
 
     // extractPdfText is from src/lib/pdf-extract.ts (shipped in A2).
-    const { extractPdfText } = await import('@/lib/pdf-extract');
-    const result = await extractPdfText(new Uint8Array(bytes));
+    const pdfExtract = await import('@/lib/pdf-extract');
+    const data = new Uint8Array(bytes);
+    // PDF.js transfers the buffer it is given to its worker (detaching it
+    // here), so extraction gets a COPY — `data` stays intact for the OCR
+    // page renders below.
+    const result = await pdfExtract.extractPdfText(data.slice());
 
     if (result.encrypted) {
       return { indexed: false, pageCount: result.pageCount, reason: 'encrypted' };
     }
-    if (result.scanned) {
-      return { indexed: false, pageCount: result.pageCount, reason: 'scanned' };
+
+    // VG-2 — the OCR pipeline. Per-page scanned-ness (not the whole-file
+    // flag) so a mixed native/scanned filing OCRs only its scanned pages.
+    let pages = result.pages;
+    let pageConfidences: (number | undefined)[] | undefined;
+    const ocrPageIndices = result.pages
+      .map((pageText, index) => (pdfExtract.pageNeedsOcr(pageText) ? index : -1))
+      .filter((index) => index >= 0);
+    if (ocrPageIndices.length > 0) {
+      const ocr = await import('@/modules/ocr/ocrEngine');
+      if (isOcrScannedPdfsEnabled() && ocr.isOcrEngineAvailable()) {
+        const { useOcrProgressStore } = await import('@/modules/memory/ocrProgressStore');
+        pages = [...result.pages];
+        pageConfidences = new Array<number | undefined>(result.pages.length).fill(undefined);
+        try {
+          // F-501: page render + OCR is memory-heavy (~150-200 MB worker heap
+          // plus the rendered bitmap). Process pages strictly SEQUENTIALLY —
+          // never render or recognize all pages at once.
+          let done = 0;
+          for (const pageIndex of ocrPageIndices) {
+            done += 1;
+            useOcrProgressStore.getState().set({
+              path,
+              page: done,
+              totalPages: ocrPageIndices.length,
+            });
+            try {
+              const png = await pdfExtract.renderPdfPageToPng(data, pageIndex);
+              const { text, confidence } = await ocr.ocrPageImage(png);
+              pages[pageIndex] = text;
+              pageConfidences[pageIndex] = confidence;
+            } catch (err) {
+              // Per-page failure: log, leave THIS page empty, keep going —
+              // the native pages (and other OCR pages) must never be lost.
+              console.warn(`[memory] OCR failed for ${path} page ${String(pageIndex + 1)}:`, err);
+            }
+          }
+        } finally {
+          useOcrProgressStore.getState().clear();
+          // Return the OCR worker's wasm heap (~150-200 MB) now that this
+          // file's scanned pages are done; the next file re-initializes.
+          await ocr.destroyOcrClient().catch(() => undefined);
+        }
+      } else if (result.scanned) {
+        // Toggle off or engine unavailable AND the file has no native text
+        // worth indexing: the previous honest skip.
+        return { indexed: false, pageCount: result.pageCount, reason: 'scanned' };
+      }
+      // Mixed file with OCR unavailable: fall through and index the native
+      // pages exactly as before VG-2.
     }
 
     // WS-B/C: tag PDF chunks with the matter this file belongs to.
     // WS-PRIV: tag with the source's privilege so a privileged PDF is excluded
     // from default retrieval.
+    // VG-2: ONE command call for the whole file — the embed stays batched on
+    // the Rust side; pageConfidences aligns with pages.
     const chunksStored = await ragIndexPdfChunks(
       path,
-      result.pages,
+      pages,
       result.pageCount,
       resolveMatterForPath(path),
       resolvePrivilegeForPath(path),
+      pageConfidences,
     );
     return {
       indexed: chunksStored > 0,

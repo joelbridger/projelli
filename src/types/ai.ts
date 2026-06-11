@@ -111,6 +111,12 @@ export interface WorkspaceSource {
   /** A3: 1-based page number for PDF chunks; VG-2b reuses it for the REAL
    *  1-based sheet/slide number on xlsx/pptx chunks. Absent on pre-A3 rows. */
   pageNumber?: number;
+  /** VG-2: `'ocr'` when this chunk was read from a scanned page by the local
+   *  OCR engine; absent on natively-extracted chunks. Citations disclose it. */
+  extraction?: 'ocr';
+  /** VG-2: mean OCR word confidence (0-100) for the chunk's page. Below
+   *  `OCR_LOW_CONFIDENCE` the citation is labelled a low-confidence scan. */
+  extractionConfidence?: number;
   /**
    * WS-B/C: the content-addressed chunk id (the citation key). Passed to
    * `rag_verify_citation` to confirm a cited claim is real before it is

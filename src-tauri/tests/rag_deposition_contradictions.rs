@@ -153,6 +153,7 @@ async fn fixture() -> Arc<Fixture> {
                     source_type,
                     src.matter_id,
                     PRIVILEGE_NONE,
+                    None,
                     &VEC_KEY,
                 )
                 .expect("build batch");
@@ -597,6 +598,7 @@ async fn fixture_with_filler() -> Arc<Fixture> {
                     source_type,
                     src.matter_id,
                     PRIVILEGE_NONE,
+                    None,
                     &VEC_KEY,
                 )
                 .expect("build batch");
@@ -672,6 +674,8 @@ async fn f510_capped_finder_feed_contains_both_sides_of_all_three() {
             source_type: h.source_type.clone(),
             page_number: h.page_number,
             privilege: h.privilege.clone(),
+            extraction: h.extraction.clone(),
+            extraction_confidence: h.extraction_confidence,
         })
         .collect();
     hits.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));

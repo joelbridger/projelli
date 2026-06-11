@@ -42,6 +42,7 @@ import {
   HardDrive,
   KeyRound,
   Mail,
+  ScanText,
   Server,
   Printer,
   X,
@@ -93,6 +94,12 @@ export const DATA_MAP_ROWS: MapRow[] = [
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'Imported email is encrypted on your machine',
     body: 'If you import email, it is stored in a local, encrypted database on your device. It is searched and used for AI context the same way your files are: locally, under the same confidentiality rules.',
+  },
+  {
+    icon: ScanText,
+    tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
+    title: 'Scanned documents are read on your machine',
+    body: 'When a PDF in your workspace is a scan with no text layer, Keepance reads it with an OCR engine that runs inside the app, on your computer. The page images and the recognized text never leave the device, and no cloud OCR service is ever used. Where the engine was less sure of a page, passages from it are labeled "low-confidence scan" in citations so you know to check the original.',
   },
   {
     icon: Server,

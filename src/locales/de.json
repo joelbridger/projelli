@@ -1337,7 +1337,17 @@
       "ready_one__sourceHash": "129aeae9dc906c9d34dc5a39b350746ac2fa10cd9262f3ee87ab381a84921254",
       "ready_other": "Speicher bereit, {{count}} Dateien indiziert.",
       "ready_other__sourceHash": "1b1eb7b9a151180c039d3ff711db127563701f4536795b705925988f6721a943"
-    }
+    },
+    "ocr-progress": "Gescannte Seiten werden mit lokaler OCR gelesen: Seite {{page}} von {{total}}. Nichts verlässt deinen Rechner.",
+    "ocr-progress__locked": true
+  },
+  "citation": {
+    "scanned": "gescannt",
+    "scanned-low": "Scan mit geringer Zuverlässigkeit",
+    "scanned-low-title": "Diese Passage wurde mit lokaler OCR von einer gescannten Seite gelesen, mit geringer Zuverlässigkeit. Öffne die Quelle und prüfe die Stelle, bevor du dich darauf verlässt.",
+    "scanned__locked": true,
+    "scanned-low__locked": true,
+    "scanned-low-title__locked": true
   },
   "model-download": {
     "title": "Private Suche wird eingerichtet",

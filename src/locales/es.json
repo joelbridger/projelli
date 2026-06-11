@@ -1337,7 +1337,17 @@
       "ready_one__sourceHash": "129aeae9dc906c9d34dc5a39b350746ac2fa10cd9262f3ee87ab381a84921254",
       "ready_other": "Memoria lista, {{count}} archivos indexados.",
       "ready_other__sourceHash": "1b1eb7b9a151180c039d3ff711db127563701f4536795b705925988f6721a943"
-    }
+    },
+    "ocr-progress": "Leyendo páginas escaneadas con OCR local: página {{page}} de {{total}}. Nada sale de tu ordenador.",
+    "ocr-progress__locked": true
+  },
+  "citation": {
+    "scanned": "escaneado",
+    "scanned-low": "escaneo de baja confianza",
+    "scanned-low-title": "Este pasaje se leyó de una página escaneada con OCR local y con baja confianza. Abre la fuente y verifícalo antes de confiar en él.",
+    "scanned__locked": true,
+    "scanned-low__locked": true,
+    "scanned-low-title__locked": true
   },
   "model-download": {
     "title": "Configurando la búsqueda privada",

@@ -207,7 +207,7 @@ async fn fixture() -> Arc<Fixture> {
                     store::build_batch_mail(&rows, &VEC_KEY, src.matter_id, src.privilege)
                         .expect("build mail batch")
                 } else {
-                    store::build_batch(&rows, SourceType::Text, src.matter_id, src.privilege, &VEC_KEY)
+                    store::build_batch(&rows, SourceType::Text, src.matter_id, src.privilege, None, &VEC_KEY)
                         .expect("build batch")
                 };
                 let schema = batch.schema();
@@ -568,7 +568,7 @@ async fn unassigned_sentinel_is_scopeable() {
     let texts: Vec<String> = chunks.iter().map(|c| c.text.clone()).collect();
     let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
-    let batch = store::build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, &VEC_KEY).unwrap();
+    let batch = store::build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &VEC_KEY).unwrap();
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;
     table.add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema))).execute().await.unwrap();
@@ -764,7 +764,7 @@ async fn priv_retag_flips_exclusion_in_place() {
     let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
     // Index initially as non-privileged.
-    let batch = store::build_batch(&rows, SourceType::Text, MATTER_ACME, PRIVILEGE_NONE, &VEC_KEY).unwrap();
+    let batch = store::build_batch(&rows, SourceType::Text, MATTER_ACME, PRIVILEGE_NONE, None, &VEC_KEY).unwrap();
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;
     table.add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema))).execute().await.unwrap();
@@ -825,7 +825,7 @@ async fn vec_chunk_text_is_encrypted_on_disk() {
     let vectors = keepance_lib::commands::rag::embedder::embed_documents(&texts).await.unwrap();
     let rows: Vec<(Chunk, Vec<f32>)> = chunks.into_iter().zip(vectors).collect();
     // DOCUMENT path (build_batch) — the formerly-plaintext path.
-    let batch = store::build_batch(&rows, SourceType::Text, MATTER_ACME, PRIVILEGE_NONE, &VEC_KEY).unwrap();
+    let batch = store::build_batch(&rows, SourceType::Text, MATTER_ACME, PRIVILEGE_NONE, None, &VEC_KEY).unwrap();
     let schema = batch.schema();
     use arrow_array::RecordBatchIterator;
     table.add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema))).execute().await.unwrap();

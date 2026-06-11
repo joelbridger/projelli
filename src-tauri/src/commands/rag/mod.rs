@@ -87,6 +87,15 @@ pub struct Hit {
     // surfaced so an explicitly-included privileged hit can be labelled in the UI.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub privilege: Option<String>,
+    // VG-2: `"ocr"` when the chunk text was read from a scanned page by the
+    // local OCR engine; absent on native chunks. Camel-cases to `extraction`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extraction: Option<String>,
+    // VG-2: mean OCR word confidence (0-100) for the chunk's page; absent on
+    // native chunks. Camel-cases to `extractionConfidence`. The UI discloses
+    // values below OCR_LOW_CONFIDENCE = 60 as a low-confidence scan.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extraction_confidence: Option<f32>,
 }
 
 /// WS-B/C — the REQUIRED retrieval scope. Confidentiality is enforced here: a
@@ -445,7 +454,8 @@ async fn index_one_file(
                 extractor::IndexKind::Xlsx => store::SourceType::Xlsx { sheet_number: number },
                 _ => store::SourceType::Pptx { slide_number: number },
             };
-            let groups: Vec<(store::SourceType, Vec<(chunker::Chunk, Vec<f32>)>)> = banded
+            // VG-2: office sections are never OCR-extracted — extraction None.
+            let groups: Vec<(store::SourceType, Option<(&str, f32)>, Vec<(chunker::Chunk, Vec<f32>)>)> = banded
                 .into_iter()
                 .map(|(number, chunks)| {
                     let rows: Vec<(chunker::Chunk, Vec<f32>)> = chunks
@@ -455,7 +465,7 @@ async fn index_one_file(
                             (c, v)
                         })
                         .collect();
-                    (source_type_for(number), rows)
+                    (source_type_for(number), None, rows)
                 })
                 .collect();
             store::upsert_grouped(table, &path_str, groups, matter_id, privilege, key).await?;
@@ -896,6 +906,10 @@ pub async fn rag_retrieve(
                 // WS-PRIV: carry the privilege status so an explicitly-included
                 // privileged hit can be labelled. Default retrieval only returns "none".
                 privilege: h.privilege,
+                // VG-2: carry the OCR disclosure so citations can say
+                // "scanned" / "low-confidence scan".
+                extraction: h.extraction,
+                extraction_confidence: h.extraction_confidence,
             }
         })
         .collect();
@@ -1093,6 +1107,11 @@ pub async fn rag_delete_path(
 /// `pages` is one string per page. Empty strings are skipped. `page_count`
 /// is the PDF's total page count (metadata only, not used for chunking).
 ///
+/// VG-2: `page_confidences` is aligned with `pages` — `Some(conf)` marks a
+/// page whose text the renderer-side local OCR engine read (mean word
+/// confidence 0-100); that page's chunks are stored with `extraction = "ocr"`
+/// + the confidence so citations disclose it. Omitted/None = all native.
+///
 /// Returns the number of chunks stored (0 if all pages were empty or skipped).
 /// Idempotent — re-indexing drops stale rows first.
 #[tauri::command]
@@ -1103,6 +1122,7 @@ pub async fn rag_index_pdf_chunks(
     page_count: u32,
     matter_id: Option<String>,
     privilege: Option<String>,
+    page_confidences: Option<Vec<Option<f32>>>,
 ) -> Result<u32, String> {
     let matter = resolve_matter(matter_id.as_deref())?;
     let privilege = resolve_privilege(privilege.as_deref())?;
@@ -1119,9 +1139,18 @@ pub async fn rag_index_pdf_chunks(
 
     // {e:#} = full anyhow chain, so the typed model-not-ready marker at the
     // root cause survives any .context() wrapping when it crosses IPC.
-    let count = pdf_indexer::index_pdf_chunks(&table, &path, &pages, page_count, &matter, &privilege, &key)
-        .await
-        .map_err(|e| format!("index_pdf_chunks: {e:#}"))?;
+    let count = pdf_indexer::index_pdf_chunks(
+        &table,
+        &path,
+        &pages,
+        page_count,
+        &matter,
+        &privilege,
+        page_confidences.as_deref(),
+        &key,
+    )
+    .await
+    .map_err(|e| format!("index_pdf_chunks: {e:#}"))?;
     Ok(count as u32)
 }
 
@@ -1233,6 +1262,8 @@ mod tests {
             source_type: None,
             page_number: None,
             privilege: None,
+            extraction: None,
+            extraction_confidence: None,
         }
     }
 
@@ -1269,6 +1300,8 @@ mod tests {
             source_type: None,
             page_number: None,
             privilege: Some("none".into()),
+            extraction: None,
+            extraction_confidence: None,
         }
     }
 
@@ -1427,10 +1460,15 @@ mod tests {
             source_type: Some("pdf".into()),
             page_number: Some(1),
             privilege: Some("none".into()),
+            extraction: Some("ocr".into()),
+            extraction_confidence: Some(48.5),
         };
         let s = serde_json::to_string(&hit).expect("serialize");
         assert!(s.contains("\"sourceType\":\"pdf\""), "got {}", s);
         assert!(s.contains("\"pageNumber\":1"), "got {}", s);
+        // VG-2: the OCR disclosure crosses IPC camel-cased.
+        assert!(s.contains("\"extraction\":\"ocr\""), "got {}", s);
+        assert!(s.contains("\"extractionConfidence\":48.5"), "got {}", s);
     }
 
     #[test]
@@ -1446,6 +1484,8 @@ mod tests {
             source_type: None,
             page_number: None,
             privilege: None,
+            extraction: None,
+            extraction_confidence: None,
         };
         let s = serde_json::to_string(&hit).expect("serialize");
         assert!(!s.contains("sourceType"), "got {}", s);
@@ -1453,6 +1493,8 @@ mod tests {
         assert!(!s.contains("matterId"), "got {}", s);
         assert!(!s.contains("sourceId"), "got {}", s);
         assert!(!s.contains("privilege"), "got {}", s);
+        // VG-2: native chunks carry no extraction keys at all.
+        assert!(!s.contains("extraction"), "got {}", s);
     }
 
     #[test]

@@ -298,6 +298,15 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'toggle',
     defaultValue: false,
   },
+  {
+    key: 'ocrScannedPdfs',
+    category: 'memory',
+    label: 'Read scanned PDFs with OCR',
+    description:
+      'Read scanned PDFs with local OCR so they show up in search and AI answers. Runs entirely on your machine.',
+    type: 'toggle',
+    defaultValue: true,
+  },
 
   // ── Voice ─────────────────────────────────────────────────────────────
   {

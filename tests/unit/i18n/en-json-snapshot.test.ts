@@ -49,6 +49,7 @@ describe('en.json structure snapshot', () => {
         "app": 2,
         "audio": 1,
         "chat": 12,
+        "citation": 3,
         "common": 25,
         "editor": 14,
         "firm": 84,
@@ -57,7 +58,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 89,
         "media": 77,
-        "memory": 2,
+        "memory": 3,
         "model-download": 9,
         "onboarding": 65,
         "plugins": 4,
@@ -80,7 +81,9 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    expect(flat.length).toBe(728);
+    // 732 = 728 + the 4 VG-2 OCR keys (memory.ocr-progress + citation.scanned
+    // + citation.scanned-low + citation.scanned-low-title).
+    expect(flat.length).toBe(732);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

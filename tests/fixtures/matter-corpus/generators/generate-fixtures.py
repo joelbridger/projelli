@@ -7,7 +7,12 @@ Outputs into the parent directory (tests/fixtures/matter-corpus/).
 Run from any location:
     python3 tests/fixtures/matter-corpus/generators/generate-fixtures.py
 
+Regenerate a subset by naming makers (see MAKERS in main), e.g. only the
+VG-2 scanned-PDF fixtures, leaving every other committed binary untouched:
+    python3 .../generate-fixtures.py scanned-filing scanned-fax
+
 Requires: python-docx, openpyxl, python-pptx (pip3 install python-docx openpyxl python-pptx)
+Scanned-PDF fixtures additionally require Pillow (pip3 install pillow)
 """
 
 import os
@@ -58,6 +63,14 @@ try:
 except ImportError:
     HAS_PPTX = False
     print("WARNING: python-pptx not available", file=sys.stderr)
+
+# VG-2 (Wave 2 Task 8) — scanned-PDF fixtures need Pillow (pip3 install pillow)
+try:
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
+    print("WARNING: Pillow not available (scanned PDF fixtures skipped)", file=sys.stderr)
 
 # ---------------------------------------------------------------------------
 # Helper: add tracked-change XML elements (w:ins / w:del) to a docx
@@ -888,6 +901,200 @@ def make_unicode_docx():
 
 
 # ---------------------------------------------------------------------------
+# 12. Scanned PDFs (VG-2 OCR pipeline fixtures) — image-only pages, no text
+# layer, so extractPdfText reports scanned: true and the OCR pipeline runs.
+# ---------------------------------------------------------------------------
+
+# The unique quotable sentence planted in scanned-filing-stamped.pdf page 2.
+# Tests cite this constant verbatim (tests/unit/ocr-pipeline.test.ts and the
+# Task 14 native retrieval run) — change it ONLY together with those tests.
+SCANNED_FILING_SENTENCE = (
+    "Defendant's motion to compel production of the September audit file is DENIED."
+)
+
+
+def _scan_font(names, size):
+    """Best-effort truetype font for the scanned pages. Tries the DejaVu family
+    (preinstalled on the CI/dev Linux rigs); falls back to PIL's default font so
+    the generator still runs anywhere, just with a less realistic page."""
+    candidates = []
+    for name in names:
+        candidates.append(f"/usr/share/fonts/truetype/dejavu/{name}.ttf")
+        candidates.append(name + ".ttf")  # cwd / font-path lookup
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    try:
+        return ImageFont.load_default(size=size)  # Pillow >= 10.1
+    except TypeError:
+        return ImageFont.load_default()
+
+
+def _draw_centered(draw, width, y, text, fnt):
+    bbox = draw.textbbox((0, 0), text, font=fnt)
+    draw.text(((width - bbox[2]) / 2, y), text, font=fnt, fill=0)
+
+
+def make_scanned_filing_stamped():
+    """scanned-filing-stamped.pdf — 2 image-only pages at 200 dpi: a clean
+    motion-style court order with a FILED stamp box. Page 2 carries the unique
+    quotable sentence (SCANNED_FILING_SENTENCE). Calibrated 2026-06-11 against
+    tesseract 5.3.4: mean word confidence ~95 (well above the OCR_LOW_CONFIDENCE
+    = 60 disclosure threshold — this is the GOOD scan)."""
+    if not HAS_PIL:
+        print("SKIP: scanned-filing-stamped.pdf (no Pillow)")
+        return
+    path = out("scanned-filing-stamped.pdf")
+    w, h = 1700, 2200  # 8.5 x 11 in at 200 dpi
+    serif = _scan_font(["DejaVuSerif"], 34)
+    serif_bold = _scan_font(["DejaVuSerif-Bold"], 36)
+    stamp_font = _scan_font(["DejaVuSans-Bold"], 30)
+    leading = 56
+
+    def lines_block(draw, x, y, lines):
+        for line in lines:
+            draw.text((x, y), line, font=serif, fill=0)
+            y += leading
+        return y
+
+    # Page 1 — caption, stamp, the motion background.
+    p1 = Image.new("L", (w, h), 255)
+    d1 = ImageDraw.Draw(p1)
+    y = 150
+    _draw_centered(d1, w, y, "UNITED STATES DISTRICT COURT", serif_bold)
+    y += 54
+    _draw_centered(d1, w, y, "SOUTHERN DISTRICT OF NEW YORK", serif_bold)
+    y += 120
+    y = lines_block(d1, 160, y, [
+        "MARCUS JOHNSON,",
+        "                         Plaintiff,",
+        "",
+        "            v.                                          Case No. 26-CV-0412",
+        "",
+        "NEXUS DYNAMICS CORP.,",
+        "                         Defendant.",
+    ])
+    y += 80
+    _draw_centered(d1, w, y, "ORDER ON DEFENDANT'S MOTION TO COMPEL", serif_bold)
+    y += 110
+    lines_block(d1, 160, y, [
+        "Before the Court is Defendant's motion to compel production of",
+        "the September audit file and the related custodian communications.",
+        "The Court has reviewed the parties' letter briefs, the deposition",
+        "transcript of Marcus Johnson, and the record of the October 2025",
+        "compliance review.",
+        "",
+        "Defendant argues the audit file is responsive to Request No. 12",
+        "and that Plaintiff's objections were waived as untimely. Plaintiff",
+        "responds that the file contains privileged work product prepared",
+        "at the direction of counsel after the preservation notice issued.",
+    ])
+    # FILED stamp box overlay (top right). The em dash is part of the
+    # stamped image artwork specified by the plan, not user-facing app copy.
+    sx, sy = w - 560, 160
+    d1.rectangle([sx, sy, sx + 410, sy + 150], outline=0, width=4)
+    d1.text((sx + 26, sy + 16), "FILED — CLERK", font=stamp_font, fill=0)
+    d1.text((sx + 26, sy + 60), "OF COURT", font=stamp_font, fill=0)
+    d1.text((sx + 26, sy + 104), "JUN 02 2026", font=stamp_font, fill=0)
+
+    # Page 2 — the ruling, carrying the planted quotable sentence.
+    p2 = Image.new("L", (w, h), 255)
+    d2 = ImageDraw.Draw(p2)
+    y = 170
+    y = lines_block(d2, 160, y, [
+        "Having weighed the parties' submissions under Rule 26(b)(1), the",
+        "Court finds the September audit file was prepared in anticipation",
+        "of litigation following the document preservation notice, and that",
+        "Defendant has not shown substantial need sufficient to overcome",
+        "the work product protection.",
+        "",
+        "Accordingly, IT IS HEREBY ORDERED that:",
+        "",
+    ])
+    # Wrap the planted sentence honestly across two lines at this type size.
+    y = lines_block(d2, 160, y, [
+        "Defendant's motion to compel production of the September",
+        "audit file is DENIED.",
+        "",
+        "The parties shall meet and confer on the remaining custodian",
+        "list disputes and submit a joint status letter within fourteen",
+        "days of this Order.",
+        "",
+        "SO ORDERED.",
+        "",
+        "Dated: June 2, 2026",
+        "New York, New York",
+        "",
+        "                                        ____________________________",
+        "                                        United States District Judge",
+    ])
+    p1.save(str(path), format="PDF", save_all=True, append_images=[p2], resolution=200.0)
+    print(f"CREATED: {path.name} (2 image-only pages, 200 dpi)")
+
+
+def make_scanned_fax_noisy():
+    """scanned-fax-noisy.pdf — 1 image-only page engineered to land BELOW the
+    OCR_LOW_CONFIDENCE = 60 disclosure threshold. The Task 6 spike measured the
+    plan's first recipe (2% noise + 2.5 deg) at confidence 63-66 — too high — so
+    this uses heavier degradation: 5% salt-and-pepper noise, 3 deg rotation, and
+    a 0.8 px gaussian blur. Calibrated 2026-06-11 against tesseract 5.3.4:
+    mean word confidence ~53 (and tesseract-wasm measured ~2.5 LOWER than the
+    native CLI on noisy pages in the spike). Deterministic via seed 42."""
+    if not HAS_PIL:
+        print("SKIP: scanned-fax-noisy.pdf (no Pillow)")
+        return
+    import random as _random
+    rng = _random.Random(42)
+    path = out("scanned-fax-noisy.pdf")
+    w, h = 1275, 1650  # 8.5 x 11 in at 150 dpi
+    mono = _scan_font(["DejaVuSansMono"], 22)
+    small = _scan_font(["DejaVuSansMono"], 18)
+    img = Image.new("L", (w, h), 255)
+    d = ImageDraw.Draw(img)
+    d.text(
+        (60, 40),
+        "FROM: MARCHETTI & ASSOCIATES   FAX 212-555-0142   06/02/2026 14:31   P.01/01",
+        font=small,
+        fill=0,
+    )
+    d.line([(60, 75), (w - 60, 75)], fill=0, width=2)
+    body = [
+        "RE: Johnson v. Nexus Dynamics Corp., Case No. 26-CV-0412",
+        "",
+        "Counsel:",
+        "",
+        "Per our call this morning, the September audit file remains",
+        "outstanding. Your client's production is now six weeks late.",
+        "We will move to compel on Thursday unless the file and the",
+        "related custodian list are produced by close of business.",
+        "",
+        "The court reporter confirmed the deposition transcript for",
+        "Marcus Johnson is final. Exhibit 14 was marked and admitted.",
+        "",
+        "Govern yourselves accordingly.",
+        "",
+        "Diane Marchetti, Esq.",
+    ]
+    y = 130
+    for line in body:
+        d.text((90, y), line, font=mono, fill=0)
+        y += 36
+    # Degradation: slight skew, soft strokes, then salt-and-pepper.
+    img = img.rotate(3.0, expand=False, fillcolor=255, resample=Image.BICUBIC)
+    img = img.filter(ImageFilter.GaussianBlur(0.8))
+    px = img.load()
+    flipped = int(w * h * 0.05)
+    for _ in range(flipped):
+        x = rng.randrange(w)
+        yy = rng.randrange(h)
+        px[x, yy] = 0 if rng.random() < 0.5 else 255
+    img.save(str(path), format="PDF", resolution=150.0)
+    print(f"CREATED: {path.name} (1 image-only page, degraded below confidence 60)")
+
+
+# ---------------------------------------------------------------------------
 # 11. matter-b-acme/ — 3 distinct files (Acme Corp. contract dispute)
 # ---------------------------------------------------------------------------
 def make_matter_b():
@@ -968,16 +1175,31 @@ Road Runner Logistics LLC: _______________
 # Main
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
+    # Each maker has a stable name so a subset can be regenerated without
+    # rewriting the other committed binaries (docx/xlsx/pptx zips embed
+    # timestamps — a full rerun dirties every fixture in git).
+    MAKERS = [
+        ("engagement-letter", make_engagement_letter_tracked),
+        ("deposition-transcript", make_deposition_transcript),
+        ("incident-summary", make_incident_summary),
+        ("services-agreement", make_services_agreement),
+        ("scanned-exhibit", make_scanned_exhibit),
+        ("damages-model", make_damages_model),
+        ("exhibit-deck", make_exhibit_deck),
+        ("huge-notes", make_huge_notes),
+        ("empty-docx", make_empty_docx),
+        ("unicode-docx", make_unicode_docx),
+        ("matter-b", make_matter_b),
+        ("scanned-filing", make_scanned_filing_stamped),
+        ("scanned-fax", make_scanned_fax_noisy),
+    ]
+    only = set(sys.argv[1:])
+    unknown = only - {name for name, _ in MAKERS}
+    if unknown:
+        print(f"Unknown maker name(s): {sorted(unknown)}", file=sys.stderr)
+        sys.exit(1)
     print(f"Generating fixtures in: {CORPUS_DIR}")
-    make_engagement_letter_tracked()
-    make_deposition_transcript()
-    make_incident_summary()
-    make_services_agreement()
-    make_scanned_exhibit()
-    make_damages_model()
-    make_exhibit_deck()
-    make_huge_notes()
-    make_empty_docx()
-    make_unicode_docx()
-    make_matter_b()
+    for name, maker in MAKERS:
+        if not only or name in only:
+            maker()
     print("\nDone.")

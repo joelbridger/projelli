@@ -23,6 +23,7 @@ import {
   isPdfIndexingEnabled,
   MemoryService,
   setMemoryEnabledReader,
+  setOcrScannedPdfsEnabledReader,
   setMatterResolver,
   setPdfIndexingEnabledReader,
   setPrivilegeResolver,
@@ -221,6 +222,11 @@ export function useMemoryWiring(
       Boolean(
         useSettingsStore.getState().getSetting<boolean>('includePdfsInWorkspaceIndex'),
       ),
+    );
+    // VG-2 — local OCR for scanned PDF pages (default ON; getSetting falls
+    // back to the schema default when unset).
+    setOcrScannedPdfsEnabledReader(() =>
+      Boolean(useSettingsStore.getState().getSetting<boolean>('ocrScannedPdfs')),
     );
     // M3 — facts toggles. Injection defaults ON, auto-accept defaults OFF.
     setFactsInjectionReader(() =>

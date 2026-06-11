@@ -25,7 +25,7 @@ import type {
   ContradictionFinding,
   FindingSource,
 } from '@/types/workflow';
-import type { RetrievalScope } from '@/utils/tauri-commands';
+import { OCR_LOW_CONFIDENCE, type RetrievalScope } from '@/utils/tauri-commands';
 
 /** A retrieved chunk, narrowed to the fields the analysis pipeline needs.
  *  Structurally compatible with `RagHit` from `@/utils/tauri-commands`. */
@@ -39,6 +39,12 @@ export interface RetrievedChunk {
   /** VG-2b widens the union with the office formats (mirrors `RagHit`). */
   sourceType?: 'text' | 'pdf' | 'mail' | 'docx' | 'xlsx' | 'pptx' | 'rtf';
   pageNumber?: number;
+  /** VG-2: `'ocr'` when the chunk was read from a scanned page by the local
+   *  OCR engine (mirrors `RagHit`); locators disclose it. */
+  extraction?: 'ocr';
+  /** VG-2: mean OCR word confidence (0-100); below `OCR_LOW_CONFIDENCE` the
+   *  locator says "scanned, low-confidence". */
+  extractionConfidence?: number;
 }
 
 /** Inject the real RAG retrieval. Matter scope + privilege handling are the
@@ -163,25 +169,36 @@ export function buildRetrievedContextBlock(chunks: RetrievedChunk[]): string {
   return `<retrieved_context>\n${lines}\n</retrieved_context>`;
 }
 
+/** VG-2 — the OCR disclosure a deliverable locator carries: a passage read
+ *  from a scanned page says so, and a shaky read says so louder. Propose,
+ *  don't decide — the lawyer sees the quality of the ground under a finding. */
+function ocrLocatorSuffix(c: RetrievedChunk): string {
+  if (c.extraction !== 'ocr') return '';
+  const low = c.extractionConfidence !== undefined && c.extractionConfidence < OCR_LOW_CONFIDENCE;
+  return low ? ' (scanned, low-confidence)' : ' (scanned)';
+}
+
 /** Human-readable locator label for a retrieved chunk. VG-2b: sectioned
  *  office sources label the honest locator ("sheet 2", "slide 3" — the
  *  REAL 1-based number carried in pageNumber); docx/rtf chunk like text and
- *  fall through to the paragraph branch. */
+ *  fall through to the paragraph branch. VG-2: OCR-read pages disclose
+ *  " (scanned)" / " (scanned, low-confidence)". */
 function sourceLocator(c: RetrievedChunk): string {
   const base = basename(c.path);
+  const suffix = ocrLocatorSuffix(c);
   if (c.sourceType === 'pdf' && c.pageNumber != null) {
-    return `${base} page ${String(c.pageNumber)}`;
+    return `${base} page ${String(c.pageNumber)}${suffix}`;
   }
   if (c.sourceType === 'xlsx' && c.pageNumber != null) {
-    return `${base} sheet ${String(c.pageNumber)}`;
+    return `${base} sheet ${String(c.pageNumber)}${suffix}`;
   }
   if (c.sourceType === 'pptx' && c.pageNumber != null) {
-    return `${base} slide ${String(c.pageNumber)}`;
+    return `${base} slide ${String(c.pageNumber)}${suffix}`;
   }
   if (c.sourceType === 'mail') {
     return `${base} (email)`;
   }
-  return `${base} paragraph ${String(c.paragraphIndex)}`;
+  return `${base} paragraph ${String(c.paragraphIndex)}${suffix}`;
 }
 
 function basename(path: string): string {

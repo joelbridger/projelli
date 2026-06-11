@@ -20,6 +20,12 @@
 //   encrypted       : Boolean (nullable) — true => `text` holds AES-256-GCM ciphertext
 //   privilege       : Utf8 NOT NULL  — privilege status (WS-PRIV). One of
 //                                      "none" | "attorney-client" | "work-product".
+//   extraction      : Utf8 (nullable) — "ocr" when the chunk text was read from
+//                                      a scanned page by the local OCR engine
+//                                      (VG-2); null for natively-extracted text.
+//   extraction_confidence : Float32 (nullable) — mean OCR word confidence
+//                                      (0-100) for the chunk's page; null on
+//                                      native chunks.
 //
 // WS-VEC — chunk text is a CONFIDENTIALITY GUARANTEE at rest. The `text` column
 // is encrypted with AES-256-GCM under the dedicated vector-store master key
@@ -171,7 +177,15 @@ pub const UNASSIGNED_MATTER: &str = "unassigned";
 /// each file to be touched. (The migration is `read_index_version <
 /// INDEX_VERSION`: end users see exactly ONE re-index per update no matter
 /// how many bumps a release carries.)
-pub const INDEX_VERSION: u32 = 7;
+///
+/// 8: VG-2 — OCR extraction/confidence columns. The chunk schema gains the
+/// trailing nullable `extraction` / `extraction_confidence` columns so a
+/// passage read from a scanned page is permanently distinguishable from
+/// native text (and its confidence is disclosable in citations). A pre-8
+/// table lacks the columns, so the one-time drop + re-index migration brings
+/// every row onto the uniform schema — never rely on LanceDB auto-evolving a
+/// live table.
+pub const INDEX_VERSION: u32 = 8;
 
 /// Filename (under the vectors dir) holding the integer `INDEX_VERSION` the
 /// current `chunks` table was built with.
@@ -273,6 +287,14 @@ pub fn build_schema() -> SchemaRef {
         // excluded from retrieval by default. Pre-WS-PRIV tables (no column)
         // are dropped + re-indexed by the version-4 migration, never back-filled.
         Field::new("privilege", DataType::Utf8, false),
+        // VG-2: how the chunk's text was extracted. "ocr" for chunks read from
+        // a scanned page image by the local OCR engine; null for native text.
+        // Nullable + trailing so pre-V8 datasets still open during migration.
+        Field::new("extraction", DataType::Utf8, true),
+        // VG-2: mean word confidence (0-100) of the OCR pass that produced the
+        // chunk's page; null on native chunks. Surfaced in retrieval so the UI
+        // can disclose low-confidence scans (OCR_LOW_CONFIDENCE = 60).
+        Field::new("extraction_confidence", DataType::Float32, true),
     ]))
 }
 
@@ -333,11 +355,18 @@ pub async fn open_or_create_table(conn: &Connection) -> Result<Table> {
 /// WS-PRIV: `privilege` is the litigation-safety status written to every row
 /// (NON-NULL — one of "none" | "attorney-client" | "work-product"). Privileged
 /// rows are excluded from retrieval by default.
+///
+/// VG-2: `extraction` marks HOW the text was extracted. `Some(("ocr", conf))`
+/// stamps every row in the batch as OCR-read with the page's mean word
+/// confidence (0-100); `None` (every native caller: text / office / native
+/// PDF pages) leaves both columns null. Disclosure, not behaviour: retrieval
+/// surfaces the values so citations can say "scanned" / "low-confidence scan".
 pub fn build_batch(
     rows: &[(Chunk, Vec<f32>)],
     source_type: SourceType,
     matter_id: &str,
     privilege: &str,
+    extraction: Option<(&str, f32)>,
     key: &[u8; 32],
 ) -> Result<RecordBatch> {
     use crate::commands::mail::crypto::encrypt_with_key;
@@ -411,6 +440,12 @@ pub fn build_batch(
     let privilege = validate_privilege(privilege)?;
     let priv_arr = StringArray::from(vec![privilege; rows.len()]);
 
+    // VG-2: extraction disclosure — one value for the whole batch (callers
+    // group OCR pages separately), null on every native batch.
+    let ext_arr = StringArray::from(vec![extraction.map(|(kind, _)| kind); rows.len()]);
+    let conf_arr =
+        arrow_array::Float32Array::from(vec![extraction.map(|(_, conf)| conf); rows.len()]);
+
     let batch = RecordBatch::try_new(
         schema,
         vec![
@@ -426,6 +461,8 @@ pub fn build_batch(
             Arc::new(pn_arr),
             Arc::new(enc_arr),
             Arc::new(priv_arr),
+            Arc::new(ext_arr),
+            Arc::new(conf_arr),
         ],
     )
     .context("RecordBatch::try_new failed for chunks batch")?;
@@ -506,6 +543,9 @@ pub fn build_batch_mail(
     // WS-PRIV: validate + write the privilege value to every mail row.
     let privilege = validate_privilege(privilege)?;
     let priv_arr = StringArray::from(vec![privilege; rows.len()]);
+    // VG-2: mail is never OCR-extracted — extraction columns stay null.
+    let ext_arr = StringArray::from(vec![None::<&str>; rows.len()]);
+    let conf_arr = arrow_array::Float32Array::from(vec![None::<f32>; rows.len()]);
 
     RecordBatch::try_new(
         schema,
@@ -522,6 +562,8 @@ pub fn build_batch_mail(
             Arc::new(pn_arr),
             Arc::new(enc_arr),
             Arc::new(priv_arr),
+            Arc::new(ext_arr),
+            Arc::new(conf_arr),
         ],
     )
     .context("RecordBatch::try_new failed for mail chunks batch")
@@ -557,7 +599,8 @@ pub async fn upsert_chunks_for_path(
     }
 
     // WS-VEC: build_batch encrypts the text column under the vector-store key.
-    let batch = build_batch(&rows, source_type, matter_id, privilege, key)?;
+    // VG-2: this path serves native text extraction only — never OCR.
+    let batch = build_batch(&rows, source_type, matter_id, privilege, None, key)?;
     let schema = batch.schema();
     let iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
     table
@@ -579,10 +622,14 @@ pub async fn upsert_chunks_for_path(
 /// batch. Idempotent re-index, exactly like `upsert_chunks_for_path`.
 /// Returns the number of rows inserted; an empty `groups` still deletes
 /// stale rows (the file may have emptied) and returns 0.
+///
+/// VG-2: each group carries its own `extraction` marker — `Some(("ocr", conf))`
+/// on a PDF page group the OCR engine read, `None` on every native group
+/// (office callers pass `None` throughout).
 pub async fn upsert_grouped(
     table: &Table,
     path: &str,
-    groups: Vec<(SourceType, Vec<(Chunk, Vec<f32>)>)>,
+    groups: Vec<(SourceType, Option<(&str, f32)>, Vec<(Chunk, Vec<f32>)>)>,
     matter_id: &str,
     privilege: &str,
     key: &[u8; 32],
@@ -596,12 +643,12 @@ pub async fn upsert_grouped(
     use arrow_schema::ArrowError;
     let mut count = 0usize;
     let mut batches: Vec<std::result::Result<RecordBatch, ArrowError>> = Vec::new();
-    for (source_type, rows) in &groups {
+    for (source_type, extraction, rows) in &groups {
         if rows.is_empty() {
             continue;
         }
         count += rows.len();
-        let batch = build_batch(rows, *source_type, matter_id, privilege, key)
+        let batch = build_batch(rows, *source_type, matter_id, privilege, *extraction, key)
             .map_err(|e| anyhow::anyhow!("build grouped batch for {}: {e}", path))?;
         batches.push(Ok(batch));
     }
@@ -719,6 +766,12 @@ pub struct StoredHit {
     // returns "none"; this is surfaced so the UI can label an explicitly-
     // included privileged hit.
     pub privilege: Option<String>,
+    // VG-2: "ocr" when the chunk text was read from a scanned page by the
+    // local OCR engine; None on native chunks (and pre-V8 rows).
+    pub extraction: Option<String>,
+    // VG-2: mean OCR word confidence (0-100) for the chunk's page; None on
+    // native chunks. Disclosed in citations below OCR_LOW_CONFIDENCE = 60.
+    pub extraction_confidence: Option<f32>,
 }
 
 /// Compose the LanceDB `only_if` PREFILTER predicate for a retrieval query from
@@ -865,6 +918,13 @@ pub async fn nearest(
         let priv_col = batch
             .column_by_name("privilege")
             .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        // VG-2: read the nullable extraction columns. Absent on pre-V8 rows → None.
+        let ext_col = batch
+            .column_by_name("extraction")
+            .and_then(|c| c.as_any().downcast_ref::<StringArray>());
+        let ext_conf_col = batch
+            .column_by_name("extraction_confidence")
+            .and_then(|c| c.as_any().downcast_ref::<arrow_array::Float32Array>());
 
         for i in 0..batch.num_rows() {
             let distance = dist_col.map(|c| c.value(i)).unwrap_or(0.0);
@@ -887,6 +947,10 @@ pub async fn nearest(
             let privilege = priv_col
                 .filter(|c| !c.is_null(i))
                 .map(|c| c.value(i).to_string());
+            let extraction = ext_col
+                .filter(|c| !c.is_null(i))
+                .map(|c| c.value(i).to_string());
+            let extraction_confidence = ext_conf_col.filter(|c| !c.is_null(i)).map(|c| c.value(i));
             out.push(StoredHit {
                 id,
                 path: path_col.value(i).to_string(),
@@ -899,6 +963,8 @@ pub async fn nearest(
                 page_number,
                 encrypted,
                 privilege,
+                extraction,
+                extraction_confidence,
             });
         }
     }
@@ -1169,6 +1235,8 @@ mod tests {
                 "page_number",
                 "encrypted",
                 "privilege",
+                "extraction",
+                "extraction_confidence",
             ]
         );
     }
@@ -1230,7 +1298,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_WORK_PRODUCT, &TEST_KEY)
+        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_WORK_PRODUCT, None, &TEST_KEY)
             .expect("build_batch");
         let priv_col = batch
             .column_by_name("privilege")
@@ -1253,7 +1321,7 @@ mod tests {
         )];
         // A bad privilege value fails the build loudly rather than persisting an
         // unscopeable row.
-        assert!(build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, "bogus", &TEST_KEY).is_err());
+        assert!(build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, "bogus", None, &TEST_KEY).is_err());
     }
 
     // ---- build_retrieval_predicate: the single place matter AND privilege compose.
@@ -1334,12 +1402,13 @@ mod tests {
                 vec![0.2f32; EMBEDDING_DIM],
             ),
         ];
-        let batch = build_batch(&chunks, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+        let batch = build_batch(&chunks, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
             .expect("build_batch");
         assert_eq!(batch.num_rows(), 2);
-        // 12 columns: id, path, matter_id, source_id, paragraph_index, text,
-        // vector, indexed_at, source_type, page_number, encrypted, privilege
-        assert_eq!(batch.num_columns(), 12);
+        // 14 columns: id, path, matter_id, source_id, paragraph_index, text,
+        // vector, indexed_at, source_type, page_number, encrypted, privilege,
+        // extraction, extraction_confidence
+        assert_eq!(batch.num_columns(), 14);
     }
 
     #[test]
@@ -1355,7 +1424,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_NONE, &TEST_KEY).expect("build_batch");
+        let batch = build_batch(&rows, SourceType::Text, "matter-acme", PRIVILEGE_NONE, None, &TEST_KEY).expect("build_batch");
         let matter_col = batch.column_by_name("matter_id").expect("matter_id col").as_string::<i32>();
         assert_eq!(matter_col.value(0), "matter-acme");
         // source_id mirrors the path (the resolvable originating source).
@@ -1376,7 +1445,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY).expect("build_batch text");
+        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY).expect("build_batch text");
         let st_col = batch
             .column_by_name("source_type")
             .expect("source_type column missing")
@@ -1402,7 +1471,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
             .expect("build_batch pdf");
         let st_col = batch
             .column_by_name("source_type")
@@ -1453,12 +1522,166 @@ mod tests {
 
     #[test]
     fn build_batch_docx_and_rtf_band_like_text() {
-        let b = build_batch(&one_row("/a.docx"), SourceType::Docx, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+        let b = build_batch(&one_row("/a.docx"), SourceType::Docx, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
             .expect("build_batch docx");
         assert_eq!(batch_st_pn(&b), ("docx".to_string(), 0));
-        let b = build_batch(&one_row("/a.rtf"), SourceType::Rtf, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+        let b = build_batch(&one_row("/a.rtf"), SourceType::Rtf, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
             .expect("build_batch rtf");
         assert_eq!(batch_st_pn(&b), ("rtf".to_string(), 0));
+    }
+
+    // -----------------------------------------------------------------------
+    // VG-2: OCR extraction disclosure columns. A chunk produced by OCR carries
+    // extraction = "ocr" + the page's mean word confidence (0-100); every
+    // native chunk leaves both columns null so the UI can tell an OCR-read
+    // passage apart and disclose low confidence honestly.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn schema_extraction_columns_are_trailing_and_nullable() {
+        let s = build_schema();
+        let names: Vec<_> = s.fields().iter().map(|f| f.name().as_str()).collect();
+        // Trailing so older datasets (pre-V8 rows) still open; nullable so
+        // native chunks simply leave them unset.
+        assert_eq!(names[names.len() - 2], "extraction");
+        assert_eq!(names[names.len() - 1], "extraction_confidence");
+        for name in ["extraction", "extraction_confidence"] {
+            let f = s.field_with_name(name).expect("field present");
+            assert!(f.is_nullable(), "{name} must be nullable");
+        }
+        assert_eq!(
+            s.field_with_name("extraction_confidence").unwrap().data_type(),
+            &DataType::Float32
+        );
+    }
+
+    #[test]
+    fn build_batch_ocr_extraction_writes_both_columns() {
+        use arrow_array::cast::AsArray;
+        let rows = one_row("/a.pdf");
+        let batch = build_batch(
+            &rows,
+            SourceType::Pdf { page_number: 2 },
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            Some(("ocr", 87.5)),
+            &TEST_KEY,
+        )
+        .expect("build_batch ocr");
+        let ext_col = batch
+            .column_by_name("extraction")
+            .expect("extraction col")
+            .as_string::<i32>();
+        assert!(!ext_col.is_null(0));
+        assert_eq!(ext_col.value(0), "ocr");
+        let conf_col = batch
+            .column_by_name("extraction_confidence")
+            .expect("extraction_confidence col")
+            .as_primitive::<arrow_array::types::Float32Type>();
+        assert!(!conf_col.is_null(0));
+        assert!((conf_col.value(0) - 87.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn build_batch_native_extraction_is_null() {
+        let rows = one_row("/a.pdf");
+        let batch = build_batch(
+            &rows,
+            SourceType::Pdf { page_number: 1 },
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("build_batch native pdf");
+        let ext_col = batch.column_by_name("extraction").expect("extraction col");
+        assert!(ext_col.is_null(0), "native chunks must leave extraction null");
+        let conf_col = batch
+            .column_by_name("extraction_confidence")
+            .expect("extraction_confidence col");
+        assert!(conf_col.is_null(0), "native chunks must leave confidence null");
+    }
+
+    #[test]
+    fn build_batch_mail_extraction_columns_are_null() {
+        let key = [0x42u8; 32];
+        let rows = vec![(
+            Chunk {
+                path: "mail:m-ocr".into(),
+                paragraph_index: 0,
+                text: "mail body".into(),
+                start_offset: 0,
+                end_offset: 9,
+            },
+            vec![0.1f32; EMBEDDING_DIM],
+        )];
+        let batch = build_batch_mail(&rows, &key, UNASSIGNED_MATTER, PRIVILEGE_NONE)
+            .expect("build_batch mail");
+        // Mail is never OCR-extracted; the columns exist (schema is shared)
+        // but stay null.
+        assert!(batch.column_by_name("extraction").expect("col").is_null(0));
+        assert!(batch
+            .column_by_name("extraction_confidence")
+            .expect("col")
+            .is_null(0));
+    }
+
+    /// VG-2 round-trip through a real table: an OCR chunk surfaces from
+    /// `nearest` with extraction = "ocr" and its confidence; a native chunk
+    /// surfaces with both None.
+    #[tokio::test]
+    async fn nearest_round_trips_extraction_columns() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        let mk = |path: &str, seed: f32| {
+            vec![(
+                Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: format!("text of {path}"),
+                    start_offset: 0,
+                    end_offset: 10,
+                },
+                vec![seed; EMBEDDING_DIM],
+            )]
+        };
+        let ocr_batch = build_batch(
+            &mk("/scan.pdf", 0.10),
+            SourceType::Pdf { page_number: 1 },
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            Some(("ocr", 48.6)),
+            &TEST_KEY,
+        )
+        .expect("ocr batch");
+        let native_batch = build_batch(
+            &mk("/native.pdf", 0.11),
+            SourceType::Pdf { page_number: 1 },
+            UNASSIGNED_MATTER,
+            PRIVILEGE_NONE,
+            None,
+            &TEST_KEY,
+        )
+        .expect("native batch");
+        for batch in [ocr_batch, native_batch] {
+            let schema = batch.schema();
+            table
+                .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+                .execute()
+                .await
+                .expect("add batch");
+        }
+
+        let q = vec![0.10f32; EMBEDDING_DIM];
+        let hits = nearest(&table, &q, 10, None, false).await.expect("nearest");
+        let scan = hits.iter().find(|h| h.path == "/scan.pdf").expect("scan hit");
+        assert_eq!(scan.extraction.as_deref(), Some("ocr"));
+        assert!((scan.extraction_confidence.expect("conf") - 48.6).abs() < 0.001);
+        let native = hits.iter().find(|h| h.path == "/native.pdf").expect("native hit");
+        assert_eq!(native.extraction, None);
+        assert_eq!(native.extraction_confidence, None);
     }
 
     #[test]
@@ -1466,10 +1689,10 @@ mod tests {
         // The number is the REAL 1-based sheet/slide number (empty sections
         // are skipped upstream, so it is NOT necessarily contiguous with the
         // enumeration index used for paragraph_index banding).
-        let b = build_batch(&one_row("/a.xlsx"), SourceType::Xlsx { sheet_number: 2 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+        let b = build_batch(&one_row("/a.xlsx"), SourceType::Xlsx { sheet_number: 2 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
             .expect("build_batch xlsx");
         assert_eq!(batch_st_pn(&b), ("xlsx".to_string(), 2));
-        let b = build_batch(&one_row("/a.pptx"), SourceType::Pptx { slide_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+        let b = build_batch(&one_row("/a.pptx"), SourceType::Pptx { slide_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
             .expect("build_batch pptx");
         assert_eq!(batch_st_pn(&b), ("pptx".to_string(), 3));
     }
@@ -1495,7 +1718,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY).expect("build_batch text");
+        let batch = build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY).expect("build_batch text");
         // WS-VEC: the text column must NOT contain the plaintext.
         let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
         assert!(
@@ -1529,7 +1752,7 @@ mod tests {
             },
             vec![0.1f32; EMBEDDING_DIM],
         )];
-        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+        let batch = build_batch(&rows, SourceType::Pdf { page_number: 3 }, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
             .expect("build_batch pdf");
         let text_col = batch.column_by_name("text").expect("text col").as_string::<i32>();
         assert!(
@@ -1782,7 +2005,7 @@ mod tests {
             vec![0.2f32; EMBEDDING_DIM],
         )];
         let batch =
-            build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, &TEST_KEY)
+            build_batch(&rows, SourceType::Text, UNASSIGNED_MATTER, PRIVILEGE_NONE, None, &TEST_KEY)
                 .expect("build file batch");
         let schema = batch.schema();
         table

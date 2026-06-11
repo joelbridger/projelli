@@ -47,7 +47,8 @@ import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
 // F-121 (VG-5b) — explains privilege exclusion next to its toggle, with a
 // "see it work" check that runs the user's own question against their index.
 import { PrivilegeExclusionExplainer } from '@/components/ai/PrivilegeExclusionExplainer';
-import { MODEL_NOT_READY, type RetrievalScope } from '@/utils/tauri-commands';
+import { MODEL_NOT_READY, OCR_LOW_CONFIDENCE, type RetrievalScope } from '@/utils/tauri-commands';
+import i18n from '@/i18n';
 import { useFileContextStore } from '@/stores/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
 import { filterByScope } from '@/utils/client-boundary';
@@ -266,11 +267,40 @@ function renderMessageWithWorkspaceChip(content: string): React.ReactNode {
 }
 
 /**
+ * VG-2 — is this source a low-confidence OCR read? True only for an
+ * OCR-extracted chunk whose page confidence sits below the shared
+ * `OCR_LOW_CONFIDENCE` threshold (a missing confidence is not "low" — the
+ * two values are always written together).
+ */
+function isLowConfidenceScan(extraction?: string, extractionConfidence?: number): boolean {
+  return (
+    extraction === 'ocr' &&
+    extractionConfidence !== undefined &&
+    extractionConfidence < OCR_LOW_CONFIDENCE
+  );
+}
+
+/**
+ * VG-2 — the honest OCR disclosure appended to a citation label:
+ * " (scanned)" for an OCR-read source, " (low-confidence scan)" below the
+ * threshold, "" for native text. Module-level (no hook context), so it reads
+ * the global i18n instance like other non-component label code.
+ */
+function ocrLabelSuffix(extraction?: string, extractionConfidence?: number): string {
+  if (extraction !== 'ocr') return '';
+  const key = isLowConfidenceScan(extraction, extractionConfidence)
+    ? 'citation.scanned-low'
+    : 'citation.scanned';
+  return ` (${i18n.t(key)})`;
+}
+
+/**
  * VG-2b (+ the Wave-1 follow-up (f) nit) — display label for a citation chip
  * or sources-accordion row. Page-keyed sources say their honest locator:
  * "p. N" for PDF pages, "sheet N" / "slide N" for office sections (the REAL
  * 1-based number carried in pageNumber). Everything else keeps the paragraph
- * anchor (§N). LABELS ONLY: the chip's resolution key and testid grammar
+ * anchor (§N). VG-2: OCR-read sources append the scanned/low-confidence
+ * disclosure. LABELS ONLY: the chip's resolution key and testid grammar
  * (basename + paragraphIndex) are deliberately untouched.
  */
 function citationDisplayLabel(
@@ -278,13 +308,16 @@ function citationDisplayLabel(
   paragraphIndex: number,
   sourceType?: string,
   pageNumber?: number,
+  extraction?: string,
+  extractionConfidence?: number,
 ): string {
+  const suffix = ocrLabelSuffix(extraction, extractionConfidence);
   if (pageNumber != null) {
-    if (sourceType === 'pdf') return `${basename} p. ${String(pageNumber)}`;
-    if (sourceType === 'xlsx') return `${basename} sheet ${String(pageNumber)}`;
-    if (sourceType === 'pptx') return `${basename} slide ${String(pageNumber)}`;
+    if (sourceType === 'pdf') return `${basename} p. ${String(pageNumber)}${suffix}`;
+    if (sourceType === 'xlsx') return `${basename} sheet ${String(pageNumber)}${suffix}`;
+    if (sourceType === 'pptx') return `${basename} slide ${String(pageNumber)}${suffix}`;
   }
-  return `${basename} §${String(paragraphIndex)}`;
+  return `${basename} §${String(paragraphIndex)}${suffix}`;
 }
 
 /**
@@ -341,13 +374,21 @@ function renderMessageWithCitations(
         (s) => s.path === resolved && s.paragraphIndex === cite.paragraphIndex,
       ) ?? (sources ?? []).find((s) => s.path === resolved);
     // VG-2b/(f): page-keyed sources label "p. N" / "sheet N" / "slide N".
+    // VG-2: OCR-read sources disclose "(scanned)" / "(low-confidence scan)".
     const label = citationDisplayLabel(
       cite.basename,
       cite.paragraphIndex,
       matchedSource?.sourceType,
       matchedSource?.pageNumber,
+      matchedSource?.extraction,
+      matchedSource?.extractionConfidence,
     );
     const unverified = matchedSource?.verified === false;
+    // VG-2: a low-confidence scan carries the fuller warning in the chip title.
+    const lowConfidenceScan = isLowConfidenceScan(
+      matchedSource?.extraction,
+      matchedSource?.extractionConfidence,
+    );
     pieces.push(
       <button
         key={`cite-${idx}`}
@@ -382,13 +423,15 @@ function renderMessageWithCitations(
             onMissingCitation(cite.basename);
           }
         }}
-        title={
-          unverified
+        title={(() => {
+          const base = unverified
             ? `Unverified citation — could not confirm "${label}" against the source. Do not rely on this without checking.`
             : resolved
               ? `Open ${resolved}`
-              : 'Source file not found'
-        }
+              : 'Source file not found';
+          // VG-2: the fuller low-confidence sentence rides the chip title.
+          return lowConfidenceScan ? `${base}\n${i18n.t('citation.scanned-low-title')}` : base;
+        })()}
       >
         {unverified ? (
           <AlertTriangle className="h-3 w-3" />
@@ -475,7 +518,14 @@ function ChatSourcesAccordion({
                     else onMissing(base);
                   }}
                 >
-                  {citationDisplayLabel(base, s.paragraphIndex, s.sourceType, s.pageNumber)}
+                  {citationDisplayLabel(
+                    base,
+                    s.paragraphIndex,
+                    s.sourceType,
+                    s.pageNumber,
+                    s.extraction,
+                    s.extractionConfidence,
+                  )}
                 </button>
               </li>
             );
@@ -1069,6 +1119,11 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             // PDF viewer at the correct page.
             ...(h.sourceType !== undefined ? { sourceType: h.sourceType } : {}),
             ...(h.pageNumber !== undefined ? { pageNumber: h.pageNumber } : {}),
+            // VG-2: OCR provenance + confidence so citations disclose scans.
+            ...(h.extraction !== undefined ? { extraction: h.extraction } : {}),
+            ...(h.extractionConfidence !== undefined
+              ? { extractionConfidence: h.extractionConfidence }
+              : {}),
             // WS-B/C: carry the citation key, matter, and resolvable source id
             // so citations can be verified + resolved (file vs email).
             ...(h.id !== undefined ? { id: h.id } : {}),
