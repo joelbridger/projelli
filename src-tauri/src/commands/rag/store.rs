@@ -148,7 +148,13 @@ pub const UNASSIGNED_MATTER: &str = "unassigned";
 /// + re-indexes, re-encrypting every chunk's text under the dedicated vector-store
 /// key. (Re-indexing also re-encrypts the formerly mail-key'd mail chunks under
 /// the vector-store key, unifying the decryption key for the whole table.)
-pub const INDEX_VERSION: u32 = 5;
+///
+/// F-508: bumped 5 → 6. Versions ≤ 5 indexed `.aichat` / `.workflow` files, so
+/// a pre-6 table holds AI-artifact chunks (chat answers, run records) that the
+/// walker now skips and would therefore never delete on their own. The
+/// migration drops + re-indexes once, purging those stale artifact rows so
+/// matter memory holds primary sources only.
+pub const INDEX_VERSION: u32 = 6;
 
 /// Filename (under the vectors dir) holding the integer `INDEX_VERSION` the
 /// current `chunks` table was built with.

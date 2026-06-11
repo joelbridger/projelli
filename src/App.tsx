@@ -280,6 +280,9 @@ function App() {
 
   // Sidebar state
   const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins'>('files');
+  // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
+  // command palette can drive the same collapse the chevron button does.
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // UX-04 onboarding: one-shot "open Keys sub-tab" instruction passed to
   // AIAssistantPane. Set when the onboarding card's CTA fires, cleared by
@@ -2992,6 +2995,14 @@ This file contains rules and guidelines for AI assistants in this workspace.
         action: toggleBacklinks,
       },
       {
+        // F-509 — discoverable home for the now-functional Ctrl+B toggle.
+        id: 'view.sidebar',
+        label: 'Toggle Sidebar',
+        shortcut: 'Ctrl+B',
+        category: 'view',
+        action: () => setSidebarCollapsed((v) => !v),
+      },
+      {
         id: 'view.tabOverflow',
         label: 'Toggle Tab Overflow (Scroll / Wrap)',
         category: 'view',
@@ -3132,6 +3143,15 @@ This file contains rules and guidelines for AI assistants in this workspace.
       if (isMod && e.shiftKey && e.key === 'o') {
         e.preventDefault();
         toggleOutline();
+        return;
+      }
+
+      // F-509 — Ctrl+B toggles the sidebar. Documented in the shortcuts SSOT
+      // (useKeyboardShortcuts.ts 'toggle-sidebar') but implemented nowhere
+      // until now. Must come BEFORE the Ctrl+Shift+B branch.
+      if (isMod && !e.shiftKey && e.key === 'b') {
+        e.preventDefault();
+        setSidebarCollapsed((v) => !v);
         return;
       }
 
@@ -3404,6 +3424,8 @@ This file contains rules and guidelines for AI assistants in this workspace.
         <Sidebar
           activeTab={sidebarActiveTab}
           onTabChange={setSidebarActiveTab}
+          collapsed={sidebarCollapsed}
+          onCollapsedChange={setSidebarCollapsed}
           onOpenGridView={handleOpenGridView}
           fileTreeContent={
             <FileTree

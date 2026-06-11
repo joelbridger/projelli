@@ -1152,8 +1152,17 @@ export function MainPanel({
   const canSplit = !!activeTab && !isSplit;
 
   return (
-    <div className="flex-1 flex flex-col h-full">
+    <div data-testid="main-panel" className="flex-1 min-w-0 flex flex-col h-full">
       {/* Tab bar with split controls */}
+      {/* F-509: `min-w-0` is load-bearing. Without it this `flex-1` panel keeps
+          its flexbox-default `min-width: auto` (= min-content), so a wide tab
+          (e.g. a workflow execution run) refuses to shrink and overflows the
+          parent `overflow-hidden` row. The browser then scrolls that row to
+          reveal the focused element, sliding the fixed-width sidebar off the
+          left edge — which read as "the workflow tab hides the sidebar".
+          `min-w-0` lets the panel shrink to the available width instead, so
+          the sidebar keeps its place. (Closing the tab used to "restore" the
+          layout precisely because it removed the overflow source.) */}
       <div
         ref={toolbarContainerRef}
         data-testid="main-panel-toolbar"

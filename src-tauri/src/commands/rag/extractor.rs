@@ -1,11 +1,10 @@
 // File-type detection + text extraction for the RAG indexer.
 //
-// M1 deliberately ships with TEXT FORMATS ONLY (`.md`, `.txt`, `.aichat`,
-// `.workflow`, `.json`, `.csv`). Document formats — `.xlsx`, `.docx`,
-// `.pptx`, `.rtf` — already have frontend extractors in
-// `src/utils/{spreadsheet,docx,pptx,rtf}-io.ts` and a Rust-side extractor
-// would be a near-duplicate. They land in a follow-up; the file walker
-// silently skips them today.
+// M1 deliberately ships with TEXT FORMATS ONLY (`.md`, `.txt`, `.json`,
+// `.csv`). Document formats — `.xlsx`, `.docx`, `.pptx`, `.rtf` — already
+// have frontend extractors in `src/utils/{spreadsheet,docx,pptx,rtf}-io.ts`
+// and a Rust-side extractor would be a near-duplicate. They land in a
+// follow-up; the file walker silently skips them today.
 //
 // Centralizing the supported-extension list here also lets the workspace
 // walker filter aggressively before opening files (no point reading a 100MB
@@ -15,8 +14,14 @@ use std::fs;
 use std::path::Path;
 
 /// Extensions whose contents are read as raw UTF-8 text and indexed.
+///
+/// F-508: `.aichat` and `.workflow` are deliberately NOT here. They are AI
+/// artifacts (chat answers, run records); indexing them feeds derived text
+/// back into matter memory where it competes with primary sources and
+/// creates retrieval feedback loops (a chat retrieving its own first turn
+/// was observed live). Full-text search still sees them via the frontend.
 pub const TEXT_EXTENSIONS: &[&str] = &[
-    "md", "markdown", "txt", "text", "aichat", "workflow", "json", "csv",
+    "md", "markdown", "txt", "text", "json", "csv",
     "log", "yml", "yaml", "toml",
 ];
 
@@ -80,9 +85,13 @@ mod tests {
     }
 
     #[test]
-    fn aichat_and_workflow_are_indexable() {
-        assert!(is_indexable(&PathBuf::from("/a/x.aichat")));
-        assert!(is_indexable(&PathBuf::from("/a/x.workflow")));
+    fn ai_artifacts_are_not_indexable() {
+        // F-508: `.aichat` and `.workflow` are AI-derived artifacts. Indexing
+        // them pollutes matter memory with the model's own output, which then
+        // competes with primary sources at retrieval (feedback loop observed
+        // live in the wedge-proof run).
+        assert!(!is_indexable(&PathBuf::from("/a/x.aichat")));
+        assert!(!is_indexable(&PathBuf::from("/a/x.workflow")));
     }
 
     #[test]

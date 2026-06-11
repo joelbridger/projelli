@@ -42,6 +42,13 @@ interface SidebarProps {
   mattersContent?: React.ReactNode;
   activeTab?: SidebarTab; // Controlled active tab
   onTabChange?: (tab: SidebarTab) => void; // Tab change callback
+  /** Controlled collapse (mirrors the controlled `activeTab` pattern). When
+   *  provided, the sidebar reflects this value and reports toggles through
+   *  `onCollapsedChange` instead of owning the state. Lets App wire the global
+   *  Ctrl+B shortcut (F-509) to the same collapse the chevron drives. Omit both
+   *  to keep the original uncontrolled behavior. */
+  collapsed?: boolean;
+  onCollapsedChange?: (next: boolean) => void;
   /** Opens the Grid View tab in the main panel. Shown as an icon button in
    *  the Files section header. */
   onOpenGridView?: () => void;
@@ -62,11 +69,21 @@ export function Sidebar({
   mattersContent,
   activeTab: controlledActiveTab,
   onTabChange,
+  collapsed: controlledCollapsed,
+  onCollapsedChange,
   onOpenGridView,
   className,
 }: SidebarProps) {
   const { t } = useTranslation();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  // Controlled collapse if `collapsed` is provided, otherwise internal state.
+  const isCollapsed =
+    controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
+  const toggleCollapsed = () => {
+    const next = !isCollapsed;
+    if (onCollapsedChange) onCollapsedChange(next);
+    else setInternalCollapsed(next);
+  };
   const [internalActiveTab, setInternalActiveTab] = useState<SidebarTab>('files');
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
@@ -148,7 +165,11 @@ export function Sidebar({
     <div
       data-testid="sidebar"
       className={cn(
-        'flex flex-col border-r bg-card transition-all duration-200',
+        // F-509: `shrink-0` keeps the sidebar from ever being squeezed by a
+        // wide sibling panel. (The primary F-509 fix is `min-w-0` on the main
+        // panel in MainPanel.tsx; this is the matching belt-and-suspenders so
+        // the sidebar holds its width regardless of what the main panel does.)
+        'flex flex-col shrink-0 border-r bg-card transition-all duration-200',
         isCollapsed ? 'w-12' : 'w-64',
         className
       )}
@@ -165,7 +186,7 @@ export function Sidebar({
           variant="ghost"
           size="sm"
           className="h-6 w-6 p-0 ml-auto"
-          onClick={() => setIsCollapsed(!isCollapsed)}
+          onClick={toggleCollapsed}
           aria-label={isCollapsed ? t('layout.sidebar.expand-aria') : t('layout.sidebar.collapse-aria')}
         >
           {isCollapsed ? (
