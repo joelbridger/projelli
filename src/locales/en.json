@@ -487,6 +487,15 @@
     "cost-chip": {
       "today-so-far": "Today so far: {{cost}}",
       "no-requests": "No AI requests yet today."
+    },
+    "privilege-explainer": {
+      "title": "What does privilege exclusion do?",
+      "body": "Sources tagged privileged are filtered out of workspace retrieval itself, before anything reaches the AI. It is enforced in the search engine, not just a label.",
+      "demo": "See it work on my own files",
+      "no-question": "Type a question in the chat box first, then run this check.",
+      "withheld": "Privilege exclusion is withholding {{count}} source(s) from this question right now. Top withheld source: {{name}}.",
+      "none-withheld": "No privileged sources matched this question, so nothing was withheld.",
+      "desktop-only": "This live check runs in the desktop app."
     }
   },
   "chat": {
@@ -997,7 +1006,8 @@
       "demo": {
         "label": "Browser demo. Do not use with client data",
         "note": "In this online demo, messages pass through a shared Keepance relay. The desktop app never does this. Do not enter confidential or client information here."
-      }
+      },
+      "sending": "Sending to your AI provider"
     },
     "privileged-matter": {
       "badge": "Privileged matter: outside connections are blocked so nothing can leave this matter",

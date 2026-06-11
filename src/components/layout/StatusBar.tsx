@@ -1,7 +1,7 @@
 // Status Bar Component
 // Shows workspace info and status indicators
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
@@ -28,6 +28,8 @@ import type { EgressProvider } from '@/modules/privacy/egress';
 import { usePrivilegedMatterMode } from '@/hooks/usePrivilegedMatterMode';
 // F-120: persistent direct-mode egress signal.
 import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
+// F-120 (VG-5a): live pulse while a provider request is actually in flight.
+import { useEgressActivityStore } from '@/modules/privacy/egressActivity';
 
 /**
  * Extract project name from full path
@@ -167,6 +169,21 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
   // 'anthropic' is used as the display provider when no chat is open — it drives
   // the correct severity/icon for direct and assured modes.
   const showPersistentEgress = !activeChatProvider && confidentialityMode !== 'local-only';
+
+  // F-120 — active egress pulse: visible while a provider request is in
+  // flight, held ~2.5s after the last one so streamed sends don't flicker.
+  const egressActiveCount = useEgressActivityStore((s) => s.activeCount);
+  const lastEgressAt = useEgressActivityStore((s) => s.lastActivityAt);
+  const [pulseVisible, setPulseVisible] = useState(false);
+  useEffect(() => {
+    if (egressActiveCount > 0) {
+      setPulseVisible(true);
+      return undefined;
+    }
+    if (!pulseVisible) return undefined;
+    const id = setTimeout(() => setPulseVisible(false), 2500);
+    return () => clearTimeout(id);
+  }, [egressActiveCount, lastEgressAt, pulseVisible]);
 
   const projectName = getProjectName(rootPath, t('layout.status-bar.no-workspace'));
 
@@ -354,6 +371,21 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
             <ShieldOff className="h-3 w-3 shrink-0" aria-hidden />
             <span className="truncate">{t('privacy.privileged-matter.badge')}</span>
           </div>
+        )}
+
+        {/* F-120 (VG-5a): live "sending" pulse. The static badges below say
+            where requests WOULD go; this one appears only while a provider
+            request is actually in flight (and holds briefly so a streamed
+            send never reads as a flicker). Suppressed in local-only mode —
+            Ollama traffic never passes getCorsSafeFetch, but belt-and-braces. */}
+        {pulseVisible && confidentialityMode !== 'local-only' && (
+          <span
+            data-testid="egress-activity-pulse"
+            className="flex items-center gap-1 text-[11px] text-sky-700"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse" aria-hidden />
+            {t('privacy.egress.sending')}
+          </span>
         )}
 
         {/* WS-C: compact egress mirror. Only rendered when an AI chat is the

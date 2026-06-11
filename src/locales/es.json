@@ -782,6 +782,22 @@
       "today-so-far__sourceHash": "84145517432ca232b00b416a3008a506aaefcbec3d3c0ab19d27780e80c31f12",
       "no-requests": "Aún no hay solicitudes de IA hoy.",
       "no-requests__sourceHash": "93764ccc2579fb783c176624083735fda30613a507b462e176f71cadbb3c0495"
+    },
+    "privilege-explainer": {
+      "title": "¿Qué hace la exclusión de privilegio?",
+      "body": "Las fuentes marcadas como privilegiadas se filtran de la propia búsqueda del espacio de trabajo, antes de que nada llegue a la IA. Se aplica en el motor de búsqueda, no es solo una etiqueta.",
+      "demo": "Verlo funcionar con mis propios archivos",
+      "no-question": "Escribe primero una pregunta en el cuadro de chat y luego ejecuta esta comprobación.",
+      "withheld": "La exclusión de privilegio está reteniendo {{count}} fuente(s) de esta pregunta ahora mismo. Fuente retenida principal: {{name}}.",
+      "none-withheld": "Ninguna fuente privilegiada coincidió con esta pregunta, así que no se retuvo nada.",
+      "desktop-only": "Esta comprobación en vivo se ejecuta en la aplicación de escritorio.",
+      "title__locked": true,
+      "body__locked": true,
+      "demo__locked": true,
+      "no-question__locked": true,
+      "withheld__locked": true,
+      "none-withheld__locked": true,
+      "desktop-only__locked": true
     }
   },
   "chat": {
@@ -1423,7 +1439,9 @@
       "demo": {
         "label": "Browser demo. Do not use with client data",
         "note": "In this online demo, messages pass through a shared Keepance relay. The desktop app never does this. Do not enter confidential or client information here."
-      }
+      },
+      "sending": "Enviando a tu proveedor de IA",
+      "sending__locked": true
     },
     "privileged-matter": {
       "badge": "Asunto privilegiado: las conexiones externas están bloqueadas para que nada pueda salir de este asunto",

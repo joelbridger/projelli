@@ -95,7 +95,9 @@ export function BugReportDialog({ open, onOpenChange }: BugReportDialogProps) {
     }
 
     try {
-      const fetchFn = await getCorsSafeFetch();
+      // F-120: the bug report goes to Keepance infrastructure, not the user's
+      // AI provider — opt out of the "Sending to your AI provider" pulse.
+      const fetchFn = await getCorsSafeFetch({ signalEgress: false });
       const res = await fetchFn(BUG_REPORT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

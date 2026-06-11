@@ -782,6 +782,22 @@
       "today-so-far__sourceHash": "84145517432ca232b00b416a3008a506aaefcbec3d3c0ab19d27780e80c31f12",
       "no-requests": "Heute noch keine KI-Anfragen.",
       "no-requests__sourceHash": "93764ccc2579fb783c176624083735fda30613a507b462e176f71cadbb3c0495"
+    },
+    "privilege-explainer": {
+      "title": "Was bewirkt der Privilegien-Ausschluss?",
+      "body": "Als privilegiert markierte Quellen werden bereits aus der Arbeitsbereich-Suche selbst herausgefiltert, bevor etwas die KI erreicht. Das wird in der Suchmaschine durchgesetzt und ist nicht nur ein Etikett.",
+      "demo": "An meinen eigenen Dateien ausprobieren",
+      "no-question": "Geben Sie zuerst eine Frage in das Chat-Feld ein und starten Sie dann diese Prüfung.",
+      "withheld": "Der Privilegien-Ausschluss hält gerade {{count}} Quelle(n) von dieser Frage zurück. Wichtigste zurückgehaltene Quelle: {{name}}.",
+      "none-withheld": "Keine privilegierte Quelle passte zu dieser Frage, daher wurde nichts zurückgehalten.",
+      "desktop-only": "Diese Live-Prüfung läuft in der Desktop-App.",
+      "title__locked": true,
+      "body__locked": true,
+      "demo__locked": true,
+      "no-question__locked": true,
+      "withheld__locked": true,
+      "none-withheld__locked": true,
+      "desktop-only__locked": true
     }
   },
   "chat": {
@@ -1423,7 +1439,9 @@
       "demo": {
         "label": "Browser demo. Do not use with client data",
         "note": "In this online demo, messages pass through a shared Keepance relay. The desktop app never does this. Do not enter confidential or client information here."
-      }
+      },
+      "sending": "Wird an Ihren KI-Anbieter gesendet",
+      "sending__locked": true
     },
     "privileged-matter": {
       "badge": "Privilegiertes Mandat: externe Verbindungen sind gesperrt, damit nichts dieses Mandat verlassen kann",

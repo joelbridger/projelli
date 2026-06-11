@@ -112,7 +112,9 @@ export class FirmApiClient {
     },
   ): Promise<T> {
     const doFetch = async (accessToken: string | null): Promise<Response> => {
-      const fetchFn = await getCorsSafeFetch();
+      // F-120: firm-relay traffic is NOT "your AI provider" — opt out of the
+      // status-bar egress pulse so its copy never lies about the destination.
+      const fetchFn = await getCorsSafeFetch({ signalEgress: false });
       const headers: Record<string, string> = { ...(init.headers ?? {}) };
       if (init.body !== undefined) headers['Content-Type'] = 'application/json';
       if (init.auth && accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
@@ -159,7 +161,8 @@ export class FirmApiClient {
 
   // --- open endpoints --------------------------------------------------------
   async getSeatPublicKey(): Promise<string> {
-    const fetchFn = await getCorsSafeFetch();
+    // F-120: relay traffic — see `request` above.
+    const fetchFn = await getCorsSafeFetch({ signalEgress: false });
     const res = await fetchFn(this.url(FIRM_ENDPOINTS.seatPublicKey));
     if (!res.ok) throw new FirmApiError(res.status, undefined, 'Could not fetch seat public key.');
     return res.text();

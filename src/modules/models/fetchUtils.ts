@@ -2,6 +2,10 @@
 // Provides base URL resolution that works in both dev (Vite proxy) and production,
 // and a CORS-safe fetch wrapper for production Tauri builds.
 
+// F-120: every fetch handed out here is wrapped so the status bar can show a
+// live "sending" pulse while a request is actually in flight.
+import { instrumentEgressFetch } from '@/modules/privacy/egressActivity';
+
 export type ProviderType = 'anthropic' | 'openai' | 'google';
 
 /**
@@ -61,24 +65,37 @@ let tauriFetchFn: typeof globalThis.fetch | null = null;
  * - Tauri production build: returns tauri-plugin-http's fetch (bypasses CORS)
  *
  * The plugin's fetch has the same API as the standard fetch(), so it's a drop-in replacement.
+ *
+ * F-120: by default the returned fetch is instrumented with the egress
+ * activity signal, so the status bar shows "Sending to your AI provider"
+ * while a request is in flight. Callers whose traffic does NOT go to the
+ * user's AI provider (the firm relay client, the bug-report sender) pass
+ * `{ signalEgress: false }` so the pulse never lies about the destination.
+ * The dynamic-import cache stays RAW so both variants share one import.
  */
-export async function getCorsSafeFetch(): Promise<typeof globalThis.fetch> {
+export async function getCorsSafeFetch(
+  options?: { signalEgress?: boolean },
+): Promise<typeof globalThis.fetch> {
+  const signal = options?.signalEgress ?? true;
+  const wrap = (fn: typeof globalThis.fetch): typeof globalThis.fetch =>
+    signal ? instrumentEgressFetch(fn) : fn;
+
   if (!shouldUseTauriHttp()) {
-    return globalThis.fetch.bind(globalThis);
+    return wrap(globalThis.fetch.bind(globalThis));
   }
 
   if (tauriFetchFn) {
-    return tauriFetchFn;
+    return wrap(tauriFetchFn);
   }
 
   try {
     const mod = await import('@tauri-apps/plugin-http');
     tauriFetchFn = mod.fetch as typeof globalThis.fetch;
-    return tauriFetchFn;
+    return wrap(tauriFetchFn);
   } catch {
     // If the plugin import fails (e.g. running outside Tauri somehow),
     // fall back to native fetch
-    return globalThis.fetch.bind(globalThis);
+    return wrap(globalThis.fetch.bind(globalThis));
   }
 }
 

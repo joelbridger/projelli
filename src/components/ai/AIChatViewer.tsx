@@ -44,6 +44,9 @@ import { matterLabel } from '@/modules/memory/matterResolver';
 import { useIncludePrivileged, usePrivilegeStore } from '@/stores/privilegeStore';
 import { MatterScopeSelector } from '@/components/matter/MatterScopeSelector';
 import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
+// F-121 (VG-5b) — explains privilege exclusion next to its toggle, with a
+// "see it work" check that runs the user's own question against their index.
+import { PrivilegeExclusionExplainer } from '@/components/ai/PrivilegeExclusionExplainer';
 import { MODEL_NOT_READY, type RetrievalScope } from '@/utils/tauri-commands';
 import { useFileContextStore } from '@/stores/fileContextStore';
 import type { ExtractedContext } from '@/utils/ai-file-context';
@@ -778,6 +781,24 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // Get messages and loading state from store
   const messages = session?.messages ?? chatData.messages;
   const isLoading = session?.isLoading ?? false;
+
+  // F-121 (VG-5b) — inputs for the privilege-exclusion "see it work" demo:
+  // the user's current question (input draft, falling back to the last user
+  // message) and the SAME retrieval scope the next send would use, so the
+  // demonstration searches exactly what the chat would.
+  const explainerQuery = useMemo(() => {
+    const draft = inputValue.trim();
+    if (draft.length > 0) return draft;
+    const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+    return lastUser?.content ?? '';
+  }, [inputValue, messages]);
+  const explainerScope = useMemo<RetrievalScope>(
+    () =>
+      activeMatter
+        ? { kind: 'matter', matterId: activeMatter.id }
+        : { kind: 'allMatters' },
+    [activeMatter],
+  );
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -2301,28 +2322,36 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               next to the workspace-aware control. Amber/rose accent so turning it
               on never reads as the normal, safe state. */}
           {askWorkspaceMode && (
-            <Button
-              data-testid="include-privileged-toggle"
-              data-enabled={includePrivileged ? 'true' : 'false'}
-              variant="outline"
-              size="sm"
-              onClick={() => setIncludePrivileged(!includePrivileged)}
-              className={cn(
-                'gap-2',
-                includePrivileged
-                  ? 'border-rose-400 bg-rose-50 text-rose-700 hover:bg-rose-100'
-                  : 'text-muted-foreground',
-              )}
-              aria-pressed={includePrivileged}
-              title={
-                includePrivileged
-                  ? 'Privileged sources ARE included in retrieval for this chat. Click to exclude them again.'
-                  : 'Privileged sources are excluded from retrieval (default). Click to include them deliberately.'
-              }
-            >
-              <ShieldAlert className="h-4 w-4" />
-              {includePrivileged ? 'Privileged: included' : 'Include privileged'}
-            </Button>
+            <>
+              <Button
+                data-testid="include-privileged-toggle"
+                data-enabled={includePrivileged ? 'true' : 'false'}
+                variant="outline"
+                size="sm"
+                onClick={() => setIncludePrivileged(!includePrivileged)}
+                className={cn(
+                  'gap-2',
+                  includePrivileged
+                    ? 'border-rose-400 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                    : 'text-muted-foreground',
+                )}
+                aria-pressed={includePrivileged}
+                title={
+                  includePrivileged
+                    ? 'Privileged sources ARE included in retrieval for this chat. Click to exclude them again.'
+                    : 'Privileged sources are excluded from retrieval (default). Click to include them deliberately.'
+                }
+              >
+                <ShieldAlert className="h-4 w-4" />
+                {includePrivileged ? 'Privileged: included' : 'Include privileged'}
+              </Button>
+              {/* F-121 — what the exclusion does, enforced where, and a live
+                  check the user can run against their own files. */}
+              <PrivilegeExclusionExplainer
+                query={explainerQuery}
+                scope={explainerScope}
+              />
+            </>
           )}
           <Button
             data-testid="chat-export-button"
