@@ -52,7 +52,7 @@ describe('en.json structure snapshot', () => {
         "citation": 3,
         "common": 25,
         "editor": 14,
-        "firm": 84,
+        "firm": 110,
         "layout": 40,
         "mail": 5,
         "marketplace": 14,
@@ -81,9 +81,8 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 732 = 728 + the 4 VG-2 OCR keys (memory.ocr-progress + citation.scanned
-    // + citation.scanned-low + citation.scanned-low-title).
-    expect(flat.length).toBe(732);
+    // 758 = 732 + the 26 VG-6c SSO admin keys (firm.admin.sso.*).
+    expect(flat.length).toBe(758);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

@@ -1026,7 +1026,7 @@
         "client-id-placeholder": "Application (client) ID from your IdP",
         "client-secret-label": "Client secret",
         "client-secret-placeholder": "Client secret from your IdP",
-        "secret-saved-hint": "Secret saved — leave blank to keep the existing secret.",
+        "secret-saved-hint": "Secret saved. Leave blank to keep the existing secret.",
         "enabled-label": "SSO enabled for this organization",
         "save-action": "Save SSO",
         "save-ok": "SSO configuration saved.",
