@@ -38,6 +38,7 @@ import type {
   WrappedMatterKey,
   WebhookEvent,
   OrgIdpConfig,
+  IdpProvider,
 } from "./types.ts";
 import type { AssuredProvider, BillingMeta, ManagedProviderKey } from "./assured-types.ts";
 
@@ -1490,7 +1491,7 @@ export class Store {
   /** Upsert (insert or replace) the org's IdP configuration. Keyed on org_id. */
   upsertOrgIdpConfig(input: {
     org_id: string;
-    provider: string;
+    provider: IdpProvider;
     issuer: string;
     client_id: string;
     client_secret_enc: string;
