@@ -19,7 +19,7 @@ import { issueAuthTokens, publicUser } from "../lib/services.ts";
 import { putState, takeState, putCode, takeCode } from "../lib/ssoState.ts";
 import {
   fetchDiscovery, fetchJwks, buildAuthUrl, exchangeCode, verifyIdToken,
-  emailFromClaims, genVerifier, challengeFor, randomToken,
+  emailFromClaims, genVerifier, challengeFor, randomToken, isLoopbackIssuer,
 } from "../lib/oidc.ts";
 import type { Store } from "../lib/db.ts";
 import type { IdpProvider } from "../lib/types.ts";
@@ -48,8 +48,7 @@ export async function handleSsoConfigSet(req: Request, store: Store): Promise<Re
   // Length caps mirror http.isNonEmptyString's 512 default; the secret gets a generous 4 KB.
   if (typeof issuer !== "string" || issuer.length > 512) return error("invalid_issuer", 400, "issuer must be an https URL");
   const issuerTrimmed = issuer.trim();
-  const isLoopbackIssuer = /^https?:\/\/(127\.0\.0\.1|::1|\[::1\])(:\d+)?/.test(issuerTrimmed);
-  if (!isLoopbackIssuer && !/^https:\/\//.test(issuerTrimmed)) return error("invalid_issuer", 400, "issuer must be an https URL");
+  if (!isLoopbackIssuer(issuerTrimmed) && !/^https:\/\//.test(issuerTrimmed)) return error("invalid_issuer", 400, "issuer must be an https URL");
   if (typeof client_id !== "string" || !client_id.trim() || client_id.length > 512) return error("invalid_client_id", 400);
   if (typeof client_secret !== "string" || !client_secret.trim() || client_secret.length > 4096) return error("invalid_client_secret", 400);
   store.upsertOrgIdpConfig({
@@ -84,7 +83,7 @@ export function handleSsoConfigDelete(req: Request, store: Store): Response {
 
 /** POST /auth/sso/start { email, loopback_port } -> { auth_url, state } */
 export async function handleSsoStart(req: Request, store: Store, ip: string): Promise<Response> {
-  const rl = rateLimit(ip, "sso"); if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
+  const rl = rateLimit(ip, "sso_start"); if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
   const body = await readJson<any>(req);
   if (!body || typeof body.email !== "string") return error("invalid_request", 400);
   const port = Number(body.loopback_port);
@@ -116,7 +115,8 @@ export async function handleSsoStart(req: Request, store: Store, ip: string): Pr
 }
 
 /** GET /auth/sso/callback?code&state -> 302 to the desktop loopback with a one-time sso_code. */
-export async function handleSsoCallback(req: Request, store: Store): Promise<Response> {
+export async function handleSsoCallback(req: Request, store: Store, ip: string): Promise<Response> {
+  const rl = rateLimit(ip, "sso_callback"); if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
   const u = new URL(req.url);
   const code = u.searchParams.get("code");
   const state = u.searchParams.get("state") ?? "";
@@ -126,6 +126,9 @@ export async function handleSsoCallback(req: Request, store: Store): Promise<Res
       ? Response.redirect(`http://127.0.0.1:${port}/?sso_error=${encodeURIComponent(reason)}`, 302)
       : error("sso_failed", 400, reason);
   if (!st) return fail("invalid_or_expired_state");
+  // Surface IdP-reported errors (e.g. consent denied) before checking code.
+  const idpError = u.searchParams.get("error");
+  if (idpError) return fail(`idp_error_${idpError}`, st.loopbackPort);
   if (!code) return fail("missing_code", st.loopbackPort);
 
   const cfg = store.getOrgIdpConfig(st.orgId);
@@ -160,12 +163,12 @@ export async function handleSsoCallback(req: Request, store: Store): Promise<Res
   const ssoCode = generateSecretToken();
   putCode(hmacHash(ssoCode), { userId: matched.user_id }, config.ssoCodeTtlSeconds);
   store.audit({ org_id: st.orgId, actor_user_id: matched.user_id, action: "sso.login", target: matched.user_id, detail: { provider: cfg.provider } });
-  return Response.redirect(`http://127.0.0.1:${st.loopbackPort}/?sso_code=${encodeURIComponent(ssoCode)}&state=${encodeURIComponent(state)}`, 302);
+  return Response.redirect(`http://127.0.0.1:${st.loopbackPort}/?sso_code=${encodeURIComponent(ssoCode)}`, 302);
 }
 
 /** POST /auth/sso/exchange { sso_code } -> LoginResponse (same shape as /auth/login). */
 export async function handleSsoExchange(req: Request, store: Store, ip: string): Promise<Response> {
-  const rl = rateLimit(ip, "sso"); if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
+  const rl = rateLimit(ip, "sso_exchange"); if (!rl.ok) return error("rate_limited", 429, `Try again in ${rl.retryAfter}s`);
   const body = await readJson<any>(req);
   if (!body || typeof body.sso_code !== "string") return error("invalid_request", 400);
   const entry = takeCode(hmacHash(body.sso_code));

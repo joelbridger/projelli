@@ -153,7 +153,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/auth/logout" && method === "POST") return await handleLogout(req, store);
         if (path === "/auth/me" && method === "GET") return handleMe(req, store);
         if (path === "/auth/sso/start" && method === "POST") return await handleSsoStart(req, store, ip);
-        if (path === "/auth/sso/callback" && method === "GET") return await handleSsoCallback(req, store);
+        if (path === "/auth/sso/callback" && method === "GET") return await handleSsoCallback(req, store, ip);
         if (path === "/auth/sso/exchange" && method === "POST") return await handleSsoExchange(req, store, ip);
 
         // --- Licensing / seats (client-facing core) ---

@@ -6,6 +6,13 @@
  */
 import { createVerify, createPublicKey, randomBytes, createHash } from "node:crypto";
 
+/** True for http(s) URLs whose host is exactly a loopback address (127.0.0.1 / ::1).
+ *  Used to exempt local test IdPs from the https-only requirement; real hostnames
+ *  (incl. tricks like http://127.0.0.1.evil.com) must return false. */
+export function isLoopbackIssuer(url: string): boolean {
+  return /^https?:\/\/(127\.0\.0\.1|\[::1\]|::1)(:\d+)?(\/|$)/.test(url.trim());
+}
+
 export function base64urlJson(obj: unknown): string {
   return Buffer.from(JSON.stringify(obj)).toString("base64url");
 }
@@ -59,7 +66,7 @@ export async function fetchDiscovery(issuer: string, get: HttpGet = defaultGet):
 
   // Fix 2 (M-6): all endpoint URLs must use https:// — unless the issuer is a loopback
   // address (127.0.0.1 or ::1), which is test/dev-only and can never appear in production.
-  const isLoopback = /^https?:\/\/(127\.0\.0\.1|::1|\[::1\])(:\d+)?\//.test(normalizedIssuer + "/");
+  const isLoopback = isLoopbackIssuer(normalizedIssuer);
   const endpoints: (string | undefined)[] = [disco.authorization_endpoint, disco.token_endpoint, disco.jwks_uri];
   if (!isLoopback && endpoints.some((ep) => typeof ep !== "string" || !ep.startsWith("https://"))) {
     throw new Error("oidc_insecure_endpoint");
@@ -186,6 +193,7 @@ export async function verifyIdToken(
   const auds = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
   if (!auds.includes(opts.clientId)) return { ok: false, reason: "aud_mismatch" };
   if (typeof claims.exp !== "number" || claims.exp < now - CLOCK_SKEW_S) return { ok: false, reason: "expired" };
+  if (typeof claims.iat !== "number" || claims.iat > now + 60 || claims.iat < now - 600) return { ok: false, reason: "iat_invalid" };
   if (claims.nonce !== opts.nonce) return { ok: false, reason: "nonce_mismatch" };
   return { ok: true, claims };
 }

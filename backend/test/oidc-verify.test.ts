@@ -1,7 +1,7 @@
 // backend/test/oidc-verify.test.ts
 import { test, expect } from "bun:test";
 import { generateKeyPairSync, createSign } from "node:crypto";
-import { verifyIdToken, base64urlJson, fetchDiscovery } from "../src/lib/oidc.ts";
+import { verifyIdToken, base64urlJson, fetchDiscovery, isLoopbackIssuer } from "../src/lib/oidc.ts";
 
 function makeIdToken(claims: Record<string, unknown>, kid: string, privateKeyPem: string): string {
   const header = base64urlJson({ alg: "RS256", typ: "JWT", kid });
@@ -228,4 +228,79 @@ test("verifyIdToken rejects a token expired 120s ago (outside 60s skew window)",
   const res = await verifyIdToken(token, { issuer: ISS, clientId: AUD, nonce: "n-expired", jwks, nowSeconds: now });
   expect(res.ok).toBe(false);
   if (!res.ok) expect(res.reason).toBe("expired");
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// C (I-2): isLoopbackIssuer helper
+// ────────────────────────────────────────────────────────────────────────────
+
+test("isLoopbackIssuer accepts http://127.0.0.1:9000 and https://127.0.0.1", () => {
+  expect(isLoopbackIssuer("http://127.0.0.1:9000")).toBe(true);
+  expect(isLoopbackIssuer("https://127.0.0.1")).toBe(true);
+  expect(isLoopbackIssuer("http://[::1]:8080/")).toBe(true);
+  expect(isLoopbackIssuer("https://[::1]")).toBe(true);
+});
+
+test("isLoopbackIssuer rejects non-loopback hosts", () => {
+  // Domain that starts with the loopback IP but is not exactly the loopback host
+  expect(isLoopbackIssuer("http://127.0.0.1.evil.com")).toBe(false);
+  // localhost is a hostname, not the literal IP
+  expect(isLoopbackIssuer("http://localhost")).toBe(false);
+  expect(isLoopbackIssuer("http://localhost:9000")).toBe(false);
+  // Normal IdP host
+  expect(isLoopbackIssuer("https://idp.example.com")).toBe(false);
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+// E (M-1): iat validation
+// ────────────────────────────────────────────────────────────────────────────
+
+test("verifyIdToken rejects a token with iat 20 minutes in the past (but exp in future)", async () => {
+  const { jwks, kid, privPem } = setup();
+  const now = Math.floor(Date.now() / 1000);
+  // iat = 20 minutes ago (1200s), exp is still in the future
+  const token = makeIdToken(
+    { iss: ISS, aud: AUD, exp: now + 300, iat: now - 1200, sub: "u", nonce: "n-iat-old" },
+    kid, privPem,
+  );
+  const res = await verifyIdToken(token, { issuer: ISS, clientId: AUD, nonce: "n-iat-old", jwks, nowSeconds: now });
+  expect(res.ok).toBe(false);
+  if (!res.ok) expect(res.reason).toBe("iat_invalid");
+});
+
+test("verifyIdToken rejects a token with iat missing", async () => {
+  const { jwks, kid, privPem } = setup();
+  const now = Math.floor(Date.now() / 1000);
+  // No iat field
+  const token = makeIdToken(
+    { iss: ISS, aud: AUD, exp: now + 300, sub: "u", nonce: "n-iat-missing" },
+    kid, privPem,
+  );
+  const res = await verifyIdToken(token, { issuer: ISS, clientId: AUD, nonce: "n-iat-missing", jwks, nowSeconds: now });
+  expect(res.ok).toBe(false);
+  if (!res.ok) expect(res.reason).toBe("iat_invalid");
+});
+
+test("verifyIdToken accepts a fresh token with iat=now", async () => {
+  const { jwks, kid, privPem } = setup();
+  const now = Math.floor(Date.now() / 1000);
+  const token = makeIdToken(
+    { iss: ISS, aud: AUD, exp: now + 300, iat: now, sub: "u", nonce: "n-iat-fresh" },
+    kid, privPem,
+  );
+  const res = await verifyIdToken(token, { issuer: ISS, clientId: AUD, nonce: "n-iat-fresh", jwks, nowSeconds: now });
+  expect(res.ok).toBe(true);
+});
+
+test("verifyIdToken rejects a token with iat in the future beyond 60s", async () => {
+  const { jwks, kid, privPem } = setup();
+  const now = Math.floor(Date.now() / 1000);
+  // iat = 2 minutes in the future — clearly wrong
+  const token = makeIdToken(
+    { iss: ISS, aud: AUD, exp: now + 300, iat: now + 120, sub: "u", nonce: "n-iat-future" },
+    kid, privPem,
+  );
+  const res = await verifyIdToken(token, { issuer: ISS, clientId: AUD, nonce: "n-iat-future", jwks, nowSeconds: now });
+  expect(res.ok).toBe(false);
+  if (!res.ok) expect(res.reason).toBe("iat_invalid");
 });

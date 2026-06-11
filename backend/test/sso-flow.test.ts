@@ -4,7 +4,7 @@ import { Store } from "../src/lib/db.ts";
 import { buildServeOptions } from "../src/server.ts";
 import { fanout } from "../src/lib/matters.ts";
 import { issueAuthTokens } from "../src/lib/services.ts";
-import { hashPassword } from "../src/lib/crypto.ts";
+import { hashPassword, hmacHash, generateSecretToken } from "../src/lib/crypto.ts";
 import { generateKeyPairSync, createSign } from "node:crypto";
 
 function b64url(o: unknown) { return Buffer.from(JSON.stringify(o)).toString("base64url"); }
@@ -85,6 +85,8 @@ test("full SSO flow authenticates a known member and rejects an unknown email", 
   expect(loc.host).toBe("127.0.0.1:49222");
   const ssoCode = loc.searchParams.get("sso_code")!;
   expect(ssoCode).toBeTruthy();
+  // B: state must NOT be echoed back in the redirect (RFC 6819 §4.6.6)
+  expect(loc.searchParams.has("state")).toBe(false);
 
   // 3) exchange
   const exRes = await fetch(base + "/auth/sso/exchange", {
@@ -102,4 +104,36 @@ test("full SSO flow authenticates a known member and rejects an unknown email", 
     body: JSON.stringify({ sso_code: ssoCode }),
   });
   expect(replay.status).toBe(401);
+});
+
+// A: unknown-email must return 404 sso_unavailable — not a generic server error
+test("POST /auth/sso/start with unknown email returns 404 sso_unavailable", async () => {
+  const res = await fetch(base + "/auth/sso/start", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email: "nobody@nowhere.invalid", loopback_port: 49333 }),
+  });
+  expect(res.status).toBe(404);
+  const body = await res.json();
+  expect(body.error).toBe("sso_unavailable");
+});
+
+// G-1: fabricated/garbage sso_code at exchange returns 401
+test("sso_exchange with fabricated sso_code returns 401", async () => {
+  const garbage = generateSecretToken();
+  const res = await fetch(base + "/auth/sso/exchange", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ sso_code: garbage }),
+  });
+  expect(res.status).toBe(401);
+  const body = await res.json();
+  expect(body.error).toBe("invalid_sso_code");
+});
+
+// G-2: expired/invalid state at callback returns 400 sso_failed (no loopback port known)
+test("callback with invalid state returns 400 sso_failed", async () => {
+  const res = await fetch(base + `/auth/sso/callback?code=somecode&state=not-a-real-state`, { redirect: "manual" });
+  // No loopback port known when state is invalid — returns JSON error, not a redirect
+  expect(res.status).toBe(400);
+  const body = await res.json();
+  expect(body.error).toBe("sso_failed");
 });
