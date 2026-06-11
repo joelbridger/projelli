@@ -373,10 +373,23 @@ async fn p2_scope_is_required_at_the_type_level() {
 /// Mirror of the command's verdict logic at the store layer (the command also
 /// validates input). WS-VEC: the stored chunk text is encrypted at rest, so we
 /// decrypt the looked-up record's text (exactly as `rag_verify_citation` does)
-/// before the whitespace-normalized containment check, using `VEC_KEY`.
+/// before the canonicalized containment check, using `VEC_KEY`. The normalize
+/// closure mirrors `text_contains_normalized`'s canon (Task 5): lowercase +
+/// curly quotes straightened + whitespace collapsed — symmetric, not fuzzy.
 async fn verify(table: &lancedb::Table, id: &str, claimed: &str, quoted: &str) -> Verdict {
     use keepance_lib::commands::mail::crypto::decrypt_with_key;
-    let normalize = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let normalize = |s: &str| {
+        let lowered = s.to_lowercase();
+        let straightened: String = lowered
+            .chars()
+            .map(|c| match c {
+                '\u{2018}' | '\u{2019}' => '\'',
+                '\u{201C}' | '\u{201D}' => '"',
+                other => other,
+            })
+            .collect();
+        straightened.split_whitespace().collect::<Vec<_>>().join(" ")
+    };
     let decrypt = |hex_text: &str| -> String {
         let blob = hex::decode(hex_text).expect("record text must be hex ciphertext (WS-VEC)");
         String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt record text")).expect("utf8")

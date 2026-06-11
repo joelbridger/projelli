@@ -178,10 +178,23 @@ async fn embed(query: &str) -> Vec<f32> {
 }
 
 /// Mirror of `rag_verify_citation`'s verdict logic at the store layer
-/// (identical to rag_matter_scope.rs's helper).
+/// (identical to rag_matter_scope.rs's helper). The normalize closure mirrors
+/// `text_contains_normalized`'s canon (Task 5): lowercase + curly quotes
+/// straightened + whitespace collapsed — symmetric on both sides, not fuzzy.
 async fn verify(table: &lancedb::Table, id: &str, claimed: &str, quoted: &str) -> Verdict {
     use keepance_lib::commands::mail::crypto::decrypt_with_key;
-    let normalize = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+    let normalize = |s: &str| {
+        let lowered = s.to_lowercase();
+        let straightened: String = lowered
+            .chars()
+            .map(|c| match c {
+                '\u{2018}' | '\u{2019}' => '\'',
+                '\u{201C}' | '\u{201D}' => '"',
+                other => other,
+            })
+            .collect();
+        straightened.split_whitespace().collect::<Vec<_>>().join(" ")
+    };
     let decrypt = |hex_text: &str| -> String {
         let blob = hex::decode(hex_text).expect("record text must be hex ciphertext");
         String::from_utf8(decrypt_with_key(&blob, &VEC_KEY).expect("decrypt record text"))

@@ -1007,17 +1007,31 @@ pub async fn rag_verify_citation(
     }
 }
 
-/// Whitespace-normalized containment test for citation verification. Collapses
-/// runs of whitespace in both strings so a citation quote does not fail over a
-/// stray newline introduced by chunking. An empty quote is treated as a
-/// mismatch (an answer must quote something concrete to be verifiable).
+/// Canonicalized containment for citation verification. The SAME transform
+/// is applied to both sides (direction-safe): Unicode-lowercase, curly
+/// quotes straightened (\u{2018}\u{2019} -> ' ; \u{201C}\u{201D} -> "),
+/// whitespace runs collapsed. Mirrors the TS grounding normalization
+/// (legalAnalysis.ts normalizeQuote) so a quote that grounds also verifies.
+/// NOT fuzzy: no other characters are altered or removed; containment
+/// direction is unchanged; an empty normalized quote never verifies.
 fn text_contains_normalized(stored: &str, quoted: &str) -> bool {
-    let normalize = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
-    let q = normalize(quoted);
+    fn canon(s: &str) -> String {
+        let lowered = s.to_lowercase();
+        let straightened: String = lowered
+            .chars()
+            .map(|c| match c {
+                '\u{2018}' | '\u{2019}' => '\'',
+                '\u{201C}' | '\u{201D}' => '"',
+                other => other,
+            })
+            .collect();
+        straightened.split_whitespace().collect::<Vec<_>>().join(" ")
+    }
+    let q = canon(quoted);
     if q.is_empty() {
         return false;
     }
-    normalize(stored).contains(&q)
+    canon(stored).contains(&q)
 }
 
 // N2: rag_index_mail_text was removed.
@@ -1605,6 +1619,24 @@ mod tests {
         assert!(!text_contains_normalized(stored, "the price is ten billion dollars"));
         // Empty quote is not verifiable.
         assert!(!text_contains_normalized(stored, "   "));
+    }
+
+    #[test]
+    fn text_contains_normalized_is_case_and_curly_quote_insensitive_but_not_fuzzy() {
+        let stored = "He said, \u{201C}I forwarded them to my personal email\u{201D} on Sept 9.";
+        // Case drift verifies.
+        assert!(text_contains_normalized(stored, "i FORWARDED them to my personal email"));
+        // Curly/straight quote drift verifies (both directions of the drift).
+        assert!(text_contains_normalized(stored, "\"I forwarded them to my personal email\""));
+        assert!(text_contains_normalized("plain 'quote' here", "plain \u{2018}quote\u{2019} here"));
+        // NOT fuzzy: a content change still fails.
+        assert!(!text_contains_normalized(stored, "I forwarded them to my work email"));
+        // Quote characters are CONTENT — canonicalized, never stripped. A quote
+        // normalizing to just `""` is non-empty; it fails here by honest
+        // containment (stored has no adjacent quote pair), not by the empty rule.
+        assert!(!text_contains_normalized(stored, " \u{201C}\u{201D} "));
+        // Only the genuinely empty quote hits the empty-refusal path.
+        assert!(!text_contains_normalized(stored, ""));
     }
 
     #[test]
