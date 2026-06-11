@@ -141,11 +141,13 @@ pub fn recover_vmk(phrase: &str, wrap: &RecoveryWrap) -> Result<[u8; 32], Recove
 
     // 2. Extract the 32-byte entropy that the mnemonic encodes.
     //    to_entropy() returns Vec<u8>; for a 24-word mnemonic this is always 32 bytes.
-    let entropy = mnemonic.to_entropy();
+    //    This Vec is secret (KEK seed), so it is zeroized as soon as the KEK is derived.
+    let mut entropy = mnemonic.to_entropy();
     debug_assert_eq!(entropy.len(), 32, "24-word BIP39 mnemonic must encode exactly 32 bytes");
 
-    // 3. Re-derive the Recovery KEK from the entropy + stored salt.
+    // 3. Re-derive the Recovery KEK from the entropy + stored salt, then wipe the entropy.
     let mut kek = derive_kek(&entropy, &wrap.salt);
+    entropy.zeroize();
 
     // 4. Split the wrapped blob into nonce and ciphertext+tag.
     if wrap.wrapped.len() < 12 + 16 {
@@ -157,7 +159,7 @@ pub fn recover_vmk(phrase: &str, wrap: &RecoveryWrap) -> Result<[u8; 32], Recove
     // 5. AES-256-GCM-decrypt. A wrong phrase or tampered wrap will fail the GCM tag here,
     //    returning DecryptFailed (not InvalidPhrase — the phrase was checksum-valid).
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&kek));
-    let pt = cipher
+    let mut pt = cipher
         .decrypt(
             Nonce::from_slice(nonce_bytes),
             Payload { msg: ct, aad: AAD },
@@ -170,12 +172,14 @@ pub fn recover_vmk(phrase: &str, wrap: &RecoveryWrap) -> Result<[u8; 32], Recove
     // 6. Zeroize the KEK now that decryption is done.
     kek.zeroize();
 
-    // 7. Copy the decrypted VMK into a fixed-size array and return it.
+    // 7. Copy the decrypted VMK into a fixed-size array and wipe the heap copy.
     if pt.len() != 32 {
+        pt.zeroize();
         return Err(RecoveryError::DecryptFailed);
     }
     let mut out = [0u8; 32];
     out.copy_from_slice(&pt);
+    pt.zeroize();
     Ok(out)
 }
 
