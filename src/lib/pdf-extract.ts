@@ -118,24 +118,32 @@ export async function extractPdfText(bytes: Uint8Array): Promise<PdfExtractionRe
     throw err;
   }
 
-  const pageCount = pdf.numPages;
-  const pages: string[] = [];
+  // pdfjs spawns a dedicated worker per getDocument and holds the transferred
+  // buffer until destroy() — without the finally, every extraction leaked a
+  // worker thread + a full copy of the file for the app's lifetime (the OCR
+  // per-page loop amplified this across whole scans; Wave 2 review finding).
+  try {
+    const pageCount = pdf.numPages;
+    const pages: string[] = [];
 
-  for (let i = 1; i <= pageCount; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = content.items
-      .map((item) => ('str' in item ? item.str : ''))
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    pages.push(pageText);
+    for (let i = 1; i <= pageCount; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items
+        .map((item) => ('str' in item ? item.str : ''))
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      pages.push(pageText);
+    }
+
+    const totalChars = pages.reduce((sum, p) => sum + p.length, 0);
+    const scanned = totalChars < SCANNED_THRESHOLD;
+
+    return { pages, pageCount, encrypted: false, scanned };
+  } finally {
+    await pdf.destroy();
   }
-
-  const totalChars = pages.reduce((sum, p) => sum + p.length, 0);
-  const scanned = totalChars < SCANNED_THRESHOLD;
-
-  return { pages, pageCount, encrypted: false, scanned };
 }
 
 /**
