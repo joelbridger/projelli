@@ -7,8 +7,9 @@
 //! - Store / retrieve / delete the VMK in the OS keychain, **reusing the same
 //!   `keyring::Entry` access** already established in `commands/keychain.rs` —
 //!   no second keyring integration.
-//! - Expose four `#[tauri::command]` functions registered in `lib.rs`:
-//!   `vault_status`, `vault_create`, `vault_read_file`, `vault_write_file`.
+//! - Expose seven `#[tauri::command]` functions registered in `lib.rs`:
+//!   `vault_status`, `vault_create`, `vault_read_file`, `vault_write_file`,
+//!   `vault_unlock_with_recovery`, `vault_export_vmk_for_escrow`, `vault_set_escrow_wraps`.
 //!
 //! Key hygiene: every time a VMK is loaded from the keychain it is decoded from
 //! base64 into a `[u8; 32]` stack buffer, used for one operation, and then
@@ -20,10 +21,10 @@
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use keepance_vault::{
     format::encrypt_file,
-    metadata::{RecoveryWrapJson, VaultMetadata, METADATA_FILENAME},
-    recovery::create_recovery,
+    metadata::{AdminWrapJson, EscrowJson, RecoveryWrapJson, VaultMetadata, METADATA_FILENAME},
+    recovery::{create_recovery, recover_vmk},
     vault::decrypt_file_at,
-    verifier::make_verifier,
+    verifier::{check_verifier, make_verifier},
 };
 use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -245,6 +246,12 @@ pub enum VaultCommandError {
     Crypto(String),
     /// Unexpected internal state.
     Internal(String),
+    /// The recovery phrase failed BIP39 checksum validation (typo / not a valid phrase).
+    /// Rejected before any cryptographic operation.
+    InvalidPhrase(String),
+    /// The recovery phrase passed the BIP39 checksum but did not decrypt the vault
+    /// (wrong phrase for this vault, or corrupted wrap).
+    RecoveryFailed(String),
 }
 
 impl std::fmt::Display for VaultCommandError {
@@ -256,6 +263,8 @@ impl std::fmt::Display for VaultCommandError {
             VaultCommandError::Io(m) => write!(f, "io: {m}"),
             VaultCommandError::Crypto(m) => write!(f, "crypto: {m}"),
             VaultCommandError::Internal(m) => write!(f, "internal: {m}"),
+            VaultCommandError::InvalidPhrase(m) => write!(f, "invalid_phrase: {m}"),
+            VaultCommandError::RecoveryFailed(m) => write!(f, "recovery_failed: {m}"),
         }
     }
 }
@@ -263,6 +272,26 @@ impl std::fmt::Display for VaultCommandError {
 impl From<keepance_vault::vault::VaultError> for VaultCommandError {
     fn from(e: keepance_vault::vault::VaultError) -> Self {
         VaultCommandError::Crypto(e.to_string())
+    }
+}
+
+impl From<keepance_vault::recovery::RecoveryError> for VaultCommandError {
+    fn from(e: keepance_vault::recovery::RecoveryError) -> Self {
+        match e {
+            keepance_vault::recovery::RecoveryError::InvalidPhrase => {
+                VaultCommandError::InvalidPhrase(
+                    "the recovery phrase failed BIP39 checksum validation".into(),
+                )
+            }
+            keepance_vault::recovery::RecoveryError::DecryptFailed => {
+                VaultCommandError::RecoveryFailed(
+                    "recovery phrase did not decrypt the vault wrap (wrong phrase or corrupted wrap)".into(),
+                )
+            }
+            keepance_vault::recovery::RecoveryError::Crypto => {
+                VaultCommandError::Crypto("recovery crypto error".into())
+            }
+        }
     }
 }
 
@@ -467,6 +496,131 @@ pub async fn vault_write_file(
     // Atomic write (temp + fsync + rename).
     keepance_vault::atomic::atomic_write(&abs_path, &blob)
         .map_err(|e| VaultCommandError::Io(e.to_string()))
+}
+
+/// Unlock a vault using the BIP39 recovery phrase.
+///
+/// Sequence:
+/// 1. Read the vault metadata (must be enabled).
+/// 2. Decode the stored `RecoveryWrapJson` back into binary form.
+/// 3. Call `recovery::recover_vmk(phrase, &wrap)` — this validates the BIP39
+///    checksum **before** any crypto; an invalid checksum returns `invalid_phrase`.
+/// 4. Call `verifier::check_verifier` against the recovered VMK as a defense-in-depth
+///    check (guards against a scenario where the wrap passes GCM auth but a bug
+///    elsewhere produced a wrong VMK).
+/// 5. Store the recovered VMK in the OS keychain.
+/// 6. Zeroize the recovered VMK from the stack before returning.
+///
+/// Error semantics:
+/// - `invalid_phrase`  — BIP39 checksum failed; no crypto attempted.
+/// - `recovery_failed` — phrase is checksum-valid but GCM tag failed, OR verifier check
+///   failed (the phrase is not the one that created this vault).
+#[tauri::command]
+pub async fn vault_unlock_with_recovery(
+    workspace: String,
+    phrase: String,
+) -> Result<(), VaultCommandError> {
+    let root = Path::new(&workspace);
+
+    // 1. Read metadata (vault must be enabled).
+    let meta = VaultMetadata::read_from(root)
+        .map_err(|e| VaultCommandError::Io(format!("vault not enabled or metadata unreadable: {e}")))?;
+
+    // 2. Decode the recovery wrap from JSON base64 fields to binary.
+    let wrap = meta.recovery.to_wrap().map_err(|e| {
+        VaultCommandError::Internal(format!("malformed recovery wrap in metadata: {e}"))
+    })?;
+
+    // 3. Attempt to recover the VMK. Errors map via From<RecoveryError>:
+    //    - InvalidPhrase → VaultCommandError::InvalidPhrase (before any crypto)
+    //    - DecryptFailed → VaultCommandError::RecoveryFailed
+    let mut recovered_vmk = recover_vmk(&phrase, &wrap).map_err(VaultCommandError::from)?;
+
+    // 4. Defense-in-depth: verify the recovered VMK against the stored verifier.
+    //    A wrong VMK here indicates something is deeply wrong (corrupt metadata, etc.).
+    let verifier_bytes = BASE64.decode(&meta.verifier_b64).map_err(|e| {
+        recovered_vmk.zeroize();
+        VaultCommandError::Internal(format!("verifier_b64 is not valid base64: {e}"))
+    })?;
+
+    if !check_verifier(&verifier_bytes, &recovered_vmk) {
+        recovered_vmk.zeroize();
+        return Err(VaultCommandError::RecoveryFailed(
+            "recovered VMK failed the verifier check — phrase may not match this vault".into(),
+        ));
+    }
+
+    // 5. Store the recovered VMK in the OS keychain.
+    let mut vmk_b64 = BASE64.encode(&recovered_vmk);
+    let store_result = store_vmk(&meta.vault_id, &vmk_b64);
+
+    // 6. Zeroize sensitive material regardless of whether the store succeeded.
+    vmk_b64.zeroize();
+    recovered_vmk.zeroize();
+
+    store_result
+}
+
+/// Export the VMK as a base64 string for transient escrow provisioning.
+///
+/// This command is **gated on the vault being unlocked** (VMK present in keychain).
+/// It is intended for single-use transient calls from the TypeScript `provisionEscrow`
+/// function which wraps the plaintext VMK to each admin device's ECDH public key
+/// and immediately calls `vault_set_escrow_wraps` to store only the wrapped copies.
+///
+/// Security notes:
+/// - The VMK is NEVER logged.
+/// - The returned string is short-lived in JS memory; TS callers must not persist it.
+/// - The vault must already be unlocked; this command never touches the recovery phrase.
+#[tauri::command]
+pub async fn vault_export_vmk_for_escrow(
+    workspace: String,
+) -> Result<String, VaultCommandError> {
+    let root = Path::new(&workspace);
+
+    // Load the vault_id from metadata. Returns an error if vault is not enabled.
+    let id = vault_id_for(root)?;
+
+    // Load the VMK — returns Locked error if absent from keychain.
+    let vmk = load_vmk(&id)?;
+
+    // Encode to base64. The ZeroizedVmk is dropped (and thus zeroized) at the end
+    // of this scope, after the base64 string is returned.
+    let vmk_b64 = BASE64.encode(vmk.as_bytes());
+
+    Ok(vmk_b64)
+}
+
+/// Set (replace) the escrow section of the vault metadata.
+///
+/// Called by the TypeScript `provisionEscrow` function after it has wrapped the VMK
+/// to each admin device's public key. This command atomically writes the new escrow
+/// section to `.keepance-vault.json`. It does NOT require the vault to be unlocked —
+/// the wrapped keys are opaque blobs that the JS side produced; we just persist them.
+///
+/// `epoch` is a monotonically increasing counter (start at 1; increment on key rotation).
+/// `wraps` is the list of per-admin-device wrapped VMK entries.
+#[tauri::command]
+pub async fn vault_set_escrow_wraps(
+    workspace: String,
+    epoch: u32,
+    wraps: Vec<AdminWrapJson>,
+) -> Result<(), VaultCommandError> {
+    let root = Path::new(&workspace);
+
+    // Read the current metadata — vault must already exist.
+    let mut meta = VaultMetadata::read_from(root)
+        .map_err(|e| VaultCommandError::Io(format!("vault not enabled or metadata unreadable: {e}")))?;
+
+    // Replace the escrow section atomically.
+    meta.escrow = Some(EscrowJson {
+        epoch,
+        admin_wraps: wraps,
+    });
+
+    // write_to uses atomic_write (temp + fsync + rename) under the hood.
+    meta.write_to(root)
+        .map_err(|e| VaultCommandError::Io(format!("failed to write vault metadata: {e}")))
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -698,5 +852,231 @@ mod tests {
         delete_vmk(id).expect("delete_vmk should succeed");
         let after_delete = get_vmk_b64(id).expect("get_vmk_b64 after delete should succeed");
         assert_eq!(after_delete, None, "VMK should be absent after delete");
+    }
+
+    // ── Task 9: recovery + escrow crate-level unit tests ─────────────────────
+    // These tests exercise the underlying crate functions directly rather than
+    // calling the async Tauri commands (which require a full Tauri runtime).
+    // The live-keychain path is gated behind KEEPANCE_TEST_KEYCHAIN=1.
+
+    /// Round-trip: create recovery wrap → recover VMK → verifier passes.
+    #[test]
+    fn recovery_roundtrip_crate_level() {
+        use keepance_vault::recovery::{create_recovery, recover_vmk};
+        use keepance_vault::verifier::{check_verifier, make_verifier};
+
+        let vmk = [0x42u8; 32];
+
+        // Generate the recovery wrap and verifier (mirrors what vault_create does).
+        let (phrase, wrap) = create_recovery(&vmk).expect("create_recovery should succeed");
+        let verifier_bytes = make_verifier(&vmk).expect("make_verifier should succeed");
+
+        // Recover VMK from phrase + wrap.
+        let recovered = recover_vmk(&phrase, &wrap).expect("recover_vmk should succeed with correct phrase");
+        assert_eq!(recovered, vmk, "recovered VMK must match original");
+
+        // Verifier must pass against the recovered VMK.
+        assert!(
+            check_verifier(&verifier_bytes, &recovered),
+            "verifier must pass against the correctly recovered VMK"
+        );
+    }
+
+    /// Invalid BIP39 checksum → InvalidPhrase before any crypto.
+    #[test]
+    fn recovery_invalid_checksum_maps_to_invalid_phrase() {
+        use keepance_vault::recovery::{create_recovery, recover_vmk, RecoveryError};
+
+        let vmk = [0x43u8; 32];
+        let (_phrase, wrap) = create_recovery(&vmk).expect("create_recovery should succeed");
+
+        // "zoo" at the end makes the checksum invalid for this 24-word string.
+        let bad_phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon zoo";
+
+        match recover_vmk(bad_phrase, &wrap) {
+            Err(RecoveryError::InvalidPhrase) => {} // expected
+            other => panic!("expected RecoveryError::InvalidPhrase, got {other:?}"),
+        }
+
+        // Also verify the From<RecoveryError> mapping in VaultCommandError.
+        let cmd_err = VaultCommandError::from(RecoveryError::InvalidPhrase);
+        assert!(
+            matches!(cmd_err, VaultCommandError::InvalidPhrase(_)),
+            "RecoveryError::InvalidPhrase must map to VaultCommandError::InvalidPhrase"
+        );
+    }
+
+    /// Wrong-but-valid-checksum phrase → RecoveryFailed (GCM tag mismatch).
+    #[test]
+    fn recovery_wrong_phrase_maps_to_recovery_failed() {
+        use keepance_vault::recovery::{create_recovery, recover_vmk, RecoveryError};
+
+        let vmk = [0x44u8; 32];
+        let (_phrase, wrap) = create_recovery(&vmk).expect("create_recovery should succeed");
+
+        // A different checksum-VALID phrase (different entropy, different vault).
+        let (other_phrase, _) = create_recovery(&[0x55u8; 32]).expect("create_recovery should succeed");
+
+        match recover_vmk(&other_phrase, &wrap) {
+            Err(RecoveryError::DecryptFailed) => {} // expected
+            other => panic!("expected RecoveryError::DecryptFailed, got {other:?}"),
+        }
+
+        // Also verify the From<RecoveryError> mapping.
+        let cmd_err = VaultCommandError::from(RecoveryError::DecryptFailed);
+        assert!(
+            matches!(cmd_err, VaultCommandError::RecoveryFailed(_)),
+            "RecoveryError::DecryptFailed must map to VaultCommandError::RecoveryFailed"
+        );
+    }
+
+    /// `vault_set_escrow_wraps` — end-to-end through temp filesystem (no keychain needed).
+    #[test]
+    fn set_escrow_wraps_writes_and_reads_back() {
+        use keepance_vault::{
+            metadata::{AdminWrapJson, EscrowJson, RecoveryWrapJson, VaultMetadata},
+            recovery::create_recovery,
+            verifier::make_verifier,
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // Create a minimal vault metadata so the command has a file to update.
+        let vmk = [0x77u8; 32];
+        let (_, wrap) = create_recovery(&vmk).unwrap();
+        let verifier_bytes = make_verifier(&vmk).unwrap();
+        let recovery_json = RecoveryWrapJson::from_wrap(&wrap);
+        let meta = VaultMetadata {
+            version: 1,
+            vault_id: "test-escrow-vault-id".into(),
+            created_at: "2026-06-11T00:00:00Z".into(),
+            recovery: recovery_json,
+            verifier_b64: BASE64.encode(&verifier_bytes),
+            escrow: None,
+        };
+        meta.write_to(root).unwrap();
+
+        // Call the internal logic of vault_set_escrow_wraps by exercising metadata directly.
+        // (The Tauri command itself requires an async runtime; test the logic path.)
+        let wraps_to_set = vec![
+            AdminWrapJson {
+                user_id: "admin-user-1".into(),
+                device_id: "device-abc".into(),
+                wrapped_b64: "c29tZXdyYXBwZWRieXRlcw==".into(), // dummy base64
+            },
+        ];
+
+        // Replicate the command's logic (read → set escrow → write).
+        let mut updated = VaultMetadata::read_from(root).unwrap();
+        updated.escrow = Some(EscrowJson {
+            epoch: 1,
+            admin_wraps: wraps_to_set.clone(),
+        });
+        updated.write_to(root).unwrap();
+
+        // Read back and verify.
+        let back = VaultMetadata::read_from(root).unwrap();
+        let escrow = back.escrow.expect("escrow section must be present after set");
+        assert_eq!(escrow.epoch, 1);
+        assert_eq!(escrow.admin_wraps.len(), 1);
+        assert_eq!(escrow.admin_wraps[0].user_id, "admin-user-1");
+        assert_eq!(escrow.admin_wraps[0].device_id, "device-abc");
+    }
+
+    /// `vault_export_vmk_for_escrow` — gated on vault being unlocked.
+    /// Exercises the load_vmk path: absent VMK → Locked error.
+    #[test]
+    fn export_vmk_requires_unlocked_vault() {
+        use keepance_vault::{
+            metadata::{RecoveryWrapJson, VaultMetadata},
+            recovery::create_recovery,
+            verifier::make_verifier,
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // Create metadata so vault_id_for can read the id, but store NO VMK in keychain.
+        let vmk = [0x88u8; 32];
+        let (_, wrap) = create_recovery(&vmk).unwrap();
+        let verifier_bytes = make_verifier(&vmk).unwrap();
+        let meta = VaultMetadata {
+            version: 1,
+            vault_id: "test-export-unlocked-id".into(),
+            created_at: "2026-06-11T00:00:00Z".into(),
+            recovery: RecoveryWrapJson::from_wrap(&wrap),
+            verifier_b64: BASE64.encode(&verifier_bytes),
+            escrow: None,
+        };
+        meta.write_to(root).unwrap();
+
+        // vault_id_for reads the id; then load_vmk should fail with Locked because
+        // no entry was stored in the keychain.
+        let id = vault_id_for(root).expect("vault_id_for should succeed with metadata present");
+        let result = load_vmk(&id);
+        assert!(
+            matches!(result, Err(VaultCommandError::Locked(_))),
+            "load_vmk must return Locked when no VMK is in the keychain"
+        );
+    }
+
+    /// Live keychain round-trip for vault_unlock_with_recovery.
+    /// Gated behind KEEPANCE_TEST_KEYCHAIN=1.
+    #[test]
+    fn live_vault_unlock_with_recovery_round_trip() {
+        if std::env::var_os("KEEPANCE_TEST_KEYCHAIN").is_none() {
+            return;
+        }
+        use keepance_vault::{
+            metadata::{RecoveryWrapJson, VaultMetadata},
+            recovery::create_recovery,
+            verifier::make_verifier,
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+
+        // Build a full vault metadata in a temp dir.
+        let vmk = [0x99u8; 32];
+        let (phrase, wrap) = create_recovery(&vmk).unwrap();
+        let verifier_bytes = make_verifier(&vmk).unwrap();
+        let vault_id_str = workspace_id(root);
+        let meta = VaultMetadata {
+            version: 1,
+            vault_id: vault_id_str.clone(),
+            created_at: "2026-06-11T00:00:00Z".into(),
+            recovery: RecoveryWrapJson::from_wrap(&wrap),
+            verifier_b64: BASE64.encode(&verifier_bytes),
+            escrow: None,
+        };
+        meta.write_to(root).unwrap();
+
+        // Ensure no stale VMK is in the keychain.
+        let _ = delete_vmk(&vault_id_str);
+
+        // Simulate the recovery unlock flow (the logic vault_unlock_with_recovery uses).
+        let meta_read = VaultMetadata::read_from(root).unwrap();
+        let wrap_back = meta_read.recovery.to_wrap().unwrap();
+        let mut recovered = keepance_vault::recovery::recover_vmk(&phrase, &wrap_back).unwrap();
+
+        let vb = BASE64.decode(&meta_read.verifier_b64).unwrap();
+        assert!(
+            check_verifier(&vb, &recovered),
+            "verifier must pass after recovery round-trip"
+        );
+
+        // Store into keychain.
+        let mut vmk_b64 = BASE64.encode(&recovered);
+        store_vmk(&meta_read.vault_id, &vmk_b64).unwrap();
+        vmk_b64.zeroize();
+        recovered.zeroize();
+
+        // Verify the VMK is now present in the keychain.
+        let got = get_vmk_b64(&meta_read.vault_id).unwrap();
+        assert!(got.is_some(), "VMK should be in keychain after unlock");
+
+        // Clean up.
+        delete_vmk(&meta_read.vault_id).unwrap();
     }
 }

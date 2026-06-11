@@ -137,6 +137,10 @@ pub fn run() {
             commands::vault::vault_create,
             commands::vault::vault_read_file,
             commands::vault::vault_write_file,
+            // Task 9: recovery unlock + escrow export/set.
+            commands::vault::vault_unlock_with_recovery,
+            commands::vault::vault_export_vmk_for_escrow,
+            commands::vault::vault_set_escrow_wraps,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
