@@ -44,7 +44,7 @@ const CHUNK_TARGET_BYTES = 1536;
 
 /** Approximate the character offset where chunk `paragraphIndex` starts:
  *  walk double-newline blocks accumulating UTF-8 bytes, counting a chunk
- *  per budget fill (overlap ignored — a slight early bias centers fine). */
+ *  per budget fill (overlap and early flush ignored — the estimate lands LATE by roughly the overlap per chunk index; centering absorbs it). */
 export function approximateChunkOffset(doc: string, paragraphIndex: number): number {
   if (paragraphIndex <= 0) return 0;
   const enc = new TextEncoder();

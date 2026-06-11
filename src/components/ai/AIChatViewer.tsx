@@ -309,7 +309,13 @@ function renderMessageWithCitations(
     // verification state. `verified === false` means the citation did NOT
     // verify against the local store (fabricated id / matter mismatch /
     // misquote) and must be flagged. `true` is safe to present.
-    const matchedSource = (sources ?? []).find((s) => s.path === resolved);
+    // Prefer the exact chunk (path + paragraphIndex) so the F-504 scroll
+    // snippet is the cited passage, not a sibling chunk of the same file
+    // (Task 5 review); fall back to path-only.
+    const matchedSource =
+      (sources ?? []).find(
+        (s) => s.path === resolved && s.paragraphIndex === cite.paragraphIndex,
+      ) ?? (sources ?? []).find((s) => s.path === resolved);
     const unverified = matchedSource?.verified === false;
     pieces.push(
       <button
