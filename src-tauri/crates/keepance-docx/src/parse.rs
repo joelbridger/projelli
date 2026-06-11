@@ -32,7 +32,8 @@
 //      adversarial input terminates promptly instead of hanging or overflowing
 //      the stack. Locked in by `test_truncated_document_xml_returns_err_*`.
 
-use quick_xml::events::{BytesEnd, BytesStart, Event};
+use quick_xml::escape::resolve_predefined_entity;
+use quick_xml::events::{BytesEnd, BytesRef, BytesStart, Event};
 use quick_xml::name::QName;
 use quick_xml::reader::Reader;
 
@@ -47,8 +48,9 @@ fn xml_err(e: impl std::fmt::Display) -> DocxError {
     DocxError::Xml(e.to_string())
 }
 
-/// Local name (after any `:` prefix) of a qualified name.
-fn local_of(name: QName) -> String {
+/// Local name (after any `:` prefix) of a qualified name. `pub(crate)` so the
+/// plain-text extraction walk (`text.rs`) shares the exact same name handling.
+pub(crate) fn local_of(name: QName) -> String {
     let bytes = name.as_ref();
     let local = match bytes.iter().position(|&b| b == b':') {
         Some(idx) => &bytes[idx + 1..],
@@ -437,11 +439,32 @@ fn parse_plain_run(
     Ok(None)
 }
 
+/// Resolve a general-reference event (`&amp;`, `&#233;`, `&#x2014;`, ...) to
+/// its character content. quick-xml 0.38 splits text at entity boundaries and
+/// emits [`Event::GeneralRef`] for each reference — text readers must handle
+/// it or silently DROP characters (e.g. "Smith &amp; Jones" losing its "&").
+///
+/// Numeric character references and the five predefined XML entities resolve;
+/// unknown (DTD-defined) entities return `None` and are skipped — they are
+/// NEVER expanded, so the billion-laughs / XXE stance above is unchanged.
+pub(crate) fn general_ref_text(r: &BytesRef) -> Option<String> {
+    if let Ok(Some(ch)) = r.resolve_char_ref() {
+        return Some(ch.to_string());
+    }
+    let name = r.decode().ok()?;
+    resolve_predefined_entity(&name).map(|s| s.to_string())
+}
+
 /// Read text content (concatenating Text events) until the closing `</tag>`.
 fn read_text_content(reader: &mut SliceReader, tag: &str, out: &mut String) -> Result<()> {
     loop {
         match reader.read_event().map_err(xml_err)? {
             Event::Text(t) => out.push_str(&t.xml_content().map_err(xml_err)?),
+            Event::GeneralRef(r) => {
+                if let Some(s) = general_ref_text(&r) {
+                    out.push_str(&s);
+                }
+            }
             Event::CData(c) => {
                 // Preserve CDATA text content (rare in run text, but be safe).
                 out.push_str(&String::from_utf8_lossy(c.as_ref()));
@@ -517,6 +540,11 @@ fn flatten_text(fragment: &str) -> String {
             Ok(Event::End(e)) if local_of(e.name()) == "t" => in_t = false,
             Ok(Event::Text(t)) if in_t => {
                 if let Ok(s) = t.xml_content() {
+                    text.push_str(&s);
+                }
+            }
+            Ok(Event::GeneralRef(r)) if in_t => {
+                if let Some(s) = general_ref_text(&r) {
                     text.push_str(&s);
                 }
             }

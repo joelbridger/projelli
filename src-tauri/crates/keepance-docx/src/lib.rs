@@ -38,6 +38,7 @@ pub mod parse;
 pub mod resolve;
 pub mod scrub;
 pub mod serialize;
+pub mod text;
 pub mod validate;
 
 /// Test-support fixtures (a realistic redlined document + its constants), used
@@ -54,6 +55,7 @@ pub use model::{
 pub use package::Package;
 pub use resolve::{resolve_all, resolve_revision, ResolveAction};
 pub use scrub::{clean_copy_bytes, scrub_package_metadata, ScrubOptions};
+pub use text::extract_paragraph_texts;
 
 /// A document opened from `.docx` bytes, carrying both the typed [`Document`]
 /// DOM and the *original* [`Package`] it came from.
