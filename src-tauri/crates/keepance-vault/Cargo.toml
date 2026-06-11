@@ -1,0 +1,21 @@
+[package]
+name = "keepance-vault"
+version = "0.1.0"
+edition = "2021"
+description = "At-rest AES-256-GCM encryption for Keepance workspace document files. Pure crate: file format, atomic write, BIP39 recovery, metadata. No Tauri."
+license = "MIT"
+publish = false
+
+[dependencies]
+aes-gcm = "0.10"
+hkdf = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+zeroize = { version = "1", features = ["zeroize_derive"] }
+bip39 = "2"
+thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = "3"

@@ -5,7 +5,7 @@
 # fastembed in its graph) while sharing one lockfile and one (gitignored)
 # target/ dir with the host. The host depends on the engine via a path dep.
 [workspace]
-members = [".", "crates/keepance-docx"]
+members = [".", "crates/keepance-docx", "crates/keepance-vault"]
 
 [package]
 name = "keepance"
