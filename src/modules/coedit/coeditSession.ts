@@ -122,7 +122,7 @@ export function openCoeditSession(opts: CoeditSessionOptions): Promise<CoeditSes
       clientCache.set(key, session);
       return session;
     },
-    (err) => {
+    (err: unknown) => {
       pendingCache.delete(key);
       throw err;
     },
@@ -284,9 +284,9 @@ class CoeditSessionImpl implements CoeditSession {
   }
 
   onChange(cb: () => void): () => void {
-    const handler = () => cb();
+    const handler = () => { cb(); };
     this.doc.on('update', handler);
-    return () => this.doc.off('update', handler);
+    return () => { this.doc.off('update', handler); };
   }
 
   getOtherEditorCount(): number {

@@ -285,11 +285,11 @@ export function DocxEditor({
         if (cancelled) return;
         if (coedit) {
           // Capture original comments (CRDT always returns comments: {}).
-          originalCommentsRef.current = doc.comments ?? {};
+          originalCommentsRef.current = doc.comments;
           // Use the CRDT's live doc for the initial render, with comments re-attached.
           const liveDoc: DocumentJson = {
             ...coedit.session.getDocumentJson(),
-            comments: doc.comments ?? {},
+            comments: doc.comments,
           };
           setLoad({ status: 'ready', doc: liveDoc });
         } else {
@@ -306,7 +306,7 @@ export function DocxEditor({
     return () => {
       cancelled = true;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [canEdit, filePath, coedit]);
 
   // ---- Cleanup the debounce on unmount -----------------------------------
@@ -415,7 +415,7 @@ export function DocxEditor({
     });
 
     return unsub;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [coedit]);
 
   const currentDoc = load.status === 'ready' ? load.doc : null;
@@ -881,7 +881,7 @@ export function DocxEditor({
             <span
               data-testid="docx-presence-pill"
               className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
-              title={`${otherEditors} other ${otherEditors === 1 ? 'person' : 'people'} editing`}
+              title={`${String(otherEditors)} other ${otherEditors === 1 ? 'person' : 'people'} editing`}
             >
               <span
                 aria-hidden="true"
@@ -889,7 +889,7 @@ export function DocxEditor({
               />
               {otherEditors === 1
                 ? '1 other editing'
-                : `${otherEditors} others editing`}
+                : `${String(otherEditors)} others editing`}
             </span>
           )}
 
@@ -1050,7 +1050,7 @@ export function DocxEditor({
       {/* VG-4a: PDF export asked for but LibreOffice is not installed —
           explain in plain language with a copyable install link. */}
       {libreOfficeHelpOpen && (
-        <LibreOfficeHelpNotice onDismiss={() => setLibreOfficeHelpOpen(false)} />
+        <LibreOfficeHelpNotice onDismiss={() => { setLibreOfficeHelpOpen(false); }} />
       )}
 
       {/* A6: export result (success or a friendly error from the export
