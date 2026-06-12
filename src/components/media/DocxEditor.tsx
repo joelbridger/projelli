@@ -113,6 +113,7 @@ import type { AuditEntry } from '@/types/audit';
 import type { CoeditSession } from '@/modules/coedit/coeditSession';
 import * as Y from 'yjs';
 import { editRunText } from '@/modules/coedit/docCrdt';
+import { PresenceBus, PresenceChannel } from '@/modules/coedit/presence';
 
 const SAVE_DEBOUNCE_MS = 1200;
 
@@ -396,6 +397,49 @@ export function DocxEditor({
     });
     return unsub;
   }, [coedit, applyResolvedDocument]);
+
+  // ---- Co-edit: ephemeral presence (best-effort, T11) ----------------------
+  // Track how many OTHER editors are in this document. State is entirely
+  // ephemeral (in-process PresenceBus; never written to the Y.Doc or relay).
+  // When `coedit` is absent the entire presence path is skipped (solo path).
+  //
+  // The PresenceBus is keyed by the session's docId (derived from the filePath
+  // since the session is doc-scoped). We use the `filePath` as the bus key
+  // because the `CoeditSession` type does not expose its docId directly.
+  const [otherEditors, setOtherEditors] = useState<number>(0);
+  const presenceChannelRef = useRef<PresenceChannel | null>(null);
+
+  useEffect(() => {
+    if (!coedit || !filePath) return;
+
+    // One bus per doc file path — ephemeral, never persisted.
+    const bus = PresenceBus.forDoc(filePath);
+    // Use a stable clientId for this component instance (stable ref).
+    const clientId = `docx-editor-${Math.random().toString(36).slice(2, 10)}`;
+    const channel = new PresenceChannel({
+      clientId,
+      author: authorName,
+      bus,
+      // Skip the heartbeat timer in tests (Jest/Vitest fake timers may not run)
+      // by keeping the default 8s interval; the channel always announces on join.
+    });
+    presenceChannelRef.current = channel;
+    channel.join();
+
+    const unsub = channel.onChange(() => {
+      setOtherEditors(channel.others().length);
+    });
+    // Snapshot initial count in case there are already peers.
+    setOtherEditors(channel.others().length);
+
+    return () => {
+      unsub();
+      channel.dispose();
+      presenceChannelRef.current = null;
+      PresenceBus.release(filePath);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coedit, filePath]);
 
   const currentDoc = load.status === 'ready' ? load.doc : null;
 
@@ -855,6 +899,23 @@ export function DocxEditor({
         </span>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* T11: ephemeral presence indicator — shown only in co-edit mode */}
+          {coedit && otherEditors > 0 && (
+            <span
+              data-testid="docx-presence-pill"
+              className="flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+              title={`${otherEditors} other ${otherEditors === 1 ? 'person' : 'people'} editing`}
+            >
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 rounded-full bg-emerald-500"
+              />
+              {otherEditors === 1
+                ? '1 other editing'
+                : `${otherEditors} others editing`}
+            </span>
+          )}
+
           {/* A6: discoverable Export — a clearly-labeled menu (not a bare icon)
               offering Word, PDF, and a privilege-safe clean copy. */}
           <DropdownMenu>
