@@ -86,6 +86,7 @@ import type {
   DocxInlineDeletion,
   DocxRun,
 } from '@/types/docx';
+import { applyTextDiff } from './textDiff';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -312,4 +313,392 @@ function readSubRun(m: Y.Map<unknown>): DocxRun {
   if (preserveSpace) run.preserveSpace = true;
   if (typeof propsXml === 'string') run.propertiesXml = propsXml;
   return run;
+}
+
+// ---------------------------------------------------------------------------
+// Mutator helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Find a block Y.Map by its id, scanning the body array.
+ * Returns null if not found.
+ */
+export function findBlockById(ydoc: Y.Doc, blockId: string): Y.Map<unknown> | null {
+  const body = ydoc.getArray<Y.Map<unknown>>('body');
+  for (const block of body.toArray()) {
+    if (block.get('id') === blockId) {
+      return block;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find a run Y.Map by its id, scanning a block's runs array.
+ * Returns null if not found. Only works on paragraph blocks (not raw).
+ */
+export function findRunById(block: Y.Map<unknown>, runId: string): Y.Map<unknown> | null {
+  const runs = block.get('runs') as Y.Array<Y.Map<unknown>> | undefined;
+  if (!runs) return null;
+  for (const run of runs.toArray()) {
+    if (run.get('id') === runId) {
+      return run;
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Structural mutators
+// ---------------------------------------------------------------------------
+
+/**
+ * Append an empty paragraph block to the document body.
+ * Returns the new block's uuid.
+ */
+export function appendParagraph(ydoc: Y.Doc, author: string): string {
+  const id = uuid();
+  ydoc.transact(() => {
+    const body = ydoc.getArray<Y.Map<unknown>>('body');
+    const m = new Y.Map<unknown>();
+    m.set('id', id);
+    m.set('type', 'paragraph');
+    m.set('propsXml', null);
+    const runs = new Y.Array<Y.Map<unknown>>();
+    m.set('runs', runs);
+    body.push([m]);
+  }, author);
+  return id;
+}
+
+/**
+ * Insert a plain text run at `index` in the named block's runs.
+ * Returns the new run's uuid.
+ */
+export function insertRun(
+  ydoc: Y.Doc,
+  blockId: string,
+  index: number,
+  text: string,
+  author: string,
+): string {
+  const id = uuid();
+  ydoc.transact(() => {
+    const block = findBlockById(ydoc, blockId);
+    if (!block) throw new Error(`docCrdt.insertRun: block '${blockId}' not found`);
+    const runs = block.get('runs') as Y.Array<Y.Map<unknown>>;
+    const m = new Y.Map<unknown>();
+    m.set('id', id);
+    m.set('kind', 'text');
+    const ytext = new Y.Text();
+    m.set('text', ytext);
+    ytext.insert(0, text);
+    m.set('propsXml', null);
+    m.set('preserveSpace', false);
+    runs.insert(index, [m]);
+  }, author);
+  return id;
+}
+
+/**
+ * Edit the text of an existing plain run via applyTextDiff (character-level ops).
+ */
+export function editRunText(
+  ydoc: Y.Doc,
+  blockId: string,
+  runId: string,
+  oldText: string,
+  newText: string,
+  author: string,
+): void {
+  const block = findBlockById(ydoc, blockId);
+  if (!block) throw new Error(`docCrdt.editRunText: block '${blockId}' not found`);
+  const run = findRunById(block, runId);
+  if (!run) throw new Error(`docCrdt.editRunText: run '${runId}' not found`);
+  const ytext = run.get('text') as Y.Text;
+  // applyTextDiff wraps in its own transact with origin = author
+  applyTextDiff(ydoc, ytext, oldText, newText, author);
+}
+
+/**
+ * Remove a block from the document body by id.
+ */
+export function deleteBlock(ydoc: Y.Doc, blockId: string, author: string): void {
+  ydoc.transact(() => {
+    const body = ydoc.getArray<Y.Map<unknown>>('body');
+    const arr = body.toArray();
+    const idx = arr.findIndex(b => b.get('id') === blockId);
+    if (idx === -1) throw new Error(`docCrdt.deleteBlock: block '${blockId}' not found`);
+    body.delete(idx, 1);
+  }, author);
+}
+
+/**
+ * Split a paragraph at (runId, character offset) into two paragraphs.
+ *
+ * - The run at runId is split at offset: text before offset stays in the
+ *   original block; text from offset onwards moves to the new block.
+ * - Runs AFTER runId in the original block are moved entirely to the new block
+ *   (as NEW Y.Map copies, since yjs does not allow re-parenting integrated nodes).
+ * - An empty half-run (length 0) is excluded rather than left as an empty run.
+ *
+ * Returns the uuid of the new paragraph.
+ */
+export function splitParagraph(
+  ydoc: Y.Doc,
+  blockId: string,
+  runId: string,
+  offset: number,
+  author: string,
+): string {
+  const newId = uuid();
+  ydoc.transact(() => {
+    const body = ydoc.getArray<Y.Map<unknown>>('body');
+    const block = findBlockById(ydoc, blockId);
+    if (!block) throw new Error(`docCrdt.splitParagraph: block '${blockId}' not found`);
+    const runs = block.get('runs') as Y.Array<Y.Map<unknown>>;
+    const runsArr = runs.toArray();
+    const splitRunIdx = runsArr.findIndex(r => r.get('id') === runId);
+    if (splitRunIdx === -1) throw new Error(`docCrdt.splitParagraph: run '${runId}' not found`);
+
+    // findIndex + guard above guarantees the element exists
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const splitRun = runsArr[splitRunIdx]!;
+    const splitYText = splitRun.get('text') as Y.Text;
+    const fullText = splitYText.toJSON();
+
+    // Build the new paragraph map
+    const newBlock = new Y.Map<unknown>();
+    newBlock.set('id', newId);
+    newBlock.set('type', 'paragraph');
+    newBlock.set('propsXml', block.get('propsXml') ?? null);
+    const newRuns = new Y.Array<Y.Map<unknown>>();
+    newBlock.set('runs', newRuns);
+
+    const headText = fullText.slice(0, offset);
+    const tailText = fullText.slice(offset);
+
+    // Build the tail half of the split run (text from offset onwards)
+    if (tailText.length > 0) {
+      const tailRun = new Y.Map<unknown>();
+      tailRun.set('id', uuid());
+      tailRun.set('kind', splitRun.get('kind') ?? 'text');
+      const tailYText = new Y.Text();
+      tailRun.set('text', tailYText);
+      tailYText.insert(0, tailText);
+      tailRun.set('propsXml', splitRun.get('propsXml') ?? null);
+      tailRun.set('preserveSpace', splitRun.get('preserveSpace') ?? false);
+      newRuns.push([tailRun]);
+    }
+
+    // Copy runs AFTER the split run into the new block (must be NEW Y.Map nodes)
+    const afterRuns = runsArr.slice(splitRunIdx + 1);
+    for (const r of afterRuns) {
+      const copy = copyPlainRun(r);
+      newRuns.push([copy]);
+    }
+
+    // Truncate the original split run's Y.Text to just the head
+    if (splitYText.length > headText.length) {
+      splitYText.delete(headText.length, splitYText.length - headText.length);
+    }
+
+    // Remove runs from the original block:
+    // - always remove afterRuns from the end
+    // - also remove the split run itself if its head is empty
+    if (headText.length === 0) {
+      // splitRun becomes empty — remove it and all afterRuns
+      runs.delete(splitRunIdx, 1 + afterRuns.length);
+    } else if (afterRuns.length > 0) {
+      // keep split run (now trimmed), remove afterRuns
+      runs.delete(splitRunIdx + 1, afterRuns.length);
+    }
+
+    // Insert the new block after the current one
+    const bodyArr = body.toArray();
+    const blockIdx = bodyArr.findIndex(b => b.get('id') === blockId);
+    body.insert(blockIdx + 1, [newBlock]);
+  }, author);
+  return newId;
+}
+
+/** Create a fresh Y.Map copy of a plain text run (for re-parenting). */
+function copyPlainRun(r: Y.Map<unknown>): Y.Map<unknown> {
+  const copy = new Y.Map<unknown>();
+  copy.set('id', uuid());
+  copy.set('kind', r.get('kind') ?? 'text');
+  const ytext = new Y.Text();
+  copy.set('text', ytext);
+  ytext.insert(0, (r.get('text') as Y.Text).toJSON());
+  copy.set('propsXml', r.get('propsXml') ?? null);
+  copy.set('preserveSpace', r.get('preserveSpace') ?? false);
+  return copy;
+}
+
+// ---------------------------------------------------------------------------
+// Tracked-change mutators
+// ---------------------------------------------------------------------------
+
+/**
+ * Append a tracked insertion run ('ins') to the named block.
+ * The run holds one subrun with the given text.
+ * Returns the new run's uuid.
+ */
+export function addTrackedInsertion(
+  ydoc: Y.Doc,
+  blockId: string,
+  text: string,
+  author: string,
+): string {
+  const id = uuid();
+  ydoc.transact(() => {
+    const block = findBlockById(ydoc, blockId);
+    if (!block) throw new Error(`docCrdt.addTrackedInsertion: block '${blockId}' not found`);
+    const runs = block.get('runs') as Y.Array<Y.Map<unknown>>;
+
+    const m = new Y.Map<unknown>();
+    m.set('id', id);
+    m.set('kind', 'ins');
+    m.set('metaId', '');
+    m.set('author', author);
+    m.set('date', new Date().toISOString());
+
+    const subruns = new Y.Array<Y.Map<unknown>>();
+    m.set('subruns', subruns);
+
+    const sub = new Y.Map<unknown>();
+    sub.set('id', uuid());
+    const ytext = new Y.Text();
+    sub.set('text', ytext);
+    ytext.insert(0, text);
+    sub.set('propsXml', null);
+    sub.set('preserveSpace', false);
+    subruns.push([sub]);
+
+    runs.push([m]);
+  }, author);
+  return id;
+}
+
+/**
+ * Convert an existing plain run into a tracked deletion ('del') run.
+ * The run's current text becomes the first (and only) subrun.
+ * Returns the resulting run id (same as the original run id).
+ */
+export function addTrackedDeletion(
+  ydoc: Y.Doc,
+  blockId: string,
+  runId: string,
+  author: string,
+): string {
+  ydoc.transact(() => {
+    const block = findBlockById(ydoc, blockId);
+    if (!block) throw new Error(`docCrdt.addTrackedDeletion: block '${blockId}' not found`);
+    const run = findRunById(block, runId);
+    if (!run) throw new Error(`docCrdt.addTrackedDeletion: run '${runId}' not found`);
+
+    const currentText = (run.get('text') as Y.Text).toJSON();
+    const currentPropsXml = run.get('propsXml') ?? null;
+    const currentPreserveSpace = run.get('preserveSpace') === true;
+
+    // Build subruns from the existing run's text
+    const subruns = new Y.Array<Y.Map<unknown>>();
+
+    const sub = new Y.Map<unknown>();
+    sub.set('id', uuid());
+    const ytext = new Y.Text();
+    sub.set('text', ytext);
+    ytext.insert(0, currentText);
+    sub.set('propsXml', currentPropsXml);
+    sub.set('preserveSpace', currentPreserveSpace);
+    subruns.push([sub]);
+
+    // Mutate the run in place: change kind, set tracked-change fields, add subruns
+    run.set('kind', 'del');
+    run.set('metaId', '');
+    run.set('author', author);
+    run.set('date', new Date().toISOString());
+    run.set('subruns', subruns);
+    // Remove the 'text' key (del runs use subruns, not a top-level Y.Text)
+    run.delete('text');
+  }, author);
+  return runId;
+}
+
+/**
+ * Resolve a tracked change run.
+ *
+ * accept on 'ins': set kind='text', collapse subruns into a single Y.Text,
+ *                  drop author/date/metaId/subruns.
+ * reject on 'ins': remove the run entirely from the block.
+ * accept on 'del': remove the run entirely from the block.
+ * reject on 'del': set kind='text', restore text from subruns,
+ *                  drop author/date/metaId/subruns.
+ */
+export function resolveRevision(
+  ydoc: Y.Doc,
+  blockId: string,
+  runId: string,
+  action: 'accept' | 'reject',
+  author: string,
+): void {
+  ydoc.transact(() => {
+    const block = findBlockById(ydoc, blockId);
+    if (!block) throw new Error(`docCrdt.resolveRevision: block '${blockId}' not found`);
+    const runs = block.get('runs') as Y.Array<Y.Map<unknown>>;
+    const runsArr = runs.toArray();
+    const runIdx = runsArr.findIndex(r => r.get('id') === runId);
+    if (runIdx === -1) throw new Error(`docCrdt.resolveRevision: run '${runId}' not found`);
+    // findIndex + guard above guarantees the element exists
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const run = runsArr[runIdx]!;
+    const kind = run.get('kind') as 'ins' | 'del';
+
+    if (kind === 'ins') {
+      if (action === 'accept') {
+        // Collapse subruns into a single Y.Text run
+        const subruns = (run.get('subruns') as Y.Array<Y.Map<unknown>>).toArray();
+        const collapsedText = subruns.map(s => (s.get('text') as Y.Text).toJSON()).join('');
+        const propsXml = subruns[0]?.get('propsXml') ?? null;
+        const preserveSpace = subruns[0]?.get('preserveSpace') === true;
+
+        const ytext = new Y.Text();
+        run.set('text', ytext);
+        ytext.insert(0, collapsedText);
+        run.set('kind', 'text');
+        run.set('propsXml', propsXml);
+        run.set('preserveSpace', preserveSpace);
+        run.delete('author');
+        run.delete('date');
+        run.delete('metaId');
+        run.delete('subruns');
+      } else {
+        // reject: remove the run entirely
+        runs.delete(runIdx, 1);
+      }
+    } else {
+      // kind === 'del'
+      if (action === 'accept') {
+        // accept deletion: remove the run
+        runs.delete(runIdx, 1);
+      } else {
+        // reject deletion: restore text as plain run
+        const subruns = (run.get('subruns') as Y.Array<Y.Map<unknown>>).toArray();
+        const restoredText = subruns.map(s => (s.get('text') as Y.Text).toJSON()).join('');
+        const propsXml = subruns[0]?.get('propsXml') ?? null;
+        const preserveSpace = subruns[0]?.get('preserveSpace') === true;
+
+        const ytext = new Y.Text();
+        run.set('text', ytext);
+        ytext.insert(0, restoredText);
+        run.set('kind', 'text');
+        run.set('propsXml', propsXml);
+        run.set('preserveSpace', preserveSpace);
+        run.delete('author');
+        run.delete('date');
+        run.delete('metaId');
+        run.delete('subruns');
+      }
+    }
+  }, author);
 }
