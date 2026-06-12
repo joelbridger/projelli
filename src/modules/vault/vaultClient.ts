@@ -17,8 +17,9 @@
  *        b. Calls `wrapMatterKey(vmk, device.pubkey_jwk, epoch)` for each admin
  *           device, producing an ECDH-wrapped blob.
  *        c. Calls `vault_set_escrow_wraps` with the assembled wraps array.
- *        d. Drops the plaintext VMK from JS scope — it is set to null after use
- *           and is never returned, stored, or logged.
+ *        d. The plaintext VMK is a local `const` that is never returned, stored,
+ *           captured by a closure, or logged, so it becomes unreachable once
+ *           provisionEscrow returns (the wraps it produced hold only ciphertext).
  *
  * Command name / arg name cross-reference (matches Rust exactly):
  *
@@ -33,10 +34,11 @@
  *   vault_decrypt_all          (workspace: String)
  *   vault_disable              (workspace: String)
  *
- * NOTE on Rust serde naming: the Rust command signatures use `snake_case` for
- * parameter names, and Tauri's IPC bridge passes them as-is (snake_case object
- * keys). The VaultStatus response uses `#[serde(rename_all = "camelCase")]` so
- * the TS type reflects the camelCase fields.
+ * NOTE on Rust serde naming: the Rust command params are `snake_case` (e.g.
+ * `rel_path`), but Tauri's IPC bridge auto-converts the camelCase keys we send
+ * (e.g. `relPath`) to those snake_case params — so the call sites pass camelCase.
+ * The VaultStatus response uses `#[serde(rename_all = "camelCase")]` so the TS
+ * type reflects the camelCase fields.
  */
 
 import { invoke, isTauri } from '@tauri-apps/api/core';

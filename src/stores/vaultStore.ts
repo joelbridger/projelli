@@ -29,6 +29,23 @@ export type VaultPhase =
   | 'encrypting'
   | 'done';
 
+/**
+ * Normalize an error from a vault Tauri command into a message/code string.
+ * The backend `VaultCommandError` serializes as `{ kind, message }` (serde tag/content,
+ * snake_case) — e.g. `{ kind: 'invalid_phrase', message: '...' }`. We surface the `kind`
+ * so the UI can branch on the typed code; otherwise fall back to an Error message,
+ * a plain string, or the provided default.
+ */
+function vaultErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object' && 'kind' in err) {
+    const kind = (err as { kind: unknown }).kind;
+    if (typeof kind === 'string') return kind;
+  }
+  return fallback;
+}
+
 interface VaultState {
   /** The current phase of the enable flow, or null when idle. */
   phase: VaultPhase | null;
@@ -119,8 +136,7 @@ export const useVaultStore = create<VaultState>()((set, _get) => ({
 
       set({ status: 'idle', phase: 'done' });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Vault enable failed';
-      set({ status: 'error', error: message });
+      set({ status: 'error', error: vaultErrorMessage(err, 'Vault enable failed') });
     }
   },
 
@@ -130,9 +146,9 @@ export const useVaultStore = create<VaultState>()((set, _get) => ({
       await vaultUnlockWithRecovery(workspace, phrase);
       set({ status: 'idle' });
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Recovery failed';
-      // Preserve typed error strings coming from the Tauri backend.
-      set({ status: 'error', error: message });
+      // Surface the typed code (e.g. 'invalid_phrase' / 'recovery_failed') so the
+      // locked prompt can show a precise message; fall back to a generic string.
+      set({ status: 'error', error: vaultErrorMessage(err, 'Recovery failed') });
     }
   },
 
