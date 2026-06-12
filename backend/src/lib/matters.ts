@@ -185,13 +185,22 @@ export interface UpdateFrame {
   ciphertext_b64: string;
 }
 
+/** Live subscriber count broadcasted to all connected editors on join/leave. */
+export interface PresenceFrame {
+  type: "presence";
+  matter_id: string;
+  doc_id: string;
+  /** Total number of connected subscribers, including the recipient. */
+  count: number;
+}
+
 export interface Subscriber {
   /** Unique per connection (so we can remove on close). */
   id: string;
   user_id: string;
   seat_id: string;
   /** Deliver a frame. Implementations must never throw; they swallow send errors. */
-  send: (frame: UpdateFrame) => void;
+  send: (frame: UpdateFrame | PresenceFrame) => void;
 }
 
 /**
@@ -241,6 +250,22 @@ export class FanoutHub {
         sub.send(frame);
       } catch {
         // A dead socket shouldn't break the loop; the close handler prunes it.
+      }
+    }
+  }
+
+  /** Broadcast a presence frame to every subscriber of a (matter, doc_id) channel. */
+  broadcastPresence(matterId: string, docId = "_notes"): void {
+    const key = this.channelKey(matterId, docId);
+    const set = this.byChannel.get(key);
+    if (!set) return;
+    const count = set.size;
+    const frame: PresenceFrame = { type: "presence", matter_id: matterId, doc_id: docId, count };
+    for (const sub of set.values()) {
+      try {
+        sub.send(frame);
+      } catch {
+        // dead socket; close handler prunes it
       }
     }
   }

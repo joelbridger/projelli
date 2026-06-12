@@ -51,6 +51,12 @@ export interface MatterSyncCallbacks {
    * newer-epoch blobs are skipped.
    */
   onKeyEpochAdvanced?: (newEpoch: number) => void;
+  /**
+   * Fired when the relay broadcasts a presence frame (join/leave) or when the
+   * ready frame includes a subscriber count. `count` is the TOTAL number of
+   * connected subscribers including this client (so `count - 1` = other editors).
+   */
+  onPresenceCount?: (count: number) => void;
 }
 
 /** Minimal WebSocket surface so tests can inject a fake. */
@@ -119,6 +125,7 @@ export class MatterSyncClient {
   private keyB64: string;
   private keyEpoch: number;
   private cursor = 0;
+  private presenceCount = 0;
   private status: SyncStatus = 'idle';
   private socket: WebSocketLike | null = null;
   private started = false;
@@ -151,6 +158,11 @@ export class MatterSyncClient {
 
   getKeyEpoch(): number {
     return this.keyEpoch;
+  }
+
+  /** Returns the last known total subscriber count from the relay (includes self). */
+  getPresenceCount(): number {
+    return this.presenceCount;
   }
 
   private setStatus(s: SyncStatus): void {
@@ -342,7 +354,18 @@ export class MatterSyncClient {
       // Defensive: if the relay sends a ready frame for a different doc_id,
       // ignore it (one socket = one doc, but be safe).
       if (frame.doc_id !== undefined && frame.doc_id !== this.docId) return;
+      if (frame.subscribers !== undefined) {
+        this.presenceCount = frame.subscribers;
+        this.callbacks.onPresenceCount?.(frame.subscribers);
+      }
       this.setStatus('live');
+      return;
+    }
+    if (frame.type === 'presence') {
+      // Relay-broadcast presence count update (peer joined or left).
+      if (frame.doc_id !== undefined && frame.doc_id !== this.docId) return;
+      this.presenceCount = frame.count;
+      this.callbacks.onPresenceCount?.(frame.count);
       return;
     }
     // The only remaining frame type is `update` (TS narrows it here).

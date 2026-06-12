@@ -82,6 +82,8 @@ function makeMockSession(ydoc: Y.Doc) {
       changeCallback = cb;
       return () => { changeCallback = null; };
     },
+    getOtherEditorCount: () => 0,
+    onPresenceChange: (_cb: (otherCount: number) => void) => () => {},
     close: vi.fn(),
   };
 

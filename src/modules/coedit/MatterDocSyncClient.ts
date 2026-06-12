@@ -145,4 +145,9 @@ export class MatterDocSyncClient {
   getKeyEpoch(): number {
     return this.inner.getKeyEpoch();
   }
+
+  /** Returns the last known total subscriber count from the relay (includes self). */
+  getPresenceCount(): number {
+    return this.inner.getPresenceCount();
+  }
 }

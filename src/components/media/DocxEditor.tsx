@@ -113,7 +113,6 @@ import type { AuditEntry } from '@/types/audit';
 import type { CoeditSession } from '@/modules/coedit/coeditSession';
 import * as Y from 'yjs';
 import { editRunText } from '@/modules/coedit/docCrdt';
-import { PresenceBus, PresenceChannel } from '@/modules/coedit/presence';
 
 const SAVE_DEBOUNCE_MS = 1200;
 
@@ -398,48 +397,26 @@ export function DocxEditor({
     return unsub;
   }, [coedit, applyResolvedDocument]);
 
-  // ---- Co-edit: ephemeral presence (best-effort, T11) ----------------------
-  // Track how many OTHER editors are in this document. State is entirely
-  // ephemeral (in-process PresenceBus; never written to the Y.Doc or relay).
+  // ---- Co-edit: relay-based presence (real cross-machine count, §10) -------
+  // Track how many OTHER editors are in this document. Count comes directly
+  // from the relay's subscriber count broadcast — accurate across machines.
   // When `coedit` is absent the entire presence path is skipped (solo path).
-  //
-  // The PresenceBus is keyed by the session's docId (derived from the filePath
-  // since the session is doc-scoped). We use the `filePath` as the bus key
-  // because the `CoeditSession` type does not expose its docId directly.
   const [otherEditors, setOtherEditors] = useState<number>(0);
-  const presenceChannelRef = useRef<PresenceChannel | null>(null);
 
   useEffect(() => {
-    if (!coedit || !filePath) return;
+    if (!coedit) return;
 
-    // One bus per doc file path — ephemeral, never persisted.
-    const bus = PresenceBus.forDoc(filePath);
-    // Use a stable clientId for this component instance (stable ref).
-    const clientId = `docx-editor-${Math.random().toString(36).slice(2, 10)}`;
-    const channel = new PresenceChannel({
-      clientId,
-      author: authorName,
-      bus,
-      // Skip the heartbeat timer in tests (Jest/Vitest fake timers may not run)
-      // by keeping the default 8s interval; the channel always announces on join.
+    // Snapshot the current count immediately from the session.
+    setOtherEditors(coedit.session.getOtherEditorCount());
+
+    // Subscribe to future presence changes from the relay.
+    const unsub = coedit.session.onPresenceChange((otherCount) => {
+      setOtherEditors(otherCount);
     });
-    presenceChannelRef.current = channel;
-    channel.join();
 
-    const unsub = channel.onChange(() => {
-      setOtherEditors(channel.others().length);
-    });
-    // Snapshot initial count in case there are already peers.
-    setOtherEditors(channel.others().length);
-
-    return () => {
-      unsub();
-      channel.dispose();
-      presenceChannelRef.current = null;
-      PresenceBus.release(filePath);
-    };
+    return unsub;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coedit, filePath]);
+  }, [coedit]);
 
   const currentDoc = load.status === 'ready' ? load.doc : null;
 

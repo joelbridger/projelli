@@ -239,11 +239,14 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         // Catch-up backlog (opaque bytes, base64; never logged).
         try {
           const backlog = store.getMatterUpdatesSince(d.matterId, 0, 500, d.docId);
-          ws.send(JSON.stringify({ type: "ready", matter_id: d.matterId, doc_id: d.docId, backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterId, d.docId) }));
+          const subscribers = hub.subscriberCount(d.matterId, d.docId);
+          ws.send(JSON.stringify({ type: "ready", matter_id: d.matterId, doc_id: d.docId, backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterId, d.docId), subscribers }));
           for (const u of backlog) ws.send(JSON.stringify(toUpdateFrame(u)));
         } catch {
           /* best-effort backlog */
         }
+        // Broadcast updated subscriber count to all connected peers (including self).
+        hub.broadcastPresence(d.matterId, d.docId);
       },
       message() {
         // Inbound socket frames are ignored on purpose. Awareness/presence would
@@ -253,6 +256,8 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
       close(ws: Bun.ServerWebSocket<SyncSocketData>) {
         const d = ws.data;
         hub.unsubscribe(d.matterId, d.subId, d.docId);
+        // Broadcast updated presence count to remaining subscribers (no-op if all left).
+        hub.broadcastPresence(d.matterId, d.docId);
       },
     },
   };

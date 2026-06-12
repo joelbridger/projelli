@@ -57,6 +57,16 @@ export interface CoeditSession {
    * Subscribe to any update (local or remote). Returns an unsubscribe function.
    */
   onChange(cb: () => void): () => void;
+  /**
+   * Count of OTHER editors connected to this doc's relay channel.
+   * Self is excluded (relay count minus 1, floored at 0).
+   */
+  getOtherEditorCount(): number;
+  /**
+   * Subscribe to relay-based presence count changes. The callback receives the
+   * count of OTHER editors (self excluded). Returns an unsubscribe function.
+   */
+  onPresenceChange(cb: (otherCount: number) => void): () => void;
   /** Snapshot state and tear down. Clears singleton caches. */
   close(): void;
 }
@@ -143,8 +153,23 @@ export function closeCoeditSession(matterId: string, docId: string): void {
 async function _buildSession(opts: CoeditSessionOptions): Promise<CoeditSession> {
   const doc = new Y.Doc();
 
+  // Closure-based presence state so it can be wired into callbacks before the
+  // CoeditSessionImpl is constructed. The onPresenceCount callback mutates these.
+  let presenceCount = 0;
+  const presenceListeners = new Set<(otherCount: number) => void>();
+
   // Build sync client options, omitting optional keys when undefined so that
   // exactOptionalPropertyTypes is satisfied.
+  const callbacks: import('@/modules/firm/MatterSyncClient').MatterSyncCallbacks = {
+    onPresenceCount: (count: number) => {
+      presenceCount = count;
+      const otherCount = Math.max(0, count - 1);
+      for (const listener of presenceListeners) {
+        listener(otherCount);
+      }
+    },
+  };
+
   const syncOpts: import('@/modules/coedit/MatterDocSyncClient').MatterDocSyncOptions = {
     matterId:  opts.matterId,
     docId:     opts.docId,
@@ -153,6 +178,7 @@ async function _buildSession(opts: CoeditSessionOptions): Promise<CoeditSession>
     keyEpoch:  opts.keyEpoch,
     seatToken: opts.seatToken,
     client:    opts.client,
+    callbacks,
   };
   if (opts.accessToken !== undefined)     syncOpts.accessToken     = opts.accessToken;
   if (opts.socketFactory !== undefined)   syncOpts.socketFactory   = opts.socketFactory;
@@ -187,6 +213,8 @@ async function _buildSession(opts: CoeditSessionOptions): Promise<CoeditSession>
     syncClient,
     opts.matterId,
     opts.docId,
+    () => presenceCount,
+    presenceListeners,
   );
   return session;
 }
@@ -230,17 +258,25 @@ class CoeditSessionImpl implements CoeditSession {
   private readonly syncClient: MatterDocSyncClient;
   private readonly matterId: string;
   private readonly docId: string;
+  /** Accessor into the closure-based presence count (total subscribers including self). */
+  private readonly _getPresenceCount: () => number;
+  /** Shared listener set (from _buildSession closure) for presence change notifications. */
+  private readonly _presenceListeners: Set<(otherCount: number) => void>;
 
   constructor(
     doc: Y.Doc,
     syncClient: MatterDocSyncClient,
     matterId: string,
     docId: string,
+    getPresenceCount: () => number,
+    presenceListeners: Set<(otherCount: number) => void>,
   ) {
     this.doc = doc;
     this.syncClient = syncClient;
     this.matterId = matterId;
     this.docId = docId;
+    this._getPresenceCount = getPresenceCount;
+    this._presenceListeners = presenceListeners;
   }
 
   getDocumentJson(): DocumentJson {
@@ -251,6 +287,15 @@ class CoeditSessionImpl implements CoeditSession {
     const handler = () => cb();
     this.doc.on('update', handler);
     return () => this.doc.off('update', handler);
+  }
+
+  getOtherEditorCount(): number {
+    return Math.max(0, this._getPresenceCount() - 1);
+  }
+
+  onPresenceChange(cb: (otherCount: number) => void): () => void {
+    this._presenceListeners.add(cb);
+    return () => this._presenceListeners.delete(cb);
   }
 
   close(): void {

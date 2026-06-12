@@ -335,6 +335,8 @@ export interface SyncReadyFrame {
   doc_id: string;
   backlog: number;
   latest_cursor: number;
+  /** Current subscriber count (including self) at the moment the socket joined. */
+  subscribers?: number;
 }
 export interface SyncUpdateFrame {
   type: "update";
@@ -347,6 +349,13 @@ export interface SyncUpdateFrame {
   author_seat: string;
   created_at: string;
   ciphertext_b64: string; // opaque, base64
+}
+export interface SyncPresenceFrame {
+  type: "presence";
+  matter_id: string;
+  doc_id: string;
+  /** Total connected subscribers including the recipient. */
+  count: number;
 }
 
 // ---------------------------------------------------------------------------

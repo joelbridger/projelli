@@ -1010,3 +1010,206 @@ describe("doc_id stream partitioning — HTTP integration", () => {
     }
   });
 });
+
+// ===========================================================================
+// Presence frames — subscriber count broadcast (§10)
+// ===========================================================================
+describe("presence frames — subscriber count broadcast", () => {
+  // Each test provisions its own fresh matter + members so tests are fully isolated.
+
+  let presAdminAccess = "";
+  let presLicenseKey = "";
+  let presAliceAccess = "";
+  let presAliceSeat = "";
+  let presBobAccess = "";
+  let presBobSeat = "";
+  let presMatterId = "";
+
+  beforeAll(async () => {
+    const prov = await post("/admin/org", {
+      name: `Presence Law ${crypto.randomUUID()}`,
+      plan: "practice",
+      packs: ["legal"],
+      seat_limit: 5,
+      admin_email: `pres-admin-${crypto.randomUUID()}@pres.test`,
+      admin_password: "pres-admin-pw-1234",
+    });
+    expect(prov.status).toBe(201);
+    presLicenseKey = prov.json.license_key;
+    const adminLogin = await post("/auth/login", { email: prov.json.admin.email, password: "pres-admin-pw-1234" });
+    presAdminAccess = adminLogin.json.access_token;
+
+    const mk = async (label: string) => {
+      const email = `${label}-pres-${crypto.randomUUID()}@pres.test`;
+      const create = await post("/org/users", { email, password: "pres-member-pw-1234" }, presAdminAccess);
+      expect(create.status).toBe(201);
+      const login = await post("/auth/login", { email, password: "pres-member-pw-1234" });
+      const access = login.json.access_token;
+      const act = await post("/org/activate", { license_key: presLicenseKey, machine_id: `pres-${label}` }, access);
+      expect(act.status).toBe(200);
+      return { userId: create.json.user.user_id as string, access, seat: act.json.seat_token as string };
+    };
+
+    const alice = await mk("alice");
+    const bob = await mk("bob");
+    presAliceAccess = alice.access; presAliceSeat = alice.seat;
+    presBobAccess = bob.access; presBobSeat = bob.seat;
+
+    const matter = await post("/org/matters", { client_name: "Presence Test Matter" }, presAdminAccess);
+    expect(matter.status).toBe(201);
+    presMatterId = matter.json.matter.matter_id;
+    await post(`/matter/${presMatterId}/members/add`, { user_id: alice.userId, role: "editor" }, presAdminAccess);
+    await post(`/matter/${presMatterId}/members/add`, { user_id: bob.userId, role: "editor" }, presAdminAccess);
+  });
+
+  /**
+   * Buffer presence frames from a socket. Returns the frame buffer and a
+   * poller that resolves when a frame with at least `minCount` subscribers arrives.
+   */
+  function bufferPresence(ws: WebSocket): { frames: any[]; waitForCount: (count: number, timeoutMs?: number) => Promise<any> } {
+    const frames: any[] = [];
+    ws.addEventListener("message", (ev) => {
+      let msg: any;
+      try {
+        msg = JSON.parse(typeof ev.data === "string" ? ev.data : "");
+      } catch { return; }
+      if (msg.type === "presence") frames.push(msg);
+    });
+    const waitForCount = (count: number, timeoutMs = 4000) =>
+      new Promise<any>((resolve, reject) => {
+        const deadline = Date.now() + timeoutMs;
+        const tick = () => {
+          const hit = frames.find((f) => f.count === count);
+          if (hit) return resolve(hit);
+          if (Date.now() > deadline) return reject(new Error(`presence count ${count} not received in ${timeoutMs}ms; frames: ${JSON.stringify(frames)}`));
+          setTimeout(tick, 20);
+        };
+        tick();
+      });
+    return { frames, waitForCount };
+  }
+
+  /** Read the ready frame from a socket (first message). */
+  function waitForReady(ws: WebSocket, timeoutMs = 4000): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const deadline = Date.now() + timeoutMs;
+      const check = () => {
+        if (Date.now() > deadline) return reject(new Error("ready frame timeout"));
+      };
+      ws.addEventListener("message", function handler(ev) {
+        let msg: any;
+        try { msg = JSON.parse(typeof ev.data === "string" ? ev.data : ""); } catch { return; }
+        if (msg.type === "ready") {
+          ws.removeEventListener("message", handler);
+          resolve(msg);
+        }
+      });
+      setTimeout(check, timeoutMs);
+    });
+  }
+
+  test("Test 4: ready frame includes subscribers field", async () => {
+    const ws = await openSocket(await wsUrl(presMatterId, presAliceAccess, presAliceSeat));
+    try {
+      const ready = await waitForReady(ws);
+      expect(typeof ready.subscribers).toBe("number");
+      expect(ready.subscribers).toBeGreaterThanOrEqual(1);
+    } finally {
+      ws.close();
+    }
+  });
+
+  test("Test 1: two sockets on the same doc each receive a presence frame with count:2", async () => {
+    const docId = `presence-two-${crypto.randomUUID()}`;
+    const aliceUrl = await (async () => {
+      const t = await mintTicket(presMatterId, presAliceAccess, presAliceSeat);
+      expect(t.status).toBe(200);
+      return `ws://${srv.hostname}:${srv.port}/matter/${presMatterId}/sync?ticket=${encodeURIComponent(t.json.ticket as string)}&doc_id=${docId}`;
+    })();
+    const bobUrl = await (async () => {
+      const t = await mintTicket(presMatterId, presBobAccess, presBobSeat);
+      expect(t.status).toBe(200);
+      return `ws://${srv.hostname}:${srv.port}/matter/${presMatterId}/sync?ticket=${encodeURIComponent(t.json.ticket as string)}&doc_id=${docId}`;
+    })();
+
+    const wsAlice = await openSocket(aliceUrl);
+    const wsBob = await openSocket(bobUrl);
+    try {
+      const alicePres = bufferPresence(wsAlice);
+      const bobPres = bufferPresence(wsBob);
+
+      // Wait for both to see count:2 (after both have connected)
+      await alicePres.waitForCount(2);
+      await bobPres.waitForCount(2);
+
+      // Both should have received a presence frame with count:2
+      expect(alicePres.frames.some((f: any) => f.count === 2)).toBe(true);
+      expect(bobPres.frames.some((f: any) => f.count === 2)).toBe(true);
+    } finally {
+      wsAlice.close();
+      wsBob.close();
+    }
+  });
+
+  test("Test 2: when one socket disconnects, the remaining one receives count:1", async () => {
+    const docId = `presence-leave-${crypto.randomUUID()}`;
+    const aliceUrl = await (async () => {
+      const t = await mintTicket(presMatterId, presAliceAccess, presAliceSeat);
+      return `ws://${srv.hostname}:${srv.port}/matter/${presMatterId}/sync?ticket=${encodeURIComponent(t.json.ticket as string)}&doc_id=${docId}`;
+    })();
+    const bobUrl = await (async () => {
+      const t = await mintTicket(presMatterId, presBobAccess, presBobSeat);
+      return `ws://${srv.hostname}:${srv.port}/matter/${presMatterId}/sync?ticket=${encodeURIComponent(t.json.ticket as string)}&doc_id=${docId}`;
+    })();
+
+    const wsAlice = await openSocket(aliceUrl);
+    const wsBob = await openSocket(bobUrl);
+    const alicePres = bufferPresence(wsAlice);
+
+    try {
+      // Wait for count:2 (both connected)
+      await alicePres.waitForCount(2);
+
+      // Bob disconnects
+      wsBob.close();
+
+      // Alice should now receive count:1
+      await alicePres.waitForCount(1);
+      expect(alicePres.frames.some((f: any) => f.count === 1)).toBe(true);
+    } finally {
+      wsAlice.close();
+    }
+  });
+
+  test("Test 3: a different (matter, docId) channel is presence-isolated", async () => {
+    const docIdA = `presence-iso-a-${crypto.randomUUID()}`;
+    const docIdB = `presence-iso-b-${crypto.randomUUID()}`;
+
+    const aliceUrlA = await (async () => {
+      const t = await mintTicket(presMatterId, presAliceAccess, presAliceSeat);
+      return `ws://${srv.hostname}:${srv.port}/matter/${presMatterId}/sync?ticket=${encodeURIComponent(t.json.ticket as string)}&doc_id=${docIdA}`;
+    })();
+    const bobUrlB = await (async () => {
+      const t = await mintTicket(presMatterId, presBobAccess, presBobSeat);
+      return `ws://${srv.hostname}:${srv.port}/matter/${presMatterId}/sync?ticket=${encodeURIComponent(t.json.ticket as string)}&doc_id=${docIdB}`;
+    })();
+
+    const wsAliceA = await openSocket(aliceUrlA);
+    const wsBobB = await openSocket(bobUrlB);
+    try {
+      const alicePres = bufferPresence(wsAliceA);
+      const bobPres = bufferPresence(wsBobB);
+
+      // Give both sockets time to settle
+      await new Promise((r) => setTimeout(r, 200));
+
+      // Alice is alone in docIdA — she should only ever see count:1 (never 2).
+      // Bob is alone in docIdB — same.
+      expect(alicePres.frames.every((f: any) => f.count === 1)).toBe(true);
+      expect(bobPres.frames.every((f: any) => f.count === 1)).toBe(true);
+    } finally {
+      wsAliceA.close();
+      wsBobB.close();
+    }
+  });
+});
