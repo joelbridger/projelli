@@ -360,12 +360,20 @@ export class FirmApiClient {
   }
 
   // --- E2EE relay ------------------------------------------------------------
+  /**
+   * Push one encrypted CRDT update blob.
+   *
+   * @param docId - Document stream to push into. Absent (or `'_notes'`) = matter
+   *   notes; pass the document's `doc_id` for co-editing streams. Defaults to
+   *   `'_notes'` so existing call sites that omit it continue to work unchanged.
+   */
   pushUpdate(
     matterId: string,
     blobId: string,
     ciphertextB64: string,
     seatToken: string,
     keyEpoch?: number,
+    docId = '_notes',
   ): Promise<PushUpdateResponse> {
     return this.request<PushUpdateResponse>(
       FIRM_ENDPOINTS.pushUpdate.replace(':id', encodeURIComponent(matterId)),
@@ -377,20 +385,26 @@ export class FirmApiClient {
           ciphertext_b64: ciphertextB64,
           seat_token: seatToken,
           ...(keyEpoch !== undefined ? { key_epoch: keyEpoch } : {}),
+          doc_id: docId,
         },
       },
     );
   }
 
-  pullUpdates(matterId: string, since: number, seatToken: string): Promise<PullUpdatesResponse> {
-    // Seat token rides in the X-Seat-Token header (matching the assured path),
-    // NEVER the query string — so it can't leak into access logs / history.
+  /**
+   * Pull updates after `since` for a specific document stream.
+   *
+   * @param docId - Document stream to filter by. Absent = `'_notes'` (backward
+   *   compatible). Seat token rides in the X-Seat-Token header — never the query
+   *   string — so it can't leak into access logs.
+   */
+  pullUpdates(matterId: string, since: number, seatToken: string, docId = '_notes'): Promise<PullUpdatesResponse> {
     return this.request<PullUpdatesResponse>(
       FIRM_ENDPOINTS.pullUpdates.replace(':id', encodeURIComponent(matterId)),
       {
         method: 'GET',
         auth: true,
-        query: { since: String(since) },
+        query: { since: String(since), doc_id: docId },
         headers: { 'X-Seat-Token': seatToken },
       },
     );
@@ -401,6 +415,9 @@ export class FirmApiClient {
    * (access JWT) + the seat token in the X-Seat-Token header — exactly like the
    * HTTP relay. The returned ticket is the ONLY credential the client puts on the
    * WS URL; the access/seat token never appears in a WebSocket URL.
+   *
+   * The `doc_id` is NOT part of the ticket request — it rides as a query param
+   * on the WS URL itself (`&doc_id=`) because it is not a credential.
    */
   createSyncTicket(matterId: string, seatToken: string): Promise<SyncTicketResponse> {
     return this.request<SyncTicketResponse>(

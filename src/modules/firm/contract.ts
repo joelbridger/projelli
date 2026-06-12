@@ -219,6 +219,8 @@ export interface PushUpdateRequest {
   ciphertext_b64: string;
   seat_token: string;
   key_epoch?: number;
+  /** Document stream partition. Absent (or '_notes') = matter notes (backward-compatible). */
+  doc_id?: string;
 }
 export interface PushUpdateResponse {
   ok: true;
@@ -230,6 +232,8 @@ export interface PushUpdateResponse {
 export interface PulledUpdate {
   cursor: number;
   blob_id: string;
+  /** Document stream this update belongs to. */
+  doc_id: string;
   key_epoch: number;
   author_seat: string;
   created_at: string;
@@ -237,6 +241,8 @@ export interface PulledUpdate {
 }
 export interface PullUpdatesResponse {
   matter_id: string;
+  /** The doc_id stream this response covers. '_notes' when absent from the query. */
+  doc_id: string;
   key_epoch: number;
   since: number;
   cursor: number;
@@ -248,6 +254,10 @@ export interface PullUpdatesResponse {
  * Response of `POST /matter/:id/sync-ticket`: a short-lived, single-use ticket
  * for the WS upgrade. Authed like the HTTP relay (Bearer access + X-Seat-Token
  * header). The client puts ONLY this ticket on the WS URL — never a token.
+ *
+ * To subscribe to a specific document stream, add `&doc_id=<docId>` to the WS
+ * URL (not the ticket endpoint). The doc_id is not a credential so it is safe
+ * to carry on the upgrade URL. Absent doc_id → '_notes'.
  */
 export interface SyncTicketResponse {
   ticket: string;
@@ -256,12 +266,16 @@ export interface SyncTicketResponse {
 export interface SyncReadyFrame {
   type: 'ready';
   matter_id: string;
+  /** Document stream this socket is subscribed to. '_notes' for matter notes. */
+  doc_id: string;
   backlog: number;
   latest_cursor: number;
 }
 export interface SyncUpdateFrame {
   type: 'update';
   matter_id: string;
+  /** Document stream this update belongs to. */
+  doc_id: string;
   cursor: number;
   blob_id: string;
   key_epoch: number;

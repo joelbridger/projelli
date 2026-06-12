@@ -140,6 +140,210 @@ async function until(pred: () => boolean, tries = 50): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Task 7: doc_id partitioning test (MUST fail before the implementation)
+// ---------------------------------------------------------------------------
+
+interface StoredBlobWithDoc extends StoredBlob {
+  doc_id: string;
+}
+
+/**
+ * A doc_id-aware relay: stores blobs keyed by (blob_id, doc_id), fans out ONLY
+ * to sockets subscribed to the matching doc_id, and returns only matching blobs
+ * on pull.
+ */
+class FakeDocRelay {
+  blobs: StoredBlobWithDoc[] = [];
+  private seq = 0;
+  /** doc_id -> list of sockets subscribed to that doc stream */
+  private sockets: Map<string, FakeSocket[]> = new Map();
+  keyEpoch = 1;
+
+  push(blobId: string, ciphertextB64: string, keyEpoch: number, docId: string): PushUpdateResponse {
+    const existing = this.blobs.find((b) => b.blob_id === blobId && b.doc_id === docId);
+    if (existing) {
+      return { ok: true, cursor: existing.cursor, blob_id: blobId, key_epoch: this.keyEpoch, duplicate: true };
+    }
+    this.seq += 1;
+    const stored: StoredBlobWithDoc = {
+      cursor: this.seq,
+      blob_id: blobId,
+      key_epoch: keyEpoch,
+      ciphertext_b64: ciphertextB64,
+      doc_id: docId,
+    };
+    this.blobs.push(stored);
+    // Fan out only to sockets subscribed to this doc_id.
+    const docSockets = this.sockets.get(docId) ?? [];
+    for (const s of docSockets) {
+      s.deliver({
+        type: 'update',
+        matter_id: 'm1',
+        doc_id: docId,
+        cursor: stored.cursor,
+        blob_id: stored.blob_id,
+        key_epoch: stored.key_epoch,
+        author_seat: 'seat-x',
+        created_at: new Date().toISOString(),
+        ciphertext_b64: stored.ciphertext_b64,
+      });
+    }
+    return { ok: true, cursor: stored.cursor, blob_id: blobId, key_epoch: this.keyEpoch, duplicate: false };
+  }
+
+  pull(since: number, docId: string): PullUpdatesResponse {
+    const updates = this.blobs
+      .filter((b) => b.cursor > since && b.doc_id === docId)
+      .map((b) => ({
+        cursor: b.cursor,
+        blob_id: b.blob_id,
+        doc_id: b.doc_id,
+        key_epoch: b.key_epoch,
+        author_seat: 'seat-x',
+        created_at: new Date().toISOString(),
+        ciphertext_b64: b.ciphertext_b64,
+      }));
+    const allBlobs = this.blobs.filter((b) => b.doc_id === docId);
+    const latest = allBlobs.length ? allBlobs[allBlobs.length - 1]!.cursor : 0;
+    return {
+      matter_id: 'm1',
+      doc_id: docId,
+      key_epoch: this.keyEpoch,
+      since,
+      cursor: updates.length ? updates[updates.length - 1]!.cursor : since,
+      latest_cursor: latest,
+      has_more: false,
+      updates,
+    };
+  }
+
+  connect(socket: FakeSocket, docId: string): void {
+    if (!this.sockets.has(docId)) this.sockets.set(docId, []);
+    this.sockets.get(docId)!.push(socket);
+    const allBlobs = this.blobs.filter((b) => b.doc_id === docId);
+    const latest = allBlobs.length ? allBlobs[allBlobs.length - 1]!.cursor : 0;
+    queueMicrotask(() => {
+      socket.open();
+      socket.deliver({ type: 'ready', matter_id: 'm1', doc_id: docId, backlog: allBlobs.length, latest_cursor: latest });
+    });
+  }
+}
+
+function fakeDocClient(relay: FakeDocRelay, docId: string) {
+  return {
+    pushUpdate: vi.fn(
+      async (_m: string, blobId: string, ct: string, _seat: string, epoch?: number, dId?: string) =>
+        relay.push(blobId, ct, epoch ?? relay.keyEpoch, dId ?? docId),
+    ),
+    pullUpdates: vi.fn(async (_m: string, since: number, _seat: string, dId?: string) =>
+      relay.pull(since, dId ?? docId),
+    ),
+    createSyncTicket: vi.fn(async (_m: string, _seat: string) => ({
+      ticket: `tkt_${Math.random().toString(36).slice(2)}`,
+      expires_in_ms: 30_000,
+    })),
+  } as unknown as import('@/modules/firm/FirmApiClient').FirmApiClient;
+}
+
+describe('MatterSyncClient doc_id partitioning', () => {
+  it('two clients on the same matter but different docIds do NOT receive each other\'s updates', async () => {
+    const relay = new FakeDocRelay();
+    const keyB64 = await generateMatterKey();
+
+    const mkDocClient = (docId: string) =>
+      new MatterSyncClient({
+        matterId: 'm1',
+        keyB64,
+        keyEpoch: 1,
+        seatToken: 'seat',
+        accessToken: 'access',
+        docId,
+        client: fakeDocClient(relay, docId),
+        socketFactory: () => {
+          const s = new FakeSocket();
+          relay.connect(s, docId);
+          return s;
+        },
+      });
+
+    const notesClient = mkDocClient('_notes');
+    const docAClient = mkDocClient('doc-alpha');
+
+    await notesClient.start();
+    await docAClient.start();
+
+    // notesClient writes a note — should NOT appear in docAClient's doc.
+    notesClient.doc.getMap('data').set('notes_key', 'notes_value');
+
+    // docAClient writes — should NOT appear in notesClient's doc.
+    docAClient.doc.getMap('data').set('doc_key', 'doc_value');
+
+    // Wait for both writes to reach the relay (the push is async).
+    await until(() => relay.blobs.some((b) => b.doc_id === '_notes'));
+    await until(() => relay.blobs.some((b) => b.doc_id === 'doc-alpha'));
+
+    // Cross-contamination must NOT occur.
+    expect(notesClient.doc.getMap('data').get('doc_key')).toBeUndefined();
+    expect(docAClient.doc.getMap('data').get('notes_key')).toBeUndefined();
+
+    // Relay stored blobs in both streams — the doc_id partition holds.
+    const notesBlobs = relay.blobs.filter((b) => b.doc_id === '_notes');
+    const docABlobs = relay.blobs.filter((b) => b.doc_id === 'doc-alpha');
+    expect(notesBlobs.length).toBeGreaterThan(0);
+    expect(docABlobs.length).toBeGreaterThan(0);
+
+    notesClient.stop();
+    docAClient.stop();
+  });
+
+  it('a MatterSyncClient without docId defaults to _notes and behaves as before', async () => {
+    const relay = new FakeDocRelay();
+    const keyB64 = await generateMatterKey();
+
+    // No docId in options — must default to '_notes'.
+    const a = new MatterSyncClient({
+      matterId: 'm1',
+      keyB64,
+      keyEpoch: 1,
+      seatToken: 'seat',
+      accessToken: 'access',
+      client: fakeDocClient(relay, '_notes'),
+      socketFactory: () => {
+        const s = new FakeSocket();
+        relay.connect(s, '_notes');
+        return s;
+      },
+    });
+    const b = new MatterSyncClient({
+      matterId: 'm1',
+      keyB64,
+      keyEpoch: 1,
+      seatToken: 'seat',
+      accessToken: 'access',
+      client: fakeDocClient(relay, '_notes'),
+      socketFactory: () => {
+        const s = new FakeSocket();
+        relay.connect(s, '_notes');
+        return s;
+      },
+    });
+
+    await a.start();
+    await b.start();
+
+    a.doc.getMap('m').set('x', 'hello');
+    await until(() => b.doc.getMap('m').get('x') === 'hello');
+    expect(b.doc.getMap('m').get('x')).toBe('hello');
+
+    // All blobs went into _notes stream.
+    expect(relay.blobs.every((blob) => blob.doc_id === '_notes')).toBe(true);
+
+    a.stop();
+    b.stop();
+  });
+});
+
 describe('MatterSyncClient E2EE convergence', () => {
   it('two clients converge on a Yjs doc; the relay only ever holds ciphertext', async () => {
     const relay = new FakeRelay();

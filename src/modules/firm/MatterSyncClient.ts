@@ -78,6 +78,13 @@ export interface MatterSyncOptions {
    * with only that ticket. Kept here for the option shape / identity context.
    */
   accessToken?: string;
+  /**
+   * Document stream partition. Defaults to `'_notes'` (the matter notes stream,
+   * backward-compatible). Pass the `.docx` file's `doc_id` for co-editing streams.
+   * Two clients with DIFFERENT docIds on the SAME matter operate on completely
+   * separate streams: push/pull/WS are all filtered by this value.
+   */
+  docId?: string;
   client: FirmApiClient;
   doc?: Y.Doc;
   callbacks?: MatterSyncCallbacks;
@@ -101,6 +108,7 @@ function genBlobId(): string {
 export class MatterSyncClient {
   readonly doc: Y.Doc;
   private readonly matterId: string;
+  private readonly docId: string;
   private readonly client: FirmApiClient;
   private readonly seatToken: string;
   private readonly callbacks: MatterSyncCallbacks;
@@ -122,6 +130,7 @@ export class MatterSyncClient {
 
   constructor(opts: MatterSyncOptions) {
     this.matterId = opts.matterId;
+    this.docId = opts.docId ?? '_notes';
     this.client = opts.client;
     this.seatToken = opts.seatToken;
     this.callbacks = opts.callbacks ?? {};
@@ -191,14 +200,14 @@ export class MatterSyncClient {
     await this.openSocket();
   }
 
-  /** Pull all updates after `cursor`, decrypt, apply. */
+  /** Pull all updates after `cursor`, decrypt, apply. Filtered to this.docId. */
   private async catchUp(): Promise<void> {
     this.setStatus('catching-up');
     try {
       let pages = 0;
       // Loop while the relay says there is more beyond this page.
       for (;;) {
-        const res = await this.client.pullUpdates(this.matterId, this.cursor, this.seatToken);
+        const res = await this.client.pullUpdates(this.matterId, this.cursor, this.seatToken, this.docId);
         if (res.key_epoch > this.keyEpoch) {
           this.callbacks.onKeyEpochAdvanced?.(res.key_epoch);
         }
@@ -245,7 +254,7 @@ export class MatterSyncClient {
     }
   }
 
-  /** Encrypt a local Yjs update and push it to the relay. */
+  /** Encrypt a local Yjs update and push it to the relay under this.docId. */
   private async pushLocalUpdate(update: Uint8Array): Promise<void> {
     try {
       const key = await this.ensureKey();
@@ -258,6 +267,7 @@ export class MatterSyncClient {
         ciphertext,
         this.seatToken,
         this.keyEpoch,
+        this.docId,
       );
       this.cursor = Math.max(this.cursor, res.cursor);
       if (res.key_epoch > this.keyEpoch) {
@@ -286,7 +296,7 @@ export class MatterSyncClient {
     // A stop() during the await must not then open a socket.
     if (!this.started) return;
 
-    const url = getMatterSyncSocketUrl(this.matterId, ticket);
+    const url = getMatterSyncSocketUrl(this.matterId, ticket, this.docId);
     let ws: WebSocketLike;
     try {
       if (this.socketFactory) {
@@ -329,10 +339,16 @@ export class MatterSyncClient {
     if (frame.type === 'ready') {
       // The socket will replay backlog as `update` frames; we already caught up
       // via HTTP, and applying duplicates is a no-op, so nothing to do here.
+      // Defensive: if the relay sends a ready frame for a different doc_id,
+      // ignore it (one socket = one doc, but be safe).
+      if (frame.doc_id !== undefined && frame.doc_id !== this.docId) return;
       this.setStatus('live');
       return;
     }
     // The only remaining frame type is `update` (TS narrows it here).
+    // Defensive: filter out frames for a different doc stream (should not happen
+    // with one socket = one doc, but belt-and-suspenders for relay edge cases).
+    if (frame.doc_id !== undefined && frame.doc_id !== this.docId) return;
     if (frame.key_epoch > this.keyEpoch) {
       this.callbacks.onKeyEpochAdvanced?.(frame.key_epoch);
     }

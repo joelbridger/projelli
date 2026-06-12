@@ -47,7 +47,16 @@ export function getFirmApiBase(): string {
  * and ONLY that ticket rides on the WS URL. No access or seat token ever appears
  * in a WebSocket URL.
  */
-export function getMatterSyncSocketUrl(matterId: string, ticket: string): string {
+/**
+ * Build the WebSocket URL for a matter sync session.
+ *
+ * The ticket is the ONLY credential on the URL (minted by the authed HTTP
+ * `POST /matter/:id/sync-ticket`; never the access/seat token). The `doc_id`
+ * is NOT a credential so it is safe to carry as a query param. Absent doc_id
+ * → the backend defaults to `_notes`, but we always send it explicitly so the
+ * default-`_notes` path is well-defined at the call site.
+ */
+export function getMatterSyncSocketUrl(matterId: string, ticket: string, docId = '_notes'): string {
   const base = getFirmApiBase();
   // Resolve to an absolute URL first (handles the dev proxy-relative base).
   let httpUrl: string;
@@ -60,7 +69,7 @@ export function getMatterSyncSocketUrl(matterId: string, ticket: string): string
   }
   const wsBase = httpUrl.replace(/^http/i, 'ws').replace(/\/+$/, '');
   const path = `/matter/${encodeURIComponent(matterId)}/sync`;
-  return `${wsBase}${path}?ticket=${encodeURIComponent(ticket)}`;
+  return `${wsBase}${path}?ticket=${encodeURIComponent(ticket)}&doc_id=${encodeURIComponent(docId)}`;
 }
 
 /** App version sent on activation (kept in sync with the licensing hook). */
