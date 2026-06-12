@@ -8,10 +8,9 @@
     "plugin-examples/*"
   ],
   "scripts": {
-    "copy-pdf-worker": "cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs",
-    "copy-ocr-assets": "mkdir -p public/ocr && cp node_modules/tesseract-wasm/dist/tesseract-worker.js node_modules/tesseract-wasm/dist/tesseract-core.wasm node_modules/tesseract-wasm/dist/tesseract-core-fallback.wasm public/ocr/",
-    "prebuild": "npm run copy-pdf-worker && npm run copy-ocr-assets",
-    "predev": "npm run copy-pdf-worker && npm run copy-ocr-assets",
+    "copy-build-assets": "node scripts/copy-build-assets.mjs",
+    "prebuild": "node scripts/copy-build-assets.mjs",
+    "predev": "node scripts/copy-build-assets.mjs",
     "build": "tsc -b && vite build",
     "build:web-demo": "vite build --config vite.config.web-demo.ts && mv dist-web-demo/index.demo.html dist-web-demo/index.html",
     "capture:all": "cd scripts/marketing-capture && npm install --silent && npm run run-all",
