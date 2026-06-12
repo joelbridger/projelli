@@ -18,6 +18,8 @@
 //!      media, the original `[Content_Types].xml` and rels — is left untouched.
 //!      This is what makes unmodeled features survive a real-document round-trip.
 
+use std::borrow::Cow;
+
 use quick_xml::escape::escape;
 
 use crate::error::Result;
@@ -32,6 +34,69 @@ use crate::package::{
 const W_NS: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
 const XML_DECL: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n";
+
+// ---------------------------------------------------------------------------
+// Single-writer w:id allocator
+// ---------------------------------------------------------------------------
+
+/// Ensure every tracked revision in `doc` has a DISTINCT, non-empty `w:id`.
+///
+/// This is the **single-writer allocation pass** for the live co-editing
+/// architecture (Task 12, R3).  The CRDT (`yDocToDocumentJson`) deliberately
+/// emits tracked insertions/deletions with `meta.id = ""` so that serialize —
+/// not the distributed replicas — is the sole authority that mints `w:id`s.
+/// That eliminates the only coordination problem: concurrent replicas cannot
+/// produce colliding `w:id`s because they never touch this field.
+///
+/// Contract:
+///   - If `meta.id` is `""` (empty placeholder) → assign a fresh sequential id
+///     starting from `document.max_revision_id() + 1`.
+///   - If `meta.id` is already non-empty → leave it untouched.
+///   - Returns `Cow::Borrowed(doc)` when no empty ids exist (zero-cost fast
+///     path for normal documents and the existing regression tests); returns
+///     `Cow::Owned(clone)` when allocation is needed (does not mutate the
+///     caller's `Document`).
+fn allocate_revision_ids(doc: &Document) -> Cow<'_, Document> {
+    // Fast path: scan for any empty id. If none, return a borrow.
+    let needs_alloc = doc.body.iter().any(|b| {
+        if let BlockContent::Paragraph(p) = b {
+            p.inlines.iter().any(|i| match i {
+                Inline::Insertion { meta, .. } | Inline::Deletion { meta, .. } => {
+                    meta.id.is_empty()
+                }
+                _ => false,
+            })
+        } else {
+            false
+        }
+    });
+    if !needs_alloc {
+        return Cow::Borrowed(doc);
+    }
+
+    // Slow path: clone and fill in empty ids.
+    let mut doc = doc.clone();
+    // Start the counter from max_existing + 1 so we never collide with ids that
+    // were already assigned by the AI redliner or a prior serialize pass.
+    let mut next = doc.max_revision_id() + 1;
+
+    for block in doc.body.iter_mut() {
+        if let BlockContent::Paragraph(p) = block {
+            for inline in p.inlines.iter_mut() {
+                match inline {
+                    Inline::Insertion { meta, .. } | Inline::Deletion { meta, .. } => {
+                        if meta.id.is_empty() {
+                            meta.id = next.to_string();
+                            next += 1;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    Cow::Owned(doc)
+}
 
 /// Serialize a run's `<w:t>`/`<w:delText>` text node body, with `rPr` if present.
 fn write_text_run(out: &mut String, run: &Run, as_del: bool) {
@@ -127,7 +192,15 @@ fn write_paragraph(out: &mut String, para: &Paragraph) {
 /// emit a minimal trailing `<w:sectPr/>` so a from-scratch document is a valid,
 /// complete body. For imported documents the original `sectPr` rides along as a
 /// preserved raw block, so we do not synthesize a duplicate.
+///
+/// **Single-writer w:id allocation:** any tracked revision whose `meta.id` is
+/// `""` (the CRDT placeholder) is assigned a fresh sequential id here before
+/// any XML is emitted.  See [`allocate_revision_ids`].
 pub fn serialize_document(doc: &Document) -> Result<String> {
+    // Run the single-writer allocator first (fast no-op when all ids are present).
+    let doc = allocate_revision_ids(doc);
+    let doc: &Document = &doc;
+
     let mut out = String::with_capacity(4096);
     out.push_str(XML_DECL);
     out.push_str(&format!("<w:document xmlns:w=\"{W_NS}\"><w:body>"));
