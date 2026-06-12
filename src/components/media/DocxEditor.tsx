@@ -110,6 +110,9 @@ import type {
   GroupedRevision,
 } from '@/types/docx';
 import type { AuditEntry } from '@/types/audit';
+import type { CoeditSession } from '@/modules/coedit/coeditSession';
+import * as Y from 'yjs';
+import { editRunText } from '@/modules/coedit/docCrdt';
 
 const SAVE_DEBOUNCE_MS = 1200;
 
@@ -164,6 +167,11 @@ interface DocxEditorProps {
   authorName?: string;
   /** Optional audit hook — fired when an AI redline is applied. */
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+  /**
+   * When present, activates live co-editing via the given CoeditSession.
+   * When absent (default), the solo path is used byte-for-byte.
+   */
+  coedit?: { session: CoeditSession };
 }
 
 type LoadState =
@@ -193,6 +201,7 @@ export function DocxEditor({
   aiModel,
   authorName = 'You',
   onAuditLog,
+  coedit,
 }: DocxEditorProps) {
   const { t } = useTranslation();
 
@@ -245,6 +254,9 @@ export function DocxEditor({
   // version snapshot when there were ACTUAL changes, so re-saving a clean doc
   // (e.g. the flush before an export) doesn't spam the history.
   const isDirtyRef = useRef(false);
+  // Co-edit: capture original comments from docx_open to re-attach on every save
+  // (the CRDT's getDocumentJson() always returns comments: {}).
+  const originalCommentsRef = useRef<Record<string, DocxComment>>({});
   const onDocumentChangeRef = useRef(onDocumentChange);
   const onAfterSaveRef = useRef(onAfterSave);
   useEffect(() => {
@@ -271,7 +283,18 @@ export function DocxEditor({
     docxOpen(filePath)
       .then((doc) => {
         if (cancelled) return;
-        setLoad({ status: 'ready', doc });
+        if (coedit) {
+          // Capture original comments (CRDT always returns comments: {}).
+          originalCommentsRef.current = doc.comments ?? {};
+          // Use the CRDT's live doc for the initial render, with comments re-attached.
+          const liveDoc: DocumentJson = {
+            ...coedit.session.getDocumentJson(),
+            comments: doc.comments ?? {},
+          };
+          setLoad({ status: 'ready', doc: liveDoc });
+        } else {
+          setLoad({ status: 'ready', doc });
+        }
         setIsDirty(false);
         setSaveError(null);
       })
@@ -283,7 +306,8 @@ export function DocxEditor({
     return () => {
       cancelled = true;
     };
-  }, [canEdit, filePath]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canEdit, filePath, coedit]);
 
   // ---- Cleanup the debounce on unmount -----------------------------------
   useEffect(() => {
@@ -359,6 +383,19 @@ export function DocxEditor({
     },
     [scheduleSave],
   );
+
+  // ---- Co-edit: subscribe to remote changes ----------------------------------
+  useEffect(() => {
+    if (!coedit) return;
+    const unsub = coedit.session.onChange(() => {
+      const liveDoc: DocumentJson = {
+        ...coedit.session.getDocumentJson(),
+        comments: originalCommentsRef.current,
+      };
+      applyResolvedDocument(liveDoc, false);
+    });
+    return unsub;
+  }, [coedit, applyResolvedDocument]);
 
   const currentDoc = load.status === 'ready' ? load.doc : null;
 
@@ -533,6 +570,25 @@ export function DocxEditor({
       if (!inline || inline.kind !== 'run') return;
       if (inline.text === newText) return;
 
+      // CO-EDIT PATH: route text edits through the CRDT session.
+      if (coedit) {
+        const body = coedit.session.doc.getArray<Y.Map<unknown>>('body');
+        const blockMap = body.toArray()[blockIndex];
+        if (!blockMap) return;
+        const blockId = blockMap.get('id') as string;
+        const runs = blockMap.get('runs') as Y.Array<Y.Map<unknown>> | undefined;
+        const runMap = runs?.toArray()[inlineIndex];
+        if (!runMap) return;
+        const runId = runMap.get('id') as string;
+        editRunText(coedit.session.doc, blockId, runId, inline.text, newText, authorName);
+        const coEditDoc: DocumentJson = {
+          ...coedit.session.getDocumentJson(),
+          comments: originalCommentsRef.current,
+        };
+        applyResolvedDocument(coEditDoc, true);
+        return;
+      }
+
       if (!reviewing) {
         // Final view: plain replacement (no tracked change). Structural clone so
         // we never mutate the live object.
@@ -579,7 +635,7 @@ export function DocxEditor({
         }
       })();
     },
-    [currentDoc, reviewing, authorName, applyResolvedDocument],
+    [currentDoc, reviewing, authorName, applyResolvedDocument, coedit],
   );
 
   // ---- A4: AI redline ----------------------------------------------------
