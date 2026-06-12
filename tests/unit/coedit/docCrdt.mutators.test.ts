@@ -439,3 +439,71 @@ it('accept on a tracked insertion converts it to a plain run', () => {
   const accepted = para.inlines.find((r: DocxParagraph['inlines'][number]) => r.kind === 'run' && (r as any).text === 'newtext');
   expect(accepted).toBeTruthy();
 });
+
+// ---------------------------------------------------------------------------
+// splitParagraph — mixed tracked-run paragraph
+// ---------------------------------------------------------------------------
+
+describe('splitParagraph — mixed tracked-run paragraph', () => {
+  it('does not crash when afterRuns contain a tracked insertion and preserves tracked run kind+author', () => {
+    // Build a doc: paragraph with [plainRun, trackedInsertionRun]
+    const doc: DocumentJson = {
+      formatVersion: 1,
+      body: [{
+        kind: 'paragraph',
+        inlines: [
+          { kind: 'run', text: 'hello' },
+          { kind: 'insertion', meta: { id: '1', author: 'alice', date: '2026-01-01T00:00:00Z' }, runs: [{ text: ' world' }] },
+        ],
+      }],
+      comments: {},
+    };
+    const ydoc = documentJsonToYDoc(doc);
+    const blockId = (ydoc.getArray('body').get(0) as Y.Map<unknown>).get('id') as string;
+    const runs = (ydoc.getArray('body').get(0) as Y.Map<unknown>).get('runs') as Y.Array<Y.Map<unknown>>;
+    const plainRunId = (runs.get(0) as Y.Map<unknown>).get('id') as string;
+
+    // Split at offset 3 within the plain run (the tracked run is in afterRuns)
+    expect(() => splitParagraph(ydoc, blockId, plainRunId, 3, 'attorney-a')).not.toThrow();
+
+    const json = yDocToDocumentJson(ydoc);
+    expect(json.body).toHaveLength(2);
+    // Second paragraph should contain the tracked insertion with its author intact
+    const p2 = json.body[1] as DocxParagraph;
+    const trackedRun = p2.inlines.find(i => i.kind === 'insertion');
+    expect(trackedRun).toBeTruthy();
+    if (trackedRun?.kind === 'insertion') {
+      expect(trackedRun.meta.author).toBe('alice');
+    }
+  });
+
+  it('does not crash when the split-point run itself is a tracked insertion', () => {
+    // Build a doc: paragraph with [trackedInsertionRun, plainRun]
+    const doc: DocumentJson = {
+      formatVersion: 1,
+      body: [{
+        kind: 'paragraph',
+        inlines: [
+          { kind: 'insertion', meta: { id: '1', author: 'alice', date: '2026-01-01T00:00:00Z' }, runs: [{ text: 'tracked' }] },
+          { kind: 'run', text: ' end' },
+        ],
+      }],
+      comments: {},
+    };
+    const ydoc = documentJsonToYDoc(doc);
+    const blockId = (ydoc.getArray('body').get(0) as Y.Map<unknown>).get('id') as string;
+    const runs = (ydoc.getArray('body').get(0) as Y.Map<unknown>).get('runs') as Y.Array<Y.Map<unknown>>;
+    // The split-point run is the tracked insertion at index 0
+    const trackedRunId = (runs.get(0) as Y.Map<unknown>).get('id') as string;
+
+    // Split at offset 3 of a non-text run — should not crash
+    expect(() => splitParagraph(ydoc, blockId, trackedRunId, 3, 'attorney-a')).not.toThrow();
+
+    const json = yDocToDocumentJson(ydoc);
+    expect(json.body).toHaveLength(2);
+    // The tracked run stays on original block (kept whole)
+    const p1 = json.body[0] as DocxParagraph;
+    const trackedOnP1 = p1.inlines.find(i => i.kind === 'insertion');
+    expect(trackedOnP1).toBeTruthy();
+  });
+});

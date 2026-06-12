@@ -464,8 +464,7 @@ export function splitParagraph(
     // findIndex + guard above guarantees the element exists
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const splitRun = runsArr[splitRunIdx]!;
-    const splitYText = splitRun.get('text') as Y.Text;
-    const fullText = splitYText.toJSON();
+    const splitKind = splitRun.get('kind') as string;
 
     // Build the new paragraph map
     const newBlock = new Y.Map<unknown>();
@@ -474,6 +473,27 @@ export function splitParagraph(
     newBlock.set('propsXml', block.get('propsXml') ?? null);
     const newRuns = new Y.Array<Y.Map<unknown>>();
     newBlock.set('runs', newRuns);
+
+    // Non-text run at split point: kept whole on original side; only afterRuns move.
+    if (splitKind !== 'text') {
+      const afterRuns = runsArr.slice(splitRunIdx + 1);
+      for (const r of afterRuns) {
+        const copy = copyRun(r);
+        newRuns.push([copy]);
+      }
+      // Remove only the afterRuns from the original block (split run stays)
+      if (afterRuns.length > 0) {
+        runs.delete(splitRunIdx + 1, afterRuns.length);
+      }
+      // Insert the new block after the current one
+      const bodyArr = body.toArray();
+      const blockIdx = bodyArr.findIndex(b => b.get('id') === blockId);
+      body.insert(blockIdx + 1, [newBlock]);
+      return;
+    }
+
+    const splitYText: Y.Text = splitRun.get('text') as Y.Text;
+    const fullText = splitYText.toJSON();
 
     const headText = fullText.slice(0, offset);
     const tailText = fullText.slice(offset);
@@ -494,7 +514,7 @@ export function splitParagraph(
     // Copy runs AFTER the split run into the new block (must be NEW Y.Map nodes)
     const afterRuns = runsArr.slice(splitRunIdx + 1);
     for (const r of afterRuns) {
-      const copy = copyPlainRun(r);
+      const copy = copyRun(r);
       newRuns.push([copy]);
     }
 
@@ -522,11 +542,41 @@ export function splitParagraph(
   return newId;
 }
 
-/** Create a fresh Y.Map copy of a plain text run (for re-parenting). */
-function copyPlainRun(r: Y.Map<unknown>): Y.Map<unknown> {
+/** Create a fresh Y.Map copy of any run kind (for re-parenting). */
+function copyRun(r: Y.Map<unknown>): Y.Map<unknown> {
   const copy = new Y.Map<unknown>();
   copy.set('id', uuid());
-  copy.set('kind', r.get('kind') ?? 'text');
+  const kind = r.get('kind') as string;
+  copy.set('kind', kind);
+
+  if (kind === 'ins' || kind === 'del') {
+    // Tracked-change run: copy metadata and clone each subrun.
+    copy.set('metaId', r.get('metaId') ?? '');
+    copy.set('author', r.get('author') ?? '');
+    copy.set('date', r.get('date') ?? '');
+    const subruns = new Y.Array<Y.Map<unknown>>();
+    copy.set('subruns', subruns);
+    const srcSubruns = r.get('subruns') as Y.Array<Y.Map<unknown>>;
+    for (const sub of srcSubruns.toArray()) {
+      const subCopy = new Y.Map<unknown>();
+      subCopy.set('id', uuid());
+      const subText = new Y.Text();
+      subCopy.set('text', subText);
+      subText.insert(0, (sub.get('text') as Y.Text).toJSON());
+      subCopy.set('propsXml', sub.get('propsXml') ?? null);
+      subCopy.set('preserveSpace', sub.get('preserveSpace') ?? false);
+      subruns.push([subCopy]);
+    }
+    return copy;
+  }
+
+  if (kind === 'opaque') {
+    // Opaque run: copy opaqueJson verbatim.
+    copy.set('opaqueJson', r.get('opaqueJson') ?? '{}');
+    return copy;
+  }
+
+  // Plain text run (kind === 'text' or any unknown kind treated as text)
   const ytext = new Y.Text();
   copy.set('text', ytext);
   ytext.insert(0, (r.get('text') as Y.Text).toJSON());

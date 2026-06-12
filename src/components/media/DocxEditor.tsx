@@ -112,7 +112,7 @@ import type {
 import type { AuditEntry } from '@/types/audit';
 import type { CoeditSession } from '@/modules/coedit/coeditSession';
 import * as Y from 'yjs';
-import { editRunText } from '@/modules/coedit/docCrdt';
+import { editRunText, addTrackedInsertion, addTrackedDeletion, resolveRevision } from '@/modules/coedit/docCrdt';
 
 const SAVE_DEBOUNCE_MS = 1200;
 
@@ -257,6 +257,10 @@ export function DocxEditor({
   // Co-edit: capture original comments from docx_open to re-attach on every save
   // (the CRDT's getDocumentJson() always returns comments: {}).
   const originalCommentsRef = useRef<Record<string, DocxComment>>({});
+  // Ref to the current grouped revisions. Used by handleResolveOne so it can
+  // read the latest revisions without being listed as a dep (revisions is
+  // computed below handleResolveOne in the component body).
+  const revisionsRef = useRef<GroupedRevision[]>([]);
   const onDocumentChangeRef = useRef(onDocumentChange);
   const onAfterSaveRef = useRef(onAfterSave);
   useEffect(() => {
@@ -542,6 +546,44 @@ export function DocxEditor({
   const handleResolveOne = useCallback(
     async (revisionId: string, action: DocxResolveAction) => {
       if (!currentDoc) return;
+
+      // CO-EDIT PATH: resolve through the CRDT session, not the Rust command.
+      if (coedit) {
+        // In co-edit mode rev.id is always '' (CONTRACT). Find the matching
+        // CRDT run by author+date from the rendered doc's grouped revisions.
+        const revisionFromDoc = revisionsRef.current.find(r => r.id === revisionId);
+        if (revisionFromDoc) {
+          const body = coedit.session.doc.getArray<Y.Map<unknown>>('body');
+          for (const block of body.toArray()) {
+            if (block.get('type') !== 'paragraph') continue;
+            const blockId = block.get('id') as string;
+            const runs = block.get('runs') as Y.Array<Y.Map<unknown>>;
+            for (const run of runs.toArray()) {
+              const kind = run.get('kind') as string;
+              if (kind !== 'ins' && kind !== 'del') continue;
+              const author = run.get('author') as string;
+              const date = run.get('date') as string;
+              if (author === revisionFromDoc.author && date === revisionFromDoc.date) {
+                try {
+                  resolveRevision(coedit.session.doc, blockId, run.get('id') as string, action, authorName);
+                } catch (err) {
+                  const message = err instanceof Error ? err.message : String(err);
+                  setSaveError(message);
+                  console.error('[DocxEditor] co-edit resolve revision failed:', err);
+                }
+                const coEditDoc: DocumentJson = {
+                  ...coedit.session.getDocumentJson(),
+                  comments: originalCommentsRef.current,
+                };
+                applyResolvedDocument(coEditDoc, true);
+                return;
+              }
+            }
+          }
+        }
+        return;
+      }
+
       try {
         const next = await docxResolveRevision(currentDoc, revisionId, action);
         applyResolvedDocument(next);
@@ -551,12 +593,45 @@ export function DocxEditor({
         console.error('[DocxEditor] resolve revision failed:', err);
       }
     },
-    [currentDoc, applyResolvedDocument],
+    [currentDoc, coedit, authorName, applyResolvedDocument],
   );
 
   const handleResolveAll = useCallback(
     async (action: DocxResolveAction) => {
       if (!currentDoc) return;
+
+      // CO-EDIT PATH: resolve all tracked runs through the CRDT session.
+      if (coedit) {
+        // Collect all tracked runs first (snapshot before mutating),
+        // then resolve each one. Collecting up front avoids iterator invalidation.
+        const body = coedit.session.doc.getArray<Y.Map<unknown>>('body');
+        const toResolve: Array<{ blockId: string; runId: string }> = [];
+        for (const block of body.toArray()) {
+          if (block.get('type') !== 'paragraph') continue;
+          const blockId = block.get('id') as string;
+          const runs = block.get('runs') as Y.Array<Y.Map<unknown>>;
+          for (const run of runs.toArray()) {
+            const kind = run.get('kind') as string;
+            if (kind === 'ins' || kind === 'del') {
+              toResolve.push({ blockId, runId: run.get('id') as string });
+            }
+          }
+        }
+        for (const { blockId, runId } of toResolve) {
+          try {
+            resolveRevision(coedit.session.doc, blockId, runId, action, authorName);
+          } catch {
+            // Run may already be removed if accepting a deletion removed it.
+          }
+        }
+        const coEditDoc: DocumentJson = {
+          ...coedit.session.getDocumentJson(),
+          comments: originalCommentsRef.current,
+        };
+        applyResolvedDocument(coEditDoc, true);
+        return;
+      }
+
       try {
         const next = await docxResolveAll(currentDoc, action);
         applyResolvedDocument(next);
@@ -566,7 +641,7 @@ export function DocxEditor({
         console.error('[DocxEditor] resolve all failed:', err);
       }
     },
-    [currentDoc, applyResolvedDocument],
+    [currentDoc, coedit, authorName, applyResolvedDocument],
   );
 
   /**
@@ -601,7 +676,23 @@ export function DocxEditor({
         const runMap = runs?.toArray()[inlineIndex];
         if (!runMap) return;
         const runId = runMap.get('id') as string;
-        editRunText(coedit.session.doc, blockId, runId, inline.text, newText, authorName);
+
+        if (reviewing) {
+          // Track Changes ON in co-edit: author the diff as a tracked CRDT op.
+          if (newText.length > inline.text.length) {
+            // Insertion: new text is longer
+            addTrackedInsertion(coedit.session.doc, blockId, newText, authorName);
+          } else if (newText.length < inline.text.length) {
+            // Deletion: new text is shorter
+            addTrackedDeletion(coedit.session.doc, blockId, runId, authorName);
+          } else {
+            // Same length but different content: fall back to plain edit
+            editRunText(coedit.session.doc, blockId, runId, inline.text, newText, authorName);
+          }
+        } else {
+          editRunText(coedit.session.doc, blockId, runId, inline.text, newText, authorName);
+        }
+
         const coEditDoc: DocumentJson = {
           ...coedit.session.getDocumentJson(),
           comments: originalCommentsRef.current,
@@ -778,7 +869,11 @@ export function DocxEditor({
   ]);
 
   const revisions = useMemo(
-    () => (currentDoc ? groupRevisions(currentDoc) : []),
+    () => {
+      const computed = currentDoc ? groupRevisions(currentDoc) : [];
+      revisionsRef.current = computed;
+      return computed;
+    },
     [currentDoc],
   );
   const comments = useMemo(
