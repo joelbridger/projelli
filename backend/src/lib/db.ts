@@ -177,18 +177,20 @@ CREATE INDEX IF NOT EXISTS idx_ethical_walls_user ON ethical_walls(user_id);
 -- is stored as a BLOB and is NEVER parsed, decoded, hashed, or logged. The id is
 -- the monotonic fetch cursor for catch-up. (blob_id) is a per-matter client
 -- idempotency key so a retried push doesn't duplicate.
+-- doc_id partitions the relay into per-document streams; notes use '_notes'.
 CREATE TABLE IF NOT EXISTS matter_updates (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   matter_id   TEXT NOT NULL REFERENCES matters(matter_id),
   org_id      TEXT NOT NULL,
+  doc_id      TEXT NOT NULL DEFAULT '_notes',
   blob_id     TEXT NOT NULL,
   ciphertext  BLOB NOT NULL,
   author_seat TEXT NOT NULL,
   key_epoch   INTEGER NOT NULL DEFAULT 1,
   created_at  TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_matter_updates_matter ON matter_updates(matter_id, id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_matter_updates_blob ON matter_updates(matter_id, blob_id);
+CREATE INDEX IF NOT EXISTS idx_matter_updates_matter ON matter_updates(matter_id, doc_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_matter_updates_blob ON matter_updates(matter_id, doc_id, blob_id);
 
 -- =====================================================================
 -- Chunk 3: Assured zero-retention inference proxy (DECISION.md §5).
@@ -424,6 +426,27 @@ export class Store {
       `CREATE UNIQUE INDEX IF NOT EXISTS idx_webhook_events_subscription_id
        ON webhook_events (subscription_id) WHERE subscription_id IS NOT NULL`,
     );
+
+    // Guarded migration: add doc_id column to matter_updates for doc-level stream
+    // partitioning (Wave 4 co-editing). Existing rows backfill to '_notes' so live
+    // matters keep working unchanged. The old per-(matter,blob_id) unique index is
+    // dropped and recreated as per-(matter,doc_id,blob_id). Because SQLite cannot
+    // drop an index by DDL inside IF-EXISTS guards cleanly, we check column presence
+    // first and only run the migration once.
+    const muCols = this.db.query("PRAGMA table_info(matter_updates)").all() as Array<{ name: string }>;
+    if (!muCols.some((c) => c.name === "doc_id")) {
+      this.db.exec("ALTER TABLE matter_updates ADD COLUMN doc_id TEXT NOT NULL DEFAULT '_notes'");
+      // Backfill any rows that were inserted before this migration (shouldn't exist
+      // in production yet, but defence-in-depth; NULL would violate NOT NULL).
+      this.db.exec("UPDATE matter_updates SET doc_id = '_notes' WHERE doc_id IS NULL");
+      // Drop the old blob uniqueness index (keyed only on matter+blob) and recreate
+      // it keyed on (matter, doc_id, blob) so blobs are unique per stream.
+      this.db.exec("DROP INDEX IF EXISTS idx_matter_updates_blob");
+      this.db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_matter_updates_blob ON matter_updates(matter_id, doc_id, blob_id)");
+      // Drop the old ordering index and recreate it partitioned by doc_id.
+      this.db.exec("DROP INDEX IF EXISTS idx_matter_updates_matter");
+      this.db.exec("CREATE INDEX IF NOT EXISTS idx_matter_updates_matter ON matter_updates(matter_id, doc_id, id)");
+    }
   }
 
   close(): void {
@@ -1081,37 +1104,44 @@ export class Store {
   // The E2EE sync relay (DECISION.md §1 — dumb relay, opaque ciphertext only)
   // ===========================================================================
   /**
-   * Append an opaque encrypted CRDT update. Idempotent on (matter_id, blob_id):
+   * Append an opaque encrypted CRDT update. Idempotent on (matter_id, doc_id, blob_id):
    * a retried push returns the already-stored row rather than duplicating. The
    * ciphertext is stored verbatim and NEVER inspected. Returns the stored row
    * (so callers can fan out the assigned cursor `id`).
+   *
+   * `doc_id` partitions the relay into per-document streams. Notes use '_notes'
+   * (the default). The idempotency key is scoped to (matter, doc_id) so the same
+   * blob_id under different doc_ids are distinct rows.
    */
   appendMatterUpdate(input: {
     matter_id: string;
     org_id: string;
+    doc_id?: string;
     blob_id: string;
     ciphertext: Uint8Array;
     author_seat: string;
     key_epoch: number;
   }): { update: MatterUpdate; duplicate: boolean } {
     const now = this.nowIso();
+    const docId = input.doc_id ?? "_notes";
     const txn = this.db.transaction(() => {
       const existing = this.db
-        .query(`SELECT * FROM matter_updates WHERE matter_id = ? AND blob_id = ?`)
-        .get(input.matter_id, input.blob_id) as
-        | { id: number; matter_id: string; org_id: string; blob_id: string; ciphertext: Uint8Array; author_seat: string; key_epoch: number; created_at: string }
+        .query(`SELECT * FROM matter_updates WHERE matter_id = ? AND doc_id = ? AND blob_id = ?`)
+        .get(input.matter_id, docId, input.blob_id) as
+        | { id: number; matter_id: string; org_id: string; doc_id: string; blob_id: string; ciphertext: Uint8Array; author_seat: string; key_epoch: number; created_at: string }
         | null;
       if (existing) {
         return { update: { ...existing, ciphertext: new Uint8Array(existing.ciphertext) }, duplicate: true };
       }
       this.db
         .query(
-          `INSERT INTO matter_updates (matter_id, org_id, blob_id, ciphertext, author_seat, key_epoch, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO matter_updates (matter_id, org_id, doc_id, blob_id, ciphertext, author_seat, key_epoch, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           input.matter_id,
           input.org_id,
+          docId,
           input.blob_id,
           input.ciphertext,
           input.author_seat,
@@ -1119,11 +1149,12 @@ export class Store {
           now,
         );
       const row = this.db
-        .query(`SELECT * FROM matter_updates WHERE matter_id = ? AND blob_id = ?`)
-        .get(input.matter_id, input.blob_id) as {
+        .query(`SELECT * FROM matter_updates WHERE matter_id = ? AND doc_id = ? AND blob_id = ?`)
+        .get(input.matter_id, docId, input.blob_id) as {
         id: number;
         matter_id: string;
         org_id: string;
+        doc_id: string;
         blob_id: string;
         ciphertext: Uint8Array;
         author_seat: string;
@@ -1132,23 +1163,25 @@ export class Store {
       };
       return { update: { ...row, ciphertext: new Uint8Array(row.ciphertext) }, duplicate: false };
     });
-    // IMMEDIATE so concurrent pushes of the same blob_id can't both insert.
+    // IMMEDIATE so concurrent pushes of the same (doc_id, blob_id) can't both insert.
     return txn.immediate() as { update: MatterUpdate; duplicate: boolean };
   }
 
   /**
    * Fetch updates for a matter strictly AFTER `sinceCursor`, in cursor order, for
    * catch-up. `sinceCursor = 0` returns the whole history. Bounded by `limit`.
+   * `docId` filters to a specific document stream; defaults to '_notes'.
    */
-  getMatterUpdatesSince(matterId: string, sinceCursor: number, limit = 500): MatterUpdate[] {
+  getMatterUpdatesSince(matterId: string, sinceCursor: number, limit = 500, docId = "_notes"): MatterUpdate[] {
     const rows = this.db
       .query(
-        `SELECT * FROM matter_updates WHERE matter_id = ? AND id > ? ORDER BY id ASC LIMIT ?`,
+        `SELECT * FROM matter_updates WHERE matter_id = ? AND doc_id = ? AND id > ? ORDER BY id ASC LIMIT ?`,
       )
-      .all(matterId, sinceCursor, limit) as Array<{
+      .all(matterId, docId, sinceCursor, limit) as Array<{
       id: number;
       matter_id: string;
       org_id: string;
+      doc_id: string;
       blob_id: string;
       ciphertext: Uint8Array;
       author_seat: string;
@@ -1158,11 +1191,11 @@ export class Store {
     return rows.map((r) => ({ ...r, ciphertext: new Uint8Array(r.ciphertext) }));
   }
 
-  /** Highest cursor currently stored for a matter (0 if none). */
-  latestMatterCursor(matterId: string): number {
+  /** Highest cursor currently stored for a matter+doc stream (0 if none). */
+  latestMatterCursor(matterId: string, docId = "_notes"): number {
     const r = this.db
-      .query(`SELECT MAX(id) AS m FROM matter_updates WHERE matter_id = ?`)
-      .get(matterId) as { m: number | null };
+      .query(`SELECT MAX(id) AS m FROM matter_updates WHERE matter_id = ? AND doc_id = ?`)
+      .get(matterId, docId) as { m: number | null };
     return r.m ?? 0;
   }
 

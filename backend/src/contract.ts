@@ -263,10 +263,12 @@ export interface ClearWallRequest {
  * 413 if the blob exceeds the relay cap (1 MiB decoded).
  */
 export interface PushUpdateRequest {
-  blob_id: string; // client uuid; per-matter idempotency key
+  blob_id: string; // client uuid; per-(matter,doc_id) idempotency key
   ciphertext_b64: string; // opaque, base64; relay never parses it
   seat_token: string; // a valid, active seat token (chunk-1)
   key_epoch?: number; // the matter key epoch this blob was sealed under (defaults to current)
+  /** Document stream partition. Absent (or '_notes') = matter notes (backward-compatible). */
+  doc_id?: string;
 }
 export interface PushUpdateResponse {
   ok: true;
@@ -276,13 +278,16 @@ export interface PushUpdateResponse {
   duplicate: boolean;
 }
 /**
- * GET /matter/:id/updates?since=<cursor>  — cursor catch-up.
+ * GET /matter/:id/updates?since=<cursor>[&doc_id=<id>]  — cursor catch-up.
  * Returns updates strictly AFTER `since`, ascending. `since=0` = full history.
+ * `doc_id` filters to a specific document stream; absent = '_notes' (backward compat).
  * (Access JWT via Authorization header; seat token via the X-Seat-Token header —
  * never the query string, so no credential lands in an access log.)
  */
 export interface PullUpdatesResponse {
   matter_id: string;
+  /** The doc_id stream this response covers. '_notes' when absent from the query. */
+  doc_id: string;
   key_epoch: number;
   since: number;
   cursor: number; // highest cursor in this page (== since if empty)
@@ -291,6 +296,8 @@ export interface PullUpdatesResponse {
   updates: Array<{
     cursor: number;
     blob_id: string;
+    /** Document stream this update belongs to. */
+    doc_id: string;
     key_epoch: number;
     author_seat: string;
     created_at: string;
@@ -303,6 +310,10 @@ export interface PullUpdatesResponse {
  * JWT + X-Seat-Token header), runs the same matter-access gate, and returns an
  * opaque ticket bound to {matter,user,seat,org}. The client puts ONLY this ticket
  * on the WS URL (`?ticket=<t>`) — never the access/seat token.
+ *
+ * To subscribe to a specific document stream, add `&doc_id=<docId>` to the WS
+ * URL (not the ticket endpoint). The doc_id is not a credential so it is safe
+ * to carry on the upgrade URL. Absent doc_id → '_notes'.
  */
 export interface SyncTicketResponse {
   ticket: string;
@@ -320,12 +331,16 @@ export interface SyncTicketResponse {
 export interface SyncReadyFrame {
   type: "ready";
   matter_id: string;
+  /** Document stream this socket is subscribed to. '_notes' for matter notes. */
+  doc_id: string;
   backlog: number;
   latest_cursor: number;
 }
 export interface SyncUpdateFrame {
   type: "update";
   matter_id: string;
+  /** Document stream this update belongs to. */
+  doc_id: string;
   cursor: number;
   blob_id: string;
   key_epoch: number;

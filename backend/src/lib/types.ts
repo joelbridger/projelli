@@ -211,7 +211,9 @@ export interface MatterUpdate {
   id: number; // monotonic cursor (AUTOINCREMENT)
   matter_id: string;
   org_id: string;
-  blob_id: string; // client-supplied idempotency id (uuid); unique per matter
+  /** Document stream partition. Notes use '_notes' (the default). */
+  doc_id: string;
+  blob_id: string; // client-supplied idempotency id (uuid); unique per (matter, doc_id)
   ciphertext: Uint8Array; // opaque — never logged, never parsed
   author_seat: string; // seat_id that pushed it
   key_epoch: number; // matter key epoch this blob was encrypted under

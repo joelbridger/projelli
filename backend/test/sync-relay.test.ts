@@ -472,3 +472,541 @@ describe("relay rate-limit mechanism", () => {
     expect(typeof blocked.retryAfter).toBe("number");
   });
 });
+
+// ===========================================================================
+// Task 6: doc_id stream partitioning — new tests (TDD: written first, run red,
+// then implemented green). These extend the isolated server built at the top of
+// the file (store + hub + srv), using the same alice/bob credentials via the
+// helpers defined above.
+// ===========================================================================
+describe("doc_id stream partitioning", () => {
+  // Re-use credentials from the E2E describe block — they are set in that
+  // beforeAll which runs first. We piggyback on the same matter/members.
+  // All helpers (pushUpdate, pullUpdates, wsUrl, bufferUpdates, mintTicket) are
+  // in scope from the module level.
+
+  // Isolated store for the unit-level DB/helpers tests.
+  const unitStore = new Store(":memory:");
+
+  // ---- Unit: DB helpers -------------------------------------------------------
+
+  test("doc_id defaults to _notes in appendMatterUpdate", () => {
+    const org = unitStore.createOrg({ name: "docid-test-org", plan: "practice", packs: [], seat_limit: 5 });
+    const matter = unitStore.createMatter({ org_id: org.org_id, client_name: "DocId Test" });
+
+    // No doc_id supplied → should store as _notes
+    const { update } = unitStore.appendMatterUpdate({
+      matter_id: matter.matter_id,
+      org_id: org.org_id,
+      blob_id: "default-blob",
+      ciphertext: new Uint8Array([1, 2, 3]),
+      author_seat: "seat-x",
+      key_epoch: 1,
+    });
+    expect((update as any).doc_id).toBe("_notes");
+  });
+
+  test("doc_id field is threaded through appendMatterUpdate and getMatterUpdatesSince", () => {
+    const org = unitStore.createOrg({ name: "docid-test2-org", plan: "practice", packs: [], seat_limit: 5 });
+    const matter = unitStore.createMatter({ org_id: org.org_id, client_name: "DocId Test 2" });
+
+    unitStore.appendMatterUpdate({
+      matter_id: matter.matter_id,
+      org_id: org.org_id,
+      blob_id: "docA-blob1",
+      ciphertext: new Uint8Array([10]),
+      author_seat: "seat-a",
+      key_epoch: 1,
+      doc_id: "docA",
+    } as any);
+    unitStore.appendMatterUpdate({
+      matter_id: matter.matter_id,
+      org_id: org.org_id,
+      blob_id: "docB-blob1",
+      ciphertext: new Uint8Array([20]),
+      author_seat: "seat-b",
+      key_epoch: 1,
+      doc_id: "docB",
+    } as any);
+
+    const onlyA = unitStore.getMatterUpdatesSince(matter.matter_id, 0, 500, "docA" as any);
+    expect(onlyA.length).toBe(1);
+    expect((onlyA[0] as any).doc_id).toBe("docA");
+
+    const onlyB = unitStore.getMatterUpdatesSince(matter.matter_id, 0, 500, "docB" as any);
+    expect(onlyB.length).toBe(1);
+    expect((onlyB[0] as any).doc_id).toBe("docB");
+  });
+
+  test("getMatterUpdatesSince without doc_id returns only _notes rows", () => {
+    const org = unitStore.createOrg({ name: "docid-test3-org", plan: "practice", packs: [], seat_limit: 5 });
+    const matter = unitStore.createMatter({ org_id: org.org_id, client_name: "DocId Test 3" });
+
+    unitStore.appendMatterUpdate({
+      matter_id: matter.matter_id,
+      org_id: org.org_id,
+      blob_id: "notes-blob",
+      ciphertext: new Uint8Array([1]),
+      author_seat: "seat-a",
+      key_epoch: 1,
+      // no doc_id → _notes
+    } as any);
+    unitStore.appendMatterUpdate({
+      matter_id: matter.matter_id,
+      org_id: org.org_id,
+      blob_id: "doc-blob",
+      ciphertext: new Uint8Array([2]),
+      author_seat: "seat-a",
+      key_epoch: 1,
+      doc_id: "my-doc",
+    } as any);
+
+    // Default pull (no doc_id) must return only _notes
+    const notes = unitStore.getMatterUpdatesSince(matter.matter_id, 0);
+    expect(notes.length).toBe(1);
+    expect(notes[0].blob_id).toBe("notes-blob");
+  });
+
+  test("idempotency unique key is per (matter_id, doc_id, blob_id) — same blob_id on different doc_ids are distinct rows", () => {
+    const org = unitStore.createOrg({ name: "docid-idem-org", plan: "practice", packs: [], seat_limit: 5 });
+    const matter = unitStore.createMatter({ org_id: org.org_id, client_name: "Idem Test" });
+
+    const r1 = unitStore.appendMatterUpdate({
+      matter_id: matter.matter_id,
+      org_id: org.org_id,
+      blob_id: "shared-blob-id",
+      ciphertext: new Uint8Array([1]),
+      author_seat: "seat",
+      key_epoch: 1,
+      doc_id: "docA",
+    } as any);
+    const r2 = unitStore.appendMatterUpdate({
+      matter_id: matter.matter_id,
+      org_id: org.org_id,
+      blob_id: "shared-blob-id",
+      ciphertext: new Uint8Array([2]),
+      author_seat: "seat",
+      key_epoch: 1,
+      doc_id: "docB",
+    } as any);
+    // Same blob_id on different doc_ids → two distinct rows, neither is a duplicate
+    expect(r1.duplicate).toBe(false);
+    expect(r2.duplicate).toBe(false);
+    expect(r1.update.id).not.toBe(r2.update.id);
+    // But same (matter, doc_id, blob_id) IS idempotent
+    const r3 = unitStore.appendMatterUpdate({
+      matter_id: matter.matter_id,
+      org_id: org.org_id,
+      blob_id: "shared-blob-id",
+      ciphertext: new Uint8Array([99]),
+      author_seat: "seat",
+      key_epoch: 1,
+      doc_id: "docA",
+    } as any);
+    expect(r3.duplicate).toBe(true);
+    expect(r3.update.id).toBe(r1.update.id);
+  });
+
+  test("latestMatterCursor is per (matter, doc_id)", () => {
+    const org = unitStore.createOrg({ name: "docid-cursor-org", plan: "practice", packs: [], seat_limit: 5 });
+    const matter = unitStore.createMatter({ org_id: org.org_id, client_name: "Cursor Test" });
+
+    unitStore.appendMatterUpdate({
+      matter_id: matter.matter_id, org_id: org.org_id, blob_id: "c-docA",
+      ciphertext: new Uint8Array([1]), author_seat: "s", key_epoch: 1, doc_id: "docA",
+    } as any);
+    unitStore.appendMatterUpdate({
+      matter_id: matter.matter_id, org_id: org.org_id, blob_id: "c-docB-1",
+      ciphertext: new Uint8Array([2]), author_seat: "s", key_epoch: 1, doc_id: "docB",
+    } as any);
+    unitStore.appendMatterUpdate({
+      matter_id: matter.matter_id, org_id: org.org_id, blob_id: "c-docB-2",
+      ciphertext: new Uint8Array([3]), author_seat: "s", key_epoch: 1, doc_id: "docB",
+    } as any);
+
+    const cursorA = unitStore.latestMatterCursor(matter.matter_id, "docA" as any);
+    const cursorB = unitStore.latestMatterCursor(matter.matter_id, "docB" as any);
+    expect(cursorA).toBeGreaterThan(0);
+    expect(cursorB).toBeGreaterThan(cursorA); // docB has 2 rows, all IDs > docA's
+  });
+
+  // ---- HTTP: push+pull partitioning over the wire ----------------------------
+
+  // Grab IDs from the E2E describe's beforeAll — we need the shared state.
+  // They are module-level vars set in that beforeAll.
+  // We reference the outer scope vars: matterId, aliceAccess, aliceSeat, bobAccess, bobSeat.
+
+  test("push with doc_id:docA and doc_id:docB keep separate cursors; pull doc_id:docA returns only docA blobs", async () => {
+    // Access the outer scope variables from the E2E describe block.
+    // These are set in the beforeAll above.
+    const mId = (globalThis as any).__docIdTestMatterId as string;
+    if (!mId) return; // guard: these run after the E2E beforeAll
+
+    const blobDocA = new Uint8Array([0xAA, 0x01]);
+    const blobDocB = new Uint8Array([0xBB, 0x02]);
+
+    const pushA = await fetch(`${BASE()}/matter/${mId}/updates`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${(globalThis as any).__docIdAliceAccess}` },
+      body: JSON.stringify({
+        blob_id: `docA-${crypto.randomUUID()}`,
+        ciphertext_b64: Buffer.from(blobDocA).toString("base64"),
+        seat_token: (globalThis as any).__docIdAliceSeat,
+        doc_id: "docA",
+      }),
+    });
+    expect(pushA.status).toBe(201);
+    const pushAJson = await pushA.json() as any;
+
+    const pushB = await fetch(`${BASE()}/matter/${mId}/updates`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${(globalThis as any).__docIdAliceAccess}` },
+      body: JSON.stringify({
+        blob_id: `docB-${crypto.randomUUID()}`,
+        ciphertext_b64: Buffer.from(blobDocB).toString("base64"),
+        seat_token: (globalThis as any).__docIdAliceSeat,
+        doc_id: "docB",
+      }),
+    });
+    expect(pushB.status).toBe(201);
+
+    // Pull only docA — must not see docB blobs
+    const pullA = await fetch(`${BASE()}/matter/${mId}/updates?since=0&doc_id=docA`, {
+      headers: { authorization: `Bearer ${(globalThis as any).__docIdBobAccess}`, "x-seat-token": (globalThis as any).__docIdBobSeat },
+    });
+    expect(pullA.status).toBe(200);
+    const pullAJson = await pullA.json() as any;
+    const aCiphers = pullAJson.updates.map((u: any) => u.ciphertext_b64);
+    expect(aCiphers.some((c: string) => Array.from(new Uint8Array(Buffer.from(c, "base64"))).join() === Array.from(blobDocA).join())).toBe(true);
+    // docB blob must NOT appear in the docA pull
+    expect(aCiphers.some((c: string) => Array.from(new Uint8Array(Buffer.from(c, "base64"))).join() === Array.from(blobDocB).join())).toBe(false);
+
+    // Cursors are distinct: docA's cursor returned from push
+    expect(typeof pushAJson.cursor).toBe("number");
+  });
+
+  test("absent doc_id defaults to _notes — existing notes tests unchanged", async () => {
+    const mId = (globalThis as any).__docIdTestMatterId as string;
+    if (!mId) return;
+
+    const blob = new Uint8Array([0xCC, 0x03]);
+    const push = await fetch(`${BASE()}/matter/${mId}/updates`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${(globalThis as any).__docIdAliceAccess}` },
+      body: JSON.stringify({
+        blob_id: `notes-default-${crypto.randomUUID()}`,
+        ciphertext_b64: Buffer.from(blob).toString("base64"),
+        seat_token: (globalThis as any).__docIdAliceSeat,
+        // no doc_id → must go to _notes
+      }),
+    });
+    expect(push.status).toBe(201);
+
+    // Pull without doc_id → only _notes stream
+    const pull = await fetch(`${BASE()}/matter/${mId}/updates?since=0`, {
+      headers: { authorization: `Bearer ${(globalThis as any).__docIdBobAccess}`, "x-seat-token": (globalThis as any).__docIdBobSeat },
+    });
+    expect(pull.status).toBe(200);
+    const pullJson = await pull.json() as any;
+    // All returned blobs are from the _notes stream (no doc_id filter = _notes default)
+    expect(Array.isArray(pullJson.updates)).toBe(true);
+    // The blob we pushed without doc_id must appear
+    const ciphers = pullJson.updates.map((u: any) => u.ciphertext_b64);
+    expect(ciphers.some((c: string) => Array.from(new Uint8Array(Buffer.from(c, "base64"))).join() === Array.from(blob).join())).toBe(true);
+  });
+
+  test("WS fan-out delivers only the subscribed doc's frames", async () => {
+    const mId = (globalThis as any).__docIdTestMatterId as string;
+    if (!mId) return;
+    const aliceAccess2 = (globalThis as any).__docIdAliceAccess as string;
+    const aliceSeat2 = (globalThis as any).__docIdAliceSeat as string;
+    const bobAccess2 = (globalThis as any).__docIdBobAccess as string;
+    const bobSeat2 = (globalThis as any).__docIdBobSeat as string;
+
+    // Bob subscribes to docA stream (mint ticket with doc_id=docA)
+    const ticketRes = await fetch(`${BASE()}/matter/${mId}/sync-ticket`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${bobAccess2}`, "x-seat-token": bobSeat2, "x-doc-id": "docA" },
+    });
+    expect(ticketRes.status).toBe(200);
+    const { ticket } = await ticketRes.json() as any;
+    const wsUrlDocA = `ws://${srv.hostname}:${srv.port}/matter/${mId}/sync?ticket=${encodeURIComponent(ticket)}&doc_id=docA`;
+
+    const ws = await openSocket(wsUrlDocA);
+    try {
+      const buf = bufferUpdates(ws);
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Push to docA — Bob should receive
+      const blobA = new Uint8Array([0xDD, 0x04]);
+      const pushA = await fetch(`${BASE()}/matter/${mId}/updates`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${aliceAccess2}` },
+        body: JSON.stringify({
+          blob_id: `ws-docA-${crypto.randomUUID()}`,
+          ciphertext_b64: Buffer.from(blobA).toString("base64"),
+          seat_token: aliceSeat2,
+          doc_id: "docA",
+        }),
+      });
+      expect(pushA.status).toBe(201);
+      const pushAJson = await pushA.json() as any;
+
+      // Push to docB — Bob (subscribed to docA) should NOT receive
+      const blobB = new Uint8Array([0xEE, 0x05]);
+      await fetch(`${BASE()}/matter/${mId}/updates`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${aliceAccess2}` },
+        body: JSON.stringify({
+          blob_id: `ws-docB-${crypto.randomUUID()}`,
+          ciphertext_b64: Buffer.from(blobB).toString("base64"),
+          seat_token: aliceSeat2,
+          doc_id: "docB",
+        }),
+      });
+
+      // Wait for the docA frame to arrive
+      const live = await buf.waitFor(pushAJson.cursor);
+      expect(live).toBeTruthy();
+      expect(Array.from(new Uint8Array(Buffer.from(live.ciphertext_b64, "base64")))).toEqual(Array.from(blobA));
+
+      // The docB blob must NOT be in the buffer (the doc_id filter is working)
+      await new Promise((r) => setTimeout(r, 100)); // give time for spurious frames
+      const hasDocB = buf.frames.some((f: any) =>
+        Array.from(new Uint8Array(Buffer.from(f.ciphertext_b64, "base64"))).join() === Array.from(blobB).join()
+      );
+      expect(hasDocB).toBe(false);
+    } finally {
+      ws.close();
+    }
+  });
+});
+
+// Shared matter for the doc_id tests — populated after the E2E beforeAll runs.
+// We use a separate describe block with its own beforeAll to set up a matter
+// for the doc_id partition tests.
+describe("doc_id stream partitioning — HTTP integration", () => {
+  let mId = "";
+  let aliceAccess2 = "";
+  let aliceSeat2 = "";
+  let bobAccess2 = "";
+  let bobSeat2 = "";
+  let licenseKey2 = "";
+  let aliceId2 = "";
+  let bobId2 = "";
+
+  beforeAll(async () => {
+    // Provision a fresh org + 2 members for the partitioning tests
+    const prov = await fetch(`${BASE()}/admin/org`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: `DocId Law ${crypto.randomUUID()}`,
+        plan: "practice",
+        packs: ["legal"],
+        seat_limit: 5,
+        admin_email: `docid-admin-${crypto.randomUUID()}@docid.test`,
+        admin_password: "docid-admin-pw-1234",
+      }),
+    });
+    const provJson = await prov.json() as any;
+    licenseKey2 = provJson.license_key;
+    const adminLogin = await fetch(`${BASE()}/auth/login`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email: provJson.admin.email, password: "docid-admin-pw-1234" }),
+    });
+    const adminAccess2 = ((await adminLogin.json()) as any).access_token as string;
+
+    const mkMember = async (label: string) => {
+      const email = `${label}-docid-${crypto.randomUUID()}@docid.test`;
+      const create = await fetch(`${BASE()}/org/users`, {
+        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${adminAccess2}` },
+        body: JSON.stringify({ email, password: "member-pw-docid-123" }),
+      });
+      const createJson = await create.json() as any;
+      const login = await fetch(`${BASE()}/auth/login`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email, password: "member-pw-docid-123" }),
+      });
+      const access = ((await login.json()) as any).access_token as string;
+      const act = await fetch(`${BASE()}/org/activate`, {
+        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${access}` },
+        body: JSON.stringify({ license_key: licenseKey2, machine_id: `machine-docid-${label}` }),
+      });
+      const seat = ((await act.json()) as any).seat_token as string;
+      return { userId: createJson.user.user_id as string, access, seat };
+    };
+
+    const alice = await mkMember("alice2");
+    const bob = await mkMember("bob2");
+    aliceAccess2 = alice.access; aliceSeat2 = alice.seat; aliceId2 = alice.userId;
+    bobAccess2 = bob.access; bobSeat2 = bob.seat; bobId2 = bob.userId;
+
+    const matter = await fetch(`${BASE()}/org/matters`, {
+      method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${adminAccess2}` },
+      body: JSON.stringify({ client_name: "DocId Test Matter" }),
+    });
+    mId = ((await matter.json()) as any).matter.matter_id as string;
+    await fetch(`${BASE()}/matter/${mId}/members/add`, {
+      method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${adminAccess2}` },
+      body: JSON.stringify({ user_id: aliceId2, role: "editor" }),
+    });
+    await fetch(`${BASE()}/matter/${mId}/members/add`, {
+      method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${adminAccess2}` },
+      body: JSON.stringify({ user_id: bobId2, role: "editor" }),
+    });
+  });
+
+  test("push with doc_id:docA and doc_id:docB keep separate cursors; pull doc_id:docA returns only docA blobs", async () => {
+    const blobDocA = new Uint8Array([0xAA, 0x01]);
+    const blobDocB = new Uint8Array([0xBB, 0x02]);
+
+    const pushARes = await fetch(`${BASE()}/matter/${mId}/updates`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${aliceAccess2}` },
+      body: JSON.stringify({
+        blob_id: `docA-${crypto.randomUUID()}`,
+        ciphertext_b64: Buffer.from(blobDocA).toString("base64"),
+        seat_token: aliceSeat2,
+        doc_id: "docA",
+      }),
+    });
+    expect(pushARes.status).toBe(201);
+    const pushAJson = await pushARes.json() as any;
+
+    await fetch(`${BASE()}/matter/${mId}/updates`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${aliceAccess2}` },
+      body: JSON.stringify({
+        blob_id: `docB-${crypto.randomUUID()}`,
+        ciphertext_b64: Buffer.from(blobDocB).toString("base64"),
+        seat_token: aliceSeat2,
+        doc_id: "docB",
+      }),
+    });
+
+    // Pull only docA
+    const pullA = await fetch(`${BASE()}/matter/${mId}/updates?since=0&doc_id=docA`, {
+      headers: { authorization: `Bearer ${bobAccess2}`, "x-seat-token": bobSeat2 },
+    });
+    expect(pullA.status).toBe(200);
+    const pullAJson = await pullA.json() as any;
+    const aCiphers = pullAJson.updates.map((u: any) => u.ciphertext_b64);
+    expect(aCiphers.some((c: string) => Array.from(new Uint8Array(Buffer.from(c, "base64"))).join() === Array.from(blobDocA).join())).toBe(true);
+    expect(aCiphers.some((c: string) => Array.from(new Uint8Array(Buffer.from(c, "base64"))).join() === Array.from(blobDocB).join())).toBe(false);
+    expect(typeof pushAJson.cursor).toBe("number");
+  });
+
+  test("absent doc_id defaults to _notes — existing notes tests unchanged", async () => {
+    const blob = new Uint8Array([0xCC, 0x03]);
+    const push = await fetch(`${BASE()}/matter/${mId}/updates`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${aliceAccess2}` },
+      body: JSON.stringify({
+        blob_id: `notes-default-${crypto.randomUUID()}`,
+        ciphertext_b64: Buffer.from(blob).toString("base64"),
+        seat_token: aliceSeat2,
+        // no doc_id → must go to _notes
+      }),
+    });
+    expect(push.status).toBe(201);
+
+    // Pull without doc_id → only _notes stream
+    const pull = await fetch(`${BASE()}/matter/${mId}/updates?since=0`, {
+      headers: { authorization: `Bearer ${bobAccess2}`, "x-seat-token": bobSeat2 },
+    });
+    expect(pull.status).toBe(200);
+    const pullJson = await pull.json() as any;
+    expect(Array.isArray(pullJson.updates)).toBe(true);
+    const ciphers = pullJson.updates.map((u: any) => u.ciphertext_b64);
+    expect(ciphers.some((c: string) => Array.from(new Uint8Array(Buffer.from(c, "base64"))).join() === Array.from(blob).join())).toBe(true);
+  });
+
+  test("idempotency unique key is per (matter_id, doc_id, blob_id): same blob_id under different doc_ids are distinct rows", async () => {
+    const sharedBlobId = `shared-idem-${crypto.randomUUID()}`;
+    const push1 = await fetch(`${BASE()}/matter/${mId}/updates`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${aliceAccess2}` },
+      body: JSON.stringify({ blob_id: sharedBlobId, ciphertext_b64: Buffer.from([1]).toString("base64"), seat_token: aliceSeat2, doc_id: "idem-docA" }),
+    });
+    expect(push1.status).toBe(201);
+    expect(((await push1.json()) as any).duplicate).toBe(false);
+
+    const push2 = await fetch(`${BASE()}/matter/${mId}/updates`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${aliceAccess2}` },
+      body: JSON.stringify({ blob_id: sharedBlobId, ciphertext_b64: Buffer.from([2]).toString("base64"), seat_token: aliceSeat2, doc_id: "idem-docB" }),
+    });
+    expect(push2.status).toBe(201);
+    expect(((await push2.json()) as any).duplicate).toBe(false);
+
+    // Same (matter, doc_id, blob_id) IS a duplicate
+    const push3 = await fetch(`${BASE()}/matter/${mId}/updates`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${aliceAccess2}` },
+      body: JSON.stringify({ blob_id: sharedBlobId, ciphertext_b64: Buffer.from([99]).toString("base64"), seat_token: aliceSeat2, doc_id: "idem-docA" }),
+    });
+    expect(push3.status).toBe(200);
+    expect(((await push3.json()) as any).duplicate).toBe(true);
+  });
+
+  test("WS fan-out delivers only the subscribed doc's frames", async () => {
+    // Subscribe Bob's WS to docA stream only
+    const ticketRes = await fetch(`${BASE()}/matter/${mId}/sync-ticket`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${bobAccess2}`, "x-seat-token": bobSeat2 },
+    });
+    expect(ticketRes.status).toBe(200);
+    const { ticket } = await ticketRes.json() as any;
+    // WS connects and sends a subscribe message for docA
+    const wsUrlDocA = `ws://${srv.hostname}:${srv.port}/matter/${mId}/sync?ticket=${encodeURIComponent(ticket)}&doc_id=docA`;
+
+    const ws = await openSocket(wsUrlDocA);
+    try {
+      const buf = bufferUpdates(ws);
+      await new Promise((r) => setTimeout(r, 50));
+
+      // Push to docA
+      const blobA = new Uint8Array([0xDD, 0x04]);
+      const pushA = await fetch(`${BASE()}/matter/${mId}/updates`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${aliceAccess2}` },
+        body: JSON.stringify({
+          blob_id: `ws-docA-${crypto.randomUUID()}`,
+          ciphertext_b64: Buffer.from(blobA).toString("base64"),
+          seat_token: aliceSeat2,
+          doc_id: "docA",
+        }),
+      });
+      expect(pushA.status).toBe(201);
+      const pushAJson = await pushA.json() as any;
+
+      // Push to docB — Bob subscribed to docA should NOT receive
+      const blobB = new Uint8Array([0xEE, 0x05]);
+      await fetch(`${BASE()}/matter/${mId}/updates`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${aliceAccess2}` },
+        body: JSON.stringify({
+          blob_id: `ws-docB-${crypto.randomUUID()}`,
+          ciphertext_b64: Buffer.from(blobB).toString("base64"),
+          seat_token: aliceSeat2,
+          doc_id: "docB",
+        }),
+      });
+
+      // Wait for docA frame
+      const live = await buf.waitFor(pushAJson.cursor);
+      expect(live).toBeTruthy();
+      expect(Array.from(new Uint8Array(Buffer.from(live.ciphertext_b64, "base64")))).toEqual(Array.from(blobA));
+
+      // docB blob must NOT appear
+      await new Promise((r) => setTimeout(r, 100));
+      const hasDocB = buf.frames.some((f: any) =>
+        Array.from(new Uint8Array(Buffer.from(f.ciphertext_b64, "base64"))).join() === Array.from(blobB).join()
+      );
+      expect(hasDocB).toBe(false);
+    } finally {
+      ws.close();
+    }
+  });
+});

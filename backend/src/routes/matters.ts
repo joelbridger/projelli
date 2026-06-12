@@ -293,22 +293,26 @@ export async function handlePushUpdate(req: Request, store: Store, matterId: str
       ? body.key_epoch
       : gate.matter.key_epoch;
 
+  // doc_id partitions the relay: absent → '_notes' (backward-compatible notes path).
+  const docId = typeof body.doc_id === "string" && body.doc_id.length > 0 ? body.doc_id : "_notes";
+
   const { update, duplicate } = store.appendMatterUpdate({
     matter_id: matterId,
     org_id: gate.claims.org_id,
+    doc_id: docId,
     blob_id: body.blob_id.trim(),
     ciphertext,
     author_seat: gate.seatId,
     key_epoch: keyEpoch,
   });
 
-  // Fan the new update out to connected members. A duplicate (idempotent retry)
-  // is NOT re-broadcast. Never log the ciphertext.
+  // Fan the new update out to connected members on the same (matter, doc) channel.
+  // A duplicate (idempotent retry) is NOT re-broadcast. Never log the ciphertext.
   if (!duplicate) {
-    hub.broadcast(matterId, toUpdateFrame(update));
+    hub.broadcast(matterId, toUpdateFrame(update), docId);
   }
 
-  return json({ ok: true, cursor: update.id, blob_id: update.blob_id, key_epoch: update.key_epoch, duplicate }, duplicate ? 200 : 201);
+  return json({ ok: true, cursor: update.id, blob_id: update.blob_id, key_epoch: update.key_epoch, doc_id: update.doc_id, duplicate }, duplicate ? 200 : 201);
 }
 
 /** GET /matter/:id/updates?since=<cursor> — cursor catch-up. Seat token rides in
@@ -326,11 +330,15 @@ export function handlePullUpdates(req: Request, store: Store, matterId: string, 
   const since = Number(sinceRaw);
   if (!Number.isInteger(since) || since < 0) return error("invalid_cursor", 400);
 
-  const updates = store.getMatterUpdatesSince(matterId, since, 500);
-  const latest = store.latestMatterCursor(matterId);
+  // doc_id stream filter: absent → '_notes' (backward-compatible notes path).
+  const docId = url.searchParams.get("doc_id") ?? "_notes";
+
+  const updates = store.getMatterUpdatesSince(matterId, since, 500, docId);
+  const latest = store.latestMatterCursor(matterId, docId);
   // The opaque bytes ride back base64-encoded, untouched.
   return json({
     matter_id: matterId,
+    doc_id: docId,
     key_epoch: gate.matter.key_epoch,
     since,
     cursor: updates.length ? updates[updates.length - 1]!.id : since,
@@ -339,6 +347,7 @@ export function handlePullUpdates(req: Request, store: Store, matterId: string, 
     updates: updates.map((u) => ({
       cursor: u.id,
       blob_id: u.blob_id,
+      doc_id: u.doc_id,
       key_epoch: u.key_epoch,
       author_seat: u.author_seat,
       created_at: u.created_at,
@@ -432,7 +441,7 @@ export function authorizeSyncConnect(
 const MAX_REQUEST_BYTES = Math.ceil(MAX_UPDATE_BYTES * 1.4) + 64 * 1024;
 
 type ReadResult =
-  | { ok: true; body: { blob_id?: unknown; ciphertext_b64?: unknown; seat_token?: unknown; key_epoch?: unknown } }
+  | { ok: true; body: { blob_id?: unknown; ciphertext_b64?: unknown; seat_token?: unknown; key_epoch?: unknown; doc_id?: unknown } }
   | { ok: false; tooLarge: boolean };
 
 async function readUpdateBody(req: Request): Promise<ReadResult> {

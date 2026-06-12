@@ -62,6 +62,8 @@ import type { Store } from "./lib/db.ts";
 export interface SyncSocketData {
   subId: string;
   matterId: string;
+  /** Document stream this socket is subscribed to. '_notes' for matter notes. */
+  docId: string;
   orgId: string;
   userId: string;
   seatId: string;
@@ -114,7 +116,9 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
           if (mm.rest === "sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
             const authz = authorizeSyncConnect(req, store, mm.id);
             if (!authz.ok) return authz.resp;
-            const data: SyncSocketData = { subId: randomUUID(), ...authz.data };
+            // Read the doc_id from the query string (absent → '_notes').
+            const syncDocId = url.searchParams.get("doc_id") ?? "_notes";
+            const data: SyncSocketData = { subId: randomUUID(), docId: syncDocId, ...authz.data };
             if (srv.upgrade(req, { data })) return undefined; // upgraded; Bun owns the socket now
             return error("upgrade_failed", 400);
           }
@@ -230,11 +234,12 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
             }
           },
         };
-        hub.subscribe(d.matterId, sub);
+        // Subscribe to the (matter, docId) channel so only that doc's frames arrive.
+        hub.subscribe(d.matterId, sub, d.docId);
         // Catch-up backlog (opaque bytes, base64; never logged).
         try {
-          const backlog = store.getMatterUpdatesSince(d.matterId, 0, 500);
-          ws.send(JSON.stringify({ type: "ready", matter_id: d.matterId, backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterId) }));
+          const backlog = store.getMatterUpdatesSince(d.matterId, 0, 500, d.docId);
+          ws.send(JSON.stringify({ type: "ready", matter_id: d.matterId, doc_id: d.docId, backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterId, d.docId) }));
           for (const u of backlog) ws.send(JSON.stringify(toUpdateFrame(u)));
         } catch {
           /* best-effort backlog */
@@ -247,7 +252,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
       },
       close(ws: Bun.ServerWebSocket<SyncSocketData>) {
         const d = ws.data;
-        hub.unsubscribe(d.matterId, d.subId);
+        hub.unsubscribe(d.matterId, d.subId, d.docId);
       },
     },
   };

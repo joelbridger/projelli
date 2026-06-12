@@ -174,6 +174,8 @@ export function verifyActiveSeat(
 export interface UpdateFrame {
   type: "update";
   matter_id: string;
+  /** Document stream this update belongs to. '_notes' for matter notes. */
+  doc_id: string;
   cursor: number; // the assigned monotonic id; clients advance their `since` to this
   blob_id: string;
   key_epoch: number;
@@ -193,36 +195,46 @@ export interface Subscriber {
 }
 
 /**
- * In-memory per-matter subscriber registry + broadcast. Single-instance only
- * (documented): a multi-instance deployment fans out via a Redis/NATS pub-sub
+ * In-memory per-(matter, doc) subscriber registry + broadcast. Single-instance
+ * only (documented): a multi-instance deployment fans out via a Redis/NATS pub-sub
  * behind this same interface — the hub is the seam. No payload is ever logged.
+ *
+ * Channels are keyed by `${matterId}::${docId}` so each document stream has its
+ * own isolated subscriber set. A WS subscribed to docA will not receive docB frames.
  */
 export class FanoutHub {
-  private byMatter = new Map<string, Map<string, Subscriber>>();
+  private byChannel = new Map<string, Map<string, Subscriber>>();
 
-  subscribe(matterId: string, sub: Subscriber): void {
-    let set = this.byMatter.get(matterId);
+  private channelKey(matterId: string, docId: string): string {
+    return `${matterId}::${docId}`;
+  }
+
+  subscribe(matterId: string, sub: Subscriber, docId = "_notes"): void {
+    const key = this.channelKey(matterId, docId);
+    let set = this.byChannel.get(key);
     if (!set) {
       set = new Map();
-      this.byMatter.set(matterId, set);
+      this.byChannel.set(key, set);
     }
     set.set(sub.id, sub);
   }
 
-  unsubscribe(matterId: string, subId: string): void {
-    const set = this.byMatter.get(matterId);
+  unsubscribe(matterId: string, subId: string, docId = "_notes"): void {
+    const key = this.channelKey(matterId, docId);
+    const set = this.byChannel.get(key);
     if (!set) return;
     set.delete(subId);
-    if (set.size === 0) this.byMatter.delete(matterId);
+    if (set.size === 0) this.byChannel.delete(key);
   }
 
-  subscriberCount(matterId: string): number {
-    return this.byMatter.get(matterId)?.size ?? 0;
+  subscriberCount(matterId: string, docId = "_notes"): number {
+    return this.byChannel.get(this.channelKey(matterId, docId))?.size ?? 0;
   }
 
-  /** Broadcast a frame to every current subscriber of a matter. */
-  broadcast(matterId: string, frame: UpdateFrame): void {
-    const set = this.byMatter.get(matterId);
+  /** Broadcast a frame to every current subscriber of a (matter, doc_id) channel. */
+  broadcast(matterId: string, frame: UpdateFrame, docId = "_notes"): void {
+    const key = this.channelKey(matterId, docId);
+    const set = this.byChannel.get(key);
     if (!set) return;
     for (const sub of set.values()) {
       try {
@@ -239,6 +251,7 @@ export function toUpdateFrame(u: MatterUpdate): UpdateFrame {
   return {
     type: "update",
     matter_id: u.matter_id,
+    doc_id: u.doc_id,
     cursor: u.id,
     blob_id: u.blob_id,
     key_epoch: u.key_epoch,
