@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { PluginSidebarPanels } from '@/components/plugins/PluginSidebarPanels';
 import { usePluginRegistryStore } from '@/stores/pluginRegistryStore';
+import { useProfessionStore, isLawExperience } from '@/stores/professionStore';
 
 interface SidebarProps {
   fileTreeContent?: React.ReactNode;
@@ -93,6 +94,11 @@ export function Sidebar({
     (state) => state.sidebar.length > 0,
   );
 
+  // Law-first: hide the founder-era Research + Whiteboard surfaces for the
+  // legal experience (and the default). Non-law packs may still see them.
+  const profession = useProfessionStore((s) => s.profession);
+  const lawExp = isLawExperience(profession);
+
   // Use controlled tab if provided, otherwise use internal state
   const activeTab = controlledActiveTab !== undefined ? controlledActiveTab : internalActiveTab;
   const setActiveTab = onTabChange || setInternalActiveTab;
@@ -118,8 +124,12 @@ export function Sidebar({
     { id: 'search', Icon: Search, label: t('layout.sidebar.tabs.search') },
     { id: 'workflows', Icon: Workflow, label: t('layout.sidebar.tabs.workflows') },
     { id: 'ai-assistant', Icon: Bot, label: t('layout.sidebar.tabs.ai-assistant'), shortcutId: 'ai-assistant' },
-    { id: 'research', Icon: BookOpen, label: t('layout.sidebar.tabs.research') },
-    { id: 'whiteboard', Icon: PenTool, label: t('layout.sidebar.tabs.whiteboard') },
+    ...(lawExp
+      ? []
+      : [
+          { id: 'research' as const, Icon: BookOpen, label: t('layout.sidebar.tabs.research') },
+          { id: 'whiteboard' as const, Icon: PenTool, label: t('layout.sidebar.tabs.whiteboard') },
+        ]),
     { id: 'audit', Icon: History, label: t('layout.sidebar.tabs.audit') },
     { id: 'trash', Icon: Trash2, label: t('layout.sidebar.tabs.trash') },
     ...(hasPluginPanels
