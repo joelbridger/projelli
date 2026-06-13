@@ -1,5 +1,7 @@
 # Next-session handoff — Keepance, Wave 3 (written 2026-06-11)
 
+> **⛔ SUPERSEDED 2026-06-13.** Waves 1–4 are all DONE and **deployed as v3.2.0**. For the current, authoritative state of everything (release, services, vendor threads, open items), read **`docs/operations/2026-06-13-CURRENT-STATE.md`** instead. This file is kept for history.
+
 **Read this first.** Branch `keepance-3.0`, everything committed + pushed (`HEAD == origin/keepance-3.0 == 69703a4`, working tree clean). Plan of record: `docs/strategy/2026-06-10-vision-gap-closure-plan.md` (the 5 waves to 100% of the vision). Follow the **Token-Budget Operating Mode (Keepance only)** in `CLAUDE.md`: drive on Opus 4.8 at `high`; delegate well-specified implementation to Sonnet 4.6 subagents and mechanical work to `model: "haiku"`; **raise to `xhigh` only for the encrypted vault (VG-6d-v2) and the co-editing CRDT (VG-8)**; Fable 5 is break-glass only.
 
 ## Status: Waves 1–4 COMPLETE + DEPLOYED as v3.2.0 (2026-06-12) — only Wave 5 (VG-9 connectors, vendor-gated) remains
