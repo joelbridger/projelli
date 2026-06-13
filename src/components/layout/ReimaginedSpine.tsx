@@ -162,10 +162,14 @@ export function ReimaginedSpine({
           <ChevronLeft size={16} /> Collapse
         </button>
       </nav>
-      {/* Active content panel */}
-      <div style={{ width: 280, minWidth: 0, background: 'var(--color-background)', borderRight: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-        {content[active]}
-      </div>
+      {/* Active content panel — only for the panel-style surfaces. The
+          full-page surfaces (matters home, Ask) render in the main area
+          instead (App.tsx), so they get the full width. */}
+      {active !== 'matters' && active !== 'search' && (
+        <div style={{ width: 280, minWidth: 0, background: 'var(--color-background)', borderRight: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+          {content[active]}
+        </div>
+      )}
     </div>
   );
 }

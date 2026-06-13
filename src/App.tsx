@@ -11,6 +11,8 @@ import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
 import { FileTree } from '@/components/workspace/FileTree';
 import { AppShellNav } from '@/components/layout/AppShellNav';
 import { ReimaginedTrustBar } from '@/components/layout/ReimaginedTrustBar';
+import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
+import { ReimaginedAsk } from '@/components/ai/ReimaginedAsk';
 import { isReimaginedShell } from '@/lib/reimaginedShell';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { StatusBar } from '@/components/layout/StatusBar';
@@ -3600,7 +3602,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
           mattersContent={<MattersSidebarPanel />}
         />
 
-        {/* Main editor panel */}
+        {/* Main editor panel, or a full-page reimagined surface (matters/Ask). */}
+        {isReimaginedShell() && sidebarActiveTab === 'matters' ? (
+          <ReimaginedMattersHome />
+        ) : isReimaginedShell() && sidebarActiveTab === 'search' ? (
+          <ReimaginedAsk />
+        ) : (
         <MainPanel
           onFileOpen={handleFileOpen}
           onMove={handleMove}
@@ -3662,6 +3669,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
             });
           }}
         />
+        )}
       </div>
 
       {/* Status bar */}
