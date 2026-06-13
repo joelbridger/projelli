@@ -289,7 +289,11 @@ export function DataMapContent({
       </p>
 
       {variant === 'accordion' ? (
-        <Accordion className="space-y-0">
+        // Open the first row ("Your files and notes stay on your machine") by
+        // default so the attorney lands on a full, readable plain-English
+        // section instead of an all-collapsed header scan. Single-open model is
+        // preserved; the rest stay collapsed for a viewport-friendly list.
+        <Accordion className="space-y-0" defaultValue="0">
           {DATA_MAP_ROWS.map((row, i) => {
             const Icon = row.icon;
             return (

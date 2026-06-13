@@ -2,8 +2,9 @@
  * Task 3 — Data-map onboarding step: scrollable + accordion, footer always reachable
  *
  * Verifies the data-map step in the first-run wizard:
- *   1. At least 5 accordion sections present, all closed by default
- *   2. Clicking section 0 opens it; clicking section 1 then opens 1 and closes 0
+ *   1. At least 5 accordion sections present; the first opens by default (so the
+ *      attorney lands on a readable plain-English section), the rest start closed
+ *   2. Single-open: opening section 1 closes the first
  *   3. The continue button is in the viewport at 1366x720 without page scrolling
  *
  * Uses ?testMode=true&forceOnboarding=true to show the wizard in the test env.
@@ -43,7 +44,7 @@ async function gotoAndNavigateToDataStep(page: import('@playwright/test').Page) 
 test.describe('Data-map onboarding accordion (Task 3) — 1366x720', () => {
   test.use({ viewport: { width: 1366, height: 720 } });
 
-  test('sections: at least 5 present, all closed by default', async ({ page }) => {
+  test('sections: at least 5 present; first open by default, rest closed', async ({ page }) => {
     await gotoAndNavigateToDataStep(page);
 
     // DATA_MAP_ROWS has 7 rows
@@ -51,23 +52,24 @@ test.describe('Data-map onboarding accordion (Task 3) — 1366x720', () => {
     const count = await sections.count();
     expect(count).toBeGreaterThanOrEqual(5);
 
-    // All start closed
-    for (let i = 0; i < count; i++) {
+    // The first row is open by default so the attorney immediately reads a full
+    // plain-English section; the remaining rows start closed.
+    await expect(sections.nth(0)).toHaveAttribute('data-state', 'open');
+    for (let i = 1; i < count; i++) {
       await expect(sections.nth(i)).toHaveAttribute('data-state', 'closed');
     }
   });
 
-  test('accordion single-open: clicking section 0 opens it; clicking section 1 opens 1 and closes 0', async ({ page }) => {
+  test('accordion single-open: opening section 1 closes the default-open section 0', async ({ page }) => {
     await gotoAndNavigateToDataStep(page);
 
     const sections = page.getByTestId('data-map-section');
     const triggers = page.getByTestId('data-map-section-trigger');
 
-    // Click section 0 → opens
-    await triggers.nth(0).click();
+    // Section 0 starts open by default.
     await expect(sections.nth(0)).toHaveAttribute('data-state', 'open');
 
-    // Click section 1 → 1 opens, 0 closes
+    // Click section 1 → 1 opens, 0 closes (single-open model preserved).
     await triggers.nth(1).click();
     await expect(sections.nth(1)).toHaveAttribute('data-state', 'open');
     await expect(sections.nth(0)).toHaveAttribute('data-state', 'closed');
