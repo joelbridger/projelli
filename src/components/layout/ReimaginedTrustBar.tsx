@@ -52,7 +52,7 @@ export function ReimaginedTrustBar() {
 
       <button
         type="button"
-        onClick={() => setDataMapOpen(true)}
+        onClick={() => { setDataMapOpen(true); }}
         title="Data Map: where your data goes, in plain English"
         aria-label="Open the Data Map"
         style={{
