@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
 import { FileTree } from '@/components/workspace/FileTree';
 import { AppShellNav } from '@/components/layout/AppShellNav';
+import { ReimaginedTrustBar } from '@/components/layout/ReimaginedTrustBar';
+import { isReimaginedShell } from '@/lib/reimaginedShell';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { StatusBar } from '@/components/layout/StatusBar';
 import { McpApprovalGate } from '@/components/settings/McpApprovalGate';
@@ -3472,6 +3474,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
           the free trial (or once expired) and when no license is active.
           Otherwise null and zero layout. */}
       <TrialBanner onActivate={() => openSettings('license')} />
+
+      {/* Reimagined shell: the hero Trust Bar (elevated egress + matter scope). */}
+      {isReimaginedShell() && <ReimaginedTrustBar />}
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">

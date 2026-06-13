@@ -6,18 +6,10 @@
  */
 import { Sidebar, type SidebarProps } from '@/components/layout/Sidebar';
 import { ReimaginedSpine } from '@/components/layout/ReimaginedSpine';
-
-function useReimaginedShell(): boolean {
-  if (typeof window === 'undefined') return false;
-  try {
-    return new URLSearchParams(window.location.search).has('shell');
-  } catch {
-    return false;
-  }
-}
+import { isReimaginedShell } from '@/lib/reimaginedShell';
 
 export function AppShellNav(props: SidebarProps) {
-  if (useReimaginedShell()) {
+  if (isReimaginedShell()) {
     return (
       <ReimaginedSpine
         activeTab={props.activeTab}
