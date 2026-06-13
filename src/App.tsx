@@ -3528,6 +3528,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
           }
           workflowContent={
             <WorkflowPanel
+              {...(isReimaginedShell() ? { heading: 'Litigation Associate' } : {})}
               onStartWorkflow={handleStartWorkflow}
               currentExecution={currentExecution}
               runHistory={runHistory}
@@ -3606,7 +3607,19 @@ This file contains rules and guidelines for AI assistants in this workspace.
         {isReimaginedShell() && sidebarActiveTab === 'matters' ? (
           <ReimaginedMattersHome />
         ) : isReimaginedShell() && sidebarActiveTab === 'search' ? (
-          <ReimaginedAsk />
+          <ReimaginedAsk
+            onSaveToDocument={async (content) => {
+              if (!workspaceServiceRef.current || !rootPath) return;
+              const { deriveFilenameFromMessage, resolveUniqueName } = await import('@/utils/fileDrop');
+              const desired = deriveFilenameFromMessage(content);
+              const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, desired);
+              const path = `${rootPath}/${finalName}`;
+              await workspaceServiceRef.current.writeFile(path, `${content}\n`);
+              const tree = await workspaceServiceRef.current.getFileTree();
+              setFileTree(tree);
+              await handleFileOpen(path, finalName);
+            }}
+          />
         ) : (
         <MainPanel
           onFileOpen={handleFileOpen}

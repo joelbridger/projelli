@@ -76,6 +76,12 @@ interface WorkflowPanelProps {
   providerError?: 'needs-provider' | 'ollama-unreachable' | null;
   /** Open Settings > AI (used by the banner action). */
   onOpenSettings?: () => void;
+  /**
+   * Optional title override for the panel header. The reimagined law shell
+   * passes "Litigation Associate"; the legacy shell leaves it unset and the
+   * header falls back to "Workflows".
+   */
+  heading?: string;
 }
 
 export function WorkflowPanel({
@@ -86,6 +92,7 @@ export function WorkflowPanel({
   onRunChain,
   providerError,
   onOpenSettings,
+  heading,
 }: WorkflowPanelProps) {
   const { t } = useTranslation();
   // 30-day trial gate. Locks template + chain runs when expired and not paid.
@@ -262,7 +269,7 @@ export function WorkflowPanel({
           actions collapse to icon-only with tooltips so nothing runs
           off the right edge. */}
       <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-2 shrink-0">
-        <h3 className="text-sm font-semibold min-w-0 truncate">Workflows</h3>
+        <h3 className="text-sm font-semibold min-w-0 truncate">{heading ?? 'Workflows'}</h3>
         <div className="flex items-center gap-0.5 shrink-0">
           <Button
             data-testid="workflows-chain-templates"

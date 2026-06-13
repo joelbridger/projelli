@@ -12,13 +12,13 @@
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Briefcase, FolderTree, Sparkles, ListChecks, Bot, ShieldCheck, Trash2,
+  Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Trash2,
   ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 
-type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'ai-assistant' | 'audit' | 'trash';
+type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'trash';
 
 interface ReimaginedSpineProps {
   fileTreeContent?: React.ReactNode;
@@ -52,7 +52,7 @@ function KeepanceMark() {
 }
 
 export function ReimaginedSpine({
-  fileTreeContent, searchContent, workflowContent, aiAssistantContent,
+  fileTreeContent, searchContent, workflowContent,
   auditContent, trashContent, mattersContent,
   activeTab = 'matters', onTabChange, collapsed = false, onCollapsedChange,
 }: ReimaginedSpineProps) {
@@ -68,7 +68,6 @@ export function ReimaginedSpine({
     { id: 'search', label: 'Ask', Icon: Sparkles },
     { id: 'files', label: 'Documents', Icon: FolderTree },
     { id: 'workflows', label: 'Associate', Icon: ListChecks },
-    { id: 'ai-assistant', label: t('layout.sidebar.tabs.ai-assistant'), Icon: Bot },
     { id: 'audit', label: 'Your defense file', Icon: ShieldCheck },
     { id: 'trash', label: t('layout.sidebar.tabs.trash'), Icon: Trash2 },
   ];
@@ -78,7 +77,6 @@ export function ReimaginedSpine({
     files: fileTreeContent,
     search: searchContent,
     workflows: workflowContent,
-    'ai-assistant': aiAssistantContent,
     audit: auditContent,
     trash: trashContent,
   };
