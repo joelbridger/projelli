@@ -144,7 +144,7 @@ function ChooseView({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Connect an AI to help you</h2>
+        <h2 className="text-3xl font-bold tracking-tight" style={{ color: 'var(--kp-navy)' }}>Connect your AI provider account</h2>
         <p className="text-base text-muted-foreground mt-1">
           One short choice, then you are done. There is no wrong answer here.
         </p>
@@ -153,13 +153,13 @@ function ChooseView({
       {/* Plain English BEFORE any jargon. */}
       <div className="rounded-lg border border-border bg-blue-50/60 p-4 space-y-2 text-sm text-foreground leading-relaxed">
         <p>
-          Keepance uses an AI like Claude to help you with your work. You connect
-          your own AI account, so your questions go straight to that company and
-          never pass through Keepance, and you pay that company directly, usually
-          a few dollars a month.
+          Keepance uses an AI like Claude to help with your matters. You connect
+          your own AI provider account, so your questions go straight to that company and
+          never pass through Keepance. You pay that company directly, usually
+          a few dollars a month. Your Keepance plan covers the software.
         </p>
         <p className="text-muted-foreground">
-          Keepance never sees your work, your files, or your conversations. If you
+          Keepance never sees your work, your files, or your client matters. If you
           would rather nothing leave your computer at all, you can run the AI
           locally instead. Both options are below.
         </p>
@@ -180,9 +180,9 @@ function ChooseView({
           testId="ai-path-own-account"
           icon={Cloud}
           tone="text-sky-700 bg-sky-50"
-          title="Use your own AI account"
+          title="Connect your AI provider account"
           badge="Recommended for most"
-          body="Connect Claude, OpenAI, or Gemini with a few clicks. We walk you through getting set up on their site, step by step. Most people spend a couple of dollars a month."
+          body="Connect your Claude, OpenAI, or Gemini account with a few clicks. We walk you through it step by step. Your AI usage goes straight to your provider. Most people spend a couple of dollars a month."
           onClick={onPickOwnAccount}
         />
         <PathCard
@@ -294,9 +294,9 @@ function OwnAccountView({ defaultProvider, onSaveKey, onBack, onOpenDataMap }: O
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Connect your AI account</h2>
+        <h2 className="text-3xl font-bold tracking-tight" style={{ color: 'var(--kp-navy)' }}>Connect your AI provider account</h2>
         <p className="text-base text-muted-foreground mt-1">
-          Pick a provider, follow the steps to get your key, then paste it below.
+          Pick a provider, follow the steps to get your account key, then paste it below.
         </p>
       </div>
 
@@ -331,9 +331,9 @@ function OwnAccountView({ defaultProvider, onSaveKey, onBack, onOpenDataMap }: O
 
       {/* "What's that?" one-liner, the first time we name the key. */}
       <p className="text-xs text-muted-foreground">
-        You will copy a short code called an <span className="font-medium text-foreground">AI key</span>.{' '}
+        You will copy a short code called an <span className="font-medium text-foreground">account key</span>.{' '}
         <span className="italic">
-          What is that? It is like a password that lets your computer talk directly to {PROVIDER_PLAIN_NAME[provider]}. You create it on their site and paste it here once; Keepance stores it in your computer&rsquo;s secure keychain and never on a server.
+          What is that? It is like a password that lets your computer talk directly to {PROVIDER_PLAIN_NAME[provider]}. You create it on their site, paste it here once, and Keepance stores it in your computer&rsquo;s secure keychain, never on a server.
         </span>
       </p>
 
@@ -371,7 +371,7 @@ function OwnAccountView({ defaultProvider, onSaveKey, onBack, onOpenDataMap }: O
       {/* Paste + test. */}
       <div className="space-y-2">
         <label htmlFor="ai-setup-key-input" className="text-sm font-medium text-foreground">
-          Paste your {PROVIDER_PLAIN_NAME[provider]} key here
+          Paste your {PROVIDER_PLAIN_NAME[provider]} account key here
         </label>
         <Input
           id="ai-setup-key-input"
@@ -470,7 +470,7 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
   return (
     <div className="space-y-5" data-testid="ai-setup-local-view">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Keep everything on your computer</h2>
+        <h2 className="text-3xl font-bold tracking-tight" style={{ color: 'var(--kp-navy)' }}>Keep everything on your computer</h2>
         <p className="text-base text-muted-foreground mt-1">
           Run the AI on your own machine. Nothing is sent over the internet, not
           even to an AI company.
@@ -481,8 +481,8 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
         <p>
           This uses a free tool called <span className="font-medium">Ollama</span> that runs an AI model
           directly on your computer. It is the most private option, and a good fit
-          for your most sensitive matters. The trade-off is that local models are
-          usually less capable than Claude or GPT, and a fast computer helps.
+          for your most sensitive client matters. Nothing ever leaves your machine.
+          The trade-off is that local models are usually less capable than Claude or GPT, and a fast computer helps.
         </p>
         <p className="text-muted-foreground">
           Choosing this turns on <span className="font-medium text-foreground">Local-only mode</span>, which keeps Keepance

@@ -94,7 +94,7 @@ describe('AiSetupStep — plain English before jargon', () => {
 
     // The plain-English framing is present up front.
     expect(
-      screen.getByText(/Keepance uses an AI like Claude to help you/i),
+      screen.getByText(/Keepance uses an AI like Claude to help/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/never pass through Keepance/i)).toBeInTheDocument();
 
