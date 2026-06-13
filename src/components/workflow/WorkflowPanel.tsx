@@ -50,7 +50,7 @@ import {
 } from '@/modules/workflow/userTemplates';
 import { ChainBuilderModal } from './ChainBuilderModal';
 import { prioritizeByProfession } from '@/modules/workflow/prioritizeByProfession';
-import { getOnboardingProfession } from '@/components/onboarding/FirstRunWizard';
+import { useProfessionStore, isLawExperience } from '@/stores/professionStore';
 import { useTrialGate } from '@/hooks/useTrial';
 import { useTemplatesMarketplace } from '@/hooks/useTemplatesMarketplace';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -136,6 +136,7 @@ export function WorkflowPanel({
     // store nav badge plumbing.
   }, [reader, service, templatesVersion, updateCount]);
 
+  const profession = useProfessionStore((s) => s.profession);
   const availableWorkflows = useMemo(() => {
     // De-dupe by id: a community template with the same id as a user
     // template (rare, but possible after a remix workflow) lets the user
@@ -145,10 +146,14 @@ export function WorkflowPanel({
       ...localWorkflows,
       ...communityWorkflows.filter((t) => !seen.has(t.id)),
     ];
-    // PIVOT-16 — float the onboarding profession's pack to the top so a
-    // first-run attorney/CPA/consultant sees their templates first.
-    return prioritizeByProfession(merged, getOnboardingProfession());
-  }, [localWorkflows, communityWorkflows]);
+    // Law-first: lawyers see the litigation associate (the legal pack) plus
+    // their own custom templates, never the founder/general or other packs.
+    const scoped = isLawExperience(profession)
+      ? merged.filter((t) => t.category === 'legal' || t.category === 'custom')
+      : merged;
+    // Float the profession's pack to the top for non-legal users.
+    return prioritizeByProfession(scoped, profession);
+  }, [localWorkflows, communityWorkflows, profession]);
 
   const refreshTemplates = useCallback(
     () => setTemplatesVersion((v) => v + 1),

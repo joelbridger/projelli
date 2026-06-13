@@ -39,6 +39,7 @@ import { sendEvent } from '@/utils/telemetry';
 import { FeatureTour } from '@/components/onboarding/FeatureTour';
 import { useFeatureTour } from '@/hooks/useFeatureTour';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { isLawExperience } from '@/stores/professionStore';
 // M1 (v1.5) Memory: workspace RAG indexer + status UI.
 import { ModelDownloadCard } from '@/components/memory/ModelDownloadCard';
 import { RagProgressBanner } from '@/components/memory/RagProgressBanner';
@@ -1257,13 +1258,15 @@ function App() {
         isNewWorkspace = true;
       }
 
-      // Create whiteboards folder
-      const whiteboardsPath = `${newRootPath}/whiteboards`;
-      const whiteboardsExists = await service.exists(whiteboardsPath);
-      if (!whiteboardsExists) {
-        await service.mkdir(whiteboardsPath);
-        console.log('Created whiteboards folder');
-        isNewWorkspace = true;
+      // Create whiteboards folder (skipped in the law-first experience)
+      if (!isLawExperience()) {
+        const whiteboardsPath = `${newRootPath}/whiteboards`;
+        const whiteboardsExists = await service.exists(whiteboardsPath);
+        if (!whiteboardsExists) {
+          await service.mkdir(whiteboardsPath);
+          console.log('Created whiteboards folder');
+          isNewWorkspace = true;
+        }
       }
 
       // Create AI Chats folder
@@ -1275,13 +1278,15 @@ function App() {
         isNewWorkspace = true;
       }
 
-      // Create Research folder
-      const researchPath = `${newRootPath}/Research`;
-      const researchExists = await service.exists(researchPath);
-      if (!researchExists) {
-        await service.mkdir(researchPath);
-        console.log('Created Research folder');
-        isNewWorkspace = true;
+      // Create Research folder (skipped in the law-first experience)
+      if (!isLawExperience()) {
+        const researchPath = `${newRootPath}/Research`;
+        const researchExists = await service.exists(researchPath);
+        if (!researchExists) {
+          await service.mkdir(researchPath);
+          console.log('Created Research folder');
+          isNewWorkspace = true;
+        }
       }
 
       // Create Audio Recordings folder

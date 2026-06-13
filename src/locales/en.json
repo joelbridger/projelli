@@ -584,7 +584,7 @@
     },
     "api-key-card": {
       "title": "Next step: add your AI key",
-      "description": "Keepance uses your own API key from Anthropic, OpenAI, or Google. You only pay the provider for what you use. Keepance doesn't charge a subscription.",
+      "description": "Keepance uses your own API key from Anthropic, OpenAI, or Google, so your AI usage goes straight to your provider with no markup from us. Your Keepance plan covers the software.",
       "walk-me-through": "Walk me through it",
       "add-key": "Add API key",
       "keys-local": "Keys are stored locally on your computer. Never sent to us."

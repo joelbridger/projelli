@@ -944,7 +944,7 @@
     "api-key-card": {
       "title": "Siguiente paso: añade tu clave de IA",
       "title__sourceHash": "6c12e9c2353854280698e1a8efa880daeebe480cd0d533a784017fa309dcc3bd",
-      "description": "Keepance utiliza tu propia clave API de Anthropic, OpenAI o Google. Solo pagas al proveedor por lo que usas. Keepance no cobra suscripción.",
+      "description": "Keepance utiliza tu propia clave API de Anthropic, OpenAI o Google, de modo que tu uso de IA va directamente a tu proveedor sin recargo de nuestra parte. Tu plan de Keepance cubre el software.",
       "description__sourceHash": "e49759058f108ef5e37c23d0ad9cde9b5f0b2cfbf04a9e39da8b88cff0cfee58",
       "walk-me-through": "Guíame paso a paso",
       "walk-me-through__sourceHash": "83a76e6892919b343df3fefcfef65efcac4dac23bc91b8df9b421f0d0c128ae8",
