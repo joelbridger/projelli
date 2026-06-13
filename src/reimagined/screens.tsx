@@ -240,7 +240,7 @@ export function AskScreen({ matter }: { matter: Matter | null }) {
                 <div className="kp-mono" style={{ fontSize: 11.5, color: 'var(--kp-ink-2)', marginTop: 3 }}>{cite.locator} · {cite.date}</div>
               </div>
             </div>
-            <blockquote style={{ margin: '14px 0 0', padding: '11px 14px', borderLeft: '3px solid var(--kp-brass-soft)', background: 'var(--kp-paper-2)', borderRadius: '0 7px 7px 0', fontSize: 13.5, lineHeight: 1.6, color: 'var(--kp-ink)' }}>
+            <blockquote style={{ margin: '14px 0 0', padding: '11px 14px', borderLeft: '3px solid var(--kp-accent)', background: 'var(--kp-paper-2)', borderRadius: '0 7px 7px 0', fontSize: 13.5, lineHeight: 1.6, color: 'var(--kp-ink)' }}>
               {cite.excerpt}
             </blockquote>
             <button className="kp-btn kp-btn--ghost" type="button" style={{ marginTop: 14, width: '100%', justifyContent: 'center' }}>
@@ -305,7 +305,7 @@ export function AssociateScreen({ matter }: { matter: Matter }) {
 }
 
 function SidePassage({ label, doc, locator, quote, tone }: { label: string; doc: string; locator: string; quote: string; tone: 'depo' | 'prior' }) {
-  const accent = tone === 'depo' ? 'var(--kp-navy)' : 'var(--kp-brass)';
+  const accent = tone === 'depo' ? 'var(--kp-navy)' : 'var(--kp-accent)';
   return (
     <div className="kp-card" style={{ padding: 13, borderColor: 'var(--kp-hairline)' }}>
       <div className="kp-eyebrow" style={{ color: accent }}>{label}</div>

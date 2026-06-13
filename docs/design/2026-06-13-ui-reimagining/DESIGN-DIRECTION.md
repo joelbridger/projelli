@@ -7,18 +7,18 @@ Everything here traces to the Phase 1 capstone (`docs/research/2026-06-13-ui-rei
 
 ---
 
-## 1. Aesthetic direction — "The case file, beautifully set"
+## 1. Aesthetic direction — brand-matched to keepance.com
 
-A quietly authoritative legal workspace, not a startup app. The one memorable idea: Keepance feels like working **inside a beautifully set legal document**, calm and precise, where verifiable facts *look* verifiable.
+The app wears the website's brand so the two read as one product: navy + bone + white with the signature pink→blue gradient, the Satoshi typeface, and the Keepance keep-mark. Calm, dense, professional, where verifiable facts *look* verifiable.
 
-- **Warm paper + ink, not flat white.** A subtle parchment canvas with a faint grain gives depth; documents and answers sit on it as white "pages."
-- **Navy is the spine.** The left rail is a deep navy binder spine with a brass letterhead rule; matters literally hang off it (reinforcing "matter is the spine").
-- **Monospace is the record.** Citations, matter numbers, Bates/locators, and audit timestamps are set in IBM Plex Mono, so the evidentiary parts read as evidence.
-- **Editorial restraint.** Dense, professional, Outlook/Clio-grade information density. No gradients-on-white, no decorative noise, no dark mode.
+- **Navy is the spine.** The left rail is the website's navy (`#0A2540`) carrying the keep-mark + Satoshi wordmark, a signature gradient edge rule, and the faint hero glows; matters hang off it.
+- **Bone + white surfaces.** The canvas is the website's bone (`#F5F5F0`); documents and answers sit on it as white pages. Clean and flat, like the site.
+- **The gradient is the accent.** The pink→blue gradient (`#FF3CE8 → #5DC6FF`) marks primary actions (exactly as keepance.com uses its CTA) and the brand sparkle; navy carries most of the UI.
+- **Monospace is the record.** Citations, matter numbers, locators, and audit timestamps are monospace, so the evidentiary parts read as evidence. Simulated document content stays in a serif so a letter reads like a real .docx.
 
-**Type:** Newsreader (editorial serif) for headings and matter titles · IBM Plex Sans (dense, legible) for UI · IBM Plex Mono for the record. Distinctive, professional, not Inter.
+**Type:** **Satoshi** (the keepance.com typeface, via Fontshare) for all UI · a monospace stack for the record · a document serif only inside the simulated letter.
 
-**Color:** navy `#0A2540` primary · warm paper `#F5F3EC` · ink `#1B1A16` · brass `#997A4C` accent · trust states green/ochre/teal.
+**Color:** navy `#0A2540` · bone `#F5F5F0` · white · gradient `#FF3CE8 → #5DC6FF` · accent blue `#5DC6FF` · trust states green/ochre/teal. Pulled directly from `website/index.html` `:root` and the keep-mark from `website/favicon.svg`.
 
 ---
 

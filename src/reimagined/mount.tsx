@@ -16,22 +16,16 @@ import { ReimaginedApp } from './ReimaginedApp';
 
 function ensureFonts() {
   if (document.getElementById('kp-fonts')) return;
-  const pre1 = document.createElement('link');
-  pre1.rel = 'preconnect';
-  pre1.href = 'https://fonts.googleapis.com';
-  const pre2 = document.createElement('link');
-  pre2.rel = 'preconnect';
-  pre2.href = 'https://fonts.gstatic.com';
-  pre2.crossOrigin = 'anonymous';
+  // Satoshi via Fontshare — the keepance.com typeface.
+  const pre = document.createElement('link');
+  pre.rel = 'preconnect';
+  pre.href = 'https://api.fontshare.com';
+  pre.crossOrigin = 'anonymous';
   const link = document.createElement('link');
   link.id = 'kp-fonts';
   link.rel = 'stylesheet';
-  link.href =
-    'https://fonts.googleapis.com/css2?' +
-    'family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&' +
-    'family=IBM+Plex+Sans:wght@400;500;600;700&' +
-    'family=IBM+Plex+Mono:wght@400;500;600&display=swap';
-  document.head.append(pre1, pre2, link);
+  link.href = 'https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,800,900&display=swap';
+  document.head.append(pre, link);
 }
 
 export function mountReimagined(rootElement: HTMLElement): void {

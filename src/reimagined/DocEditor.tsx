@@ -41,14 +41,14 @@ export function DocEditor() {
         {/* The page */}
         <div className="kp-card kp-card--raise" style={{ padding: '0 0 40px' }}>
           <div style={{ padding: '34px 56px 0' }}>
-            <div style={{ textAlign: 'center', paddingBottom: 18, borderBottom: '2px solid var(--kp-brass)' }}>
-              <div className="kp-serif" style={{ fontSize: 23, fontWeight: 600, letterSpacing: '0.02em', color: 'var(--kp-navy)' }}>MARCHETTI LAW</div>
+            <div style={{ textAlign: 'center', paddingBottom: 18, borderBottom: '2px solid var(--kp-navy)' }}>
+              <div style={{ fontFamily: 'var(--kp-doc-serif)', fontSize: 22, fontWeight: 700, letterSpacing: '0.04em', color: 'var(--kp-navy)' }}>MARCHETTI LAW</div>
               <div style={{ fontSize: 11.5, color: 'var(--kp-ink-2)', marginTop: 4, letterSpacing: '0.04em' }}>
                 1420 Court Street, Suite 300 · Riverside, CA 92501 · (951) 555-0148
               </div>
             </div>
           </div>
-          <div style={{ padding: '26px 56px 0', fontFamily: 'var(--kp-serif)', fontSize: 14.5, lineHeight: 1.85, color: 'var(--kp-ink)' }}>
+          <div style={{ padding: '26px 56px 0', fontFamily: 'var(--kp-doc-serif)', fontSize: 14.5, lineHeight: 1.85, color: 'var(--kp-ink)' }}>
             <div style={{ color: 'var(--kp-ink-2)', fontFamily: 'var(--kp-sans)', fontSize: 12.5 }}>April 14, 2026 · VIA CERTIFIED MAIL</div>
             <p style={{ marginTop: 18 }}>Re: <i>Brennan v. Vanguard Logistics</i> — Demand for Resolution</p>
             <p style={{ marginTop: 16 }}>Dear Counsel:</p>
@@ -65,7 +65,7 @@ export function DocEditor() {
               to proceed to trial on the wrongful-termination and retaliation claims.
             </p>
             <p style={{ marginTop: 18 }}>Very truly yours,</p>
-            <p className="kp-serif" style={{ marginTop: 10, fontSize: 17 }}>Diane Marchetti</p>
+            <p style={{ fontFamily: 'var(--kp-doc-serif)', marginTop: 10, fontSize: 17, color: 'var(--kp-heading)' }}>Diane Marchetti</p>
             <div style={{ fontFamily: 'var(--kp-sans)', fontSize: 12, color: 'var(--kp-ink-2)' }}>Marchetti Law</div>
           </div>
         </div>
