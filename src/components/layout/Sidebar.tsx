@@ -31,7 +31,7 @@ import { PluginSidebarPanels } from '@/components/plugins/PluginSidebarPanels';
 import { usePluginRegistryStore } from '@/stores/pluginRegistryStore';
 import { useProfessionStore, isLawExperience } from '@/stores/professionStore';
 
-interface SidebarProps {
+export interface SidebarProps {
   fileTreeContent?: React.ReactNode;
   searchContent?: React.ReactNode;
   workflowContent?: React.ReactNode;

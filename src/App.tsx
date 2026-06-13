@@ -9,7 +9,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
 import { FileTree } from '@/components/workspace/FileTree';
-import { Sidebar } from '@/components/layout/Sidebar';
+import { AppShellNav } from '@/components/layout/AppShellNav';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { StatusBar } from '@/components/layout/StatusBar';
 import { McpApprovalGate } from '@/components/settings/McpApprovalGate';
@@ -3476,7 +3476,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar with file tree, workflows, research, and settings */}
-        <Sidebar
+        <AppShellNav
           activeTab={sidebarActiveTab}
           onTabChange={setSidebarActiveTab}
           collapsed={sidebarCollapsed}
