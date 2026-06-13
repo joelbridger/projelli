@@ -28,10 +28,10 @@ interface ReimaginedSpineProps {
   auditContent?: React.ReactNode;
   trashContent?: React.ReactNode;
   mattersContent?: React.ReactNode;
-  activeTab?: string;
-  onTabChange?: (tab: string) => void;
-  collapsed?: boolean;
-  onCollapsedChange?: (next: boolean) => void;
+  activeTab?: string | undefined;
+  onTabChange?: ((tab: string) => void) | undefined;
+  collapsed?: boolean | undefined;
+  onCollapsedChange?: ((next: boolean) => void) | undefined;
 }
 
 /** The Keepance keep-mark from keepance.com — white keep + gradient sparkle. */

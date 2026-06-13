@@ -139,12 +139,12 @@ export function DocEditor() {
   );
 }
 
-function Ins({ children, on }: { children: ReactNode; on?: 'accept' | 'reject' }) {
+function Ins({ children, on }: { children: ReactNode; on?: 'accept' | 'reject' | undefined }) {
   if (on === 'reject') return null;
   if (on === 'accept') return <span>{children}</span>;
   return <span style={{ color: 'var(--kp-navy)', textDecoration: 'underline', textDecorationColor: 'var(--kp-navy-600)', textUnderlineOffset: 2, background: '#e9eef5' }}>{children}</span>;
 }
-function Del({ children, on }: { children: ReactNode; on?: 'accept' | 'reject' }) {
+function Del({ children, on }: { children: ReactNode; on?: 'accept' | 'reject' | undefined }) {
   if (on === 'accept') return null;
   if (on === 'reject') return <span>{children}</span>;
   return <span style={{ color: 'var(--kp-danger)', textDecoration: 'line-through', textDecorationColor: 'var(--kp-danger)', background: 'var(--kp-danger-bg)' }}>{children}</span>;

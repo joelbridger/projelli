@@ -191,7 +191,7 @@ function CitationText({ text, citations, selected, onSelect }: {
 /* -------------------------------- Ask ----------------------------------- */
 export function AskScreen({ matter }: { matter: Matter | null }) {
   const [selected, setSelected] = useState<number | null>(1);
-  const cite = ASK_EXAMPLE.citations.find((c) => c.n === selected) ?? ASK_EXAMPLE.citations[0];
+  const cite = ASK_EXAMPLE.citations.find((c) => c.n === selected) ?? ASK_EXAMPLE.citations[0]!;
   const scope = matter ? matter.title : 'all matters';
 
   return (
@@ -255,7 +255,7 @@ export function AskScreen({ matter }: { matter: Matter | null }) {
 
 /* --------------------------- Litigation associate ------------------------ */
 export function AssociateScreen({ matter }: { matter: Matter }) {
-  const [open, setOpen] = useState<string | null>(CONTRADICTIONS[0].id);
+  const [open, setOpen] = useState<string | null>(CONTRADICTIONS[0]?.id ?? null);
   return (
     <div className="kp-page kp-rise">
       <div className="kp-page-head" style={{ alignItems: 'flex-start' }}>
