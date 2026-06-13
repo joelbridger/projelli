@@ -2,6 +2,12 @@
 
 @source "../**/*.{ts,tsx}";
 
+/* Satoshi — the keepance.com typeface, self-hosted for offline use. */
+@font-face { font-family: 'Satoshi'; src: url('/fonts/satoshi/satoshi-400.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Satoshi'; src: url('/fonts/satoshi/satoshi-500.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Satoshi'; src: url('/fonts/satoshi/satoshi-700.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Satoshi'; src: url('/fonts/satoshi/satoshi-900.woff2') format('woff2'); font-weight: 900; font-style: normal; font-display: swap; }
+
 @theme {
   /* Colors */
   --color-background: hsl(0 0% 100%);
@@ -16,14 +22,27 @@
   --color-secondary: hsl(210 40% 96.1%);
   --color-secondary-foreground: hsl(222.2 47.4% 11.2%);
   --color-muted: hsl(210 40% 96.1%);
-  --color-muted-foreground: hsl(215.4 16.3% 46.9%);
+  --color-muted-foreground: hsl(215.4 16.3% 44%);
   --color-accent: hsl(210 40% 96.1%);
   --color-accent-foreground: hsl(222.2 47.4% 11.2%);
-  --color-destructive: hsl(0 84.2% 60.2%);
+  --color-destructive: hsl(0 84.2% 48%);
   --color-destructive-foreground: hsl(210 40% 98%);
-  --color-border: hsl(214.3 31.8% 91.4%);
-  --color-input: hsl(214.3 31.8% 91.4%);
+  --color-border: hsl(214.3 31.8% 60%);
+  --color-input: hsl(214.3 31.8% 60%);
   --color-ring: hsl(210 73% 15%);
+
+  /* ---- Brand (keepance.com): Satoshi + the pink->blue gradient ---- */
+  --font-sans: 'Satoshi', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Fira Code', monospace;
+  --kp-navy: #0a2540;
+  --kp-pink: #ff3ce8;
+  --kp-blue: #5dc6ff;
+  --kp-grad: linear-gradient(135deg, #ff3ce8, #5dc6ff);
+  --kp-accent: #1f74c4;
+  --kp-local: #16654a; --kp-local-bg: #e6f0ea; --kp-local-line: #8fbca6;
+  --kp-direct: #8a5410; --kp-direct-bg: #f6ecd6; --kp-direct-line: #d0ad6c;
+  --kp-assured: #1b5e86; --kp-assured-bg: #e1eef6; --kp-assured-line: #8fbedb;
+  --kp-danger: #b02a1f; --kp-danger-bg: #f6e2df;
 
   /* Border radius */
   --radius-sm: calc(var(--radius) - 4px);
@@ -53,6 +72,7 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }

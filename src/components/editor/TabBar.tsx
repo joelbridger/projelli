@@ -65,7 +65,7 @@ const getTabIcon = (tab: { name: string; type?: 'file' | 'browser' | 'whiteboard
     return <MessageSquare className="h-4 w-4 text-purple-500 flex-shrink-0" />;
   }
   if (tab.type === 'workflow-execution') {
-    return <Sparkles className="h-4 w-4 text-amber-500 flex-shrink-0" />;
+    return <Sparkles className="h-4 w-4 text-amber-700 flex-shrink-0" />;
   }
   if (tab.type === 'email') {
     return <Mail className="h-4 w-4 text-[#0A2540] flex-shrink-0" />;
@@ -792,7 +792,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         )}
         <AIContextChip path={tab.path} />
         {tab.isDirty && (
-          <span className="text-amber-500 font-bold" title="Unsaved changes">
+          <span className="text-amber-700 font-bold" title="Unsaved changes">
             *
           </span>
         )}
@@ -1036,7 +1036,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                         <span className="truncate flex-1">{removeExtension(tab.name)}</span>
                       )}
                       {tab.isDirty && (
-                        <span className="text-amber-500 font-bold" title="Unsaved changes">
+                        <span className="text-amber-700 font-bold" title="Unsaved changes">
                           *
                         </span>
                       )}
@@ -1224,7 +1224,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                       {getTabIcon(tab)}
                       <span className="truncate max-w-[200px]">{removeExtension(tab.name)}</span>
                       {tab.isDirty && (
-                        <span className="text-amber-500 font-bold ml-auto" title="Unsaved changes">
+                        <span className="text-amber-700 font-bold ml-auto" title="Unsaved changes">
                           *
                         </span>
                       )}

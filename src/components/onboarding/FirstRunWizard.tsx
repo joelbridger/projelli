@@ -209,7 +209,12 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
                 </div>
               }
               actions={
-                <Button data-testid="onboarding-next-welcome" onClick={() => setStep('profession')} size="lg">
+                <Button
+                  data-testid="onboarding-next-welcome"
+                  onClick={() => setStep('profession')}
+                  size="lg"
+                  style={{ background: 'var(--kp-grad)', border: 'none', color: '#fff' }}
+                >
                   {t('onboarding.first-run.welcome.cta')}
                 </Button>
               }
@@ -219,7 +224,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
           {step === 'profession' && (
             <Pane
               title="What kind of work do you do?"
-              subtitle="We'll set up your workspace with the right starting templates."
+              subtitle="We'll set up your practice with the right starting templates and defaults."
               body={
                 <div className="grid grid-cols-2 gap-3">
                   {PROFESSION_OPTIONS.map((option) => {
@@ -306,7 +311,7 @@ export function FirstRunWizard({ onComplete, onSkip, workspace, onSaveApiKey }: 
           {step === 'data' && (
             <PaneScrollable
               title="Where your data goes"
-              subtitle="Before we connect an AI, here is the whole picture in plain language."
+              subtitle="Before we connect an AI account, here is the whole picture in plain language."
               body={
                 <div data-testid="onboarding-data-step">
                   <DataMapContent variant="accordion" />
@@ -462,7 +467,7 @@ function Pane({ title, subtitle, body, actions }: PaneProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">{title}</h2>
+        <h2 className="text-3xl font-bold tracking-tight" style={{ color: 'var(--kp-navy)' }}>{title}</h2>
         {subtitle && <p className="text-base text-muted-foreground mt-1">{subtitle}</p>}
       </div>
       <div>{body}</div>
@@ -480,7 +485,7 @@ function PaneScrollable({ title, subtitle, body, actions }: PaneProps) {
   return (
     <div className="flex flex-col" style={{ maxHeight: 'calc(85vh - 120px)' }}>
       <div className="shrink-0 mb-4">
-        <h2 className="text-3xl font-bold tracking-tight">{title}</h2>
+        <h2 className="text-3xl font-bold tracking-tight" style={{ color: 'var(--kp-navy)' }}>{title}</h2>
         {subtitle && <p className="text-base text-muted-foreground mt-1">{subtitle}</p>}
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto pr-1">{body}</div>

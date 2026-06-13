@@ -9,7 +9,11 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { WorkspaceSelector } from '@/components/workspace/WorkspaceSelector';
 import { FileTree } from '@/components/workspace/FileTree';
-import { Sidebar } from '@/components/layout/Sidebar';
+import { AppShellNav } from '@/components/layout/AppShellNav';
+import { ReimaginedTrustBar } from '@/components/layout/ReimaginedTrustBar';
+import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
+import { ReimaginedAsk } from '@/components/ai/ReimaginedAsk';
+import { isReimaginedShell } from '@/lib/reimaginedShell';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { StatusBar } from '@/components/layout/StatusBar';
 import { McpApprovalGate } from '@/components/settings/McpApprovalGate';
@@ -39,6 +43,7 @@ import { sendEvent } from '@/utils/telemetry';
 import { FeatureTour } from '@/components/onboarding/FeatureTour';
 import { useFeatureTour } from '@/hooks/useFeatureTour';
 import { useSettingsStore } from '@/stores/settingsStore';
+import { isLawExperience } from '@/stores/professionStore';
 // M1 (v1.5) Memory: workspace RAG indexer + status UI.
 import { ModelDownloadCard } from '@/components/memory/ModelDownloadCard';
 import { RagProgressBanner } from '@/components/memory/RagProgressBanner';
@@ -1257,13 +1262,15 @@ function App() {
         isNewWorkspace = true;
       }
 
-      // Create whiteboards folder
-      const whiteboardsPath = `${newRootPath}/whiteboards`;
-      const whiteboardsExists = await service.exists(whiteboardsPath);
-      if (!whiteboardsExists) {
-        await service.mkdir(whiteboardsPath);
-        console.log('Created whiteboards folder');
-        isNewWorkspace = true;
+      // Create whiteboards folder (skipped in the law-first experience)
+      if (!isLawExperience()) {
+        const whiteboardsPath = `${newRootPath}/whiteboards`;
+        const whiteboardsExists = await service.exists(whiteboardsPath);
+        if (!whiteboardsExists) {
+          await service.mkdir(whiteboardsPath);
+          console.log('Created whiteboards folder');
+          isNewWorkspace = true;
+        }
       }
 
       // Create AI Chats folder
@@ -1275,13 +1282,15 @@ function App() {
         isNewWorkspace = true;
       }
 
-      // Create Research folder
-      const researchPath = `${newRootPath}/Research`;
-      const researchExists = await service.exists(researchPath);
-      if (!researchExists) {
-        await service.mkdir(researchPath);
-        console.log('Created Research folder');
-        isNewWorkspace = true;
+      // Create Research folder (skipped in the law-first experience)
+      if (!isLawExperience()) {
+        const researchPath = `${newRootPath}/Research`;
+        const researchExists = await service.exists(researchPath);
+        if (!researchExists) {
+          await service.mkdir(researchPath);
+          console.log('Created Research folder');
+          isNewWorkspace = true;
+        }
       }
 
       // Create Audio Recordings folder
@@ -3468,10 +3477,13 @@ This file contains rules and guidelines for AI assistants in this workspace.
           Otherwise null and zero layout. */}
       <TrialBanner onActivate={() => openSettings('license')} />
 
+      {/* Reimagined shell: the hero Trust Bar (elevated egress + matter scope). */}
+      {isReimaginedShell() && <ReimaginedTrustBar />}
+
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar with file tree, workflows, research, and settings */}
-        <Sidebar
+        <AppShellNav
           activeTab={sidebarActiveTab}
           onTabChange={setSidebarActiveTab}
           collapsed={sidebarCollapsed}
@@ -3590,7 +3602,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
           mattersContent={<MattersSidebarPanel />}
         />
 
-        {/* Main editor panel */}
+        {/* Main editor panel, or a full-page reimagined surface (matters/Ask). */}
+        {isReimaginedShell() && sidebarActiveTab === 'matters' ? (
+          <ReimaginedMattersHome />
+        ) : isReimaginedShell() && sidebarActiveTab === 'search' ? (
+          <ReimaginedAsk />
+        ) : (
         <MainPanel
           onFileOpen={handleFileOpen}
           onMove={handleMove}
@@ -3652,6 +3669,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
             });
           }}
         />
+        )}
       </div>
 
       {/* Status bar */}

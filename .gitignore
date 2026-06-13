@@ -69,3 +69,6 @@ Assets/
 .claude/
 
 scripts/recordings/
+
+# Local dev screenshot scripts (UI reimagining)
+.kp-*.mjs
