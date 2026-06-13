@@ -15,6 +15,8 @@ import {
   Briefcase, FolderTree, Sparkles, ListChecks, Bot, ShieldCheck, Trash2,
   ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
+import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
+import { matterLabel } from '@/modules/memory/matterResolver';
 
 type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'ai-assistant' | 'audit' | 'trash';
 
@@ -56,6 +58,9 @@ export function ReimaginedSpine({
 }: ReimaginedSpineProps) {
   const { t } = useTranslation();
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const matters = useMatters();
+  const activeMatterId = useActiveMatterId();
+  const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
 
   // Matter-centric nav. label/Icon + the existing content tab id it drives.
   const nav: { id: SpineTab; label: string; Icon: LucideIcon }[] = [
@@ -112,7 +117,7 @@ export function ReimaginedSpine({
           <KeepanceMark />
           <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-0.02em' }}>Keepance</span>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '12px 10px', flex: 1, minHeight: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '12px 10px', flex: 'none' }}>
           {nav.map(({ id, label, Icon }) => {
             const on = active === id;
             return (
@@ -131,6 +136,27 @@ export function ReimaginedSpine({
             );
           })}
         </div>
+        {matters.length > 0 ? (
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 10px 10px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', padding: '12px 10px 6px' }}>
+              {t('layout.sidebar.tabs.matters')}
+            </div>
+            {matters.map((m) => {
+              const on = m.id === activeMatterId;
+              return (
+                <button key={m.id} type="button"
+                  onClick={() => { setActiveMatter(m.id); onTabChange?.('matters'); }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, cursor: 'pointer', background: on ? 'rgba(93,198,255,0.12)' : 'transparent', color: '#fff', padding: '7px 11px', borderRadius: 6, position: 'relative' }}>
+                  {on && <span style={{ position: 'absolute', left: 3, top: 8, bottom: 8, width: 3, borderRadius: 3, background: 'var(--kp-grad)' }} />}
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{matterLabel(m)}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.client}</div>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ flex: 1 }} />
+        )}
         <button type="button" onClick={() => onCollapsedChange?.(true)} title="Collapse"
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px', border: 0, borderTop: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: 12 }}>
           <ChevronLeft size={16} /> Collapse
