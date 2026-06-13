@@ -343,7 +343,7 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
             {activeTab.isDirty && (
               <div
                 data-testid="status-bar-modified"
-                className="flex items-center gap-1 text-amber-500"
+                className="flex items-center gap-1 text-amber-700"
               >
                 <Edit className="h-3 w-3" />
                 <span>{t('layout.status-bar.modified')}</span>
