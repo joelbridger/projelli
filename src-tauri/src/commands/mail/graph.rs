@@ -64,6 +64,41 @@ impl GraphClient {
             enc_path_segment(folder_id)
         )
     }
+
+    /// `GET /v1.0/me/messages/{id}/attachments/{att_id}` — returns the raw
+    /// decoded bytes from the Graph `contentBytes` field (base64).
+    pub async fn get_attachment(
+        &self,
+        message_id: &str,
+        attachment_id: &str,
+    ) -> anyhow::Result<(Vec<u8>, String, String)> {
+        use base64::Engine;
+        let url = format!(
+            "{}/v1.0/me/messages/{}/attachments/{}",
+            self.base,
+            enc_path_segment(message_id),
+            enc_path_segment(attachment_id)
+        );
+        let v = self.get_json(&url).await?;
+        let content_bytes = v
+            .get("contentBytes")
+            .and_then(|b| b.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Graph attachment response missing `contentBytes`"))?;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(content_bytes)
+            .map_err(|e| anyhow::anyhow!("base64 decode Graph attachment: {e}"))?;
+        let content_type = v
+            .get("contentType")
+            .and_then(|t| t.as_str())
+            .unwrap_or("application/octet-stream")
+            .to_string();
+        let name = v
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or("attachment")
+            .to_string();
+        Ok((bytes, content_type, name))
+    }
 }
 
 /// Percent-encode a single URL path segment. Graph folder ids are normally

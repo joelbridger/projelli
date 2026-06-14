@@ -17,6 +17,12 @@ use serde::Serialize;
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AttachmentRef {
+    /// Stable provider-specific attachment id. Used by `mail_get_attachment`
+    /// to fetch the bytes on demand without re-parsing the MIME tree.
+    /// Graph attachments: the `@odata.id` / attachment `id` field.
+    /// Gmail attachments: the `attachmentId` from the MIME part body.
+    /// IMAP attachments: the part number string (e.g. "2", "1.2").
+    pub id: String,
     pub name: String,
 }
 

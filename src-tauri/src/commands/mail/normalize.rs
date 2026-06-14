@@ -26,7 +26,7 @@ fn yaml_escape(s: &str) -> String {
 /// `<script>`/`<style>` blocks, collapse whitespace, decode the few entities
 /// email actually uses. Good enough for indexing; fidelity is not the goal
 /// (the original stays in the store).
-fn html_to_text(html: &str) -> String {
+pub(crate) fn html_to_text(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut in_tag = false;
     let mut tag = String::new();
