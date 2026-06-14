@@ -55,6 +55,7 @@ import { MailConnect } from '@/components/settings/MailConnect';
 import { MailImapConnect } from '@/components/settings/MailImapConnect';
 import { MailGmailConnect } from '@/components/settings/MailGmailConnect';
 import { LanguagePicker } from '@/components/settings/LanguagePicker';
+import { SetupChecklist } from '@/components/settings/SetupChecklist';
 import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
 import type { AuditEntry } from '@/types/audit';
 import type { WorkflowTemplate } from '@/types/workflow';
@@ -103,6 +104,8 @@ interface SettingsModalProps {
    * without persisting state across opens.
    */
   initialCategory?: SettingCategory;
+  /** Called when the user clicks "Restart guided setup" in the Onboarding checklist. */
+  onRestartOnboarding?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -491,7 +494,7 @@ function AboutHeader() {
 // Main modal
 // ---------------------------------------------------------------------------
 
-export function SettingsModal({ open, onOpenChange, onAction, auditEntries, templates, initialCategory }: SettingsModalProps) {
+export function SettingsModal({ open, onOpenChange, onAction, auditEntries, templates, initialCategory, onRestartOnboarding }: SettingsModalProps) {
   const { t } = useTranslation();
   const [activeCategory, setActiveCategory] = useState<SettingCategory>(initialCategory ?? 'general');
   // Group VIII (Stream C1) + Group VI (Stream C4): the Marketplace nav badge
@@ -766,6 +769,25 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
                 <McpSettingsSection />
                 <OllamaSettingsSection />
               </>
+            ) : activeCategory === 'onboarding' ? (
+              <div>
+                <SetupChecklist
+                  onRestartOnboarding={() => {
+                    onRestartOnboarding?.();
+                    onOpenChange(false);
+                  }}
+                  onNavigate={(cat) => { setActiveCategory(cat as SettingCategory); }}
+                />
+                {categorySettings.map((def) => (
+                  <SettingRow
+                    key={def.key}
+                    def={def}
+                    value={getSetting(def.key)}
+                    onChange={(v) => { setSetting(def.key, v); }}
+                    onAction={handleAction}
+                  />
+                ))}
+              </div>
             ) : activeCategory === 'marketplace' ? (
               <MarketplaceTab />
             ) : activeCategory === 'plugins' ? (

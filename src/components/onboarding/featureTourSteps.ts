@@ -1,6 +1,7 @@
 /**
  * Feature tour steps shown AFTER the first-run wizard completes.
  *
+ * 7-step onboarding sequence for Keepance 3.0's Spine navigation.
  * Target selectors: data-testid first, fallback to CSS selector.
  * Placement: 'top' | 'bottom' | 'left' | 'right' | 'center' (center
  * = modal-in-the-middle, for intro + outro steps).
@@ -17,72 +18,51 @@ export interface FeatureTourStep {
 export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'intro',
-    title: "Let's take a 2-minute tour",
-    body: 'Keepance has ten things worth knowing on day one. Skip any time with Esc, step back with the left arrow key. You can restart this tour later from Settings, Onboarding.',
+    title: 'A quick look at the new layout',
+    body: 'Keepance 3.0 is built around matters, not files. This tour covers the six things worth knowing. Skip any time with Esc, step back with the left arrow key. You can restart from Settings, Onboarding.',
     targetSelector: null,
     placement: 'center',
   },
   {
-    id: 'file-tree',
-    title: 'Your files, on your disk',
-    body: 'Every chat, workflow output, and note lives here as a real Markdown file. Every edit auto-saves in two seconds and auto-versions, so nothing is ever lost. Open a file with any editor, take it with you anywhere. Your Keepance files are ordinary files in the folder you chose. Back them up the same way you back up everything else: Time Machine on Mac, File History on Windows, or copy the folder to an external drive or cloud storage.',
-    targetSelector: '[data-testid="sidebar-tab-files"]',
+    id: 'matters',
+    title: 'Matters first',
+    body: 'Every client and case gets its own matter. Your documents, emails, and AI conversations stay inside the matter boundary so the wrong client never sees the wrong file. Create a matter from the Matters view or the plus button in the header.',
+    targetSelector: '[data-testid="spine-nav-matters"]',
     placement: 'right',
   },
   {
-    id: 'ai-chat',
-    title: 'Talk to Claude, GPT, Gemini, or Ollama',
-    body: 'Press Ctrl+Shift+A to open the AI pane. Bring your own API key; your messages go direct from your machine to the provider, Keepance never proxies them. Type @workspace for memory recall over your files. Hold Ctrl+Shift+Space to dictate with a bundled speech model.',
-    targetSelector: '[data-testid="sidebar-tab-ai-assistant"]',
+    id: 'ask',
+    title: 'Ask finds anything',
+    body: 'Type a question, a clause, a client name, or a case number. Ask searches every document and email in your workspace and answers with citations you can click back to the source. It also runs full AI conversations when you need them.',
+    targetSelector: '[data-testid="spine-nav-search"]',
     placement: 'right',
   },
   {
-    id: 'workflows',
-    title: 'Workflow templates',
-    body: 'Client Intake, Matter Summary, Weekly Client Update, and more. Each template asks a few questions then produces a polished Markdown document you can edit, cite, and share. The practice packs for legal, tax, and consulting add profession-specific templates. Try it: click Workflows in the sidebar, pick any template, and answer the first question. A draft document appears in your workspace.',
-    targetSelector: '[data-testid="sidebar-tab-workflows"]',
+    id: 'documents',
+    title: 'Your documents, as real files',
+    body: 'Word documents, Markdown, PDFs, transcripts: all stored as real files on your disk. Every edit saves automatically and keeps a version history. Back them up with Time Machine, File History, or any folder sync tool you already use.',
+    targetSelector: '[data-testid="spine-nav-files"]',
     placement: 'right',
   },
   {
-    id: 'search',
-    title: 'Full-text search across your workspace',
-    body: 'Every word of every Markdown file is indexed with MiniSearch so you can jump to the right note by typing a phrase. Results rank by relevance and show the surrounding context.',
-    targetSelector: '[data-testid="sidebar-tab-search"]',
-    placement: 'right',
-  },
-  {
-    id: 'research',
-    title: 'Research mode with source cards',
-    body: 'Save a link, quote, and citation as a source card, then drop citations into any doc. Every source stays traceable back to the URL you pulled it from, so your docs are always defensible.',
-    targetSelector: '[data-testid="sidebar-tab-research"]',
-    placement: 'right',
-  },
-  {
-    id: 'whiteboard',
-    title: 'Whiteboard for sketching ideas',
-    body: 'A full tldraw canvas lives right next to your docs. Map out a funnel, sketch a system diagram, or mind-map a pitch. Drag a saved whiteboard into a doc and it renders inline.',
-    targetSelector: '[data-testid="sidebar-tab-whiteboard"]',
+    id: 'email',
+    title: 'Email lives here now',
+    body: 'Connect your Microsoft 365 or Gmail inbox and Keepance imports your matter-related emails, lets you search across them, and lets Ask cite them in answers. Your email stays encrypted on your machine; nothing is uploaded to Keepance servers.',
+    targetSelector: '[data-testid="spine-nav-email"]',
     placement: 'right',
   },
   {
     id: 'audit',
-    title: 'Every AI action is logged',
-    body: 'The audit log records every prompt, model, token count, and cost so you can trace exactly what the AI did, where, and for how much. Filter by date and model, export to CSV or JSON.',
-    targetSelector: '[data-testid="sidebar-tab-audit"]',
+    title: 'Your defense file',
+    body: 'Every AI action is logged: the prompt, the model, the response, and the cost. If a client ever asks what the AI did with their documents, this is your answer. Filter by date, export to CSV, or print it for the file.',
+    targetSelector: '[data-testid="spine-nav-audit"]',
     placement: 'right',
   },
   {
-    id: 'command-palette',
-    title: 'Ctrl+K jumps to anything',
-    body: 'The command palette opens files, runs workflows, toggles themes, triggers settings. Fuzzy search by name or by keyboard shortcut. If you prefer keyboard-only, this is the gateway.',
-    targetSelector: '[data-testid="command-palette-button"]',
-    placement: 'bottom',
-  },
-  {
-    id: 'settings',
-    title: 'Settings live here',
-    body: 'API keys, theme, keyboard shortcuts, cost dashboard, update channel, voice model, all of it. Press Ctrl+, anytime. You are all set. Build something good.',
-    targetSelector: '[data-testid="settings-gear"]',
-    placement: 'bottom',
+    id: 'outro',
+    title: 'You are all set',
+    body: 'Start by creating a matter and opening a document. The AI key setup is in Settings, AI if you have not added one yet. Your data never leaves your machine without your knowledge. Build something good.',
+    targetSelector: null,
+    placement: 'center',
   },
 ];

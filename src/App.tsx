@@ -40,6 +40,7 @@ import { SettingsModal } from '@/components/settings/SettingsModal';
 import { TrialBanner } from '@/components/trial';
 import { hasCompletedOnboarding } from '@/components/onboarding';
 import { GuidedOnboarding } from '@/components/onboarding/GuidedOnboarding';
+import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
 import { createKeychainService } from '@/modules/models/KeychainService';
 import { sendEvent } from '@/utils/telemetry';
 import { FeatureTour } from '@/components/onboarding/FeatureTour';
@@ -291,6 +292,9 @@ function App() {
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // Shell-aware API key wizard — opened from reimagined shell CTAs.
+  const [apiKeyWizardOpen, setApiKeyWizardOpen] = useState<boolean>(false);
+
   // UX-04 onboarding: one-shot "open Keys sub-tab" instruction passed to
   // AIAssistantPane. Set when the onboarding card's CTA fires, cleared by
   // the pane via onRequestedTabApplied.
@@ -299,8 +303,12 @@ function App() {
   >(undefined);
 
   const handleRequestApiKeySetup = useCallback(() => {
-    setSidebarActiveTab('ai-assistant');
-    setAiAssistantRequestedTab('keys');
+    if (isReimaginedShell()) {
+      setApiKeyWizardOpen(true);
+    } else {
+      setSidebarActiveTab('ai-assistant');
+      setAiAssistantRequestedTab('keys');
+    }
   }, []);
 
   // Audit log state
@@ -3740,8 +3748,14 @@ This file contains rules and guidelines for AI assistants in this workspace.
         {...(settingsInitialCategory ? { initialCategory: settingsInitialCategory } : {})}
         onAction={(actionId) => {
           if (actionId === 'open-ai-keys') {
-            setSidebarActiveTab('ai-assistant');
-            setAiAssistantRequestedTab('keys');
+            if (isReimaginedShell()) {
+              setApiKeyWizardOpen(true);
+            } else {
+              setSidebarActiveTab('ai-assistant');
+              setAiAssistantRequestedTab('keys');
+            }
+          } else if (actionId === 'open-api-key-tutorial') {
+            setApiKeyWizardOpen(true);
           } else if (actionId === 'open-ai-rules') {
             handleOpenAIRules();
           } else if (actionId === 'updater-check-now') {
@@ -3756,6 +3770,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
             featureTour.restart();
             setTimeout(() => setTourOpen(true), 300);
           }
+        }}
+        onRestartOnboarding={() => {
+          setShowFirstRun(true);
         }}
       />
 
@@ -3775,6 +3792,18 @@ This file contains rules and guidelines for AI assistants in this workspace.
         onSkip={() => {
           featureTour.skipForNow();
           setTourOpen(false);
+        }}
+      />
+
+      {/* Shell-aware API key wizard — opened from reimagined shell CTAs */}
+      <ApiKeyWizard
+        open={apiKeyWizardOpen}
+        onOpenChange={setApiKeyWizardOpen}
+        onSaveKey={(provider, key) => {
+          void handleSaveOnboardingApiKey(
+            provider as Parameters<typeof handleSaveOnboardingApiKey>[0],
+            key
+          );
         }}
       />
 

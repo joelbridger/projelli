@@ -497,7 +497,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'resetFeatureTour',
     category: 'onboarding',
     label: 'Feature Tour',
-    description: 'Replay the 10-step tour that introduces the Keepance workspace.',
+    description: 'Replay the guided tour that introduces the Keepance workspace.',
     type: 'text',
     defaultValue: '',
     action: { label: 'Start tour', actionId: 'reset-feature-tour' },
