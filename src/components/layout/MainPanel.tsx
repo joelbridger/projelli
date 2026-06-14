@@ -260,6 +260,12 @@ interface MainPanelProps {
   onActiveEditorChange?: (
     ref: React.MutableRefObject<MarkdownEditorRef | null> | null,
   ) => void;
+  /**
+   * R4: when true, the built-in TabBar is hidden so the parent (the unified
+   * Documents tab strip in ReimaginedDocumentsHome) can act as the sole tab
+   * strip. Without this the Documents surface would show two tab bars.
+   */
+  hideTabBar?: boolean;
 }
 
 export function MainPanel({
@@ -285,6 +291,7 @@ export function MainPanel({
   workflowProviderError,
   onOpenSettings,
   onActiveEditorChange,
+  hideTabBar = false,
 }: MainPanelProps = {}) {
   const { t } = useTranslation();
   const {
@@ -1179,9 +1186,11 @@ export function MainPanel({
         data-compact={isToolbarCompact ? 'true' : 'false'}
         className="flex items-center border-b min-w-0 w-full"
       >
-        <div className="flex-1 min-w-0 w-0 overflow-hidden">
-          <TabBar {...(onRename ? { onRenameFile: onRename } : {})} />
-        </div>
+        {!hideTabBar && (
+          <div className="flex-1 min-w-0 w-0 overflow-hidden">
+            <TabBar {...(onRename ? { onRenameFile: onRename } : {})} />
+          </div>
+        )}
         <div className="flex items-center gap-1 px-2 border-l">
           {/*
             UX-17: reactive auto-save indicator. Shows "Saved · Ns ago"
