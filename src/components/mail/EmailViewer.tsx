@@ -321,7 +321,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
         {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
         <p className="text-sm font-medium text-slate-800">This email could not be opened</p>
         <p className="max-w-md text-xs text-slate-500">
-          {error ?? 'Message not found.'} (id: {displayId(sourceId)})
+          {error ?? 'Message not found. It may not be synced yet.'}
         </p>
       </div>
     );

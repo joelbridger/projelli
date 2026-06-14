@@ -142,8 +142,9 @@ describe('EmailViewer', () => {
     render(<EmailViewer sourceId="mail:missing" />);
     const err = await screen.findByTestId('email-viewer-error');
     expect(err).toHaveTextContent('could not be opened');
-    // The (trimmed) id is surfaced to help debugging.
-    expect(err).toHaveTextContent('missing');
+    // The raw message id must NOT appear in user-facing copy (fix: no id leak).
+    expect(err).not.toHaveTextContent('id:');
+    expect(err).toHaveTextContent('message not found');
   });
 
   it('stripResidualTags removes angle-bracket markup but keeps text', () => {

@@ -890,11 +890,11 @@ function NoAccountsState({ onOpenSettings }: NoAccountsStateProps) {
         style={{
           fontSize: 13,
           color: 'var(--color-muted-foreground)',
-          maxWidth: 300,
-          lineHeight: 1.5,
+          maxWidth: 340,
+          lineHeight: 1.6,
         }}
       >
-        Connect your Microsoft 365 or Gmail account to search and file email inside Keepance.
+        Connect your email to search across it, file messages to a matter, and cite them in answers. It is imported to your machine, not our servers.
       </div>
       {onOpenSettings && (
         <button
@@ -1311,6 +1311,17 @@ export function ReimaginedEmailWorkspace({
               Email
               { }
             </h1>
+          </div>
+
+          {/* Right side: compose button + scope toggle */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              flex: 'none',
+            }}
+          >
             <button
               type="button"
               data-testid="compose-btn"
@@ -1333,13 +1344,11 @@ export function ReimaginedEmailWorkspace({
                 border: 'none',
                 cursor: 'pointer',
                 fontFamily: 'var(--font-sans)',
-                marginLeft: 8,
               }}
             >
               <PenLine style={{ width: 13, height: 13, strokeWidth: 2 }} />
               { }New email{ }
             </button>
-          </div>
 
           {/* Scope toggle — only when a matter is active AND in Ask AI mode */}
           {activeMatter && (
@@ -1349,7 +1358,6 @@ export function ReimaginedEmailWorkspace({
                 flexDirection: 'column',
                 alignItems: 'flex-end',
                 gap: 4,
-                flex: 'none',
               }}
             >
               <div
@@ -1398,13 +1406,14 @@ export function ReimaginedEmailWorkspace({
               </div>
               {/* eslint-disable keepance-i18n/no-hardcoded-string */}
               {mode === 'keyword' && (
-                <span style={{ fontSize: 10, color: 'var(--color-muted-foreground)', maxWidth: 200, textAlign: 'right' }}>
-                  Keyword search covers all email. Switch to Ask AI for matter scope.
+                <span style={{ fontSize: 10, color: 'var(--color-muted-foreground)', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                  Keyword search covers all email. Use Ask AI for matter scope.
                 </span>
               )}
               {/* eslint-enable keepance-i18n/no-hardcoded-string */}
             </div>
           )}
+          </div>
         </div>
 
         {/* Hero search bar */}
