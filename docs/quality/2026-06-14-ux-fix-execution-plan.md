@@ -1,5 +1,10 @@
 # Keepance — UX-Fix Execution Plan (2026-06-14)
 
+> **STATUS: COMPLETE.** Waves A-F + the attachment backend all shipped, verified (typecheck 0,
+> full vitest 3190 passed, cargo 457 passed, live visual sweep clean), and merged to `keepance-3.0`.
+> The only deliberately deferred items are the full matter-hub restructure and its companions,
+> captured in `2026-06-14-matter-spine-future.md` for a Jameson-greenlit follow-up. NOT deployed.
+
 > **Autonomous execution tracker.** Jameson authorized a full autonomous pass to fix EVERYTHING
 > in `2026-06-14-first-time-ux-review.md`, in priority order, without stopping. This doc is the
 > compaction-proof source of truth. If context is reset, **resume from the first unchecked item.**

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **A first-time-user UX overhaul, so Keepance is easier to adopt.** After a full first-time-user review, a wave of changes to make the first fifteen minutes effortless and the language plain:
+  - **You can try Keepance before connecting anything.** New users land in a real sample matter ("Garcia v. Meridian Properties LLC") and get an instant cited answer to example questions with no AI account required; every citation opens the real sample file. Connecting your own AI is now an optional upgrade you reach for when ready, not a wall on day one.
+  - **Plainer names.** "Ask" is now "Search", "Associate" is "Workflows", and "AI Audit" is "Activity Log". The confidentiality choices read as two plain options for solo users ("On this computer only" / "Cloud AI, your account"); developer jargon ("egress", "API key", "tokens", "MCP") is gone from what you see, replaced with plain words ("AI request", "account key", and so on).
+  - **A calmer first run.** Onboarding leads with "skip for now" on the AI step (with an honest cost note), greets solo attorneys correctly, ends with one clear next action, and summarizes where your data goes in three bullets instead of a long form. A dismissible "Get started" card on the home screen shows the couple of setup steps.
+  - **Tidier, more consistent surfaces.** The two status bars were de-cluttered and the core trust line ("On your machine. Nothing leaves.") is always fully readable; the editor toolbar shows only controls that apply to the file you're editing; the Documents home explains that Keepance is Word-native; the Workflows library has a practice-area filter; email "Ask AI" has example prompts to get you started.
+  - **Matters feel like the spine.** Each matter is a launchpad with Ask / Documents / Email shortcuts, and the active matter follows you across surfaces.
+
+### Fixed
+- **"New matter" now works.** The button on the Matters home did nothing; it now opens the matter creator.
+- **Opening an email now shows it.** On the Email tab, opening a message dropped you on an empty page; it now opens the email in the reader.
+
+### Added
+- **Email attachments.** You can attach files when composing an email (Microsoft 365, Gmail, and IMAP/SMTP accounts).
+
 ## [3.2.0] - 2026-06-12
 
 ### Added
