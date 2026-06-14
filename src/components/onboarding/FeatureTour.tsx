@@ -8,7 +8,7 @@
  * Steps: see featureTourSteps.ts. Auto-advance happens if a target
  * selector returns no element (e.g. the AI tab isn't mounted yet).
  */
-import { useState, useEffect, useMemo, useLayoutEffect } from 'react';
+import { useState, useEffect, useMemo, useLayoutEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,19 @@ export function FeatureTour({ open, onClose, onComplete, onSkip }: FeatureTourPr
   const step = FEATURE_TOUR_STEPS[stepIndex] ?? FEATURE_TOUR_STEPS[0]!;
   const isFirst = stepIndex === 0;
   const isLast = stepIndex === FEATURE_TOUR_STEPS.length - 1;
+
+  // Stable advance callback — defined before any conditional return so hook
+  // order is consistent across renders. This prevents AutoAdvance's useEffect
+  // from re-firing every render (the old inline function was a new reference
+  // each render, causing an infinite loop when the target was missing).
+  const handleAutoAdvance = useCallback(() => {
+    if (isLast) {
+      onComplete();
+      onClose();
+    } else {
+      setStepIndex((i) => i + 1);
+    }
+  }, [isLast, onComplete, onClose]);
 
   // Reset to first step whenever the tour reopens.
   useEffect(() => {
@@ -52,14 +65,14 @@ export function FeatureTour({ open, onClose, onComplete, onSkip }: FeatureTourPr
       }
     };
     window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    return () => { window.removeEventListener('keydown', handler); };
   }, [open, isFirst, isLast, onSkip, onComplete, onClose]);
 
   if (!open) return null;
 
   if (step.placement === 'center') {
     return (
-      <Dialog open onOpenChange={(v) => !v && (onSkip(), onClose())}>
+      <Dialog open onOpenChange={(v) => { if (!v) { onSkip(); onClose(); } }}>
         <DialogContent data-testid="feature-tour-center" className="max-w-md">
           <DialogTitle className="sr-only">{step.title}</DialogTitle>
           <DialogDescription className="sr-only">{step.body}</DialogDescription>
@@ -69,8 +82,8 @@ export function FeatureTour({ open, onClose, onComplete, onSkip }: FeatureTourPr
             totalSteps={FEATURE_TOUR_STEPS.length}
             isFirst={isFirst}
             isLast={isLast}
-            onBack={() => setStepIndex((i) => i - 1)}
-            onNext={() => setStepIndex((i) => i + 1)}
+            onBack={() => { setStepIndex((i) => i - 1); }}
+            onNext={() => { setStepIndex((i) => i + 1); }}
             onSkip={() => {
               onSkip();
               onClose();
@@ -86,19 +99,8 @@ export function FeatureTour({ open, onClose, onComplete, onSkip }: FeatureTourPr
   }
 
   if (!targetElement) {
-    console.warn(`[FeatureTour] target ${step.targetSelector} not found; auto-advancing`);
-    return (
-      <AutoAdvance
-        onAdvance={() => {
-          if (isLast) {
-            onComplete();
-            onClose();
-          } else {
-            setStepIndex((i) => i + 1);
-          }
-        }}
-      />
-    );
+    console.warn(`[FeatureTour] target ${String(step.targetSelector)} not found; auto-advancing`);
+    return <AutoAdvance onAdvance={handleAutoAdvance} />;
   }
 
   return (
@@ -113,8 +115,8 @@ export function FeatureTour({ open, onClose, onComplete, onSkip }: FeatureTourPr
         totalSteps={FEATURE_TOUR_STEPS.length}
         isFirst={isFirst}
         isLast={isLast}
-        onBack={() => setStepIndex((i) => i - 1)}
-        onNext={() => setStepIndex((i) => i + 1)}
+        onBack={() => { setStepIndex((i) => i - 1); }}
+        onNext={() => { setStepIndex((i) => i + 1); }}
         onSkip={() => {
           onSkip();
           onClose();
@@ -199,7 +201,7 @@ function AnchoredBubble({ target, placement, testid, children }: AnchoredBubbleP
   const [rect, setRect] = useState<DOMRect | null>(null);
 
   useLayoutEffect(() => {
-    const update = () => setRect(target.getBoundingClientRect());
+    const update = () => { setRect(target.getBoundingClientRect()); };
     update();
     window.addEventListener('resize', update);
     window.addEventListener('scroll', update, true);
@@ -302,7 +304,10 @@ function AnchoredBubble({ target, placement, testid, children }: AnchoredBubbleP
 }
 
 function AutoAdvance({ onAdvance }: { onAdvance: () => void }) {
+  const firedRef = useRef(false);
   useEffect(() => {
+    if (firedRef.current) return;
+    firedRef.current = true;
     onAdvance();
   }, [onAdvance]);
   return null;

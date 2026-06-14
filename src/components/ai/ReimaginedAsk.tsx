@@ -117,7 +117,9 @@ function buildHistoryBlock(turns: AskTurn[], maxTurns = 6): string {
 function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
   const turns: AskTurn[] = [];
   let i = 0;
-  while (i < messages.length - 1) {
+  // Fix #3: iterate i < messages.length (not length - 1) so a trailing lone
+  // user message (e.g. crash mid-stream) is not silently dropped.
+  while (i < messages.length) {
     const userMsg = messages[i];
     const assistantMsg = messages[i + 1];
     if (userMsg && assistantMsg && userMsg.role === 'user' && assistantMsg.role === 'assistant') {
@@ -132,6 +134,16 @@ function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
         sources: [],
       });
       i += 2;
+    } else if (userMsg && userMsg.role === 'user' && (!assistantMsg || assistantMsg.role !== 'assistant')) {
+      // Trailing lone user message (orphaned, no matching assistant reply).
+      // Render as a pending turn with an empty answer instead of dropping it.
+      turns.push({
+        question: userMsg.content,
+        answer: '',
+        citations: [],
+        sources: [],
+      });
+      i += 1;
     } else {
       i += 1;
     }
@@ -411,12 +423,14 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
     })
     .slice(0, 5);
 
-  // On mount / chatId change: init session and reconstruct turns from persisted messages
+  // On mount / chatId change: init session and reconstruct turns from persisted messages.
+  // Fix #1: read getState() instead of the closed-over `sessions` selector so we always
+  // see the post-initSession state, not a stale snapshot captured at render time.
   useEffect(() => {
     initSession(chatId, []);
-    const session = sessions[chatId];
-    if (session && session.messages.length > 0) {
-      const reconstructed = reconstructTurns(session.messages);
+    const freshSession = useAIChatStore.getState().sessions[chatId];
+    if (freshSession && freshSession.messages.length > 0) {
+      const reconstructed = reconstructTurns(freshSession.messages);
       setTurns(reconstructed);
     } else {
       setTurns([]);
@@ -432,6 +446,19 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [turns.length, streamingTurn]);
+
+  // Fix #2: auto-select the first citation of the most-recently-added completed
+  // turn. Running this in an effect (rather than inside the setTurns updater)
+  // ensures both pieces of state are committed in the same React batch and
+  // SourcePanel is never empty for a frame.
+  useEffect(() => {
+    if (turns.length === 0) return;
+    const lastTurn = turns[turns.length - 1];
+    if (lastTurn && lastTurn.citations.length > 0) {
+      setSelectedTurnIdx(turns.length - 1);
+      setSelected(1);
+    }
+  }, [turns.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derived: currently selected citation
   const selectedCite = (() => {
@@ -620,16 +647,11 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
       addMessage(chatId, userMsg);
       addMessage(chatId, assistantMsg);
 
-      // Add completed turn to local state
-      setTurns((prev) => {
-        const newTurns = [...prev, completedTurn];
-        // Auto-select first citation in new turn
-        if (citations.length > 0) {
-          setSelectedTurnIdx(newTurns.length - 1);
-          setSelected(1);
-        }
-        return newTurns;
-      });
+      // Add completed turn to local state.
+      // Fix #2: auto-selection is handled by the useEffect below keyed on turns.length,
+      // so we do NOT call setSelectedTurnIdx / setSelected inside the updater — doing so
+      // inside the functional updater can leave them out of sync for one frame.
+      setTurns((prev) => [...prev, completedTurn]);
       setStreamingTurn(null);
       setStatus('done');
     } catch (err) {
@@ -739,7 +761,9 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
       </div>
 
       {/* Recent sessions chips */}
-      {recentSessions.length > 1 && (
+      {/* Fix #4: show whenever there is at least one session other than the current
+          one, so the first conversation is not hidden after switching away. */}
+      {recentSessions.some((s) => s.chatId !== chatId) && (
         <div
           style={{
             display: 'flex',
@@ -814,23 +838,52 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 6,
+                gap: 10,
                 padding: '40px 0',
-                color: 'var(--color-muted-foreground)',
                 textAlign: 'center',
               }}
             >
-              <Sparkles size={28} strokeWidth={1.5} style={{ opacity: 0.3, marginBottom: 4 }} />
-              <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--kp-navy)', opacity: 0.6 }}>
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                Ask a question about {activeMatter ? matterLabel(activeMatter) : 'this matter'}
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+              <Sparkles size={36} strokeWidth={1.4} style={{ color: 'var(--kp-navy)', opacity: 0.22, marginBottom: 2 }} />
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--kp-navy)', letterSpacing: '-0.01em' }}>
+                What do you want to find?
               </div>
-              <div style={{ fontSize: 12, maxWidth: 240, lineHeight: 1.55, opacity: 0.7 }}>
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                Every answer cites the document and locator. Click a chip to read the exact passage.
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+              <div style={{ fontSize: 12.5, maxWidth: 260, lineHeight: 1.6, color: 'var(--color-muted-foreground)', opacity: 0.85 }}>
+                Every answer cites the document and locator. Click any chip to read the exact passage.
               </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 6 }}>
+                {([
+                  'Summarize the latest deposition',
+                  'Find every email from opposing counsel',
+                  'What deadlines are coming up?',
+                ] as const).map((example) => (
+                  <button
+                    key={example}
+                    type="button"
+                    onClick={() => { setQuestion(example); }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '7px 13px',
+                      borderRadius: 99,
+                      border: '1.5px solid var(--kp-navy)',
+                      background: 'transparent',
+                      color: 'var(--kp-navy)',
+                      fontSize: 12,
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      opacity: 0.7,
+                      transition: 'opacity 0.12s, background 0.12s',
+                    }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(14,60,110,0.06)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.7'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
             </div>
           )}
 

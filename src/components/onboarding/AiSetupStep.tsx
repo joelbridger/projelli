@@ -96,8 +96,8 @@ export function AiSetupStep({
     <div className="space-y-6" data-testid="ai-setup-step">
       {view === 'choose' && (
         <ChooseView
-          onPickOwnAccount={() => setView('own-account')}
-          onPickLocal={() => setView('local')}
+          onPickOwnAccount={() => { setView('own-account'); }}
+          onPickLocal={() => { setView('local'); }}
           onSkip={onSkip}
           onBack={onBack}
           onOpenDataMap={onOpenDataMap}
@@ -107,14 +107,14 @@ export function AiSetupStep({
         <OwnAccountView
           defaultProvider={defaultProvider}
           onSaveKey={onSaveKey}
-          onBack={() => setView('choose')}
+          onBack={() => { setView('choose'); }}
           onOpenDataMap={onOpenDataMap}
         />
       )}
       {view === 'local' && (
         <LocalView
           onUseLocal={onUseLocal}
-          onBack={() => setView('choose')}
+          onBack={() => { setView('choose'); }}
           onOpenDataMap={onOpenDataMap}
         />
       )}
@@ -150,18 +150,10 @@ function ChooseView({
         </p>
       </div>
 
-      {/* Plain English BEFORE any jargon. */}
-      <div className="rounded-lg border border-border bg-blue-50/60 p-4 space-y-2 text-sm text-foreground leading-relaxed">
-        <p>
-          Keepance uses an AI like Claude to help with your matters. You connect
-          your own AI provider account, so your questions go straight to that company and
-          never pass through Keepance. You pay that company directly, usually
-          a few dollars a month. Your Keepance plan covers the software.
-        </p>
-        <p className="text-muted-foreground">
-          Keepance never sees your work, your files, or your client matters. If you
-          would rather nothing leave your computer at all, you can run the AI
-          locally instead. Both options are below.
+      {/* Plain English subtitle + data-map link. */}
+      <div className="space-y-1">
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Keepance connects to your own AI account. Your questions go straight there, never through us.
         </p>
         <button
           type="button"
@@ -183,6 +175,7 @@ function ChooseView({
           title="Connect your AI provider account"
           badge="Recommended for most"
           body="Connect your Claude, OpenAI, or Gemini account with a few clicks. We walk you through it step by step. Your AI usage goes straight to your provider. Most people spend a couple of dollars a month."
+          dominant
           onClick={onPickOwnAccount}
         />
         <PathCard
@@ -221,23 +214,31 @@ interface PathCardProps {
   title: string;
   badge?: string;
   body: string;
+  /** When true the card gets a navy border + subtle elevation to draw the eye. */
+  dominant?: boolean;
   onClick: () => void;
 }
 
-function PathCard({ testId, icon: Icon, tone, title, badge, body, onClick }: PathCardProps) {
+function PathCard({ testId, icon: Icon, tone, title, badge, body, dominant = false, onClick }: PathCardProps) {
   return (
     <button
       type="button"
       data-testid={testId}
       onClick={onClick}
-      className="group flex w-full items-start gap-4 rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary hover:bg-muted/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={cn(
+        'group flex w-full items-start gap-4 rounded-lg border bg-card p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        dominant
+          ? 'border-[#0a2540] shadow-md hover:shadow-lg hover:bg-muted/20'
+          : 'border-border opacity-90 hover:border-primary hover:bg-muted/30',
+      )}
+      style={dominant ? { borderColor: '#0a2540', boxShadow: '0 2px 10px rgba(10,37,64,0.12)' } : undefined}
     >
       <div className={cn('shrink-0 h-10 w-10 rounded-md flex items-center justify-center', tone)} aria-hidden>
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <h3 className={cn('text-sm font-semibold', dominant ? 'text-foreground' : 'text-muted-foreground')}>{title}</h3>
           {badge && (
             <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
               {badge}
@@ -378,7 +379,7 @@ function OwnAccountView({ defaultProvider, onSaveKey, onBack, onOpenDataMap }: O
           type="password"
           placeholder={provider === 'anthropic' ? 'sk-ant-api03-...' : provider === 'openai' ? 'sk-...' : 'AIza...'}
           value={keyText}
-          onChange={(e) => setKeyText(e.target.value)}
+          onChange={(e) => { setKeyText(e.target.value); }}
           className="font-mono"
           data-testid="ai-setup-key-input"
         />
@@ -456,7 +457,7 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
   useEffect(() => {
     check();
     // Run once on mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const handleConfirm = () => {
