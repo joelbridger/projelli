@@ -74,4 +74,23 @@ Gates at merge: typecheck 0 · vitest 3190 passed · cargo 457 passed · live vi
 
 ---
 
-## ROUND 2 — (appended after the Round 2 review below)
+## ROUND 2 — findings (full detail in `2026-06-14-ux-review-round2.md`)
+
+Second review on the improved build. Headline: **Round 1's flagship aha is silently broken on any
+returning view** — `reconstructTurns` drops citations + strips `{n}` markers (citations were never
+persisted), so navigating away and back loses the click-to-verify chips and shows a contradictory
+"No indexed sources were cited." Validated in code.
+
+### 🔁 To implement (Round 2 waves)
+- **R2-A (critical, fix the aha):** A1 persist citations with messages (restore chips on reload, demo + real); A2 kill the "Answered over your own files" vs "No indexed sources" contradiction; A3 land new users on the demo chip state (not a restored last answer); A4 graceful off-script message on the sample (no fall-through to a failing provider / the stray "Workflow Questions" modal).
+- **R2-B (sample clarity + bridge):** B1 "Sample" badge + confirmed delete on the sample matter; B2 dismissible "add your first real matter" bridge after a demo answer; B3 a second demo answer that cites "Sample - Weekly Review.md" (prove "across all your files"); B4 make the matter launchpad quick-actions visible (not hover-only); B5 reconcile the "Create your first matter" CTA with where it actually lands.
+- **R2-C (returning-user + polish):** C1 per-matter answer history ("Recent in this matter" = the second wow); C2 profession-aware sample copy; C3 skip-setup lands on Matters + Get-started card; C4 fresh-on-navigate Search; C5 self-driven a11y/responsive/states pass (the two cut lenses); C6 first-real-file "indexed locally, nothing uploaded" trust moment.
+
+### 🔭 Round 2 raw ideas / lower-priority (don't lose)
+- Trust-bar matter-name truncation in the header (cosmetic).
+- Email connect: show the value prop before the OAuth friction.
+- Settings still has ~20 categories (future IA pass).
+- Momentum/value-accumulation indicators on the Matters list ("2 clients, 4 docs indexed, 7 answers").
+- Two reviewer lenses (core-workflows depth, full a11y/responsive sweep) were cut for time — fold into C5
+  and re-run as a dedicated pass if depth is wanted later.
+
