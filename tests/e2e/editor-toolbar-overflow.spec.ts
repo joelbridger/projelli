@@ -1,15 +1,13 @@
 /**
- * Editor toolbar overflow menu (UX-13)
+ * Editor toolbar overflow menu
  *
- * At narrow widths the right-side toolbar collapses History / Split /
- * Outline / Backlinks / Export into a "…" overflow DropdownMenu. Save and
- * Download remain visible inline regardless of width. Switching back to a
- * wide viewport should restore the inline layout.
+ * Secondary controls (Download, History, Split, Outline, Backlinks) are always
+ * inside the "…" overflow DropdownMenu in both wide and compact viewports.
+ * Export is the only control that stays inline (markdown files only).
  *
  * The toolbar container carries a `data-compact` attribute that reflects
- * the current breakpoint decision — we assert on both that attribute and
- * the actual visibility of inline buttons so the visual intent matches the
- * data model.
+ * the current breakpoint decision — we assert on it so the data model
+ * stays honest, but visual behaviour is identical in both modes.
  */
 
 import { test, expect } from '@playwright/test';
@@ -17,7 +15,7 @@ import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
 
 async function openAnyMarkdownFile(page: import('@playwright/test').Page) {
   // Test mode seeds a workspace with sample files. Open Files tab and click
-  // the first markdown file in the tree if one exists; otherwise create one.
+  // the first markdown file in the tree if one exists.
   await hardClick(page.getByTestId('sidebar-tab-files'));
   const mdFiles = page.getByTestId('file-tree').locator('[role="treeitem"]');
   const count = await mdFiles.count();
@@ -28,8 +26,8 @@ async function openAnyMarkdownFile(page: import('@playwright/test').Page) {
   }
 }
 
-test.describe('Editor toolbar overflow (UX-13)', () => {
-  test('narrow viewport collapses overflow items into a … menu', async ({ page }) => {
+test.describe('Editor toolbar overflow', () => {
+  test('narrow viewport marks toolbar as compact', async ({ page }) => {
     await page.setViewportSize({ width: 700, height: 800 });
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
@@ -39,16 +37,12 @@ test.describe('Editor toolbar overflow (UX-13)', () => {
     await expect(toolbar).toBeVisible();
     await expect(toolbar).toHaveAttribute('data-compact', 'true');
 
-    // Overflow trigger is visible; inline outline/backlinks are not.
+    // Overflow trigger is visible in compact mode.
     await expect(page.getByTestId('toolbar-overflow')).toBeVisible();
-    await expect(page.getByTestId('toolbar-outline')).toHaveCount(0);
-    await expect(page.getByTestId('toolbar-backlinks')).toHaveCount(0);
 
-    // Save/Download (critical) stay visible if a file is open.
-    const hasTab = await page.getByTestId('toolbar-download').count();
-    if (hasTab > 0) {
-      await expect(page.getByTestId('toolbar-download')).toBeVisible();
-    }
+    // Outline and backlinks are now always in the overflow, never standalone buttons.
+    await expect(page.locator('[data-testid="toolbar-outline"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="toolbar-backlinks"]')).toHaveCount(0);
 
     // Opening the overflow menu exposes the moved items.
     await hardClick(page.getByTestId('toolbar-overflow'));
@@ -56,7 +50,7 @@ test.describe('Editor toolbar overflow (UX-13)', () => {
     await expect(page.getByTestId('toolbar-overflow-backlinks')).toBeVisible();
   });
 
-  test('wide viewport shows inline items and no overflow menu', async ({ page }) => {
+  test('wide viewport still uses overflow for secondary controls', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 900 });
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
@@ -66,8 +60,16 @@ test.describe('Editor toolbar overflow (UX-13)', () => {
     await expect(toolbar).toBeVisible();
     await expect(toolbar).toHaveAttribute('data-compact', 'false');
 
-    await expect(page.getByTestId('toolbar-overflow')).toHaveCount(0);
-    await expect(page.getByTestId('toolbar-outline')).toBeVisible();
-    await expect(page.getByTestId('toolbar-backlinks')).toBeVisible();
+    // Overflow button is always present (unified overflow pattern).
+    await expect(page.getByTestId('toolbar-overflow')).toBeVisible();
+
+    // Outline and backlinks are inside the overflow, not standalone.
+    await expect(page.locator('[data-testid="toolbar-outline"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="toolbar-backlinks"]')).toHaveCount(0);
+
+    // Open the overflow to verify secondary items are accessible.
+    await hardClick(page.getByTestId('toolbar-overflow'));
+    await expect(page.getByTestId('toolbar-overflow-outline')).toBeVisible();
+    await expect(page.getByTestId('toolbar-overflow-backlinks')).toBeVisible();
   });
 });

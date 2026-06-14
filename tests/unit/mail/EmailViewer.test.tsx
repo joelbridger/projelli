@@ -12,16 +12,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 
 const mockMailGetMessage = vi.fn();
 const mockMailGetAttachment = vi.fn();
 const mockMailRetagMessageMatter = vi.fn();
+const mockMailSend = vi.fn();
 
 vi.mock('@/utils/mail-commands', () => ({
   get mailGetMessage() { return mockMailGetMessage; },
   get mailGetAttachment() { return mockMailGetAttachment; },
   get mailRetagMessageMatter() { return mockMailRetagMessageMatter; },
+  get mailSend() { return mockMailSend; },
 }));
 
 vi.mock('@/stores/matterStore', () => ({
@@ -60,7 +62,7 @@ vi.mock('@/utils/fileDrop', () => ({
   deriveFilenameFromMessage: vi.fn(() => 'reply-draft.md'),
 }));
 
-import { EmailViewer, stripResidualTags } from '@/components/mail/EmailViewer';
+import { EmailViewer, stripResidualTags, parseRecipients } from '@/components/mail/EmailViewer';
 import type { MailView } from '@/utils/mail-commands';
 
 function sampleMessage(overrides: Partial<MailView> = {}): MailView {
@@ -167,5 +169,66 @@ describe('EmailViewer', () => {
     const mailtoLink = screen.getByTestId('reply-mailto-link');
     expect(mailtoLink).toHaveAttribute('href', expect.stringContaining('mailto:'));
     expect(mailtoLink).toHaveAttribute('href', expect.stringContaining('Re%3A'));
+  });
+
+  it('sends a reply via mailSend with the right args including inReplyToId', async () => {
+    mockMailGetMessage.mockResolvedValue(sampleMessage());
+    mockMailSend.mockResolvedValue('sent-id');
+
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-reply-area');
+
+    // Fill To field (the useEffect initializes it to 'pat@hender.com' from sampleMessage from address)
+    fireEvent.change(screen.getByTestId('reply-to-input'), { target: { value: 'pat@hender.com' } });
+
+    // Fill Subject
+    fireEvent.change(screen.getByTestId('reply-subject-input'), { target: { value: 'Re: Closing date' } });
+
+    // Fill body
+    fireEvent.change(screen.getByTestId('reply-draft-textarea'), { target: { value: 'Thanks for confirming.' } });
+
+    // Click Send
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('reply-send-btn'));
+    });
+
+    await waitFor(() => expect(mockMailSend).toHaveBeenCalled());
+
+    expect(mockMailSend).toHaveBeenCalledWith(
+      'm365',
+      'default',
+      ['pat@hender.com'],
+      [],
+      [],
+      'Re: Closing date',
+      'Thanks for confirming.',
+      'AAMk-xyz',
+    );
+
+    expect(await screen.findByTestId('reply-send-success')).toBeInTheDocument();
+  });
+
+  it('renders scope_upgrade_required notice when mailSend rejects with that message', async () => {
+    mockMailGetMessage.mockResolvedValue(sampleMessage());
+    mockMailSend.mockRejectedValue(new Error('scope_upgrade_required'));
+
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-reply-area');
+
+    fireEvent.change(screen.getByTestId('reply-to-input'), { target: { value: 'pat@hender.com' } });
+    fireEvent.change(screen.getByTestId('reply-draft-textarea'), { target: { value: 'Hello.' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('reply-send-btn'));
+    });
+
+    expect(await screen.findByTestId('reply-scope-upgrade')).toBeInTheDocument();
+  });
+
+  it('parseRecipients splits on comma and semicolon and trims', () => {
+    expect(parseRecipients('a@a.com, b@b.com')).toEqual(['a@a.com', 'b@b.com']);
+    expect(parseRecipients('a@a.com;b@b.com; c@c.com')).toEqual(['a@a.com', 'b@b.com', 'c@c.com']);
+    expect(parseRecipients('')).toEqual([]);
+    expect(parseRecipients('  single@x.com  ')).toEqual(['single@x.com']);
   });
 });
