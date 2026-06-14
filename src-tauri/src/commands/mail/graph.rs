@@ -160,6 +160,7 @@ impl GraphClient {
         body: &str,
         conversation_id: Option<&str>,
         save_to_sent: bool,
+        attachments: &[crate::commands::mail::AttachmentInput],
     ) -> anyhow::Result<String> {
         fn addr_obj(addr: &str) -> serde_json::Value {
             serde_json::json!({ "emailAddress": { "address": addr } })
@@ -177,6 +178,16 @@ impl GraphClient {
         });
         if let Some(cid) = conversation_id {
             message["conversationId"] = serde_json::Value::String(cid.to_string());
+        }
+        if !attachments.is_empty() {
+            message["attachments"] = serde_json::Value::Array(
+                attachments.iter().map(|att| serde_json::json!({
+                    "@odata.type": "#microsoft.graph.fileAttachment",
+                    "name": att.name,
+                    "contentType": att.content_type,
+                    "contentBytes": att.content_base64,
+                })).collect(),
+            );
         }
         let payload = serde_json::json!({
             "message": message,
@@ -411,6 +422,7 @@ mod tests {
                 "Hello",
                 None,
                 true,
+                &[],
             )
             .await
             .expect("send_message should succeed on 202");

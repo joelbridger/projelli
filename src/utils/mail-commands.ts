@@ -300,6 +300,16 @@ export async function mailGetAttachment(
   return invoke<MailAttachmentData>('mail_get_attachment', { provider, account, messageId, attachmentId });
 }
 
+/** One file attachment to include in an outgoing email. */
+export interface MailAttachmentInput {
+  /** Filename shown to the recipient (e.g. "contract.pdf"). */
+  name: string;
+  /** Standard base64-encoded file content (not URL-safe). */
+  contentBase64: string;
+  /** MIME type (e.g. "application/pdf"). Falls back to "application/octet-stream". */
+  contentType: string;
+}
+
 /**
  * Send an email via the named provider/account.
  *
@@ -315,6 +325,7 @@ export async function mailGetAttachment(
  *                         `mail:` prefix is tolerated). When present, the backend
  *                         fetches the original message's internet_message_id and
  *                         References header for threading.
+ * @param attachments    - optional file attachments to include in the message
  *
  * @returns The sent message id (provider-specific) on success, or an empty string
  *          for providers that do not return one (SMTP / Graph sendMail). Treat any
@@ -333,6 +344,7 @@ export async function mailSend(
   subject: string,
   body: string,
   inReplyToId?: string,
+  attachments?: MailAttachmentInput[],
 ): Promise<string> {
   if (!isTauri()) throw new Error('Email send is only available in the desktop app.');
   return invoke<string>('mail_send', {
@@ -344,5 +356,6 @@ export async function mailSend(
     subject,
     body,
     inReplyToId: inReplyToId ?? null,
+    attachments: attachments && attachments.length > 0 ? attachments : null,
   });
 }

@@ -14,8 +14,10 @@
 //! fails — the user can diagnose from the error message.
 
 use anyhow::Context as _;
+use crate::commands::mail::AttachmentInput;
 use lettre::{
-    message::Mailboxes,
+    message::{Attachment, Mailboxes, MultiPart, SinglePart},
+    message::header::ContentType as LettreContentType,
     transport::smtp::authentication::Credentials,
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
 };
@@ -45,6 +47,7 @@ pub async fn smtp_send(
     body: &str,
     in_reply_to: Option<&str>,
     references: Option<&str>,
+    attachments: &[AttachmentInput],
 ) -> anyhow::Result<String> {
     // Build the RFC822 message via lettre.
     let mut builder = Message::builder()
@@ -83,9 +86,26 @@ pub async fn smtp_send(
         builder = builder.references(refs.to_string());
     }
 
-    let email = builder
-        .body(body.to_string())
-        .context("build RFC822 message for SMTP")?;
+    let email = if attachments.is_empty() {
+        builder
+            .body(body.to_string())
+            .context("build RFC822 message for SMTP")?
+    } else {
+        use base64::Engine;
+        let mut mixed = MultiPart::mixed()
+            .singlepart(SinglePart::plain(body.to_string()));
+        for att in attachments {
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(&att.content_base64)
+                .map_err(|e| anyhow::anyhow!("decode attachment {:?}: {e}", att.name))?;
+            let ct = LettreContentType::parse(&att.content_type)
+                .unwrap_or_else(|_| LettreContentType::parse("application/octet-stream").unwrap());
+            mixed = mixed.singlepart(Attachment::new(att.name.clone()).body(bytes, ct));
+        }
+        builder
+            .multipart(mixed)
+            .context("build RFC822 multipart message for SMTP")?
+    };
 
     // Build the STARTTLS transport (port 587). Uses the IMAP host as the SMTP
     // host — this is correct for most providers (Gmail app-password, Fastmail,
