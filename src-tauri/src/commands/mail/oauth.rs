@@ -1,4 +1,4 @@
-pub const SCOPES: &str = "offline_access User.Read Mail.Read";
+pub const SCOPES: &str = "offline_access User.Read Mail.Read Mail.Send";
 
 pub struct OAuth { client_id: String, base: String, http: reqwest::Client }
 impl OAuth {

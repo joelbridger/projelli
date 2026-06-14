@@ -42,6 +42,7 @@ import {
   Check,
   Square,
   CheckSquare,
+  PenLine,
 } from 'lucide-react';
 import { useActiveMatter, useMatters } from '@/stores/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
@@ -51,6 +52,7 @@ import {
   mailConnectedAccounts,
   mailRetagFolderMatter,
   mailRetagMessageMatter,
+  mailSend,
   type MailListItem,
   type ConnectedAccount,
 } from '@/utils/mail-commands';
@@ -94,6 +96,10 @@ function slugify(s: string): string {
     .replace(/[^a-z0-9]+/gi, '-')
     .toLowerCase()
     .replace(/^-+|-+$/g, '');
+}
+
+function parseRecipients(raw: string): string[] {
+  return raw.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
 }
 
 // ── MailRowPrivilege sub-component ─────────────────────────────────────────
@@ -962,6 +968,20 @@ export function ReimaginedEmailWorkspace({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkMatterOpen, setBulkMatterOpen] = useState(false);
 
+  // Compose state
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeProvider, setComposeProvider] = useState('');
+  const [composeAccount, setComposeAccount] = useState('');
+  const [composeTo, setComposeTo] = useState('');
+  const [composeCc, setComposeCc] = useState('');
+  const [composeBcc, setComposeBcc] = useState('');
+  const [composeSubject, setComposeSubject] = useState('');
+  const [composeBody, setComposeBody] = useState('');
+  const [composeCcBccOpen, setComposeCcBccOpen] = useState(false);
+  const [composeSending, setComposeSending] = useState(false);
+  const [composeSendResult, setComposeSendResult] = useState<'none' | 'success' | 'error' | 'scope_upgrade'>('none');
+  const [composeSendError, setComposeSendError] = useState<string | null>(null);
+
   // Debounce ref and request fingerprint tracking
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestQueryRef = useRef(0);
@@ -986,6 +1006,17 @@ export function ReimaginedEmailWorkspace({
       });
     return () => { cancelled = true; };
   }, []);
+
+  // Auto-select first account when compose opens and accounts are available
+  useEffect(() => {
+    if (composeOpen && composeProvider === '' && accounts.length > 0) {
+      const first = accounts[0];
+      if (first) {
+        setComposeProvider(first.provider);
+        setComposeAccount(first.account);
+      }
+    }
+  }, [composeOpen, accounts, composeProvider]);
 
   // Effect A: fires on query/filter param changes (debounced 200ms, resets offset to 0)
   useEffect(() => {
@@ -1277,6 +1308,33 @@ export function ReimaginedEmailWorkspace({
               Email
               { }
             </h1>
+            <button
+              type="button"
+              data-testid="compose-btn"
+              onClick={() => {
+                setComposeOpen(true);
+                setComposeSendResult('none');
+                setComposeSendError(null);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '5px 12px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 600,
+                background: 'var(--kp-navy)',
+                color: '#fff',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-sans)',
+                marginLeft: 8,
+              }}
+            >
+              <PenLine style={{ width: 13, height: 13, strokeWidth: 2 }} />
+              { }New email{ }
+            </button>
           </div>
 
           {/* Scope toggle — only when a matter is active AND in Ask AI mode */}
@@ -1920,6 +1978,303 @@ export function ReimaginedEmailWorkspace({
           </div>
         )}
       </div>
+
+      {/* Compose modal */}
+      {composeOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 100,
+            background: 'rgba(0,0,0,0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setComposeOpen(false);
+            }
+          }}
+        >
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          <div
+            style={{
+              background: '#fff',
+              borderRadius: 10,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+              width: 560,
+              maxWidth: '95vw',
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Modal header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 18px 10px',
+                borderBottom: '1px solid var(--color-border)',
+              }}
+            >
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--kp-navy)', fontFamily: 'var(--font-sans)' }}>
+                New email
+              </span>
+              <button
+                type="button"
+                data-testid="compose-close"
+                onClick={() => { setComposeOpen(false); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: 4,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--color-muted-foreground)',
+                  borderRadius: 4,
+                }}
+              >
+                <X style={{ width: 16, height: 16, strokeWidth: 2 }} />
+              </button>
+            </div>
+
+            {/* Modal body (scrollable) */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 18px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* From selector */}
+              {accounts.length === 0 ? (
+                <div data-testid="compose-no-accounts" style={{ fontSize: 12, color: 'var(--color-muted-foreground)', padding: '8px 0' }}>
+                  Connect an account first in Settings.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 40, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+                    From
+                  </span>
+                  <select
+                    value={`${composeProvider}::${composeAccount}`}
+                    onChange={(e) => {
+                      const [p = '', a = ''] = e.target.value.split('::');
+                      setComposeProvider(p);
+                      setComposeAccount(a);
+                    }}
+                    style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 13, fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
+                  >
+                    {accounts.map((acc) => (
+                      <option key={`${acc.provider}::${acc.account}`} value={`${acc.provider}::${acc.account}`}>
+                        {acc.label} ({acc.account})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* To field */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 40, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+                  To
+                </span>
+                <input
+                  type="text"
+                  data-testid="compose-to"
+                  value={composeTo}
+                  onChange={(e) => { setComposeTo(e.target.value); }}
+                  placeholder="recipient@example.com"
+                  style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 13, fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
+                />
+                <button
+                  type="button"
+                  data-testid="compose-cc-bcc-toggle"
+                  onClick={() => { setComposeCcBccOpen((o) => !o); }}
+                  style={{ flexShrink: 0, fontSize: 11, color: 'var(--color-muted-foreground)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                >
+                  Cc / Bcc
+                </button>
+              </div>
+
+              {/* Cc / Bcc */}
+              {composeCcBccOpen && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 40, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+                      Cc
+                    </span>
+                    <input
+                      type="text"
+                      data-testid="compose-cc"
+                      value={composeCc}
+                      onChange={(e) => { setComposeCc(e.target.value); }}
+                      placeholder="cc@example.com"
+                      style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 13, fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 40, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+                      Bcc
+                    </span>
+                    <input
+                      type="text"
+                      data-testid="compose-bcc"
+                      value={composeBcc}
+                      onChange={(e) => { setComposeBcc(e.target.value); }}
+                      placeholder="bcc@example.com"
+                      style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 13, fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* Subject */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 40, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+                  Subj
+                </span>
+                <input
+                  type="text"
+                  data-testid="compose-subject"
+                  value={composeSubject}
+                  onChange={(e) => { setComposeSubject(e.target.value); }}
+                  placeholder="Subject"
+                  style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 13, fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
+                />
+              </div>
+
+              {/* Body */}
+              <textarea
+                data-testid="compose-body"
+                value={composeBody}
+                onChange={(e) => { setComposeBody(e.target.value); }}
+                placeholder="Write your message..."
+                rows={10}
+                style={{
+                  width: '100%',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 5,
+                  padding: '8px',
+                  fontSize: 13,
+                  fontFamily: 'var(--font-sans)',
+                  background: '#fff',
+                  color: 'var(--color-foreground)',
+                  resize: 'vertical',
+                  boxSizing: 'border-box',
+                }}
+              />
+
+              {/* Send result states */}
+              {composeSendResult === 'success' && (
+                <div data-testid="compose-success" style={{ fontSize: 12, color: '#047857' }}>
+                  Email sent
+                </div>
+              )}
+              {composeSendResult === 'error' && composeSendError && (
+                <div data-testid="compose-error" style={{ fontSize: 12, color: '#b45309', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <AlertTriangle style={{ width: 12, height: 12, strokeWidth: 2, flex: 'none' }} />
+                  {composeSendError}
+                </div>
+              )}
+              {composeSendResult === 'scope_upgrade' && (
+                <div data-testid="compose-scope-upgrade" style={{ fontSize: 12, color: '#b45309' }}>
+                  Sending needs a one-time reconnect for the send permission. Go to Settings to reconnect your email.
+                  {onOpenSettings && (
+                    <button
+                      type="button"
+                      onClick={onOpenSettings}
+                      style={{
+                        display: 'block',
+                        marginTop: 6,
+                        padding: '4px 10px',
+                        borderRadius: 5,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: 'transparent',
+                        color: 'var(--kp-navy)',
+                        border: '1px solid var(--color-border)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Go to Settings
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Modal footer */}
+            <div
+              style={{
+                padding: '10px 18px',
+                borderTop: '1px solid var(--color-border)',
+                display: 'flex',
+                justifyContent: 'flex-end',
+              }}
+            >
+              <button
+                type="button"
+                data-testid="compose-send"
+                disabled={composeSending || accounts.length === 0}
+                onClick={() => {
+                  const toArr = parseRecipients(composeTo);
+                  const ccArr = parseRecipients(composeCc);
+                  const bccArr = parseRecipients(composeBcc);
+                  setComposeSending(true);
+                  setComposeSendResult('none');
+                  setComposeSendError(null);
+                  void mailSend(composeProvider, composeAccount, toArr, ccArr, bccArr, composeSubject, composeBody)
+                    .then(() => {
+                      setComposeSending(false);
+                      setComposeSendResult('success');
+                      setTimeout(() => {
+                        setComposeOpen(false);
+                        setComposeTo('');
+                        setComposeCc('');
+                        setComposeBcc('');
+                        setComposeSubject('');
+                        setComposeBody('');
+                        setComposeCcBccOpen(false);
+                        setComposeSendResult('none');
+                        setComposeSendError(null);
+                      }, 1500);
+                    })
+                    .catch((e: unknown) => {
+                      setComposeSending(false);
+                      if (e instanceof Error && e.message.includes('scope_upgrade_required')) {
+                        setComposeSendResult('scope_upgrade');
+                      } else {
+                        setComposeSendResult('error');
+                        setComposeSendError(e instanceof Error ? e.message : 'Failed to send email.');
+                      }
+                    });
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '7px 18px',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  background: 'var(--kp-navy)',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: composeSending || accounts.length === 0 ? 'default' : 'pointer',
+                  opacity: composeSending || accounts.length === 0 ? 0.6 : 1,
+                  fontFamily: 'var(--font-sans)',
+                }}
+              >
+                {composeSending && (
+                  <Loader2 style={{ width: 13, height: 13, strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
+                )}
+                Send
+              </button>
+            </div>
+          </div>
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </div>
+      )}
     </div>
   );
 }

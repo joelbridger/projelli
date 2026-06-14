@@ -16,7 +16,7 @@ import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { FormattingToolbar } from '@/components/editor/FormattingToolbar';
 import { PluginToolbarButtons } from '@/components/plugins/PluginToolbarButtons';
-import { SplitPane, SplitPaneControls } from '@/components/editor/SplitPane';
+import { SplitPane } from '@/components/editor/SplitPane';
 import { OutlinePanel } from '@/components/editor/OutlinePanel';
 import { BacklinksPanel } from '@/components/editor/BacklinksPanel';
 import { ImageViewer, VideoViewer, isImageFile, isVideoFile } from '@/components/media/MediaViewer';
@@ -1176,10 +1176,8 @@ export function MainPanel({
           {/*
             UX-17: reactive auto-save indicator. Shows "Saved · Ns ago"
             when clean, "Unsaved changes" when dirty, and updates every
-            second via the indicator's own setInterval. The saving and
-            error states are reserved for future use when the auto-save
-            subscription surfaces those states — for now we simply
-            reflect dirty/clean.
+            second via the indicator's own setInterval. Kept compact so it
+            reads as a quiet status dot rather than a prose label.
           */}
           <AutoSaveIndicator
             isDirty={!!activeTab?.isDirty}
@@ -1188,120 +1186,55 @@ export function MainPanel({
               : {})}
           />
 
-          {/* Download — always visible (critical action). */}
-          {activeTab && (
-            <Button
-              data-testid="toolbar-download"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => onDownload?.(activeTab.path, activeTab.name)}
-              title="Download file"
-            >
-              <Download className="h-3.5 w-3.5 mr-1" />
-              Download
-            </Button>
-          )}
-
-          {/*
-            EXPANDED LAYOUT — everything inline when width allows.
-            The export dropdown is its own menu (markdown only).
-            History + Split + Outline + Backlinks spread inline.
-          */}
-          {!isToolbarCompact && (
-            <>
-              {isVersionable && (
+          {/* Export — primary action for markdown files, always inline. */}
+          {isMarkdownLike && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
                 <Button
-                  data-testid="toolbar-history"
+                  data-testid="workflow-export-menu"
                   variant="ghost"
                   size="sm"
-                  className={cn('h-7 px-2 text-xs', showVersionHistory && 'bg-accent')}
-                  onClick={() => setShowVersionHistory(!showVersionHistory)}
-                  title="View version history"
+                  className="h-7 px-2 text-xs"
+                  title="Export to other formats"
                 >
-                  <History className="h-3.5 w-3.5 mr-1" />
-                  History ({versionService.getVersionCount(activeTab!.path)})
+                  <FileType className="h-3.5 w-3.5 mr-1" />
+                  Export
+                  <ChevronDown className="h-3 w-3 ml-1" />
                 </Button>
-              )}
-              {isMarkdownLike && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      data-testid="workflow-export-menu"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      title="Export to other formats"
-                    >
-                      <FileType className="h-3.5 w-3.5 mr-1" />
-                      Export
-                      <ChevronDown className="h-3 w-3 ml-1" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem
-                      data-testid="workflow-export-docx"
-                      onClick={exportAsDocx}
-                    >
-                      <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
-                      {t('layout.main-panel.export.save-as-docx')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      data-testid="workflow-export-pptx"
-                      onClick={exportAsPptx}
-                    >
-                      <FileType className="h-3.5 w-3.5 mr-2 text-orange-600" />
-                      {t('layout.main-panel.export.save-as-pptx')}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              <SplitPaneControls
-                onSplitHorizontal={canSplit ? handleSplitHorizontal : undefined}
-                onSplitVertical={canSplit ? handleSplitVertical : undefined}
-                canSplit={canSplit}
-              />
-              <Button
-                data-testid="toolbar-outline"
-                variant="ghost"
-                size="sm"
-                className={cn('h-7 w-7 p-0', showOutline && 'bg-accent')}
-                onClick={toggleOutline}
-                title={withShortcut('Toggle outline panel', ['Ctrl', 'Shift', 'O'])}
-                aria-label={withShortcut('Toggle outline panel', ['Ctrl', 'Shift', 'O'])}
-              >
-                <List className="h-4 w-4" />
-              </Button>
-              <Button
-                data-testid="toolbar-backlinks"
-                variant="ghost"
-                size="sm"
-                className={cn('h-7 w-7 p-0', showBacklinks && 'bg-accent')}
-                onClick={toggleBacklinks}
-                title={withShortcut('Toggle backlinks panel', ['Ctrl', 'Shift', 'B'])}
-                aria-label={withShortcut('Toggle backlinks panel', ['Ctrl', 'Shift', 'B'])}
-              >
-                <Link2 className="h-4 w-4" />
-              </Button>
-            </>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem
+                  data-testid="workflow-export-docx"
+                  onClick={exportAsDocx}
+                >
+                  <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
+                  {t('layout.main-panel.export.save-as-docx')}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  data-testid="workflow-export-pptx"
+                  onClick={exportAsPptx}
+                >
+                  <FileType className="h-3.5 w-3.5 mr-2 text-orange-600" />
+                  {t('layout.main-panel.export.save-as-pptx')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
 
           {/*
             PLUGIN TOOLBAR — buttons contributed by installed plugins. Renders
             nothing when there are no plugin contributions, so the layout for
-            users without plugins is unchanged. Lives between the built-in
-            expanded controls and the compact overflow so it always sits
-            after the core editor actions.
+            users without plugins is unchanged.
           */}
           <PluginToolbarButtons />
 
           {/*
-            COMPACT LAYOUT — single "…" button opens a DropdownMenu with
-            History / Split / Outline / Backlinks / Export as sub-items.
-            Only visible when the container width is below the breakpoint.
-            Save and Download stay inline above.
+            UNIFIED OVERFLOW — single "…" button holds secondary controls
+            (Download, History, Split, Outline, Backlinks) in both wide and
+            compact modes. Keeps the header strip calm at a glance while
+            keeping every action reachable.
           */}
-          {isToolbarCompact && activeTab && (
+          {activeTab && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -1320,33 +1253,25 @@ export function MainPanel({
                 align="end"
                 className="w-52"
               >
+                {/* Download — inside overflow since FormattingToolbar Export covers markdown */}
+                <DropdownMenuItem
+                  data-testid="toolbar-download"
+                  onClick={() => onDownload?.(activeTab.path, activeTab.name)}
+                >
+                  <Download className="h-3.5 w-3.5 mr-2" />
+                  Download
+                </DropdownMenuItem>
+
                 {isVersionable && (
                   <DropdownMenuItem
-                    data-testid="toolbar-overflow-history"
+                    data-testid="toolbar-history"
                     onClick={() => setShowVersionHistory(!showVersionHistory)}
                   >
                     <History className="h-3.5 w-3.5 mr-2" />
                     History ({versionService.getVersionCount(activeTab.path)})
                   </DropdownMenuItem>
                 )}
-                {isMarkdownLike && (
-                  <>
-                    <DropdownMenuItem
-                      data-testid="toolbar-overflow-export-docx"
-                      onClick={exportAsDocx}
-                    >
-                      <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
-                      {t('layout.main-panel.export.save-as-docx')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      data-testid="toolbar-overflow-export-pptx"
-                      onClick={exportAsPptx}
-                    >
-                      <FileType className="h-3.5 w-3.5 mr-2 text-orange-600" />
-                      {t('layout.main-panel.export.save-as-pptx')}
-                    </DropdownMenuItem>
-                  </>
-                )}
+
                 {canSplit && (
                   <>
                     <DropdownMenuItem
@@ -1365,6 +1290,7 @@ export function MainPanel({
                     </DropdownMenuItem>
                   </>
                 )}
+
                 <DropdownMenuItem
                   data-testid="toolbar-overflow-outline"
                   onClick={toggleOutline}

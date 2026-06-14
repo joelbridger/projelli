@@ -99,6 +99,93 @@ impl GraphClient {
             .to_string();
         Ok((bytes, content_type, name))
     }
+
+    /// POST JSON to an absolute Graph URL, returning the response body as JSON
+    /// (or an empty object `{}` for 202 Accepted which has no body).
+    /// Honors 429/Retry-After with capped backoff. Up to 8 tries.
+    /// Never surfaces the raw response body to the caller.
+    pub async fn post_json(
+        &self,
+        url: &str,
+        body: &serde_json::Value,
+    ) -> anyhow::Result<serde_json::Value> {
+        for attempt in 0..8u32 {
+            let resp = self
+                .http
+                .post(url)
+                .bearer_auth(&self.token)
+                .json(body)
+                .send()
+                .await?;
+            if resp.status().as_u16() == 429 {
+                let ra = resp
+                    .headers()
+                    .get("Retry-After")
+                    .and_then(|v| v.to_str().ok())
+                    .map(String::from);
+                tokio::time::sleep(retry_delay(ra.as_deref(), attempt)).await;
+                continue;
+            }
+            let status = resp.status();
+            if status.as_u16() == 202 {
+                // sendMail returns 202 Accepted with an empty body.
+                return Ok(serde_json::json!({}));
+            }
+            let body_text = resp.text().await?;
+            if !status.is_success() {
+                log::warn!("graph POST failed (HTTP {}): {}", status, body_text);
+                anyhow::bail!("Microsoft Graph request failed (HTTP {})", status);
+            }
+            return Ok(serde_json::from_str(&body_text).unwrap_or(serde_json::json!({})));
+        }
+        anyhow::bail!("graph: throttled past retry budget")
+    }
+
+    /// `POST /v1.0/me/sendMail` — compose and send a message immediately.
+    ///
+    /// `conversation_id` is set when replying (Graph uses `conversationId` for
+    /// threading; there is no `In-Reply-To` header equivalent in the Graph send
+    /// API). Pass `None` for new messages.
+    ///
+    /// BCC recipients are sent but never written to the message body, so they
+    /// remain invisible to To/CC recipients — this is enforced by the Graph API.
+    ///
+    /// Returns the empty string on success (sendMail returns 202, no message id).
+    pub async fn send_message(
+        &self,
+        to: &[String],
+        cc: &[String],
+        bcc: &[String],
+        subject: &str,
+        body: &str,
+        conversation_id: Option<&str>,
+        save_to_sent: bool,
+    ) -> anyhow::Result<String> {
+        fn addr_obj(addr: &str) -> serde_json::Value {
+            serde_json::json!({ "emailAddress": { "address": addr } })
+        }
+
+        let mut message = serde_json::json!({
+            "subject": subject,
+            "body": {
+                "contentType": "Text",
+                "content": body
+            },
+            "toRecipients": to.iter().map(|a| addr_obj(a)).collect::<Vec<_>>(),
+            "ccRecipients": cc.iter().map(|a| addr_obj(a)).collect::<Vec<_>>(),
+            "bccRecipients": bcc.iter().map(|a| addr_obj(a)).collect::<Vec<_>>(),
+        });
+        if let Some(cid) = conversation_id {
+            message["conversationId"] = serde_json::Value::String(cid.to_string());
+        }
+        let payload = serde_json::json!({
+            "message": message,
+            "saveToSentItems": save_to_sent
+        });
+        let url = format!("{}/v1.0/me/sendMail", self.base);
+        self.post_json(&url, &payload).await?;
+        Ok(String::new())
+    }
 }
 
 /// Percent-encode a single URL path segment. Graph folder ids are normally
@@ -300,6 +387,34 @@ mod tests {
             err.downcast_ref::<DeltaGone>().is_some(),
             "expected DeltaGone sentinel, got: {err}"
         );
+    }
+
+    #[tokio::test]
+    async fn send_message_posts_to_send_mail_endpoint() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/sendMail"))
+            .respond_with(ResponseTemplate::new(202).set_body_string(""))
+            .mount(&server)
+            .await;
+
+        let client = GraphClient::new_with_base("AT".into(), server.uri());
+        let result = client
+            .send_message(
+                &["alice@example.com".to_string()],
+                &[],
+                &[],
+                "Test subject",
+                "Hello",
+                None,
+                true,
+            )
+            .await
+            .expect("send_message should succeed on 202");
+        assert_eq!(result, ""); // 202 returns no id
     }
 
     #[tokio::test]

@@ -1,5 +1,6 @@
 pub mod client;
 pub mod normalize;
+pub mod send;
 
 use anyhow::Context as _;
 use async_trait::async_trait;

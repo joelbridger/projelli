@@ -156,6 +156,134 @@ impl GmailClient {
             .ok_or_else(|| anyhow::anyhow!("Gmail profile response missing historyId field"))
     }
 
+    /// Fetch the sender's email address from the Gmail profile.
+    /// Used as the `From:` address when sending — the address Google authenticates
+    /// the token against.
+    pub async fn get_sender_address(&self) -> anyhow::Result<String> {
+        let url = format!("{}/gmail/v1/users/me/profile", self.base);
+        let v = self.get_json(&url).await?;
+        v.get("emailAddress")
+            .and_then(|e| e.as_str())
+            .map(String::from)
+            .ok_or_else(|| anyhow::anyhow!("Gmail profile missing emailAddress"))
+    }
+
+    /// POST JSON to a Gmail API URL. On 200 returns the parsed JSON body.
+    /// Retries on 429/Retry-After. Non-2xx is a logged status-only error.
+    async fn post_json(
+        &self,
+        url: &str,
+        body: &serde_json::Value,
+    ) -> anyhow::Result<serde_json::Value> {
+        for attempt in 0..8u32 {
+            let resp = self
+                .http
+                .post(url)
+                .bearer_auth(&self.token)
+                .json(body)
+                .send()
+                .await?;
+            if resp.status().as_u16() == 429 {
+                let ra = resp
+                    .headers()
+                    .get("Retry-After")
+                    .and_then(|v| v.to_str().ok())
+                    .map(String::from);
+                tokio::time::sleep(retry_delay(ra.as_deref(), attempt)).await;
+                continue;
+            }
+            let status = resp.status();
+            let body_text = resp.text().await?;
+            if !status.is_success() {
+                log::warn!("gmail POST failed (HTTP {}): {}", status, body_text);
+                anyhow::bail!("Gmail API request failed (HTTP {})", status);
+            }
+            return Ok(serde_json::from_str(&body_text).unwrap_or(serde_json::json!({})));
+        }
+        anyhow::bail!("gmail: throttled past retry budget")
+    }
+
+    /// `POST /gmail/v1/users/me/messages/send` — send a raw RFC822 message.
+    ///
+    /// Builds the message using lettre's `Message` builder, base64url-encodes it,
+    /// and posts `{ "raw": "<base64url>" }` to the Gmail send endpoint.
+    ///
+    /// `in_reply_to` is the RFC822 `Message-ID` of the message being replied to
+    /// (e.g. `<abc@mail.gmail.com>`). `references` is the existing References
+    /// header chain from the original message (space-separated). When supplied,
+    /// the outgoing message sets `In-Reply-To` and `References` for correct
+    /// threading in all RFC2822-compliant clients.
+    ///
+    /// Returns the Gmail message id of the sent message.
+    pub async fn send_message(
+        &self,
+        from: &str,
+        to: &[String],
+        cc: &[String],
+        bcc: &[String],
+        subject: &str,
+        body: &str,
+        in_reply_to: Option<&str>,
+        references: Option<&str>,
+    ) -> anyhow::Result<String> {
+        use base64::Engine;
+        use lettre::message::Mailboxes;
+        use lettre::Message;
+        use std::str::FromStr;
+
+        // Build the message using lettre's typed builder.
+        let mut builder = Message::builder()
+            .from(from.parse().map_err(|e| anyhow::anyhow!("invalid From address {from:?}: {e}"))?)
+            .subject(subject);
+
+        for addr in to {
+            let mbs = Mailboxes::from_str(addr)
+                .map_err(|e| anyhow::anyhow!("invalid To address {addr:?}: {e}"))?;
+            for mb in mbs {
+                builder = builder.to(mb);
+            }
+        }
+        for addr in cc {
+            let mbs = Mailboxes::from_str(addr)
+                .map_err(|e| anyhow::anyhow!("invalid Cc address {addr:?}: {e}"))?;
+            for mb in mbs {
+                builder = builder.cc(mb);
+            }
+        }
+        for addr in bcc {
+            let mbs = Mailboxes::from_str(addr)
+                .map_err(|e| anyhow::anyhow!("invalid Bcc address {addr:?}: {e}"))?;
+            for mb in mbs {
+                builder = builder.bcc(mb);
+            }
+        }
+
+        if let Some(irt) = in_reply_to {
+            builder = builder.in_reply_to(irt.to_string());
+        }
+        if let Some(refs) = references {
+            builder = builder.references(refs.to_string());
+        }
+
+        let email = builder
+            .body(body.to_string())
+            .map_err(|e| anyhow::anyhow!("build RFC822 message: {e}"))?;
+
+        let raw_bytes = email.formatted();
+
+        let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(&raw_bytes);
+        let payload = serde_json::json!({ "raw": encoded });
+        let url = format!("{}/gmail/v1/users/me/messages/send", self.base);
+        let resp = self.post_json(&url, &payload).await?;
+
+        let id = resp
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        Ok(id)
+    }
+
     /// `GET /gmail/v1/users/me/messages/{id}/attachments/{att_id}` — returns the
     /// raw bytes (base64url-encoded `data` field in the response). On non-2xx logs
     /// locally and returns a status-only error.
@@ -199,6 +327,23 @@ fn retry_delay(retry_after_header: Option<&str>, attempt: u32) -> Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── gmail_send_base64url_encodes_rfc822 ──────────────────────────────────
+
+    #[test]
+    fn gmail_send_base64url_encodes_rfc822() {
+        // Verify that an RFC822 message round-trips through base64url correctly
+        // without panicking (can't hit the network here). We build the raw bytes
+        // that would be sent and confirm the encoding is URL-safe (no + or /).
+        use base64::Engine;
+        let raw = b"From: a@example.com\r\nTo: b@example.com\r\nSubject: hi\r\n\r\nBody";
+        let encoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(raw);
+        assert!(!encoded.contains('+'), "must be URL-safe base64 (no +)");
+        assert!(!encoded.contains('/'), "must be URL-safe base64 (no /)");
+        // Decode round-trip
+        let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(&encoded).unwrap();
+        assert_eq!(decoded, raw);
+    }
 
     // ── retry_delay ──────────────────────────────────────────────────────────
 

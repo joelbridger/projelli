@@ -20,7 +20,7 @@
 
 /// <reference types="@testing-library/jest-dom" />
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 
 // ── Module mocks ────────────────────────────────────────────────────────────
 
@@ -30,6 +30,7 @@ vi.mock('@/utils/mail-commands', () => ({
   mailConnectedAccounts: vi.fn(),
   mailRetagFolderMatter: vi.fn(),
   mailRetagMessageMatter: vi.fn(),
+  mailSend: vi.fn(),
 }));
 
 vi.mock('@/stores/matterStore', () => ({
@@ -60,6 +61,7 @@ import {
   mailConnectedAccounts,
   mailRetagFolderMatter,
   mailRetagMessageMatter,
+  mailSend,
 } from '@/utils/mail-commands';
 import { useActiveMatter, useMatters } from '@/stores/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
@@ -121,6 +123,7 @@ const mockMailGetMessage = mailGetMessage as unknown as ReturnType<typeof vi.fn>
 const mockMailConnectedAccounts = mailConnectedAccounts as ReturnType<typeof vi.fn>;
 const mockMailRetagFolderMatter = mailRetagFolderMatter as ReturnType<typeof vi.fn>;
 const mockMailRetagMessageMatter = mailRetagMessageMatter as ReturnType<typeof vi.fn>;
+const mockMailSend = mailSend as unknown as ReturnType<typeof vi.fn>;
 const mockUseActiveMatter = useActiveMatter as ReturnType<typeof vi.fn>;
 const mockUseMatters = useMatters as ReturnType<typeof vi.fn>;
 const mockUsePrivilegeForSource = usePrivilegeForSource as ReturnType<typeof vi.fn>;
@@ -153,6 +156,7 @@ function setupDefaultMocks() {
   });
   mockMailRetagFolderMatter.mockResolvedValue(1);
   mockMailRetagMessageMatter.mockResolvedValue(undefined);
+  mockMailSend.mockResolvedValue('sent-ok');
   mockUseActiveMatter.mockReturnValue(null);
   mockUseMatters.mockReturnValue(FIXTURE_MATTERS);
   // usePrivilegeStore is called as a selector: (s) => s.setPrivilege
@@ -390,6 +394,96 @@ describe('ReimaginedEmailWorkspace', () => {
 
     expect(screen.getByTestId('error-state')).toBeInTheDocument();
     expect(screen.getByText('Network error')).toBeInTheDocument();
+  });
+
+  // 11. Opens the compose panel when "New email" button is clicked
+  it('opens the compose panel when "New email" button is clicked', async () => {
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    expect(screen.queryByTestId('compose-close')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('compose-btn'));
+
+    expect(screen.getByTestId('compose-close')).toBeInTheDocument();
+    expect(screen.getByTestId('compose-to')).toBeInTheDocument();
+    expect(screen.getByTestId('compose-subject')).toBeInTheDocument();
+    expect(screen.getByTestId('compose-body')).toBeInTheDocument();
+    expect(screen.getByTestId('compose-send')).toBeInTheDocument();
+  });
+
+  // 12. Compose Send calls mailSend with the right args and shows success
+  it('compose Send calls mailSend with the right args and shows success', async () => {
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    fireEvent.click(screen.getByTestId('compose-btn'));
+
+    fireEvent.change(screen.getByTestId('compose-to'), { target: { value: 'alice@example.com' } });
+    fireEvent.change(screen.getByTestId('compose-subject'), { target: { value: 'Hello from Keepance' } });
+    fireEvent.change(screen.getByTestId('compose-body'), { target: { value: 'Test body text.' } });
+
+    // Click send and flush all microtasks + timers
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('compose-send'));
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    expect(mockMailSend).toHaveBeenCalledWith(
+      'm365',
+      'default',
+      ['alice@example.com'],
+      [],
+      [],
+      'Hello from Keepance',
+      'Test body text.',
+    );
+
+    expect(screen.getByTestId('compose-success')).toBeInTheDocument();
+  });
+
+  // 13. Compose shows scope_upgrade_required notice when mailSend rejects with that message
+  it('compose shows scope_upgrade_required notice when mailSend rejects with that message', async () => {
+    mockMailSend.mockRejectedValue(new Error('scope_upgrade_required'));
+
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    fireEvent.click(screen.getByTestId('compose-btn'));
+    fireEvent.change(screen.getByTestId('compose-to'), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByTestId('compose-body'), { target: { value: 'Hello.' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('compose-send'));
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    expect(screen.getByTestId('compose-scope-upgrade')).toBeInTheDocument();
+  });
+
+  // 14. Parses recipients correctly from comma/semicolon-separated input
+  it('parses recipients correctly from comma/semicolon-separated input', async () => {
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    fireEvent.click(screen.getByTestId('compose-btn'));
+    fireEvent.change(screen.getByTestId('compose-to'), { target: { value: 'alice@a.com, bob@b.com; carol@c.com' } });
+    fireEvent.change(screen.getByTestId('compose-body'), { target: { value: 'Hi all.' } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('compose-send'));
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+    expect(mockMailSend).toHaveBeenCalledWith(
+      'm365',
+      'default',
+      ['alice@a.com', 'bob@b.com', 'carol@c.com'],
+      [],
+      [],
+      '',
+      'Hi all.',
+    );
   });
 
 });

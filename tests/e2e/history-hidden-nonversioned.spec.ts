@@ -3,11 +3,14 @@
  *
  * `shouldVersionFile()` only returns true for md/txt/json/source/aichat/
  * whiteboard files. For binary document types (xlsx/docx/pptx) the history
- * button should not render at all.
+ * item should not appear in the overflow menu.
+ *
+ * History now lives inside the unified "…" overflow rather than as a
+ * standalone inline button. Tests open the overflow before asserting.
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad } from './helpers/test-utils';
+import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
 
 async function openFile(
   page: import('@playwright/test').Page,
@@ -23,7 +26,7 @@ async function openFile(
 }
 
 test.describe('History button visibility (UX-24)', () => {
-  test('shows History for a versioned .md file', async ({ page }) => {
+  test('shows History in the overflow for a versioned .md file', async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
@@ -33,22 +36,25 @@ test.describe('History button visibility (UX-24)', () => {
       content: '# hello',
     });
 
+    // Open the overflow menu to reveal secondary controls.
+    await hardClick(page.getByTestId('toolbar-overflow'));
     await expect(page.getByTestId('toolbar-history')).toBeVisible();
   });
 
-  test('hides History for a non-versioned .xlsx file', async ({ page }) => {
+  test('hides History from the overflow for a non-versioned .xlsx file', async ({ page }) => {
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
     // Use a minimal data URL; we don't need a real xlsx — the History
-    // button's render path only cares about the extension.
+    // item's render path only cares about the extension.
     await openFile(page, {
       path: '/test-workspace/non-versioned.xlsx',
       name: 'non-versioned.xlsx',
       content: 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,',
     });
 
-    // Directly target the in-panel history button. It should not exist.
+    // Open the overflow menu and verify History is absent.
+    await hardClick(page.getByTestId('toolbar-overflow'));
     await expect(page.getByTestId('toolbar-history')).toHaveCount(0);
   });
 });
