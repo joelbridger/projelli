@@ -195,9 +195,9 @@ describe('ReimaginedDocumentsHome — browser view (default)', () => {
     expect(screen.getByText('Size')).toBeTruthy();
   });
 
-  it('shows "New document" and "New folder" action buttons', () => {
+  it('shows "New Word document" and "New folder" action buttons', () => {
     render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
-    const newDocBtn = screen.getByRole('button', { name: /new document/i });
+    const newDocBtn = screen.getByRole('button', { name: /new word document/i });
     expect(newDocBtn).toBeTruthy();
     const newFolderBtn = screen.getByRole('button', { name: /new folder/i });
     expect(newFolderBtn).toBeTruthy();

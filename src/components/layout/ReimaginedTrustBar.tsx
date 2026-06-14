@@ -72,10 +72,12 @@ export function ReimaginedTrustBar() {
       <div style={{ flex: 1 }} />
 
       {/* The egress hero: compact pill, color-coded by confidentiality state.
-          A7: flex-shrink:0 ensures the full label ("On your machine. Nothing leaves.")
-          is never clipped by the flex container. */}
+          max-w-none overrides the compact variant's default max-w-[260px] so the
+          full sentence ("On your machine. Nothing leaves.") never clips at any
+          viewport width. The flex-shrink:0 wrapper prevents the pill from being
+          squeezed by the sibling matter-scope label. */}
       <div style={{ flexShrink: 0 }}>
-        <EgressIndicator provider="anthropic" mode={confidentialityMode} variant="compact" />
+        <EgressIndicator provider="anthropic" mode={confidentialityMode} variant="compact" className="max-w-none" />
       </div>
 
       {/* Info affordance: reveals the full data-routing explanation on hover.

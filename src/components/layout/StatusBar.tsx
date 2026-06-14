@@ -17,6 +17,7 @@ import {
 import { useActiveMatter } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { BugReportDialog } from '@/components/common/BugReportDialog';
+import { isReimaginedShell } from '@/lib/reimaginedShell';
 import { TrialStatusChip } from '@/components/trial';
 import { useTrial } from '@/hooks/useTrial';
 import { useLicense } from '@/hooks/useLicense';
@@ -127,9 +128,16 @@ function collapseBreadcrumbs(
 interface StatusBarProps {
   /** Open the Settings modal (for the License section the trial chip targets). */
   onOpenSettings?: () => void;
+  /**
+   * A8.2: whether the editor/Documents surface is the active panel. When false
+   * (Search, Email, Workflows, Activity Log, etc.) the file breadcrumb and
+   * active-file chip are hidden so the bar never shows stale editor context.
+   * Defaults to true so the bar is unchanged for surfaces that don't pass it.
+   */
+  showFileContext?: boolean;
 }
 
-export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
+export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarProps = {}) {
   const { t } = useTranslation();
   const { rootPath, expandedPaths, setExpandedPaths, selectPath } =
     useWorkspaceStore();
@@ -215,11 +223,12 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
       data-testid="status-bar"
       className="flex items-center h-6 px-2 border-t bg-card text-xs text-muted-foreground"
     >
-      {/* Breadcrumb trail (UX-14). When no file is open we just show the
-          workspace name with a folder icon, same as before. */}
+      {/* Breadcrumb trail (UX-14). Shown only when the Documents/editor surface
+          is active (showFileContext=true). On Search, Email, Workflows, etc. the
+          breadcrumb is hidden so it does not show stale editor context (A8.2). */}
       <div
         data-testid="status-bar-project"
-        className="flex items-center gap-1 min-w-0"
+        className={cn('flex items-center gap-1 min-w-0', !showFileContext && 'hidden')}
         title={rootPath || undefined}
       >
         <FolderOpen className="h-3 w-3 flex-shrink-0" />
@@ -323,7 +332,7 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
           <TrialStatusChip onClick={onOpenSettings} />
         ) : null}
 
-        {activeTab && (
+        {showFileContext && activeTab && (
           <>
             <div
               data-testid="status-bar-active-file"
@@ -379,29 +388,33 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
           </span>
         )}
 
-        {/* WS-B/C: active-matter scope indicator. */}
-        <div
-          data-testid="status-bar-matter"
-          data-scope={activeMatter ? 'matter' : 'allMatters'}
-          className={cn(
-            'flex items-center gap-1 max-w-[200px]',
-            activeMatter ? 'text-primary' : 'text-amber-700',
-          )}
-          title={
-            activeMatter
-              ? t('matter.scope.active-title', { name: matterLabel(activeMatter) })
-              : t('matter.scope.all-matters-title')
-          }
-        >
-          {activeMatter ? (
-            <Briefcase className="h-3 w-3 shrink-0" />
-          ) : (
-            <Globe className="h-3 w-3 shrink-0" />
-          )}
-          <span className="truncate">
-            {activeMatter ? matterLabel(activeMatter) : t('matter.scope.all-matters')}
-          </span>
-        </div>
+        {/* WS-B/C: active-matter scope indicator. Hidden in the reimagined shell
+            because the TrustBar already shows matter + egress in the top bar —
+            rendering it a second time here is pure duplication. */}
+        {!isReimaginedShell() && (
+          <div
+            data-testid="status-bar-matter"
+            data-scope={activeMatter ? 'matter' : 'allMatters'}
+            className={cn(
+              'flex items-center gap-1 max-w-[200px]',
+              activeMatter ? 'text-primary' : 'text-amber-700',
+            )}
+            title={
+              activeMatter
+                ? t('matter.scope.active-title', { name: matterLabel(activeMatter) })
+                : t('matter.scope.all-matters-title')
+            }
+          >
+            {activeMatter ? (
+              <Briefcase className="h-3 w-3 shrink-0" />
+            ) : (
+              <Globe className="h-3 w-3 shrink-0" />
+            )}
+            <span className="truncate">
+              {activeMatter ? matterLabel(activeMatter) : t('matter.scope.all-matters')}
+            </span>
+          </div>
+        )}
 
         {/* Bug report: icon-only to minimise visual noise. */}
         <button

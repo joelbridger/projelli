@@ -3854,8 +3854,13 @@ This file contains rules and guidelines for AI assistants in this workspace.
         )}
       </div>
 
-      {/* Status bar */}
-      <StatusBar onOpenSettings={() => openSettings('license')} />
+      {/* Status bar. showFileContext=true only on the Documents/editor surface
+          (files tab) so the breadcrumb never shows stale editor context when
+          the user is on Search, Email, Workflows, etc. (A8.2). */}
+      <StatusBar
+        onOpenSettings={() => openSettings('license')}
+        showFileContext={sidebarActiveTab === 'files'}
+      />
 
       {/* MCP write-approval gate. Polls for sidecar write requests and renders
           the approval modal. In Privileged Matter Mode it auto-denies every MCP

@@ -461,7 +461,41 @@ describe('ReimaginedEmailWorkspace', () => {
     expect(screen.getByTestId('compose-scope-upgrade')).toBeInTheDocument();
   });
 
-  // 14. Parses recipients correctly from comma/semicolon-separated input
+  // 14. Ask AI mode shows empty-state headline + chips when no query is typed
+  it('shows Ask AI empty state headline and chips when switching to Ask AI mode with no query', async () => {
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    // Switch to Ask AI mode
+    fireEvent.click(screen.getByTestId('mode-ask'));
+
+    expect(screen.getByTestId('ask-empty-state')).toBeInTheDocument();
+    expect(screen.getByText('Ask about your email')).toBeInTheDocument();
+
+    // All three chips should render
+    const chips = screen.getAllByTestId('ask-chip');
+    expect(chips.length).toBeGreaterThanOrEqual(3);
+    expect(chips[0]).toHaveTextContent('Who emailed about the deposition?');
+  });
+
+  // 15. Clicking a chip fills the Ask AI input with the chip text
+  it('clicking an Ask AI chip populates the search input', async () => {
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    fireEvent.click(screen.getByTestId('mode-ask'));
+
+    const chips = screen.getAllByTestId('ask-chip');
+    expect(chips[0]).toBeDefined();
+    fireEvent.click(chips[0]!);
+
+    const input = screen.getByTestId('email-search-input') as HTMLInputElement;
+    expect(input.value).toBe('Who emailed about the deposition?');
+    // Empty state should be hidden once there is a query
+    expect(screen.queryByTestId('ask-empty-state')).not.toBeInTheDocument();
+  });
+
+  // 16. Parses recipients correctly from comma/semicolon-separated input
   it('parses recipients correctly from comma/semicolon-separated input', async () => {
     render(<ReimaginedEmailWorkspace />);
     await waitForInitialLoad();

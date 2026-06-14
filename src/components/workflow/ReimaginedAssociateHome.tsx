@@ -1,15 +1,19 @@
 /**
- * ReimaginedAssociateHome — native full-page Litigation Associate surface.
+ * ReimaginedAssociateHome — native full-page Workflows surface.
  *
  * Replaces the old "wrap WorkflowPanel" shim with a purpose-built,
  * grouped workflow library. The surface is self-contained: it loads
  * templates via loadAllTemplates(), groups them by category, and renders
- * a scannable grid with collapse/expand, a search bar, and a "recent runs"
- * strip. The only external seams are the five props forwarded from App.tsx
- * (unchanged interface so App.tsx needs no edits).
+ * a scannable grid with collapse/expand, a search bar, practice-area filter
+ * chips, and a "recent runs" strip. The only external seams are the five
+ * props forwarded from App.tsx (unchanged interface so App.tsx needs no edits).
  *
  * Design:
- *  - Header: eyebrow "ASSOCIATE" + title "Litigation Associate" + search box.
+ *  - Header: eyebrow "WORKFLOWS" + title "Workflows" + search box.
+ *  - Practice-area filter chips (horizontal pill row) derived from the actual
+ *    categories present after profession scoping. "All" shows everything;
+ *    a specific chip narrows the list to that category. Search further narrows
+ *    within the selected category (or across all when "All" is active).
  *  - Groups by category in professional order: Legal first (for law ICP),
  *    then Tax / Consulting / Advisors / General / Custom.
  *  - Each group renders as a labeled section with a count badge and a
@@ -60,6 +64,7 @@ interface ReimaginedAssociateHomeProps {
 // ── Category grouping config ───────────────────────────────────────────────
 
 type TemplateCategory = WorkflowTemplate['category'];
+type FilterKey = TemplateCategory | 'all';
 
 interface CategoryConfig {
   key: TemplateCategory;
@@ -96,6 +101,46 @@ function formatRelativeTime(isoString: string): string {
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────
+
+/** Practice-area filter chip. */
+function PracticeFilterChip({
+  label,
+  active,
+  testId,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  testId?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onClick}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '4px 12px',
+        borderRadius: 20,
+        fontSize: 12,
+        fontWeight: active ? 700 : 500,
+        cursor: 'pointer',
+        border: active ? '1.5px solid var(--kp-navy)' : '1px solid var(--color-border)',
+        background: active ? 'var(--kp-navy)' : '#fff',
+        color: active ? '#fff' : 'var(--color-muted-foreground)',
+        transition: 'background 0.1s, color 0.1s, border-color 0.1s',
+        whiteSpace: 'nowrap',
+        letterSpacing: '0.01em',
+        lineHeight: 1,
+        flexShrink: 0,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
 
 /** Template card: name, description, "featured" highlight, Run button. */
 function TemplateCard({
@@ -437,6 +482,7 @@ export function ReimaginedAssociateHome({
   const trialGate = useTrialGate();
   const profession = useProfessionStore((s) => s.profession);
   const [query, setQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
 
   // Load + scope templates exactly as WorkflowPanel does.
   const templates = useMemo(() => {
@@ -447,15 +493,26 @@ export function ReimaginedAssociateHome({
     return prioritizeByProfession(scoped, profession);
   }, [profession]);
 
-  // Filter by search query.
+  // Derive the ordered set of categories that are actually present.
+  const presentCategories = useMemo((): CategoryConfig[] => {
+    const present = new Set(templates.map((t) => t.category));
+    return CATEGORY_ORDER.filter((cfg) => present.has(cfg.key));
+  }, [templates]);
+
+  // Apply practice-area filter chip first, then search query within that scope.
   const filtered = useMemo(() => {
+    const categoryFiltered =
+      activeFilter === 'all'
+        ? templates
+        : templates.filter((t) => t.category === activeFilter);
+
     const q = query.trim().toLowerCase();
-    if (!q) return templates;
-    return templates.filter((t) => {
+    if (!q) return categoryFiltered;
+    return categoryFiltered.filter((t) => {
       const hay = `${t.name} ${t.description} ${t.category}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [templates, query]);
+  }, [templates, activeFilter, query]);
 
   // Group filtered templates by category in the defined order.
   const groups = useMemo(() => {
@@ -474,6 +531,18 @@ export function ReimaginedAssociateHome({
   const featuredId = isLawExperience(profession) ? LAW_FEATURED_ID : null;
 
   const recentRuns = runHistory.slice(0, 4);
+
+  // When the filter chip changes, reset search so the state is consistent.
+  function handleFilterChange(key: FilterKey) {
+    setActiveFilter(key);
+    setQuery('');
+  }
+
+  // When search is cleared (e.g. from empty-state button), also reset filter.
+  function handleClearAll() {
+    setQuery('');
+    setActiveFilter('all');
+  }
 
   return (
     <div
@@ -595,6 +664,36 @@ export function ReimaginedAssociateHome({
             )}
           </div>
         </div>
+
+        {/* Practice-area filter chips */}
+        {presentCategories.length > 1 && (
+          <div
+            data-testid="associate-practice-filter"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              marginTop: 14,
+              flexWrap: 'wrap',
+            }}
+          >
+            <PracticeFilterChip
+              label="All"
+              active={activeFilter === 'all'}
+              testId="associate-filter-all"
+              onClick={() => { handleFilterChange('all'); }}
+            />
+            {presentCategories.map((cfg) => (
+              <PracticeFilterChip
+                key={cfg.key}
+                label={cfg.label}
+                active={activeFilter === cfg.key}
+                testId={`associate-filter-${cfg.key}`}
+                onClick={() => { handleFilterChange(cfg.key); }}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Banners ──────────────────────────────────────────────────── */}
@@ -754,7 +853,7 @@ export function ReimaginedAssociateHome({
             </div>
             <button
               type="button"
-              onClick={() => { setQuery(''); }}
+              onClick={handleClearAll}
               style={{
                 marginTop: 4,
                 padding: '7px 16px',

@@ -1478,7 +1478,7 @@ export function ReimaginedEmailWorkspace({
             placeholder={
               mode === 'keyword'
                 ? 'Search email...'
-                : 'Ask a question about your email...'
+                : 'Ask about your email...'
             }
             style={{
               flex: 1,
@@ -1489,6 +1489,7 @@ export function ReimaginedEmailWorkspace({
               background: 'transparent',
               padding: '9px 0',
               fontFamily: 'var(--font-sans)',
+              minWidth: 0,
             }}
           />
 
@@ -1953,6 +1954,94 @@ export function ReimaginedEmailWorkspace({
               >
                 <AlertTriangle style={{ width: 14, height: 14, strokeWidth: 2, flex: 'none' }} />
                 {askError}
+              </div>
+            )}
+
+            {/* Ask AI empty state — no query typed yet */}
+            {!askLoading && !askError && !query.trim() && (
+              <div
+                data-testid="ask-empty-state"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '48px 24px 32px',
+                  gap: 12,
+                  textAlign: 'center',
+                }}
+              >
+                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                <div
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: 'var(--kp-navy)',
+                    fontFamily: 'var(--font-sans)',
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  Ask about your email
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: 'var(--color-muted-foreground)',
+                    maxWidth: 360,
+                    lineHeight: 1.55,
+                  }}
+                >
+                  I search across your imported email and answer with citations you can open.
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'center',
+                    gap: 8,
+                    marginTop: 8,
+                  }}
+                >
+                  {[
+                    'Who emailed about the deposition?',
+                    'Find emails with attachments from opposing counsel',
+                    'What did the client agree to over email?',
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      data-testid="ask-chip"
+                      onClick={() => {
+                        setQuery(chip);
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        padding: '6px 12px',
+                        borderRadius: 20,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: 'var(--kp-navy)',
+                        background: 'rgba(10,37,64,0.05)',
+                        border: '1px solid rgba(10,37,64,0.14)',
+                        cursor: 'pointer',
+                        fontFamily: 'var(--font-sans)',
+                        transition: 'background 0.1s, border-color 0.1s',
+                        textAlign: 'left',
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(10,37,64,0.09)';
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(10,37,64,0.22)';
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(10,37,64,0.05)';
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(10,37,64,0.14)';
+                      }}
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
               </div>
             )}
 

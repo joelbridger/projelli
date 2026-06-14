@@ -9,6 +9,8 @@
  *  - providerError banner renders + openSettings action fires.
  *  - Trial-locked state disables run buttons.
  *  - Recent runs strip appears and clicking focuses execution tab.
+ *  - Practice-area filter chips: hidden when one category, visible + functional
+ *    when multiple categories present.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -54,12 +56,13 @@ vi.mock('@/modules/workflow/userTemplates', () => ({
   loadAllTemplates: () => mockTemplates,
 }));
 
-// Profession store: default to 'legal' (law experience).
+// Profession store: use vi.fn() so we can override per describe block.
+const mockIsLawExperience = vi.fn((profession: string) => profession === 'legal');
 vi.mock('@/stores/professionStore', () => ({
-  useProfessionStore: (selector: (s: { profession: 'legal' | 'tax' | 'consulting' | 'advisor' | 'other' }) => unknown) =>
-    selector({ profession: 'legal' }),
-  isLawExperience: (profession: string) => profession === 'legal',
-  getProfession: () => 'legal',
+  useProfessionStore: vi.fn((selector: (s: { profession: string }) => unknown) =>
+    selector({ profession: 'legal' })),
+  isLawExperience: (profession: string) => mockIsLawExperience(profession),
+  getProfession: vi.fn(() => 'legal'),
 }));
 
 // prioritizeByProfession: pass-through (order doesn't matter for these tests).
@@ -73,9 +76,10 @@ vi.mock('@/hooks/useTrial', () => ({
   useTrialGate: () => mockTrialGate(),
 }));
 
-// ── Import component AFTER mocks are set up ─────────────────────────────────
+// ── Import component and mocked store AFTER mocks are set up ─────────────────
 
 import { ReimaginedAssociateHome } from '@/components/workflow/ReimaginedAssociateHome';
+import { useProfessionStore } from '@/stores/professionStore';
 
 // ── Shared props factory ────────────────────────────────────────────────────
 
@@ -91,10 +95,16 @@ function defaultProps(overrides = {}) {
   };
 }
 
-// ── Tests ───────────────────────────────────────────────────────────────────
+// ── Law-persona tests (single category — filter bar hidden) ─────────────────
 
-describe('ReimaginedAssociateHome', () => {
+describe('ReimaginedAssociateHome (law persona)', () => {
   beforeEach(() => {
+    // Profession = 'legal'; isLawExperience = true → only legal templates shown.
+    vi.mocked(useProfessionStore).mockImplementation(
+      (selector: (s: { profession: string }) => unknown) =>
+        selector({ profession: 'legal' }),
+    );
+    mockIsLawExperience.mockImplementation((p) => p === 'legal');
     mockTrialGate.mockReturnValue({
       isLocked: false,
       daysRemaining: 25,
@@ -116,11 +126,11 @@ describe('ReimaginedAssociateHome', () => {
     expect(searchInput).toBeTruthy();
   });
 
-  it('groups legal templates into a Legal Practice section (law profession)', () => {
+  it('groups legal templates into a Legal Practice section', () => {
     render(<ReimaginedAssociateHome {...defaultProps()} />);
     const legalSection = screen.getByTestId('associate-section-legal');
     expect(legalSection).toBeTruthy();
-    // Tax templates are filtered out for law profession
+    // Tax templates are filtered out for law profession.
     expect(screen.queryByTestId('associate-section-tax')).toBeNull();
   });
 
@@ -151,14 +161,11 @@ describe('ReimaginedAssociateHome', () => {
     const onStartWorkflow = vi.fn();
     render(<ReimaginedAssociateHome {...defaultProps({ onStartWorkflow })} />);
 
-    // Trial banner should appear
     expect(screen.getByTestId('associate-trial-banner')).toBeTruthy();
 
-    // Run buttons should be disabled
     const runBtn = screen.getByTestId('associate-run-deposition-contradiction-finder');
     expect((runBtn as HTMLButtonElement).disabled).toBe(true);
 
-    // Clicking should NOT fire onStartWorkflow
     fireEvent.click(runBtn);
     expect(onStartWorkflow).not.toHaveBeenCalled();
   });
@@ -184,7 +191,6 @@ describe('ReimaginedAssociateHome', () => {
     render(<ReimaginedAssociateHome {...defaultProps({ providerError: 'needs-provider' })} />);
     const banner = screen.getByTestId('associate-provider-error');
     expect(banner).toBeTruthy();
-    // The "Open settings" button should be present for needs-provider
     const settingsBtn = screen.getByRole('button', { name: /open settings/i });
     expect(settingsBtn).toBeTruthy();
   });
@@ -200,7 +206,6 @@ describe('ReimaginedAssociateHome', () => {
   it('shows ollama-unreachable banner (no settings button)', () => {
     render(<ReimaginedAssociateHome {...defaultProps({ providerError: 'ollama-unreachable' })} />);
     expect(screen.getByTestId('associate-provider-error')).toBeTruthy();
-    // "Open settings" is only shown for needs-provider, not ollama-unreachable
     expect(screen.queryByRole('button', { name: /open settings/i })).toBeNull();
   });
 
@@ -249,5 +254,130 @@ describe('ReimaginedAssociateHome', () => {
   it('does not show recent runs strip when runHistory is empty', () => {
     render(<ReimaginedAssociateHome {...defaultProps({ runHistory: [] })} />);
     expect(screen.queryByTestId('associate-recent-runs')).toBeNull();
+  });
+
+  // ── Practice-area filter chips ────────────────────────────────────────────
+
+  it('hides the practice-area filter bar when only one category is present', () => {
+    // Law persona scopes to 'legal' only — one category, filter bar unnecessary.
+    render(<ReimaginedAssociateHome {...defaultProps()} />);
+    expect(screen.queryByTestId('associate-practice-filter')).toBeNull();
+  });
+});
+
+// ── Practice-area filter chips — multi-category persona ───────────────────
+//
+// These tests set the profession to 'other' (isLawExperience = false) so all
+// three fixture templates (legal + tax) pass through the scope filter, giving
+// two distinct categories and making the chip bar appear.
+
+describe('ReimaginedAssociateHome — practice-area filter chips (multi-category)', () => {
+  beforeEach(() => {
+    vi.mocked(useProfessionStore).mockImplementation(
+      (selector: (s: { profession: string }) => unknown) =>
+        selector({ profession: 'other' }),
+    );
+    // 'other' is not legal, so all templates (legal + tax) are shown.
+    mockIsLawExperience.mockReturnValue(false);
+    mockTrialGate.mockReturnValue({
+      isLocked: false,
+      daysRemaining: 25,
+      isTrialExpired: false,
+      isActivated: true,
+      trialDays: 30,
+    });
+  });
+
+  function multiProps(overrides = {}) {
+    return {
+      onStartWorkflow: vi.fn(),
+      currentExecution: null,
+      runHistory: [] as RunRecord[],
+      providerError: null as ('needs-provider' | 'ollama-unreachable' | null),
+      onOpenSettings: vi.fn(),
+      onFocusExecutionTab: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  it('shows the filter bar when multiple categories are present', () => {
+    render(<ReimaginedAssociateHome {...multiProps()} />);
+    expect(screen.getByTestId('associate-practice-filter')).toBeTruthy();
+  });
+
+  it('renders an "All" chip that is a button', () => {
+    render(<ReimaginedAssociateHome {...multiProps()} />);
+    const allChip = screen.getByTestId('associate-filter-all');
+    expect(allChip).toBeTruthy();
+    expect(allChip.tagName).toBe('BUTTON');
+  });
+
+  it('renders a chip for each category present in the template set', () => {
+    render(<ReimaginedAssociateHome {...multiProps()} />);
+    // mockTemplates has 'legal' and 'tax' categories.
+    expect(screen.getByTestId('associate-filter-legal')).toBeTruthy();
+    expect(screen.getByTestId('associate-filter-tax')).toBeTruthy();
+  });
+
+  it('clicking a category chip filters to only that category', () => {
+    render(<ReimaginedAssociateHome {...multiProps()} />);
+    fireEvent.click(screen.getByTestId('associate-filter-tax'));
+
+    expect(screen.getByTestId('associate-section-tax')).toBeTruthy();
+    expect(screen.queryByTestId('associate-section-legal')).toBeNull();
+  });
+
+  it('clicking "All" after a category filter restores all sections', () => {
+    render(<ReimaginedAssociateHome {...multiProps()} />);
+
+    fireEvent.click(screen.getByTestId('associate-filter-tax'));
+    expect(screen.queryByTestId('associate-section-legal')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('associate-filter-all'));
+    expect(screen.getByTestId('associate-section-legal')).toBeTruthy();
+    expect(screen.getByTestId('associate-section-tax')).toBeTruthy();
+  });
+
+  it('search narrows within the selected category filter', () => {
+    render(<ReimaginedAssociateHome {...multiProps()} />);
+
+    // Activate the legal chip.
+    fireEvent.click(screen.getByTestId('associate-filter-legal'));
+
+    // Search for 'timeline' — matches Case Timeline Builder (legal).
+    fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'timeline' } });
+
+    expect(screen.getByTestId('associate-card-case-timeline-builder')).toBeTruthy();
+    // Tax template must not appear even though 'timeline' doesn't match it.
+    expect(screen.queryByTestId('associate-card-tax-review-workflow')).toBeNull();
+  });
+
+  it('search across "All" chip still works correctly', () => {
+    render(<ReimaginedAssociateHome {...multiProps()} />);
+
+    // "All" is active; search for 'tax'.
+    fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'tax' } });
+
+    expect(screen.getByTestId('associate-card-tax-review-workflow')).toBeTruthy();
+    expect(screen.queryByTestId('associate-card-deposition-contradiction-finder')).toBeNull();
+  });
+
+  it('empty-state clear button resets both search and category filter', () => {
+    render(<ReimaginedAssociateHome {...multiProps()} />);
+
+    // Apply a category filter then search for something that matches nothing.
+    fireEvent.click(screen.getByTestId('associate-filter-legal'));
+    fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'xyznotfound' } });
+    expect(screen.getByTestId('associate-empty')).toBeTruthy();
+
+    // The empty-state "Clear search" button has no aria-label — find by testid parent.
+    const emptyDiv = screen.getByTestId('associate-empty');
+    const clearBtn = emptyDiv.querySelector('button');
+    expect(clearBtn).toBeTruthy();
+    fireEvent.click(clearBtn!);
+
+    // Both legal and tax sections should be visible again.
+    expect(screen.getByTestId('associate-section-legal')).toBeTruthy();
+    expect(screen.getByTestId('associate-section-tax')).toBeTruthy();
   });
 });
