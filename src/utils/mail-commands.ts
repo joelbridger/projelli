@@ -299,3 +299,50 @@ export async function mailGetAttachment(
   if (!isTauri()) throw new Error('Attachment fetch is only available in the desktop app.');
   return invoke<MailAttachmentData>('mail_get_attachment', { provider, account, messageId, attachmentId });
 }
+
+/**
+ * Send an email via the named provider/account.
+ *
+ * @param provider       - "m365" | "gmail" | "imap"
+ * @param account        - provider account id (e.g. "default" or the IMAP username)
+ * @param to             - recipient address strings (RFC5322 `name <addr>` or bare addr)
+ * @param cc             - CC recipients
+ * @param bcc            - BCC recipients (never leaked to To/CC in the sent message)
+ * @param subject        - email subject
+ * @param body           - plain-text body
+ * @param inReplyToId    - provider message id of the message being replied to
+ *                         (the part after `mail:` in a citation source; a leading
+ *                         `mail:` prefix is tolerated). When present, the backend
+ *                         fetches the original message's internet_message_id and
+ *                         References header for threading.
+ *
+ * @returns The sent message id (provider-specific) on success, or an empty string
+ *          for providers that do not return one (SMTP / Graph sendMail). Treat any
+ *          non-error return as success.
+ *
+ * @throws "scope_upgrade_required" — the stored OAuth token predates the send
+ *         scope; prompt the user to reconnect (re-run the login flow).
+ * @throws Any other string — a human-readable send error.
+ */
+export async function mailSend(
+  provider: string,
+  account: string,
+  to: string[],
+  cc: string[],
+  bcc: string[],
+  subject: string,
+  body: string,
+  inReplyToId?: string,
+): Promise<string> {
+  if (!isTauri()) throw new Error('Email send is only available in the desktop app.');
+  return invoke<string>('mail_send', {
+    provider,
+    account,
+    to,
+    cc,
+    bcc,
+    subject,
+    body,
+    inReplyToId: inReplyToId ?? null,
+  });
+}

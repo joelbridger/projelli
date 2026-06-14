@@ -130,6 +130,10 @@ aes-gcm = "0.10"
 rand = "0.8"
 # Mail import — RFC822 parser used by the IMAP normalizer.
 mail-parser = "0.11"
+# SMTP send — async transport (STARTTLS, port 587) + RFC822 message builder.
+# Used by the IMAP/SMTP send path (imap/send.rs) and the Gmail raw-RFC822
+# path (gmail/api.rs). M365 uses the Graph REST API (no lettre needed there).
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "builder", "tokio1", "tokio1-native-tls"] }
 # IMAP client (email/gmail-imap-multiprovider).
 # runtime-tokio enables the tokio AsyncRead/AsyncWrite impls; default-features=false
 # drops the async-std dep.  TLS is provided by tokio-native-tls + native-tls.

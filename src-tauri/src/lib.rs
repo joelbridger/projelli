@@ -136,6 +136,8 @@ pub fn run() {
             commands::mail::gmail_connect,
             commands::mail::gmail_is_connected,
             commands::mail::gmail_disconnect,
+            // Email send — compose and send from any connected provider (M365/Gmail/IMAP).
+            commands::mail::mail_send,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             // Wave 3b encrypted vault — per-workspace AES-256-GCM at-rest encryption.
