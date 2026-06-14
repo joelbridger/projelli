@@ -26,6 +26,13 @@ import { useShallow } from 'zustand/react/shallow';
 import type { Matter, MatterScope } from '@/types/matter';
 import { resolveMatterId, findMatter } from '@/modules/memory/matterResolver';
 
+/**
+ * Stable id for the built-in sample matter ("Garcia v. Meridian Properties LLC").
+ * Exported so `sampleMatterDemo.ts` and UI code share the same constant without
+ * importing the full store.
+ */
+export const SAMPLE_MATTER_ID = 'matter_sample_garcia_v_meridian';
+
 /** Generate a stable matter id. Uses crypto.randomUUID when available. */
 function newMatterId(): string {
   try {
@@ -55,6 +62,10 @@ export interface CreateMatterInput {
   orgId?: string;
   role?: 'owner' | 'editor' | 'viewer';
   shared?: boolean;
+  /** Mark this as the built-in sample matter seeded during onboarding. */
+  isSample?: boolean;
+  /** Optionally supply a deterministic id (used for the sample matter). */
+  id?: string;
 }
 
 interface MatterState {
@@ -101,7 +112,7 @@ export const useMatterStore = create<MatterState>()(
 
       createMatter: (input) => {
         const matter: Matter = {
-          id: newMatterId(),
+          id: input.id ?? newMatterId(),
           name: input.name.trim(),
           client: input.client.trim(),
           folderPaths: (input.folderPaths ?? []).map(normalizeFolder).filter(Boolean),
@@ -112,6 +123,7 @@ export const useMatterStore = create<MatterState>()(
           ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
           ...(input.role !== undefined ? { role: input.role } : {}),
           ...(input.shared !== undefined ? { shared: input.shared } : {}),
+          ...(input.isSample ? { isSample: true } : {}),
         };
         set((state) => ({ matters: [...state.matters, matter] }));
         return matter;
@@ -224,7 +236,6 @@ export const useMatterStore = create<MatterState>()(
           matters: state.matters.map((m): Matter => {
             if (m.id !== id) return m;
             // Use destructuring to drop the optional fields
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { firmMatterId: _a, orgId: _b, role: _c, ...rest } = m;
             return { ...rest, shared: false };
           }),
@@ -319,6 +330,30 @@ export function isActiveMatterPrivileged(): boolean {
  */
 export function resolveMatterIdForPath(path: string): string {
   return resolveMatterId(path, useMatterStore.getState().matters);
+}
+
+/**
+ * Return the sample matter (Garcia v. Meridian Properties LLC) if it already
+ * exists in the store, or create it now. The matter is linked to `workspaceRoot`
+ * so RAG retrieval later scopes to the right folder.
+ *
+ * This is NOT called automatically — the onboarding flow wires it at the right
+ * moment (after sample files have been written).
+ *
+ * @param workspaceRoot  Absolute path to the user's workspace root; the sample
+ *                       files live directly inside this folder.
+ */
+export function getOrCreateSampleMatter(workspaceRoot: string): Matter {
+  const { matters, createMatter } = useMatterStore.getState();
+  const existing = findMatter(SAMPLE_MATTER_ID, matters);
+  if (existing) return existing;
+  return createMatter({
+    id: SAMPLE_MATTER_ID,
+    name: 'Garcia v. Meridian Properties LLC',
+    client: 'Roberto Garcia',
+    folderPaths: [workspaceRoot],
+    isSample: true,
+  });
 }
 
 /**

@@ -71,7 +71,7 @@ import { AuditService, auditEventToEntry } from '@/modules/audit/AuditService';
 import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { MemoryService } from '@/modules/memory/MemoryService';
-import { getActiveScope } from '@/stores/matterStore';
+import { getActiveScope, getOrCreateSampleMatter, useMatterStore } from '@/stores/matterStore';
 import { MattersSidebarPanel } from '@/components/matter/MattersSidebarPanel';
 import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
 import { ragVerifyCitation, type RetrievalScope } from '@/utils/tauri-commands';
@@ -3404,7 +3404,18 @@ This file contains rules and guidelines for AI assistants in this workspace.
       {...(workspaceServiceRef.current
         ? { workspace: workspaceServiceRef.current }
         : {})}
-      onComplete={() => { setShowFirstRun(false); }}
+      onComplete={(opts) => {
+        setShowFirstRun(false);
+        if (opts?.writeSamples && rootPath) {
+          try {
+            const sampleMatter = getOrCreateSampleMatter(rootPath);
+            useMatterStore.getState().setActiveMatter(sampleMatter.id);
+            setSidebarActiveTab('search');
+          } catch (err) {
+            console.warn('[App] sample-matter post-onboarding setup failed:', err instanceof Error ? err.message : String(err));
+          }
+        }
+      }}
     />
   ) : null;
 
