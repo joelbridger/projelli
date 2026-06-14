@@ -1522,8 +1522,8 @@ function App() {
   // buttons on each matter row in ReimaginedMattersHome. Sets the active matter
   // and jumps to the requested surface (search = Ask, files = Documents, email).
   useEffect(() => {
-    const ALLOWED_SURFACES = new Set(['search', 'files', 'email'] as const);
-    type AllowedSurface = 'search' | 'files' | 'email';
+    const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'workflows', 'audit'] as const);
+    type AllowedSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit';
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ matterId?: string; surface?: string } | null>).detail;
       if (!detail?.matterId) return;

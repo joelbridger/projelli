@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, X, MessageSquare, FileText, Mail } from 'lucide-react';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
+import { MatterHub } from '@/components/matter/MatterHub';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/mail-commands';
 import type { Matter } from '@/types/matter';
@@ -572,8 +573,14 @@ export function ReimaginedMattersHome() {
   const matters = useMatters();
   const activeMatterId = useActiveMatterId();
   const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
+  const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
 
   const openCount = matters.length;
+
+  // If a hub is open, render MatterHub instead of the table
+  if (selectedMatterId !== null) {
+    return <MatterHub matterId={selectedMatterId} onBack={() => { setSelectedMatterId(null); }} />;
+  }
 
   return (
     <div
@@ -694,7 +701,10 @@ export function ReimaginedMattersHome() {
                   key={m.id}
                   matter={m}
                   isActive={m.id === activeMatterId}
-                  onSelect={setActiveMatter}
+                  onSelect={(id) => {
+                    setActiveMatter(id);
+                    setSelectedMatterId(id);
+                  }}
                 />
               ))}
             </div>
