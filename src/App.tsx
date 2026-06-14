@@ -14,6 +14,9 @@ import { ReimaginedTrustBar } from '@/components/layout/ReimaginedTrustBar';
 import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
 import { ReimaginedAsk } from '@/components/ai/ReimaginedAsk';
 import { ReimaginedEmailWorkspace } from '@/components/mail/ReimaginedEmailWorkspace';
+import { ReimaginedDocumentsHome } from '@/components/documents/ReimaginedDocumentsHome';
+import { ReimaginedAssociateHome } from '@/components/workflow/ReimaginedAssociateHome';
+import { ReimaginedAuditHome } from '@/components/audit/ReimaginedAuditHome';
 import { isReimaginedShell } from '@/lib/reimaginedShell';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { StatusBar } from '@/components/layout/StatusBar';
@@ -3642,6 +3645,108 @@ This file contains rules and guidelines for AI assistants in this workspace.
             }}
             onOpenSettings={() => openSettings('ai')}
           />
+        ) : isReimaginedShell() && sidebarActiveTab === 'files' ? (
+          <ReimaginedDocumentsHome
+            fileTreeContent={
+              <FileTree
+                onFileOpen={handleFileOpen}
+                onCreateFile={handleCreateFile}
+                onCreateFolder={handleCreateFolder}
+                onRename={handleRename}
+                onDelete={handleDelete}
+                onMove={handleMove}
+                onDownload={handleDownload}
+                onCreateFileAtRoot={handleCreateFileAtRoot}
+                onCreateDefaultDocument={handleCreateDefaultDocument}
+                onCreateMarkdownAtRoot={handleCreateMarkdownAtRoot}
+                onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
+                onCreateRichTextFileAtRoot={handleCreateRichTextFileAtRoot}
+                onCreateSpreadsheetAtRoot={handleCreateSpreadsheetAtRoot}
+                onCreateCsvAtRoot={handleCreateCsvAtRoot}
+                onCreateDocxAtRoot={handleCreateDocxAtRoot}
+                onCreatePptxAtRoot={handleCreatePptxAtRoot}
+                onSetLetterheadTemplate={handleSetLetterheadTemplate}
+                onCreateSourceFileAtRoot={handleCreateSourceFileAtRoot}
+                onCreateFolderAtRoot={handleCreateFolderAtRoot}
+                onUploadFiles={handleUploadFiles}
+                onCreateWhiteboard={handleCreateWhiteboard}
+                onCreateWhiteboardAtRoot={handleCreateWhiteboardAtRoot}
+                onOpenGridView={handleOpenGridView}
+                onCreateAudioAtRoot={handleCreateAudioAtRoot}
+                onConfirm={confirm}
+                onDropAIMessage={handleDropAIMessage}
+              />
+            }
+            mainPanelContent={
+              <MainPanel
+                onFileOpen={handleFileOpen}
+                onMove={handleMove}
+                onRename={handleRenameWithName}
+                onDownload={handleDownload}
+                apiKeys={apiKeys}
+                workspaceServiceRef={workspaceServiceRef}
+                {...(rootPath ? { rootPath } : {})}
+                onFileTreeChange={refreshFileTree}
+                onAuditLog={addAuditEntry}
+                onOpenFileAtPath={async (p, paragraphIndex, snippet) => {
+                  if (!rootPath) return;
+                  const absPath = p.startsWith(rootPath)
+                    ? p
+                    : `${rootPath}/${p}`.replace(/\/+/g, '/');
+                  const name = absPath.split('/').pop() ?? absPath;
+                  await handleFileOpen(absPath, name);
+                  if (typeof paragraphIndex === 'number') {
+                    requestScrollToParagraph({
+                      path: absPath,
+                      paragraphIndex,
+                      ...(snippet ? { snippet } : {}),
+                    });
+                  }
+                }}
+                onRequestApiKeySetup={handleRequestApiKeySetup}
+                workflowExecution={currentExecution}
+                workflowTemplate={activeWorkflowTemplate}
+                workflowInterviewQuestions={showInterviewDialog ? null : interviewQuestions}
+                onWorkflowInterviewSubmit={handleInterviewSubmit}
+                onWorkflowCancel={handleInterviewCancel}
+                onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
+                onWorkflowExportDocx={handleWorkflowExportDocx}
+                onWorkflowExportPptx={handleWorkflowExportPptx}
+                workflowProviderError={workflowProviderError}
+                onOpenSettings={() => openSettings('ai')}
+                onActiveEditorChange={(ref) => {
+                  activeEditorRefRef.current = ref;
+                  const manager = pluginManagerRef.current;
+                  if (!manager) return;
+                  manager.setActiveEditor(() => {
+                    const currentRef = activeEditorRefRef.current;
+                    if (!currentRef) return null;
+                    const view = currentRef.current?.getView() ?? null;
+                    return buildPluginEditorHandle(view);
+                  });
+                }}
+              />
+            }
+          />
+        ) : isReimaginedShell() && sidebarActiveTab === 'workflows' ? (
+          <ReimaginedAssociateHome
+            onStartWorkflow={handleStartWorkflow}
+            currentExecution={currentExecution}
+            runHistory={runHistory}
+            providerError={workflowProviderError}
+            onOpenSettings={() => openSettings('ai')}
+            onFocusExecutionTab={() => {
+              const target =
+                activeWorkflowFilePath ??
+                openTabs.find((t) => isWorkflowFilePath(t.path))?.path ??
+                null;
+              if (target) {
+                useEditorStore.getState().setActiveTab(target);
+              }
+            }}
+          />
+        ) : isReimaginedShell() && sidebarActiveTab === 'audit' ? (
+          <ReimaginedAuditHome entries={auditEntries} />
         ) : (
         <MainPanel
           onFileOpen={handleFileOpen}

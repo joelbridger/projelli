@@ -12,13 +12,13 @@
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Trash2, Mail,
+  Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Mail,
   ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 
-type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'trash' | 'email';
+type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'email';
 
 interface ReimaginedSpineProps {
   fileTreeContent?: React.ReactNode;
@@ -54,7 +54,7 @@ function KeepanceMark() {
 
 export function ReimaginedSpine({
   fileTreeContent, searchContent, workflowContent,
-  auditContent, trashContent, mattersContent, emailContent,
+  auditContent, mattersContent, emailContent,
   activeTab = 'matters', onTabChange, collapsed = false, onCollapsedChange,
 }: ReimaginedSpineProps) {
   const { t } = useTranslation();
@@ -70,8 +70,7 @@ export function ReimaginedSpine({
     { id: 'files', label: 'Documents', Icon: FolderTree },
     { id: 'email', label: 'Email', Icon: Mail },
     { id: 'workflows', label: 'Associate', Icon: ListChecks },
-    { id: 'audit', label: 'Your defense file', Icon: ShieldCheck },
-    { id: 'trash', label: t('layout.sidebar.tabs.trash'), Icon: Trash2 },
+    { id: 'audit', label: 'AI Audit', Icon: ShieldCheck },
   ];
 
   const content: Record<SpineTab, React.ReactNode> = {
@@ -81,7 +80,6 @@ export function ReimaginedSpine({
     email: emailContent,
     workflows: workflowContent,
     audit: auditContent,
-    trash: trashContent,
   };
 
   const active = (activeTab as SpineTab) in content ? (activeTab as SpineTab) : 'matters';
@@ -165,14 +163,6 @@ export function ReimaginedSpine({
           <ChevronLeft size={16} /> Collapse
         </button>
       </nav>
-      {/* Active content panel — only for the panel-style surfaces. The
-          full-page surfaces (matters home, Ask, Email) render in the main area
-          instead (App.tsx), so they get the full width. */}
-      {active !== 'matters' && active !== 'search' && active !== 'email' && (
-        <div style={{ width: 280, minWidth: 0, background: 'var(--color-background)', borderRight: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
-          {content[active]}
-        </div>
-      )}
     </div>
   );
 }
