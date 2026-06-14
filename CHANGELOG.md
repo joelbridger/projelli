@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Tidier, more consistent surfaces.** The two status bars were de-cluttered and the core trust line ("On your machine. Nothing leaves.") is always fully readable; the editor toolbar shows only controls that apply to the file you're editing; the Documents home explains that Keepance is Word-native; the Workflows library has a practice-area filter; email "Ask AI" has example prompts to get you started.
   - **Matters feel like the spine.** Each matter is a launchpad with Ask / Documents / Email shortcuts, and the active matter follows you across surfaces.
   - **A second review round, deeper polish.** The sample matter is now clearly labelled "Sample" (and is locked against accidental rename or deletion) and is one click away from "add your first real matter"; returning to a matter shows your recent questions for it; the day-1 demo now cites more than one of your files; the onboarding copy adapts to your profession; skipping setup lands you on a useful home screen; and there is keyboard focus + narrow-window polish throughout.
+  - **A third round: pointable Search, a better Documents view, and a celebrated privacy moment.** The Search box can now be pointed at this matter, all matters, your email, or your documents. The Documents view keeps your file list beside the open document so you never lose your place, with an "Add files" button and a one-time "indexed on your machine, nothing was uploaded" reassurance the first time you add a real file. Isolating a matter (local only, no outside connections) is now a clear, celebrated moment with a shield, not a quiet checkbox. Plus a value pitch before you connect email, a quiet momentum cue on the Matters list, and narrow-window polish.
 
 ### Fixed
 - **"New matter" now works.** The button on the Matters home did nothing; it now opens the matter creator.
@@ -22,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Cited answers keep their citations.** A cited answer showed clickable, verifiable citations when fresh but lost them the moment you navigated away and came back (and then wrongly said "no indexed sources"). Citations now persist, so the click-to-verify promise holds across your whole history, not just the live answer.
 
 ### Added
+- **A hub for each matter.** Click a matter and you get a command center for that case: a question box scoped to it, an at-a-glance of its open issues and deadlines, and panels for its documents, email, workflows, and activity that jump you straight in. The tool-first tabs stay for anyone who does not work in matters, so it fits tax and consulting work too.
 - **Email attachments.** You can attach files when composing an email (Microsoft 365, Gmail, and IMAP/SMTP accounts).
 
 ## [3.2.0] - 2026-06-12

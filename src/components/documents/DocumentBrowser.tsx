@@ -299,6 +299,12 @@ export interface DocumentBrowserProps {
   retentionPeriod?: TrashRetentionPeriod;
   customRetentionDays?: number;
   onRetentionChange?: (period: TrashRetentionPeriod, customDays?: number) => void;
+  /**
+   * When true the component renders in a narrow side-panel style:
+   * no large page heading, tighter padding, no action bar (the parent panel
+   * header provides those affordances instead).
+   */
+  compact?: boolean;
 }
 
 // ── Main export ────────────────────────────────────────────────────────────
@@ -320,6 +326,7 @@ export function DocumentBrowser({
   retentionPeriod,
   customRetentionDays,
   onRetentionChange,
+  compact = false,
 }: DocumentBrowserProps) {
   const fileTree = useWorkspaceStore((s) => s.fileTree);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
@@ -513,118 +520,306 @@ export function DocumentBrowser({
         overflowY: 'auto',
       }}
     >
-      {/* Page header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 16,
-          padding: '28px 24px 20px',
-          flexWrap: 'wrap',
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: '0.13em',
-              textTransform: 'uppercase',
-              color: 'var(--color-muted-foreground)',
-              marginBottom: 6,
-            }}
-          >
-            Documents
-          </div>
-          <h1
-            style={{
-              margin: '0 0 4px',
-              fontSize: 22,
-              fontWeight: 700,
-              color: 'var(--kp-navy)',
-              letterSpacing: '-0.01em',
-              lineHeight: 1.2,
-              fontFamily: 'Satoshi, sans-serif',
-            }}
-          >
-            Documents
-          </h1>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 13,
-              color: 'var(--color-muted-foreground)',
-              lineHeight: 1.4,
-            }}
-          >
-            {subtitleText}
-          </p>
-        </div>
-
-        {/* Files | Trash toggle */}
+      {/* Page header — hidden in compact (side-panel) mode */}
+      {!compact && (
         <div
           style={{
-            display: 'inline-flex',
-            borderRadius: 6,
-            overflow: 'hidden',
-            border: '1px solid var(--color-border)',
-            flex: 'none',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 16,
+            padding: '28px 24px 20px',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: '0.13em',
+                textTransform: 'uppercase',
+                color: 'var(--color-muted-foreground)',
+                marginBottom: 6,
+              }}
+            >
+              Documents
+            </div>
+            <h1
+              style={{
+                margin: '0 0 4px',
+                fontSize: 22,
+                fontWeight: 700,
+                color: 'var(--kp-navy)',
+                letterSpacing: '-0.01em',
+                lineHeight: 1.2,
+                fontFamily: 'Satoshi, sans-serif',
+              }}
+            >
+              Documents
+            </h1>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 13,
+                color: 'var(--color-muted-foreground)',
+                lineHeight: 1.4,
+              }}
+            >
+              {subtitleText}
+            </p>
+          </div>
+
+          {/* Files | Trash toggle */}
+          <div
+            style={{
+              display: 'inline-flex',
+              borderRadius: 6,
+              overflow: 'hidden',
+              border: '1px solid var(--color-border)',
+              flex: 'none',
+            }}
+          >
+            <button
+              type="button"
+              style={{
+                ...segmentBtnBase,
+                ...(activeView === 'files' ? segmentActive : segmentInactive),
+                borderRight: '1px solid var(--color-border)',
+                borderTop: 'none',
+                borderBottom: 'none',
+                borderLeft: 'none',
+              }}
+              onClick={() => { setActiveView('files'); }}
+            >
+              Files
+            </button>
+            <button
+              type="button"
+              style={{
+                ...segmentBtnBase,
+                ...(activeView === 'trash' ? segmentActive : segmentInactive),
+                display: 'inline-flex',
+                gap: 6,
+              }}
+              onClick={() => { setActiveView('trash'); }}
+            >
+              Trash
+              {trashBadgeCount > 0 && (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    background:
+                      activeView === 'trash'
+                        ? 'rgba(255,255,255,0.25)'
+                        : 'rgba(10,37,64,0.12)',
+                    color: activeView === 'trash' ? '#fff' : 'var(--kp-navy)',
+                    padding: '0 4px',
+                  }}
+                >
+                  {String(trashBadgeCount)}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Compact mode: inline Files | Trash toggle + search bar */}
+      {compact && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 6,
+            padding: '8px 10px',
+            borderBottom: '1px solid var(--color-border)',
+            flexShrink: 0,
+            flexWrap: 'wrap',
+          }}
+        >
+          {/* Compact Files | Trash toggle */}
+          <div
+            style={{
+              display: 'inline-flex',
+              borderRadius: 5,
+              overflow: 'hidden',
+              border: '1px solid var(--color-border)',
+              flex: 'none',
+            }}
+          >
+            <button
+              type="button"
+              style={{
+                ...segmentBtnBase,
+                ...(activeView === 'files' ? segmentActive : segmentInactive),
+                fontSize: 12,
+                padding: '4px 10px',
+                borderRight: '1px solid var(--color-border)',
+                borderTop: 'none',
+                borderBottom: 'none',
+                borderLeft: 'none',
+              }}
+              onClick={() => { setActiveView('files'); }}
+            >
+              Files
+            </button>
+            <button
+              type="button"
+              style={{
+                ...segmentBtnBase,
+                ...(activeView === 'trash' ? segmentActive : segmentInactive),
+                fontSize: 12,
+                padding: '4px 10px',
+                display: 'inline-flex',
+                gap: 4,
+                borderTop: 'none',
+                borderBottom: 'none',
+                borderLeft: 'none',
+                borderRight: 'none',
+              }}
+              onClick={() => { setActiveView('trash'); }}
+            >
+              Trash
+              {trashBadgeCount > 0 && (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: 16,
+                    height: 16,
+                    borderRadius: 8,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    background:
+                      activeView === 'trash'
+                        ? 'rgba(255,255,255,0.25)'
+                        : 'rgba(10,37,64,0.12)',
+                    color: activeView === 'trash' ? '#fff' : 'var(--kp-navy)',
+                    padding: '0 3px',
+                  }}
+                >
+                  {String(trashBadgeCount)}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Compact search */}
+          {activeView === 'files' && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                border: '1px solid var(--color-border)',
+                borderRadius: 5,
+                padding: '4px 8px',
+                background: '#fff',
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
+              <Search
+                style={{
+                  width: 11,
+                  height: 11,
+                  color: 'var(--color-muted-foreground)',
+                  strokeWidth: 2,
+                  flex: 'none',
+                }}
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); }}
+                placeholder="Search..."
+                style={{
+                  fontSize: 12,
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  color: 'var(--color-foreground)',
+                  width: '100%',
+                  fontFamily: 'Satoshi, sans-serif',
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Compact mode: quick-action bar (New doc + New folder) */}
+      {compact && activeView === 'files' && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 10px',
+            borderBottom: '1px solid var(--color-border)',
+            flexShrink: 0,
+            flexWrap: 'wrap',
           }}
         >
           <button
             type="button"
             style={{
-              ...segmentBtnBase,
-              ...(activeView === 'files' ? segmentActive : segmentInactive),
-              borderRight: '1px solid var(--color-border)',
-              borderTop: 'none',
-              borderBottom: 'none',
-              borderLeft: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '5px 10px',
+              borderRadius: 5,
+              fontSize: 12,
+              fontWeight: 600,
+              background: 'var(--kp-navy)',
+              color: '#fff',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'Satoshi, sans-serif',
+              whiteSpace: 'nowrap',
             }}
-            onClick={() => { setActiveView('files'); }}
+            onClick={handleCreateDocument}
           >
-            Files
+            <Plus style={{ width: 12, height: 12, strokeWidth: 2 }} />
+            New document
           </button>
           <button
             type="button"
             style={{
-              ...segmentBtnBase,
-              ...(activeView === 'trash' ? segmentActive : segmentInactive),
               display: 'inline-flex',
-              gap: 6,
+              alignItems: 'center',
+              gap: 4,
+              padding: '5px 10px',
+              borderRadius: 5,
+              fontSize: 12,
+              fontWeight: 600,
+              background: '#fff',
+              color: 'var(--kp-navy)',
+              border: '1px solid var(--color-border)',
+              cursor: 'pointer',
+              fontFamily: 'Satoshi, sans-serif',
+              whiteSpace: 'nowrap',
             }}
-            onClick={() => { setActiveView('trash'); }}
+            onClick={handleCreateFolder}
           >
-            Trash
-            {trashBadgeCount > 0 && (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minWidth: 18,
-                  height: 18,
-                  borderRadius: 9,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  background:
-                    activeView === 'trash'
-                      ? 'rgba(255,255,255,0.25)'
-                      : 'rgba(10,37,64,0.12)',
-                  color: activeView === 'trash' ? '#fff' : 'var(--kp-navy)',
-                  padding: '0 4px',
-                }}
-              >
-                {String(trashBadgeCount)}
-              </span>
-            )}
+            <Plus style={{ width: 12, height: 12, strokeWidth: 2 }} />
+            New folder
           </button>
         </div>
-      </div>
+      )}
 
-      {/* Action bar + search (files view only) */}
-      {activeView === 'files' && (
+      {/* Full-width action bar + search (full mode, files view only) */}
+      {!compact && activeView === 'files' && (
         <div
           style={{
             display: 'flex',
@@ -726,9 +921,9 @@ export function DocumentBrowser({
       {activeView === 'files' && (
         <div
           style={{
-            margin: '0 24px 24px',
+            margin: compact ? '0 8px 8px' : '0 24px 24px',
             border: '1px solid var(--color-border)',
-            borderRadius: 8,
+            borderRadius: compact ? 6 : 8,
             background: '#fff',
             overflow: 'hidden',
           }}
@@ -772,9 +967,9 @@ export function DocumentBrowser({
       {activeView === 'trash' && (
         <div
           style={{
-            margin: '0 24px 24px',
+            margin: compact ? '0 8px 8px' : '0 24px 24px',
             border: '1px solid var(--color-border)',
-            borderRadius: 8,
+            borderRadius: compact ? 6 : 8,
             background: '#fff',
             overflow: 'hidden',
             flex: 1,

@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, X, MessageSquare, FileText, Mail } from 'lucide-react';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
+import { MatterHub } from '@/components/matter/MatterHub';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/mail-commands';
 import type { Matter } from '@/types/matter';
@@ -327,22 +328,31 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
         }}
       >
         {/* Matter name + client */}
-        <div style={{ paddingRight: 16 }}>
+        <div style={{ paddingRight: 16, minWidth: 0 }}>
           <div
             style={{
-              fontSize: 14,
-              fontWeight: 600,
-              color: 'var(--kp-navy)',
-              fontFamily: 'Satoshi, sans-serif',
-              lineHeight: 1.3,
-              marginBottom: 2,
               display: 'flex',
               alignItems: 'center',
-              flexWrap: 'wrap',
-              gap: 4,
+              gap: 6,
+              marginBottom: 2,
+              minWidth: 0,
             }}
           >
-            {label}
+            <span
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: 'var(--kp-navy)',
+                fontFamily: 'Satoshi, sans-serif',
+                lineHeight: 1.3,
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+                textOverflow: 'ellipsis',
+                minWidth: 0,
+              }}
+            >
+              {label}
+            </span>
             {matter.isSample && <SamplePill />}
           </div>
           {matter.client && matter.client !== matter.name && (
@@ -572,8 +582,15 @@ export function ReimaginedMattersHome() {
   const matters = useMatters();
   const activeMatterId = useActiveMatterId();
   const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
+  const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
 
   const openCount = matters.length;
+  const totalFolders = matters.reduce((sum, m) => sum + m.folderPaths.length, 0);
+
+  // If a hub is open, render MatterHub instead of the table
+  if (selectedMatterId !== null) {
+    return <MatterHub matterId={selectedMatterId} onBack={() => { setSelectedMatterId(null); }} />;
+  }
 
   return (
     <div
@@ -636,13 +653,10 @@ export function ReimaginedMattersHome() {
             }}
           >
             {openCount === 0
-              ? 'No matters open'
+              ? 'No matters open.'
               : openCount === 1
-              ? '1 matter open'
-              : `${String(openCount)} matters open`}
-            {openCount > 0
-              ? ' — click a row to focus AI on that client.'
-              : '.'}
+              ? `1 matter${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
+              : `${String(openCount)} matters${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`}
           </p>
         </div>
 
@@ -694,7 +708,10 @@ export function ReimaginedMattersHome() {
                   key={m.id}
                   matter={m}
                   isActive={m.id === activeMatterId}
-                  onSelect={setActiveMatter}
+                  onSelect={(id) => {
+                    setActiveMatter(id);
+                    setSelectedMatterId(id);
+                  }}
                 />
               ))}
             </div>

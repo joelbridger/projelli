@@ -323,3 +323,101 @@ describe('MatterManagerDialog — B1 sample badge + guarded delete', () => {
     confirmSpy.mockRestore();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B5 — Isolated (network lockdown) celebration UX in MatterManagerDialog
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('MatterManagerDialog — B5 isolation affirmation + persistent badge', () => {
+  beforeEach(() => {
+    resetStore();
+  });
+
+  it('clicking the lockdown checkbox shows a confirmation dialog, not immediate state change', () => {
+    useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+
+    // Find the checkbox inside the privileged toggle for this matter
+    const toggleLabel = screen.getByTestId(`matter-privileged-${matter.id}`);
+    const checkbox = toggleLabel.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireEvent.click(checkbox);
+
+    // Confirm dialog should appear
+    expect(screen.getByTestId(`matter-isolate-confirm-${matter.id}`)).toBeInTheDocument();
+
+    // State must NOT have changed yet (no premature lockdown)
+    expect(useMatterStore.getState().matters[0]!.privileged).toBeFalsy();
+  });
+
+  it('cancelling the confirm dialog leaves the matter un-isolated', () => {
+    useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+
+    const toggleLabel = screen.getByTestId(`matter-privileged-${matter.id}`);
+    const checkbox = toggleLabel.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireEvent.click(checkbox);
+
+    const cancelBtn = screen.getByTestId(`matter-isolate-cancel-${matter.id}`);
+    fireEvent.click(cancelBtn);
+
+    // Confirm dialog should be gone
+    expect(screen.queryByTestId(`matter-isolate-confirm-${matter.id}`)).not.toBeInTheDocument();
+    // Still not isolated
+    expect(useMatterStore.getState().matters[0]!.privileged).toBeFalsy();
+  });
+
+  it('confirming isolation sets privileged=true and shows the affirmation callout', () => {
+    useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+
+    const toggleLabel = screen.getByTestId(`matter-privileged-${matter.id}`);
+    const checkbox = toggleLabel.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireEvent.click(checkbox);
+
+    const confirmBtn = screen.getByTestId(`matter-isolate-confirm-action-${matter.id}`);
+    fireEvent.click(confirmBtn);
+
+    // Matter is now isolated
+    expect(useMatterStore.getState().matters[0]!.privileged).toBe(true);
+
+    // Affirmation callout is visible
+    expect(screen.getByTestId(`matter-isolated-affirmation-${matter.id}`)).toBeInTheDocument();
+
+    // Persistent badge is shown
+    expect(screen.getByTestId(`matter-isolated-badge-${matter.id}`)).toBeInTheDocument();
+  });
+
+  it('a matter that starts isolated shows the persistent badge without going through confirm', () => {
+    useMatterStore.getState().createMatter({ name: 'Protected', client: 'Client', privileged: true });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+
+    // Badge visible immediately
+    expect(screen.getByTestId(`matter-isolated-badge-${matter.id}`)).toBeInTheDocument();
+    // No affirmation (we didn't just enable it in this session)
+    expect(screen.queryByTestId(`matter-isolated-affirmation-${matter.id}`)).not.toBeInTheDocument();
+  });
+
+  it('unchecking the lockdown checkbox when already isolated disables immediately (no confirm)', () => {
+    useMatterStore.getState().createMatter({ name: 'Protected', client: 'Client', privileged: true });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+
+    const toggleLabel = screen.getByTestId(`matter-privileged-${matter.id}`);
+    const checkbox = toggleLabel.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    fireEvent.click(checkbox); // unchecking (was already checked)
+
+    // No confirm dialog for turning OFF
+    expect(screen.queryByTestId(`matter-isolate-confirm-${matter.id}`)).not.toBeInTheDocument();
+    // Immediately disabled
+    expect(useMatterStore.getState().matters[0]!.privileged).toBe(false);
+  });
+});

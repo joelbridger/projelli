@@ -56,7 +56,7 @@ describe('en.json structure snapshot', () => {
         "layout": 40,
         "mail": 5,
         "marketplace": 14,
-        "matter": 89,
+        "matter": 96,
         "media": 77,
         "memory": 3,
         "model-download": 9,
@@ -82,8 +82,8 @@ describe('en.json structure snapshot', () => {
 
   it('locks the total leaf-key count', () => {
     const flat = flatten(en as Record<string, JsonValue>);
-    // 807 = 758 + the 49 vault namespace keys (Task 16, Wave 3b).
-    expect(flat.length).toBe(807);
+    // 814 = 807 + the 7 matter.manager isolated-* keys (UX Round 3, Isolated-matter celebration).
+    expect(flat.length).toBe(814);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

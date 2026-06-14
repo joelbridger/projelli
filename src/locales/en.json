@@ -890,7 +890,14 @@
       "firm-remove-error": "I couldn't remove this member. {{error}}",
       "firm-leave-error": "I couldn't stop sharing. {{error}}",
       "firm-invite-user-exists": "{{email}} already has an account. Use the admin console to add them, or ask them to accept an invitation.",
-      "open-notes-action": "Open shared notes"
+      "open-notes-action": "Open shared notes",
+      "isolated-badge": "Isolated",
+      "isolated-confirm-title": "Isolate this matter?",
+      "isolated-confirm-body": "Network lockdown blocks all network-capable plugins and MCP servers while this matter is active. AI requests stay on this computer; nothing can leave through an extension. You can turn this off at any time.",
+      "isolated-confirm-action": "Isolate this matter",
+      "isolated-confirm-cancel": "Cancel",
+      "isolated-affirmation": "This matter is now isolated. AI requests stay on this computer, and outside network connections are blocked so nothing can leave this matter.",
+      "isolated-off-hint": "Network lockdown turned off for this matter."
     },
     "sync": {
       "live-tooltip": "Synced with firm",

@@ -24,7 +24,7 @@
  */
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Laptop, Cloud, ShieldCheck, ShieldOff, MapPin, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -86,6 +86,11 @@ export function ConfidentialityModeSettings() {
   const [dataMapOpen, setDataMapOpen] = useState(false);
   const privileged = usePrivilegedMatterMode();
   const setPrivileged = useSetPrivilegedMatterMode();
+  // Show the isolation affirmation callout briefly after the user manually
+  // enables network lockdown. Not shown for auto-forced states (those have
+  // their own forced-note already).
+  const [showLockdownAffirmation, setShowLockdownAffirmation] = useState(false);
+  const lockdownAffirmationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Assured is selectable once the firm has at least one managed provider key.
   // The egress indicator does the precise per-provider check at send time.
   const assuredAvailable = useFirmStore((s) => s.assuredProviders.length > 0);
@@ -207,7 +212,20 @@ export function ConfidentialityModeSettings() {
             data-testid="privileged-matter-mode-switch"
             disabled={privileged.forced}
             onClick={() => {
-              if (!privileged.forced) setPrivileged(!privileged.manual);
+              if (!privileged.forced) {
+                const turningOn = !privileged.manual;
+                setPrivileged(turningOn);
+                if (turningOn) {
+                  setShowLockdownAffirmation(true);
+                  if (lockdownAffirmationTimer.current) clearTimeout(lockdownAffirmationTimer.current);
+                  lockdownAffirmationTimer.current = setTimeout(() => {
+                    setShowLockdownAffirmation(false);
+                  }, 5000);
+                } else {
+                  setShowLockdownAffirmation(false);
+                  if (lockdownAffirmationTimer.current) clearTimeout(lockdownAffirmationTimer.current);
+                }
+              }
             }}
             className={cn(
               'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
@@ -233,6 +251,17 @@ export function ConfidentialityModeSettings() {
               ? 'On automatically because the active matter has network lockdown. It stays on until you switch to a different matter.'
               : 'On automatically because On this computer only is selected. It stays on while that option is active.'}
           </p>
+        )}
+        {/* Affirmation: shown for ~5 s after the user manually turns lockdown on */}
+        {showLockdownAffirmation && !privileged.forced && (
+          <div
+            data-testid="lockdown-manual-affirmation"
+            className="mt-2 flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900"
+            style={{ background: 'linear-gradient(90deg, #ecfdf5 0%, #f0f9ff 100%)' }}
+          >
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+            <span>Network lockdown is on. AI requests stay on this computer, and outside network connections are blocked so nothing can leave through an extension.</span>
+          </div>
         )}
       </div>
 
