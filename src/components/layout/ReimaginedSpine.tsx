@@ -12,13 +12,13 @@
 import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Trash2,
+  Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Trash2, Mail,
   ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 
-type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'trash';
+type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'trash' | 'email';
 
 interface ReimaginedSpineProps {
   fileTreeContent?: React.ReactNode;
@@ -28,6 +28,7 @@ interface ReimaginedSpineProps {
   auditContent?: React.ReactNode;
   trashContent?: React.ReactNode;
   mattersContent?: React.ReactNode;
+  emailContent?: React.ReactNode | undefined;
   activeTab?: string | undefined;
   onTabChange?: ((tab: string) => void) | undefined;
   collapsed?: boolean | undefined;
@@ -53,7 +54,7 @@ function KeepanceMark() {
 
 export function ReimaginedSpine({
   fileTreeContent, searchContent, workflowContent,
-  auditContent, trashContent, mattersContent,
+  auditContent, trashContent, mattersContent, emailContent,
   activeTab = 'matters', onTabChange, collapsed = false, onCollapsedChange,
 }: ReimaginedSpineProps) {
   const { t } = useTranslation();
@@ -67,6 +68,7 @@ export function ReimaginedSpine({
     { id: 'matters', label: t('layout.sidebar.tabs.matters'), Icon: Briefcase },
     { id: 'search', label: 'Ask', Icon: Sparkles },
     { id: 'files', label: 'Documents', Icon: FolderTree },
+    { id: 'email', label: 'Email', Icon: Mail },
     { id: 'workflows', label: 'Associate', Icon: ListChecks },
     { id: 'audit', label: 'Your defense file', Icon: ShieldCheck },
     { id: 'trash', label: t('layout.sidebar.tabs.trash'), Icon: Trash2 },
@@ -76,6 +78,7 @@ export function ReimaginedSpine({
     matters: mattersContent,
     files: fileTreeContent,
     search: searchContent,
+    email: emailContent,
     workflows: workflowContent,
     audit: auditContent,
     trash: trashContent,
@@ -96,6 +99,7 @@ export function ReimaginedSpine({
         </button>
         {nav.map(({ id, label, Icon }) => (
           <button key={id} type="button" title={label} aria-current={active === id}
+            data-testid={`spine-nav-${id}`}
             onClick={() => onTabChange?.(id)}
             style={{ width: 38, height: 38, borderRadius: 8, border: 0, cursor: 'pointer', color: active === id ? '#fff' : 'rgba(255,255,255,0.66)', background: active === id ? 'rgba(93,198,255,0.14)' : 'transparent' }}>
             <Icon size={18} style={{ margin: '0 auto' }} strokeWidth={1.75} />
@@ -121,6 +125,7 @@ export function ReimaginedSpine({
             return (
               <button key={id} type="button" ref={(el) => { tabRefs.current[id] = el; }}
                 aria-current={on} onClick={() => onTabChange?.(id)}
+                data-testid={`spine-nav-${id}`}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '8px 11px',
                   borderRadius: 6, border: 0, cursor: 'pointer', textAlign: 'left', fontSize: 13.5, position: 'relative',
@@ -161,9 +166,9 @@ export function ReimaginedSpine({
         </button>
       </nav>
       {/* Active content panel — only for the panel-style surfaces. The
-          full-page surfaces (matters home, Ask) render in the main area
+          full-page surfaces (matters home, Ask, Email) render in the main area
           instead (App.tsx), so they get the full width. */}
-      {active !== 'matters' && active !== 'search' && (
+      {active !== 'matters' && active !== 'search' && active !== 'email' && (
         <div style={{ width: 280, minWidth: 0, background: 'var(--color-background)', borderRight: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           {content[active]}
         </div>

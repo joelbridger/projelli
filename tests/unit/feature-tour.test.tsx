@@ -1,26 +1,26 @@
 /**
- * FeatureTour unit tests — exercises the 5-step popover/dialog flow plus
+ * FeatureTour unit tests — exercises the 7-step popover/dialog flow plus
  * data-integrity assertions against featureTourSteps.ts.
+ *
+ * The tour targets the new Spine nav: spine-nav-{matters,search,files,email,audit}.
+ * On the old shell those elements are absent and FeatureTour auto-advances —
+ * that is intentional and acceptable behaviour (noted in docs).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { FeatureTour } from '@/components/onboarding/FeatureTour';
 import { FEATURE_TOUR_STEPS } from '@/components/onboarding/featureTourSteps';
 
-// The tour anchors steps to real DOM elements via data-testid. Seed those
-// elements (createElement/setAttribute, not innerHTML, per security hook).
+// Seed the new Spine nav testids so anchored steps resolve instead of
+// auto-advancing. Matches the data-testid attrs on ReimaginedSpine buttons.
 function seedTargets(): () => void {
   const container = document.createElement('div');
   const targets = [
-    'sidebar-tab-files',
-    'sidebar-tab-ai-assistant',
-    'sidebar-tab-workflows',
-    'sidebar-tab-search',
-    'sidebar-tab-research',
-    'sidebar-tab-whiteboard',
-    'sidebar-tab-audit',
-    'command-palette-button',
-    'settings-gear',
+    'spine-nav-matters',
+    'spine-nav-search',
+    'spine-nav-files',
+    'spine-nav-email',
+    'spine-nav-audit',
   ];
   for (const testid of targets) {
     const el = document.createElement('div');
@@ -53,7 +53,7 @@ describe('FeatureTour', () => {
         onSkip={() => {}}
       />,
     );
-    expect(screen.getAllByText("Let's take a 2-minute tour").length).toBeGreaterThan(0);
+    expect(screen.getAllByText('A quick look at the new layout').length).toBeGreaterThan(0);
   });
 
   it('advances to the next step on Next click', () => {
@@ -116,8 +116,8 @@ describe('FeatureTour', () => {
 });
 
 describe('Feature tour content integrity', () => {
-  it('has exactly 10 steps', () => {
-    expect(FEATURE_TOUR_STEPS.length).toBe(10);
+  it('has exactly 7 steps', () => {
+    expect(FEATURE_TOUR_STEPS.length).toBe(7);
   });
 
   it('every step has title + body longer than threshold', () => {
@@ -135,5 +135,34 @@ describe('Feature tour content integrity', () => {
   it('no banned marketing words', () => {
     const all = FEATURE_TOUR_STEPS.flatMap((s) => [s.title, s.body]).join(' ');
     expect(all).not.toMatch(/\b(leverage|seamless|empower|unlock|delve|tapestry|elevate)\b/i);
+  });
+
+  it('uses new spine-nav-* selectors', () => {
+    const selectors = FEATURE_TOUR_STEPS
+      .map((s) => s.targetSelector)
+      .filter((s): s is string => s !== null);
+    expect(selectors.some((s) => s.includes('spine-nav-matters'))).toBe(true);
+    expect(selectors.some((s) => s.includes('spine-nav-search'))).toBe(true);
+    expect(selectors.some((s) => s.includes('spine-nav-files'))).toBe(true);
+    expect(selectors.some((s) => s.includes('spine-nav-email'))).toBe(true);
+    expect(selectors.some((s) => s.includes('spine-nav-audit'))).toBe(true);
+  });
+
+  it('has no legacy sidebar-tab-* selectors', () => {
+    const selectors = FEATURE_TOUR_STEPS
+      .map((s) => s.targetSelector)
+      .filter((s): s is string => s !== null);
+    for (const sel of selectors) {
+      expect(sel).not.toMatch(/sidebar-tab-/);
+    }
+  });
+
+  it('intro and outro steps are center-modal (targetSelector null)', () => {
+    const intro = FEATURE_TOUR_STEPS.find((s) => s.id === 'intro');
+    const outro = FEATURE_TOUR_STEPS.find((s) => s.id === 'outro');
+    expect(intro?.targetSelector).toBeNull();
+    expect(intro?.placement).toBe('center');
+    expect(outro?.targetSelector).toBeNull();
+    expect(outro?.placement).toBe('center');
   });
 });

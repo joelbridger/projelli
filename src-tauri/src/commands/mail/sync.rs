@@ -42,13 +42,24 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
             let abs = workspace_root.join(&rel);
             if let Some(p) = abs.parent() { std::fs::create_dir_all(p)?; }
             std::fs::write(&abs, to_markdown(&msg))?;
+            // Legacy Phase-1 plaintext path (removed by migrate_plaintext).
+            // Searchable columns are populated here too so apply_page + a
+            // plaintext store can also benefit from list_messages.
+            let snippet: String = msg.body_text
+                .chars()
+                .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+                .take(200)
+                .collect();
             store.upsert(&MailRecord {
                 id: msg.id.clone(), folder_id: folder_id.to_string(),
                 internet_message_id: msg.internet_message_id.clone(),
                 relative_path: rel, received_date_time: msg.received_date_time.clone(),
-                // Legacy Phase-1 plaintext path (removed by migrate_plaintext);
-                // provider/account are only used by the encrypted store's mapping.
                 provider: String::new(), account: String::new(),
+                subject: msg.subject.clone(),
+                from_addr: msg.from_address.clone().unwrap_or_default(),
+                from_name: msg.from_name.clone().unwrap_or_default(),
+                snippet,
+                has_attachments: msg.has_attachments,
             })?;
             stats.written += 1;
         }
@@ -102,6 +113,15 @@ where
         let encrypted = encrypt_with_key(markdown.as_bytes(), key)?;
         std::fs::write(&blob_abs, &encrypted)?;
         let rel = format!(".keepance/mail/blobs/{}", blob_filename);
+        // Build a ~200-char plaintext snippet from the body for the list surface.
+        // Newlines are collapsed to spaces; HTML is stored as-is at this layer
+        // (stripping HTML is a future task). Already-synced messages keep empty
+        // defaults until the next sync reaches them — that is acceptable.
+        let snippet: String = msg.body_text
+            .chars()
+            .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+            .take(200)
+            .collect();
         store.upsert(&MailRecord {
             id: msg.id.clone(),
             folder_id: folder_id.to_string(),
@@ -110,6 +130,11 @@ where
             received_date_time: msg.received_date_time.clone(),
             provider: provider.to_string(),
             account: account.to_string(),
+            subject: msg.subject.clone(),
+            from_addr: msg.from_address.clone().unwrap_or_default(),
+            from_name: msg.from_name.clone().unwrap_or_default(),
+            snippet,
+            has_attachments: msg.has_attachments,
         })?;
         index_callback(&msg.id, &markdown, matter_id);
         stats.written += 1;
@@ -307,6 +332,9 @@ mod tests {
         fn count(&self)->anyhow::Result<i64> { Ok(self.msgs.lock().unwrap().len() as i64) }
         fn get_cursor(&self, f:&str)->anyhow::Result<Option<String>> { Ok(self.cursors.lock().unwrap().get(f).cloned()) }
         fn set_cursor(&self, f:&str, c:&str)->anyhow::Result<()> { self.cursors.lock().unwrap().insert(f.into(), c.into()); Ok(()) }
+        fn list_messages(&self, _q:&crate::commands::mail::store::MailListQuery)->anyhow::Result<crate::commands::mail::store::MailListPage> {
+            Ok(crate::commands::mail::store::MailListPage { items: vec![], total: 0 })
+        }
     }
 
     #[test]
@@ -320,7 +348,9 @@ mod tests {
         // pre-seed m2 so the tombstone has something to remove
         store.upsert(&MailRecord{ id:"m2".into(), folder_id:"inbox".into(), internet_message_id:None,
             relative_path:"Mail/inbox/m2.md".into(), received_date_time:None,
-            provider:String::new(), account:String::new()}).unwrap();
+            provider:String::new(), account:String::new(),
+            subject:String::new(), from_addr:String::new(), from_name:String::new(),
+            snippet:String::new(), has_attachments:false }).unwrap();
         let stats = apply_page(&store, dir.path(), "inbox", &page).unwrap();
         assert_eq!(stats.written, 1);
         assert_eq!(stats.removed, 1);
@@ -409,6 +439,9 @@ mod tests {
             relative_path: blob_rel.clone(),
             received_date_time: None,
             provider: "m365".into(), account: "default".into(),
+            subject: String::new(), from_addr: String::new(),
+            from_name: String::new(), snippet: String::new(),
+            has_attachments: false,
         }).unwrap();
 
         let page = serde_json::json!({ "value": [
@@ -505,6 +538,9 @@ mod tests {
                 relative_path: format!(".keepance/mail/blobs/{}.enc", id),
                 received_date_time: None,
                 provider: "m365".into(), account: "default".into(),
+                subject: String::new(), from_addr: String::new(),
+                from_name: String::new(), snippet: String::new(),
+                has_attachments: false,
             }).unwrap();
         }
 

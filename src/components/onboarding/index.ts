@@ -5,6 +5,5 @@ export {
   markApiKeyCardDismissed,
 } from './ApiKeySetupCard';
 export { ApiKeyWizard, type ApiKeyWizardProps, type WizardProvider } from './ApiKeyWizard';
-export { WelcomeOnboardingDialog } from './WelcomeOnboardingDialog';
 export { AiSetupStep, type AiSetupStepProps } from './AiSetupStep';
 export { AiSetupReminder, type AiSetupReminderProps } from './AiSetupReminder';

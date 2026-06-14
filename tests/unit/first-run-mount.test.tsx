@@ -1,26 +1,23 @@
 /**
- * Keepance 3.0 — FirstRunWizard mounted as the live first-run surface in App.
+ * Keepance — GuidedOnboarding mounted as the live first-run surface in App.
  *
- * The rebuilt wizard exists but a prior task left App.tsx mounting only the old
- * WelcomeOnboardingDialog + FeatureTour. These tests pin the wiring that makes
- * the wizard the real first-run experience:
+ * These pin the App-level wiring that makes the branded guided onboarding the
+ * real first-run experience:
  *
- *   1. First run (no completed flag, no recent workspace) renders the
- *      FirstRunWizard, NOT the old WelcomeOnboardingDialog.
- *   2. Completing the wizard sets `keepance_onboarding_complete` and the wizard
- *      does not re-show on the next mount.
- *   3. The "Set this up later" path completes without a key and leaves the
- *      AI-setup reminder active (deferred flag set, no model connected).
+ *   1. First run (no completed flag, no recent workspace) renders
+ *      GuidedOnboarding, NOT the old WelcomeOnboardingDialog.
+ *   2. Completing the flow sets `keepance_onboarding_complete` and it does not
+ *      re-show on the next mount.
+ *   3. The AI-step "Set this up later" path completes without a key and leaves
+ *      the AI-setup reminder active (deferred flag set, no model connected).
  *   4. A key entered during onboarding persists through the keychain path
  *      (KeychainService.setKey), the same save path Settings uses.
  *
- * App is a large component that pulls in many heavy modules. We mount the real
- * App so the wiring under test (gating + props) is exercised end-to-end, and
- * mock only the leaf side-effects that would hit the network / a real keychain.
- *
- * App defers the wizard mount behind a 1200ms timer so the workspace selector
- * paints first; we use real timers and a generous findBy timeout for that first
- * appearance rather than fake timers (fake timers deadlock RTL's async helpers).
+ * We mount the real App so the wiring under test (gating + props + the embedded
+ * real AiSetupStep) is exercised end-to-end, and mock only the leaf side-effects
+ * that would hit the network / a real keychain. App defers the onboarding mount
+ * behind a 1200ms timer so the workspace selector paints first; we use real
+ * timers and a generous findBy timeout for that first appearance.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -62,7 +59,7 @@ vi.mock('@/modules/models/KeychainService', () => ({
 }));
 
 import App from '@/App';
-import { hasCompletedOnboarding } from '@/components/onboarding/FirstRunWizard';
+import { hasCompletedOnboarding } from '@/components/onboarding/onboardingState';
 import { hasDeferredAiSetup } from '@/onboarding/aiSetupState';
 
 const ONBOARDING_FLAG = 'keepance_onboarding_complete';
@@ -74,80 +71,82 @@ beforeEach(() => {
 });
 
 /**
- * Render App and wait for the wizard's welcome step (deferred behind a 1200ms
+ * Render App and wait for the onboarding welcome step (deferred behind a 1200ms
  * timer in App). Returns the RTL render result.
  */
-async function renderAppAndOpenWizard() {
+async function renderAppAndOpenOnboarding() {
   const utils = render(<App />);
-  // Wizard appears after App's 1200ms deferred-mount timer.
-  await screen.findByRole('button', { name: "Let's go" }, { timeout: 3000 });
+  await screen.findByTestId('onboarding-step-welcome', {}, { timeout: 3000 });
   return utils;
 }
 
-/** Click welcome -> profession(legal) -> workspace -> data -> ai-setup. */
+/** Walk welcome -> profession(legal) -> workspace -> trust -> AI-key step. */
 function advanceToAiSetup() {
-  fireEvent.click(screen.getByRole('button', { name: "Let's go" }));
+  fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
   fireEvent.click(screen.getByTestId('profession-card-legal'));
-  fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
-  fireEvent.click(screen.getByRole('button', { name: /connect an ai/i }));
+  fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+  fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
+  fireEvent.click(screen.getByTestId('onboarding-data-continue'));
 }
 
-describe('App — FirstRunWizard as live first-run surface', () => {
-  it('renders FirstRunWizard (not the old WelcomeOnboardingDialog) on first run', async () => {
-    await renderAppAndOpenWizard();
+/** From the AI step onward: email -> firm -> done -> finish. The step-footer
+ *  Continue buttons live in GuidedOnboarding (outside the embedded components),
+ *  so they work regardless of the email/firm components' jsdom state. */
+async function finishFromEmailStep() {
+  fireEvent.click(await screen.findByTestId('onboarding-email-continue'));
+  fireEvent.click(await screen.findByTestId('onboarding-firm-continue'));
+  fireEvent.click(await screen.findByTestId('onboarding-done-confirm'));
+}
 
-    // The rebuilt wizard's welcome step is shown...
-    expect(screen.getByRole('button', { name: "Let's go" })).toBeInTheDocument();
-    // ...and the superseded consent dialog is NOT mounted.
+describe('App — GuidedOnboarding as live first-run surface', () => {
+  it('renders GuidedOnboarding (not the old WelcomeOnboardingDialog) on first run', async () => {
+    await renderAppAndOpenOnboarding();
+
+    expect(screen.getByTestId('onboarding-step-welcome')).toBeInTheDocument();
     expect(screen.queryByTestId('welcome-onboarding-dialog')).not.toBeInTheDocument();
   });
 
-  it('completing the wizard sets the flag and does not re-show on next mount', async () => {
-    const first = await renderAppAndOpenWizard();
+  it('completing onboarding sets the flag and does not re-show on next mount', async () => {
+    const first = await renderAppAndOpenOnboarding();
 
-    // Walk to the demo step via the no-shame skip, then finish.
     advanceToAiSetup();
     fireEvent.click(screen.getByTestId('ai-path-later'));
-    fireEvent.click(await screen.findByRole('button', { name: 'Open my workspace' }));
+    await finishFromEmailStep();
 
     await waitFor(() => expect(hasCompletedOnboarding()).toBe(true));
     expect(localStorage.getItem(ONBOARDING_FLAG)).toBe('true');
-    // Wizard closed itself on completion.
     await waitFor(() =>
-      expect(screen.queryByRole('button', { name: "Let's go" })).not.toBeInTheDocument(),
+      expect(screen.queryByTestId('onboarding-step-welcome')).not.toBeInTheDocument(),
     );
 
     first.unmount();
 
-    // Next launch: flag is set, so the wizard must NOT re-appear. Give the
+    // Next launch: flag is set, so onboarding must NOT re-appear. Give the
     // deferred-mount timer time to (not) fire, then assert absence.
     render(<App />);
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    expect(screen.queryByRole('button', { name: "Let's go" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('onboarding-step-welcome')).not.toBeInTheDocument();
   });
 
   it('"Set this up later" completes without a key and leaves the AI-setup reminder active', async () => {
-    await renderAppAndOpenWizard();
+    await renderAppAndOpenOnboarding();
     advanceToAiSetup();
 
-    // Defer: no key entered.
+    // Defer: no key entered. The deferred reminder flag is set immediately.
     fireEvent.click(screen.getByTestId('ai-path-later'));
-    // Deferred reminder flag is set immediately on skip.
     expect(hasDeferredAiSetup()).toBe(true);
 
-    // The wizard still finishes (never dead-ends on the key step).
-    fireEvent.click(await screen.findByRole('button', { name: 'Open my workspace' }));
+    // The flow still finishes (never dead-ends on the key step).
+    await finishFromEmailStep();
     await waitFor(() => expect(hasCompletedOnboarding()).toBe(true));
 
-    // No key was persisted, and the reminder remains active (deferred + no
-    // model connected) for the AI pane to surface.
+    // No key was persisted, and the reminder remains active for the AI pane.
     expect(setKeySpy).not.toHaveBeenCalled();
     expect(hasDeferredAiSetup()).toBe(true);
   });
 
-  it('onSaveApiKey persists an onboarding key via the KeychainService path', async () => {
-    await renderAppAndOpenWizard();
+  it('saving a key during onboarding persists via the KeychainService path', async () => {
+    await renderAppAndOpenOnboarding();
     advanceToAiSetup();
 
     // Choose the "use your own account" path and paste a well-formed key.

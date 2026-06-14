@@ -17,7 +17,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 use crate::commands::mail::oauth::{OAuth, TokenOutcome};
 use crate::commands::mail::provider::MailProvider;
-use crate::commands::mail::store::{EncryptedMailStore, MailStore};
+use crate::commands::mail::store::{EncryptedMailStore, MailListPage, MailListQuery, MailStore};
 
 const KEYCHAIN_SERVICE: &str = "keepance-mail-ms";
 const KEYCHAIN_REFRESH_KEY: &str = "ms-refresh-token";
@@ -279,6 +279,32 @@ pub async fn mail_get_message(
         .map_err(|e| format!("join: {e}"))?
         .map_err(|e| e.to_string())?;
     view.ok_or_else(|| "message not found".to_string())
+}
+
+/// Browse / keyword-search stored email metadata without decrypting any blob.
+/// All matching is done against the plaintext columns inside the SQLCipher DB.
+/// Mirrors `mail_get_message` in its spawn_blocking + workspace-guard pattern.
+#[tauri::command]
+pub async fn mail_list_messages(
+    state: State<'_, MailState>,
+    query: MailListQuery,
+) -> Result<MailListPage, String> {
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("workspace not set")?;
+    let key = crate::commands::mail::crypto::get_or_create_master_key()
+        .map_err(|e| e.to_string())?;
+    // SQLite work is blocking; run off the async runtime.
+    tokio::task::spawn_blocking(move || {
+        let store =
+            EncryptedMailStore::open_with_key(&workspace, &key).map_err(|e| e.to_string())?;
+        store.list_messages(&query).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
 }
 
 /// WS-B/C: re-tag every message stored under a (provider, account, folder) to a
@@ -1532,6 +1558,11 @@ mod tests {
                 received_date_time: Some("2026-05-01T14:30:00Z".into()),
                 provider: "m365".into(),
                 account: "default".into(),
+                subject: "Closing date".into(),
+                from_addr: "pat@hender.com".into(),
+                from_name: "Pat H".into(),
+                snippet: "Confirming May 14.".into(),
+                has_attachments: false,
             })
             .unwrap();
 

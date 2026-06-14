@@ -13,6 +13,7 @@ import { AppShellNav } from '@/components/layout/AppShellNav';
 import { ReimaginedTrustBar } from '@/components/layout/ReimaginedTrustBar';
 import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
 import { ReimaginedAsk } from '@/components/ai/ReimaginedAsk';
+import { ReimaginedEmailWorkspace } from '@/components/mail/ReimaginedEmailWorkspace';
 import { isReimaginedShell } from '@/lib/reimaginedShell';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { StatusBar } from '@/components/layout/StatusBar';
@@ -37,7 +38,9 @@ import { UpdateManager, manualUpdateCheck } from '@/components/updater/UpdateMan
 import { openExternal } from '@/utils/openExternal';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { TrialBanner } from '@/components/trial';
-import { FirstRunWizard, hasCompletedOnboarding } from '@/components/onboarding';
+import { hasCompletedOnboarding } from '@/components/onboarding';
+import { GuidedOnboarding } from '@/components/onboarding/GuidedOnboarding';
+import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
 import { createKeychainService } from '@/modules/models/KeychainService';
 import { sendEvent } from '@/utils/telemetry';
 import { FeatureTour } from '@/components/onboarding/FeatureTour';
@@ -284,10 +287,13 @@ function App() {
   const [workflowProviderError, setWorkflowProviderError] = useState<'needs-provider' | 'ollama-unreachable' | null>(null);
 
   // Sidebar state
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins'>('files');
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'email' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins'>('files');
   // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  // Shell-aware API key wizard — opened from reimagined shell CTAs.
+  const [apiKeyWizardOpen, setApiKeyWizardOpen] = useState<boolean>(false);
 
   // UX-04 onboarding: one-shot "open Keys sub-tab" instruction passed to
   // AIAssistantPane. Set when the onboarding card's CTA fires, cleared by
@@ -297,8 +303,12 @@ function App() {
   >(undefined);
 
   const handleRequestApiKeySetup = useCallback(() => {
-    setSidebarActiveTab('ai-assistant');
-    setAiAssistantRequestedTab('keys');
+    if (isReimaginedShell()) {
+      setApiKeyWizardOpen(true);
+    } else {
+      setSidebarActiveTab('ai-assistant');
+      setAiAssistantRequestedTab('keys');
+    }
   }, []);
 
   // Audit log state
@@ -3338,19 +3348,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
   // `keepance_onboarding_complete`; on skip we set the same flag so first-run
   // never re-prompts. The Feature Tour then auto-shows as it does today.
   const firstRunOverlay = showFirstRun ? (
-    <FirstRunWizard
+    <GuidedOnboarding
+      onSaveKey={handleSaveOnboardingApiKey}
       {...(workspaceServiceRef.current
         ? { workspace: workspaceServiceRef.current }
         : {})}
-      onSaveApiKey={handleSaveOnboardingApiKey}
       onComplete={() => { setShowFirstRun(false); }}
-      onSkip={() => {
-        // The wizard's top-right "Skip for now" doesn't set the completed flag
-        // itself. Mark it here so a skipped first run doesn't re-prompt on every
-        // launch (mirrors the prior dialog's skip-is-final UX).
-        localStorage.setItem('keepance_onboarding_complete', 'true');
-        setShowFirstRun(false);
-      }}
     />
   ) : null;
 
@@ -3485,7 +3488,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
         {/* Sidebar with file tree, workflows, research, and settings */}
         <AppShellNav
           activeTab={sidebarActiveTab}
-          onTabChange={setSidebarActiveTab}
+          onTabChange={setSidebarActiveTab as (tab: string) => void}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
           onOpenGridView={handleOpenGridView}
@@ -3601,9 +3604,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
             />
           }
           mattersContent={<MattersSidebarPanel />}
+          emailContent={null}
         />
 
-        {/* Main editor panel, or a full-page reimagined surface (matters/Ask). */}
+        {/* Main editor panel, or a full-page reimagined surface (matters/Ask/Email). */}
         {isReimaginedShell() && sidebarActiveTab === 'matters' ? (
           <ReimaginedMattersHome />
         ) : isReimaginedShell() && sidebarActiveTab === 'search' ? (
@@ -3619,6 +3623,20 @@ This file contains rules and guidelines for AI assistants in this workspace.
               setFileTree(tree);
               await handleFileOpen(path, finalName);
             }}
+          />
+        ) : isReimaginedShell() && sidebarActiveTab === 'email' ? (
+          <ReimaginedEmailWorkspace
+            onSaveToWorkspace={async (content, suggestedName) => {
+              if (!workspaceServiceRef.current || !rootPath) return;
+              const { resolveUniqueName } = await import('@/utils/fileDrop');
+              const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, suggestedName);
+              const path = `${rootPath}/${finalName}`;
+              await workspaceServiceRef.current.writeFile(path, `${content}\n`);
+              const tree = await workspaceServiceRef.current.getFileTree();
+              setFileTree(tree);
+              await handleFileOpen(path, finalName);
+            }}
+            onOpenSettings={() => openSettings('ai')}
           />
         ) : (
         <MainPanel
@@ -3730,8 +3748,14 @@ This file contains rules and guidelines for AI assistants in this workspace.
         {...(settingsInitialCategory ? { initialCategory: settingsInitialCategory } : {})}
         onAction={(actionId) => {
           if (actionId === 'open-ai-keys') {
-            setSidebarActiveTab('ai-assistant');
-            setAiAssistantRequestedTab('keys');
+            if (isReimaginedShell()) {
+              setApiKeyWizardOpen(true);
+            } else {
+              setSidebarActiveTab('ai-assistant');
+              setAiAssistantRequestedTab('keys');
+            }
+          } else if (actionId === 'open-api-key-tutorial') {
+            setApiKeyWizardOpen(true);
           } else if (actionId === 'open-ai-rules') {
             handleOpenAIRules();
           } else if (actionId === 'updater-check-now') {
@@ -3746,6 +3770,9 @@ This file contains rules and guidelines for AI assistants in this workspace.
             featureTour.restart();
             setTimeout(() => setTourOpen(true), 300);
           }
+        }}
+        onRestartOnboarding={() => {
+          setShowFirstRun(true);
         }}
       />
 
@@ -3765,6 +3792,18 @@ This file contains rules and guidelines for AI assistants in this workspace.
         onSkip={() => {
           featureTour.skipForNow();
           setTourOpen(false);
+        }}
+      />
+
+      {/* Shell-aware API key wizard — opened from reimagined shell CTAs */}
+      <ApiKeyWizard
+        open={apiKeyWizardOpen}
+        onOpenChange={setApiKeyWizardOpen}
+        onSaveKey={(provider, key) => {
+          void handleSaveOnboardingApiKey(
+            provider as Parameters<typeof handleSaveOnboardingApiKey>[0],
+            key
+          );
         }}
       />
 

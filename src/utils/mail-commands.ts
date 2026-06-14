@@ -101,6 +101,13 @@ export interface ConnectedAccount { provider: string; account: string; label: st
 
 /** List the mail accounts currently connected, for the matter-mapping UI. */
 export async function mailConnectedAccounts(): Promise<ConnectedAccount[]> {
+  if (mailFixtureEnabled()) {
+    return [
+      { provider: 'm365', account: 'default', label: 'Outlook (demo)' },
+      { provider: 'gmail', account: 'default', label: 'Gmail (demo)' },
+      { provider: 'imap', account: 'firm@firm.com', label: 'firm@firm.com (demo)' },
+    ];
+  }
   if (!isTauri()) return [];
   return invoke<ConnectedAccount[]>('mail_connected_accounts');
 }
@@ -130,6 +137,115 @@ export async function mailImapIsConnected(): Promise<boolean> {
 export async function mailImapDisconnect(): Promise<void> {
   if (!isTauri()) return;
   return invoke<void>('mail_imap_disconnect');
+}
+
+// ---------------------------------------------------------------------------
+// Mail browse / search surface
+// ---------------------------------------------------------------------------
+
+/** Query parameters for browsing + keyword-searching stored email metadata.
+ *  Mirror of the Rust `MailListQuery` (camelCase). */
+export interface MailListQuery {
+  keyword?: string;
+  folderId?: string;
+  provider?: string;
+  account?: string;
+  /** ISO 8601 lower bound (inclusive) on receivedDateTime. */
+  dateFrom?: string;
+  /** ISO 8601 upper bound (inclusive) on receivedDateTime. */
+  dateTo?: string;
+  hasAttachments?: boolean;
+  /** "date" | "subject" | "from" — default: "date" */
+  sortBy: string;
+  /** true = descending (newest/Z first) */
+  sortDesc: boolean;
+  limit: number;
+  offset: number;
+}
+
+/** One row in a mail list response. No blob is ever decrypted — metadata only. */
+export interface MailListItem {
+  id: string;
+  subject: string;
+  fromAddr: string;
+  fromName: string;
+  snippet: string;
+  receivedDateTime: string | null;
+  provider: string;
+  account: string;
+  folderId: string;
+  hasAttachments: boolean;
+}
+
+/** Paginated result returned by `mailListMessages`. */
+export interface MailListPage {
+  items: MailListItem[];
+  /** Total matching rows (ignoring limit/offset) for pagination UI. */
+  total: number;
+}
+
+/** True when the dev fixture flag (?mailFixture=1) is set in a browser (non-Tauri).
+ *  Lets the email surface render populated in the dev server for review/QA. */
+function mailFixtureEnabled(): boolean {
+  return !isTauri() && typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('mailFixture') === '1';
+}
+
+// Dev fixture data — exercisable in browser dev server when ?mailFixture=1.
+const DEV_FIXTURES: MailListItem[] = [
+  { id: 'fix-1', subject: 'Re: Settlement Conference', fromAddr: 'pat@henderson.law', fromName: 'Pat Henderson', snippet: 'Confirmed for Thursday at 2pm in Courtroom 4.', receivedDateTime: '2026-06-12T14:30:00Z', provider: 'm365', account: 'default', folderId: 'inbox', hasAttachments: false },
+  { id: 'fix-2', subject: 'Deposition Transcript - Exhibit A', fromAddr: 'court@reporter.com', fromName: 'Linda Court Reporter', snippet: 'Please find attached the transcript from the June 10 deposition.', receivedDateTime: '2026-06-11T09:15:00Z', provider: 'm365', account: 'default', folderId: 'inbox', hasAttachments: true },
+  { id: 'fix-3', subject: '100% billable hours approved', fromAddr: 'billing@firm.com', fromName: 'Billing Dept', snippet: 'Your June hours have been reviewed and approved for submission.', receivedDateTime: '2026-06-10T16:00:00Z', provider: 'gmail', account: 'default', folderId: 'INBOX', hasAttachments: false },
+  { id: 'fix-4', subject: 'Motion for Summary Judgment', fromAddr: 'z.torres@opposing.com', fromName: 'Zelda Torres', snippet: 'We intend to file our MSJ by June 20. Please coordinate with your client.', receivedDateTime: '2026-06-09T11:45:00Z', provider: 'm365', account: 'default', folderId: 'inbox', hasAttachments: true },
+  { id: 'fix-5', subject: 'Clio integration update', fromAddr: 'support@clio.com', fromName: 'Clio Support', snippet: 'Your API key has been rotated. Please update your integration settings.', receivedDateTime: '2026-06-08T08:00:00Z', provider: 'm365', account: 'default', folderId: 'inbox', hasAttachments: false },
+  { id: 'fix-6', subject: 'FW: Engagement Letter', fromAddr: 'jane.smith@client.com', fromName: 'Jane Smith', snippet: 'Forwarding the signed engagement letter for your records. Original attached.', receivedDateTime: '2026-06-07T13:20:00Z', provider: 'imap', account: 'firm@firm.com', folderId: 'INBOX', hasAttachments: true },
+  { id: 'fix-7', subject: 'snake_case variable issue', fromAddr: 'dev@keepance.com', fromName: 'Dev Team', snippet: 'There is an underscore handling bug in the search surface — see attached report.', receivedDateTime: '2026-06-06T17:00:00Z', provider: 'm365', account: 'default', folderId: 'sent', hasAttachments: true },
+  { id: 'fix-8', subject: 'Court calendar update', fromAddr: 'clerk@court.gov', fromName: 'Court Clerk', snippet: 'The November 3 hearing has been moved to November 10 at 10am.', receivedDateTime: '2026-06-05T09:00:00Z', provider: 'm365', account: 'default', folderId: 'inbox', hasAttachments: false },
+];
+
+/** Apply query filters + sort to a fixture array (for dev fixture mode). */
+function applyQueryToFixtures(fixtures: MailListItem[], q: MailListQuery): MailListPage {
+  const filtered = fixtures.filter(item => {
+    if (q.keyword) {
+      const kw = q.keyword.toLowerCase();
+      const hit = item.subject.toLowerCase().includes(kw)
+        || item.fromAddr.toLowerCase().includes(kw)
+        || item.fromName.toLowerCase().includes(kw);
+      if (!hit) return false;
+    }
+    if (q.folderId && item.folderId !== q.folderId) return false;
+    if (q.provider && item.provider !== q.provider) return false;
+    if (q.account && item.account !== q.account) return false;
+    if (q.dateFrom && item.receivedDateTime && item.receivedDateTime < q.dateFrom) return false;
+    if (q.dateTo && item.receivedDateTime && item.receivedDateTime > q.dateTo) return false;
+    if (q.hasAttachments !== undefined && item.hasAttachments !== q.hasAttachments) return false;
+    return true;
+  });
+
+  // Sort
+  const dir = q.sortDesc ? -1 : 1;
+  filtered.sort((a, b) => {
+    let av = '', bv = '';
+    if (q.sortBy === 'subject') { av = a.subject; bv = b.subject; }
+    else if (q.sortBy === 'from') { av = a.fromName; bv = b.fromName; }
+    else { av = a.receivedDateTime ?? ''; bv = b.receivedDateTime ?? ''; }
+    return av < bv ? -dir : av > bv ? dir : 0;
+  });
+
+  const total = filtered.length;
+  const items = filtered.slice(q.offset, q.offset + q.limit);
+  return { items, total };
+}
+
+/** Browse / keyword-search stored email metadata without decrypting blobs.
+ *  Returns an empty page outside Tauri (or when `?mailFixture=1` in dev). */
+export async function mailListMessages(query: MailListQuery): Promise<MailListPage> {
+  // Dev fixture path: exercisable in browser dev server without Tauri.
+  if (mailFixtureEnabled()) {
+    return applyQueryToFixtures(DEV_FIXTURES, query);
+  }
+  if (!isTauri()) return { items: [], total: 0 };
+  return invoke<MailListPage>('mail_list_messages', { query });
 }
 
 // Gmail native provider (loopback PKCE OAuth)
