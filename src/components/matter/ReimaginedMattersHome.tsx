@@ -229,6 +229,30 @@ function PrivilegePill() {
   );
 }
 
+function SamplePill() {
+  return (
+    <span
+      data-testid="sample-matter-pill"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '2px 8px',
+        borderRadius: 4,
+        fontSize: 11,
+        fontWeight: 600,
+        letterSpacing: '0.03em',
+        background: 'rgba(16,185,129,0.09)',
+        color: '#065f46',
+        border: '1px solid rgba(16,185,129,0.28)',
+        whiteSpace: 'nowrap',
+        marginLeft: 6,
+      }}
+    >
+      Sample
+    </span>
+  );
+}
+
 interface MatterRowProps {
   matter: Matter;
   isActive: boolean;
@@ -312,9 +336,14 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
               fontFamily: 'Satoshi, sans-serif',
               lineHeight: 1.3,
               marginBottom: 2,
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 4,
             }}
           >
             {label}
+            {matter.isSample && <SamplePill />}
           </div>
           {matter.client && matter.client !== matter.name && (
             <div
@@ -364,7 +393,7 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
         </div>
       </button>
 
-      {/* Quick-action row — visible on hover */}
+      {/* Quick-action row — visible at rest (reduced opacity), full opacity on hover */}
       <div
         data-testid={`matter-quick-actions-${matter.id}`}
         style={{
@@ -373,22 +402,21 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
           gap: 6,
           paddingLeft: '23px',
           paddingRight: 20,
-          paddingBottom: hovered ? 8 : 0,
-          height: hovered ? 'auto' : 0,
-          overflow: 'hidden',
-          opacity: hovered ? 1 : 0,
-          pointerEvents: hovered ? 'auto' : 'none',
-          transition: 'opacity 0.15s, padding-bottom 0.15s',
+          paddingBottom: 8,
+          opacity: hovered ? 1 : 0.55,
+          transition: 'opacity 0.15s',
           background: isActive ? 'rgba(10,37,64,0.04)' : hovered ? 'rgba(10,37,64,0.02)' : 'transparent',
           borderLeft: isActive ? '3px solid var(--kp-navy)' : '3px solid transparent',
         }}
-        aria-hidden={!hovered}
       >
         <button
           type="button"
           data-testid={`matter-launch-ask-${matter.id}`}
           aria-label={`Ask AI about ${label}`}
-          style={quickActionBtn}
+          style={{
+            ...quickActionBtn,
+            background: hovered ? 'rgba(10,37,64,0.05)' : '#fff',
+          }}
           onClick={(e) => { launchSurface('search', e); }}
         >
           <MessageSquare style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
@@ -398,7 +426,10 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
           type="button"
           data-testid={`matter-launch-documents-${matter.id}`}
           aria-label={`Open documents for ${label}`}
-          style={quickActionBtn}
+          style={{
+            ...quickActionBtn,
+            background: hovered ? 'rgba(10,37,64,0.05)' : '#fff',
+          }}
           onClick={(e) => { launchSurface('files', e); }}
         >
           <FileText style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
@@ -408,7 +439,10 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
           type="button"
           data-testid={`matter-launch-email-${matter.id}`}
           aria-label={`Open email for ${label}`}
-          style={quickActionBtn}
+          style={{
+            ...quickActionBtn,
+            background: hovered ? 'rgba(10,37,64,0.05)' : '#fff',
+          }}
           onClick={(e) => { launchSurface('email', e); }}
         >
           <Mail style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />

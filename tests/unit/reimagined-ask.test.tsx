@@ -29,6 +29,7 @@ vi.mock('@/onboarding/samples/sampleMatterDemo', () => ({
   DEMO_QUESTIONS: [
     'What are the open issues in this matter?',
     'Summarize the Garcia matter for me.',
+    'What is the status of the Meridian correspondence?',
     'What is the fee arrangement?',
   ],
 }));
@@ -85,6 +86,8 @@ describe('ReimaginedAsk', () => {
     // Restore default: no cloud key (return null so demo branch can fire)
     mockGetKey.mockResolvedValue(null);
     (getDemoAnswerForWorkspace as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    // Clear any bridge-dismissal state so each test starts clean
+    localStorage.clear();
   });
 
   it('renders without crashing', () => {
@@ -276,6 +279,7 @@ describe('ReimaginedAsk', () => {
     render(<ReimaginedAsk />);
     expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
     expect(screen.getByText(/summarize the garcia matter for me/i)).toBeDefined();
+    expect(screen.getByText(/what is the status of the meridian correspondence/i)).toBeDefined();
     expect(screen.getByText(/what is the fee arrangement/i)).toBeDefined();
   });
 
@@ -321,5 +325,56 @@ describe('ReimaginedAsk', () => {
     // No error should be thrown; the component should handle gracefully
     render(<ReimaginedAsk />);
     expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // B2 — sample bridge callout tests
+  // -------------------------------------------------------------------------
+
+  it('shows the sample bridge callout in empty state when active matter is the sample matter', () => {
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    render(<ReimaginedAsk />);
+    expect(screen.getByTestId('sample-bridge-callout')).toBeDefined();
+    expect(screen.getByText(/this is sample data/i)).toBeDefined();
+  });
+
+  it('does not show the sample bridge callout when active matter is not the sample matter', () => {
+    mockActiveMatter = { id: 'matter_other', name: 'Other Matter' };
+    render(<ReimaginedAsk />);
+    expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
+  });
+
+  it('does not show the sample bridge callout when there is no active matter', () => {
+    mockActiveMatter = null;
+    render(<ReimaginedAsk />);
+    expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
+  });
+
+  it('sample bridge callout is hidden after clicking dismiss and localStorage key is set', () => {
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    render(<ReimaginedAsk />);
+    const dismissBtn = screen.getByTestId('sample-bridge-dismiss');
+    fireEvent.click(dismissBtn);
+    expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
+    expect(localStorage.getItem('keepance:sample-bridge-dismissed')).toBe('1');
+  });
+
+  it('sample bridge callout stays hidden on mount when localStorage flag is already set', () => {
+    localStorage.setItem('keepance:sample-bridge-dismissed', '1');
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    render(<ReimaginedAsk />);
+    expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
+  });
+
+  it('"Add a matter" button dispatches the keepance:open-matter-manager event', () => {
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    render(<ReimaginedAsk />);
+    const addBtn = screen.getByTestId('sample-bridge-add-matter');
+    fireEvent.click(addBtn);
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'keepance:open-matter-manager' }),
+    );
+    dispatchSpy.mockRestore();
   });
 });

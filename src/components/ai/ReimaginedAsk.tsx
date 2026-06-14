@@ -16,7 +16,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Sparkles, ArrowRight, CheckCircle2, FileText,
   ExternalLink, Quote, ShieldCheck, AlertTriangle, Loader2,
-  MessageSquare, Plus, Save,
+  MessageSquare, Plus, Save, X,
 } from 'lucide-react';
 import { useActiveMatter, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -404,6 +404,111 @@ function SourcePanel({
             {/* eslint-enable keepance-i18n/no-hardcoded-string */}
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Constants                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const SAMPLE_BRIDGE_DISMISSED_KEY = 'keepance:sample-bridge-dismissed';
+
+/* -------------------------------------------------------------------------- */
+/* SampleBridgeCallout — gentle nudge to add real files (sample matter only)  */
+/* -------------------------------------------------------------------------- */
+
+function SampleBridgeCallout() {
+  const [dismissed, setDismissed] = useState(
+    () => localStorage.getItem(SAMPLE_BRIDGE_DISMISSED_KEY) === '1',
+  );
+
+  if (dismissed) return null;
+
+  const handleDismiss = () => {
+    localStorage.setItem(SAMPLE_BRIDGE_DISMISSED_KEY, '1');
+    setDismissed(true);
+  };
+
+  const handleAddMatter = () => {
+    window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
+  };
+
+  return (
+    <div
+      data-testid="sample-bridge-callout"
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+        padding: '12px 14px',
+        borderRadius: 9,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-secondary)',
+        marginTop: 8,
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p
+          style={{
+            fontSize: 13,
+            color: 'var(--color-foreground)',
+            lineHeight: 1.55,
+            margin: 0,
+          }}
+        >
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          This is sample data. When you are ready, add your first real matter to search your own files.
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </p>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <button
+          type="button"
+          data-testid="sample-bridge-add-matter"
+          onClick={handleAddMatter}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 11px',
+            borderRadius: 6,
+            border: '1px solid var(--kp-navy)',
+            background: 'var(--kp-navy)',
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          Add a matter
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </button>
+        <button
+          type="button"
+          data-testid="sample-bridge-dismiss"
+          onClick={handleDismiss}
+          aria-label="Dismiss"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 24,
+            height: 24,
+            borderRadius: 5,
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-background)',
+            color: 'var(--color-muted-foreground)',
+            cursor: 'pointer',
+            padding: 0,
+            flexShrink: 0,
+          }}
+        >
+          <X size={13} strokeWidth={2} />
+        </button>
       </div>
     </div>
   );
@@ -989,6 +1094,10 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
                   </button>
                 ))}
               </div>
+              {/* B2: bridge callout — only on sample matter, dismissible */}
+              {activeMatter?.id === SAMPLE_MATTER_ID && (
+                <SampleBridgeCallout />
+              )}
               {/* eslint-enable keepance-i18n/no-hardcoded-string */}
             </div>
           )}
@@ -1022,6 +1131,11 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
               isPersisted={false}
               isStreaming
             />
+          )}
+
+          {/* B2: bridge callout below demo answers (sample matter with turns) */}
+          {activeMatter?.id === SAMPLE_MATTER_ID && turns.length > 0 && !streamingTurn && (
+            <SampleBridgeCallout />
           )}
 
           {/* Error */}

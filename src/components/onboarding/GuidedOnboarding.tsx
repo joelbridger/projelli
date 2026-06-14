@@ -779,7 +779,7 @@ function DoneStep({ profession, populateSamples, onToggleSamples, isFinishing, a
           disabled={isFinishing}
           data-testid="onboarding-done-confirm"
         >
-          {isFinishing ? 'Setting up...' : 'Create your first matter'}
+          {isFinishing ? 'Setting up...' : populateSamples ? 'Explore the sample matter' : 'Create your first matter'}
         </GradientButton>
       </div>
     </div>

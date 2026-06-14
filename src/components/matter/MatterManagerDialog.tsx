@@ -47,7 +47,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
-import { useMatters, useMatterStore } from '@/stores/matterStore';
+import { useMatters, useMatterStore, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import type { FileNode } from '@/types/workspace';
 import { mailConnectedAccounts, type ConnectedAccount } from '@/utils/mail-commands';
@@ -781,6 +781,33 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                 data-testid={`matter-row-${m.id}`}
                 className="rounded-md border p-3 space-y-3"
               >
+                {/* Sample badge shown at the top of the sample matter row */}
+                {m.isSample && (
+                  <div className="flex items-center gap-2 pb-1">
+                    <span
+                      data-testid="matter-manager-sample-badge"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        letterSpacing: '0.03em',
+                        background: 'rgba(16,185,129,0.09)',
+                        color: '#065f46',
+                        border: '1px solid rgba(16,185,129,0.28)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Sample
+                    </span>
+                    {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+                    <span className="text-xs text-muted-foreground">
+                      This is the built-in training matter. Deleting it removes the demo questions.
+                    </span>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <Input
                     data-testid={`matter-name-${m.id}`}
@@ -790,6 +817,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                     }}
                     className="h-8 text-sm font-medium"
                     aria-label={t('matter.manager.matter-name')}
+                    disabled={m.id === SAMPLE_MATTER_ID}
                   />
                   <div className="flex items-center gap-2">
                     <Input
@@ -800,6 +828,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                       }}
                       className="h-8 text-sm"
                       aria-label={t('matter.manager.client-name')}
+                      disabled={m.id === SAMPLE_MATTER_ID}
                     />
                     <Button
                       data-testid={`matter-delete-${m.id}`}
@@ -807,6 +836,12 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                       size="icon"
                       className="h-8 w-8 shrink-0 text-destructive hover:bg-destructive/10"
                       onClick={() => {
+                        if (m.id === SAMPLE_MATTER_ID) {
+                          const confirmed = window.confirm(
+                            'This removes the sample matter, and the demo questions will stop working. Continue?',
+                          );
+                          if (!confirmed) return;
+                        }
                         deleteMatter(m.id);
                       }}
                       aria-label={t('matter.manager.delete')}
