@@ -377,4 +377,101 @@ describe('ReimaginedAsk', () => {
     );
     dispatchSpy.mockRestore();
   });
+
+  // -------------------------------------------------------------------------
+  // C1 — "Recent in this matter" returning-user payoff
+  // -------------------------------------------------------------------------
+
+  it('shows "Recent in this matter" list when a non-sample matter has prior sessions', () => {
+    const MATTER_ID = 'matter_reyes_v_tompkins';
+    mockActiveMatter = { id: MATTER_ID, name: 'Reyes v. Tompkins' };
+    // Seed two prior sessions for this matter (keyed with timestamped variants)
+    mockSessions[`ask-${MATTER_ID}-1000`] = {
+      chatId: `ask-${MATTER_ID}-1000`,
+      messages: [
+        { role: 'user', content: 'What are the deposition highlights?', timestamp: '2026-01-01T00:00:00Z' },
+        { role: 'assistant', content: 'The key highlights are...', timestamp: '2026-01-01T00:00:00Z' },
+      ],
+      isLoading: false,
+      lastUpdated: '2026-01-01T00:00:00Z',
+    };
+    mockSessions[`ask-${MATTER_ID}-2000`] = {
+      chatId: `ask-${MATTER_ID}-2000`,
+      messages: [
+        { role: 'user', content: 'What is the discovery deadline?', timestamp: '2026-01-02T00:00:00Z' },
+        { role: 'assistant', content: 'Discovery closes on March 15.', timestamp: '2026-01-02T00:00:00Z' },
+      ],
+      isLoading: false,
+      lastUpdated: '2026-01-02T00:00:00Z',
+    };
+    try {
+      render(<ReimaginedAsk />);
+      // Section heading and items should be present
+      expect(screen.getByTestId('recent-in-matter')).toBeDefined();
+      expect(screen.getByText(/recent in this matter/i)).toBeDefined();
+      const items = screen.getAllByTestId('matter-session-item');
+      expect(items.length).toBe(2);
+      // First question of each session should appear as the label (may appear in
+      // both the top session chips strip and the landing section list).
+      expect(screen.getAllByText(/what are the deposition highlights/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText(/what is the discovery deadline/i).length).toBeGreaterThanOrEqual(1);
+    } finally {
+      delete mockSessions[`ask-${MATTER_ID}-1000`];
+      delete mockSessions[`ask-${MATTER_ID}-2000`];
+    }
+  });
+
+  it('clicking a "Recent in this matter" item loads that session (calls setChatId)', () => {
+    const MATTER_ID = 'matter_reyes_v_tompkins';
+    mockActiveMatter = { id: MATTER_ID, name: 'Reyes v. Tompkins' };
+    const priorSessionId = `ask-${MATTER_ID}-1000`;
+    mockSessions[priorSessionId] = {
+      chatId: priorSessionId,
+      messages: [
+        { role: 'user', content: 'What are the deposition highlights?', timestamp: '2026-01-01T00:00:00Z' },
+        { role: 'assistant', content: 'The key highlights are...', timestamp: '2026-01-01T00:00:00Z' },
+      ],
+      isLoading: false,
+      lastUpdated: '2026-01-01T00:00:00Z',
+    };
+    // Also seed the prior session's messages in the store so they restore on load
+    mockSessions[priorSessionId] = mockSessions[priorSessionId]!;
+    try {
+      render(<ReimaginedAsk />);
+      const item = screen.getByTestId('matter-session-item');
+      fireEvent.click(item);
+      // After clicking, the component should display the prior session's content.
+      // initSession will be called for the loaded session id.
+      expect(mockInitSession).toHaveBeenCalledWith(priorSessionId, []);
+    } finally {
+      delete mockSessions[priorSessionId];
+    }
+  });
+
+  it('does NOT show "Recent in this matter" for the sample matter', () => {
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    // Seed a prior sample session that would match the prefix
+    const priorSampleId = `ask-${SAMPLE_MATTER_ID}-1000`;
+    mockSessions[priorSampleId] = {
+      chatId: priorSampleId,
+      messages: [
+        { role: 'user', content: 'What is the fee arrangement?', timestamp: '2026-01-01T00:00:00Z' },
+        { role: 'assistant', content: 'The fee is $350/hr.', timestamp: '2026-01-01T00:00:00Z' },
+      ],
+      isLoading: false,
+      lastUpdated: '2026-01-01T00:00:00Z',
+    };
+    try {
+      render(<ReimaginedAsk />);
+      expect(screen.queryByTestId('recent-in-matter')).toBeNull();
+    } finally {
+      delete mockSessions[priorSampleId];
+    }
+  });
+
+  it('does NOT show "Recent in this matter" when the non-sample matter has no prior sessions', () => {
+    mockActiveMatter = { id: 'matter_fresh', name: 'Fresh Matter' };
+    render(<ReimaginedAsk />);
+    expect(screen.queryByTestId('recent-in-matter')).toBeNull();
+  });
 });

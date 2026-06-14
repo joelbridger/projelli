@@ -559,6 +559,24 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
     })
     .slice(0, 5);
 
+  // Matter-scoped prior sessions: sessions whose key starts with "ask-<matterId>"
+  // (covers both the base id and timestamped variants like ask-<matterId>-<ts>).
+  // Only shown for non-sample real matters on the empty/landing state.
+  const matterSessionPrefix = activeMatter ? `ask-${activeMatter.id}` : null;
+  const matterRecentSessions = matterSessionPrefix !== null
+    ? Object.entries(sessions)
+        .filter(([key, session]) =>
+          key.startsWith(matterSessionPrefix) &&
+          session.messages.some((m) => m.role === 'user') &&
+          key !== chatId,
+        )
+        .map(([key, session]) => {
+          const firstUserMsg = session.messages.find((m) => m.role === 'user');
+          return { chatId: key, label: firstUserMsg?.content ?? key };
+        })
+        .slice(0, 5)
+    : [];
+
   // On mount / chatId change: init session and reconstruct turns from persisted messages.
   // Fix #1: read getState() instead of the closed-over `sessions` selector so we always
   // see the post-initSession state, not a stale snapshot captured at render time.
@@ -1094,6 +1112,64 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
                   </button>
                 ))}
               </div>
+              {/* C1 — "Recent in this matter" for non-sample real matters */}
+              {activeMatter && activeMatter.id !== SAMPLE_MATTER_ID && matterRecentSessions.length > 0 && (
+                <div
+                  data-testid="recent-in-matter"
+                  style={{
+                    marginTop: 8,
+                    width: '100%',
+                    maxWidth: 380,
+                    textAlign: 'left',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: '0.11em',
+                      textTransform: 'uppercase',
+                      color: 'var(--color-muted-foreground)',
+                      marginBottom: 7,
+                    }}
+                  >
+                    Recent in this matter
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {matterRecentSessions.map(({ chatId: sid, label }) => (
+                      <button
+                        key={sid}
+                        type="button"
+                        data-testid="matter-session-item"
+                        onClick={() => { handleLoadSession(sid); }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '7px 11px',
+                          borderRadius: 7,
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-background)',
+                          color: 'var(--color-foreground)',
+                          fontSize: 12.5,
+                          fontWeight: 400,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          width: '100%',
+                          transition: 'background 0.1s',
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-secondary)'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-background)'; }}
+                      >
+                        <MessageSquare size={13} strokeWidth={1.75} style={{ color: 'var(--kp-navy)', flex: 'none', opacity: 0.55 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                          {label.length > 60 ? `${label.slice(0, 60)}…` : label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {/* B2: bridge callout — only on sample matter, dismissible */}
               {activeMatter?.id === SAMPLE_MATTER_ID && (
                 <SampleBridgeCallout />
