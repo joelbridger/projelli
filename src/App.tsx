@@ -38,7 +38,8 @@ import { UpdateManager, manualUpdateCheck } from '@/components/updater/UpdateMan
 import { openExternal } from '@/utils/openExternal';
 import { SettingsModal } from '@/components/settings/SettingsModal';
 import { TrialBanner } from '@/components/trial';
-import { FirstRunWizard, hasCompletedOnboarding } from '@/components/onboarding';
+import { hasCompletedOnboarding } from '@/components/onboarding';
+import { GuidedOnboarding } from '@/components/onboarding/GuidedOnboarding';
 import { createKeychainService } from '@/modules/models/KeychainService';
 import { sendEvent } from '@/utils/telemetry';
 import { FeatureTour } from '@/components/onboarding/FeatureTour';
@@ -3339,19 +3340,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
   // `keepance_onboarding_complete`; on skip we set the same flag so first-run
   // never re-prompts. The Feature Tour then auto-shows as it does today.
   const firstRunOverlay = showFirstRun ? (
-    <FirstRunWizard
+    <GuidedOnboarding
+      onSaveKey={handleSaveOnboardingApiKey}
       {...(workspaceServiceRef.current
         ? { workspace: workspaceServiceRef.current }
         : {})}
-      onSaveApiKey={handleSaveOnboardingApiKey}
       onComplete={() => { setShowFirstRun(false); }}
-      onSkip={() => {
-        // The wizard's top-right "Skip for now" doesn't set the completed flag
-        // itself. Mark it here so a skipped first run doesn't re-prompt on every
-        // launch (mirrors the prior dialog's skip-is-final UX).
-        localStorage.setItem('keepance_onboarding_complete', 'true');
-        setShowFirstRun(false);
-      }}
     />
   ) : null;
 
