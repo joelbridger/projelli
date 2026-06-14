@@ -113,6 +113,8 @@ pub fn run() {
             commands::mail::mail_cancel_sync,
             // Keepance 3.0 email viewer — fetch + decrypt one stored message.
             commands::mail::mail_get_message,
+            // Mail browse/search surface — metadata-only, never decrypts a blob.
+            commands::mail::mail_list_messages,
             // WS-B/C — re-tag a mail folder's messages to a matter in place.
             commands::mail::mail_retag_folder_matter,
             // Option B — heal mail RAG indexing that failed while the embedding

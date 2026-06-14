@@ -13,6 +13,7 @@ import { AppShellNav } from '@/components/layout/AppShellNav';
 import { ReimaginedTrustBar } from '@/components/layout/ReimaginedTrustBar';
 import { ReimaginedMattersHome } from '@/components/matter/ReimaginedMattersHome';
 import { ReimaginedAsk } from '@/components/ai/ReimaginedAsk';
+import { ReimaginedEmailWorkspace } from '@/components/mail/ReimaginedEmailWorkspace';
 import { isReimaginedShell } from '@/lib/reimaginedShell';
 import { MainPanel } from '@/components/layout/MainPanel';
 import { StatusBar } from '@/components/layout/StatusBar';
@@ -284,7 +285,7 @@ function App() {
   const [workflowProviderError, setWorkflowProviderError] = useState<'needs-provider' | 'ollama-unreachable' | null>(null);
 
   // Sidebar state
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins'>('files');
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'email' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins'>('files');
   // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -3485,7 +3486,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
         {/* Sidebar with file tree, workflows, research, and settings */}
         <AppShellNav
           activeTab={sidebarActiveTab}
-          onTabChange={setSidebarActiveTab}
+          onTabChange={setSidebarActiveTab as (tab: string) => void}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
           onOpenGridView={handleOpenGridView}
@@ -3601,9 +3602,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
             />
           }
           mattersContent={<MattersSidebarPanel />}
+          emailContent={null}
         />
 
-        {/* Main editor panel, or a full-page reimagined surface (matters/Ask). */}
+        {/* Main editor panel, or a full-page reimagined surface (matters/Ask/Email). */}
         {isReimaginedShell() && sidebarActiveTab === 'matters' ? (
           <ReimaginedMattersHome />
         ) : isReimaginedShell() && sidebarActiveTab === 'search' ? (
@@ -3619,6 +3621,20 @@ This file contains rules and guidelines for AI assistants in this workspace.
               setFileTree(tree);
               await handleFileOpen(path, finalName);
             }}
+          />
+        ) : isReimaginedShell() && sidebarActiveTab === 'email' ? (
+          <ReimaginedEmailWorkspace
+            onSaveToWorkspace={async (content, suggestedName) => {
+              if (!workspaceServiceRef.current || !rootPath) return;
+              const { resolveUniqueName } = await import('@/utils/fileDrop');
+              const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, suggestedName);
+              const path = `${rootPath}/${finalName}`;
+              await workspaceServiceRef.current.writeFile(path, `${content}\n`);
+              const tree = await workspaceServiceRef.current.getFileTree();
+              setFileTree(tree);
+              await handleFileOpen(path, finalName);
+            }}
+            onOpenSettings={() => openSettings('ai')}
           />
         ) : (
         <MainPanel

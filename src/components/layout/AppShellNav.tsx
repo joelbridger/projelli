@@ -8,7 +8,13 @@ import { Sidebar, type SidebarProps } from '@/components/layout/Sidebar';
 import { ReimaginedSpine } from '@/components/layout/ReimaginedSpine';
 import { isReimaginedShell } from '@/lib/reimaginedShell';
 
-export function AppShellNav(props: SidebarProps) {
+export interface AppShellNavProps extends Omit<SidebarProps, 'activeTab' | 'onTabChange'> {
+  emailContent?: React.ReactNode | undefined;
+  activeTab?: string | undefined;
+  onTabChange?: ((tab: string) => void) | undefined;
+}
+
+export function AppShellNav(props: AppShellNavProps) {
   if (isReimaginedShell()) {
     return (
       <ReimaginedSpine
@@ -23,8 +29,11 @@ export function AppShellNav(props: SidebarProps) {
         auditContent={props.auditContent}
         trashContent={props.trashContent}
         mattersContent={props.mattersContent}
+        emailContent={props.emailContent}
       />
     );
   }
-  return <Sidebar {...props} />;
+  // Cast: Sidebar only knows SidebarProps; emailContent is a Spine-only field
+  // that Sidebar ignores, and activeTab/onTabChange are narrowed by SidebarProps.
+  return <Sidebar {...(props as unknown as SidebarProps)} />;
 }
