@@ -2,17 +2,26 @@
  * ReimaginedEmailWorkspace — full-page email search and browse surface.
  *
  * Two modes:
- *   Keyword — debounced mailListMessages() with provider / date / attachment
+ *   Search  — debounced mailListMessages() with provider / date / attachment
  *             filters; paginated "Load more" (offset += 50).
- *   Ask     — MemoryService.retrieve() scoped to mail: sourceIds; results
+ *   Ask AI  — MemoryService.retrieve() scoped to mail: sourceIds; results
  *             ranked by similarity score.
  *
  * Per-row actions: Open (dispatches keepance:open-email), File to matter
- * (popover with matter picker), Privilege (dropdown), Export (mailGetMessage
- * + onSaveToWorkspace).
+ * (popover with matter picker — calls mailRetagMessageMatter per message),
+ * Privilege (dropdown), Export (mailGetMessage + onSaveToWorkspace).
  *
  * Privilege is handled by a sub-component (MailRowPrivilege) so the hook
  * can be called per-row without violating the Rules of Hooks.
+ *
+ * Filter row is hidden by default; a "Filters" toggle shows a badge when
+ * any filter is active.
+ *
+ * In keyword/Search mode the scope toggle is disabled — keyword search covers
+ * all email. Scope toggle only works in Ask AI mode.
+ *
+ * Bulk row selection: checkbox (appears on hover or when any row is selected);
+ * a bulk action bar appears when any rows are selected.
  *
  * Light theme only. CSS variables + inline styles. No dark mode.
  */
@@ -31,6 +40,8 @@ import {
   FolderInput,
   X,
   Check,
+  Square,
+  CheckSquare,
 } from 'lucide-react';
 import { useActiveMatter, useMatters } from '@/stores/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
@@ -39,6 +50,7 @@ import {
   mailGetMessage,
   mailConnectedAccounts,
   mailRetagFolderMatter,
+  mailRetagMessageMatter,
   type MailListItem,
   type ConnectedAccount,
 } from '@/utils/mail-commands';
@@ -97,6 +109,19 @@ function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivilegeProp
   const mailSourceId = sourceId.startsWith('mail:') ? sourceId : `mail:${sourceId}`;
   const privilege = usePrivilegeForSource(mailSourceId);
   const setPrivilege = usePrivilegeStore((s) => s.setPrivilege);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Outside click handler to close the dropdown
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        onOpenChange(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => { document.removeEventListener('mousedown', handler); };
+  }, [open, onOpenChange]);
 
   const privilegeLabels: Record<Privilege, string> = {
     none: 'Not privileged',
@@ -105,7 +130,7 @@ function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivilegeProp
   };
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={containerRef} style={{ position: 'relative' }}>
       <button
         type="button"
         title="Set privilege"
@@ -193,16 +218,33 @@ interface MatterPickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDone: () => void;
+  /** 'message' = retag this single message; 'folder' = retag the whole folder. */
+  mode?: 'message' | 'folder';
 }
 
-function MatterPickerPopover({ item, open, onOpenChange, onDone }: MatterPickerProps) {
+function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message' }: MatterPickerProps) {
   const matters = useMatters();
   const [filing, setFiling] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Outside click handler
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        onOpenChange(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => { document.removeEventListener('mousedown', handler); };
+  }, [open, onOpenChange]);
 
   if (!open) return null;
 
   return (
     <div
+      ref={containerRef}
       style={{
         position: 'absolute',
         top: 'calc(100% + 4px)',
@@ -213,11 +255,27 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone }: MatterPickerP
         borderRadius: 6,
         boxShadow: '0 4px 12px rgba(0,0,0,0.10)',
         minWidth: 200,
-        maxHeight: 240,
+        maxHeight: 260,
         overflowY: 'auto',
       }}
     >
       {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+      {fileError && (
+        <div
+          style={{
+            padding: '8px 12px',
+            fontSize: 11,
+            color: '#b45309',
+            borderBottom: '1px solid var(--color-border)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          <AlertTriangle style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
+          {fileError}
+        </div>
+      )}
       {matters.length === 0 ? (
         <div
           style={{
@@ -237,13 +295,127 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone }: MatterPickerP
             onClick={(e) => {
               e.stopPropagation();
               setFiling(m.id);
-              void mailRetagFolderMatter(item.provider, item.account, item.folderId, m.id)
-                .catch(() => { /* swallow; retry is caller's concern */ })
-                .finally(() => {
+              setFileError(null);
+              const promise = mode === 'message'
+                ? mailRetagMessageMatter(item.id, m.id)
+                : mailRetagFolderMatter(item.provider, item.account, item.folderId, m.id);
+              void promise
+                .then(() => {
                   setFiling(null);
                   onOpenChange(false);
                   onDone();
+                })
+                .catch((err: unknown) => {
+                  setFiling(null);
+                  setFileError(err instanceof Error ? err.message : 'Failed to file email. Please try again.');
                 });
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              width: '100%',
+              padding: '8px 12px',
+              fontSize: 12,
+              color: 'var(--color-foreground)',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            {filing === m.id ? (
+              <Loader2 style={{ width: 11, height: 11, strokeWidth: 2, animation: 'spin 1s linear infinite', flex: 'none' }} />
+            ) : (
+              <FolderInput style={{ width: 11, height: 11, strokeWidth: 1.75, flex: 'none', color: 'var(--color-muted-foreground)' }} />
+            )}
+            {matterLabel(m)}
+          </button>
+        ))
+      )}
+      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+    </div>
+  );
+}
+
+// ── BulkMatterPicker ───────────────────────────────────────────────────────
+
+interface BulkMatterPickerProps {
+  selectedIds: Set<string>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDone: () => void;
+}
+
+function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatterPickerProps) {
+  const matters = useMatters();
+  const [filing, setFiling] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        onOpenChange(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => { document.removeEventListener('mousedown', handler); };
+  }, [open, onOpenChange]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        position: 'absolute',
+        top: 'calc(100% + 4px)',
+        left: 0,
+        zIndex: 60,
+        background: '#fff',
+        border: '1px solid var(--color-border)',
+        borderRadius: 6,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+        minWidth: 210,
+        maxHeight: 260,
+        overflowY: 'auto',
+      }}
+    >
+      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+      {fileError && (
+        <div style={{ padding: '8px 12px', fontSize: 11, color: '#b45309', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <AlertTriangle style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
+          {fileError}
+        </div>
+      )}
+      {matters.length === 0 ? (
+        <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--color-muted-foreground)' }}>
+          No matters yet
+        </div>
+      ) : (
+        matters.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            disabled={filing === m.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              const matterId = m.id;
+              setFiling(matterId);
+              setFileError(null);
+              void (async () => {
+                try {
+                  await Promise.all(Array.from(selectedIds).map((id) => mailRetagMessageMatter(id, matterId)));
+                  setFiling(null);
+                  onOpenChange(false);
+                  onDone();
+                } catch (err: unknown) {
+                  setFiling(null);
+                  setFileError(err instanceof Error ? err.message : 'Failed to file emails. Please try again.');
+                }
+              })();
             }}
             style={{
               display: 'flex',
@@ -277,19 +449,23 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone }: MatterPickerP
 
 interface MailRowProps {
   item: MailListItem;
+  selected: boolean;
+  anySelected: boolean;
+  onToggleSelect: (id: string) => void;
   onSaveToWorkspace?: ((content: string, suggestedName: string) => Promise<void>) | undefined;
 }
 
-function MailRow({ item, onSaveToWorkspace }: MailRowProps) {
+function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspace }: MailRowProps) {
   const [hovered, setHovered] = useState(false);
   const [privilegeOpen, setPrivilegeOpen] = useState(false);
   const [matterOpen, setMatterOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const handleOpen = useCallback(() => {
+    const sourceId = `mail:${item.id}`;
     window.dispatchEvent(
       new CustomEvent('keepance:open-email', {
-        detail: { sourceId: `mail:${item.id}` },
+        detail: { sourceId },
       }),
     );
   }, [item.id]);
@@ -315,182 +491,233 @@ function MailRow({ item, onSaveToWorkspace }: MailRowProps) {
   const mailSourceId = `mail:${item.id}`;
   const privilege = usePrivilegeForSource(mailSourceId);
 
+  const showCheckbox = hovered || anySelected || selected;
+
   return (
     <div
       data-testid="mail-row"
+      role="button"
+      tabIndex={0}
       style={{
         position: 'relative',
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: 'row',
+        alignItems: 'flex-start',
         padding: '11px 20px',
         borderBottom: '1px solid var(--color-border)',
-        background: hovered ? 'rgba(10,37,64,0.02)' : 'transparent',
+        background: selected
+          ? 'rgba(10,37,64,0.04)'
+          : hovered
+          ? 'rgba(10,37,64,0.02)'
+          : 'transparent',
         cursor: 'pointer',
         transition: 'background 0.1s',
       }}
       onMouseEnter={() => { setHovered(true); }}
       onMouseLeave={() => {
         setHovered(false);
-        // close dropdowns on mouse leave so they don't float
+        setPrivilegeOpen(false);
+        setMatterOpen(false);
       }}
       onClick={handleOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleOpen();
+        }
+      }}
     >
-      {/* Row top: subject + date */}
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 2 }}>
-        <span
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: 'var(--kp-navy)',
-            fontFamily: 'var(--font-sans)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            flex: 1,
-          }}
-        >
-          {item.subject || '(no subject)'}
-        </span>
-        <span
-          style={{
-            fontSize: 11,
-            color: 'var(--color-muted-foreground)',
-            whiteSpace: 'nowrap',
-            fontVariantNumeric: 'tabular-nums',
-            flex: 'none',
-          }}
-        >
-          {formatRelativeDate(item.receivedDateTime)}
-        </span>
+      {/* Checkbox column */}
+      <div
+        style={{
+          width: showCheckbox ? 28 : 0,
+          overflow: 'hidden',
+          flex: 'none',
+          display: 'flex',
+          alignItems: 'center',
+          paddingTop: 2,
+          transition: 'width 0.1s',
+        }}
+        onClick={(e) => { e.stopPropagation(); onToggleSelect(item.id); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleSelect(item.id);
+          }
+        }}
+        role="checkbox"
+        aria-checked={selected}
+        aria-label={`Select ${item.subject}`}
+        tabIndex={showCheckbox ? 0 : -1}
+      >
+        {selected ? (
+          <CheckSquare style={{ width: 15, height: 15, color: 'var(--kp-navy)', strokeWidth: 1.75, flex: 'none' }} />
+        ) : (
+          <Square style={{ width: 15, height: 15, color: 'var(--color-muted-foreground)', strokeWidth: 1.75, flex: 'none' }} />
+        )}
       </div>
 
-      {/* From + badges */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-        <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {item.fromName ? `${item.fromName} <${item.fromAddr}>` : item.fromAddr}
-        </span>
-        {item.hasAttachments && (
-          <Paperclip style={{ width: 11, height: 11, color: 'var(--color-muted-foreground)', strokeWidth: 1.75, flex: 'none' }} />
-        )}
-        {isPrivileged(privilege) && (
+      {/* Main content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Row top: subject + date */}
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 2 }}>
           <span
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 3,
-              padding: '1px 5px',
-              borderRadius: 3,
-              fontSize: 10,
+              fontSize: 13,
               fontWeight: 600,
-              letterSpacing: '0.03em',
-              background: 'rgba(10,37,64,0.07)',
               color: 'var(--kp-navy)',
-              border: '1px solid rgba(10,37,64,0.18)',
+              fontFamily: 'var(--font-sans)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
+              flex: 1,
+            }}
+          >
+            {item.subject || '(no subject)'}
+          </span>
+          <span
+            style={{
+              fontSize: 11,
+              color: 'var(--color-muted-foreground)',
+              whiteSpace: 'nowrap',
+              fontVariantNumeric: 'tabular-nums',
               flex: 'none',
             }}
           >
-            <ShieldCheck style={{ width: 9, height: 9, strokeWidth: 2 }} />
-            { }
-            Privileged
-            { }
+            {formatRelativeDate(item.receivedDateTime)}
           </span>
-        )}
-      </div>
+        </div>
 
-      {/* Snippet */}
-      {item.snippet && (
-        <span
-          style={{
-            fontSize: 12,
-            color: 'var(--color-muted-foreground)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {item.snippet}
-        </span>
-      )}
-
-      {/* Hover actions */}
-      {hovered && (
-        <div
-          style={{
-            position: 'absolute',
-            right: 16,
-            bottom: 10,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-          onClick={(e) => { e.stopPropagation(); }}
-        >
-          {/* Open */}
-          <button
-            type="button"
-            data-testid={`open-email-${item.id}`}
-            onClick={handleOpen}
-            style={actionBtnStyle}
-            title="Open email"
-          >
-            { }
-            <Mail style={{ width: 12, height: 12, strokeWidth: 1.75 }} />
-            Open
-            { }
-          </button>
-
-          {/* File to matter */}
-          <div style={{ position: 'relative' }}>
-            <button
-              type="button"
-              data-testid={`file-to-matter-${item.id}`}
-              onClick={() => { setMatterOpen((o) => !o); }}
-              style={actionBtnStyle}
-              title="File to matter"
+        {/* From + badges */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {item.fromName ? `${item.fromName} <${item.fromAddr}>` : item.fromAddr}
+          </span>
+          {item.hasAttachments && (
+            <Paperclip style={{ width: 11, height: 11, color: 'var(--color-muted-foreground)', strokeWidth: 1.75, flex: 'none' }} />
+          )}
+          {isPrivileged(privilege) && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 3,
+                padding: '1px 5px',
+                borderRadius: 3,
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: '0.03em',
+                background: 'rgba(10,37,64,0.07)',
+                color: 'var(--kp-navy)',
+                border: '1px solid rgba(10,37,64,0.18)',
+                whiteSpace: 'nowrap',
+                flex: 'none',
+              }}
             >
+              <ShieldCheck style={{ width: 9, height: 9, strokeWidth: 2 }} />
               { }
-              <FolderInput style={{ width: 12, height: 12, strokeWidth: 1.75 }} />
-              File
+              Privileged
               { }
-            </button>
-            <MatterPickerPopover
-              item={item}
-              open={matterOpen}
-              onOpenChange={setMatterOpen}
-              onDone={() => { setMatterOpen(false); }}
-            />
-          </div>
-
-          {/* Privilege */}
-          <MailRowPrivilege
-            sourceId={item.id}
-            open={privilegeOpen}
-            onOpenChange={setPrivilegeOpen}
-          />
-
-          {/* Export */}
-          {onSaveToWorkspace && (
-            <button
-              type="button"
-              data-testid={`export-email-${item.id}`}
-              onClick={() => { void handleExport(); }}
-              disabled={exporting}
-              style={actionBtnStyle}
-              title="Export to workspace"
-            >
-              {exporting ? (
-                <Loader2 style={{ width: 12, height: 12, strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
-              ) : (
-                <FileDown style={{ width: 12, height: 12, strokeWidth: 1.75 }} />
-              )}
-              { }
-              Export
-              { }
-            </button>
+            </span>
           )}
         </div>
-      )}
+
+        {/* Snippet */}
+        {item.snippet && (
+          <span
+            style={{
+              fontSize: 12,
+              color: 'var(--color-muted-foreground)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {item.snippet}
+          </span>
+        )}
+
+        {/* Hover actions */}
+        {hovered && (
+          <div
+            style={{
+              position: 'absolute',
+              right: 16,
+              bottom: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+            onClick={(e) => { e.stopPropagation(); }}
+          >
+            {/* Open */}
+            <button
+              type="button"
+              data-testid={`open-email-${item.id}`}
+              onClick={handleOpen}
+              style={actionBtnStyle}
+              title="Open email"
+            >
+              { }
+              <Mail style={{ width: 12, height: 12, strokeWidth: 1.75 }} />
+              Open
+              { }
+            </button>
+
+            {/* File this email to matter (per-message) */}
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                data-testid={`file-to-matter-${item.id}`}
+                onClick={() => { setMatterOpen((o) => !o); }}
+                style={actionBtnStyle}
+                title="File this email to a matter"
+              >
+                { }
+                <FolderInput style={{ width: 12, height: 12, strokeWidth: 1.75 }} />
+                File
+                { }
+              </button>
+              <MatterPickerPopover
+                item={item}
+                open={matterOpen}
+                onOpenChange={setMatterOpen}
+                onDone={() => { setMatterOpen(false); }}
+                mode="message"
+              />
+            </div>
+
+            {/* Privilege */}
+            <MailRowPrivilege
+              sourceId={item.id}
+              open={privilegeOpen}
+              onOpenChange={setPrivilegeOpen}
+            />
+
+            {/* Export */}
+            {onSaveToWorkspace && (
+              <button
+                type="button"
+                data-testid={`export-email-${item.id}`}
+                onClick={() => { void handleExport(); }}
+                disabled={exporting}
+                style={actionBtnStyle}
+                title="Export to workspace"
+              >
+                {exporting ? (
+                  <Loader2 style={{ width: 12, height: 12, strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
+                ) : (
+                  <FileDown style={{ width: 12, height: 12, strokeWidth: 1.75 }} />
+                )}
+                { }
+                Export
+                { }
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -698,11 +925,14 @@ export function ReimaginedEmailWorkspace({
 }: ReimaginedEmailWorkspaceProps) {
   const activeMatter = useActiveMatter();
 
-  // Scope toggle: "This matter" vs "All email"
+  // Scope toggle: "This matter" vs "All email" — only effective in Ask AI mode
   const [scopeAllEmail, setScopeAllEmail] = useState(false);
 
-  // Mode toggle: "Keyword" vs "Ask"
+  // Mode toggle: "keyword" (shows as "Search") vs "ask" (shows as "Ask AI")
   const [mode, setMode] = useState<'keyword' | 'ask'>('keyword');
+
+  // Filter row visibility (collapsed by default)
+  const [filtersVisible, setFiltersVisible] = useState(false);
 
   // Search / filter state
   const [query, setQuery] = useState('');
@@ -728,9 +958,15 @@ export function ReimaginedEmailWorkspace({
   const [askLoading, setAskLoading] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
 
-  // Debounce ref
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkMatterOpen, setBulkMatterOpen] = useState(false);
+
+  // Debounce ref and request fingerprint tracking
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestQueryRef = useRef(0);
+  // Fingerprint tracks query/filter params (not offset) to detect filter changes in Effect B
+  const queryFingerprintRef = useRef('');
 
   // Load connected accounts on mount
   useEffect(() => {
@@ -751,10 +987,14 @@ export function ReimaginedEmailWorkspace({
     return () => { cancelled = true; };
   }, []);
 
-  // Keyword search — debounced 200ms, fires when query/filters/offset change
+  // Effect A: fires on query/filter param changes (debounced 200ms, resets offset to 0)
   useEffect(() => {
     if (mode !== 'keyword') return;
     if (!accountsLoaded) return;
+
+    // Update fingerprint for current filter params
+    const fingerprint = JSON.stringify({ query, providerFilter, dateFrom, dateTo, hasAttachments, mode });
+    queryFingerprintRef.current = fingerprint;
 
     const thisQuery = ++latestQueryRef.current;
 
@@ -763,37 +1003,32 @@ export function ReimaginedEmailWorkspace({
     }
 
     debounceRef.current = setTimeout(() => { void (async () => {
-      if (offset === 0) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
+      // Reset to first page when filters change
+      setOffset(0);
+      setLoading(true);
       setError(null);
 
       try {
-        // Build the query carefully: exactOptionalPropertyTypes means we must
-        // omit optional fields entirely rather than set them to undefined.
         const listQuery: Parameters<typeof mailListMessages>[0] = {
           sortBy: 'date',
           sortDesc: true,
           limit: 50,
-          offset,
+          offset: 0,
         };
         if (query) listQuery.keyword = query;
         if (providerFilter) listQuery.provider = providerFilter;
         if (dateFrom) listQuery.dateFrom = dateFrom;
-        if (dateTo) listQuery.dateTo = dateTo;
+        // Ensure dateTo is end-of-day inclusive when it's a date-only string
+        if (dateTo) {
+          listQuery.dateTo = dateTo.includes('T') ? dateTo : `${dateTo}T23:59:59.999Z`;
+        }
         if (hasAttachments) listQuery.hasAttachments = true;
 
         const result = await mailListMessages(listQuery);
 
         if (latestQueryRef.current !== thisQuery) return;
 
-        if (offset === 0) {
-          setItems(result.items);
-        } else {
-          setItems((prev) => [...prev, ...result.items]);
-        }
+        setItems(result.items);
         setTotal(result.total);
       } catch (e: unknown) {
         if (latestQueryRef.current !== thisQuery) return;
@@ -813,7 +1048,58 @@ export function ReimaginedEmailWorkspace({
         clearTimeout(debounceRef.current);
       }
     };
-  }, [mode, accountsLoaded, query, providerFilter, dateFrom, dateTo, hasAttachments, offset]);
+  }, [mode, accountsLoaded, query, providerFilter, dateFrom, dateTo, hasAttachments]);
+
+  // Effect B: fires immediately when offset > 0 (load-more), but only if the
+  // fingerprint hasn't changed (i.e., purely a pagination action, not a filter change).
+  useEffect(() => {
+    if (offset === 0) return; // first page is handled by Effect A
+    if (mode !== 'keyword') return;
+    if (!accountsLoaded) return;
+
+    // Check that fingerprint matches current filter state — if not, Effect A handles it
+    const currentFingerprint = JSON.stringify({ query, providerFilter, dateFrom, dateTo, hasAttachments, mode });
+    if (currentFingerprint !== queryFingerprintRef.current) return;
+
+    const thisQuery = ++latestQueryRef.current;
+    setLoadingMore(true);
+    setError(null);
+
+    void (async () => {
+      try {
+        const listQuery: Parameters<typeof mailListMessages>[0] = {
+          sortBy: 'date',
+          sortDesc: true,
+          limit: 50,
+          offset,
+        };
+        if (query) listQuery.keyword = query;
+        if (providerFilter) listQuery.provider = providerFilter;
+        if (dateFrom) listQuery.dateFrom = dateFrom;
+        if (dateTo) {
+          listQuery.dateTo = dateTo.includes('T') ? dateTo : `${dateTo}T23:59:59.999Z`;
+        }
+        if (hasAttachments) listQuery.hasAttachments = true;
+
+        const result = await mailListMessages(listQuery);
+
+        if (latestQueryRef.current !== thisQuery) return;
+
+        setItems((prev) => [...prev, ...result.items]);
+        setTotal(result.total);
+      } catch (e: unknown) {
+        if (latestQueryRef.current !== thisQuery) return;
+        setError(
+          e instanceof Error ? e.message : 'Failed to load emails. Please try again.',
+        );
+      } finally {
+        if (latestQueryRef.current === thisQuery) {
+          setLoadingMore(false);
+        }
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offset]);
 
   // Ask mode search
   useEffect(() => {
@@ -823,7 +1109,7 @@ export function ReimaginedEmailWorkspace({
       return;
     }
     if (!isMemoryEnabled()) {
-      setAskError('Memory (RAG) is not enabled. Enable it in Settings to use Ask mode.');
+      setAskError('Memory (RAG) is not enabled. Enable it in Settings to use Ask AI mode.');
       return;
     }
 
@@ -871,30 +1157,35 @@ export function ReimaginedEmailWorkspace({
     return () => { cancelled = true; };
   }, [mode, query, activeMatter, scopeAllEmail]);
 
-  // Reset offset when filters change
+  // Reset offset + selection when filters change
   const handleQueryChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setQuery(e.target.value);
     setOffset(0);
+    setSelectedIds(new Set());
   }, []);
 
   const handleProviderChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     setProviderFilter(e.target.value);
     setOffset(0);
+    setSelectedIds(new Set());
   }, []);
 
   const handleDateFromChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setDateFrom(e.target.value);
     setOffset(0);
+    setSelectedIds(new Set());
   }, []);
 
   const handleDateToChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setDateTo(e.target.value);
     setOffset(0);
+    setSelectedIds(new Set());
   }, []);
 
   const handleAttachmentToggle = useCallback(() => {
     setHasAttachments((v) => !v);
     setOffset(0);
+    setSelectedIds(new Set());
   }, []);
 
   const handleLoadMore = useCallback(() => {
@@ -904,9 +1195,29 @@ export function ReimaginedEmailWorkspace({
   const handleClearQuery = useCallback(() => {
     setQuery('');
     setOffset(0);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set());
   }, []);
 
   const uniqueProviders = Array.from(new Set(accounts.map((a) => a.provider)));
+
+  // Active filter count for badge
+  const activeFilterCount = [providerFilter, dateFrom, dateTo, hasAttachments].filter(Boolean).length;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -968,49 +1279,68 @@ export function ReimaginedEmailWorkspace({
             </h1>
           </div>
 
-          {/* Scope toggle — only when a matter is active */}
+          {/* Scope toggle — only when a matter is active AND in Ask AI mode */}
           {activeMatter && (
             <div
               style={{
                 display: 'flex',
-                alignItems: 'center',
-                background: 'rgba(10,37,64,0.05)',
-                borderRadius: 6,
-                padding: 2,
-                gap: 2,
+                flexDirection: 'column',
+                alignItems: 'flex-end',
+                gap: 4,
                 flex: 'none',
               }}
             >
-              { }
-              {[
-                { label: 'This matter', all: false },
-                { label: 'All email', all: true },
-              ].map(({ label, all }) => (
-                <button
-                  key={label}
-                  type="button"
-                  data-testid={`scope-${all ? 'all' : 'matter'}`}
-                  onClick={() => {
-                    setScopeAllEmail(all);
-                    setOffset(0);
-                  }}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: 4,
-                    fontSize: 12,
-                    fontWeight: scopeAllEmail === all ? 600 : 400,
-                    background: scopeAllEmail === all ? '#fff' : 'transparent',
-                    color: scopeAllEmail === all ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-                    border: scopeAllEmail === all ? '1px solid var(--color-border)' : '1px solid transparent',
-                    cursor: 'pointer',
-                    boxShadow: scopeAllEmail === all ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                    transition: 'all 0.1s',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-              { }
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: mode === 'keyword' ? 'rgba(10,37,64,0.03)' : 'rgba(10,37,64,0.05)',
+                  borderRadius: 6,
+                  padding: 2,
+                  gap: 2,
+                  opacity: mode === 'keyword' ? 0.5 : 1,
+                  pointerEvents: mode === 'keyword' ? 'none' : 'auto',
+                }}
+              >
+                { }
+                {[
+                  { label: 'This matter', all: false },
+                  { label: 'All email', all: true },
+                ].map(({ label, all }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    data-testid={`scope-${all ? 'all' : 'matter'}`}
+                    disabled={mode === 'keyword'}
+                    onClick={() => {
+                      setScopeAllEmail(all);
+                      setOffset(0);
+                    }}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 4,
+                      fontSize: 12,
+                      fontWeight: scopeAllEmail === all ? 600 : 400,
+                      background: scopeAllEmail === all ? '#fff' : 'transparent',
+                      color: scopeAllEmail === all ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+                      border: scopeAllEmail === all ? '1px solid var(--color-border)' : '1px solid transparent',
+                      cursor: mode === 'keyword' ? 'default' : 'pointer',
+                      boxShadow: scopeAllEmail === all ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                      transition: 'all 0.1s',
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+                { }
+              </div>
+              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+              {mode === 'keyword' && (
+                <span style={{ fontSize: 10, color: 'var(--color-muted-foreground)', maxWidth: 200, textAlign: 'right' }}>
+                  Keyword search covers all email. Switch to Ask AI for matter scope.
+                </span>
+              )}
+              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
             </div>
           )}
         </div>
@@ -1026,7 +1356,7 @@ export function ReimaginedEmailWorkspace({
             background: '#fff',
             overflow: 'hidden',
             boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-            marginBottom: 12,
+            marginBottom: 8,
           }}
         >
           {/* Mode toggle tabs */}
@@ -1047,6 +1377,7 @@ export function ReimaginedEmailWorkspace({
                   setMode(m);
                   setQuery('');
                   setOffset(0);
+                  setSelectedIds(new Set());
                 }}
                 style={{
                   padding: '9px 14px',
@@ -1060,7 +1391,9 @@ export function ReimaginedEmailWorkspace({
                   borderBottom: mode === m ? '2px solid var(--kp-navy)' : '2px solid transparent',
                 }}
               >
-                {m === 'keyword' ? 'Keyword' : 'Ask'}
+                { }
+                {m === 'keyword' ? 'Search' : 'Ask AI'}
+                { }
               </button>
             ))}
             { }
@@ -1122,89 +1455,150 @@ export function ReimaginedEmailWorkspace({
           )}
         </div>
 
-        {/* Filter row — only when accounts are loaded and at least one exists */}
+        {/* Filters toggle — only when accounts are loaded and in keyword mode */}
         {accountsLoaded && accounts.length > 0 && mode === 'keyword' && (
-          <div
-            data-testid="filter-row"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              marginBottom: 16,
-              flexWrap: 'wrap',
-            }}
-          >
-            <Filter
-              style={{
-                width: 13,
-                height: 13,
-                color: 'var(--color-muted-foreground)',
-                strokeWidth: 1.75,
-                flex: 'none',
-              }}
-            />
-
-            {/* Provider filter */}
-            {uniqueProviders.length > 1 && (
-              <select
-                data-testid="provider-filter"
-                value={providerFilter}
-                onChange={handleProviderChange}
-                style={filterInputStyle}
-              >
-                { }
-                <option value="">All accounts</option>
-                {uniqueProviders.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-                { }
-              </select>
-            )}
-
-            {/* Date from */}
-            <input
-              type="date"
-              data-testid="date-from"
-              value={dateFrom}
-              onChange={handleDateFromChange}
-              placeholder="From"
-              style={filterInputStyle}
-            />
-
-            {/* Date to */}
-            <input
-              type="date"
-              data-testid="date-to"
-              value={dateTo}
-              onChange={handleDateToChange}
-              placeholder="To"
-              style={filterInputStyle}
-            />
-
-            {/* Has attachment toggle */}
-            <label
+          <div style={{ marginBottom: 12 }}>
+            <button
+              type="button"
+              data-testid="filters-toggle"
+              onClick={() => { setFiltersVisible((v) => !v); }}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 5,
-                fontSize: 12,
-                color: 'var(--color-muted-foreground)',
+                padding: '3px 8px',
+                borderRadius: 5,
+                fontSize: 11,
+                fontWeight: 500,
+                color: activeFilterCount > 0 ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+                background: activeFilterCount > 0 ? 'rgba(10,37,64,0.06)' : 'transparent',
+                border: '1px solid var(--color-border)',
                 cursor: 'pointer',
               }}
             >
-              <input
-                type="checkbox"
-                data-testid="attachment-filter"
-                checked={hasAttachments}
-                onChange={handleAttachmentToggle}
-                style={{ accentColor: 'var(--kp-navy)', cursor: 'pointer' }}
+              <Filter style={{ width: 11, height: 11, strokeWidth: 1.75 }} />
+              { }
+              Filters
+              {activeFilterCount > 0 && (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 15,
+                    height: 15,
+                    borderRadius: '50%',
+                    background: 'var(--kp-navy)',
+                    color: '#fff',
+                    fontSize: 9,
+                    fontWeight: 700,
+                  }}
+                >
+                  {activeFilterCount}
+                </span>
+              )}
+              <ChevronDown
+                style={{
+                  width: 10,
+                  height: 10,
+                  strokeWidth: 2,
+                  transform: filtersVisible ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.15s',
+                }}
               />
               { }
-              Has attachment
-              { }
-            </label>
+            </button>
+
+            {/* Expanded filter row */}
+            {filtersVisible && (
+              <div
+                data-testid="filter-row"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  marginTop: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
+                {/* Provider filter */}
+                {uniqueProviders.length > 1 && (
+                  <select
+                    data-testid="provider-filter"
+                    value={providerFilter}
+                    onChange={handleProviderChange}
+                    aria-label="Filter by provider"
+                    style={filterInputStyle}
+                  >
+                    { }
+                    { }
+                    <option value="">All accounts</option>
+                    { }
+                    {uniqueProviders.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                    { }
+                  </select>
+                )}
+
+                {/* Date from */}
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--color-muted-foreground)' }}>
+                  { }
+                  From
+                  { }
+                  <input
+                    type="date"
+                    data-testid="date-from"
+                    value={dateFrom}
+                    onChange={handleDateFromChange}
+                    aria-label="From date"
+                    style={filterInputStyle}
+                  />
+                </label>
+
+                {/* Date to */}
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--color-muted-foreground)' }}>
+                  { }
+                  To
+                  { }
+                  <input
+                    type="date"
+                    data-testid="date-to"
+                    value={dateTo}
+                    onChange={handleDateToChange}
+                    aria-label="To date"
+                    style={filterInputStyle}
+                  />
+                </label>
+
+                {/* Has attachment toggle */}
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    fontSize: 12,
+                    color: 'var(--color-muted-foreground)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    data-testid="attachment-filter"
+                    checked={hasAttachments}
+                    onChange={handleAttachmentToggle}
+                    style={{ accentColor: 'var(--kp-navy)', cursor: 'pointer' }}
+                  />
+                  { }
+                  { }
+                  Has attachment
+                  { }
+                  { }
+                </label>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1219,6 +1613,70 @@ export function ReimaginedEmailWorkspace({
         {/* Keyword mode */}
         {accountsLoaded && accounts.length > 0 && mode === 'keyword' && (
           <>
+            {/* Bulk action bar */}
+            {selectedIds.size > 0 && (
+              <div
+                data-testid="bulk-action-bar"
+                style={{
+                  margin: '0 24px 8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '8px 14px',
+                  borderRadius: 6,
+                  border: '1px solid rgba(10,37,64,0.18)',
+                  background: 'rgba(10,37,64,0.04)',
+                  fontSize: 12,
+                  color: 'var(--kp-navy)',
+                  fontWeight: 500,
+                }}
+              >
+                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                <span style={{ flex: 1 }}>
+                  {selectedIds.size} selected
+                </span>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    data-testid="bulk-file-to-matter"
+                    onClick={() => { setBulkMatterOpen((o) => !o); }}
+                    style={actionBtnStyle}
+                  >
+                    <FolderInput style={{ width: 12, height: 12, strokeWidth: 1.75 }} />
+                    File to matter
+                    <ChevronDown style={{ width: 10, height: 10, strokeWidth: 2 }} />
+                  </button>
+                  <BulkMatterPicker
+                    selectedIds={selectedIds}
+                    open={bulkMatterOpen}
+                    onOpenChange={setBulkMatterOpen}
+                    onDone={handleClearSelection}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearSelection}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '4px 8px',
+                    borderRadius: 4,
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: 'var(--color-muted-foreground)',
+                    background: 'transparent',
+                    border: '1px solid var(--color-border)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X style={{ width: 11, height: 11, strokeWidth: 2 }} />
+                  Clear selection
+                </button>
+                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+              </div>
+            )}
+
             {/* Loading skeleton */}
             {loading && (
               <div
@@ -1242,7 +1700,9 @@ export function ReimaginedEmailWorkspace({
                   }}
                 />
                 { }
+                { }
                 Loading email...
+                { }
                 { }
               </div>
             )}
@@ -1330,6 +1790,9 @@ export function ReimaginedEmailWorkspace({
                   <MailRow
                     key={item.id}
                     item={item}
+                    selected={selectedIds.has(item.id)}
+                    anySelected={selectedIds.size > 0}
+                    onToggleSelect={handleToggleSelect}
                     onSaveToWorkspace={onSaveToWorkspace}
                   />
                 ))}
@@ -1375,7 +1838,9 @@ export function ReimaginedEmailWorkspace({
                         />
                       )}
                       { }
+                      { }
                       {loadingMore ? 'Loading...' : `Load more (${String(total - items.length)} remaining)`}
+                      { }
                       { }
                     </button>
                   </div>
@@ -1409,7 +1874,9 @@ export function ReimaginedEmailWorkspace({
                   }}
                 />
                 { }
+                { }
                 Searching email...
+                { }
                 { }
               </div>
             )}
@@ -1448,7 +1915,7 @@ export function ReimaginedEmailWorkspace({
             )}
 
             {!askLoading && !askError && askHits.map((hit, i) => (
-              <AskHitCard key={hit.sourceId} hit={hit} rank={i + 1} />
+              <AskHitCard key={hit.sourceId ?? hit.path} hit={hit} rank={i + 1} />
             ))}
           </div>
         )}

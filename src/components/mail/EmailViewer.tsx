@@ -4,32 +4,59 @@
  * Given a message id (or a `mail:<id>` citation source id), it calls the
  * `mail_get_message` Tauri command, which reads the encrypted blob, decrypts it,
  * and returns the message broken into fields. We render from / to / cc / subject
- * / date and the (already plain-text) body, plus an attachment-name list.
+ * / date and the (already plain-text) body, plus an attachment list with
+ * on-demand download.
  *
- * v1 mail is read-only: no reply, no compose, no folder tree, no attachment
- * download (names only). The one write the viewer offers is METADATA: a
- * per-message privilege control (VG-5c) that tags this message
- * attorney-client / work-product / not privileged, mirroring the file
- * privilege pattern, so a privileged email is excluded from default AI
- * retrieval. The body stored on disk was already stripped to text by
- * the sync layer (`normalize::html_to_text`), so it contains no markup; we render
- * it as React TEXT content (never `dangerouslySetInnerHTML`), which React escapes
- * — there is no HTML-injection surface. `stripResidualTags` is a defensive second
- * layer in case any angle-bracket markup slipped through.
+ * Additions in this version:
+ *   - Attachment download: click an attachment to fetch bytes via mailGetAttachment
+ *     and trigger a browser download (blob URL trick, no disk persistence).
+ *   - File to matter: pick a matter to call mailRetagMessageMatter for this message.
+ *   - Reply area: "Draft with AI" generates a reply using buildProviderAsync;
+ *     "Reply in your mail app" opens a mailto: link.
+ *
+ * The body stored on disk was already stripped to text by the sync layer
+ * (`normalize::html_to_text`), so it contains no markup; we render it as React
+ * TEXT content (never `dangerouslySetInnerHTML`), which React escapes.
+ * `stripResidualTags` is a defensive second layer.
  *
  * Light theme, navy accent, lean — matches the rest of Keepance.
  */
 
-import { useEffect, useState } from 'react';
-import { Mail, Calendar, Paperclip, Loader2, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import {
+  Mail,
+  Calendar,
+  Paperclip,
+  Loader2,
+  AlertTriangle,
+  ShieldCheck,
+  FolderInput,
+  Download,
+  Copy,
+  FileText,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { mailGetMessage, type MailView } from '@/utils/mail-commands';
+import {
+  mailGetMessage,
+  mailGetAttachment,
+  mailRetagMessageMatter,
+  type MailView,
+} from '@/utils/mail-commands';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
+import { useMatters } from '@/stores/matterStore';
 import {
   ALL_PRIVILEGE_STATUSES,
   isPrivileged,
   type Privilege,
 } from '@/types/privilege';
+import { deriveFilenameFromMessage } from '@/utils/fileDrop';
+import { createKeychainService } from '@/modules/models/KeychainService';
+import { createClaudeProvider } from '@/modules/models/ClaudeProvider';
+import { createOpenAIProvider } from '@/modules/models/OpenAIProvider';
+import { createGeminiProvider } from '@/modules/models/GeminiProvider';
+import { OllamaProvider } from '@/modules/models/OllamaProvider';
+import type { Provider } from '@/modules/models/Provider';
+import { matterLabel } from '@/modules/memory/matterResolver';
 
 export interface EmailViewerProps {
   /** Message id or `mail:<id>` citation source id. */
@@ -41,8 +68,8 @@ export interface EmailViewerProps {
  * Defensive: strip any residual `<...>` tags from a string. The stored body is
  * already plain text, so this is normally a no-op; it guards against a future
  * change to the storage format ever leaking raw markup into the rendered text.
- * (We still render via React text nodes, so this is belt-and-braces.)
  */
+// eslint-disable-next-line react-refresh/only-export-components -- exported for direct test import; component is the primary export
 export function stripResidualTags(s: string): string {
   return s.replace(/<\/?[a-zA-Z][^>]*>/g, '');
 }
@@ -54,20 +81,47 @@ function displayId(sourceId: string): string {
 
 /**
  * The `mail:<id>` source id this message's indexed chunks were written under
- * (WS-PRIV). The viewer's `sourceId` prop may arrive with or without the
- * `mail:` prefix (citation-opened tabs carry it; some callers pass the bare
- * message id), so strip any existing prefix first to avoid `mail:mail:<id>`.
+ * (WS-PRIV). Strip any existing prefix first to avoid `mail:mail:<id>`.
  */
 function privilegeSourceId(sourceId: string): string {
   return `mail:${displayId(sourceId)}`;
 }
 
-/** Locale key for each privilege action, in the file UI's wording. */
+/** Locale key for each privilege action. */
 const PRIVILEGE_OPTION_KEYS: Record<Privilege, string> = {
   'none': 'mail.viewer.privilege-clear',
   'attorney-client': 'mail.viewer.privilege-mark-ac',
   'work-product': 'mail.viewer.privilege-mark-wp',
 };
+
+// ── buildProviderAsync — mirrors ReimaginedAsk.tsx pattern ─────────────────
+
+async function buildProviderAsync(): Promise<Provider> {
+  const kc = createKeychainService('localStorage');
+  const anthropicKey = await kc.getKey('anthropic');
+  if (anthropicKey?.trim()) return createClaudeProvider({ apiKey: anthropicKey.trim() });
+  const openaiKey = await kc.getKey('openai');
+  if (openaiKey?.trim()) return createOpenAIProvider({ apiKey: openaiKey.trim() });
+  const googleKey = await kc.getKey('google');
+  if (googleKey?.trim()) return createGeminiProvider({ apiKey: googleKey.trim() });
+  return new OllamaProvider({});
+}
+
+// ── downloadBase64File — browser-side blob download, no disk persistence ───
+
+function downloadBase64File(filename: string, contentType: string, bytesBase64: string) {
+  const byteChars = atob(bytesBase64);
+  const byteNums = new Array(byteChars.length).fill(0).map((_, i) => byteChars.charCodeAt(i));
+  const blob = new Blob([new Uint8Array(byteNums)], { type: contentType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Components ─────────────────────────────────────────────────────────────
 
 export function EmailViewer({ sourceId, className }: EmailViewerProps) {
   const { t } = useTranslation();
@@ -75,15 +129,27 @@ export function EmailViewer({ sourceId, className }: EmailViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Privilege (WS-PRIV / VG-5c) — per-message tagging, mirroring the file
-  // privilege control (`PrivilegeMenuItems`): write the privilege store with
-  // the `mail:<id>` source id and let the store subscription in
-  // `usePrivilegeWiring` re-tag the message's indexed chunks in place via
-  // `rag_retag_privilege`. Same three values, same store path, no extra
-  // service call here.
+  // Privilege (WS-PRIV / VG-5c)
   const mailSourceId = privilegeSourceId(sourceId);
   const privilege = usePrivilegeForSource(mailSourceId);
   const setPrivilege = usePrivilegeStore((s) => s.setPrivilege);
+
+  // Attachment download state
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  // File to matter state
+  const matters = useMatters();
+  const [filingMatter, setFilingMatter] = useState<string | null>(null);
+  const [fileSuccess, setFileSuccess] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  // Reply area state
+  const [replyMode, setReplyMode] = useState<'none' | 'draft' | 'mailto'>('none');
+  const [replyDraft, setReplyDraft] = useState('');
+  const [replyDraftLoading, setReplyDraftLoading] = useState(false);
+  const [replyDraftError, setReplyDraftError] = useState<string | null>(null);
+  const [replyCopied, setReplyCopied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +177,76 @@ export function EmailViewer({ sourceId, className }: EmailViewerProps) {
     };
   }, [sourceId]);
 
+  const handleDownloadAttachment = useCallback(async (attId: string, attName: string) => {
+    if (!message) return;
+    const provider = message.provider ?? '';
+    const account = message.account ?? '';
+    setDownloadingId(attId);
+    setDownloadError(null);
+    try {
+      const data = await mailGetAttachment(provider, account, message.id, attId);
+      downloadBase64File(data.filename || attName, data.contentType, data.bytesBase64);
+    } catch (e: unknown) {
+      setDownloadError(e instanceof Error ? e.message : 'Failed to download attachment.');
+    } finally {
+      setDownloadingId(null);
+    }
+  }, [message]);
+
+  const handleFileToMatter = useCallback(async (matterId: string) => {
+    if (!message) return;
+    setFilingMatter(matterId);
+    setFileError(null);
+    setFileSuccess(false);
+    try {
+      await mailRetagMessageMatter(message.id, matterId);
+      setFileSuccess(true);
+      setTimeout(() => { setFileSuccess(false); }, 2500);
+    } catch (e: unknown) {
+      setFileError(e instanceof Error ? e.message : 'Failed to file email to matter.');
+    } finally {
+      setFilingMatter(null);
+    }
+  }, [message]);
+
+  const handleDraftWithAI = useCallback(async () => {
+    if (!message) return;
+    setReplyMode('draft');
+    setReplyDraftLoading(true);
+    setReplyDraftError(null);
+    setReplyDraft('');
+    try {
+      const provider = await buildProviderAsync();
+      const prompt = `You are drafting a professional reply to the following email.\n\nFrom: ${message.from}\nSubject: ${message.subject}\n\nBody:\n${stripResidualTags(message.body)}\n\nWrite a clear, professional reply. Return only the reply text, no subject line or headers.`;
+      const response = await provider.sendMessage(prompt);
+      setReplyDraft(response.content);
+    } catch (e: unknown) {
+      setReplyDraftError(e instanceof Error ? e.message : 'Failed to generate reply. Check your API key in Settings.');
+    } finally {
+      setReplyDraftLoading(false);
+    }
+  }, [message]);
+
+  const handleCopyReply = useCallback(() => {
+    if (!replyDraft) return;
+    void navigator.clipboard.writeText(replyDraft).then(() => {
+      setReplyCopied(true);
+      setTimeout(() => { setReplyCopied(false); }, 2000);
+    });
+  }, [replyDraft]);
+
+  const handleSaveReplyAsDoc = useCallback(() => {
+    if (!replyDraft) return;
+    const filename = deriveFilenameFromMessage(replyDraft);
+    const blob = new Blob([replyDraft], { type: 'text/markdown; charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [replyDraft]);
+
   if (loading) {
     return (
       <div
@@ -118,7 +254,7 @@ export function EmailViewer({ sourceId, className }: EmailViewerProps) {
         className={`flex h-full items-center justify-center text-slate-500 ${className ?? ''}`}
       >
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        <span className="text-sm">Opening email…</span>
+        <span className="text-sm">Opening email...</span>
       </div>
     );
   }
@@ -130,6 +266,7 @@ export function EmailViewer({ sourceId, className }: EmailViewerProps) {
         className={`flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-slate-600 ${className ?? ''}`}
       >
         <AlertTriangle className="h-8 w-8 text-amber-500" />
+        {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
         <p className="text-sm font-medium text-slate-800">This email could not be opened</p>
         <p className="max-w-md text-xs text-slate-500">
           {error ?? 'Message not found.'} (id: {displayId(sourceId)})
@@ -140,6 +277,10 @@ export function EmailViewer({ sourceId, className }: EmailViewerProps) {
 
   const subject = message.subject.trim() || '(no subject)';
   const date = message.date ? formatDate(message.date) : null;
+
+  // mailto: link — extract plain email address from "Name <addr>" format
+  const fromAddr = message.from.match(/<([^>]+)>/)?.[1] ?? message.from;
+  const mailtoHref = `mailto:${encodeURIComponent(fromAddr)}?subject=${encodeURIComponent(`Re: ${subject}`)}`;
 
   return (
     <div
@@ -186,28 +327,54 @@ export function EmailViewer({ sourceId, className }: EmailViewerProps) {
           )}
         </div>
 
-        {/* Attachments (names only in v1) */}
+        {/* Attachments — clickable download */}
         {message.hasAttachments && (
           <div
             data-testid="email-viewer-attachments"
-            className="mt-4 flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600"
+            className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2"
           >
-            <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-500">
+              <Paperclip className="h-3.5 w-3.5" />
+              { }
+              Attachments
+              { }
+            </div>
+            {downloadError && (
+              <p className="mb-1.5 flex items-center gap-1 text-[11px] text-amber-700">
+                <AlertTriangle className="h-3 w-3" />
+                {downloadError}
+              </p>
+            )}
             {message.attachments.length > 0 ? (
-              <span>
-                {message.attachments.length} attachment
-                {message.attachments.length === 1 ? '' : 's'}:{' '}
-                {message.attachments.map((a) => a.name).join(', ')}
-              </span>
+              <div className="flex flex-wrap gap-2">
+                {message.attachments.map((att) => (
+                  <button
+                    key={att.id}
+                    type="button"
+                    data-testid={`attachment-download-${att.id}`}
+                    disabled={downloadingId === att.id}
+                    onClick={() => { void handleDownloadAttachment(att.id, att.name); }}
+                    className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                    title={`Download ${att.name}`}
+                  >
+                    {downloadingId === att.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Download className="h-3 w-3" />
+                    )}
+                    {att.name}
+                  </button>
+                ))}
+              </div>
             ) : (
-              <span>This message has attachments. Open it in your mail app to download them.</span>
+              /* eslint-disable keepance-i18n/no-hardcoded-string */
+              <span className="text-xs text-slate-500">This message has attachments. Open it in your mail app to download them.</span>
+              /* eslint-enable keepance-i18n/no-hardcoded-string */
             )}
           </div>
         )}
 
-        {/* Privilege control (WS-PRIV / VG-5c) — tag THIS message. Compact
-            radio row; the active status is highlighted. When privileged, a
-            one-line consequence note states the retrieval effect. */}
+        {/* Privilege control (WS-PRIV / VG-5c) */}
         <div
           data-testid="email-privilege-control"
           data-privilege={privilege}
@@ -254,7 +421,52 @@ export function EmailViewer({ sourceId, className }: EmailViewerProps) {
           )}
         </div>
 
-        {/* Body — rendered as plain text (React escapes it); preserve wrapping. */}
+        {/* File to matter */}
+        <div
+          data-testid="email-file-to-matter"
+          className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2"
+        >
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600">
+            <FolderInput className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+            File to matter
+          </div>
+          {fileError && (
+            <p className="mb-1.5 flex items-center gap-1 text-[11px] text-amber-700">
+              <AlertTriangle className="h-3 w-3" />
+              {fileError}
+            </p>
+          )}
+          {fileSuccess && (
+            <p className="mb-1.5 text-[11px] text-emerald-700">Filed successfully.</p>
+          )}
+          {matters.length === 0 ? (
+            <p className="text-xs text-slate-400">No matters yet. Create a matter first.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {matters.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  data-testid={`file-to-matter-btn-${m.id}`}
+                  disabled={filingMatter === m.id}
+                  onClick={() => { void handleFileToMatter(m.id); }}
+                  className="inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                >
+                  {filingMatter === m.id ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <FolderInput className="h-3 w-3" />
+                  )}
+                  {matterLabel(m)}
+                </button>
+              ))}
+            </div>
+          )}
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </div>
+
+        {/* Body */}
         <div className="mt-5 border-t border-slate-100 pt-5">
           <pre
             data-testid="email-viewer-body"
@@ -262,6 +474,88 @@ export function EmailViewer({ sourceId, className }: EmailViewerProps) {
           >
             {stripResidualTags(message.body)}
           </pre>
+        </div>
+
+        {/* Reply area */}
+        <div
+          data-testid="email-reply-area"
+          className="mt-6 rounded-md border border-slate-200 bg-white"
+        >
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
+            <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <span className="text-xs font-medium text-slate-600">Reply</span>
+          </div>
+          <div className="flex gap-2 px-3 py-2.5">
+            <button
+              type="button"
+              data-testid="reply-draft-ai-btn"
+              onClick={() => { void handleDraftWithAI(); }}
+              disabled={replyDraftLoading}
+              className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-[#0A2540] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0c2f52] disabled:opacity-60"
+            >
+              {replyDraftLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <FileText className="h-3 w-3" />
+              )}
+              Draft with AI
+            </button>
+            <a
+              href={mailtoHref}
+              data-testid="reply-mailto-link"
+              className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+              rel="noopener noreferrer"
+            >
+              <Mail className="h-3 w-3" />
+              Reply in your mail app
+            </a>
+          </div>
+
+          {/* AI draft error */}
+          {replyMode === 'draft' && replyDraftError && (
+            <div className="border-t border-slate-100 px-3 py-2">
+              <p className="flex items-center gap-1 text-[11px] text-amber-700">
+                <AlertTriangle className="h-3 w-3" />
+                {replyDraftError}
+              </p>
+            </div>
+          )}
+
+          {/* AI draft result */}
+          {replyMode === 'draft' && !replyDraftLoading && replyDraft && (
+            <div className="border-t border-slate-100 px-3 py-3">
+              <textarea
+                data-testid="reply-draft-textarea"
+                value={replyDraft}
+                onChange={(e) => { setReplyDraft(e.target.value); }}
+                className="w-full rounded border border-slate-200 bg-slate-50 p-2 text-sm leading-relaxed text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0A2540]"
+                rows={8}
+                style={{ resize: 'vertical', fontFamily: 'var(--font-sans)' }}
+              />
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  data-testid="reply-copy-btn"
+                  onClick={handleCopyReply}
+                  className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
+                >
+                  <Copy className="h-3 w-3" />
+                  {replyCopied ? 'Copied!' : 'Copy'}
+                </button>
+                <button
+                  type="button"
+                  data-testid="reply-save-doc-btn"
+                  onClick={handleSaveReplyAsDoc}
+                  className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
+                >
+                  <FileText className="h-3 w-3" />
+                  Save as document
+                </button>
+              </div>
+            </div>
+          )}
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         </div>
       </div>
     </div>
