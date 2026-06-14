@@ -53,7 +53,7 @@
         "ai-assistant": "AI Assistant",
         "research": "Research",
         "whiteboard": "Whiteboard",
-        "audit": "AI Audit",
+        "audit": "Activity Log",
         "trash": "Trash",
         "plugins": "Plugins"
       }
@@ -160,7 +160,7 @@
         "multi-model": "Multi-model comparison",
         "commercial": "Commercial use license",
         "updates": "Continuous updates, legal-content maintenance, and security patches",
-        "one-pack": "The litigation associate and all practice packs (Professional)",
+        "one-pack": "All practice workflow templates (Professional)",
         "all-packs": "Shared matters, admin console, and the assurance package (Firm)"
       }
     },
@@ -202,8 +202,8 @@
       },
       "download-cta": "Download .mcpb for Claude Desktop",
       "whats-mcp": "What's MCP?",
-      "disabled-title": "MCP is off in Privileged Matter Mode",
-      "disabled-body": "While a privileged matter is active (or Local-only is selected), MCP servers are disabled so confidential work cannot leave your machine through an outside AI client. Any write an MCP client attempts is blocked and recorded in your audit log. Turn off Privileged Matter Mode to use MCP again.",
+      "disabled-title": "MCP is off: network lockdown is on",
+      "disabled-body": "While a matter with network lockdown is active (or On this computer only is selected), MCP servers are disabled so confidential work cannot leave your machine through an outside AI client. Any write an MCP client attempts is blocked and recorded in your audit log. Turn off network lockdown to use MCP again.",
       "install": {
         "heading": "How to install:",
         "step-download": "Click <b>Download .mcpb</b> above to copy the bundle path to your clipboard.",
@@ -224,8 +224,8 @@
       "deny": "Deny",
       "approve-all-session": "Approve all this session",
       "approve-write": "Approve this write",
-      "privileged-blocked": "Privileged Matter Mode is on. MCP servers are disabled, so this write was blocked and nothing was changed on your machine.",
-      "privileged-auto-denied": "Blocked and recorded in your audit log. Turn off Privileged Matter Mode to allow MCP writes again.",
+      "privileged-blocked": "Network lockdown is on. MCP servers are disabled, so this write was blocked and nothing was changed on your machine.",
+      "privileged-auto-denied": "Blocked and recorded in your audit log. Turn off network lockdown to allow MCP writes again.",
       "title-blocked": "MCP write blocked"
     },
     "ollama": {
@@ -851,8 +851,8 @@
       "mail-label": "Email accounts in this matter",
       "no-mail-accounts": "Connect an email account in Settings to map it to this matter.",
       "mail-account-hint": "Email from a mapped account is scoped to this matter.",
-      "privileged-label": "Privileged matter",
-      "privileged-hint": "When this matter is active, network plugins and MCP servers are turned off so confidential work cannot leave your machine through an extension.",
+      "privileged-label": "Network lockdown for this matter",
+      "privileged-hint": "When this matter is active, network plugins and MCP servers are turned off so nothing can leave your machine through an extension. Unrelated to attorney-client privilege tagging.",
       "firm-share-section": "Share with my firm",
       "firm-shared-section": "Shared with my firm",
       "firm-share-action": "Share this matter with my firm",
@@ -1042,7 +1042,7 @@
         "note": "This runs on a local model (Ollama). No prompt or file is sent over the network."
       },
       "direct": {
-        "label": "Direct to {{provider}} (your account)",
+        "label": "Sent to your {{provider}} account",
         "note": "Sent straight from your machine to {{provider}} with your own API key. Keepance is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
       },
       "demo": {
@@ -1052,10 +1052,10 @@
       "sending": "Sending to your AI provider"
     },
     "privileged-matter": {
-      "badge": "Privileged matter: outside connections are blocked so nothing can leave this matter",
-      "title-manual": "Network plugins and MCP servers are disabled.",
-      "title-privileged-matter": "On because the active matter is privileged. Network plugins and MCP servers are disabled.",
-      "title-local-only": "On because Local-only is selected. Network plugins and MCP servers are disabled."
+      "badge": "Isolated matter: outside connections are blocked so nothing can leave this matter.",
+      "title-manual": "Network lockdown: network plugins and MCP servers are disabled.",
+      "title-privileged-matter": "On because the active matter has network lockdown. Network plugins and MCP servers are disabled.",
+      "title-local-only": "On because On this computer only is selected. Network plugins and MCP servers are disabled."
     }
   },
   "mail": {

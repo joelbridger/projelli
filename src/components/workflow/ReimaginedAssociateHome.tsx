@@ -518,7 +518,7 @@ export function ReimaginedAssociateHome({
                   marginBottom: 3,
                 }}
               >
-                ASSOCIATE
+                WORKFLOWS
               </div>
               <h1
                 style={{
@@ -530,7 +530,7 @@ export function ReimaginedAssociateHome({
                   lineHeight: 1.15,
                 }}
               >
-                Litigation Associate
+                Workflows
               </h1>
               <p
                 style={{
@@ -541,7 +541,7 @@ export function ReimaginedAssociateHome({
                 }}
               >
                 {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                {String(templates.length)} workflow{templates.length === 1 ? '' : 's'} ready. Pick one to run.
+                Your tireless litigation associate. {String(templates.length)} workflow{templates.length === 1 ? '' : 's'} ready — pick one to run.
                 {/* eslint-enable keepance-i18n/no-hardcoded-string */}
               </p>
             </div>

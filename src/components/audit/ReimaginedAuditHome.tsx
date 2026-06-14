@@ -203,7 +203,7 @@ const CATEGORY_BG: Record<ActionCategory, string> = {
 
 const CATEGORY_LABEL: Record<ActionCategory, string> = {
   file: 'File ops',
-  ai: 'AI / Egress',
+  ai: 'AI Requests',
   workflow: 'Workflow',
   privilege: 'Privilege',
   firm: 'Firm',
@@ -1179,7 +1179,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                   marginBottom: 2,
                 }}
               >
-                AI AUDIT
+                ACTIVITY LOG
               </div>
               <h1
                 style={{
@@ -1191,7 +1191,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                   lineHeight: 1.2,
                 }}
               >
-                AI Audit
+                Activity Log
               </h1>
             </div>
           </div>

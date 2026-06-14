@@ -204,7 +204,7 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
   return {
     destination: 'provider-direct',
     severity: 'direct',
-    label: `Direct to ${name} (your account)`,
+    label: `Sent to your ${name} account`,
     note: `Sent straight from your machine to ${name} with your own API key. Keepance is not in between. ${name} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your ${name} account.`,
     dataLeaves: true,
     provider,

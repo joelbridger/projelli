@@ -39,10 +39,10 @@ export function ReimaginedTrustBar() {
 
   const egressTooltip =
     confidentialityMode === 'local-only'
-      ? 'Local-only: AI runs on your machine. Nothing leaves your device.'
+      ? 'On this computer only: AI runs on your machine. Nothing leaves your device.'
       : confidentialityMode === 'assured'
         ? 'Assured: requests route through your firm\'s zero-retention proxy. Keepance never sees content.'
-        : 'Direct to Anthropic (your account). Sent straight from your machine to Anthropic with your own API key. Keepance is not in between. Anthropic receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your Anthropic account.';
+        : 'Sent to your AI provider account. Sent straight from your machine to your provider with your own API key. Keepance is not in between. Your provider receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your provider account.';
 
   return (
     <div

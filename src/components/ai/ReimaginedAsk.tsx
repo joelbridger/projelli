@@ -718,7 +718,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
               marginBottom: 3,
             }}
           >
-            Ask &middot; {scope}
+            Search &middot; {scope}
           </div>
           <h2
             style={{
@@ -755,7 +755,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
             }}
           >
             <Plus size={13} strokeWidth={2} />
-            New ask
+            New search
           </button>
         )}
       </div>
@@ -1055,7 +1055,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
             ) : (
               <ArrowRight size={14} strokeWidth={2} />
             )}
-            {status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : 'Ask'}
+            {status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : 'Search'}
           </button>
         </div>
       </div>

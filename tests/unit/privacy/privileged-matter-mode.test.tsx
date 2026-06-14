@@ -389,12 +389,16 @@ describe('Privileged Matter Mode activation (reactive hook + stores)', () => {
 });
 
 describe('StatusBar: Privileged Matter Mode badge', () => {
-  it('renders the persistent badge when the mode is active', () => {
+  it('renders the persistent badge when the mode is active and a matter is open', () => {
+    // Badge requires both the mode active AND an active matter (it only makes
+    // sense to show it when scoped to a specific matter).
+    const matter = useMatterStore.getState().createMatter({ name: 'Test', client: 'C' });
+    useMatterStore.getState().setActiveMatter(matter.id);
     useSettingsStore.getState().setSetting(PRIVILEGED_MATTER_MODE_SETTING_KEY, true);
     render(<StatusBar />);
     const badge = screen.getByTestId('privileged-matter-badge');
     expect(badge).toBeInTheDocument();
-    // F-104: badge copy updated to plain English describing what the mode does
+    // Badge copy uses "Isolated matter" (security lockdown) not "Privileged" (legal concept).
     expect(badge.textContent).toContain('outside connections are blocked');
   });
 

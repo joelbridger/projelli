@@ -50,32 +50,35 @@ interface ModeCard {
   comingSoon?: boolean;
 }
 
-const CARDS: ModeCard[] = [
+/** The two cards shown to solo (non-firm) users. */
+const SOLO_CARDS: ModeCard[] = [
   {
     mode: 'local-only',
     icon: Laptop,
-    title: 'Local-only',
+    title: 'On this computer only',
     blurb:
-      'Nothing leaves your machine. Only local models (Ollama) can be selected; cloud providers are turned off. Use this for your most sensitive client work.',
+      'Nothing leaves your machine. Only local models (Ollama) can be used; cloud providers are turned off. Use this for your most sensitive client work.',
     accent: 'text-emerald-700 border-emerald-400 dark:text-emerald-300 dark:border-emerald-700',
   },
   {
     mode: 'direct',
     icon: Cloud,
-    title: 'Direct (your key)',
+    title: 'Cloud AI (your account)',
     blurb:
-      'Your own API key talks directly to your chosen provider (Anthropic, OpenAI, or Google). Keepance is not in between. The provider sees your prompt, so control retention and training in your provider account.',
+      'Your own API key talks directly to your chosen AI provider (Anthropic, OpenAI, or Google). Keepance is not in between. The provider sees your prompt, so control retention and training in your provider account.',
     accent: 'text-sky-700 border-sky-400 dark:text-sky-300 dark:border-sky-700',
   },
-  {
-    mode: 'assured',
-    icon: ShieldCheck,
-    title: 'Assured',
-    blurb:
-      "Cloud inference routed through the Keepance zero-retention proxy using your firm's managed key. We keep nothing (DPA + provider zero-retention). Available once your firm admin sets a managed key.",
-    accent: 'text-indigo-700 border-indigo-400 dark:text-indigo-300 dark:border-indigo-700',
-  },
 ];
+
+/** The Assured card shown only in a firm context. */
+const ASSURED_CARD: ModeCard = {
+  mode: 'assured',
+  icon: ShieldCheck,
+  title: 'Assured',
+  blurb:
+    "Cloud inference routed through the Keepance zero-retention proxy using your firm's managed key. We keep nothing (DPA + provider zero-retention). Available once your firm admin sets a managed key.",
+  accent: 'text-indigo-700 border-indigo-400 dark:text-indigo-300 dark:border-indigo-700',
+};
 
 export function ConfidentialityModeSettings() {
   const active = useConfidentialityMode();
@@ -86,6 +89,9 @@ export function ConfidentialityModeSettings() {
   // Assured is selectable once the firm has at least one managed provider key.
   // The egress indicator does the precise per-provider check at send time.
   const assuredAvailable = useFirmStore((s) => s.assuredProviders.length > 0);
+  // Show the Assured card only when the user is in a firm context.
+  const isFirmUser = useFirmStore((s) => !!s.session?.activated);
+  const cards: ModeCard[] = isFirmUser ? [...SOLO_CARDS, ASSURED_CARD] : SOLO_CARDS;
 
   return (
     <div
@@ -94,15 +100,14 @@ export function ConfidentialityModeSettings() {
       className="py-3 border-b border-border/50"
     >
       <div className="mb-3">
-        <h3 className="text-sm font-medium">Confidentiality mode</h3>
+        <h3 className="text-sm font-medium">Where AI requests go</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Controls where AI requests are allowed to go. This drives the egress
-          indicator you see while chatting.
+          Choose whether AI requests stay on your computer or are sent to a cloud provider you control.
         </p>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-3">
-        {CARDS.map((card) => {
+      <div className={cn('grid gap-2', isFirmUser ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
+        {cards.map((card) => {
           const Icon = card.icon;
           const selected = active === card.mode;
           // Assured is gated on a managed key being configured; others are always on.
@@ -156,22 +161,27 @@ export function ConfidentialityModeSettings() {
         })}
       </div>
 
+      {/* Firm security note — shown when the user is a firm member so Assured is visible */}
+      {isFirmUser && (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Firm security: the Assured option above routes AI requests through your firm's zero-retention proxy so Keepance retains nothing.
+        </p>
+      )}
+
       {active === 'local-only' && (
         <p
           data-testid="confidentiality-local-active-note"
           className="mt-2 text-xs rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
         >
-          Local-only is on. Cloud providers are disabled in the chat picker, so
-          only local models (Ollama) can be used, and nothing leaves your
-          machine. Make sure Ollama is installed and running (Settings →
-          Integrations).
+          On this computer only is on. Cloud providers are disabled in the chat
+          picker, so only local models (Ollama) can be used, and nothing leaves
+          your machine. Make sure Ollama is installed and running (Settings &rarr; Integrations).
         </p>
       )}
 
-      {/* Privileged Matter Mode toggle. Manual switch + an honest note about the
-          auto-on behaviour. When a privileged matter is active or Local-only is
-          selected, the mode is forced on and the switch is disabled (you cannot
-          allow network extensions on a privileged matter). */}
+      {/* Network lockdown (Isolated matter) toggle. Manual switch + an honest note
+          about the auto-on behaviour. When a matter with network lockdown is active
+          or Local-only is selected, the mode is forced on and the switch is disabled. */}
       <div
         data-testid="privileged-matter-mode-toggle"
         data-active={privileged.active ? 'true' : 'false'}
@@ -182,7 +192,7 @@ export function ConfidentialityModeSettings() {
           <div className="min-w-0">
             <span className="inline-flex items-center gap-1.5 text-sm font-medium">
               <ShieldOff className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />
-              Privileged Matter Mode
+              Network lockdown
             </span>
             <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
               Turns off network-capable extensions so confidential work cannot
@@ -220,8 +230,8 @@ export function ConfidentialityModeSettings() {
             className="mt-2 text-xs rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-rose-900 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200"
           >
             {privileged.trigger === 'privileged-matter'
-              ? 'On automatically because the active matter is privileged. It stays on until you switch to a non-privileged matter.'
-              : 'On automatically because Local-only is selected. It stays on while Local-only is the confidentiality mode.'}
+              ? 'On automatically because the active matter has network lockdown. It stays on until you switch to a different matter.'
+              : 'On automatically because On this computer only is selected. It stays on while that option is active.'}
           </p>
         )}
       </div>

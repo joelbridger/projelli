@@ -106,8 +106,8 @@ describe('ReimaginedAssociateHome', () => {
 
   it('renders the header eyebrow and title', () => {
     render(<ReimaginedAssociateHome {...defaultProps()} />);
-    expect(screen.getByText('ASSOCIATE')).toBeTruthy();
-    expect(screen.getByText('Litigation Associate')).toBeTruthy();
+    expect(screen.getByText('WORKFLOWS')).toBeTruthy();
+    expect(screen.getByText('Workflows')).toBeTruthy();
   });
 
   it('renders the search box', () => {

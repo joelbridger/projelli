@@ -66,11 +66,11 @@ export function ReimaginedSpine({
   // Matter-centric nav. label/Icon + the existing content tab id it drives.
   const nav: { id: SpineTab; label: string; Icon: LucideIcon }[] = [
     { id: 'matters', label: t('layout.sidebar.tabs.matters'), Icon: Briefcase },
-    { id: 'search', label: 'Ask', Icon: Sparkles },
+    { id: 'search', label: 'Search', Icon: Sparkles },
     { id: 'files', label: 'Documents', Icon: FolderTree },
     { id: 'email', label: 'Email', Icon: Mail },
-    { id: 'workflows', label: 'Associate', Icon: ListChecks },
-    { id: 'audit', label: 'AI Audit', Icon: ShieldCheck },
+    { id: 'workflows', label: 'Workflows', Icon: ListChecks },
+    { id: 'audit', label: 'Activity Log', Icon: ShieldCheck },
   ];
 
   const content: Record<SpineTab, React.ReactNode> = {

@@ -77,23 +77,23 @@ describe('ReimaginedAsk', () => {
     expect(screen.getByRole('textbox')).toBeDefined();
   });
 
-  it('shows Ask button in composer', () => {
+  it('shows Search button in composer', () => {
     render(<ReimaginedAsk />);
-    const askBtn = screen.getByRole('button', { name: /ask/i });
+    const askBtn = screen.getByRole('button', { name: /^Search$/i });
     expect(askBtn).toBeDefined();
   });
 
-  it('Ask button is disabled when input is empty', () => {
+  it('Search button is disabled when input is empty', () => {
     render(<ReimaginedAsk />);
-    const askBtn = screen.getByRole('button', { name: /ask/i });
+    const askBtn = screen.getByRole('button', { name: /^Search$/i });
     expect((askBtn as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('Ask button enables when input has text', () => {
+  it('Search button enables when input has text', () => {
     render(<ReimaginedAsk />);
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'What are the key facts?' } });
-    const askBtn = screen.getByRole('button', { name: /ask/i });
+    const askBtn = screen.getByRole('button', { name: /^Search$/i });
     expect((askBtn as HTMLButtonElement).disabled).toBe(false);
   });
 

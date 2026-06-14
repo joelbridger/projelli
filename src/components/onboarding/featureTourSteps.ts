@@ -32,8 +32,8 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   },
   {
     id: 'ask',
-    title: 'Ask finds anything',
-    body: 'Type a question, a clause, a client name, or a case number. Ask searches every document and email in your workspace and answers with citations you can click back to the source. It also runs full AI conversations when you need them.',
+    title: 'Search finds anything in your files',
+    body: 'Type a question, a clause, a client name, or a case number. Search looks across every document and email in your workspace and answers with citations you can click back to the source. It also runs full AI conversations when you need them.',
     targetSelector: '[data-testid="spine-nav-search"]',
     placement: 'right',
   },
@@ -53,7 +53,7 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   },
   {
     id: 'audit',
-    title: 'Your defense file',
+    title: 'Activity Log',
     body: 'Every AI action is logged: the prompt, the model, the response, and the cost. If a client ever asks what the AI did with their documents, this is your answer. Filter by date, export to CSV, or print it for the file.',
     targetSelector: '[data-testid="spine-nav-audit"]',
     placement: 'right',
