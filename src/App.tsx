@@ -3647,36 +3647,23 @@ This file contains rules and guidelines for AI assistants in this workspace.
           />
         ) : isReimaginedShell() && sidebarActiveTab === 'files' ? (
           <ReimaginedDocumentsHome
-            fileTreeContent={
-              <FileTree
-                onFileOpen={handleFileOpen}
-                onCreateFile={handleCreateFile}
-                onCreateFolder={handleCreateFolder}
-                onRename={handleRename}
-                onDelete={handleDelete}
-                onMove={handleMove}
-                onDownload={handleDownload}
-                onCreateFileAtRoot={handleCreateFileAtRoot}
-                onCreateDefaultDocument={handleCreateDefaultDocument}
-                onCreateMarkdownAtRoot={handleCreateMarkdownAtRoot}
-                onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
-                onCreateRichTextFileAtRoot={handleCreateRichTextFileAtRoot}
-                onCreateSpreadsheetAtRoot={handleCreateSpreadsheetAtRoot}
-                onCreateCsvAtRoot={handleCreateCsvAtRoot}
-                onCreateDocxAtRoot={handleCreateDocxAtRoot}
-                onCreatePptxAtRoot={handleCreatePptxAtRoot}
-                onSetLetterheadTemplate={handleSetLetterheadTemplate}
-                onCreateSourceFileAtRoot={handleCreateSourceFileAtRoot}
-                onCreateFolderAtRoot={handleCreateFolderAtRoot}
-                onUploadFiles={handleUploadFiles}
-                onCreateWhiteboard={handleCreateWhiteboard}
-                onCreateWhiteboardAtRoot={handleCreateWhiteboardAtRoot}
-                onOpenGridView={handleOpenGridView}
-                onCreateAudioAtRoot={handleCreateAudioAtRoot}
-                onConfirm={confirm}
-                onDropAIMessage={handleDropAIMessage}
-              />
-            }
+            onFileOpen={handleFileOpen}
+            onCreateFile={handleCreateFile}
+            onCreateFolder={handleCreateFolder}
+            onRename={handleRename}
+            onDelete={handleDelete}
+            onMove={handleMove}
+            onDownload={handleDownload}
+            onCreateDefaultDocument={handleCreateDefaultDocument}
+            onCreateDocxAtRoot={handleCreateDocxAtRoot}
+            trashItems={trashItems}
+            trashStats={trashStats}
+            onRestore={handleRestoreFromTrash}
+            onPermanentDelete={handlePermanentDelete}
+            onEmptyTrash={handleEmptyTrash}
+            retentionPeriod={trashRetentionPeriod}
+            customRetentionDays={trashCustomRetentionDays}
+            onRetentionChange={handleTrashRetentionChange}
             mainPanelContent={
               <MainPanel
                 onFileOpen={handleFileOpen}
