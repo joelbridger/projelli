@@ -437,6 +437,8 @@ describe('ReimaginedEmailWorkspace', () => {
       [],
       'Hello from Keepance',
       'Test body text.',
+      undefined,
+      undefined,
     );
 
     expect(screen.getByTestId('compose-success')).toBeInTheDocument();
@@ -461,7 +463,41 @@ describe('ReimaginedEmailWorkspace', () => {
     expect(screen.getByTestId('compose-scope-upgrade')).toBeInTheDocument();
   });
 
-  // 14. Parses recipients correctly from comma/semicolon-separated input
+  // 14. Ask AI mode shows empty-state headline + chips when no query is typed
+  it('shows Ask AI empty state headline and chips when switching to Ask AI mode with no query', async () => {
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    // Switch to Ask AI mode
+    fireEvent.click(screen.getByTestId('mode-ask'));
+
+    expect(screen.getByTestId('ask-empty-state')).toBeInTheDocument();
+    expect(screen.getByText('Ask about your email')).toBeInTheDocument();
+
+    // All three chips should render
+    const chips = screen.getAllByTestId('ask-chip');
+    expect(chips.length).toBeGreaterThanOrEqual(3);
+    expect(chips[0]).toHaveTextContent('Who emailed about the deposition?');
+  });
+
+  // 15. Clicking a chip fills the Ask AI input with the chip text
+  it('clicking an Ask AI chip populates the search input', async () => {
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    fireEvent.click(screen.getByTestId('mode-ask'));
+
+    const chips = screen.getAllByTestId('ask-chip');
+    expect(chips[0]).toBeDefined();
+    fireEvent.click(chips[0]!);
+
+    const input = screen.getByTestId('email-search-input') as HTMLInputElement;
+    expect(input.value).toBe('Who emailed about the deposition?');
+    // Empty state should be hidden once there is a query
+    expect(screen.queryByTestId('ask-empty-state')).not.toBeInTheDocument();
+  });
+
+  // 16. Parses recipients correctly from comma/semicolon-separated input
   it('parses recipients correctly from comma/semicolon-separated input', async () => {
     render(<ReimaginedEmailWorkspace />);
     await waitForInitialLoad();
@@ -483,7 +519,65 @@ describe('ReimaginedEmailWorkspace', () => {
       [],
       '',
       'Hi all.',
+      undefined,
+      undefined,
     );
+  });
+
+  // 17. Attach button renders in compose modal and attachment chips appear/disappear
+  it('renders attach button in compose and shows/removes attachment chips', async () => {
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    fireEvent.click(screen.getByTestId('compose-btn'));
+
+    // Attach button should be visible
+    const attachBtn = screen.getByTestId('compose-attach');
+    expect(attachBtn).toBeInTheDocument();
+
+    // No chips yet
+    expect(screen.queryByTestId('compose-remove-attachment-0')).not.toBeInTheDocument();
+
+    // Stub FileReader with a proper constructor (not an arrow function)
+    const originalFileReader = global.FileReader;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let capturedReader: any = null;
+    function FakeFileReader(this: FileReader) {
+      // eslint-disable-next-line @typescript-eslint/no-this-alias
+      capturedReader = this;
+      (this as unknown as { result: string | null }).result = null;
+      (this as unknown as { onload: null }).onload = null;
+    }
+    FakeFileReader.prototype.readAsDataURL = function () {
+      // schedule onload asynchronously so act() can flush it
+      setTimeout(() => {
+        (this as unknown as { result: string }).result = 'data:text/plain;base64,aGVsbG8=';
+        if ((this as unknown as { onload: (() => void) | null }).onload) {
+          (this as unknown as { onload: () => void }).onload();
+        }
+      }, 0);
+    };
+    global.FileReader = FakeFileReader as unknown as typeof FileReader;
+
+    const fileInput = screen.getByTestId('compose-attach-input');
+    const fakeFile = new File(['hello'], 'test.txt', { type: 'text/plain' });
+
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [fakeFile] } });
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    global.FileReader = originalFileReader;
+
+    // Chip should appear
+    expect(capturedReader).not.toBeNull();
+    const removeBtn = screen.getByTestId('compose-remove-attachment-0');
+    expect(removeBtn).toBeInTheDocument();
+    expect(screen.getByText('test.txt')).toBeInTheDocument();
+
+    // Remove the attachment
+    fireEvent.click(removeBtn);
+    expect(screen.queryByTestId('compose-remove-attachment-0')).not.toBeInTheDocument();
   });
 
 });

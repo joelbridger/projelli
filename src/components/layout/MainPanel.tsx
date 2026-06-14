@@ -14,7 +14,7 @@ import { getFileIcon } from '@/utils/fileIcons';
 import { MarkdownEditor, type MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
 import { MarkdownPreview } from '@/components/editor/MarkdownPreview';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
-import { FormattingToolbar } from '@/components/editor/FormattingToolbar';
+import { FormattingToolbar, type ToolbarFileType } from '@/components/editor/FormattingToolbar';
 import { PluginToolbarButtons } from '@/components/plugins/PluginToolbarButtons';
 import { SplitPane } from '@/components/editor/SplitPane';
 import { OutlinePanel } from '@/components/editor/OutlinePanel';
@@ -967,6 +967,15 @@ export function MainPanel({
     const ext = getFileExtension(tab.path);
     const isMarkdown = ext === 'md' || ext === 'markdown' || ext === 'txt' || !ext;
 
+    // A5: derive the file type for the context-sensitive toolbar.
+    const toolbarFileType: ToolbarFileType = (() => {
+      const e = ext?.toLowerCase();
+      if (e === 'md' || e === 'markdown') return 'md';
+      if (e === 'txt') return 'txt';
+      if (e === 'docx') return 'docx';
+      return 'other';
+    })();
+
     return (
       <div className="h-full flex flex-col min-w-0">
         {/* Secondary pane header with file selector and close button */}
@@ -997,7 +1006,7 @@ export function MainPanel({
           </div>
         )}
         {/* Formatting toolbar for markdown and text files (.md, .markdown, .txt) */}
-        {/* .txt files now have full formatting options (bold, italic, headers, etc.) */}
+        {/* A5: fileType prop makes the toolbar context-sensitive to the extension */}
         {/* Skip toolbar for grid view and other special views */}
         {isText && isMarkdown && tab.path !== '__grid_view__' && (
           <FormattingToolbar
@@ -1006,6 +1015,7 @@ export function MainPanel({
             onTogglePreview={!isSecondary ? () => setIsPreviewMode(prev => !prev) : undefined}
             fileContent={tab.content}
             fileName={tab.name}
+            fileType={toolbarFileType}
           />
         )}
         {/* File title display with the same colored file-type icon shown

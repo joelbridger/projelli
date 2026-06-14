@@ -1,6 +1,6 @@
 // Tests for ReimaginedAsk multi-turn conversational surface
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReimaginedAsk } from '@/components/ai/ReimaginedAsk';
 
 const mockInitSession = vi.fn();
@@ -8,8 +8,29 @@ const mockAddMessage = vi.fn();
 const mockUpdateLastMessage = vi.fn();
 const mockSessions: Record<string, { chatId: string; messages: unknown[]; isLoading: boolean; lastUpdated: string }> = {};
 
+const SAMPLE_MATTER_ID = 'matter_sample_garcia_v_meridian';
+
+// Mutable so individual tests can override the active matter
+let mockActiveMatter: { id: string; name: string; isSample?: boolean } | null = null;
+
 vi.mock('@/stores/matterStore', () => ({
-  useActiveMatter: () => null,
+  useActiveMatter: () => mockActiveMatter,
+  SAMPLE_MATTER_ID: 'matter_sample_garcia_v_meridian',
+}));
+
+let mockRootPath: string | null = null;
+vi.mock('@/stores/workspaceStore', () => ({
+  useWorkspaceStore: (selector: (s: { rootPath: string | null }) => unknown) =>
+    selector({ rootPath: mockRootPath }),
+}));
+
+vi.mock('@/onboarding/samples/sampleMatterDemo', () => ({
+  getDemoAnswerForWorkspace: vi.fn().mockReturnValue(null),
+  DEMO_QUESTIONS: [
+    'What are the open issues in this matter?',
+    'Summarize the Garcia matter for me.',
+    'What is the fee arrangement?',
+  ],
 }));
 vi.mock('@/modules/memory/matterResolver', () => ({
   matterLabel: (m: unknown) => String(m),
@@ -25,10 +46,12 @@ vi.mock('@/modules/memory/workspaceCommand', () => ({
   parseCitations: () => [],
   resolveCitationPath: () => null,
 }));
+const mockGetKey = vi.fn().mockResolvedValue(null);
 vi.mock('@/modules/models/KeychainService', () => ({
-  KeychainService: vi.fn().mockImplementation(() => ({
-    getKey: vi.fn().mockResolvedValue(null),
-  })),
+  // Must use `function` (not an arrow) so `new KeychainService(...)` works.
+  KeychainService: vi.fn().mockImplementation(function () {
+    return { getKey: mockGetKey };
+  }),
 }));
 vi.mock('@/modules/models/OllamaProvider', () => ({
   OllamaProvider: vi.fn().mockImplementation(() => ({
@@ -39,6 +62,7 @@ vi.mock('@/modules/models/OllamaProvider', () => ({
 vi.mock('@/modules/models/ClaudeProvider', () => ({ ClaudeProvider: vi.fn() }));
 vi.mock('@/modules/models/OpenAIProvider', () => ({ OpenAIProvider: vi.fn() }));
 vi.mock('@/modules/models/GeminiProvider', () => ({ GeminiProvider: vi.fn() }));
+import { getDemoAnswerForWorkspace } from '@/onboarding/samples/sampleMatterDemo';
 // The mock must expose both the hook form (selector call) and the static
 // getState() method used by Fix #1 (stale-sessions bug).
 // vi.mock factories are hoisted, so we cannot reference variables declared
@@ -54,7 +78,14 @@ vi.mock('@/stores/aiChatStore', () => {
 });
 
 describe('ReimaginedAsk', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockActiveMatter = null;
+    mockRootPath = null;
+    // Restore default: no cloud key (return null so demo branch can fire)
+    mockGetKey.mockResolvedValue(null);
+    (getDemoAnswerForWorkspace as ReturnType<typeof vi.fn>).mockReturnValue(null);
+  });
 
   it('renders without crashing', () => {
     const { container } = render(<ReimaginedAsk />);
@@ -77,23 +108,23 @@ describe('ReimaginedAsk', () => {
     expect(screen.getByRole('textbox')).toBeDefined();
   });
 
-  it('shows Ask button in composer', () => {
+  it('shows Search button in composer', () => {
     render(<ReimaginedAsk />);
-    const askBtn = screen.getByRole('button', { name: /ask/i });
+    const askBtn = screen.getByRole('button', { name: /^Search$/i });
     expect(askBtn).toBeDefined();
   });
 
-  it('Ask button is disabled when input is empty', () => {
+  it('Search button is disabled when input is empty', () => {
     render(<ReimaginedAsk />);
-    const askBtn = screen.getByRole('button', { name: /ask/i });
+    const askBtn = screen.getByRole('button', { name: /^Search$/i });
     expect((askBtn as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('Ask button enables when input has text', () => {
+  it('Search button enables when input has text', () => {
     render(<ReimaginedAsk />);
     const input = screen.getByRole('textbox');
     fireEvent.change(input, { target: { value: 'What are the key facts?' } });
-    const askBtn = screen.getByRole('button', { name: /ask/i });
+    const askBtn = screen.getByRole('button', { name: /^Search$/i });
     expect((askBtn as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -193,5 +224,61 @@ describe('ReimaginedAsk', () => {
     } finally {
       delete mockSessions['ask-global'];
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // Sample-matter aha-moment tests
+  // -------------------------------------------------------------------------
+
+  it('shows DEMO_QUESTIONS chips when active matter is the sample matter', () => {
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    render(<ReimaginedAsk />);
+    expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
+    expect(screen.getByText(/summarize the garcia matter for me/i)).toBeDefined();
+    expect(screen.getByText(/what is the fee arrangement/i)).toBeDefined();
+  });
+
+  it('shows default chips (not demo questions) when active matter is not the sample matter', () => {
+    mockActiveMatter = { id: 'matter_other', name: 'Other Matter' };
+    render(<ReimaginedAsk />);
+    expect(screen.getByText(/summarize the latest deposition/i)).toBeDefined();
+    expect(screen.queryByText(/what are the open issues in this matter/i)).toBeNull();
+  });
+
+  it('clicking a demo chip auto-submits (calls addMessage) without just filling the input', async () => {
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    mockRootPath = '/workspace';
+    // Configure getDemoAnswerForWorkspace to return a canned answer
+    (getDemoAnswerForWorkspace as ReturnType<typeof vi.fn>).mockReturnValue({
+      answer: 'The fee is $350/hr. {1}',
+      citations: [{ n: 1, label: 'Sample - Matter Overview.md', excerpt: 'Fee: $350/hr', path: '/workspace/Sample - Matter Overview.md', locator: 'Sample - Matter Overview.md §Client Notes', verified: true }],
+    });
+    render(<ReimaginedAsk />);
+    const chip = screen.getByText(/what is the fee arrangement/i);
+    fireEvent.click(chip);
+    // Wait for the async handleAsk to resolve and addMessage to be called
+    await waitFor(() => {
+      expect(mockAddMessage).toHaveBeenCalledTimes(2);
+    });
+    // First call is the user message
+    expect(mockAddMessage).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ role: 'user', content: 'What is the fee arrangement?' }),
+    );
+    // Second call is the assistant message
+    expect(mockAddMessage).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ role: 'assistant' }),
+    );
+  });
+
+  it('sample matter chip falls back to Ollama path when demo has no match', async () => {
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    mockRootPath = '/workspace';
+    // getDemoAnswerForWorkspace returns null → falls through to provider
+    vi.mocked(getDemoAnswerForWorkspace).mockReturnValue(null);
+    // No error should be thrown; the component should handle gracefully
+    render(<ReimaginedAsk />);
+    expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
   });
 });

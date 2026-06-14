@@ -48,7 +48,7 @@ const PROVIDERS: ProviderTab[] = [
     tips: [
       'Treat your phone as read-only for now to avoid conflict copies.',
       'Free iCloud tier is 5 GB. A typical Keepance workspace fits easily.',
-      'For pretty Markdown rendering on iPhone, install a Markdown reader like Taio or 1Writer and point it at the same iCloud folder.',
+      'For nicer text file rendering on iPhone, install a reader app like Taio or 1Writer and point it at the same iCloud folder.',
     ],
     // Apple's documented Files app deep link. Opens straight into Files.
     deepLink: { href: 'shareddocuments://', label: 'Open Files on iPhone' },
@@ -66,7 +66,7 @@ const PROVIDERS: ProviderTab[] = [
     ],
     tips: [
       'Dropbox creates clearly labeled "conflicted copy" files when both devices edit at once. Still cleanest to edit on one at a time.',
-      'Free tier is 2 GB. Markdown is tiny so this is rarely the bottleneck.',
+      'Free tier is 2 GB. Text files are tiny so this is rarely the bottleneck.',
       'If you use Smart Sync, right-click your Keepance folder and "Make Available Offline" so Keepance can always read from disk.',
     ],
     // Documented Dropbox iOS scheme used to open the app.
@@ -86,7 +86,7 @@ const PROVIDERS: ProviderTab[] = [
     tips: [
       'Both devices must be running Syncthing for files to sync. Sleeping your laptop pauses sync.',
       'iOS does not have an official free Syncthing client. If you don\'t want to pay for Möbius Sync, the iCloud Drive tab is a better fit on iPhone.',
-      'For nicer Markdown rendering on Android, install Markor and open .md files with that.',
+      'For nicer text file rendering on Android, install Markor and open .md files with that.',
     ],
     docsHref: 'https://keepance.com/docs/mobile-access/syncthing',
   },
@@ -103,7 +103,7 @@ const PROVIDERS: ProviderTab[] = [
     tips: [
       '"Mirror" mode is required. "Stream" mode keeps files cloud-only and Keepance won\'t reliably read them.',
       'Free tier is 15 GB shared across Drive, Gmail, and Photos. Check your overall Google storage isn\'t already full.',
-      'On Android, tap a .md file to pick a default Markdown app once. Markor is a solid free choice.',
+      'On Android, tap a .md file to pick a default reader app once. Markor is a solid free choice.',
     ],
     docsHref: 'https://keepance.com/docs/mobile-access/google-drive',
   },

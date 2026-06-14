@@ -113,7 +113,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   privilege_evaluated: 'Privilege Checked',
   scope_active: 'Active Matter',
   egress: 'AI Request Sent',
-  mcp_blocked: 'MCP Write Blocked',
+  mcp_blocked: 'External AI Write Blocked',
   // Firm Phase 1 (Task 3)
   matter_shared: 'Matter Shared',
   matter_unshared: 'Matter Unshared',

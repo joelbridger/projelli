@@ -8,7 +8,7 @@
 
 import React, { useState } from 'react';
 import {
-  FolderOpen,
+  FileText,
   Plus,
   ChevronRight,
   Search,
@@ -120,9 +120,10 @@ function TableHeader({ colTemplate }: TableHeaderProps) {
 
 interface EmptyStateProps {
   onCreateDocument?: () => void;
+  onCreateFolder?: () => void;
 }
 
-function EmptyState({ onCreateDocument }: EmptyStateProps) {
+function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
   return (
     <div
       style={{
@@ -135,13 +136,14 @@ function EmptyState({ onCreateDocument }: EmptyStateProps) {
         gap: 12,
       }}
     >
-      <FolderOpen
+      <FileText
         style={{
           width: 36,
           height: 36,
-          color: 'var(--color-muted-foreground)',
+          color: 'var(--kp-navy)',
           strokeWidth: 1.5,
           marginBottom: 4,
+          opacity: 0.35,
         }}
       />
       <div
@@ -153,45 +155,80 @@ function EmptyState({ onCreateDocument }: EmptyStateProps) {
         }}
       >
         {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-        No documents yet
+        Your workspace is ready
         {/* eslint-enable keepance-i18n/no-hardcoded-string */}
       </div>
       <div
         style={{
           fontSize: 13,
           color: 'var(--color-muted-foreground)',
-          maxWidth: 320,
-          lineHeight: 1.5,
+          maxWidth: 340,
+          lineHeight: 1.6,
         }}
       >
         {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-        Create your first document to get started.
+        Real Word documents, with tracked changes and AI redlining, stored as files on your computer.
         {/* eslint-enable keepance-i18n/no-hardcoded-string */}
       </div>
-      <button
-        type="button"
+      <div
         style={{
-          marginTop: 8,
-          display: 'inline-flex',
+          display: 'flex',
           alignItems: 'center',
-          gap: 6,
-          padding: '8px 16px',
-          borderRadius: 6,
-          fontSize: 13,
-          fontWeight: 600,
-          background: 'var(--kp-navy)',
-          color: '#fff',
-          border: 'none',
-          cursor: 'pointer',
-          fontFamily: 'Satoshi, sans-serif',
-        }}
-        onClick={() => {
-          onCreateDocument?.();
+          gap: 8,
+          marginTop: 8,
+          flexWrap: 'wrap',
+          justifyContent: 'center',
         }}
       >
-        <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
-        New document
-      </button>
+        <button
+          type="button"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 16px',
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 600,
+            background: 'var(--kp-navy)',
+            color: '#fff',
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: 'Satoshi, sans-serif',
+          }}
+          onClick={() => {
+            onCreateDocument?.();
+          }}
+        >
+          <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          New Word document
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </button>
+        <button
+          type="button"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 16px',
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 600,
+            background: '#fff',
+            color: 'var(--kp-navy)',
+            border: '1px solid var(--color-border)',
+            cursor: 'pointer',
+            fontFamily: 'Satoshi, sans-serif',
+          }}
+          onClick={() => {
+            onCreateFolder?.();
+          }}
+        >
+          <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
+          New folder
+        </button>
+      </div>
     </div>
   );
 }
@@ -617,7 +654,9 @@ export function DocumentBrowser({
             onClick={handleCreateDocument}
           >
             <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
-            New document
+            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            New Word document
+            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
           </button>
 
           <button
@@ -703,11 +742,11 @@ export function DocumentBrowser({
           )}
 
           {fileTree.length === 0 ? (
-            <EmptyState onCreateDocument={handleCreateDocument} />
+            <EmptyState onCreateDocument={handleCreateDocument} onCreateFolder={handleCreateFolder} />
           ) : filteredNodes.length === 0 && searchQuery.trim() ? (
             <EmptySearchState />
           ) : filteredNodes.length === 0 ? (
-            <EmptyState onCreateDocument={handleCreateDocument} />
+            <EmptyState onCreateDocument={handleCreateDocument} onCreateFolder={handleCreateFolder} />
           ) : (
             <>
               <TableHeader colTemplate={COL_TEMPLATE} />

@@ -65,9 +65,9 @@ describe('ReimaginedAuditHome', () => {
     expect(rows[2]).toHaveTextContent('File Created');
   });
 
-  it('shows total entry count in the header', () => {
+  it('renders the page title Activity Log', () => {
     render(<ReimaginedAuditHome entries={SAMPLE} />);
-    expect(screen.getByText(/3 entries total/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Activity Log/i })).toBeInTheDocument();
   });
 
   it('search filters rows by description text', () => {

@@ -73,9 +73,15 @@ describe('modeNeedsManagedKey', () => {
 // 3. The picker: Assured becomes SELECTABLE once a managed key is set, and is
 //    gated (not "coming soon") when it is not.
 // ---------------------------------------------------------------------------
+// The Assured card is only rendered when the user is in a firm context
+// (session.activated is truthy). Tests that check Assured selectability must
+// set up a firm session so the card appears at all.
+const FIRM_SESSION_STUB = { activated: true, email: 'admin@firm.example', role: 'admin' as const, org: null, seatId: null, seatExpiresAt: null };
+
 describe('ConfidentialityModeSettings — Assured selectability', () => {
   it('gates Assured behind a managed key with a "Needs admin key" hint (never "coming soon")', () => {
-    useFirmStore.setState({ assuredProviders: [] });
+    // Firm user with no managed key yet: card should appear but be disabled.
+    useFirmStore.setState({ assuredProviders: [], session: FIRM_SESSION_STUB });
     render(<ConfidentialityModeSettings />);
     const card = screen.getByTestId('confidentiality-mode-assured');
     expect(card).toHaveAttribute('data-disabled', 'true');
@@ -85,7 +91,7 @@ describe('ConfidentialityModeSettings — Assured selectability', () => {
   });
 
   it('makes Assured selectable when the firm has a managed key', () => {
-    useFirmStore.setState({ assuredProviders: ['anthropic'] });
+    useFirmStore.setState({ assuredProviders: ['anthropic'], session: FIRM_SESSION_STUB });
     render(<ConfidentialityModeSettings />);
     const card = screen.getByTestId('confidentiality-mode-assured');
     expect(card).toHaveAttribute('data-disabled', 'false');
@@ -94,6 +100,13 @@ describe('ConfidentialityModeSettings — Assured selectability', () => {
 
     fireEvent.click(card);
     expect(useSettingsStore.getState().getSetting(CONFIDENTIALITY_MODE_SETTING_KEY)).toBe('assured');
+  });
+
+  it('does NOT show the Assured card to solo (non-firm) users', () => {
+    // No firm session: Assured card must be absent entirely.
+    useFirmStore.setState({ assuredProviders: [], session: null });
+    render(<ConfidentialityModeSettings />);
+    expect(screen.queryByTestId('confidentiality-mode-assured')).toBeNull();
   });
 });
 

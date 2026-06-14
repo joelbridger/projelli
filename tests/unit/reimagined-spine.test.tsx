@@ -45,15 +45,15 @@ describe('ReimaginedSpine', () => {
     expect(nav.textContent).not.toMatch(/ai.?assistant/i);
   });
 
-  it('shows expected nav items: Matters, Ask, Documents, Associate', () => {
+  it('shows expected nav items: Matters, Search, Documents, Workflows', () => {
     render(<ReimaginedSpine />);
     // At least some core nav items should be present
     const navEl = screen.getByTestId('spine-nav');
     expect(navEl).toBeTruthy();
-    // Ask nav item should be present
-    const askBtn = screen.queryByRole('button', { name: /ask/i });
-    // There's an Ask button via title or label
-    expect(askBtn !== null || navEl.textContent?.includes('Ask')).toBe(true);
+    // Search nav item should be present
+    const searchBtn = screen.queryByRole('button', { name: /search/i });
+    // There's a Search button via title or label
+    expect(searchBtn !== null || navEl.textContent?.includes('Search')).toBe(true);
   });
 
   it('renders without crashing with no props', () => {

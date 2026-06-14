@@ -57,6 +57,8 @@ vi.mock('@/components/privacy/DataMapDialog', () => ({
   DataMapContent: ({ variant }: { variant: string }) => (
     <div data-testid="data-map-content-stub" data-variant={variant}>DataMapContent</div>
   ),
+  DataMapDialog: ({ open }: { open: boolean; onOpenChange: (v: boolean) => void }) =>
+    open ? <div data-testid="data-map-dialog-stub">DataMapDialog</div> : null,
 }));
 
 // useFirm default: not signed in
@@ -169,14 +171,16 @@ describe('GuidedOnboarding', () => {
     expect(screen.getByTestId('onboarding-step-ai-key')).toBeInTheDocument();
   });
 
-  it('DataMapContent is embedded in the Trust step', async () => {
+  it('Trust step renders with three plain-language bullets (no inline data-map accordion)', async () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
 
     expect(screen.getByTestId('onboarding-step-trust')).toBeInTheDocument();
-    expect(screen.getByTestId('data-map-content-stub')).toBeInTheDocument();
+    // Full data-map accordion is NOT embedded — only the three summary bullets + a link.
+    expect(screen.queryByTestId('data-map-content-stub')).not.toBeInTheDocument();
+    expect(screen.getByTestId('onboarding-trust-open-data-map')).toBeInTheDocument();
   });
 
   it('MailConnect is embedded in the Email step (M365 tab default)', async () => {
@@ -300,8 +304,8 @@ describe('GuidedOnboarding', () => {
     expect(screen.getByText(/your firm admin manages members/i)).toBeInTheDocument();
   });
 
-  // 8. Firm step — solo (not signed in)
-  it('firm step shows FirmSignIn + solo skip when not signed in', () => {
+  // 8. Firm step — solo (not signed in): solo button is dominant (top), FirmSignIn is secondary
+  it('firm step shows solo-first layout when not signed in: solo skip button above FirmSignIn', () => {
     mockUseFirm.mockReturnValue({
       isSignedIn: false,
       role: null,
@@ -330,8 +334,14 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('email-connect-later'));
 
     expect(screen.getByTestId('firm-signin-content')).toBeInTheDocument();
+    // Solo skip is the prominent top action
+    const soloBtn = screen.getByTestId('firm-solo-skip');
+    expect(soloBtn).toBeInTheDocument();
+    expect(soloBtn).toHaveTextContent(/I practice alone/i);
+    // FirmSignIn is present but secondary (below)
     expect(screen.getByTestId('firm-sign-in-stub')).toBeInTheDocument();
-    expect(screen.getByTestId('firm-solo-skip')).toBeInTheDocument();
+    // Heading reflects the new copy
+    expect(screen.getByText(/how do you practice\?/i)).toBeInTheDocument();
   });
 
   // 9. Skip (top-right) marks complete and calls onComplete
@@ -370,5 +380,71 @@ describe('GuidedOnboarding', () => {
 
     expect(localStorage.getItem('keepance_onboarding_complete')).toBe('true');
     expect(onComplete).toHaveBeenCalled();
+  });
+
+  // 11. Done step: primary CTA is "Create your first matter"
+  it('Done step primary CTA reads "Create your first matter"', () => {
+    render(<GuidedOnboarding {...defaultProps} />);
+    fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
+    fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
+    fireEvent.click(screen.getByTestId('onboarding-data-continue'));
+    fireEvent.click(screen.getByTestId('stub-skip-ai'));
+    fireEvent.click(screen.getByTestId('email-connect-later'));
+    fireEvent.click(screen.getByTestId('onboarding-firm-continue'));
+
+    expect(screen.getByTestId('onboarding-done-confirm')).toHaveTextContent(/create your first matter/i);
+  });
+
+  // 12. Done step: shows no-AI note when AI was skipped; hides it when AI was connected
+  it('Done step shows the no-AI note after AI was skipped', () => {
+    render(<GuidedOnboarding {...defaultProps} />);
+    fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
+    fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
+    fireEvent.click(screen.getByTestId('onboarding-data-continue'));
+    fireEvent.click(screen.getByTestId('stub-skip-ai'));
+    fireEvent.click(screen.getByTestId('email-connect-later'));
+    fireEvent.click(screen.getByTestId('onboarding-firm-continue'));
+
+    expect(screen.getByTestId('onboarding-done-no-ai-note')).toBeInTheDocument();
+  });
+
+  it('Done step hides the no-AI note when AI was connected via local model', () => {
+    render(<GuidedOnboarding {...defaultProps} />);
+    fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
+    fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
+    fireEvent.click(screen.getByTestId('onboarding-data-continue'));
+    fireEvent.click(screen.getByTestId('stub-use-local'));
+    fireEvent.click(screen.getByTestId('email-connect-later'));
+    fireEvent.click(screen.getByTestId('onboarding-firm-continue'));
+
+    expect(screen.queryByTestId('onboarding-done-no-ai-note')).not.toBeInTheDocument();
+  });
+
+  // 13. Trust step: shows 3 bullets + link; no full accordion embedded
+  it('Trust step shows plain-language bullets and no data-map accordion by default', () => {
+    render(<GuidedOnboarding {...defaultProps} />);
+    fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
+    fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
+
+    expect(screen.getByTestId('onboarding-step-trust')).toBeInTheDocument();
+    expect(screen.queryByTestId('data-map-content-stub')).not.toBeInTheDocument();
+    expect(screen.getByTestId('onboarding-trust-open-data-map')).toBeInTheDocument();
+    expect(screen.getByText(/Read the full data map/i)).toBeInTheDocument();
+    expect(screen.getByText(/your files and notes stay on your computer/i)).toBeInTheDocument();
+  });
+
+  it('Trust step opens the DataMapDialog when "Read the full data map" is clicked', () => {
+    render(<GuidedOnboarding {...defaultProps} />);
+    fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
+    fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
+
+    expect(screen.queryByTestId('data-map-dialog-stub')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('onboarding-trust-open-data-map'));
+    expect(screen.getByTestId('data-map-dialog-stub')).toBeInTheDocument();
   });
 });

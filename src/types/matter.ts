@@ -82,6 +82,14 @@ export interface Matter {
    * means it is a local-only matter.
    */
   shared?: boolean;
+
+  /**
+   * Whether this is the built-in sample matter seeded during onboarding.
+   * Sample matters are flagged so the UI can offer the first-run aha-moment
+   * flow without confusing them with real client work. Optional so matters
+   * created before this field landed parse cleanly (treated as `false`).
+   */
+  isSample?: boolean;
 }
 
 /**

@@ -71,8 +71,9 @@ import { AuditService, auditEventToEntry } from '@/modules/audit/AuditService';
 import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { MemoryService } from '@/modules/memory/MemoryService';
-import { getActiveScope } from '@/stores/matterStore';
+import { getActiveScope, getOrCreateSampleMatter, useMatterStore } from '@/stores/matterStore';
 import { MattersSidebarPanel } from '@/components/matter/MattersSidebarPanel';
+import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
 import { ragVerifyCitation, type RetrievalScope } from '@/utils/tauri-commands';
 import {
   createTemplatesMarketplaceService,
@@ -285,6 +286,9 @@ function App() {
   const [interviewResolver, setInterviewResolver] = useState<((answers: Record<string, string>) => void) | null>(null);
   const [interviewRejecter, setInterviewRejecter] = useState<((error: Error) => void) | null>(null);
   const [showInterviewDialog, setShowInterviewDialog] = useState(false);
+  // Bug 1: MatterManagerDialog open state — driven by the
+  // 'keepance:open-matter-manager' custom event from ReimaginedMattersHome.
+  const [matterManagerOpen, setMatterManagerOpen] = useState(false);
   // Active `.workflow` file path for the live execution. Used by the
   // sidebar "Current Execution" link and by debounced write-back so the
   // file on disk stays in sync with the running engine.
@@ -1472,7 +1476,66 @@ function App() {
   // in chat. AIChatViewer dispatches `keepance:open-email` for `mail:<id>`
   // sources; this hook turns that into an `email` tab. (Extracted to
   // useOpenEmailListener so the wiring is unit-tested.)
-  useOpenEmailListener(openTab);
+  //
+  // Bug 2 fix: wrap openTab so opening an email first navigates to the
+  // 'files' sidebar tab (where MainPanel + EmailViewer live). Without this,
+  // the tab is added while the full-page ReimaginedEmailWorkspace is active,
+  // so the email opens invisibly and the user sees nothing happen.
+  useOpenEmailListener(
+    useCallback(
+      (
+        id: string,
+        label: string,
+        content: string,
+        type: 'email',
+        meta: { mailSourceId: string },
+      ) => {
+        setSidebarActiveTab('files');
+        openTab(id, label, content, type, meta);
+      },
+      [openTab],
+    ),
+  );
+
+  // Bug 1 fix: listen for the 'keepance:open-matter-manager' custom event
+  // dispatched by the "New matter" buttons in ReimaginedMattersHome and open
+  // MatterManagerDialog (the canonical folder-picking + creation dialog).
+  useEffect(() => {
+    const handler = () => { setMatterManagerOpen(true); };
+    window.addEventListener('keepance:open-matter-manager', handler);
+    return () => { window.removeEventListener('keepance:open-matter-manager', handler); };
+  }, []);
+
+  // F5: listen for 'keepance:open-settings' dispatched by GetStartedCard in
+  // ReimaginedMattersHome. Opens Settings deep-linked to the given category.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const category = (e as CustomEvent<{ category?: import('@/settings/schema').SettingCategory }>)
+        .detail?.category;
+      openSettings(category);
+    };
+    window.addEventListener('keepance:open-settings', handler);
+    return () => { window.removeEventListener('keepance:open-settings', handler); };
+  }, [openSettings]);
+
+  // Wave F — listen for 'keepance:matter-launch' dispatched by the quick-action
+  // buttons on each matter row in ReimaginedMattersHome. Sets the active matter
+  // and jumps to the requested surface (search = Ask, files = Documents, email).
+  useEffect(() => {
+    const ALLOWED_SURFACES = new Set(['search', 'files', 'email'] as const);
+    type AllowedSurface = 'search' | 'files' | 'email';
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ matterId?: string; surface?: string } | null>).detail;
+      if (!detail?.matterId) return;
+      const surface = ALLOWED_SURFACES.has(detail.surface as AllowedSurface)
+        ? (detail.surface as AllowedSurface)
+        : 'search';
+      useMatterStore.getState().setActiveMatter(detail.matterId);
+      setSidebarActiveTab(surface);
+    };
+    window.addEventListener('keepance:matter-launch', handler);
+    return () => { window.removeEventListener('keepance:matter-launch', handler); };
+  }, []);
 
   // UX-35: shared writer that routes binary file extensions (.docx, .xlsx,
   // .pptx, .rtf, etc.) through writeFileBinary using the bytes decoded
@@ -3360,7 +3423,18 @@ This file contains rules and guidelines for AI assistants in this workspace.
       {...(workspaceServiceRef.current
         ? { workspace: workspaceServiceRef.current }
         : {})}
-      onComplete={() => { setShowFirstRun(false); }}
+      onComplete={(opts) => {
+        setShowFirstRun(false);
+        if (opts?.writeSamples && rootPath) {
+          try {
+            const sampleMatter = getOrCreateSampleMatter(rootPath);
+            useMatterStore.getState().setActiveMatter(sampleMatter.id);
+            setSidebarActiveTab('search');
+          } catch (err) {
+            console.warn('[App] sample-matter post-onboarding setup failed:', err instanceof Error ? err.message : String(err));
+          }
+        }
+      }}
     />
   ) : null;
 
@@ -3799,8 +3873,13 @@ This file contains rules and guidelines for AI assistants in this workspace.
         )}
       </div>
 
-      {/* Status bar */}
-      <StatusBar onOpenSettings={() => openSettings('license')} />
+      {/* Status bar. showFileContext=true only on the Documents/editor surface
+          (files tab) so the breadcrumb never shows stale editor context when
+          the user is on Search, Email, Workflows, etc. (A8.2). */}
+      <StatusBar
+        onOpenSettings={() => openSettings('license')}
+        showFileContext={sidebarActiveTab === 'files'}
+      />
 
       {/* MCP write-approval gate. Polls for sidecar write requests and renders
           the approval modal. In Privileged Matter Mode it auto-denies every MCP
@@ -3808,6 +3887,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
       <McpApprovalGate
         onAuditEvent={(event) => addAuditEntry(auditEventToEntry(event))}
       />
+
+      {/* Bug 1: MatterManagerDialog — opened by 'keepance:open-matter-manager'
+          events from the "New matter" buttons in ReimaginedMattersHome. */}
+      <MatterManagerDialog open={matterManagerOpen} onOpenChange={setMatterManagerOpen} />
 
       {/* Interview Dialog */}
       <Dialog open={showInterviewDialog} onOpenChange={setShowInterviewDialog}>

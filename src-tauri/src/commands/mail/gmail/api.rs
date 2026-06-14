@@ -225,9 +225,11 @@ impl GmailClient {
         body: &str,
         in_reply_to: Option<&str>,
         references: Option<&str>,
+        attachments: &[crate::commands::mail::AttachmentInput],
     ) -> anyhow::Result<String> {
         use base64::Engine;
-        use lettre::message::Mailboxes;
+        use lettre::message::{Attachment, Mailboxes, MultiPart, SinglePart};
+        use lettre::message::header::ContentType as LettreContentType;
         use lettre::Message;
         use std::str::FromStr;
 
@@ -265,9 +267,25 @@ impl GmailClient {
             builder = builder.references(refs.to_string());
         }
 
-        let email = builder
-            .body(body.to_string())
-            .map_err(|e| anyhow::anyhow!("build RFC822 message: {e}"))?;
+        let email = if attachments.is_empty() {
+            builder
+                .body(body.to_string())
+                .map_err(|e| anyhow::anyhow!("build RFC822 message: {e}"))?
+        } else {
+            let mut mixed = MultiPart::mixed()
+                .singlepart(SinglePart::plain(body.to_string()));
+            for att in attachments {
+                let bytes = base64::engine::general_purpose::STANDARD
+                    .decode(&att.content_base64)
+                    .map_err(|e| anyhow::anyhow!("decode attachment {:?}: {e}", att.name))?;
+                let ct = LettreContentType::parse(&att.content_type)
+                    .unwrap_or_else(|_| LettreContentType::parse("application/octet-stream").unwrap());
+                mixed = mixed.singlepart(Attachment::new(att.name.clone()).body(bytes, ct));
+            }
+            builder
+                .multipart(mixed)
+                .map_err(|e| anyhow::anyhow!("build RFC822 multipart message: {e}"))?
+        };
 
         let raw_bytes = email.formatted();
 

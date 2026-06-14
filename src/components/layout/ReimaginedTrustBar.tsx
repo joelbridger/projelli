@@ -39,10 +39,10 @@ export function ReimaginedTrustBar() {
 
   const egressTooltip =
     confidentialityMode === 'local-only'
-      ? 'Local-only: AI runs on your machine. Nothing leaves your device.'
+      ? 'On this computer only: AI runs on your machine. Nothing leaves your device.'
       : confidentialityMode === 'assured'
         ? 'Assured: requests route through your firm\'s zero-retention proxy. Keepance never sees content.'
-        : 'Direct to Anthropic (your account). Sent straight from your machine to Anthropic with your own API key. Keepance is not in between. Anthropic receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your Anthropic account.';
+        : 'Sent to your AI provider account. Sent straight from your machine to your provider with your own API key. Keepance is not in between. Your provider receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your provider account.';
 
   return (
     <div
@@ -71,15 +71,23 @@ export function ReimaginedTrustBar() {
 
       <div style={{ flex: 1 }} />
 
-      {/* The egress hero: compact pill, color-coded by confidentiality state. */}
-      <EgressIndicator provider="anthropic" mode={confidentialityMode} variant="compact" />
+      {/* The egress hero: compact pill, color-coded by confidentiality state.
+          max-w-none overrides the compact variant's default max-w-[260px] so the
+          full sentence ("On your machine. Nothing leaves.") never clips at any
+          viewport width. The flex-shrink:0 wrapper prevents the pill from being
+          squeezed by the sibling matter-scope label. */}
+      <div style={{ flexShrink: 0 }}>
+        <EgressIndicator provider="anthropic" mode={confidentialityMode} variant="compact" className="max-w-none" />
+      </div>
 
-      {/* Info affordance: reveals the full data-routing explanation on hover. */}
+      {/* Info affordance: reveals the full data-routing explanation on hover.
+          A7: title added as a standard browser tooltip alongside the Radix tooltip. */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             type="button"
             aria-label="Where does my data go?"
+            title="What is this?"
             style={{
               width: 24, height: 24, borderRadius: 4, border: 0, background: 'transparent',
               color: 'var(--color-muted-foreground)', cursor: 'pointer', display: 'grid', placeItems: 'center',
@@ -96,11 +104,11 @@ export function ReimaginedTrustBar() {
         </TooltipContent>
       </Tooltip>
 
-      {/* Data Map button */}
+      {/* Data Map button — A7: title already set; aria-label retained for screen readers. */}
       <button
         type="button"
         onClick={() => { setDataMapOpen(true); }}
-        title="Data Map: where your data goes, in plain English"
+        title="Where your data goes"
         aria-label="Open the Data Map"
         style={{
           width: 24, height: 24, borderRadius: 4, border: 0, background: 'transparent',

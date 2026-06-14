@@ -18,8 +18,10 @@ import {
   ExternalLink, Quote, ShieldCheck, AlertTriangle, Loader2,
   MessageSquare, Plus, Save,
 } from 'lucide-react';
-import { useActiveMatter } from '@/stores/matterStore';
+import { useActiveMatter, SAMPLE_MATTER_ID } from '@/stores/matterStore';
+import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
+import { getDemoAnswerForWorkspace, DEMO_QUESTIONS } from '@/onboarding/samples/sampleMatterDemo';
 import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
 import {
   DEFAULT_WORKSPACE_TOP_K,
@@ -81,6 +83,24 @@ function sourceLocator(s: WorkspaceSource): string {
     if (s.sourceType === 'pptx') return `${base} slide ${String(s.pageNumber)}`;
   }
   return `${citationBasename(s.path)} §${String(s.paragraphIndex)}`;
+}
+
+/**
+ * Returns true when the user has at least one valid cloud API key
+ * (Anthropic, OpenAI, or Google). Ollama is not considered a cloud key.
+ * This mirrors the priority order in buildProviderAsync but returns a boolean
+ * synchronously-from-localStorage so the demo branch can short-circuit before
+ * any async work.
+ */
+async function hasCloudKey(): Promise<boolean> {
+  const kc = new KeychainService('localStorage');
+  const anthropicKey = await kc.getKey('anthropic');
+  if (anthropicKey?.trim()) return true;
+  const openaiKey = await kc.getKey('openai');
+  if (openaiKey?.trim()) return true;
+  const googleKey = await kc.getKey('google');
+  if (googleKey?.trim()) return true;
+  return false;
 }
 
 async function buildProviderAsync(): Promise<Provider> {
@@ -385,6 +405,7 @@ function SourcePanel({
 
 export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (content: string) => Promise<void> }) {
   const activeMatter = useActiveMatter();
+  const rootPath = useWorkspaceStore((s) => s.rootPath);
   const scope = activeMatter ? matterLabel(activeMatter) : 'all matters';
 
   // Derive chatId from active matter
@@ -497,8 +518,12 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
     setChatId(sid);
   }, []);
 
-  const handleAsk = useCallback(async () => {
-    const q = question.trim();
+  /**
+   * Submit a question. An optional `overrideQuestion` bypasses the text input
+   * so chips on the sample matter can auto-submit without typing into the box.
+   */
+  const handleAsk = useCallback(async (overrideQuestion?: string) => {
+    const q = (overrideQuestion ?? question).trim();
     if (!q || status === 'retrieving' || status === 'answering') return;
 
     abortRef.current?.abort();
@@ -520,6 +545,31 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
     setQuestion('');
 
     try {
+      /* Demo branch: sample matter + no cloud key + matching question */
+      const isSampleMatter = activeMatter?.id === SAMPLE_MATTER_ID;
+      if (isSampleMatter && rootPath) {
+        const cloudKey = await hasCloudKey();
+        if (!cloudKey) {
+          const demo = getDemoAnswerForWorkspace(q, rootPath);
+          if (demo) {
+            if (abort.signal.aborted) return;
+            const completedTurn: AskTurn = {
+              question: q,
+              answer: demo.answer,
+              citations: demo.citations,
+              sources: [],
+            };
+            const now = new Date().toISOString();
+            addMessage(chatId, { role: 'user', content: q, timestamp: now });
+            addMessage(chatId, { role: 'assistant', content: demo.answer, timestamp: now });
+            setTurns((prev) => [...prev, completedTurn]);
+            setStreamingTurn(null);
+            setStatus('done');
+            return;
+          }
+        }
+      }
+
       /* Step 1: RAG retrieval */
       const retrievalScope: RetrievalScope = activeMatter
         ? { kind: 'matter', matterId: activeMatter.id }
@@ -661,7 +711,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
       setStreamingTurn(null);
       setStatus('error');
     }
-  }, [question, status, activeMatter, turns, chatId, addMessage]);
+  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -718,7 +768,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
               marginBottom: 3,
             }}
           >
-            Ask &middot; {scope}
+            Search &middot; {scope}
           </div>
           <h2
             style={{
@@ -755,7 +805,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
             }}
           >
             <Plus size={13} strokeWidth={2} />
-            New ask
+            New search
           </button>
         )}
       </div>
@@ -849,18 +899,29 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
                 What do you want to find?
               </div>
               <div style={{ fontSize: 12.5, maxWidth: 260, lineHeight: 1.6, color: 'var(--color-muted-foreground)', opacity: 0.85 }}>
-                Every answer cites the document and locator. Click any chip to read the exact passage.
+                {activeMatter?.id === SAMPLE_MATTER_ID
+                  ? 'This is a sample matter. Click a question below and see a cited answer. Click any citation to read the exact passage.'
+                  : 'Every answer cites the document and locator. Click any chip to read the exact passage.'}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 6 }}>
-                {([
-                  'Summarize the latest deposition',
-                  'Find every email from opposing counsel',
-                  'What deadlines are coming up?',
-                ] as const).map((example) => (
+                {(activeMatter?.id === SAMPLE_MATTER_ID
+                  ? (DEMO_QUESTIONS as unknown as string[])
+                  : [
+                      'Summarize the latest deposition',
+                      'Find every email from opposing counsel',
+                      'What deadlines are coming up?',
+                    ]
+                ).map((example) => (
                   <button
                     key={example}
                     type="button"
-                    onClick={() => { setQuestion(example); }}
+                    onClick={() => {
+                      if (activeMatter?.id === SAMPLE_MATTER_ID) {
+                        void handleAsk(example);
+                      } else {
+                        setQuestion(example);
+                      }
+                    }}
                     style={{
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -1055,7 +1116,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
             ) : (
               <ArrowRight size={14} strokeWidth={2} />
             )}
-            {status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : 'Ask'}
+            {status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : 'Search'}
           </button>
         </div>
       </div>

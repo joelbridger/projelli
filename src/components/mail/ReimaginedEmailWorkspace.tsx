@@ -55,6 +55,7 @@ import {
   mailSend,
   type MailListItem,
   type ConnectedAccount,
+  type MailAttachmentInput,
 } from '@/utils/mail-commands';
 import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
 import { ALL_PRIVILEGE_STATUSES, isPrivileged, type Privilege } from '@/types/privilege';
@@ -981,6 +982,8 @@ export function ReimaginedEmailWorkspace({
   const [composeSending, setComposeSending] = useState(false);
   const [composeSendResult, setComposeSendResult] = useState<'none' | 'success' | 'error' | 'scope_upgrade'>('none');
   const [composeSendError, setComposeSendError] = useState<string | null>(null);
+  const [composeAttachments, setComposeAttachments] = useState<MailAttachmentInput[]>([]);
+  const attachFileRef = useRef<HTMLInputElement>(null);
 
   // Debounce ref and request fingerprint tracking
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1315,6 +1318,7 @@ export function ReimaginedEmailWorkspace({
                 setComposeOpen(true);
                 setComposeSendResult('none');
                 setComposeSendError(null);
+                setComposeAttachments([]);
               }}
               style={{
                 display: 'inline-flex',
@@ -1478,7 +1482,7 @@ export function ReimaginedEmailWorkspace({
             placeholder={
               mode === 'keyword'
                 ? 'Search email...'
-                : 'Ask a question about your email...'
+                : 'Ask about your email...'
             }
             style={{
               flex: 1,
@@ -1489,6 +1493,7 @@ export function ReimaginedEmailWorkspace({
               background: 'transparent',
               padding: '9px 0',
               fontFamily: 'var(--font-sans)',
+              minWidth: 0,
             }}
           />
 
@@ -1956,6 +1961,94 @@ export function ReimaginedEmailWorkspace({
               </div>
             )}
 
+            {/* Ask AI empty state — no query typed yet */}
+            {!askLoading && !askError && !query.trim() && (
+              <div
+                data-testid="ask-empty-state"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  padding: '48px 24px 32px',
+                  gap: 12,
+                  textAlign: 'center',
+                }}
+              >
+                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                <div
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: 'var(--kp-navy)',
+                    fontFamily: 'var(--font-sans)',
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  Ask about your email
+                </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    color: 'var(--color-muted-foreground)',
+                    maxWidth: 360,
+                    lineHeight: 1.55,
+                  }}
+                >
+                  I search across your imported email and answer with citations you can open.
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    justifyContent: 'center',
+                    gap: 8,
+                    marginTop: 8,
+                  }}
+                >
+                  {[
+                    'Who emailed about the deposition?',
+                    'Find emails with attachments from opposing counsel',
+                    'What did the client agree to over email?',
+                  ].map((chip) => (
+                    <button
+                      key={chip}
+                      type="button"
+                      data-testid="ask-chip"
+                      onClick={() => {
+                        setQuery(chip);
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        padding: '6px 12px',
+                        borderRadius: 20,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: 'var(--kp-navy)',
+                        background: 'rgba(10,37,64,0.05)',
+                        border: '1px solid rgba(10,37,64,0.14)',
+                        cursor: 'pointer',
+                        fontFamily: 'var(--font-sans)',
+                        transition: 'background 0.1s, border-color 0.1s',
+                        textAlign: 'left',
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(10,37,64,0.09)';
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(10,37,64,0.22)';
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(10,37,64,0.05)';
+                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(10,37,64,0.14)';
+                      }}
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+              </div>
+            )}
+
             {!askLoading && !askError && askHits.length === 0 && query.trim() && (
               <div
                 data-testid="ask-no-results"
@@ -2130,8 +2223,8 @@ export function ReimaginedEmailWorkspace({
 
               {/* Subject */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 40, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
-                  Subj
+                <span style={{ width: 50, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+                  Subject
                 </span>
                 <input
                   type="text"
@@ -2163,6 +2256,102 @@ export function ReimaginedEmailWorkspace({
                   boxSizing: 'border-box',
                 }}
               />
+
+              {/* Attachments */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button
+                    type="button"
+                    data-testid="compose-attach"
+                    onClick={() => { attachFileRef.current?.click(); }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      padding: '4px 10px',
+                      borderRadius: 5,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      background: 'transparent',
+                      color: 'var(--color-muted-foreground)',
+                      border: '1px solid var(--color-border)',
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-sans)',
+                    }}
+                  >
+                    <Paperclip style={{ width: 12, height: 12, strokeWidth: 2 }} />
+                    Attach
+                  </button>
+                  <input
+                    ref={attachFileRef}
+                    type="file"
+                    multiple
+                    style={{ display: 'none' }}
+                    data-testid="compose-attach-input"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? []);
+                      files.forEach((file) => {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const dataUrl = reader.result as string;
+                          // dataUrl is "data:<mime>;base64,<data>"
+                          const b64 = dataUrl.split(',')[1] ?? '';
+                          setComposeAttachments((prev) => [
+                            ...prev,
+                            { name: file.name, contentBase64: b64, contentType: file.type || 'application/octet-stream' },
+                          ]);
+                        };
+                        reader.readAsDataURL(file);
+                      });
+                      // Reset so the same file can be re-added after removal
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+                {composeAttachments.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {composeAttachments.map((att, idx) => (
+                      <div
+                        key={`${att.name}-${String(idx)}`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '3px 8px',
+                          borderRadius: 4,
+                          fontSize: 11,
+                          background: '#f0f4ff',
+                          border: '1px solid var(--color-border)',
+                          color: 'var(--color-foreground)',
+                          fontFamily: 'var(--font-sans)',
+                        }}
+                      >
+                        <Paperclip style={{ width: 10, height: 10, strokeWidth: 2, color: 'var(--color-muted-foreground)' }} />
+                        <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {att.name}
+                        </span>
+                        <button
+                          type="button"
+                          data-testid={`compose-remove-attachment-${String(idx)}`}
+                          onClick={() => {
+                            setComposeAttachments((prev) => prev.filter((_, i) => i !== idx));
+                          }}
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: 0,
+                            display: 'flex',
+                            color: 'var(--color-muted-foreground)',
+                          }}
+                        >
+                          <X style={{ width: 10, height: 10, strokeWidth: 2 }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Send result states */}
               {composeSendResult === 'success' && (
@@ -2223,7 +2412,7 @@ export function ReimaginedEmailWorkspace({
                   setComposeSending(true);
                   setComposeSendResult('none');
                   setComposeSendError(null);
-                  void mailSend(composeProvider, composeAccount, toArr, ccArr, bccArr, composeSubject, composeBody)
+                  void mailSend(composeProvider, composeAccount, toArr, ccArr, bccArr, composeSubject, composeBody, undefined, composeAttachments.length > 0 ? composeAttachments : undefined)
                     .then(() => {
                       setComposeSending(false);
                       setComposeSendResult('success');
@@ -2237,6 +2426,7 @@ export function ReimaginedEmailWorkspace({
                         setComposeCcBccOpen(false);
                         setComposeSendResult('none');
                         setComposeSendError(null);
+                        setComposeAttachments([]);
                       }, 1500);
                     })
                     .catch((e: unknown) => {

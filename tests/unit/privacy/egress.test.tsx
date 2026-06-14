@@ -9,7 +9,7 @@
  *      path (the one path that must warn).
  *   2. EgressIndicator renders the matching label/severity:
  *        - Ollama (or Local-only mode) => "nothing leaves", severity=safe.
- *        - cloud provider, Direct mode  => "Direct to <Provider>" + the honest
+ *        - cloud provider, Direct mode  => "Sent to your <Provider> account" + the honest
  *          provider-sees-the-prompt note, severity=direct.
  *   3. Local-only mode disables the cloud new-chat buttons in the model picker.
  *   4. The data map renders the accurate, plain-English claims.
@@ -62,10 +62,10 @@ describe('resolveEgress (the single source of truth)', () => {
       expect(info.destination).toBe('provider-direct');
       expect(info.severity).toBe('direct');
       expect(info.dataLeaves).toBe(true);
-      // The label names the actual provider the user picked.
+      // The label names the actual provider the user picked and makes clear it is THEIR account.
       const expectedName = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' }[provider];
       expect(info.label).toContain(expectedName);
-      expect(info.label).toMatch(/your account/i);
+      expect(info.label).toMatch(/Sent to your/i);
       // The note is honest that the provider sees the prompt + that Keepance isn't in between.
       expect(info.note).toMatch(/receives the prompt/i);
       expect(info.note).toMatch(/Keepance is not in between/i);
@@ -113,23 +113,23 @@ describe('EgressIndicator', () => {
     expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/nothing leaves/i);
   });
 
-  it('shows "Direct to Anthropic" with the provider-sees-prompt note in Direct mode', () => {
+  it('shows "Sent to your Anthropic account" with the provider-sees-prompt note in Direct mode', () => {
     setMode('direct');
     render(<EgressIndicator provider="anthropic" />);
     const el = screen.getByTestId('egress-indicator');
     expect(el.getAttribute('data-destination')).toBe('provider-direct');
     expect(el.getAttribute('data-severity')).toBe('direct');
     expect(el.getAttribute('data-data-leaves')).toBe('true');
-    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Direct to Anthropic/i);
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Sent to your Anthropic account/i);
     expect(screen.getByTestId('egress-indicator-note').textContent).toMatch(/receives the prompt/i);
   });
 
   it('names OpenAI / Google correctly for those providers', () => {
     setMode('direct');
     const { rerender } = render(<EgressIndicator provider="openai" />);
-    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Direct to OpenAI/i);
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Sent to your OpenAI account/i);
     rerender(<EgressIndicator provider="google" />);
-    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Direct to Google/i);
+    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Sent to your Google account/i);
   });
 
   it('reflects Local-only mode: a cloud-provider chat shows nothing-leaves', () => {
@@ -147,7 +147,7 @@ describe('EgressIndicator', () => {
     const el = screen.getByTestId('egress-indicator-compact');
     expect(el.getAttribute('data-destination')).toBe('provider-direct');
     expect(el.getAttribute('data-severity')).toBe('direct');
-    expect(el.textContent).toMatch(/Direct to Anthropic/i);
+    expect(el.textContent).toMatch(/Sent to your Anthropic account/i);
   });
 
   it('honors an explicit mode prop over the stored setting', () => {

@@ -46,7 +46,11 @@ export interface ReimaginedDocumentsHomeProps {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-const REAL_FILE_TYPES = new Set(['file', 'browser', 'whiteboard']);
+// Tab types that render full-screen in the editor pane (mainPanelContent) and
+// should therefore auto-advance Documents from the browser to the editor view.
+// 'email' is included so opening an email from the Email surface actually shows
+// it (EmailViewer renders inside mainPanelContent) instead of the empty browser.
+const REAL_FILE_TYPES = new Set(['file', 'browser', 'whiteboard', 'email']);
 
 function isRealFileTab(type: string): boolean {
   return REAL_FILE_TYPES.has(type);
@@ -79,24 +83,24 @@ export function ReimaginedDocumentsHome({
 
   const [viewMode, setViewMode] = useState<'browser' | 'editor'>('browser');
 
-  // Auto-advance to editor view when a real file tab becomes active.
-  // Use a ref-guarded pattern to avoid calling setState synchronously inside
-  // an effect body (which triggers the react-hooks/set-state-in-effect lint rule).
-  const prevActiveTabRef = React.useRef<string | null>(null);
+  // Auto-advance to the editor view when a NEW real-file or email tab becomes
+  // active, so opening a file or an email actually shows it. We remember the
+  // tab we last advanced for in a ref so a later openTabs change for the SAME
+  // tab (content load after open, autosave) does not re-trigger — that previously
+  // cancelled a deferred setState and left the user stranded on the empty browser
+  // — and so the user can click "Documents" to return to the browser and stay there.
+  const advancedForRef = React.useRef<string | null>(null);
 
   useEffect(() => {
-    if (activeTabPath === null || activeTabPath === prevActiveTabRef.current) {
-      return undefined;
-    }
-    prevActiveTabRef.current = activeTabPath;
+    if (activeTabPath === null) return;
+    if (advancedForRef.current === activeTabPath) return;
     const matchingTab = openTabs.find((t) => t.path === activeTabPath);
-    const tabType = matchingTab?.type ?? 'file';
-    if (matchingTab && isRealFileTab(tabType)) {
-      // Schedule outside the synchronous effect body to satisfy the lint rule.
-      const id = setTimeout(() => { setViewMode('editor'); }, 0);
-      return () => { clearTimeout(id); };
+    if (!matchingTab) return; // not registered yet; wait for the next openTabs update
+    advancedForRef.current = activeTabPath;
+    if (isRealFileTab(matchingTab.type ?? 'file')) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setViewMode('editor');
     }
-    return undefined;
   }, [activeTabPath, openTabs]);
 
   // ── Browser view ──────────────────────────────────────────────────────

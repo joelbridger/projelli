@@ -179,6 +179,17 @@ fn frontmatter_subject(markdown: &str) -> String {
     String::new()
 }
 
+/// One attachment to include in an outgoing email.
+/// `content_base64` is standard base64 (not URL-safe) — the frontend reads
+/// File objects and encodes with `btoa` / `Buffer.from(...).toString('base64')`.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentInput {
+    pub name: String,
+    pub content_base64: String,
+    pub content_type: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceCodePrompt {
@@ -1626,18 +1637,20 @@ pub async fn mail_send(
     subject: String,
     body: String,
     in_reply_to_id: Option<String>,
+    attachments: Option<Vec<AttachmentInput>>,
 ) -> Result<String, String> {
     // Never log the body (may contain privileged content) or addresses (PII).
     // Log only the provider+account+subject-length for diagnostics.
     log::info!(
-        "mail_send: provider={provider} account={account} subject_len={}",
-        subject.len()
+        "mail_send: provider={provider} account={account} subject_len={} attachments={}",
+        subject.len(),
+        attachments.as_ref().map(|a| a.len()).unwrap_or(0),
     );
 
     match provider.as_str() {
-        "m365" => send_m365(state, to, cc, bcc, subject, body, in_reply_to_id).await,
-        "gmail" => send_gmail(state, to, cc, bcc, subject, body, in_reply_to_id).await,
-        "imap" => send_imap(state, account, to, cc, bcc, subject, body, in_reply_to_id).await,
+        "m365" => send_m365(state, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
+        "gmail" => send_gmail(state, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
+        "imap" => send_imap(state, account, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
         other => Err(format!("unknown provider: {other}")),
     }
 }
@@ -1722,6 +1735,7 @@ async fn send_m365(
     subject: String,
     body: String,
     _in_reply_to_id: Option<String>,
+    attachments: Vec<AttachmentInput>,
 ) -> Result<String, String> {
     let token = fresh_access_token().await?; // returns "scope_upgrade_required" when needed
     let client = crate::commands::mail::graph::GraphClient::new(token);
@@ -1737,6 +1751,7 @@ async fn send_m365(
             &body,
             None,
             true,
+            &attachments,
         )
         .await
         .map_err(|e| e.to_string())
@@ -1750,6 +1765,7 @@ async fn send_gmail(
     subject: String,
     body: String,
     in_reply_to_id: Option<String>,
+    attachments: Vec<AttachmentInput>,
 ) -> Result<String, String> {
     let token = fresh_gmail_access_token().await?; // returns "scope_upgrade_required" when needed
 
@@ -1792,6 +1808,7 @@ async fn send_gmail(
             &body,
             in_reply_to.as_deref(),
             references.as_deref(),
+            &attachments,
         )
         .await
         .map_err(|e| e.to_string())
@@ -1806,6 +1823,7 @@ async fn send_imap(
     subject: String,
     body: String,
     in_reply_to_id: Option<String>,
+    attachments: Vec<AttachmentInput>,
 ) -> Result<String, String> {
     let (cfg, password) = load_imap_config().ok_or("IMAP not connected")?;
 
@@ -1845,6 +1863,7 @@ async fn send_imap(
         &body,
         in_reply_to.as_deref(),
         references.as_deref(),
+        &attachments,
     )
     .await
     .map_err(|e| e.to_string())

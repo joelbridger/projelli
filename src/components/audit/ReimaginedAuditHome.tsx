@@ -143,7 +143,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   privilege_evaluated: 'Privilege Checked',
   scope_active: 'Active Matter',
   egress: 'AI Request Sent',
-  mcp_blocked: 'MCP Write Blocked',
+  mcp_blocked: 'External AI Write Blocked',
   matter_shared: 'Matter Shared',
   matter_unshared: 'Matter Unshared',
   member_invited: 'Member Invited',
@@ -203,7 +203,7 @@ const CATEGORY_BG: Record<ActionCategory, string> = {
 
 const CATEGORY_LABEL: Record<ActionCategory, string> = {
   file: 'File ops',
-  ai: 'AI / Egress',
+  ai: 'AI Requests',
   workflow: 'Workflow',
   privilege: 'Privilege',
   firm: 'Firm',
@@ -1179,7 +1179,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                   marginBottom: 2,
                 }}
               >
-                AI AUDIT
+                ACTIVITY LOG
               </div>
               <h1
                 style={{
@@ -1191,22 +1191,20 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                   lineHeight: 1.2,
                 }}
               >
-                AI Audit
+                Activity Log
               </h1>
             </div>
           </div>
           {/* eslint-disable keepance-i18n/no-hardcoded-string */}
           <p style={{ margin: 0, fontSize: 13, color: 'var(--color-muted-foreground)', lineHeight: 1.45, maxWidth: 520 }}>
-            An append-only record of every AI request, file change, and governance action in your workspace.
-            Export it any time as proof for a client, a court, or a compliance review.
-            {encrypted
-              ? ' Encrypted on this device.'
-              : ' Stored in your browser, not encrypted. Use the desktop app for confidential work.'}
-            {' '}
-            <span style={{ fontVariantNumeric: 'tabular-nums', color: '#334155', fontWeight: 600 }}>
-              {entries.length.toLocaleString()} {entries.length === 1 ? 'entry' : 'entries'} total.
-            </span>
+            Every AI request, file change, and workflow run in your workspace, logged and exportable.
+            Save it any time as proof for a client, a court, or a compliance review.
           </p>
+          {!encrypted && (
+            <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--color-muted-foreground)', lineHeight: 1.4, maxWidth: 520, opacity: 0.75 }}>
+              Stored in your browser, not encrypted. Use the desktop app for confidential work.
+            </p>
+          )}
           {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         </div>
 
