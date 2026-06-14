@@ -9,7 +9,7 @@
  * No Tailwind on the frame itself; uses CSS variables throughout so it adapts
  * if the host page ever changes class names.
  */
-import type { CSSProperties } from 'react';
+import { type CSSProperties, useRef, useEffect } from 'react';
 import { Check } from 'lucide-react';
 
 export interface StepInfo {
@@ -20,7 +20,7 @@ export interface StepInfo {
 export interface OnboardingStepFrameProps {
   steps: StepInfo[];
   activeIndex: number;
-  onSkip?: () => void;
+  onSkip?: (() => void) | undefined;
   footer?: React.ReactNode;
   children: React.ReactNode;
 }
@@ -74,6 +74,16 @@ function KeepanceMark() {
 const RAIL_W = 240;
 const CARD_PADDING = 40;
 
+// Focusable elements for the tab trap.
+const FOCUSABLE = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ');
+
 export function OnboardingStepFrame({
   steps,
   activeIndex,
@@ -81,6 +91,43 @@ export function OnboardingStepFrame({
   footer,
   children,
 }: OnboardingStepFrameProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Focus the card on mount; restore focus on unmount.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    cardRef.current?.focus();
+    return () => {
+      previouslyFocused?.focus();
+    };
+  }, []);
+
+  // Tab/Shift+Tab focus trap within the card.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const card = cardRef.current;
+      if (!card) return;
+      const focusable = Array.from(card.querySelectorAll<HTMLElement>(FOCUSABLE));
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!first || !last) return;
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => { document.removeEventListener('keydown', handleKeyDown); };
+  }, []);
+
   const backdrop: CSSProperties = {
     position: 'fixed',
     inset: 0,
@@ -213,7 +260,14 @@ export function OnboardingStepFrame({
 
       {/* Right content card */}
       <div style={cardWrap}>
-        <div style={card}>
+        <div
+          ref={cardRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Keepance setup"
+          tabIndex={-1}
+          style={{ ...card, outline: 'none' }}
+        >
           {onSkip && (
             <button
               type="button"

@@ -1,6 +1,7 @@
 use crate::commands::mail::crypto::encrypt_with_key;
+#[cfg(test)]
 use crate::commands::mail::graph::{page_continuation, Continuation, DeltaGone, GraphClient};
-use crate::commands::mail::model::MailMessage;
+use crate::commands::mail::model::{BodyContentType, MailMessage};
 use crate::commands::mail::normalize::to_markdown;
 use crate::commands::mail::provider::{Cursor, MailProvider, RemoteFolder};
 use crate::commands::mail::store::{MailRecord, MailStore};
@@ -19,6 +20,7 @@ fn safe_filename(id: &str) -> String {
 
 /// Apply one delta page to the store + disk. Idempotent: replays are harmless
 /// because upsert is by id and tombstone is a no-op when absent.
+#[cfg(test)]
 pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
                   page: &serde_json::Value) -> anyhow::Result<PageStats> {
     let mut stats = PageStats::default();
@@ -45,7 +47,12 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
             // Legacy Phase-1 plaintext path (removed by migrate_plaintext).
             // Searchable columns are populated here too so apply_page + a
             // plaintext store can also benefit from list_messages.
-            let snippet: String = msg.body_text
+            let snippet_source = match msg.body_content_type {
+                BodyContentType::Html =>
+                    crate::commands::mail::normalize::html_to_text(&msg.body_text),
+                BodyContentType::Text => msg.body_text.clone(),
+            };
+            let snippet: String = snippet_source
                 .chars()
                 .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
                 .take(200)
@@ -114,10 +121,14 @@ where
         std::fs::write(&blob_abs, &encrypted)?;
         let rel = format!(".keepance/mail/blobs/{}", blob_filename);
         // Build a ~200-char plaintext snippet from the body for the list surface.
-        // Newlines are collapsed to spaces; HTML is stored as-is at this layer
-        // (stripping HTML is a future task). Already-synced messages keep empty
-        // defaults until the next sync reaches them — that is acceptable.
-        let snippet: String = msg.body_text
+        // Newlines are collapsed to spaces; HTML bodies are stripped to text first
+        // so the snippet shows readable prose rather than raw markup.
+        let snippet_source = match msg.body_content_type {
+            BodyContentType::Html =>
+                crate::commands::mail::normalize::html_to_text(&msg.body_text),
+            BodyContentType::Text => msg.body_text.clone(),
+        };
+        let snippet: String = snippet_source
             .chars()
             .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
             .take(200)
@@ -223,6 +234,7 @@ pub fn migrate_plaintext(workspace_root: &Path) {
 /// Drive one folder to completion, persisting the cursor after each page.
 /// `emit` is a callback so the command layer can fire Tauri progress events
 /// and the test can pass a no-op.
+#[cfg(test)]
 pub async fn sync_folder<F: Fn(u32, u32) + Send>(
     client: &GraphClient, store: &(dyn MailStore + Sync), workspace_root: &Path,
     folder_id: &str, emit: &F,

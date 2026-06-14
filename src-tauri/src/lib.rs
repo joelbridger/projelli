@@ -117,6 +117,10 @@ pub fn run() {
             commands::mail::mail_list_messages,
             // WS-B/C — re-tag a mail folder's messages to a matter in place.
             commands::mail::mail_retag_folder_matter,
+            // Re-tag a single message's RAG chunks to a matter in place.
+            commands::mail::mail_retag_message_matter,
+            // Fetch one attachment's bytes on demand (never writes to disk).
+            commands::mail::mail_get_attachment,
             // Option B — heal mail RAG indexing that failed while the embedding
             // model was still downloading (no-op when the marker is absent).
             commands::mail::mail_backfill_rag,

@@ -146,15 +146,17 @@ import { usePluginRegistryStore } from '@/stores/pluginRegistryStore';
 import { usePluginManagerStore } from '@/stores/pluginManagerStore';
 import type { MarkdownEditorRef } from '@/components/editor/MarkdownEditor';
 
+// Module-level constants so the onboarding/tour effects have stable deps
+// and never need to be listed in exhaustive-deps disable comments.
+const IS_TEST_MODE =
+  typeof window !== 'undefined' &&
+  window.location.search.includes('testMode=true');
+const IS_DEMO_MODE =
+  typeof window !== 'undefined' &&
+  (window as unknown as { __keepanceDemo?: boolean }).__keepanceDemo === true;
+
 function App() {
   const { t } = useTranslation();
-  // Test mode: bypass workspace selector for E2E tests
-  const IS_TEST_MODE = typeof window !== 'undefined' &&
-                       window.location.search.includes('testMode=true');
-  // Demo build (keepance.com/try): main.tsx sets __keepanceDemo so we
-  // auto-open the pre-seeded OPFS workspace instead of the folder picker.
-  const IS_DEMO_MODE = typeof window !== 'undefined' &&
-                       (window as unknown as { __keepanceDemo?: boolean }).__keepanceDemo === true;
 
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE && !IS_DEMO_MODE);
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
@@ -209,7 +211,6 @@ function App() {
       return () => clearTimeout(id);
     }
     return undefined;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // v1.6: auto-show feature tour on first launch (post-first-run wizard) once
@@ -217,14 +218,17 @@ function App() {
   // Suppressed in test mode (other E2E specs) unless the URL explicitly opts
   // in via ?forceTour=true. The dedicated tour spec uses the opt-in, which
   // also bypasses the persistent completed/skipped flags for fast iteration.
+  // The tour must not open while the onboarding overlay is still visible.
   const FORCE_TOUR = typeof window !== 'undefined' &&
                      window.location.search.includes('forceTour=true');
   useEffect(() => {
     if ((IS_TEST_MODE || IS_DEMO_MODE) && !FORCE_TOUR) return;
     if (!FORCE_TOUR && !featureTour.shouldAutoShow) return;
+    // Do not open the tour while the onboarding overlay is open.
+    if (showFirstRun) return;
     const timeoutId = setTimeout(() => setTourOpen(true), 800);
     return () => clearTimeout(timeoutId);
-  }, [IS_TEST_MODE, FORCE_TOUR, featureTour.shouldAutoShow]);
+  }, [FORCE_TOUR, featureTour.shouldAutoShow, showFirstRun]);
   // Direct trigger for the WhatsNew changelog modal from outside the
   // WhatsNewLayer (e.g. the Settings → About → "What's new" action).
   // The local hook in WhatsNewLayer still owns the toast + first-run
@@ -3783,7 +3787,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
       {/* v1.6: 5-step Feature Tour (auto-shows on first launch) */}
       <FeatureTour
-        open={tourOpen}
+        open={tourOpen && !showFirstRun}
         onClose={() => setTourOpen(false)}
         onComplete={() => {
           featureTour.complete();

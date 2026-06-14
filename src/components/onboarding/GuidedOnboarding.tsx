@@ -18,7 +18,7 @@
 
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 
-import { useState, type ReactNode } from 'react';
+import { useState, useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Check } from 'lucide-react';
 
@@ -67,6 +67,11 @@ const PROFESSION_OPTIONS: ProfessionOption[] = [
     id: 'consulting',
     heading: 'Consulting & strategy',
     description: 'Independent consultants, fractional executives, and agency owners. Comes with the Consulting Practice template pack.',
+  },
+  {
+    id: 'advisor',
+    heading: 'Financial advisor / wealth',
+    description: 'RIAs, wealth managers, and financial planners. Comes with the Financial Advisory template pack.',
   },
   {
     id: 'other',
@@ -135,6 +140,8 @@ export function GuidedOnboarding({
   const [emailTab, setEmailTab] = useState<EmailTab>('m365');
   const [populateSamples, setPopulateSamples] = useState(true);
   const [isFinishing, setIsFinishing] = useState(false);
+  // Guard: ensures handleDone and skipAll each run the completion path at most once.
+  const completedRef = useRef(false);
 
   // Progress state for the rail badges
   const [doneSteps, setDoneSteps] = useState<Record<number, boolean>>({});
@@ -166,33 +173,41 @@ export function GuidedOnboarding({
   };
 
   // Skip everything: mark complete immediately and call onComplete.
+  // Hidden while isFinishing is true to prevent double-completion.
   const skipAll = () => {
+    if (completedRef.current) return;
+    completedRef.current = true;
     markOnboardingComplete(profession ?? 'other');
     onComplete({ writeSamples: false });
   };
 
   const handleDone = async () => {
+    if (completedRef.current) return;
+    completedRef.current = true;
     setIsFinishing(true);
     try {
       if (populateSamples && workspace) {
         await writeSampleFiles(workspace, profession ?? 'other');
       }
+      markStepDone(7);
+      markOnboardingComplete(profession ?? 'other');
+      onComplete({ writeSamples: populateSamples && Boolean(workspace) });
     } catch (err) {
-      // Don't block on a failed sample copy.
+      // Don't block on a failed sample copy — still complete onboarding.
       console.warn('[GuidedOnboarding] sample copy failed:', err instanceof Error ? err.message : String(err));
+      markStepDone(7);
+      markOnboardingComplete(profession ?? 'other');
+      onComplete({ writeSamples: false });
     } finally {
       setIsFinishing(false);
     }
-    markStepDone(7);
-    markOnboardingComplete(profession ?? 'other');
-    onComplete({ writeSamples: populateSamples && Boolean(workspace) });
   };
 
   return (
     <OnboardingStepFrame
       steps={steps}
       activeIndex={activeIndex}
-      onSkip={skipAll}
+      onSkip={isFinishing ? undefined : skipAll}
     >
       {activeIndex === 0 && (
         <WelcomeStep
@@ -235,8 +250,8 @@ export function GuidedOnboarding({
           tab={emailTab}
           onTabChange={setEmailTab}
           onBack={() => { goBack(4); }}
-          onAdvance={() => {
-            setOnboardingProgressStep('email', true);
+          onAdvance={(connected) => {
+            if (connected) setOnboardingProgressStep('email', true);
             advance(5);
           }}
         />
@@ -365,7 +380,28 @@ function ProfessionStep({ profession, onSelect, onBack, onNext }: ProfessionStep
 // Step 2 — Workspace explainer
 // ---------------------------------------------------------------------------
 
+const WORKSPACE_CHOICES = [
+  {
+    id: 'documents',
+    label: 'My Documents',
+    badge: 'Recommended',
+    path: '~/Documents/Keepance',
+  },
+  {
+    id: 'dropbox',
+    label: 'Dropbox',
+    path: '~/Dropbox/Keepance',
+  },
+  {
+    id: 'icloud',
+    label: 'iCloud Drive',
+    path: '~/Library/Mobile Documents/com~apple~CloudDocs/Keepance',
+  },
+] as const;
+
 function WorkspaceStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+  const [selected, setSelected] = useState<string>('documents');
+
   return (
     <div data-testid="onboarding-step-workspace">
       <Heading
@@ -373,28 +409,53 @@ function WorkspaceStep({ onBack, onNext }: { onBack: () => void; onNext: () => v
         subtitle="Keepance stores everything as plain files in a folder you choose. You own them."
       />
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 32 }}>
-        <p style={{ fontSize: 14, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.6 }}>
-          Pick any folder you like. A good starting point is{' '}
-          <code style={{ background: 'hsl(210 40% 96.1%)', borderRadius: 4, padding: '1px 5px', fontSize: 12, fontFamily: 'ui-monospace, monospace' }}>
-            ~/Documents/Keepance
-          </code>{' '}
-          or a synced folder like Dropbox or iCloud Drive.
-        </p>
-
-        <div style={{ borderRadius: 10, border: '1.5px solid hsl(214.3 31.8% 60%)', background: 'hsl(210 40% 96.1%)', padding: 16 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'hsl(222.2 84% 4.9%)' }}>Common choices</p>
-          <ul style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, color: 'hsl(215.4 16.3% 44%)', display: 'flex', flexDirection: 'column', gap: 4, listStyle: 'none', padding: 0 }}>
-            <li>~/Documents/Keepance</li>
-            <li>~/Dropbox/Keepance</li>
-            <li>~/Library/Mobile Documents/com~apple~CloudDocs/Keepance</li>
-          </ul>
-        </div>
-
-        <p style={{ fontSize: 12, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.5 }}>
-          You can change the folder later in Settings. All your files stay in the folder you pick; nothing is copied or uploaded.
-        </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+        {WORKSPACE_CHOICES.map((choice) => {
+          const sel = selected === choice.id;
+          return (
+            <button
+              key={choice.id}
+              type="button"
+              data-testid={`workspace-choice-${choice.id}`}
+              onClick={() => { setSelected(choice.id); }}
+              style={{
+                borderRadius: 10,
+                border: sel ? '2px solid var(--kp-navy)' : '1.5px solid hsl(214.3 31.8% 60%)',
+                padding: '14px 16px',
+                textAlign: 'left',
+                cursor: 'pointer',
+                background: sel ? 'rgba(10,37,64,0.06)' : '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                transition: 'border-color 0.15s, background 0.15s',
+              }}
+            >
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'hsl(222.2 84% 4.9%)' }}>{choice.label}</span>
+                  {'badge' in choice && (
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: 'var(--kp-navy)',
+                      background: 'rgba(10,37,64,0.08)', borderRadius: 4, padding: '1px 7px',
+                    }}>
+                      {choice.badge}
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: 12, color: 'hsl(215.4 16.3% 44%)', fontFamily: 'ui-monospace, monospace' }}>
+                  {choice.path}
+                </span>
+              </div>
+              {sel && <Check size={16} color="var(--kp-navy)" style={{ flex: 'none' }} />}
+            </button>
+          );
+        })}
       </div>
+
+      <p style={{ fontSize: 12, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.5, marginBottom: 24 }}>
+        You can change this later in Settings. All your files stay in the folder you pick; nothing is copied or uploaded.
+      </p>
 
       <StepFooter onBack={onBack} onNext={onNext} nextTestId="onboarding-workspace-next" />
     </div>
@@ -467,7 +528,8 @@ interface EmailStepProps {
   tab: EmailTabId;
   onTabChange: (t: EmailTabId) => void;
   onBack: () => void;
-  onAdvance: () => void;
+  /** connected=true marks the email step done; false (Connect later) does not. */
+  onAdvance: (connected: boolean) => void;
 }
 
 const EMAIL_TABS: { id: EmailTabId; label: string }[] = [
@@ -522,12 +584,12 @@ function EmailStep({ tab, onTabChange, onBack, onAdvance }: EmailStepProps) {
         <div style={{ display: 'flex', gap: 10 }}>
           <Button
             variant="outline"
-            onClick={onAdvance}
+            onClick={() => { onAdvance(false); }}
             data-testid="email-connect-later"
           >
             Connect later
           </Button>
-          <GradientButton onClick={onAdvance} data-testid="onboarding-email-continue">
+          <GradientButton onClick={() => { onAdvance(true); }} data-testid="onboarding-email-continue">
             Continue
           </GradientButton>
         </div>

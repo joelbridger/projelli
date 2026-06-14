@@ -5,19 +5,59 @@
  *   - it fetches the message by id and renders from / to / cc / subject / date,
  *   - the body is rendered as TEXT (no HTML executes) and residual tags are
  *     stripped defensively,
- *   - the attachments list shows when the message has attachments,
- *   - a fetch failure shows a friendly error instead of crashing.
+ *   - the attachments list shows when the message has attachments (clickable buttons),
+ *   - a fetch failure shows a friendly error instead of crashing,
+ *   - file-to-matter section renders with matter buttons,
+ *   - reply area renders with Draft with AI and mailto link.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
 const mockMailGetMessage = vi.fn();
+const mockMailGetAttachment = vi.fn();
+const mockMailRetagMessageMatter = vi.fn();
 
 vi.mock('@/utils/mail-commands', () => ({
-  get mailGetMessage() {
-    return mockMailGetMessage;
-  },
+  get mailGetMessage() { return mockMailGetMessage; },
+  get mailGetAttachment() { return mockMailGetAttachment; },
+  get mailRetagMessageMatter() { return mockMailRetagMessageMatter; },
+}));
+
+vi.mock('@/stores/matterStore', () => ({
+  useMatters: vi.fn(() => [
+    { id: 'm1', name: 'Acme v. Beta', client: 'Acme', folderPaths: [], createdAt: '' },
+  ]),
+  useActiveMatter: vi.fn(() => null),
+}));
+
+vi.mock('@/stores/privilegeStore', () => ({
+  usePrivilegeStore: vi.fn(() => vi.fn()),
+  usePrivilegeForSource: vi.fn(() => 'none'),
+}));
+
+vi.mock('@/modules/memory/matterResolver', () => ({
+  matterLabel: vi.fn((m: { name: string }) => m.name),
+}));
+
+// Stub i18n so we don't need the full provider
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (k: string) => k }),
+}));
+
+// Stub provider building so Draft with AI doesn't hit real APIs
+vi.mock('@/modules/models/KeychainService', () => ({
+  createKeychainService: vi.fn(() => ({ getKey: vi.fn(async () => null) })),
+}));
+
+vi.mock('@/modules/models/OllamaProvider', () => ({
+  OllamaProvider: vi.fn().mockImplementation(() => ({
+    sendMessage: vi.fn(async () => ({ content: 'Draft reply here.' })),
+  })),
+}));
+
+vi.mock('@/utils/fileDrop', () => ({
+  deriveFilenameFromMessage: vi.fn(() => 'reply-draft.md'),
 }));
 
 import { EmailViewer, stripResidualTags } from '@/components/mail/EmailViewer';
@@ -32,6 +72,7 @@ function sampleMessage(overrides: Partial<MailView> = {}): MailView {
     cc: ['Boss <boss@firm.com>'],
     date: '2026-05-01T14:30:00Z',
     provider: 'm365',
+    account: 'default',
     body: 'Confirming May 14. The closing is at 10am.',
     hasAttachments: false,
     attachments: [],
@@ -80,13 +121,18 @@ describe('EmailViewer', () => {
     expect(body.textContent).not.toContain('<img');
   });
 
-  it('shows an attachments row when the message has attachments', async () => {
+  it('shows an attachments row with clickable download buttons when the message has attachments', async () => {
     mockMailGetMessage.mockResolvedValue(
-      sampleMessage({ hasAttachments: true, attachments: [{ name: 'contract.pdf' }] }),
+      sampleMessage({
+        hasAttachments: true,
+        attachments: [{ id: 'att-1', name: 'contract.pdf' }],
+      }),
     );
     render(<EmailViewer sourceId="AAMk-xyz" />);
     const att = await screen.findByTestId('email-viewer-attachments');
     expect(att).toHaveTextContent('contract.pdf');
+    // Download button is present
+    expect(screen.getByTestId('attachment-download-att-1')).toBeInTheDocument();
   });
 
   it('shows a friendly error when the message cannot be opened', async () => {
@@ -102,5 +148,24 @@ describe('EmailViewer', () => {
     expect(stripResidualTags('a <b>x</b> c')).toBe('a x c');
     expect(stripResidualTags('no tags here')).toBe('no tags here');
     expect(stripResidualTags('<script>evil()</script>safe')).toBe('evil()safe');
+  });
+
+  it('shows the file-to-matter section with matter buttons', async () => {
+    mockMailGetMessage.mockResolvedValue(sampleMessage());
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-file-to-matter');
+    // Matter button exists
+    expect(screen.getByTestId('file-to-matter-btn-m1')).toBeInTheDocument();
+    expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveTextContent('Acme v. Beta');
+  });
+
+  it('shows the reply area with Draft with AI and mailto link', async () => {
+    mockMailGetMessage.mockResolvedValue(sampleMessage());
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-reply-area');
+    expect(screen.getByTestId('reply-draft-ai-btn')).toBeInTheDocument();
+    const mailtoLink = screen.getByTestId('reply-mailto-link');
+    expect(mailtoLink).toHaveAttribute('href', expect.stringContaining('mailto:'));
+    expect(mailtoLink).toHaveAttribute('href', expect.stringContaining('Re%3A'));
   });
 });

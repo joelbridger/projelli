@@ -92,11 +92,11 @@ describe('AiSetupStep — plain English before jargon', () => {
   it('leads with a plain-English explanation and the three paths, with no key field visible', () => {
     renderStep();
 
-    // The plain-English framing is present up front.
+    // The simplified subtitle is present up front.
     expect(
-      screen.getByText(/Keepance uses an AI like Claude to help/i),
+      screen.getByText(/Keepance connects to your own AI account/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/never pass through Keepance/i)).toBeInTheDocument();
+    expect(screen.getByText(/never through us/i)).toBeInTheDocument();
 
     // All three paths are offered as cards.
     expect(screen.getByTestId('ai-path-own-account')).toBeInTheDocument();

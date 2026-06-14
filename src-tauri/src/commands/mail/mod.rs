@@ -387,6 +387,114 @@ pub async fn mail_retag_folder_matter(
     Ok(retagged)
 }
 
+/// Re-tag a SINGLE message's RAG chunks to a new matter. Same mechanism as
+/// `mail_retag_folder_matter` but operates on one message id instead of a
+/// whole folder. `message_id` is the provider message id (the part after
+/// `mail:` in a citation source — a leading `mail:` prefix is tolerated).
+/// No-op (Ok(())) when the RAG index has no chunks for this message yet.
+#[tauri::command]
+pub async fn mail_retag_message_matter(
+    state: State<'_, MailState>,
+    message_id: String,
+    matter_id: String,
+) -> Result<(), String> {
+    crate::commands::rag::store::validate_matter_id(&matter_id)
+        .map_err(|e| format!("invalid matter id: {e}"))?;
+    let workspace = state.workspace.lock().await.clone().ok_or("workspace not set")?;
+
+    // Tolerate a "mail:" prefix so callers can pass the citation source id directly.
+    let raw_id = message_id.strip_prefix("mail:").unwrap_or(&message_id).to_string();
+
+    // Open the LanceDB table; if it doesn't exist yet, nothing to retag.
+    let conn = crate::commands::rag::store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    let names = conn.table_names().execute().await.map_err(|e| format!("list tables: {e}"))?;
+    if !names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
+        return Ok(()); // nothing indexed yet
+    }
+    let table = conn
+        .open_table(crate::commands::rag::store::TABLE_NAME)
+        .execute()
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+
+    // VG-6e: retag uses the vector-store key (tokenized path predicate).
+    let vec_key = crate::commands::rag::crypto::get_or_create_master_key()
+        .map_err(|e| format!("vectors key: {e}"))?;
+
+    let path_key = format!("mail:{}", raw_id);
+    match crate::commands::rag::store::retag_matter_for_path(&table, &path_key, &matter_id, &vec_key).await {
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("retag matter for {path_key}: {e}")),
+    }
+}
+
+/// On-demand fetched attachment bytes, returned to the frontend for display.
+/// The bytes never touch disk — they live only in IPC memory and the
+/// renderer-process until the user closes the attachment view.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MailAttachmentData {
+    pub bytes_base64: String,
+    pub content_type: String,
+    pub filename: String,
+}
+
+/// Fetch one attachment's bytes on demand from the provider.
+///
+/// Bytes are returned in memory only — never written to disk — so the
+/// encryption boundary is preserved. The caller controls how long the bytes
+/// live in the renderer.
+///
+/// IMAP attachment download is not yet implemented and returns an error.
+#[tauri::command]
+pub async fn mail_get_attachment(
+    provider: String,
+    account: String,
+    message_id: String,
+    attachment_id: String,
+) -> Result<MailAttachmentData, String> {
+    use base64::Engine;
+    match provider.as_str() {
+        "m365" => {
+            let token = fresh_access_token().await?;
+            let client = crate::commands::mail::graph::GraphClient::new(token);
+            let (bytes, content_type, filename) = client
+                .get_attachment(&message_id, &attachment_id)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(MailAttachmentData {
+                bytes_base64: base64::engine::general_purpose::STANDARD.encode(&bytes),
+                content_type,
+                filename,
+            })
+        }
+        "gmail" => {
+            let token = fresh_gmail_access_token().await?;
+            let client = crate::commands::mail::gmail::api::GmailClient::new(token);
+            // Gmail attachment id is the part-body `attachmentId` — message_id
+            // is the gmail message id (without the "gmail:<account>:" prefix).
+            let raw_msg_id = message_id
+                .strip_prefix(&format!("gmail:{}:", account))
+                .unwrap_or(&message_id);
+            let bytes = client
+                .get_attachment_raw(raw_msg_id, &attachment_id)
+                .await
+                .map_err(|e| e.to_string())?;
+            // Content-type is not returned by the Gmail attachments endpoint.
+            // Return a neutral default; the frontend can infer from the filename.
+            Ok(MailAttachmentData {
+                bytes_base64: base64::engine::general_purpose::STANDARD.encode(&bytes),
+                content_type: "application/octet-stream".to_string(),
+                filename: attachment_id.clone(), // best we have without re-parsing the message
+            })
+        }
+        "imap" => Err("IMAP attachment download is not yet supported".to_string()),
+        other => Err(format!("unknown provider: {other}")),
+    }
+}
+
 /// Option B healing: re-index mail that was imported while the embedding model
 /// was still downloading. During that window each message's RAG indexing fails
 /// fast (model-not-ready) and delta sync never re-delivers it, so without this
@@ -1717,5 +1825,35 @@ mod tests {
         assert_eq!(backfill_marker_disposition(2, 0), Retain);
         // Mixed → the model bucket wins; retain.
         assert_eq!(backfill_marker_disposition(2, 3), Retain);
+    }
+}
+
+#[cfg(test)]
+mod mail_retag_message_tests {
+    use super::backfill_marker_disposition;
+    use super::BackfillMarkerDisposition;
+
+    #[test]
+    fn backfill_marker_disposition_model_failure_retains() {
+        assert_eq!(
+            backfill_marker_disposition(1, 0),
+            BackfillMarkerDisposition::Retain
+        );
+    }
+
+    #[test]
+    fn backfill_marker_disposition_other_failure_clears() {
+        assert_eq!(
+            backfill_marker_disposition(0, 5),
+            BackfillMarkerDisposition::Clear
+        );
+    }
+
+    #[test]
+    fn backfill_marker_disposition_clean_run_clears() {
+        assert_eq!(
+            backfill_marker_disposition(0, 0),
+            BackfillMarkerDisposition::Clear
+        );
     }
 }

@@ -29,6 +29,7 @@ vi.mock('@/utils/mail-commands', () => ({
   mailGetMessage: vi.fn(),
   mailConnectedAccounts: vi.fn(),
   mailRetagFolderMatter: vi.fn(),
+  mailRetagMessageMatter: vi.fn(),
 }));
 
 vi.mock('@/stores/matterStore', () => ({
@@ -58,6 +59,7 @@ import {
   mailGetMessage,
   mailConnectedAccounts,
   mailRetagFolderMatter,
+  mailRetagMessageMatter,
 } from '@/utils/mail-commands';
 import { useActiveMatter, useMatters } from '@/stores/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
@@ -118,6 +120,7 @@ const mockMailListMessages = mailListMessages as ReturnType<typeof vi.fn>;
 const mockMailGetMessage = mailGetMessage as unknown as ReturnType<typeof vi.fn>;
 const mockMailConnectedAccounts = mailConnectedAccounts as ReturnType<typeof vi.fn>;
 const mockMailRetagFolderMatter = mailRetagFolderMatter as ReturnType<typeof vi.fn>;
+const mockMailRetagMessageMatter = mailRetagMessageMatter as ReturnType<typeof vi.fn>;
 const mockUseActiveMatter = useActiveMatter as ReturnType<typeof vi.fn>;
 const mockUseMatters = useMatters as ReturnType<typeof vi.fn>;
 const mockUsePrivilegeForSource = usePrivilegeForSource as ReturnType<typeof vi.fn>;
@@ -149,6 +152,7 @@ function setupDefaultMocks() {
     attachments: [],
   });
   mockMailRetagFolderMatter.mockResolvedValue(1);
+  mockMailRetagMessageMatter.mockResolvedValue(undefined);
   mockUseActiveMatter.mockReturnValue(null);
   mockUseMatters.mockReturnValue(FIXTURE_MATTERS);
   // usePrivilegeStore is called as a selector: (s) => s.setPrivilege
@@ -231,6 +235,10 @@ describe('ReimaginedEmailWorkspace', () => {
     render(<ReimaginedEmailWorkspace />);
     await waitForInitialLoad();
 
+    // Expand the filter row (collapsed by default)
+    const filtersToggle = screen.getByTestId('filters-toggle');
+    fireEvent.click(filtersToggle);
+
     // Change provider filter
     const providerSelect = screen.getByTestId('provider-filter');
     fireEvent.change(providerSelect, { target: { value: 'm365' } });
@@ -291,8 +299,8 @@ describe('ReimaginedEmailWorkspace', () => {
     expect(mockSetPrivilege).toHaveBeenCalledWith('mail:msg-001', 'attorney-client');
   });
 
-  // 6. File-to-matter calls mailRetagFolderMatter with correct args
-  it('calls mailRetagFolderMatter with correct args when a matter is chosen', async () => {
+  // 6. File-to-matter (per-message) calls mailRetagMessageMatter with correct args
+  it('calls mailRetagMessageMatter with correct args when a matter is chosen from per-row action', async () => {
     render(<ReimaginedEmailWorkspace />);
     await waitForInitialLoad();
 
@@ -311,12 +319,12 @@ describe('ReimaginedEmailWorkspace', () => {
       await vi.advanceTimersByTimeAsync(50);
     });
 
-    expect(mockMailRetagFolderMatter).toHaveBeenCalledWith(
-      'm365',
-      'default',
-      'inbox',
+    // Per-row "File" action uses per-message retag (not folder retag)
+    expect(mockMailRetagMessageMatter).toHaveBeenCalledWith(
+      'msg-001',
       'matter-1',
     );
+    expect(mockMailRetagFolderMatter).not.toHaveBeenCalled();
   });
 
   // 7. Shows loading state when fetching

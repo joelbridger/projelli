@@ -39,10 +39,19 @@ vi.mock('@/modules/models/OllamaProvider', () => ({
 vi.mock('@/modules/models/ClaudeProvider', () => ({ ClaudeProvider: vi.fn() }));
 vi.mock('@/modules/models/OpenAIProvider', () => ({ OpenAIProvider: vi.fn() }));
 vi.mock('@/modules/models/GeminiProvider', () => ({ GeminiProvider: vi.fn() }));
-vi.mock('@/stores/aiChatStore', () => ({
-  useAIChatStore: (selector: (s: { initSession: typeof mockInitSession; addMessage: typeof mockAddMessage; updateLastMessage: typeof mockUpdateLastMessage; sessions: typeof mockSessions }) => unknown) =>
-    selector({ initSession: mockInitSession, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions }),
-}));
+// The mock must expose both the hook form (selector call) and the static
+// getState() method used by Fix #1 (stale-sessions bug).
+// vi.mock factories are hoisted, so we cannot reference variables declared
+// after them. We build the mock inside the factory using only references
+// that are safe at hoist time (the module-level `mock*` vars are declared
+// with `const` above, but they are initialised before the factory runs
+// because Vitest processes the hoisted factory lazily on first import).
+vi.mock('@/stores/aiChatStore', () => {
+  const hook = (selector: (s: unknown) => unknown) =>
+    selector({ initSession: mockInitSession, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions });
+  hook.getState = () => ({ initSession: mockInitSession, addMessage: mockAddMessage, updateLastMessage: mockUpdateLastMessage, sessions: mockSessions });
+  return { useAIChatStore: hook };
+});
 
 describe('ReimaginedAsk', () => {
   beforeEach(() => { vi.clearAllMocks(); });
@@ -95,8 +104,25 @@ describe('ReimaginedAsk', () => {
 
   it('shows empty state when no turns', () => {
     render(<ReimaginedAsk />);
-    // The empty state text is present
-    expect(screen.getByText(/ask a question about/i)).toBeDefined();
+    // The updated empty state headline
+    expect(screen.getByText(/what do you want to find/i)).toBeDefined();
+  });
+
+  it('shows example chips in empty state', () => {
+    render(<ReimaginedAsk />);
+    expect(screen.getByText(/summarize the latest deposition/i)).toBeDefined();
+    expect(screen.getByText(/find every email from opposing counsel/i)).toBeDefined();
+    expect(screen.getByText(/what deadlines are coming up/i)).toBeDefined();
+  });
+
+  it('clicking an example chip fills the input without submitting', () => {
+    render(<ReimaginedAsk />);
+    const chip = screen.getByText(/summarize the latest deposition/i);
+    fireEvent.click(chip);
+    const input = screen.getByRole('textbox') as HTMLInputElement;
+    expect(input.value).toBe('Summarize the latest deposition');
+    // initSession should only have been called once (on mount), not again for a submit
+    expect(mockInitSession).toHaveBeenCalledTimes(1);
   });
 
   it('submitting question does not throw (smoke test)', () => {
@@ -134,6 +160,36 @@ describe('ReimaginedAsk', () => {
       expect(screen.queryByText(/\{\d\}/)).toBeNull();
       // The words that flanked the markers are now adjacent (markers removed).
       expect(screen.getByText(/timeline and the location/i)).toBeDefined();
+    } finally {
+      delete mockSessions['ask-global'];
+    }
+  });
+
+  it('restores turns from getState() not closed-over sessions (Fix #1 stale-snapshot)', () => {
+    // Regression guard: the chatId-change effect previously read the closed-over
+    // `sessions` selector value, which is always the snapshot at render time.
+    // For a freshly-mounted component with a pre-seeded store the closed-over
+    // value would be stale and turns would be empty. Fix #1 reads getState()
+    // instead so the post-initSession value is always fresh.
+    //
+    // We seed mockSessions (which getState() returns) BEFORE render so that the
+    // effect reads pre-existing messages. The component should display the
+    // restored question text, proving it used getState() not the stale selector.
+    mockSessions['ask-global'] = {
+      chatId: 'ask-global',
+      messages: [
+        { role: 'user', content: 'What is the statute of limitations?', timestamp: '2026-01-01T00:00:00Z' },
+        { role: 'assistant', content: 'The statute runs three years from discovery.', timestamp: '2026-01-01T00:00:00Z' },
+      ],
+      isLoading: false,
+      lastUpdated: '2026-01-01T00:00:00Z',
+    };
+    try {
+      render(<ReimaginedAsk />);
+      // The restored question should appear in the conversation.
+      expect(screen.getByText(/what is the statute of limitations/i)).toBeDefined();
+      // The restored answer should appear (stripped of any chip markers).
+      expect(screen.getByText(/statute runs three years/i)).toBeDefined();
     } finally {
       delete mockSessions['ask-global'];
     }

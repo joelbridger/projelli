@@ -13,23 +13,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-// M1 (v1.5) Memory: RAG indexer status badge.
-import { RagStatusBadge } from '@/components/memory/RagStatusBadge';
 // WS-B/C: active-matter (confidentiality scope) indicator.
 import { useActiveMatter } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { BugReportDialog } from '@/components/common/BugReportDialog';
 import { TrialStatusChip } from '@/components/trial';
-// WS-C: compact egress mirror — shown when an AI chat is the active tab so the
-// "where does this go?" answer is visible even from the status bar.
-import { EgressIndicator } from '@/components/privacy/EgressIndicator';
-import type { EgressProvider } from '@/modules/privacy/egress';
 // Privileged Matter Mode: persistent badge stating network extensions are off.
 import { usePrivilegedMatterMode } from '@/hooks/usePrivilegedMatterMode';
-// F-120: persistent direct-mode egress signal.
-import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
 // F-120 (VG-5a): live pulse while a provider request is actually in flight.
 import { useEgressActivityStore } from '@/modules/privacy/egressActivity';
+import { useConfidentialityMode } from '@/hooks/useConfidentialityMode';
 
 /**
  * Extract project name from full path
@@ -145,30 +138,8 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
   const activeMatter = useActiveMatter();
   // Privileged Matter Mode: when active, network plugins + MCP are disabled.
   const privilegedMode = usePrivilegedMatterMode();
-  // F-120: persistent confidentiality-mode signal — read here, evaluated after
-  // activeChatProvider below so the derived flag can reference it.
+  // F-120 (VG-5a): confidentiality mode — used to gate the egress activity pulse.
   const confidentialityMode = useConfidentialityMode();
-
-  // WS-C: when the active tab is an AI chat, surface the compact egress mirror
-  // for that chat's provider. We parse the provider out of the chat file's JSON
-  // content (the same field AIChatViewer drives the indicator from), so the
-  // status-bar mirror reflects the REAL destination of the next send.
-  const activeChatProvider = useMemo<EgressProvider | null>(() => {
-    if (!activeTab || !activeTab.path.endsWith('.aichat')) return null;
-    try {
-      const parsed = JSON.parse(activeTab.content) as { provider?: string };
-      return (parsed.provider ?? 'anthropic') as EgressProvider;
-    } catch {
-      // Unparsed/empty chat file: still an AI chat, default to the app default.
-      return 'anthropic';
-    }
-  }, [activeTab]);
-
-  // F-120: show the persistent indicator when the mode is not local AND no chat
-  // tab is already driving an egress indicator (avoids a double-badge).
-  // 'anthropic' is used as the display provider when no chat is open — it drives
-  // the correct severity/icon for direct and assured modes.
-  const showPersistentEgress = !activeChatProvider && confidentialityMode !== 'local-only';
 
   // F-120 — active egress pulse: visible while a provider request is in
   // flight, held ~2.5s after the last one so streamed sends don't flicker.
@@ -181,8 +152,8 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
       return undefined;
     }
     if (!pulseVisible) return undefined;
-    const id = setTimeout(() => setPulseVisible(false), 2500);
-    return () => clearTimeout(id);
+    const id = setTimeout(() => { setPulseVisible(false); }, 2500);
+    return () => { clearTimeout(id); };
   }, [egressActiveCount, lastEgressAt, pulseVisible]);
 
   const projectName = getProjectName(rootPath, t('layout.status-bar.no-workspace'));
@@ -290,7 +261,7 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
                       <DropdownMenuItem
                         key={seg.folderPath}
                         data-testid={`status-bar-breadcrumb-collapsed-${seg.label}`}
-                        onClick={() => navigateToFolder(seg.folderPath)}
+                        onClick={() => { navigateToFolder(seg.folderPath); }}
                       >
                         {seg.label}
                       </DropdownMenuItem>
@@ -373,11 +344,8 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
           </div>
         )}
 
-        {/* F-120 (VG-5a): live "sending" pulse. The static badges below say
-            where requests WOULD go; this one appears only while a provider
-            request is actually in flight (and holds briefly so a streamed
-            send never reads as a flicker). Suppressed in local-only mode —
-            Ollama traffic never passes getCorsSafeFetch, but belt-and-braces. */}
+        {/* F-120 (VG-5a): live "sending" pulse. Only while a provider request is
+            actually in flight. Suppressed in local-only mode. */}
         {pulseVisible && confidentialityMode !== 'local-only' && (
           <span
             data-testid="egress-activity-pulse"
@@ -388,30 +356,7 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
           </span>
         )}
 
-        {/* WS-C: compact egress mirror. Only rendered when an AI chat is the
-            active tab, so the destination is visible from the status bar
-            without cluttering it during plain editing. */}
-        {activeChatProvider && (
-          <EgressIndicator provider={activeChatProvider} variant="compact" />
-        )}
-
-        {/* F-120: persistent Direct/Assured egress signal. When no AI chat is
-            the active tab, the status bar used to show nothing in Direct mode —
-            making it look identical to local-only mode. This ensures the user
-            can always see where AI requests would go, even while editing a doc.
-            Uses 'anthropic' as the display provider when no chat is open; the
-            actual provider is set per-chat and is irrelevant here — the severity
-            colour and label come from the mode (direct = sky, assured = indigo). */}
-        {showPersistentEgress && (
-          <EgressIndicator
-            provider="anthropic"
-            mode={confidentialityMode}
-            variant="compact"
-          />
-        )}
-
-        {/* WS-B/C: active-matter scope indicator. Always visible so the user
-            knows which matter the AI is confined to, even outside a chat. */}
+        {/* WS-B/C: active-matter scope indicator. */}
         <div
           data-testid="status-bar-matter"
           data-scope={activeMatter ? 'matter' : 'allMatters'}
@@ -435,21 +380,15 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
           </span>
         </div>
 
-        <RagStatusBadge />
-
-        <div data-testid="status-bar-tab-count">
-          {t('layout.status-bar.tabs-open', { count: openTabs.length })}
-        </div>
-
+        {/* Bug report: icon-only to minimise visual noise. */}
         <button
           type="button"
           data-testid="status-bar-bug-report"
-          className="flex items-center gap-1 text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground"
           title={t('layout.status-bar.bug-report-title')}
-          onClick={() => setBugReportOpen(true)}
+          onClick={() => { setBugReportOpen(true); }}
         >
           <Bug className="h-3 w-3" />
-          <span>{t('layout.status-bar.bug-report-cta')}</span>
         </button>
       </div>
 
@@ -481,7 +420,7 @@ function BreadcrumbButton({
       type="button"
       data-testid={`status-bar-breadcrumb-${segment.label}`}
       data-breadcrumb-path={segment.folderPath}
-      onClick={() => onNavigate(segment.folderPath)}
+      onClick={() => { onNavigate(segment.folderPath); }}
       className="px-1 truncate max-w-[160px] rounded-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       title={segment.folderPath}
     >

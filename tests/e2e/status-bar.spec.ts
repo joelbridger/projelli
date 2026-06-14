@@ -35,11 +35,9 @@ test.describe('Fix #6: Status Bar Project Name', () => {
     }
   });
 
-  test('status bar shows tab count', async ({ page }) => {
-    const tabCount = page.getByTestId('status-bar-tab-count');
-    await expect(tabCount).toBeVisible();
-    const text = await tabCount.textContent();
-    expect(text).toMatch(/\d+ files? open/);
+  test('status bar shows matter scope indicator', async ({ page }) => {
+    const matter = page.getByTestId('status-bar-matter');
+    await expect(matter).toBeVisible();
   });
 
   test('visual snapshot: status bar', async ({ page }) => {

@@ -10,8 +10,9 @@ import type { MailMatterMapEntry } from '@/modules/memory/matterResolver';
 
 export interface DeviceCodePrompt { userCode: string; verificationUri: string; deviceCode: string; intervalSecs: number; expiresInSecs: number; }
 
-/** One attachment, name only (v1 mail lists names; opening is a follow-up). */
-export interface MailAttachmentRef { name: string; }
+/** One attachment reference. `id` is a stable provider-specific id used to
+ *  fetch bytes on demand via `mailGetAttachment`. */
+export interface MailAttachmentRef { id: string; name: string; }
 
 /** A decrypted, structured email message for the read-only viewer. Mirror of
  *  the Rust `MailView` returned by `mail_get_message`. */
@@ -23,6 +24,8 @@ export interface MailView {
   cc: string[];
   date: string | null;
   provider: string | null;
+  /** Provider account identifier (e.g. "default" or "user@example.com"). */
+  account: string | null;
   body: string;
   hasAttachments: boolean;
   attachments: MailAttachmentRef[];
@@ -184,10 +187,10 @@ export interface MailListPage {
   total: number;
 }
 
-/** True when the dev fixture flag (?mailFixture=1) is set in a browser (non-Tauri).
+/** True when the dev fixture flag (?mailFixture=1) is set in a browser (non-Tauri) DEV build.
  *  Lets the email surface render populated in the dev server for review/QA. */
 function mailFixtureEnabled(): boolean {
-  return !isTauri() && typeof window !== 'undefined'
+  return import.meta.env.DEV && !isTauri() && typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).get('mailFixture') === '1';
 }
 
@@ -217,7 +220,11 @@ function applyQueryToFixtures(fixtures: MailListItem[], q: MailListQuery): MailL
     if (q.provider && item.provider !== q.provider) return false;
     if (q.account && item.account !== q.account) return false;
     if (q.dateFrom && item.receivedDateTime && item.receivedDateTime < q.dateFrom) return false;
-    if (q.dateTo && item.receivedDateTime && item.receivedDateTime > q.dateTo) return false;
+    // Treat dateTo as end-of-day inclusive: append T23:59:59.999Z if it's a date-only string.
+    if (q.dateTo && item.receivedDateTime) {
+      const upperBound = q.dateTo.includes('T') ? q.dateTo : `${q.dateTo}T23:59:59.999Z`;
+      if (item.receivedDateTime > upperBound) return false;
+    }
     if (q.hasAttachments !== undefined && item.hasAttachments !== q.hasAttachments) return false;
     return true;
   });
@@ -260,4 +267,35 @@ export async function gmailIsConnected(): Promise<boolean> {
 export async function gmailDisconnect(): Promise<void> {
   if (!isTauri()) return;
   return invoke<void>('gmail_disconnect');
+}
+
+/** Re-tag a single message's RAG chunks to a new matter in place.
+ *  `messageId` may be the raw provider id or a `mail:<id>` citation source id.
+ *  No-op outside Tauri (fixture mode: resolves immediately). */
+export async function mailRetagMessageMatter(
+  messageId: string,
+  matterId: string,
+): Promise<void> {
+  if (!isTauri()) return;
+  return invoke<void>('mail_retag_message_matter', { messageId, matterId });
+}
+
+/** On-demand fetched attachment bytes. The bytes never touch the local
+ *  filesystem — they are held only in renderer-process memory. */
+export interface MailAttachmentData {
+  bytesBase64: string;
+  contentType: string;
+  filename: string;
+}
+
+/** Fetch one attachment's bytes from the provider on demand.
+ *  Never persists to disk. Throws outside Tauri. */
+export async function mailGetAttachment(
+  provider: string,
+  account: string,
+  messageId: string,
+  attachmentId: string,
+): Promise<MailAttachmentData> {
+  if (!isTauri()) throw new Error('Attachment fetch is only available in the desktop app.');
+  return invoke<MailAttachmentData>('mail_get_attachment', { provider, account, messageId, attachmentId });
 }

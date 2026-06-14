@@ -13,12 +13,13 @@ import { cn } from '@/lib/utils';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { useFirm } from '@/hooks/useFirm';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/mail-commands';
+import type { SettingCategory } from '@/settings/schema';
 
 interface SetupChecklistProps {
   /** Trigger the GuidedOnboarding flow non-destructively (re-shows without clearing data). */
   onRestartOnboarding: () => void;
   /** Navigate to another settings category by id. */
-  onNavigate: (category: string) => void;
+  onNavigate: (category: SettingCategory) => void;
 }
 
 interface ChecklistRowProps {

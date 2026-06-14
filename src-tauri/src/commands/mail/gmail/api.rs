@@ -155,6 +155,31 @@ impl GmailClient {
             .map(String::from)
             .ok_or_else(|| anyhow::anyhow!("Gmail profile response missing historyId field"))
     }
+
+    /// `GET /gmail/v1/users/me/messages/{id}/attachments/{att_id}` — returns the
+    /// raw bytes (base64url-encoded `data` field in the response). On non-2xx logs
+    /// locally and returns a status-only error.
+    pub async fn get_attachment_raw(
+        &self,
+        message_id: &str,
+        attachment_id: &str,
+    ) -> anyhow::Result<Vec<u8>> {
+        use base64::Engine;
+        let url = format!(
+            "{}/gmail/v1/users/me/messages/{}/attachments/{}",
+            self.base, message_id, attachment_id
+        );
+        let v = self.get_json(&url).await?;
+        let data = v
+            .get("data")
+            .and_then(|d| d.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Gmail attachment response missing `data` field"))?;
+        let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(data)
+            .or_else(|_| base64::engine::general_purpose::URL_SAFE.decode(data))
+            .map_err(|e| anyhow::anyhow!("base64 decode attachment: {e}"))?;
+        Ok(bytes)
+    }
 }
 
 /// Gmail says: honour the Retry-After seconds; if absent, back off

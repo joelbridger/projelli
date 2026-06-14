@@ -99,7 +99,7 @@ export function ReimaginedSpine({
         </button>
         {nav.map(({ id, label, Icon }) => (
           <button key={id} type="button" title={label} aria-current={active === id}
-            data-testid={`spine-nav-${id}`}
+            data-testid={`spine-nav-collapsed-${id}`}
             onClick={() => onTabChange?.(id)}
             style={{ width: 38, height: 38, borderRadius: 8, border: 0, cursor: 'pointer', color: active === id ? '#fff' : 'rgba(255,255,255,0.66)', background: active === id ? 'rgba(93,198,255,0.14)' : 'transparent' }}>
             <Icon size={18} style={{ margin: '0 auto' }} strokeWidth={1.75} />
