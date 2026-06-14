@@ -16,7 +16,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Sparkles, ArrowRight, CheckCircle2, FileText,
   ExternalLink, Quote, ShieldCheck, AlertTriangle, Loader2,
-  MessageSquare, Plus, Save,
+  MessageSquare, Plus, Save, X,
 } from 'lucide-react';
 import { useActiveMatter, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -143,16 +143,26 @@ function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
     const userMsg = messages[i];
     const assistantMsg = messages[i + 1];
     if (userMsg && assistantMsg && userMsg.role === 'user' && assistantMsg.role === 'assistant') {
-      turns.push({
-        question: userMsg.content,
-        // Citations aren't persisted, so strip the {n} chip markers from the
-        // stored answer — reloaded history reads as clean prose (the live
-        // conversation keeps its clickable chips). Without this, restored
-        // turns would show raw "{1}" tokens in the text.
-        answer: assistantMsg.content.replace(/\s*\{\d+\}/g, ''),
-        citations: [],
-        sources: [],
-      });
+      if (assistantMsg.askCitations && assistantMsg.askCitations.length > 0) {
+        // Citations were persisted: keep the {n} markers so chips render, and
+        // restore the full citation + source data. This is the path that makes
+        // reloaded/navigated answers keep their clickable chips and source panel.
+        turns.push({
+          question: userMsg.content,
+          answer: assistantMsg.content,
+          citations: assistantMsg.askCitations,
+          sources: assistantMsg.askSources ?? [],
+        });
+      } else {
+        // Legacy messages (pre-fix) have no persisted citations. Strip the {n}
+        // markers so raw tokens don't appear in plain-text restored prose.
+        turns.push({
+          question: userMsg.content,
+          answer: assistantMsg.content.replace(/\s*\{\d+\}/g, ''),
+          citations: [],
+          sources: [],
+        });
+      }
       i += 2;
     } else if (userMsg && userMsg.role === 'user' && (!assistantMsg || assistantMsg.role !== 'assistant')) {
       // Trailing lone user message (orphaned, no matching assistant reply).
@@ -400,6 +410,111 @@ function SourcePanel({
 }
 
 /* -------------------------------------------------------------------------- */
+/* Constants                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const SAMPLE_BRIDGE_DISMISSED_KEY = 'keepance:sample-bridge-dismissed';
+
+/* -------------------------------------------------------------------------- */
+/* SampleBridgeCallout — gentle nudge to add real files (sample matter only)  */
+/* -------------------------------------------------------------------------- */
+
+function SampleBridgeCallout() {
+  const [dismissed, setDismissed] = useState(
+    () => localStorage.getItem(SAMPLE_BRIDGE_DISMISSED_KEY) === '1',
+  );
+
+  if (dismissed) return null;
+
+  const handleDismiss = () => {
+    localStorage.setItem(SAMPLE_BRIDGE_DISMISSED_KEY, '1');
+    setDismissed(true);
+  };
+
+  const handleAddMatter = () => {
+    window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
+  };
+
+  return (
+    <div
+      data-testid="sample-bridge-callout"
+      style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 12,
+        padding: '12px 14px',
+        borderRadius: 9,
+        border: '1px solid var(--color-border)',
+        background: 'var(--color-secondary)',
+        marginTop: 8,
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p
+          style={{
+            fontSize: 13,
+            color: 'var(--color-foreground)',
+            lineHeight: 1.55,
+            margin: 0,
+          }}
+        >
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          This is sample data. When you are ready, add your first real matter to search your own files.
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </p>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <button
+          type="button"
+          data-testid="sample-bridge-add-matter"
+          onClick={handleAddMatter}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '5px 11px',
+            borderRadius: 6,
+            border: '1px solid var(--kp-navy)',
+            background: 'var(--kp-navy)',
+            color: '#fff',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          Add a matter
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </button>
+        <button
+          type="button"
+          data-testid="sample-bridge-dismiss"
+          onClick={handleDismiss}
+          aria-label="Dismiss"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 24,
+            height: 24,
+            borderRadius: 5,
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-background)',
+            color: 'var(--color-muted-foreground)',
+            cursor: 'pointer',
+            padding: 0,
+            flexShrink: 0,
+          }}
+        >
+          <X size={13} strokeWidth={2} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
 /* Main component                                                               */
 /* -------------------------------------------------------------------------- */
 
@@ -444,13 +559,34 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
     })
     .slice(0, 5);
 
+  // Matter-scoped prior sessions: sessions whose key starts with "ask-<matterId>"
+  // (covers both the base id and timestamped variants like ask-<matterId>-<ts>).
+  // Only shown for non-sample real matters on the empty/landing state.
+  const matterSessionPrefix = activeMatter ? `ask-${activeMatter.id}` : null;
+  const matterRecentSessions = matterSessionPrefix !== null
+    ? Object.entries(sessions)
+        .filter(([key, session]) =>
+          key.startsWith(matterSessionPrefix) &&
+          session.messages.some((m) => m.role === 'user') &&
+          key !== chatId,
+        )
+        .map(([key, session]) => {
+          const firstUserMsg = session.messages.find((m) => m.role === 'user');
+          return { chatId: key, label: firstUserMsg?.content ?? key };
+        })
+        .slice(0, 5)
+    : [];
+
   // On mount / chatId change: init session and reconstruct turns from persisted messages.
   // Fix #1: read getState() instead of the closed-over `sessions` selector so we always
   // see the post-initSession state, not a stale snapshot captured at render time.
+  // A3: for the sample matter, always start with the empty chip state (never restore a
+  // prior demo answer) so the "click a question" aha moment shows on every fresh visit.
   useEffect(() => {
     initSession(chatId, []);
+    const isSampleChat = activeMatter?.id === SAMPLE_MATTER_ID;
     const freshSession = useAIChatStore.getState().sessions[chatId];
-    if (freshSession && freshSession.messages.length > 0) {
+    if (!isSampleChat && freshSession && freshSession.messages.length > 0) {
       const reconstructed = reconstructTurns(freshSession.messages);
       setTurns(reconstructed);
     } else {
@@ -561,12 +697,37 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
             };
             const now = new Date().toISOString();
             addMessage(chatId, { role: 'user', content: q, timestamp: now });
-            addMessage(chatId, { role: 'assistant', content: demo.answer, timestamp: now });
+            addMessage(chatId, {
+              role: 'assistant',
+              content: demo.answer,
+              timestamp: now,
+              askCitations: demo.citations,
+              askSources: [],
+            });
             setTurns((prev) => [...prev, completedTurn]);
             setStreamingTurn(null);
             setStatus('done');
             return;
           }
+          // A4: sample matter + no cloud key + question not in demo set.
+          // Do not fall through to RAG or the AI provider — neither will work.
+          // Push a calm bridging message and stop.
+          if (abort.signal.aborted) return;
+          const bridgeAnswer =
+            "That question is outside this sample. Connect an AI provider in Settings to ask your own files, or try one of the example questions below.";
+          const bridgeTurn: AskTurn = {
+            question: q,
+            answer: bridgeAnswer,
+            citations: [],
+            sources: [],
+          };
+          const nowBridge = new Date().toISOString();
+          addMessage(chatId, { role: 'user', content: q, timestamp: nowBridge });
+          addMessage(chatId, { role: 'assistant', content: bridgeAnswer, timestamp: nowBridge });
+          setTurns((prev) => [...prev, bridgeTurn]);
+          setStreamingTurn(null);
+          setStatus('done');
+          return;
         }
       }
 
@@ -690,10 +851,17 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
         sources,
       };
 
-      // Persist to store as two ChatMessage entries
+      // Persist to store as two ChatMessage entries.
+      // A1: persist askCitations + askSources on the assistant message so that
+      // clickable {n} chips and the Verified source panel survive navigation/reload.
       const now = new Date().toISOString();
       const userMsg: ChatMessage = { role: 'user', content: q, timestamp: now };
-      const assistantMsg: ChatMessage = { role: 'assistant', content: rewritten, timestamp: now };
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: rewritten,
+        timestamp: now,
+        ...(citations.length > 0 ? { askCitations: citations, askSources: sources } : {}),
+      };
       addMessage(chatId, userMsg);
       addMessage(chatId, assistantMsg);
 
@@ -944,6 +1112,68 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
                   </button>
                 ))}
               </div>
+              {/* C1 — "Recent in this matter" for non-sample real matters */}
+              {activeMatter && activeMatter.id !== SAMPLE_MATTER_ID && matterRecentSessions.length > 0 && (
+                <div
+                  data-testid="recent-in-matter"
+                  style={{
+                    marginTop: 8,
+                    width: '100%',
+                    maxWidth: 380,
+                    textAlign: 'left',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: '0.11em',
+                      textTransform: 'uppercase',
+                      color: 'var(--color-muted-foreground)',
+                      marginBottom: 7,
+                    }}
+                  >
+                    Recent in this matter
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {matterRecentSessions.map(({ chatId: sid, label }) => (
+                      <button
+                        key={sid}
+                        type="button"
+                        data-testid="matter-session-item"
+                        onClick={() => { handleLoadSession(sid); }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '7px 11px',
+                          borderRadius: 7,
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-background)',
+                          color: 'var(--color-foreground)',
+                          fontSize: 12.5,
+                          fontWeight: 400,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          width: '100%',
+                          transition: 'background 0.1s',
+                        }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-secondary)'; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-background)'; }}
+                      >
+                        <MessageSquare size={13} strokeWidth={1.75} style={{ color: 'var(--kp-navy)', flex: 'none', opacity: 0.55 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                          {label.length > 60 ? `${label.slice(0, 60)}…` : label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* B2: bridge callout — only on sample matter, dismissible */}
+              {activeMatter?.id === SAMPLE_MATTER_ID && (
+                <SampleBridgeCallout />
+              )}
               {/* eslint-enable keepance-i18n/no-hardcoded-string */}
             </div>
           )}
@@ -977,6 +1207,11 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
               isPersisted={false}
               isStreaming
             />
+          )}
+
+          {/* B2: bridge callout below demo answers (sample matter with turns) */}
+          {activeMatter?.id === SAMPLE_MATTER_ID && turns.length > 0 && !streamingTurn && (
+            <SampleBridgeCallout />
           )}
 
           {/* Error */}
@@ -1207,8 +1442,10 @@ function TurnBlock({
           />
         )}
 
-        {/* Privacy attestation (completed turns only) */}
-        {!isStreaming && turn.answer && (
+        {/* Privacy attestation (completed cited turns only).
+            A2: shown only when citations exist, so it is never contradicted
+            by the "No indexed sources" note below — the two are mutually exclusive. */}
+        {!isStreaming && turn.answer && turn.citations.length > 0 && (
           <div
             style={{
               padding: '9px 12px',
@@ -1229,7 +1466,8 @@ function TurnBlock({
           </div>
         )}
 
-        {/* No citations note */}
+        {/* No citations note — only shows when there are genuinely no citations.
+            A2: mutually exclusive with the attestation above. */}
         {!isStreaming && turn.citations.length === 0 && turn.answer && (
           <div style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}>
             {/* eslint-disable keepance-i18n/no-hardcoded-string */}

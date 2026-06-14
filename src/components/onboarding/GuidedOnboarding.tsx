@@ -729,8 +729,19 @@ interface DoneStepProps {
   onConfirm: () => void;
 }
 
+function getSampleLabel(profession: Profession | null): string {
+  switch (profession) {
+    case 'legal': return 'legal matters';
+    case 'tax': return 'tax files';
+    case 'consulting': return 'consulting files';
+    case 'advisor': return 'advisory files';
+    default: return 'files';
+  }
+}
+
 function DoneStep({ profession, populateSamples, onToggleSamples, isFinishing, aiConnected, onBack, onConfirm }: DoneStepProps) {
   const sampleCount = getSamplesForProfession(profession ?? 'other').length;
+  const sampleLabel = getSampleLabel(profession);
 
   return (
     <div data-testid="onboarding-step-done">
@@ -757,10 +768,10 @@ function DoneStep({ profession, populateSamples, onToggleSamples, isFinishing, a
           />
           <div>
             <p style={{ fontSize: 14, fontWeight: 600, color: 'hsl(222.2 84% 4.9%)', marginBottom: 4 }}>
-              Add sample legal matters so I can try things before adding real cases
+              Add sample {sampleLabel} so I can try things before adding real clients
             </p>
             <p style={{ fontSize: 12, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.5 }}>
-              Adds {sampleCount} realistic {sampleCount === 1 ? 'matter' : 'matters'} to your workspace. You can delete them any time.
+              Adds {sampleCount} realistic {sampleCount === 1 ? 'sample' : 'samples'} to your workspace. You can delete them any time.
             </p>
           </div>
         </label>
@@ -779,7 +790,7 @@ function DoneStep({ profession, populateSamples, onToggleSamples, isFinishing, a
           disabled={isFinishing}
           data-testid="onboarding-done-confirm"
         >
-          {isFinishing ? 'Setting up...' : 'Create your first matter'}
+          {isFinishing ? 'Setting up...' : populateSamples ? 'Explore the sample matter' : 'Create your first matter'}
         </GradientButton>
       </div>
     </div>

@@ -3432,7 +3432,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
             setSidebarActiveTab('search');
           } catch (err) {
             console.warn('[App] sample-matter post-onboarding setup failed:', err instanceof Error ? err.message : String(err));
+            // Landing on Matters ensures the Get-started card is visible.
+            setSidebarActiveTab('matters');
           }
+        } else {
+          // No samples written: land on Matters so the Get-started card is visible.
+          setSidebarActiveTab('matters');
         }
       }}
     />

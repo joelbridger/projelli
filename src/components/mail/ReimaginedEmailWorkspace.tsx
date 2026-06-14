@@ -1501,6 +1501,7 @@ export function ReimaginedEmailWorkspace({
           {query && (
             <button
               type="button"
+              aria-label="Clear search"
               onClick={handleClearQuery}
               style={{
                 flex: 'none',

@@ -78,10 +78,11 @@ export function sampleFilePath(workspaceRoot: string, filename: string): string 
 // Demo questions
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Three natural litigator questions about the Garcia matter. */
-export const DEMO_QUESTIONS: [string, string, string] = [
+/** Four natural litigator questions about the Garcia matter, strongest first. */
+export const DEMO_QUESTIONS: [string, string, string, string] = [
   'What are the open issues in this matter?',
   'Summarize the Garcia matter for me.',
+  'What is the status of the Meridian correspondence?',
   'What is the fee arrangement?',
 ];
 
@@ -139,6 +140,31 @@ const DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
           'Roberto documented every incident. He has temperature logs pulled from a smart thermostat, three letters he sent to Meridian\'s property manager via certified mail, and two email threads with their maintenance coordinator. Meridian has not responded to either of the last two certified letters.',
         path: MATTER_OVERVIEW_PATH,
         locator: 'Sample - Matter Overview.md §Client (paragraph 2)',
+        verified: true,
+      },
+    ],
+  },
+
+  'What is the status of the Meridian correspondence?': {
+    answer:
+      'The correspondence backlog with Meridian is now cleared. {1} Three certified mail responses were drafted and sent during the week of May 19 to May 25, 2026. {1} Prior to that, Roberto had already documented the dispute with three certified letters and two email threads to Meridian\'s maintenance coordinator, though Meridian had not responded to the last two certified letters as of the matter opening date. {2}',
+    citations: [
+      {
+        n: 1,
+        label: SAMPLE_FILE_WEEKLY_REVIEW,
+        excerpt:
+          'Cleared the Meridian correspondence backlog (three certified mail responses drafted and sent)',
+        path: WEEKLY_REVIEW_PATH,
+        locator: 'Sample - Weekly Review.md §Tasks completed',
+        verified: true,
+      },
+      {
+        n: 2,
+        label: MATTER_OVERVIEW_LABEL,
+        excerpt:
+          'Roberto documented every incident. He has temperature logs pulled from a smart thermostat, three letters he sent to Meridian\'s property manager via certified mail, and two email threads with their maintenance coordinator. Meridian has not responded to either of the last two certified letters.',
+        path: MATTER_OVERVIEW_PATH,
+        locator: 'Sample - Matter Overview.md §Client',
         verified: true,
       },
     ],

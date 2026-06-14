@@ -29,6 +29,7 @@ vi.mock('@/onboarding/samples/sampleMatterDemo', () => ({
   DEMO_QUESTIONS: [
     'What are the open issues in this matter?',
     'Summarize the Garcia matter for me.',
+    'What is the status of the Meridian correspondence?',
     'What is the fee arrangement?',
   ],
 }));
@@ -85,6 +86,8 @@ describe('ReimaginedAsk', () => {
     // Restore default: no cloud key (return null so demo branch can fire)
     mockGetKey.mockResolvedValue(null);
     (getDemoAnswerForWorkspace as ReturnType<typeof vi.fn>).mockReturnValue(null);
+    // Clear any bridge-dismissal state so each test starts clean
+    localStorage.clear();
   });
 
   it('renders without crashing', () => {
@@ -196,6 +199,47 @@ describe('ReimaginedAsk', () => {
     }
   });
 
+  it('keeps {n} chips and citation data when the stored message carries askCitations (A1 fix)', () => {
+    // Regression guard for A1: when the assistant message stored in the
+    // chat session includes askCitations, reconstructTurns must NOT strip
+    // the {n} markers and must populate citations so CitationText renders
+    // clickable chips instead of raw prose.
+    const storedCitation = {
+      n: 1,
+      label: 'Sample - Matter Overview.md',
+      excerpt: 'Fee arrangement: hourly at $350/hr',
+      path: '/workspace/Sample - Matter Overview.md',
+      locator: 'Sample - Matter Overview.md §Client Notes',
+      verified: true,
+    };
+    mockSessions['ask-global'] = {
+      chatId: 'ask-global',
+      messages: [
+        { role: 'user', content: 'What is the fee arrangement?', timestamp: '2026-01-01T00:00:00Z' },
+        {
+          role: 'assistant',
+          content: 'The fee is $350/hr with a $3,000 retainer. {1}',
+          timestamp: '2026-01-01T00:00:00Z',
+          askCitations: [storedCitation],
+          askSources: [],
+        },
+      ],
+      isLoading: false,
+      lastUpdated: '2026-01-01T00:00:00Z',
+    };
+    try {
+      render(<ReimaginedAsk />);
+      // The citation chip button must be rendered (not stripped to plain prose).
+      // CitationText renders each {n} as a <button> with aria-label "Citation N: ...".
+      const chipBtn = screen.getByRole('button', { name: /citation 1/i });
+      expect(chipBtn).toBeDefined();
+      // The surrounding prose should still be present.
+      expect(screen.getByText(/the fee is \$350\/hr/i)).toBeDefined();
+    } finally {
+      delete mockSessions['ask-global'];
+    }
+  });
+
   it('restores turns from getState() not closed-over sessions (Fix #1 stale-snapshot)', () => {
     // Regression guard: the chatId-change effect previously read the closed-over
     // `sessions` selector value, which is always the snapshot at render time.
@@ -235,6 +279,7 @@ describe('ReimaginedAsk', () => {
     render(<ReimaginedAsk />);
     expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
     expect(screen.getByText(/summarize the garcia matter for me/i)).toBeDefined();
+    expect(screen.getByText(/what is the status of the meridian correspondence/i)).toBeDefined();
     expect(screen.getByText(/what is the fee arrangement/i)).toBeDefined();
   });
 
@@ -280,5 +325,153 @@ describe('ReimaginedAsk', () => {
     // No error should be thrown; the component should handle gracefully
     render(<ReimaginedAsk />);
     expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // B2 — sample bridge callout tests
+  // -------------------------------------------------------------------------
+
+  it('shows the sample bridge callout in empty state when active matter is the sample matter', () => {
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    render(<ReimaginedAsk />);
+    expect(screen.getByTestId('sample-bridge-callout')).toBeDefined();
+    expect(screen.getByText(/this is sample data/i)).toBeDefined();
+  });
+
+  it('does not show the sample bridge callout when active matter is not the sample matter', () => {
+    mockActiveMatter = { id: 'matter_other', name: 'Other Matter' };
+    render(<ReimaginedAsk />);
+    expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
+  });
+
+  it('does not show the sample bridge callout when there is no active matter', () => {
+    mockActiveMatter = null;
+    render(<ReimaginedAsk />);
+    expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
+  });
+
+  it('sample bridge callout is hidden after clicking dismiss and localStorage key is set', () => {
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    render(<ReimaginedAsk />);
+    const dismissBtn = screen.getByTestId('sample-bridge-dismiss');
+    fireEvent.click(dismissBtn);
+    expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
+    expect(localStorage.getItem('keepance:sample-bridge-dismissed')).toBe('1');
+  });
+
+  it('sample bridge callout stays hidden on mount when localStorage flag is already set', () => {
+    localStorage.setItem('keepance:sample-bridge-dismissed', '1');
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    render(<ReimaginedAsk />);
+    expect(screen.queryByTestId('sample-bridge-callout')).toBeNull();
+  });
+
+  it('"Add a matter" button dispatches the keepance:open-matter-manager event', () => {
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    render(<ReimaginedAsk />);
+    const addBtn = screen.getByTestId('sample-bridge-add-matter');
+    fireEvent.click(addBtn);
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'keepance:open-matter-manager' }),
+    );
+    dispatchSpy.mockRestore();
+  });
+
+  // -------------------------------------------------------------------------
+  // C1 — "Recent in this matter" returning-user payoff
+  // -------------------------------------------------------------------------
+
+  it('shows "Recent in this matter" list when a non-sample matter has prior sessions', () => {
+    const MATTER_ID = 'matter_reyes_v_tompkins';
+    mockActiveMatter = { id: MATTER_ID, name: 'Reyes v. Tompkins' };
+    // Seed two prior sessions for this matter (keyed with timestamped variants)
+    mockSessions[`ask-${MATTER_ID}-1000`] = {
+      chatId: `ask-${MATTER_ID}-1000`,
+      messages: [
+        { role: 'user', content: 'What are the deposition highlights?', timestamp: '2026-01-01T00:00:00Z' },
+        { role: 'assistant', content: 'The key highlights are...', timestamp: '2026-01-01T00:00:00Z' },
+      ],
+      isLoading: false,
+      lastUpdated: '2026-01-01T00:00:00Z',
+    };
+    mockSessions[`ask-${MATTER_ID}-2000`] = {
+      chatId: `ask-${MATTER_ID}-2000`,
+      messages: [
+        { role: 'user', content: 'What is the discovery deadline?', timestamp: '2026-01-02T00:00:00Z' },
+        { role: 'assistant', content: 'Discovery closes on March 15.', timestamp: '2026-01-02T00:00:00Z' },
+      ],
+      isLoading: false,
+      lastUpdated: '2026-01-02T00:00:00Z',
+    };
+    try {
+      render(<ReimaginedAsk />);
+      // Section heading and items should be present
+      expect(screen.getByTestId('recent-in-matter')).toBeDefined();
+      expect(screen.getByText(/recent in this matter/i)).toBeDefined();
+      const items = screen.getAllByTestId('matter-session-item');
+      expect(items.length).toBe(2);
+      // First question of each session should appear as the label (may appear in
+      // both the top session chips strip and the landing section list).
+      expect(screen.getAllByText(/what are the deposition highlights/i).length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText(/what is the discovery deadline/i).length).toBeGreaterThanOrEqual(1);
+    } finally {
+      delete mockSessions[`ask-${MATTER_ID}-1000`];
+      delete mockSessions[`ask-${MATTER_ID}-2000`];
+    }
+  });
+
+  it('clicking a "Recent in this matter" item loads that session (calls setChatId)', () => {
+    const MATTER_ID = 'matter_reyes_v_tompkins';
+    mockActiveMatter = { id: MATTER_ID, name: 'Reyes v. Tompkins' };
+    const priorSessionId = `ask-${MATTER_ID}-1000`;
+    mockSessions[priorSessionId] = {
+      chatId: priorSessionId,
+      messages: [
+        { role: 'user', content: 'What are the deposition highlights?', timestamp: '2026-01-01T00:00:00Z' },
+        { role: 'assistant', content: 'The key highlights are...', timestamp: '2026-01-01T00:00:00Z' },
+      ],
+      isLoading: false,
+      lastUpdated: '2026-01-01T00:00:00Z',
+    };
+    // Also seed the prior session's messages in the store so they restore on load
+    mockSessions[priorSessionId] = mockSessions[priorSessionId]!;
+    try {
+      render(<ReimaginedAsk />);
+      const item = screen.getByTestId('matter-session-item');
+      fireEvent.click(item);
+      // After clicking, the component should display the prior session's content.
+      // initSession will be called for the loaded session id.
+      expect(mockInitSession).toHaveBeenCalledWith(priorSessionId, []);
+    } finally {
+      delete mockSessions[priorSessionId];
+    }
+  });
+
+  it('does NOT show "Recent in this matter" for the sample matter', () => {
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    // Seed a prior sample session that would match the prefix
+    const priorSampleId = `ask-${SAMPLE_MATTER_ID}-1000`;
+    mockSessions[priorSampleId] = {
+      chatId: priorSampleId,
+      messages: [
+        { role: 'user', content: 'What is the fee arrangement?', timestamp: '2026-01-01T00:00:00Z' },
+        { role: 'assistant', content: 'The fee is $350/hr.', timestamp: '2026-01-01T00:00:00Z' },
+      ],
+      isLoading: false,
+      lastUpdated: '2026-01-01T00:00:00Z',
+    };
+    try {
+      render(<ReimaginedAsk />);
+      expect(screen.queryByTestId('recent-in-matter')).toBeNull();
+    } finally {
+      delete mockSessions[priorSampleId];
+    }
+  });
+
+  it('does NOT show "Recent in this matter" when the non-sample matter has no prior sessions', () => {
+    mockActiveMatter = { id: 'matter_fresh', name: 'Fresh Matter' };
+    render(<ReimaginedAsk />);
+    expect(screen.queryByTestId('recent-in-matter')).toBeNull();
   });
 });

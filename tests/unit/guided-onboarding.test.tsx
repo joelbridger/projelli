@@ -382,9 +382,8 @@ describe('GuidedOnboarding', () => {
     expect(onComplete).toHaveBeenCalled();
   });
 
-  // 11. Done step: primary CTA is "Create your first matter"
-  it('Done step primary CTA reads "Create your first matter"', () => {
-    render(<GuidedOnboarding {...defaultProps} />);
+  // Helper: navigate to Done step
+  function navigateToDoneStep() {
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
@@ -392,6 +391,24 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('stub-skip-ai'));
     fireEvent.click(screen.getByTestId('email-connect-later'));
     fireEvent.click(screen.getByTestId('onboarding-firm-continue'));
+  }
+
+  // 11. Done step: primary CTA reflects sample toggle
+  it('Done step CTA reads "Explore the sample matter" when samples toggle is ON (default)', () => {
+    render(<GuidedOnboarding {...defaultProps} />);
+    navigateToDoneStep();
+
+    // Default is populateSamples=true
+    expect(screen.getByTestId('onboarding-done-confirm')).toHaveTextContent(/explore the sample matter/i);
+  });
+
+  it('Done step CTA reads "Create your first matter" when samples toggle is OFF', () => {
+    render(<GuidedOnboarding {...defaultProps} />);
+    navigateToDoneStep();
+
+    // Uncheck the samples toggle
+    const toggle = screen.getByTestId('onboarding-samples-toggle');
+    fireEvent.click(toggle);
 
     expect(screen.getByTestId('onboarding-done-confirm')).toHaveTextContent(/create your first matter/i);
   });

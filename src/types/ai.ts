@@ -31,6 +31,26 @@ export interface ChatAttachment {
 }
 
 /**
+ * One cited source chip stored with an assistant message.
+ * Matches the `AnswerCitation` interface in `ReimaginedAsk.tsx` exactly.
+ * Persisted alongside the message so citations survive navigation/reload.
+ */
+export interface PersistedCitation {
+  /** 1-based chip number as it appears in the answer text {n}. */
+  n: number;
+  /** Human-readable label (basename + locator/section). */
+  label: string;
+  /** Raw passage text from the retrieved chunk. */
+  excerpt: string;
+  /** Full workspace-relative path; null if resolution failed. */
+  path: string | null;
+  /** Locator string for the source (page, section, etc.). */
+  locator: string;
+  /** Whether the source was returned from the verified RAG store. */
+  verified: boolean;
+}
+
+/**
  * Message in an AI chat conversation
  */
 export interface ChatMessage {
@@ -40,6 +60,19 @@ export interface ChatMessage {
   isError?: boolean;
   /** Diagnostic info for parse errors — full raw response body, redacted */
   errorDiagnostic?: string;
+  /**
+   * Ask-surface citations persisted alongside the assistant message so that
+   * clickable {n} chips and the Verified source panel survive navigation and
+   * reload. Set only on assistant messages produced by ReimaginedAsk.
+   * Optional for backward-compatibility with pre-fix legacy messages.
+   */
+  askCitations?: PersistedCitation[];
+  /**
+   * Ask-surface workspace sources persisted alongside the assistant message.
+   * Set only on assistant messages produced by ReimaginedAsk (RAG path).
+   * Optional for backward-compatibility with pre-fix legacy messages.
+   */
+  askSources?: WorkspaceSource[];
   /**
    * M2 — workspace retrieval hits associated with this turn. For
    * user-role messages this is the list of chunks that were retrieved
