@@ -39,6 +39,9 @@ import { availableExportFormats, replaceExtension } from '@/utils/export-formats
 import type { ExportFormat } from '@/utils/export-formats';
 import type { MarkdownEditorRef } from './MarkdownEditor';
 
+/** File type inferred from the active tab's extension. */
+export type ToolbarFileType = 'md' | 'txt' | 'docx' | 'other';
+
 interface FormattingToolbarProps {
   editorRef: React.RefObject<MarkdownEditorRef>;
   className?: string;
@@ -46,6 +49,13 @@ interface FormattingToolbarProps {
   onTogglePreview?: (() => void) | undefined;
   fileContent?: string;
   fileName?: string;
+  /**
+   * A5: context-sensitive toolbar. Derived from the active file extension by
+   * MainPanel and forwarded here so the toolbar can hide controls that are
+   * meaningless for plain-text or Word files. Defaults to 'other' (full set
+   * visible) so nothing regresses for unrecognised extensions.
+   */
+  fileType?: ToolbarFileType;
 }
 
 interface ToolbarButton {
@@ -138,7 +148,21 @@ const advancedToolbarButtons: ToolbarButton[] = [
   },
 ];
 
-export function FormattingToolbar({ editorRef, className, isPreviewMode, onTogglePreview, fileContent, fileName }: FormattingToolbarProps) {
+export function FormattingToolbar({ editorRef, className, isPreviewMode, onTogglePreview, fileContent, fileName, fileType = 'other' }: FormattingToolbarProps) {
+  // A5: derive visibility flags from file type.
+  // .txt  → only Export (no headings, lists, bold/italic, Preview, or More menu;
+  //          all controls are Markdown syntax that a plain-text editor ignores)
+  // .md   → full set including Preview
+  // .docx → rich controls (bold/italic/headings/lists/link/More + Export); no
+  //          Preview (not meaningful for Word — the viewer handles rendering)
+  // other → full set (safe default, no regression)
+  //
+  // showRichControls: bold/italic, headings, lists, link, More menu
+  // showPreview:      Preview toggle (md and other only)
+  const showRichControls = fileType !== 'txt';
+  const showBoldItalic = showRichControls;
+  const showMarkdownOnlyControls = showRichControls; // headings/lists/link/More — valid for docx too
+  const showPreview = (fileType === 'md' || fileType === 'other') && Boolean(onTogglePreview);
   // Keyboard shortcut: Alt+Z to toggle preview
   useEffect(() => {
     if (!onTogglePreview) return;
@@ -310,10 +334,44 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
     }
   };
 
+  // A5: build a filtered list of primary buttons based on fileType.
+  // Each button is tagged with which file types should show it.
+  // Dividers are inserted dynamically after non-empty groups.
+  const filteredPrimaryButtons = (() => {
+    // Group 0: Bold + Italic (hidden for .txt)
+    const g0 = showBoldItalic
+      ? primaryToolbarButtons.filter((b) => b.label === 'Bold' || b.label === 'Italic')
+      : [];
+    // Group 1: Heading 1/2/3 (hidden for .txt)
+    const g1 = showMarkdownOnlyControls
+      ? primaryToolbarButtons.filter((b) => b.label.startsWith('Heading'))
+      : [];
+    // Group 2: Lists (hidden for .txt)
+    const g2 = showMarkdownOnlyControls
+      ? primaryToolbarButtons.filter((b) => b.label === 'Bullet List' || b.label === 'Numbered List')
+      : [];
+    // Group 3: Link (hidden for .txt)
+    const g3 = showMarkdownOnlyControls
+      ? primaryToolbarButtons.filter((b) => b.label === 'Link')
+      : [];
+
+    // Assemble groups with dividers between non-empty groups
+    const result: ToolbarButton[] = [];
+    const divider: ToolbarButton = { icon: null as unknown as React.ElementType, label: 'divider', action: () => {} };
+    let addedAny = false;
+    for (const group of [g0, g1, g2, g3]) {
+      if (group.length === 0) continue;
+      if (addedAny) result.push(divider);
+      result.push(...group);
+      addedAny = true;
+    }
+    return result;
+  })();
+
   return (
     <div className={cn('flex flex-nowrap items-center gap-0.5 px-2 py-1 border-b bg-muted/30 overflow-x-auto', className)}>
-      {/* Primary (common) buttons always visible */}
-      {primaryToolbarButtons.map((button, index) => {
+      {/* Primary (common) buttons — filtered by fileType (A5) */}
+      {filteredPrimaryButtons.map((button, index) => {
         if (button.label === 'divider') {
           return <div key={index} className="w-px h-5 bg-border mx-1" />;
         }
@@ -336,42 +394,46 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
         );
       })}
 
-      {/* More overflow — advanced / infrequent formatting */}
-      <div className="w-px h-5 bg-border mx-1" />
-      <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            data-testid="formatting-toolbar-more"
-            variant={moreOpen ? 'secondary' : 'ghost'}
-            size="sm"
-            className="h-7 w-7 p-0"
-            title="More formatting"
-            disabled={isPreviewMode}
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-44">
-          {advancedToolbarButtons.map((button) => {
-            const Icon = button.icon;
-            const previewAction = getPreviewAction(button.label);
-            return (
-              <DropdownMenuItem
-                key={button.label}
-                data-testid={`formatting-more-${button.label.toLowerCase().replace(/\s+/g, '-')}`}
-                onClick={() => { handleClick(button.action, previewAction); }}
-                className="gap-2"
+      {/* More overflow — advanced / infrequent formatting; hidden for .txt */}
+      {showMarkdownOnlyControls && (
+        <>
+          {filteredPrimaryButtons.length > 0 && <div className="w-px h-5 bg-border mx-1" />}
+          <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                data-testid="formatting-toolbar-more"
+                variant={moreOpen ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-7 w-7 p-0"
+                title="More formatting"
+                disabled={isPreviewMode}
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                {button.label}
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-44">
+              {advancedToolbarButtons.map((button) => {
+                const Icon = button.icon;
+                const previewAction = getPreviewAction(button.label);
+                return (
+                  <DropdownMenuItem
+                    key={button.label}
+                    data-testid={`formatting-more-${button.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    onClick={() => { handleClick(button.action, previewAction); }}
+                    className="gap-2"
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {button.label}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
+      )}
 
-      {/* Preview toggle button - placed after formatting buttons for easy access */}
-      {onTogglePreview && (
+      {/* Preview toggle button — only for Markdown files (A5) */}
+      {showPreview && (
         <>
           <div className="w-px h-5 bg-border mx-1" />
           <Button

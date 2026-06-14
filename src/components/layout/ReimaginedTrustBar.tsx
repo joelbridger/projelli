@@ -71,15 +71,21 @@ export function ReimaginedTrustBar() {
 
       <div style={{ flex: 1 }} />
 
-      {/* The egress hero: compact pill, color-coded by confidentiality state. */}
-      <EgressIndicator provider="anthropic" mode={confidentialityMode} variant="compact" />
+      {/* The egress hero: compact pill, color-coded by confidentiality state.
+          A7: flex-shrink:0 ensures the full label ("On your machine. Nothing leaves.")
+          is never clipped by the flex container. */}
+      <div style={{ flexShrink: 0 }}>
+        <EgressIndicator provider="anthropic" mode={confidentialityMode} variant="compact" />
+      </div>
 
-      {/* Info affordance: reveals the full data-routing explanation on hover. */}
+      {/* Info affordance: reveals the full data-routing explanation on hover.
+          A7: title added as a standard browser tooltip alongside the Radix tooltip. */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
             type="button"
             aria-label="Where does my data go?"
+            title="What is this?"
             style={{
               width: 24, height: 24, borderRadius: 4, border: 0, background: 'transparent',
               color: 'var(--color-muted-foreground)', cursor: 'pointer', display: 'grid', placeItems: 'center',
@@ -96,11 +102,11 @@ export function ReimaginedTrustBar() {
         </TooltipContent>
       </Tooltip>
 
-      {/* Data Map button */}
+      {/* Data Map button — A7: title already set; aria-label retained for screen readers. */}
       <button
         type="button"
         onClick={() => { setDataMapOpen(true); }}
-        title="Data Map: where your data goes, in plain English"
+        title="Where your data goes"
         aria-label="Open the Data Map"
         style={{
           width: 24, height: 24, borderRadius: 4, border: 0, background: 'transparent',

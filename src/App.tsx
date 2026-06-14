@@ -73,6 +73,7 @@ import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { MemoryService } from '@/modules/memory/MemoryService';
 import { getActiveScope } from '@/stores/matterStore';
 import { MattersSidebarPanel } from '@/components/matter/MattersSidebarPanel';
+import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
 import { ragVerifyCitation, type RetrievalScope } from '@/utils/tauri-commands';
 import {
   createTemplatesMarketplaceService,
@@ -285,6 +286,9 @@ function App() {
   const [interviewResolver, setInterviewResolver] = useState<((answers: Record<string, string>) => void) | null>(null);
   const [interviewRejecter, setInterviewRejecter] = useState<((error: Error) => void) | null>(null);
   const [showInterviewDialog, setShowInterviewDialog] = useState(false);
+  // Bug 1: MatterManagerDialog open state — driven by the
+  // 'keepance:open-matter-manager' custom event from ReimaginedMattersHome.
+  const [matterManagerOpen, setMatterManagerOpen] = useState(false);
   // Active `.workflow` file path for the live execution. Used by the
   // sidebar "Current Execution" link and by debounced write-back so the
   // file on disk stays in sync with the running engine.
@@ -1472,7 +1476,35 @@ function App() {
   // in chat. AIChatViewer dispatches `keepance:open-email` for `mail:<id>`
   // sources; this hook turns that into an `email` tab. (Extracted to
   // useOpenEmailListener so the wiring is unit-tested.)
-  useOpenEmailListener(openTab);
+  //
+  // Bug 2 fix: wrap openTab so opening an email first navigates to the
+  // 'files' sidebar tab (where MainPanel + EmailViewer live). Without this,
+  // the tab is added while the full-page ReimaginedEmailWorkspace is active,
+  // so the email opens invisibly and the user sees nothing happen.
+  useOpenEmailListener(
+    useCallback(
+      (
+        id: string,
+        label: string,
+        content: string,
+        type: 'email',
+        meta: { mailSourceId: string },
+      ) => {
+        setSidebarActiveTab('files');
+        openTab(id, label, content, type, meta);
+      },
+      [openTab],
+    ),
+  );
+
+  // Bug 1 fix: listen for the 'keepance:open-matter-manager' custom event
+  // dispatched by the "New matter" buttons in ReimaginedMattersHome and open
+  // MatterManagerDialog (the canonical folder-picking + creation dialog).
+  useEffect(() => {
+    const handler = () => { setMatterManagerOpen(true); };
+    window.addEventListener('keepance:open-matter-manager', handler);
+    return () => { window.removeEventListener('keepance:open-matter-manager', handler); };
+  }, []);
 
   // UX-35: shared writer that routes binary file extensions (.docx, .xlsx,
   // .pptx, .rtf, etc.) through writeFileBinary using the bytes decoded
@@ -3808,6 +3840,10 @@ This file contains rules and guidelines for AI assistants in this workspace.
       <McpApprovalGate
         onAuditEvent={(event) => addAuditEntry(auditEventToEntry(event))}
       />
+
+      {/* Bug 1: MatterManagerDialog — opened by 'keepance:open-matter-manager'
+          events from the "New matter" buttons in ReimaginedMattersHome. */}
+      <MatterManagerDialog open={matterManagerOpen} onOpenChange={setMatterManagerOpen} />
 
       {/* Interview Dialog */}
       <Dialog open={showInterviewDialog} onOpenChange={setShowInterviewDialog}>

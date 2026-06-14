@@ -324,9 +324,10 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
         )}
 
         {/* Privileged Matter Mode badge. Persistent and always visible while
-            the mode is on, so the user can see at a glance that network
-            extensions (network plugins + MCP) are disabled. */}
-        {privilegedMode.active && (
+            the mode is on AND there is an active matter (A8: the badge copy
+            says "Privileged matter..." so it only makes sense when a matter
+            is actually selected). */}
+        {privilegedMode.active && activeMatter !== null && (
           <div
             data-testid="privileged-matter-badge"
             data-trigger={privilegedMode.trigger}

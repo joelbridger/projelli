@@ -2130,8 +2130,8 @@ export function ReimaginedEmailWorkspace({
 
               {/* Subject */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 40, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
-                  Subj
+                <span style={{ width: 50, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+                  Subject
                 </span>
                 <input
                   type="text"
