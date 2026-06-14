@@ -2,18 +2,21 @@
  * ReimaginedDocumentsHome — unit tests
  *
  * Covers:
- *  1. Browser view renders file rows from the workspace store
- *  2. Clicking a file row calls onFileOpen with the correct path + name
- *  3. Clicking a folder row drills into the folder (does NOT call onFileOpen)
- *  4. Trash toggle shows trashed items (delegates to TrashPanel)
+ *  1. Split layout renders file list and editor pane together (not a toggle)
+ *  2. When no file is open the right pane shows the placeholder
+ *  3. When a file/email tab is active the editor pane renders mainPanelContent
+ *     with the file list (left panel) still visible — the list does not disappear
+ *  4. Trash toggle in the left panel shows trashed items (delegates to TrashPanel)
  *  5. Search filters file rows by name
- *  6. "← Documents" back button appears in editor view
+ *  6. "Add files" import button exists in the left panel header
+ *  7. Trust banner shows the first time a file is imported, not again after dismissal
+ *  8. Email open (email-type tab) shows mainPanelContent in the right pane
  *
  * All stores and heavy sub-components are mocked so the test suite is fast
  * and does not touch the filesystem or database.
  */
 
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ReimaginedDocumentsHome, type ReimaginedDocumentsHomeProps } from '@/components/documents/ReimaginedDocumentsHome';
 import type { FileNode } from '@/types/workspace';
@@ -68,7 +71,7 @@ vi.mock('@/stores/workspaceStore', () => ({
     }),
 }));
 
-// Editor store mock — default: no active tab (browser view)
+// Editor store mock — default: no active tab (no file open)
 let mockActiveTabPath: string | null = null;
 let mockOpenTabs: Array<{ path: string; name: string; type?: string }> = [];
 
@@ -139,72 +142,191 @@ function buildDefaultProps(overrides: Partial<ReimaginedDocumentsHomeProps> = {}
 
 // ── Tests ──────────────────────────────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — browser view (default)', () => {
+// ── Split layout ───────────────────────────────────────────────────────────
+
+describe('ReimaginedDocumentsHome — persistent split layout', () => {
   beforeEach(() => {
-    // Reset to browser view (no active file tab)
     mockActiveTabPath = null;
     mockOpenTabs = [];
   });
 
-  it('renders the Documents eyebrow and heading', () => {
+  it('renders the split container (reimagined-documents-split)', () => {
     render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
-    // The eyebrow text is "Documents" styled uppercase via CSS; jsdom returns the raw text
-    // Both the eyebrow div and the h1 contain "Documents"
-    const allDocuments = screen.getAllByText('Documents');
-    // Should have at least one match (eyebrow or heading)
-    expect(allDocuments.length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByTestId('reimagined-documents-split')).toBeTruthy();
   });
 
-  it('renders a row for each root-level file and folder', () => {
+  it('renders both left panel and right panel simultaneously (not a toggle)', () => {
     render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
-    // mockFileTree has 1 folder + 2 files at root level
+    expect(screen.getByTestId('documents-left-panel')).toBeTruthy();
+    expect(screen.getByTestId('documents-right-panel')).toBeTruthy();
+  });
+
+  it('shows the placeholder in the right panel when no file is open', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    expect(screen.getByTestId('right-panel-placeholder')).toBeTruthy();
+    // main panel should NOT render
+    expect(screen.queryByTestId('main-panel')).toBeNull();
+  });
+
+  it('renders file rows in the left panel when no file is open', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByText('Contracts')).toBeTruthy();
     expect(screen.getByText('Brief.md')).toBeTruthy();
     expect(screen.getByText('Evidence.pdf')).toBeTruthy();
   });
 
-  it('clicking a file row calls onFileOpen with the correct path and name', async () => {
-    const onFileOpen = vi.fn().mockResolvedValue(undefined);
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onFileOpen })} />);
-    const briefRow = screen.getByText('Brief.md').closest('button');
-    expect(briefRow).not.toBeNull();
-    fireEvent.click(briefRow!);
+  it('opening a file shows it on the right with the left panel still visible', async () => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    const { rerender } = render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+
+    // Simulate opening a file tab
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
+    rerender(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+
     await waitFor(() => {
-      expect(onFileOpen).toHaveBeenCalledOnce();
-      expect(onFileOpen).toHaveBeenCalledWith('/workspace/Brief.md', 'Brief.md');
+      // Editor pane appears on the right
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+      expect(screen.getByTestId('main-panel')).toBeTruthy();
     });
+
+    // Left panel remains visible — file list should still be in the DOM
+    expect(screen.getByTestId('documents-left-panel')).toBeTruthy();
+    // And file rows should still be rendered
+    expect(screen.getByText('Brief.md')).toBeTruthy();
+    expect(screen.getByText('Contracts')).toBeTruthy();
   });
 
-  it('clicking a folder row does NOT call onFileOpen', async () => {
-    const onFileOpen = vi.fn().mockResolvedValue(undefined);
-    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onFileOpen })} />);
-    const folderRow = screen.getByText('Contracts').closest('button');
-    expect(folderRow).not.toBeNull();
-    fireEvent.click(folderRow!);
-    // Wait a tick to catch any async calls
-    await waitFor(() => {
-      expect(onFileOpen).not.toHaveBeenCalled();
-    });
-  });
-
-  it('shows the table header columns: Name, Type, Modified, Size', () => {
+  it('left panel can be collapsed and expanded', () => {
     render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
-    expect(screen.getByText('Name')).toBeTruthy();
-    expect(screen.getByText('Type')).toBeTruthy();
-    expect(screen.getByText('Modified')).toBeTruthy();
-    expect(screen.getByText('Size')).toBeTruthy();
-  });
-
-  it('shows "New Word document" and "New folder" action buttons', () => {
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
-    const newDocBtn = screen.getByRole('button', { name: /new word document/i });
-    expect(newDocBtn).toBeTruthy();
-    const newFolderBtn = screen.getByRole('button', { name: /new folder/i });
-    expect(newFolderBtn).toBeTruthy();
+    // Collapse
+    const collapseBtn = screen.getByRole('button', { name: /collapse file list/i });
+    fireEvent.click(collapseBtn);
+    expect(screen.queryByTestId('documents-left-panel')).toBeNull();
+    // Expand
+    const expandBtn = screen.getByRole('button', { name: /expand file list/i });
+    fireEvent.click(expandBtn);
+    expect(screen.getByTestId('documents-left-panel')).toBeTruthy();
   });
 });
 
-// ── Trash toggle ───────────────────────────────────────────────────────────
+// ── Email open ─────────────────────────────────────────────────────────────
+
+describe('ReimaginedDocumentsHome — email-open flow', () => {
+  it('opening an email tab shows mainPanelContent in the right pane with list still present', async () => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    const { rerender } = render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+
+    // Simulate the keepance:open-email -> editorStore update
+    mockActiveTabPath = 'email://inbox/msg-001';
+    mockOpenTabs = [{ path: 'email://inbox/msg-001', name: 'Re: Contract Review', type: 'email' }];
+    rerender(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+      expect(screen.getByTestId('main-panel')).toBeTruthy();
+    });
+
+    // Left panel must remain visible for the email-open flow
+    expect(screen.getByTestId('documents-left-panel')).toBeTruthy();
+  });
+});
+
+// ── Add files / import affordance ─────────────────────────────────────────
+
+describe('ReimaginedDocumentsHome — Add files button', () => {
+  beforeEach(() => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+  });
+
+  it('renders an "Add files" button in the left panel header', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const btn = screen.getByTestId('add-files-btn');
+    expect(btn).toBeTruthy();
+  });
+
+  it('clicking "Add files" calls onCreateDefaultDocument when provided', () => {
+    const onCreateDefaultDocument = vi.fn();
+    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onCreateDefaultDocument })} />);
+    const btn = screen.getByTestId('add-files-btn');
+    fireEvent.click(btn);
+    expect(onCreateDefaultDocument).toHaveBeenCalledOnce();
+  });
+
+  it('clicking "Add files" falls back to onCreateFile when no shortcut is provided', () => {
+    const onCreateFile = vi.fn();
+    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onCreateFile })} />);
+    const btn = screen.getByTestId('add-files-btn');
+    fireEvent.click(btn);
+    expect(onCreateFile).toHaveBeenCalledOnce();
+  });
+
+  it('right-panel placeholder also has an "Add files" button', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    // The placeholder renders an "Add files" button
+    const addBtns = screen.getAllByRole('button', { name: /add files/i });
+    // At least two: one in the left panel header, one in the placeholder
+    expect(addBtns.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// ── Trust banner ───────────────────────────────────────────────────────────
+
+describe('ReimaginedDocumentsHome — trust banner', () => {
+  beforeEach(() => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    // Clear the trust flag before each test
+    localStorage.removeItem('keepance:first-file-trust-shown');
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('keepance:first-file-trust-shown');
+  });
+
+  it('trust banner does NOT show before any file is imported', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    expect(screen.queryByTestId('trust-banner')).toBeNull();
+  });
+
+  it('trust banner shows the first time "Add files" is clicked', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const btn = screen.getByTestId('add-files-btn');
+    fireEvent.click(btn);
+    expect(screen.getByTestId('trust-banner')).toBeTruthy();
+    expect(screen.getByText(/indexed on your machine/i)).toBeTruthy();
+  });
+
+  it('trust banner can be dismissed', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    fireEvent.click(screen.getByTestId('add-files-btn'));
+    expect(screen.getByTestId('trust-banner')).toBeTruthy();
+    const dismissBtn = screen.getByRole('button', { name: /dismiss/i });
+    fireEvent.click(dismissBtn);
+    expect(screen.queryByTestId('trust-banner')).toBeNull();
+  });
+
+  it('trust banner does not show again once the localStorage flag is set', () => {
+    // Pre-set the flag as if a previous session already showed the banner
+    localStorage.setItem('keepance:first-file-trust-shown', '1');
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    const btn = screen.getByTestId('add-files-btn');
+    fireEvent.click(btn);
+    expect(screen.queryByTestId('trust-banner')).toBeNull();
+  });
+
+  it('clicking "Add files" sets the localStorage flag', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    expect(localStorage.getItem('keepance:first-file-trust-shown')).toBeNull();
+    fireEvent.click(screen.getByTestId('add-files-btn'));
+    expect(localStorage.getItem('keepance:first-file-trust-shown')).toBe('1');
+  });
+});
+
+// ── Trash (left panel) ─────────────────────────────────────────────────────
 
 describe('ReimaginedDocumentsHome — trash toggle', () => {
   beforeEach(() => {
@@ -212,13 +334,13 @@ describe('ReimaginedDocumentsHome — trash toggle', () => {
     mockOpenTabs = [];
   });
 
-  it('shows the Files toggle button in the header', () => {
+  it('shows the Files toggle button', () => {
     render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
     const filesBtn = screen.getByRole('button', { name: /^files$/i });
     expect(filesBtn).toBeTruthy();
   });
 
-  it('shows the Trash toggle button in the header', () => {
+  it('shows the Trash toggle button', () => {
     render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
     const trashBtn = screen.getByRole('button', { name: /^trash/i });
     expect(trashBtn).toBeTruthy();
@@ -226,33 +348,25 @@ describe('ReimaginedDocumentsHome — trash toggle', () => {
 
   it('clicking the Trash toggle renders the TrashPanel', () => {
     render(<ReimaginedDocumentsHome {...buildDefaultProps({ trashItems: SAMPLE_TRASH_ITEMS })} />);
-    // Initially trash panel is not visible
     expect(screen.queryByTestId('trash-panel')).toBeNull();
-    // Click the Trash button
     const trashBtn = screen.getByRole('button', { name: /^trash/i });
     fireEvent.click(trashBtn);
-    // TrashPanel should now be rendered
     expect(screen.getByTestId('trash-panel')).toBeTruthy();
   });
 
   it('TrashPanel receives and renders trashed items', () => {
     render(<ReimaginedDocumentsHome {...buildDefaultProps({ trashItems: SAMPLE_TRASH_ITEMS })} />);
-    const trashBtn = screen.getByRole('button', { name: /^trash/i });
-    fireEvent.click(trashBtn);
-    // The mocked TrashPanel renders each item by name
+    fireEvent.click(screen.getByRole('button', { name: /^trash/i }));
     expect(screen.getByTestId('trash-item-trash-1')).toBeTruthy();
     expect(screen.getByText('OldDraft.md')).toBeTruthy();
   });
 
   it('clicking Files toggle returns to file browser view', () => {
     render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
-    // Switch to Trash
     fireEvent.click(screen.getByRole('button', { name: /^trash/i }));
     expect(screen.getByTestId('trash-panel')).toBeTruthy();
-    // Switch back to Files
     fireEvent.click(screen.getByRole('button', { name: /^files$/i }));
     expect(screen.queryByTestId('trash-panel')).toBeNull();
-    // File rows should be visible again
     expect(screen.getByText('Brief.md')).toBeTruthy();
   });
 });
@@ -275,9 +389,7 @@ describe('ReimaginedDocumentsHome — search', () => {
     render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
     const searchInput = screen.getByRole('textbox');
     fireEvent.change(searchInput, { target: { value: 'brief' } });
-    // Brief.md should match
     expect(screen.getByText('Brief.md')).toBeTruthy();
-    // Evidence.pdf and Contracts should not be visible
     expect(screen.queryByText('Evidence.pdf')).toBeNull();
     expect(screen.queryByText('Contracts')).toBeNull();
   });
@@ -290,58 +402,34 @@ describe('ReimaginedDocumentsHome — search', () => {
   });
 });
 
-// ── Editor view ────────────────────────────────────────────────────────────
+// ── File open ──────────────────────────────────────────────────────────────
 
-describe('ReimaginedDocumentsHome — editor view', () => {
-  it('renders mainPanelContent when viewMode is editor (back button clicked)', async () => {
-    // Start in browser view
+describe('ReimaginedDocumentsHome — file interactions', () => {
+  beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
-    const { rerender } = render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+  });
 
-    // Simulate opening a file: set activeTabPath to a real file tab
-    mockActiveTabPath = '/workspace/Brief.md';
-    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
-
-    // Re-render with the updated store state
-    rerender(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
-
-    // The setTimeout in the effect means we need to wait a tick
+  it('clicking a file row calls onFileOpen with the correct path and name', async () => {
+    const onFileOpen = vi.fn().mockResolvedValue(undefined);
+    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onFileOpen })} />);
+    const briefRow = screen.getByText('Brief.md').closest('button');
+    expect(briefRow).not.toBeNull();
+    fireEvent.click(briefRow!);
     await waitFor(() => {
-      expect(screen.getByTestId('main-panel')).toBeTruthy();
+      expect(onFileOpen).toHaveBeenCalledOnce();
+      expect(onFileOpen).toHaveBeenCalledWith('/workspace/Brief.md', 'Brief.md');
     });
   });
 
-  it('shows a back button ("Documents") in the editor view', async () => {
-    mockActiveTabPath = '/workspace/Brief.md';
-    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
-
+  it('clicking a folder row does NOT call onFileOpen', async () => {
+    const onFileOpen = vi.fn().mockResolvedValue(undefined);
+    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onFileOpen })} />);
+    const folderRow = screen.getByText('Contracts').closest('button');
+    expect(folderRow).not.toBeNull();
+    fireEvent.click(folderRow!);
     await waitFor(() => {
-      // The breadcrumb/back button should say "Documents"
-      const backButton = screen.queryByRole('button', { name: /documents/i });
-      expect(backButton).toBeTruthy();
-    });
-  });
-
-  it('clicking the back button returns to browser view', async () => {
-    mockActiveTabPath = '/workspace/Brief.md';
-    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
-    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
-
-    // Wait for editor view
-    await waitFor(() => {
-      expect(screen.getByTestId('main-panel')).toBeTruthy();
-    });
-
-    // Click back
-    const backBtn = screen.getByRole('button', { name: /documents/i });
-    fireEvent.click(backBtn);
-
-    // Should return to browser — file rows visible
-    await waitFor(() => {
-      expect(screen.queryByTestId('main-panel')).toBeNull();
-      expect(screen.getByText('Brief.md')).toBeTruthy();
+      expect(onFileOpen).not.toHaveBeenCalled();
     });
   });
 });

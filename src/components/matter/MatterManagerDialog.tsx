@@ -29,6 +29,7 @@ import {
   Trash2,
   Check,
   ShieldAlert,
+  ShieldCheck,
   Users,
   Share2,
   LogOut,
@@ -98,7 +99,7 @@ function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$';
   const arr = new Uint8Array(16);
   crypto.getRandomValues(arr);
-  return Array.from(arr, (b) => chars[b % chars.length]!).join('');
+  return Array.from(arr, (b) => chars[b % chars.length] ?? '?').join('');
 }
 
 const audit = new AuditService('firm');
@@ -153,7 +154,6 @@ function MemberRoster({ matterId, firmMatterId, canInvite }: MemberRosterProps) 
     try {
       const client = getClient();
       let userId: string;
-      let createdNew = false;
       let tmpPwd: string | null = null;
 
       // Strategy: always call createUser. If it succeeds, we have a new user.
@@ -165,7 +165,6 @@ function MemberRoster({ matterId, firmMatterId, canInvite }: MemberRosterProps) 
       try {
         const createRes = await client.createUser(email, tmpPwd);
         userId = createRes.user.user_id;
-        createdNew = true;
       } catch (createErr) {
         // If 409 conflict (user already exists), we can't get the user_id
         // without a list-users endpoint. The plan says to show user_id with
@@ -209,10 +208,9 @@ function MemberRoster({ matterId, firmMatterId, canInvite }: MemberRosterProps) 
         },
       });
 
-      if (createdNew) {
-        setTempPassword(tmpPwd);
-        setTempPasswordEmail(email);
-      }
+      // createdNew is always true here (inner catch always rethrows on failure)
+      setTempPassword(tmpPwd);
+      setTempPasswordEmail(email);
       setInviteEmail('');
       await loadMembers();
     } catch (err) {
@@ -454,7 +452,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
       const res = await getClient().matterMine(seatToken);
       // Filter to only those not already linked locally
       const linkedFirmIds = new Set(
-        matters.filter((m) => m.firmMatterId).map((m) => m.firmMatterId!),
+        matters.filter((m) => m.firmMatterId).map((m) => m.firmMatterId ?? ''),
       );
       setRemoteMineMatters(res.matters.filter((m) => !linkedFirmIds.has(m.matter_id)));
     } catch {
@@ -474,12 +472,32 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
   const [newClient, setNewClient] = useState('');
   const [newPrivileged, setNewPrivileged] = useState(false);
 
+  // Isolation UX: pending confirmation for a specific matter, and set of
+  // matters that have just been isolated (show affirmation briefly).
+  const [isolateConfirmId, setIsolateConfirmId] = useState<string | null>(null);
+  const [isolatedAffirmationIds, setIsolatedAffirmationIds] = useState<Set<string>>(new Set());
+
   const handleCreate = () => {
     if (!newName.trim() && !newClient.trim()) return;
     createMatter({ name: newName, client: newClient, privileged: newPrivileged });
     setNewName('');
     setNewClient('');
     setNewPrivileged(false);
+  };
+
+  /** Called when the user confirms isolation for a specific matter. */
+  const confirmIsolate = (matterId: string) => {
+    setMatterPrivileged(matterId, true);
+    setIsolateConfirmId(null);
+    // Show the affirmation callout for 4 s, then fade it.
+    setIsolatedAffirmationIds((prev) => new Set(prev).add(matterId));
+    setTimeout(() => {
+      setIsolatedAffirmationIds((prev) => {
+        const next = new Set(prev);
+        next.delete(matterId);
+        return next;
+      });
+    }, 4000);
   };
 
   // ── Per-matter firm operations ──────────────────────────────────────────
@@ -852,6 +870,72 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                   </div>
                 </div>
 
+                {/* Isolated (network lockdown) persistent badge — shown when on */}
+                {m.privileged && (
+                  <div
+                    data-testid={`matter-isolated-badge-${m.id}`}
+                    className="flex items-center gap-1.5 rounded-md border border-[#0a2540]/20 bg-[#0a2540]/5 px-2 py-1 text-xs font-medium text-[#0a2540]"
+                    style={{ background: 'linear-gradient(90deg, rgba(10,37,64,0.07) 0%, rgba(16,185,129,0.06) 100%)' }}
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-700" aria-hidden />
+                    {t('matter.manager.isolated-badge')}
+                  </div>
+                )}
+
+                {/* Isolation affirmation callout — visible for ~4 s after enabling */}
+                {isolatedAffirmationIds.has(m.id) && (
+                  <div
+                    data-testid={`matter-isolated-affirmation-${m.id}`}
+                    className="flex items-start gap-2 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs text-emerald-900"
+                    style={{ background: 'linear-gradient(90deg, #ecfdf5 0%, #f0f9ff 100%)' }}
+                  >
+                    <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden />
+                    <span>{t('matter.manager.isolated-affirmation')}</span>
+                  </div>
+                )}
+
+                {/* Isolation confirmation dialog — shown inline when user tries to enable */}
+                {isolateConfirmId === m.id && (
+                  <div
+                    data-testid={`matter-isolate-confirm-${m.id}`}
+                    className="rounded-md border border-[#0a2540]/30 bg-white p-3 space-y-2 shadow-sm"
+                  >
+                    <div className="flex items-start gap-2">
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#0a2540]" aria-hidden />
+                      <div>
+                        <p className="text-xs font-medium text-[#0a2540]">
+                          {t('matter.manager.isolated-confirm-title')}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                          {t('matter.manager.isolated-confirm-body')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        data-testid={`matter-isolate-cancel-${m.id}`}
+                        onClick={() => { setIsolateConfirmId(null); }}
+                      >
+                        {t('matter.manager.isolated-confirm-cancel')}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 text-xs gap-1.5 bg-[#0a2540] hover:bg-[#0a2540]/90 text-white"
+                        data-testid={`matter-isolate-confirm-action-${m.id}`}
+                        onClick={() => { confirmIsolate(m.id); }}
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+                        {t('matter.manager.isolated-confirm-action')}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Privileged-matter toggle */}
                 <label
                   data-testid={`matter-privileged-${m.id}`}
@@ -862,7 +946,19 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                     type="checkbox"
                     checked={!!m.privileged}
                     onChange={(e) => {
-                      setMatterPrivileged(m.id, e.target.checked);
+                      if (e.target.checked) {
+                        // Intercept enable: show confirm first
+                        setIsolateConfirmId(m.id);
+                      } else {
+                        setMatterPrivileged(m.id, false);
+                        // Dismiss any pending confirm/affirmation for this matter
+                        setIsolateConfirmId((prev) => (prev === m.id ? null : prev));
+                        setIsolatedAffirmationIds((prev) => {
+                          const next = new Set(prev);
+                          next.delete(m.id);
+                          return next;
+                        });
+                      }
                     }}
                     className="mt-0.5 h-3.5 w-3.5 accent-rose-600"
                     aria-label={t('matter.manager.privileged-label')}
@@ -938,7 +1034,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                                 variant="ghost"
                                 size="sm"
                                 className="h-7 px-2 text-rose-700 hover:bg-rose-50"
-                                onClick={() => handleLeave(m.id)}
+                                onClick={() => { handleLeave(m.id); }}
                                 data-testid={`firm-leave-${m.id}`}
                                 title={t('matter.manager.firm-leave-hint')}
                               >

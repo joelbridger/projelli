@@ -10,13 +10,21 @@
  * Citation-first design: {n} chips + SourcePanel for every answer.
  * SourcePanel reflects the most recently clicked citation across the
  * entire conversation (selectedTurnIdx + selected pair).
+ *
+ * Scope toggle: users can point the Ask box at different slices of their data.
+ *   - This matter  (when a matter is active)
+ *   - All matters  (cross-matter search)
+ *   - Email        (only mail: chunks)
+ *   - Documents    (only non-mail: chunks)
+ * Email/Documents are hidden on the sample matter so the demo chips stay front
+ * and center.
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Sparkles, ArrowRight, CheckCircle2, FileText,
   ExternalLink, Quote, ShieldCheck, AlertTriangle, Loader2,
-  MessageSquare, Plus, Save, X,
+  MessageSquare, Plus, Save, X, Mail, FolderOpen,
 } from 'lucide-react';
 import { useActiveMatter, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -45,6 +53,15 @@ import type { ChatMessage } from '@/types/ai';
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Which slice of the user's data to search.
+ * - 'this-matter'  search only within the active matter (same as today's default)
+ * - 'all-matters'  cross-matter (same as today's no-active-matter default)
+ * - 'email'        restrict to mail: sourceId / sourceType === 'mail' chunks
+ * - 'documents'    restrict to non-mail chunks (files, PDFs, transcripts, etc.)
+ */
+export type AskScope = 'this-matter' | 'all-matters' | 'email' | 'documents';
 
 interface AnswerCitation {
   /** 1-based chip number as it appears in the answer text {n}. */
@@ -179,6 +196,105 @@ function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
     }
   }
   return turns;
+}
+
+/** Returns true for a hit that came from imported email. */
+function isMailHit(hit: RagHit): boolean {
+  return hit.sourceType === 'mail' || hit.path.startsWith('mail:') || (hit.sourceId?.startsWith('mail:') ?? false);
+}
+
+/**
+ * Filter retrieved hits according to the user-selected scope.
+ * 'this-matter' and 'all-matters' keep all hits (retrieval scope is already
+ * correct from the Tauri-level query). 'email' keeps only mail: chunks;
+ * 'documents' keeps only non-mail chunks.
+ */
+function filterHitsByScope(hits: RagHit[], scope: AskScope): RagHit[] {
+  if (scope === 'email') return hits.filter(isMailHit);
+  if (scope === 'documents') return hits.filter((h) => !isMailHit(h));
+  return hits;
+}
+
+/* -------------------------------------------------------------------------- */
+/* ScopeToggle — compact segmented pill control                                */
+/* -------------------------------------------------------------------------- */
+
+interface ScopeOption {
+  value: AskScope;
+  label: string;
+  icon: React.ReactNode;
+}
+
+function ScopeToggle({
+  scope,
+  onChange,
+  hasMatter,
+  isSample,
+}: {
+  scope: AskScope;
+  onChange: (s: AskScope) => void;
+  hasMatter: boolean;
+  isSample: boolean;
+}) {
+  // Build the available options based on context.
+  // Email/Documents hidden on the sample matter so demo chips stay prominent.
+  const options: ScopeOption[] = [
+    ...(hasMatter ? [{ value: 'this-matter' as AskScope, label: 'This matter', icon: <FileText size={11} strokeWidth={1.75} /> }] : []),
+    { value: 'all-matters' as AskScope, label: 'All matters', icon: <FolderOpen size={11} strokeWidth={1.75} /> },
+    ...(!isSample ? [
+      { value: 'email' as AskScope, label: 'Email', icon: <Mail size={11} strokeWidth={1.75} /> },
+      { value: 'documents' as AskScope, label: 'Documents', icon: <FileText size={11} strokeWidth={1.75} /> },
+    ] : []),
+  ];
+
+  return (
+    <div
+      data-testid="scope-toggle"
+      role="group"
+      aria-label="Search scope"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 2,
+        background: 'var(--color-secondary)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 7,
+        padding: 2,
+      }}
+    >
+      {options.map((opt) => {
+        const isActive = scope === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            data-testid={`scope-option-${opt.value}`}
+            aria-pressed={isActive}
+            onClick={() => { onChange(opt.value); }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '3px 9px',
+              borderRadius: 5,
+              border: 'none',
+              background: isActive ? 'var(--color-background)' : 'transparent',
+              color: isActive ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+              fontSize: 11.5,
+              fontWeight: isActive ? 600 : 400,
+              cursor: 'pointer',
+              transition: 'background 0.12s, color 0.12s',
+              boxShadow: isActive ? '0 1px 3px 0 rgba(10,37,64,0.10)' : 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {opt.icon}
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -521,15 +637,22 @@ function SampleBridgeCallout() {
 export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (content: string) => Promise<void> }) {
   const activeMatter = useActiveMatter();
   const rootPath = useWorkspaceStore((s) => s.rootPath);
-  const scope = activeMatter ? matterLabel(activeMatter) : 'all matters';
+  const matterScopeLabel = activeMatter ? matterLabel(activeMatter) : 'all matters';
+  const isSampleMatterActive = activeMatter?.id === SAMPLE_MATTER_ID;
 
   // Derive chatId from active matter
   const baseChatId = activeMatter ? `ask-${activeMatter.id}` : 'ask-global';
   const [chatId, setChatId] = useState<string>(baseChatId);
 
-  // Update chatId when active matter changes
+  // Scope toggle — default to 'this-matter' when a matter is active, else 'all-matters'.
+  // Reset to appropriate default when the active matter changes.
+  const defaultScope = (): AskScope => (activeMatter ? 'this-matter' : 'all-matters');
+  const [askScope, setAskScope] = useState<AskScope>(defaultScope);
+
+  // Update chatId + reset scope when active matter changes
   useEffect(() => {
     setChatId(activeMatter ? `ask-${activeMatter.id}` : 'ask-global');
+    setAskScope(activeMatter ? 'this-matter' : 'all-matters');
   }, [activeMatter?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Store selectors
@@ -731,14 +854,23 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
         }
       }
 
-      /* Step 1: RAG retrieval */
-      const retrievalScope: RetrievalScope = activeMatter
-        ? { kind: 'matter', matterId: activeMatter.id }
-        : { kind: 'allMatters' };
+      /* Step 1: RAG retrieval
+       * The Tauri-level retrieval scope is matter vs all-matters (confidentiality
+       * partition). Email/Documents are client-side type filters applied on top:
+       * when a matter is active and scope is Email or Documents we still retrieve
+       * within that matter's boundary first, then filter by source type. This
+       * preserves the confidentiality partition at the database level.
+       */
+      const retrievalScope: RetrievalScope =
+        activeMatter && askScope !== 'all-matters'
+          ? { kind: 'matter', matterId: activeMatter.id }
+          : { kind: 'allMatters' };
 
       let hits: RagHit[] = [];
       if (isMemoryEnabled()) {
-        hits = await MemoryService.retrieve(q, DEFAULT_WORKSPACE_TOP_K, retrievalScope, false);
+        const rawHits = await MemoryService.retrieve(q, DEFAULT_WORKSPACE_TOP_K, retrievalScope, false);
+        // Apply client-side type filter for Email/Documents scopes.
+        hits = filterHitsByScope(rawHits, askScope);
       }
 
       if (abort.signal.aborted) return;
@@ -879,7 +1011,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
       setStreamingTurn(null);
       setStatus('error');
     }
-  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath]);
+  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -936,22 +1068,30 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
               marginBottom: 3,
             }}
           >
-            Search &middot; {scope}
+            Search &middot; {matterScopeLabel}
           </div>
-          <h2
-            style={{
-              fontSize: 18,
-              fontWeight: 800,
-              color: 'var(--kp-navy)',
-              letterSpacing: '-0.02em',
-              lineHeight: 1.2,
-              margin: 0,
-            }}
-          >
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            Find anything. Click to verify.
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 2 }}>
+            <h2
+              style={{
+                fontSize: 18,
+                fontWeight: 800,
+                color: 'var(--kp-navy)',
+                letterSpacing: '-0.02em',
+                lineHeight: 1.2,
+                margin: 0,
+              }}
+            >
+              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+              Find anything. Click to verify.
+              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            </h2>
+            <ScopeToggle
+              scope={askScope}
+              onChange={setAskScope}
+              hasMatter={!!activeMatter}
+              isSample={isSampleMatterActive}
+            />
+          </div>
         </div>
         {turns.length > 0 && (
           <button
@@ -1307,9 +1447,13 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
             onChange={(e) => { setQuestion(e.target.value); }}
             onKeyDown={handleKeyDown}
             placeholder={
-              activeMatter
-                ? `Ask anything about ${matterLabel(activeMatter)}…`
-                : 'Ask anything across all matters…'
+              askScope === 'email'
+                ? 'Ask anything about your imported email…'
+                : askScope === 'documents'
+                  ? 'Ask anything across your documents…'
+                  : activeMatter
+                    ? `Ask anything about ${matterLabel(activeMatter)}…`
+                    : 'Ask anything across all matters…'
             }
             disabled={isBusy}
             aria-label="Ask a question about this matter"
