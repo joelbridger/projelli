@@ -94,3 +94,18 @@ persisted), so navigating away and back loses the click-to-verify chips and show
 - Two reviewer lenses (core-workflows depth, full a11y/responsive sweep) were cut for time — fold into C5
   and re-run as a dedicated pass if depth is wanted later.
 
+### 🔭 Round 2 — found-but-not-fixed (low severity, logged from the C5 a11y/responsive pass)
+- **Matter name wraps at ~960px** — long "Client - Matter" labels wrap because the row keeps the Sample pill
+  inline via flex-wrap. Fix = ellipsis on the label text node + move the pill outside the flex (small MatterRow refactor).
+- **Email mode-hint text wraps at ~960px** (10px muted) — drop the `maxWidth` or shorten the copy.
+- **Email viewer browser-mode error leaks the raw id** ("id: fix-1") in the subtitle — fixture/desktop-only path; tidy the copy.
+- **No loading skeleton on the Matters surface** — fine today (matterStore is synchronous); add one only if it goes async.
+- ⏸️ **C6 — first-real-file "Indexed locally, nothing was uploaded" trust moment** — DEFERRED: needs deeper
+  Documents/file-add + indexing-event wiring than a safe autonomous pass should add. High-value for the
+  "put a real client file in" trust barrier; do as a focused follow-up. (Captured so it is not lost.)
+
+### ✅ Round 2 — shipped to `feature/ux-fixes-round2-2026-06-14`
+- R2-A: citations persist (the aha survives navigation); trust-contradiction gone; sample lands on chips; off-script calm message.
+- R2-B: Sample badge + locked/confirmed delete; visible matter launchpad; demo-to-real bridge; a 2nd demo answer citing a 2nd file; honest Done CTA.
+- R2-C: "Recent in this matter" history; profession-aware sample copy; skip-setup lands on Matters; keyboard focus-ring + aria-label + grid-overflow + aria-current fixes.
+

@@ -75,6 +75,18 @@
     font-family: var(--font-sans);
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+  /* Focus-visible ring for custom inline-styled buttons that suppress the
+     browser default outline (border:0 / background:transparent patterns used
+     throughout the reimagined shell). Scoped to keyboard navigation only. */
+  button:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 2px solid var(--kp-accent, #1f74c4);
+    outline-offset: 2px;
+  }
+  /* On the navy spine the ring must be white to be visible. */
+  nav[aria-label="Primary"] button:focus-visible {
+    outline-color: rgba(255, 255, 255, 0.85);
+  }
 }
 
 /* Dark mode */

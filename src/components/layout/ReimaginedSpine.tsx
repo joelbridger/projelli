@@ -96,7 +96,7 @@ export function ReimaginedSpine({
           <ChevronRight size={18} style={{ margin: '0 auto' }} />
         </button>
         {nav.map(({ id, label, Icon }) => (
-          <button key={id} type="button" title={label} aria-current={active === id}
+          <button key={id} type="button" title={label} aria-current={active === id ? 'page' : undefined}
             data-testid={`spine-nav-collapsed-${id}`}
             onClick={() => onTabChange?.(id)}
             style={{ width: 38, height: 38, borderRadius: 8, border: 0, cursor: 'pointer', color: active === id ? '#fff' : 'rgba(255,255,255,0.66)', background: active === id ? 'rgba(93,198,255,0.14)' : 'transparent' }}>
@@ -122,7 +122,7 @@ export function ReimaginedSpine({
             const on = active === id;
             return (
               <button key={id} type="button" ref={(el) => { tabRefs.current[id] = el; }}
-                aria-current={on} onClick={() => onTabChange?.(id)}
+                aria-current={on ? 'page' : undefined} onClick={() => onTabChange?.(id)}
                 data-testid={`spine-nav-${id}`}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '8px 11px',

@@ -309,7 +309,7 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
         onClick={() => { onSelect(matter.id); }}
         style={{
           display: 'grid',
-          gridTemplateColumns: '1fr 100px 140px 120px',
+          gridTemplateColumns: 'minmax(0, 1fr) 100px 140px 120px',
           alignItems: 'center',
           gap: 0,
           width: '100%',
@@ -553,7 +553,7 @@ function TableHeader() {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 100px 140px 120px',
+        gridTemplateColumns: 'minmax(0, 1fr) 100px 140px 120px',
         padding: '0 20px',
         borderBottom: '1px solid var(--color-border)',
       }}
