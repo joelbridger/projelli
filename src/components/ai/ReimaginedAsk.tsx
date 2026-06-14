@@ -143,16 +143,26 @@ function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
     const userMsg = messages[i];
     const assistantMsg = messages[i + 1];
     if (userMsg && assistantMsg && userMsg.role === 'user' && assistantMsg.role === 'assistant') {
-      turns.push({
-        question: userMsg.content,
-        // Citations aren't persisted, so strip the {n} chip markers from the
-        // stored answer — reloaded history reads as clean prose (the live
-        // conversation keeps its clickable chips). Without this, restored
-        // turns would show raw "{1}" tokens in the text.
-        answer: assistantMsg.content.replace(/\s*\{\d+\}/g, ''),
-        citations: [],
-        sources: [],
-      });
+      if (assistantMsg.askCitations && assistantMsg.askCitations.length > 0) {
+        // Citations were persisted: keep the {n} markers so chips render, and
+        // restore the full citation + source data. This is the path that makes
+        // reloaded/navigated answers keep their clickable chips and source panel.
+        turns.push({
+          question: userMsg.content,
+          answer: assistantMsg.content,
+          citations: assistantMsg.askCitations,
+          sources: assistantMsg.askSources ?? [],
+        });
+      } else {
+        // Legacy messages (pre-fix) have no persisted citations. Strip the {n}
+        // markers so raw tokens don't appear in plain-text restored prose.
+        turns.push({
+          question: userMsg.content,
+          answer: assistantMsg.content.replace(/\s*\{\d+\}/g, ''),
+          citations: [],
+          sources: [],
+        });
+      }
       i += 2;
     } else if (userMsg && userMsg.role === 'user' && (!assistantMsg || assistantMsg.role !== 'assistant')) {
       // Trailing lone user message (orphaned, no matching assistant reply).
@@ -447,10 +457,13 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
   // On mount / chatId change: init session and reconstruct turns from persisted messages.
   // Fix #1: read getState() instead of the closed-over `sessions` selector so we always
   // see the post-initSession state, not a stale snapshot captured at render time.
+  // A3: for the sample matter, always start with the empty chip state (never restore a
+  // prior demo answer) so the "click a question" aha moment shows on every fresh visit.
   useEffect(() => {
     initSession(chatId, []);
+    const isSampleChat = activeMatter?.id === SAMPLE_MATTER_ID;
     const freshSession = useAIChatStore.getState().sessions[chatId];
-    if (freshSession && freshSession.messages.length > 0) {
+    if (!isSampleChat && freshSession && freshSession.messages.length > 0) {
       const reconstructed = reconstructTurns(freshSession.messages);
       setTurns(reconstructed);
     } else {
@@ -561,12 +574,37 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
             };
             const now = new Date().toISOString();
             addMessage(chatId, { role: 'user', content: q, timestamp: now });
-            addMessage(chatId, { role: 'assistant', content: demo.answer, timestamp: now });
+            addMessage(chatId, {
+              role: 'assistant',
+              content: demo.answer,
+              timestamp: now,
+              askCitations: demo.citations,
+              askSources: [],
+            });
             setTurns((prev) => [...prev, completedTurn]);
             setStreamingTurn(null);
             setStatus('done');
             return;
           }
+          // A4: sample matter + no cloud key + question not in demo set.
+          // Do not fall through to RAG or the AI provider — neither will work.
+          // Push a calm bridging message and stop.
+          if (abort.signal.aborted) return;
+          const bridgeAnswer =
+            "That question is outside this sample. Connect an AI provider in Settings to ask your own files, or try one of the example questions below.";
+          const bridgeTurn: AskTurn = {
+            question: q,
+            answer: bridgeAnswer,
+            citations: [],
+            sources: [],
+          };
+          const nowBridge = new Date().toISOString();
+          addMessage(chatId, { role: 'user', content: q, timestamp: nowBridge });
+          addMessage(chatId, { role: 'assistant', content: bridgeAnswer, timestamp: nowBridge });
+          setTurns((prev) => [...prev, bridgeTurn]);
+          setStreamingTurn(null);
+          setStatus('done');
+          return;
         }
       }
 
@@ -690,10 +728,17 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
         sources,
       };
 
-      // Persist to store as two ChatMessage entries
+      // Persist to store as two ChatMessage entries.
+      // A1: persist askCitations + askSources on the assistant message so that
+      // clickable {n} chips and the Verified source panel survive navigation/reload.
       const now = new Date().toISOString();
       const userMsg: ChatMessage = { role: 'user', content: q, timestamp: now };
-      const assistantMsg: ChatMessage = { role: 'assistant', content: rewritten, timestamp: now };
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: rewritten,
+        timestamp: now,
+        ...(citations.length > 0 ? { askCitations: citations, askSources: sources } : {}),
+      };
       addMessage(chatId, userMsg);
       addMessage(chatId, assistantMsg);
 
@@ -1207,8 +1252,10 @@ function TurnBlock({
           />
         )}
 
-        {/* Privacy attestation (completed turns only) */}
-        {!isStreaming && turn.answer && (
+        {/* Privacy attestation (completed cited turns only).
+            A2: shown only when citations exist, so it is never contradicted
+            by the "No indexed sources" note below — the two are mutually exclusive. */}
+        {!isStreaming && turn.answer && turn.citations.length > 0 && (
           <div
             style={{
               padding: '9px 12px',
@@ -1229,7 +1276,8 @@ function TurnBlock({
           </div>
         )}
 
-        {/* No citations note */}
+        {/* No citations note — only shows when there are genuinely no citations.
+            A2: mutually exclusive with the attestation above. */}
         {!isStreaming && turn.citations.length === 0 && turn.answer && (
           <div style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}>
             {/* eslint-disable keepance-i18n/no-hardcoded-string */}

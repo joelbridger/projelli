@@ -196,6 +196,47 @@ describe('ReimaginedAsk', () => {
     }
   });
 
+  it('keeps {n} chips and citation data when the stored message carries askCitations (A1 fix)', () => {
+    // Regression guard for A1: when the assistant message stored in the
+    // chat session includes askCitations, reconstructTurns must NOT strip
+    // the {n} markers and must populate citations so CitationText renders
+    // clickable chips instead of raw prose.
+    const storedCitation = {
+      n: 1,
+      label: 'Sample - Matter Overview.md',
+      excerpt: 'Fee arrangement: hourly at $350/hr',
+      path: '/workspace/Sample - Matter Overview.md',
+      locator: 'Sample - Matter Overview.md §Client Notes',
+      verified: true,
+    };
+    mockSessions['ask-global'] = {
+      chatId: 'ask-global',
+      messages: [
+        { role: 'user', content: 'What is the fee arrangement?', timestamp: '2026-01-01T00:00:00Z' },
+        {
+          role: 'assistant',
+          content: 'The fee is $350/hr with a $3,000 retainer. {1}',
+          timestamp: '2026-01-01T00:00:00Z',
+          askCitations: [storedCitation],
+          askSources: [],
+        },
+      ],
+      isLoading: false,
+      lastUpdated: '2026-01-01T00:00:00Z',
+    };
+    try {
+      render(<ReimaginedAsk />);
+      // The citation chip button must be rendered (not stripped to plain prose).
+      // CitationText renders each {n} as a <button> with aria-label "Citation N: ...".
+      const chipBtn = screen.getByRole('button', { name: /citation 1/i });
+      expect(chipBtn).toBeDefined();
+      // The surrounding prose should still be present.
+      expect(screen.getByText(/the fee is \$350\/hr/i)).toBeDefined();
+    } finally {
+      delete mockSessions['ask-global'];
+    }
+  });
+
   it('restores turns from getState() not closed-over sessions (Fix #1 stale-snapshot)', () => {
     // Regression guard: the chatId-change effect previously read the closed-over
     // `sessions` selector value, which is always the snapshot at render time.
