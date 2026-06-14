@@ -14,10 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **A calmer first run.** Onboarding leads with "skip for now" on the AI step (with an honest cost note), greets solo attorneys correctly, ends with one clear next action, and summarizes where your data goes in three bullets instead of a long form. A dismissible "Get started" card on the home screen shows the couple of setup steps.
   - **Tidier, more consistent surfaces.** The two status bars were de-cluttered and the core trust line ("On your machine. Nothing leaves.") is always fully readable; the editor toolbar shows only controls that apply to the file you're editing; the Documents home explains that Keepance is Word-native; the Workflows library has a practice-area filter; email "Ask AI" has example prompts to get you started.
   - **Matters feel like the spine.** Each matter is a launchpad with Ask / Documents / Email shortcuts, and the active matter follows you across surfaces.
+  - **A second review round, deeper polish.** The sample matter is now clearly labelled "Sample" (and is locked against accidental rename or deletion) and is one click away from "add your first real matter"; returning to a matter shows your recent questions for it; the day-1 demo now cites more than one of your files; the onboarding copy adapts to your profession; skipping setup lands you on a useful home screen; and there is keyboard focus + narrow-window polish throughout.
 
 ### Fixed
 - **"New matter" now works.** The button on the Matters home did nothing; it now opens the matter creator.
 - **Opening an email now shows it.** On the Email tab, opening a message dropped you on an empty page; it now opens the email in the reader.
+- **Cited answers keep their citations.** A cited answer showed clickable, verifiable citations when fresh but lost them the moment you navigated away and came back (and then wrongly said "no indexed sources"). Citations now persist, so the click-to-verify promise holds across your whole history, not just the live answer.
 
 ### Added
 - **Email attachments.** You can attach files when composing an email (Microsoft 365, Gmail, and IMAP/SMTP accounts).
