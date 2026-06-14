@@ -109,3 +109,15 @@ persisted), so navigating away and back loses the click-to-verify chips and show
 - R2-B: Sample badge + locked/confirmed delete; visible matter launchpad; demo-to-real bridge; a 2nd demo answer citing a 2nd file; honest Done CTA.
 - R2-C: "Recent in this matter" history; profession-aware sample copy; skip-setup lands on Matters; keyboard focus-ring + aria-label + grid-overflow + aria-current fixes.
 
+### ✅ ROUND 3 — the "bigger ideas" shipped (plan: `2026-06-14-ux-round3-plan.md`)
+Jameson greenlit #1, #3-#6 + smaller items; **#2 reframed (his call): NOT a matter-first nav rewrite, but a hub INSIDE the Matters tab** (keeps the tool-first tabs for tax/consulting users). Chosen layout = "Overview command-center".
+- **#2 (reframed) THE MATTER HUB ✅** — click a matter -> a command center: header (name/client/date, Sample pill, Isolated shield badge), a matter-scoped Ask hero + recent questions, an at-a-glance (curated + populated for the sample; honest counts + recent activity for real matters), and Documents/Email/Workflows/Activity panels with counts + `>` jumps (keepance:matter-launch). New `MatterHub.tsx` + ReimaginedMattersHome list<->hub. Absorbs #3/#5/#6. Live-verified.
+- **#3 Unified Ask ✅** — Search has a scope toggle (This matter / All matters / Email / Documents); the hub's Ask is this, matter-scoped. (The email tab's own Ask-AI mode left intact; full fold-in is a later nicety.)
+- **#1 Real-file import + trust ✅** — "Add files" affordance + a one-time "Indexed on your machine. Nothing was uploaded." reassurance on first file add. (This also delivers the previously-deferred C6.)
+- **#4 Persistent Documents split ✅** — file list left + document right, no more browser<->editor toggle / lost place; Trash + email-open preserved (citation e2e 12/12).
+- **#5 Isolated-matter celebration ✅** — confirm + shield affirmation + persistent Isolated badge; `useActiveMatterPrivileged()` exported (the hub header uses it).
+- **#6 Returning-user momentum ✅** — the hub at-a-glance (the second wow) + a quiet "N matters, M folders indexed" cue on the list. (R2 already added "Recent in this matter".)
+- **Smaller consistency ✅** — matter-name ellipsis at narrow widths; email mode-hint wrap; email-viewer error no longer leaks the raw id; email-connect value pitch before OAuth; C2 list-style surfaces keep the primary action top-right.
+- Gates: tsc 0, full vitest 3247, citation e2e 12/12, shell sweep clean. Merged to keepance-3.0. NOT deployed.
+- **Still deferred (Jameson's call):** the full matter-first nav rewrite (he chose the in-tab hub instead); Settings IA (the ~20-category list) is a separate future pass; a real AI-generated at-a-glance for non-sample matters (the hub shows honest counts/activity today).
+
