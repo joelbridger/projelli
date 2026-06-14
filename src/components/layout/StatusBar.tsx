@@ -18,6 +18,8 @@ import { useActiveMatter } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { BugReportDialog } from '@/components/common/BugReportDialog';
 import { TrialStatusChip } from '@/components/trial';
+import { useTrial } from '@/hooks/useTrial';
+import { useLicense } from '@/hooks/useLicense';
 // Privileged Matter Mode: persistent badge stating network extensions are off.
 import { usePrivilegedMatterMode } from '@/hooks/usePrivilegedMatterMode';
 // F-120 (VG-5a): live pulse while a provider request is actually in flight.
@@ -138,6 +140,9 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
   const activeMatter = useActiveMatter();
   // Privileged Matter Mode: when active, network plugins + MCP are disabled.
   const privilegedMode = usePrivilegedMatterMode();
+  // F4b: trial state for softened status-bar rendering.
+  const trial = useTrial();
+  const { isActivated } = useLicense();
   // F-120 (VG-5a): confidentiality mode — used to gate the egress activity pulse.
   const confidentialityMode = useConfidentialityMode();
 
@@ -299,7 +304,24 @@ export function StatusBar({ onOpenSettings }: StatusBarProps = {}) {
       {/* Right-side cluster. gap-4 gives every segment consistent breathing
           room so nothing feels mashed together (v1.6 rc.6). */}
       <div className="flex items-center gap-4">
-        {onOpenSettings && <TrialStatusChip onClick={onOpenSettings} />}
+        {/* F4b: show a calm informational chip when there's plenty of trial
+            time left (5+ days, unactivated). The full TrialStatusChip (with
+            its "· Upgrade" CTA) is reserved for the urgent states: low days,
+            expired, or activated license confirmation. */}
+        {onOpenSettings && !isActivated && !trial.isExpired && trial.daysRemaining >= 5 ? (
+          <button
+            type="button"
+            data-testid="status-bar-trial-chip"
+            data-trial-tone="amber"
+            onClick={onOpenSettings}
+            title="View license settings"
+            className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-colors bg-amber-50 text-amber-800 hover:bg-amber-100"
+          >
+            Free trial — {trial.daysRemaining} days left
+          </button>
+        ) : onOpenSettings ? (
+          <TrialStatusChip onClick={onOpenSettings} />
+        ) : null}
 
         {activeTab && (
           <>

@@ -166,16 +166,19 @@ function ChooseView({
         </button>
       </div>
 
-      {/* Three paths as cards. */}
+      {/* Three paths. "Skip for now" is the prominent default. */}
       <div className="space-y-3">
+        <SkipCard
+          testId="ai-path-later"
+          onSkip={onSkip}
+        />
         <PathCard
           testId="ai-path-own-account"
           icon={Cloud}
           tone="text-sky-700 bg-sky-50"
           title="Connect your AI provider account"
-          badge="Recommended for most"
-          body="Connect your Claude, OpenAI, or Gemini account with a few clicks. We walk you through it step by step. Your AI usage goes straight to your provider. Most people spend a couple of dollars a month."
-          dominant
+          badge="Recommended when ready"
+          body="Connect your Claude, OpenAI, or Gemini account with a few clicks. We walk you through it step by step. Your AI usage goes straight to your provider. Most attorneys spend about $2 to $5 a month, billed by your AI provider, not us."
           onClick={onPickOwnAccount}
         />
         <PathCard
@@ -186,14 +189,6 @@ function ChooseView({
           badge="Most private"
           body="For your most sensitive work, run a free AI model on your own machine with a tool called Ollama. Nothing is sent over the internet, not even to an AI company. We will check whether it is installed and help you if it is not."
           onClick={onPickLocal}
-        />
-        <PathCard
-          testId="ai-path-later"
-          icon={Clock}
-          tone="text-slate-700 bg-slate-100"
-          title="Set this up later"
-          body="Skip this for now and explore Keepance first. Your files and templates work without an AI. We will leave a gentle reminder in the AI panel for whenever you are ready."
-          onClick={onSkip}
         />
       </div>
 
@@ -214,31 +209,23 @@ interface PathCardProps {
   title: string;
   badge?: string;
   body: string;
-  /** When true the card gets a navy border + subtle elevation to draw the eye. */
-  dominant?: boolean;
   onClick: () => void;
 }
 
-function PathCard({ testId, icon: Icon, tone, title, badge, body, dominant = false, onClick }: PathCardProps) {
+function PathCard({ testId, icon: Icon, tone, title, badge, body, onClick }: PathCardProps) {
   return (
     <button
       type="button"
       data-testid={testId}
       onClick={onClick}
-      className={cn(
-        'group flex w-full items-start gap-4 rounded-lg border bg-card p-4 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        dominant
-          ? 'border-[#0a2540] shadow-md hover:shadow-lg hover:bg-muted/20'
-          : 'border-border opacity-90 hover:border-primary hover:bg-muted/30',
-      )}
-      style={dominant ? { borderColor: '#0a2540', boxShadow: '0 2px 10px rgba(10,37,64,0.12)' } : undefined}
+      className="group flex w-full items-start gap-4 rounded-lg border border-border bg-card p-4 text-left opacity-90 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:border-primary hover:bg-muted/30"
     >
       <div className={cn('shrink-0 h-10 w-10 rounded-md flex items-center justify-center', tone)} aria-hidden>
         <Icon className="h-5 w-5" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <h3 className={cn('text-sm font-semibold', dominant ? 'text-foreground' : 'text-muted-foreground')}>{title}</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground">{title}</h3>
           {badge && (
             <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
               {badge}
@@ -248,6 +235,30 @@ function PathCard({ testId, icon: Icon, tone, title, badge, body, dominant = fal
         <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{body}</p>
       </div>
       <ArrowRight className="h-4 w-4 shrink-0 self-center text-muted-foreground transition-colors group-hover:text-primary" />
+    </button>
+  );
+}
+
+/** The prominent "skip for now" default. Styled as the primary action. */
+function SkipCard({ testId, onSkip }: { testId: string; onSkip: () => void }) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onSkip}
+      className="group flex w-full items-center gap-4 rounded-lg border bg-card p-5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted/20"
+      style={{ borderColor: '#0a2540', boxShadow: '0 2px 10px rgba(10,37,64,0.12)' }}
+    >
+      <div className="shrink-0 h-10 w-10 rounded-md flex items-center justify-center text-slate-700 bg-slate-100" aria-hidden>
+        <Clock className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-sm font-semibold text-foreground">Skip for now</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+          Your files, templates, and workflows work without an AI. You can connect one any time in Settings.
+        </p>
+      </div>
+      <ArrowRight className="h-4 w-4 shrink-0 self-center text-foreground transition-colors group-hover:text-primary" />
     </button>
   );
 }
@@ -455,9 +466,11 @@ function LocalView({ onUseLocal, onBack, onOpenDataMap }: LocalViewProps) {
   };
 
   useEffect(() => {
-    check();
+    // Defer to microtask so the synchronous setStatus('checking') inside check()
+    // does not fire directly in the effect body (satisfies react-hooks/set-state-in-effect).
+    void Promise.resolve().then(check);
     // Run once on mount.
-     
+
   }, []);
 
   const handleConfirm = () => {

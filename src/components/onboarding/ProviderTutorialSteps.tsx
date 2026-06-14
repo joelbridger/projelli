@@ -48,25 +48,20 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       },
       {
         title: 'Go to Settings, then API Keys',
-        body: 'The left sidebar has a "Settings" entry. Inside, click "API Keys" (NOT "Workspaces" or "Members").',
+        body: 'The left sidebar has a "Settings" entry. Inside, click "API Keys" (look for API Keys in the sidebar).',
       },
       {
         title: 'Click "Create Key"',
         body: 'A dialog opens. Give it a label like "Keepance" so you remember where it goes. Leave "Workspace" as default.',
       },
       {
-        title: 'Copy the key IMMEDIATELY',
-        body: 'Anthropic shows the key ONCE. Copy it to your clipboard. Paste it into the Keepance wizard step 3.',
-        hint: 'Keys start with sk-ant-. If you lose it, create a new one; the old one stays valid but is unrecoverable.',
+        title: 'Copy the key and paste it here',
+        body: 'Anthropic shows the key once in this dialog. Copy it and paste it into the field below.',
+        hint: 'Keys start with sk-ant-. If you lose it, you can always create another one.',
       },
       {
         title: 'Add credits (if needed)',
         body: 'New accounts have free-tier credits for about a week. After that, add a credit balance at Settings, then Billing.',
-      },
-      {
-        title: 'Turn off training on your account',
-        body: 'Go to Privacy settings in your Anthropic console and disable "Use my data to improve Anthropic products." This keeps your prompts from being used for model training. The option is in console.anthropic.com under Settings, Privacy.',
-        hint: 'This is the one step Keepance cannot do for you. It controls what the AI company does with your prompts on their side.',
       },
     ],
   },
@@ -90,17 +85,12 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
         body: 'Name it "Keepance". Permissions: "All" is fine. Click Create.',
       },
       {
-        title: 'Copy the key',
-        body: 'Shown once. Starts with sk-proj- or sk-. Paste into Keepance step 3.',
+        title: 'Copy the key and paste it here',
+        body: 'The key is shown once in this dialog. Copy it and paste it into the field below. If you lose it, you can always create another one. Starts with sk-proj- or sk-.',
       },
       {
         title: 'Add billing credit',
         body: 'OpenAI requires prepaid credit for API use (unlike ChatGPT Plus). Go to Billing, add a payment method, and add an initial credit balance.',
-      },
-      {
-        title: 'Turn off training on your account',
-        body: 'Go to platform.openai.com, then Settings, Data controls. Disable "Improve the model for everyone." This prevents your API prompts from being used for model training.',
-        hint: 'This is the one step Keepance cannot do for you. It controls what the AI company does with your prompts on their side.',
       },
     ],
   },
@@ -123,18 +113,13 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
         body: 'A dialog asks whether to create in an existing Cloud project or a new one. Pick "Create API key in new project" if unsure; easiest path.',
       },
       {
-        title: 'Copy the key',
-        body: 'Shown permanently (you can return to view it). Starts with AIza. Paste into Keepance step 3.',
-        hint: 'Google keys are the most forgiving, visible anytime in the AI Studio UI, unlike Anthropic/OpenAI which show once.',
+        title: 'Copy the key and paste it here',
+        body: 'Starts with AIza. Paste it into the field below. You can return to Google AI Studio any time to view or create keys.',
+        hint: 'Google keys are the most forgiving, visible anytime in the AI Studio UI.',
       },
       {
         title: 'Free tier is usually enough',
         body: 'Gemini Flash free tier is 1500 requests/day with 1M tokens/minute. Most users never exceed this. No billing setup needed unless you want higher limits.',
-      },
-      {
-        title: 'Turn off training on your account',
-        body: 'In Google AI Studio, go to Settings and disable "Help improve AI Studio." For Google Cloud Vertex AI accounts, check your data residency and training-use settings in the Cloud Console.',
-        hint: 'This is the one step Keepance cannot do for you. It controls what the AI company does with your prompts on their side.',
       },
     ],
   },

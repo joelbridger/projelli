@@ -1506,6 +1506,18 @@ function App() {
     return () => { window.removeEventListener('keepance:open-matter-manager', handler); };
   }, []);
 
+  // F5: listen for 'keepance:open-settings' dispatched by GetStartedCard in
+  // ReimaginedMattersHome. Opens Settings deep-linked to the given category.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const category = (e as CustomEvent<{ category?: import('@/settings/schema').SettingCategory }>)
+        .detail?.category;
+      openSettings(category);
+    };
+    window.addEventListener('keepance:open-settings', handler);
+    return () => { window.removeEventListener('keepance:open-settings', handler); };
+  }, [openSettings]);
+
   // UX-35: shared writer that routes binary file extensions (.docx, .xlsx,
   // .pptx, .rtf, etc.) through writeFileBinary using the bytes decoded
   // from the editor's data-URL content. The Save path (handleSaveFile)

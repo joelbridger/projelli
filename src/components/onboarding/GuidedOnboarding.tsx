@@ -31,7 +31,7 @@ import { MailGmailConnect } from '@/components/settings/MailGmailConnect';
 import { MailImapConnect } from '@/components/settings/MailImapConnect';
 import { FirmAdminConsole } from '@/components/firm/FirmAdminConsole';
 import { FirmSignIn } from '@/components/firm/FirmSignIn';
-import { DataMapContent } from '@/components/privacy/DataMapDialog';
+import { DataMapDialog } from '@/components/privacy/DataMapDialog';
 import { useFirm } from '@/hooks/useFirm';
 
 import { writeSampleFiles, getSamplesForProfession } from '@/onboarding/samples';
@@ -140,6 +140,7 @@ export function GuidedOnboarding({
   const [emailTab, setEmailTab] = useState<EmailTab>('m365');
   const [populateSamples, setPopulateSamples] = useState(true);
   const [isFinishing, setIsFinishing] = useState(false);
+  const [aiConnected, setAiConnected] = useState(false);
   // Guard: ensures handleDone and skipAll each run the completion path at most once.
   const completedRef = useRef(false);
 
@@ -239,7 +240,8 @@ export function GuidedOnboarding({
           defaultProvider={defaultProvider}
           onSaveKey={onSaveKey}
           onBack={() => { goBack(3); }}
-          onAdvance={() => {
+          onAdvance={(connected?: boolean) => {
+            if (connected) setAiConnected(true);
             setOnboardingProgressStep('ai-key', true);
             advance(4);
           }}
@@ -271,6 +273,7 @@ export function GuidedOnboarding({
           populateSamples={populateSamples}
           onToggleSamples={setPopulateSamples}
           isFinishing={isFinishing}
+          aiConnected={aiConnected}
           onBack={() => { goBack(6); }}
           onConfirm={() => { void handleDone(); }}
         />
@@ -467,15 +470,49 @@ function WorkspaceStep({ onBack, onNext }: { onBack: () => void; onNext: () => v
 // ---------------------------------------------------------------------------
 
 function TrustStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+  const [dataMapOpen, setDataMapOpen] = useState(false);
+
   return (
-    <div data-testid="onboarding-step-trust" style={{ display: 'flex', flexDirection: 'column', maxHeight: '65vh' }}>
+    <div data-testid="onboarding-step-trust">
       <Heading
         title="Where your data goes"
-        subtitle="Before we connect an AI account, here is the whole picture in plain language."
+        subtitle="The short version, before we connect an AI account."
       />
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginBottom: 16 }}>
-        <DataMapContent variant="accordion" />
-      </div>
+
+      <ul style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28, listStyle: 'none', padding: 0 }}>
+        {([
+          'Your files and notes stay on your computer.',
+          'When you use AI, your question goes straight to your AI provider, never through Keepance.',
+          'The only thing that touches our servers is a license check, never your content.',
+        ] as const).map((bullet) => (
+          <li key={bullet} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <span style={{
+              width: 22, height: 22, borderRadius: '50%', flexShrink: 0, marginTop: 1,
+              background: 'linear-gradient(135deg,#ff3ce8,#5dc6ff)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Check size={12} color="#fff" />
+            </span>
+            <p style={{ fontSize: 14, color: 'hsl(222.2 84% 4.9%)', lineHeight: 1.55, margin: 0 }}>{bullet}</p>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        type="button"
+        data-testid="onboarding-trust-open-data-map"
+        onClick={() => { setDataMapOpen(true); }}
+        style={{
+          background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+          color: 'var(--kp-navy)', fontSize: 13, fontWeight: 600, textDecoration: 'underline',
+          marginBottom: 28, display: 'block',
+        }}
+      >
+        Read the full data map
+      </button>
+
+      <DataMapDialog open={dataMapOpen} onOpenChange={setDataMapOpen} />
+
       <StepFooter onBack={onBack} onNext={onNext} nextLabel="Got it, connect an AI" nextTestId="onboarding-data-continue" />
     </div>
   );
@@ -489,7 +526,7 @@ interface AiKeyStepProps {
   defaultProvider: ProviderId;
   onSaveKey: (provider: KeyProvider, key: string) => void | Promise<void>;
   onBack: () => void;
-  onAdvance: () => void;
+  onAdvance: (connected?: boolean) => void;
 }
 
 function AiKeyStep({ defaultProvider, onSaveKey, onBack, onAdvance }: AiKeyStepProps) {
@@ -504,14 +541,14 @@ function AiKeyStep({ defaultProvider, onSaveKey, onBack, onAdvance }: AiKeyStepP
         }}
         onSaveKey={async (provider, key) => {
           await onSaveKey(provider, key);
-          onAdvance();
+          onAdvance(true);
         }}
         onUseLocal={() => {
-          onAdvance();
+          onAdvance(true);
         }}
         onSkip={() => {
           markAiSetupDeferred();
-          onAdvance();
+          onAdvance(false);
         }}
       />
     </div>
@@ -633,25 +670,28 @@ function FirmStep({ onBack, onAdvance }: FirmStepProps) {
       </div>
     );
   } else {
-    // Not signed in — show sign-in form + prominent solo skip
+    // Not signed in: solo path is dominant (top); team sign-in is secondary below.
     content = (
       <div data-testid="firm-signin-content">
-        <p style={{ fontSize: 13, color: 'hsl(215.4 16.3% 44%)', marginBottom: 16, lineHeight: 1.5 }}>
-          Have a Keepance Firm subscription? Sign in to activate your seat and collaborate with your team.
+        <GradientButton
+          onClick={onAdvance}
+          data-testid="firm-solo-skip"
+          style={{ width: '100%', fontWeight: 700, fontSize: 15, padding: '12px 0', marginBottom: 24 }}
+        >
+          I practice alone, skip this
+        </GradientButton>
+
+        <div style={{ position: 'relative', textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ borderTop: '1px solid hsl(214.3 31.8% 90%)', position: 'absolute', top: '50%', left: 0, right: 0 }} />
+          <span style={{ position: 'relative', background: '#fff', padding: '0 12px', fontSize: 12, color: 'hsl(215.4 16.3% 44%)', fontWeight: 600 }}>
+            Part of a team?
+          </span>
+        </div>
+
+        <p style={{ fontSize: 13, color: 'hsl(215.4 16.3% 44%)', marginBottom: 14, lineHeight: 1.5, textAlign: 'center' }}>
+          Have a Keepance Firm subscription? Sign in to activate your seat.
         </p>
         <FirmSignIn />
-        <div style={{ marginTop: 20, padding: '16px', borderRadius: 10, border: '1.5px solid hsl(214.3 31.8% 60%)', background: 'hsl(210 40% 96.1%)', textAlign: 'center' }}>
-          <p style={{ fontSize: 13, color: 'hsl(215.4 16.3% 44%)', marginBottom: 12 }}>
-            Using Keepance solo? No firm account needed.
-          </p>
-          <Button
-            onClick={onAdvance}
-            data-testid="firm-solo-skip"
-            style={{ width: '100%', fontWeight: 700, fontSize: 15, padding: '10px 0' }}
-          >
-            I work solo, skip this
-          </Button>
-        </div>
       </div>
     );
   }
@@ -659,8 +699,8 @@ function FirmStep({ onBack, onAdvance }: FirmStepProps) {
   return (
     <div data-testid="onboarding-step-firm">
       <Heading
-        title="Invite firm members"
-        subtitle="Keepance Firm lets your whole practice collaborate with end-to-end encrypted matters."
+        title="How do you practice?"
+        subtitle="Keepance works just as well for a solo attorney as it does for a full firm."
       />
 
       <div style={{ marginBottom: 20 }}>{content}</div>
@@ -684,18 +724,19 @@ interface DoneStepProps {
   populateSamples: boolean;
   onToggleSamples: (v: boolean) => void;
   isFinishing: boolean;
+  aiConnected: boolean;
   onBack: () => void;
   onConfirm: () => void;
 }
 
-function DoneStep({ profession, populateSamples, onToggleSamples, isFinishing, onBack, onConfirm }: DoneStepProps) {
+function DoneStep({ profession, populateSamples, onToggleSamples, isFinishing, aiConnected, onBack, onConfirm }: DoneStepProps) {
   const sampleCount = getSamplesForProfession(profession ?? 'other').length;
 
   return (
     <div data-testid="onboarding-step-done">
       <Heading
         title="You are set up"
-        subtitle="Keepance is ready. Start with a matter or open a document to try the AI."
+        subtitle="Create your first matter to get started."
       />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 28 }}>
@@ -716,13 +757,19 @@ function DoneStep({ profession, populateSamples, onToggleSamples, isFinishing, o
           />
           <div>
             <p style={{ fontSize: 14, fontWeight: 600, color: 'hsl(222.2 84% 4.9%)', marginBottom: 4 }}>
-              Add {sampleCount} sample {sampleCount === 1 ? 'file' : 'files'} to my workspace
+              Add sample legal matters so I can try things before adding real cases
             </p>
             <p style={{ fontSize: 12, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.5 }}>
-              Sample matters and documents give you a realistic workspace to explore before you add your own work.
+              Adds {sampleCount} realistic {sampleCount === 1 ? 'matter' : 'matters'} to your workspace. You can delete them any time.
             </p>
           </div>
         </label>
+
+        {!aiConnected && (
+          <p data-testid="onboarding-done-no-ai-note" style={{ fontSize: 13, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.55, margin: 0 }}>
+            Connect an AI in Settings whenever you are ready. Your files and templates work without one.
+          </p>
+        )}
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid hsl(214.3 31.8% 90%)' }}>
@@ -732,7 +779,7 @@ function DoneStep({ profession, populateSamples, onToggleSamples, isFinishing, o
           disabled={isFinishing}
           data-testid="onboarding-done-confirm"
         >
-          {isFinishing ? 'Setting up...' : 'Open Keepance'}
+          {isFinishing ? 'Setting up...' : 'Create your first matter'}
         </GradientButton>
       </div>
     </div>
