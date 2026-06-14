@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, X } from 'lucide-react';
+import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, X, MessageSquare, FileText, Mail } from 'lucide-react';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { useApiKeys } from '@/hooks/useApiKeys';
@@ -235,100 +235,187 @@ interface MatterRowProps {
   onSelect: (id: string) => void;
 }
 
+/** Allowed surfaces for matter-launch quick-actions. */
+type MatterSurface = 'search' | 'files' | 'email';
+
 function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
   const label = matterLabel(matter);
   const folderCount = matter.folderPaths.length;
+  const [hovered, setHovered] = useState(false);
+
+  const launchSurface = (surface: MatterSurface, e: React.MouseEvent) => {
+    // Prevent the button click from also firing onSelect twice
+    e.stopPropagation();
+    onSelect(matter.id);
+    window.dispatchEvent(
+      new CustomEvent('keepance:matter-launch', {
+        detail: { matterId: matter.id, surface },
+      }),
+    );
+  };
+
+  const quickActionBtn: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '3px 9px',
+    borderRadius: 4,
+    fontSize: 11,
+    fontWeight: 600,
+    border: '1px solid rgba(10,37,64,0.18)',
+    background: '#fff',
+    color: 'var(--kp-navy)',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    letterSpacing: '0.01em',
+    lineHeight: 1,
+    transition: 'background 0.1s',
+  };
 
   return (
-    <button
-      type="button"
-      onClick={() => { onSelect(matter.id); }}
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 100px 140px 120px',
-        alignItems: 'center',
-        gap: 0,
-        width: '100%',
-        padding: '12px 20px',
-        background: isActive ? 'rgba(10,37,64,0.04)' : 'transparent',
-        borderLeft: isActive ? '3px solid var(--kp-navy)' : '3px solid transparent',
-        borderBottom: '1px solid var(--color-border)',
-        cursor: 'pointer',
-        textAlign: 'left',
-        transition: 'background 0.12s',
-      }}
-      onMouseEnter={(e) => {
-        if (!isActive) {
-          (e.currentTarget as HTMLButtonElement).style.background = 'rgba(10,37,64,0.02)';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!isActive) {
-          (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-        }
-      }}
+    <div
+      style={{ borderBottom: '1px solid var(--color-border)' }}
+      onMouseEnter={() => { setHovered(true); }}
+      onMouseLeave={() => { setHovered(false); }}
     >
-      {/* Matter name + client */}
-      <div style={{ paddingRight: 16 }}>
-        <div
-          style={{
-            fontSize: 14,
-            fontWeight: 600,
-            color: 'var(--kp-navy)',
-            fontFamily: 'Satoshi, sans-serif',
-            lineHeight: 1.3,
-            marginBottom: 2,
-          }}
-        >
-          {label}
-        </div>
-        {matter.client && matter.client !== matter.name && (
+      {/* Primary row — click to select */}
+      <button
+        type="button"
+        data-testid={`reimagined-matter-row-${matter.id}`}
+        onClick={() => { onSelect(matter.id); }}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 100px 140px 120px',
+          alignItems: 'center',
+          gap: 0,
+          width: '100%',
+          padding: '12px 20px 8px',
+          background: isActive
+            ? 'rgba(10,37,64,0.04)'
+            : hovered
+            ? 'rgba(10,37,64,0.02)'
+            : 'transparent',
+          borderLeft: isActive ? '3px solid var(--kp-navy)' : '3px solid transparent',
+          cursor: 'pointer',
+          textAlign: 'left',
+          transition: 'background 0.12s',
+          borderBottom: 'none',
+        }}
+      >
+        {/* Matter name + client */}
+        <div style={{ paddingRight: 16 }}>
           <div
             style={{
-              fontSize: 12,
-              color: 'var(--color-muted-foreground)',
-              fontWeight: 400,
+              fontSize: 14,
+              fontWeight: 600,
+              color: 'var(--kp-navy)',
+              fontFamily: 'Satoshi, sans-serif',
+              lineHeight: 1.3,
+              marginBottom: 2,
             }}
           >
-            {matter.client}
+            {label}
           </div>
-        )}
-      </div>
+          {matter.client && matter.client !== matter.name && (
+            <div
+              style={{
+                fontSize: 12,
+                color: 'var(--color-muted-foreground)',
+                fontWeight: 400,
+              }}
+            >
+              {matter.client}
+            </div>
+          )}
+        </div>
 
-      {/* Privilege */}
-      <div style={{ paddingRight: 12 }}>
-        {matter.privileged && <PrivilegePill />}
-      </div>
+        {/* Privilege */}
+        <div style={{ paddingRight: 12 }}>
+          {matter.privileged && <PrivilegePill />}
+        </div>
 
-      {/* Documents / scope */}
+        {/* Documents / scope */}
+        <div
+          style={{
+            fontSize: 13,
+            color: 'var(--color-muted-foreground)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+          }}
+        >
+          <FolderOpen style={{ width: 13, height: 13, strokeWidth: 1.75, flex: 'none' }} />
+          {folderCount === 0
+            ? 'No folders'
+            : folderCount === 1
+            ? '1 folder'
+            : `${String(folderCount)} folders`}
+        </div>
+
+        {/* Created */}
+        <div
+          style={{
+            fontSize: 12,
+            color: 'var(--color-muted-foreground)',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {formatDate(matter.createdAt)}
+        </div>
+      </button>
+
+      {/* Quick-action row — visible on hover */}
       <div
+        data-testid={`matter-quick-actions-${matter.id}`}
         style={{
-          fontSize: 13,
-          color: 'var(--color-muted-foreground)',
           display: 'flex',
           alignItems: 'center',
-          gap: 5,
+          gap: 6,
+          paddingLeft: '23px',
+          paddingRight: 20,
+          paddingBottom: hovered ? 8 : 0,
+          height: hovered ? 'auto' : 0,
+          overflow: 'hidden',
+          opacity: hovered ? 1 : 0,
+          pointerEvents: hovered ? 'auto' : 'none',
+          transition: 'opacity 0.15s, padding-bottom 0.15s',
+          background: isActive ? 'rgba(10,37,64,0.04)' : hovered ? 'rgba(10,37,64,0.02)' : 'transparent',
+          borderLeft: isActive ? '3px solid var(--kp-navy)' : '3px solid transparent',
         }}
+        aria-hidden={!hovered}
       >
-        <FolderOpen style={{ width: 13, height: 13, strokeWidth: 1.75, flex: 'none' }} />
-        {folderCount === 0
-          ? 'No folders'
-          : folderCount === 1
-          ? '1 folder'
-          : `${String(folderCount)} folders`}
+        <button
+          type="button"
+          data-testid={`matter-launch-ask-${matter.id}`}
+          aria-label={`Ask AI about ${label}`}
+          style={quickActionBtn}
+          onClick={(e) => { launchSurface('search', e); }}
+        >
+          <MessageSquare style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
+          Ask
+        </button>
+        <button
+          type="button"
+          data-testid={`matter-launch-documents-${matter.id}`}
+          aria-label={`Open documents for ${label}`}
+          style={quickActionBtn}
+          onClick={(e) => { launchSurface('files', e); }}
+        >
+          <FileText style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
+          Documents
+        </button>
+        <button
+          type="button"
+          data-testid={`matter-launch-email-${matter.id}`}
+          aria-label={`Open email for ${label}`}
+          style={quickActionBtn}
+          onClick={(e) => { launchSurface('email', e); }}
+        >
+          <Mail style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
+          Email
+        </button>
       </div>
-
-      {/* Created */}
-      <div
-        style={{
-          fontSize: 12,
-          color: 'var(--color-muted-foreground)',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {formatDate(matter.createdAt)}
-      </div>
-    </button>
+    </div>
   );
 }
 

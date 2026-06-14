@@ -1518,6 +1518,25 @@ function App() {
     return () => { window.removeEventListener('keepance:open-settings', handler); };
   }, [openSettings]);
 
+  // Wave F — listen for 'keepance:matter-launch' dispatched by the quick-action
+  // buttons on each matter row in ReimaginedMattersHome. Sets the active matter
+  // and jumps to the requested surface (search = Ask, files = Documents, email).
+  useEffect(() => {
+    const ALLOWED_SURFACES = new Set(['search', 'files', 'email'] as const);
+    type AllowedSurface = 'search' | 'files' | 'email';
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ matterId?: string; surface?: string } | null>).detail;
+      if (!detail?.matterId) return;
+      const surface = ALLOWED_SURFACES.has(detail.surface as AllowedSurface)
+        ? (detail.surface as AllowedSurface)
+        : 'search';
+      useMatterStore.getState().setActiveMatter(detail.matterId);
+      setSidebarActiveTab(surface);
+    };
+    window.addEventListener('keepance:matter-launch', handler);
+    return () => { window.removeEventListener('keepance:matter-launch', handler); };
+  }, []);
+
   // UX-35: shared writer that routes binary file extensions (.docx, .xlsx,
   // .pptx, .rtf, etc.) through writeFileBinary using the bytes decoded
   // from the editor's data-URL content. The Save path (handleSaveFile)

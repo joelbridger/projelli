@@ -76,6 +76,22 @@ vi.mock('@/hooks/useTrial', () => ({
   useTrialGate: () => mockTrialGate(),
 }));
 
+// Matter store: useActiveMatter returns null by default (no active matter).
+const mockUseActiveMatter = vi.fn(() => null);
+vi.mock('@/stores/matterStore', () => ({
+  useActiveMatter: () => mockUseActiveMatter(),
+}));
+
+// matterResolver: provide the same label logic as the real module.
+vi.mock('@/modules/memory/matterResolver', () => ({
+  matterLabel: (matter: { name: string; client: string; id: string }) => {
+    const name = matter.name.trim();
+    const client = matter.client.trim();
+    if (name && client) return `${client} - ${name}`;
+    return name || client || matter.id;
+  },
+}));
+
 // ── Import component and mocked store AFTER mocks are set up ─────────────────
 
 import { ReimaginedAssociateHome } from '@/components/workflow/ReimaginedAssociateHome';
@@ -112,6 +128,8 @@ describe('ReimaginedAssociateHome (law persona)', () => {
       isActivated: true,
       trialDays: 30,
     });
+    // No active matter by default.
+    mockUseActiveMatter.mockReturnValue(null);
   });
 
   it('renders the header eyebrow and title', () => {
@@ -256,6 +274,30 @@ describe('ReimaginedAssociateHome (law persona)', () => {
     expect(screen.queryByTestId('associate-recent-runs')).toBeNull();
   });
 
+  // ── Active-matter context chip ────────────────────────────────────────────
+
+  it('shows no matter chip when there is no active matter', () => {
+    render(<ReimaginedAssociateHome {...defaultProps()} />);
+    expect(screen.queryByTestId('associate-active-matter-chip')).toBeNull();
+  });
+
+  it('shows the matter chip with label when an active matter is set', () => {
+    mockUseActiveMatter.mockReturnValue({
+      id: 'matter_test_1',
+      name: 'Smith v. Jones',
+      client: 'Alice Smith',
+      folderPaths: [],
+      mailFolderPaths: [],
+      privileged: false,
+      createdAt: new Date().toISOString(),
+    });
+    render(<ReimaginedAssociateHome {...defaultProps()} />);
+    const chip = screen.getByTestId('associate-active-matter-chip');
+    expect(chip).toBeTruthy();
+    expect(chip.textContent).toContain('Running in:');
+    expect(chip.textContent).toContain('Alice Smith - Smith v. Jones');
+  });
+
   // ── Practice-area filter chips ────────────────────────────────────────────
 
   it('hides the practice-area filter bar when only one category is present', () => {
@@ -286,6 +328,8 @@ describe('ReimaginedAssociateHome — practice-area filter chips (multi-category
       isActivated: true,
       trialDays: 30,
     });
+    // No active matter by default.
+    mockUseActiveMatter.mockReturnValue(null);
   });
 
   function multiProps(overrides = {}) {

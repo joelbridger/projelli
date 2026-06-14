@@ -42,12 +42,15 @@ import {
   Loader2,
   Star,
   Settings,
+  Briefcase,
 } from 'lucide-react';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { prioritizeByProfession } from '@/modules/workflow/prioritizeByProfession';
 import { useProfessionStore, isLawExperience } from '@/stores/professionStore';
 import { useTrialGate } from '@/hooks/useTrial';
+import { useActiveMatter } from '@/stores/matterStore';
+import { matterLabel } from '@/modules/memory/matterResolver';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
 
@@ -481,6 +484,7 @@ export function ReimaginedAssociateHome({
 }: ReimaginedAssociateHomeProps) {
   const trialGate = useTrialGate();
   const profession = useProfessionStore((s) => s.profession);
+  const activeMatter = useActiveMatter();
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
 
@@ -613,6 +617,34 @@ export function ReimaginedAssociateHome({
                 Your tireless litigation associate. {String(templates.length)} workflow{templates.length === 1 ? '' : 's'} ready — pick one to run.
                 {/* eslint-enable keepance-i18n/no-hardcoded-string */}
               </p>
+
+              {/* Active-matter context chip */}
+              {activeMatter !== null && (
+                <div
+                  data-testid="associate-active-matter-chip"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    marginTop: 8,
+                    padding: '3px 10px',
+                    borderRadius: 20,
+                    border: '1px solid rgba(10,37,64,0.18)',
+                    background: 'rgba(10,37,64,0.05)',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: '0.02em',
+                    color: 'var(--kp-navy)',
+                    maxWidth: 360,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <Briefcase style={{ width: 10, height: 10, strokeWidth: 2, flex: 'none' }} />
+                  Running in: {matterLabel(activeMatter)}
+                </div>
+              )}
             </div>
           </div>
 
