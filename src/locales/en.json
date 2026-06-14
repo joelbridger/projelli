@@ -155,7 +155,7 @@
       "unlocks": {
         "ai-chat": "AI chat with your own keys (Claude, OpenAI, Gemini)",
         "workflows": "All workflow templates",
-        "workspaces": "Unlimited workspaces, files, and version history",
+        "workspaces": "Open as many folders as you need, files, and version history",
         "whiteboard-audio-research": "Whiteboard, audio recording, research citations",
         "multi-model": "Multi-model comparison",
         "commercial": "Commercial use license",
@@ -166,7 +166,7 @@
     },
     "privacy": {
       "title": "Privacy",
-      "description": "Keepance is local-first. Your files, your AI prompts, and your API keys never leave your machine. The two opt-ins below are the only data Keepance ever collects, and both default to off.",
+      "description": "Keepance is local-first. Your files, your AI prompts, and your account keys never leave your machine. The two opt-ins below are the only data Keepance ever collects, and both default to off.",
       "telemetry": {
         "title": "Anonymous usage stats",
         "description": "Help improve Keepance by sending lifecycle events: app launches, trial start, trial end, license activated, license deactivated. No content, no files, no AI prompts, no email.",
@@ -225,8 +225,8 @@
       "approve-all-session": "Approve all this session",
       "approve-write": "Approve this write",
       "privileged-blocked": "Network lockdown is on. MCP servers are disabled, so this write was blocked and nothing was changed on your machine.",
-      "privileged-auto-denied": "Blocked and recorded in your audit log. Turn off network lockdown to allow MCP writes again.",
-      "title-blocked": "MCP write blocked"
+      "privileged-auto-denied": "Blocked and recorded in your audit log. Turn off network lockdown to allow external AI writes again.",
+      "title-blocked": "External AI write blocked"
     },
     "ollama": {
       "title": "Ollama (local models)",
@@ -271,10 +271,10 @@
       "things-to-know": "Things to know"
     },
     "api-keys": {
-      "title": "API Keys",
-      "description": "Configure API keys for AI model providers. Keys are stored securely and never logged.",
-      "get-key-link": "Get API Key",
-      "add-key": "Add API Key"
+      "title": "AI Account Keys",
+      "description": "Configure account keys for AI model providers. Keys are stored securely and never logged.",
+      "get-key-link": "Get account key",
+      "add-key": "Add account key"
     },
     "plugins": {
       "title": "Plugins",
@@ -285,7 +285,7 @@
     },
     "voice": {
       "title": "Voice input",
-      "description": "Hands-free capture via a bundled offline speech-recognition model. Audio never leaves your machine. Press-to-talk inserts into the focused text field; voice-to-note saves a new Markdown file into <c>Inbox/</c>."
+      "description": "Hands-free capture via a bundled offline speech-recognition model. Audio never leaves your machine. Press-to-talk inserts into the focused text field; voice-to-note saves a new text file into <c>Inbox/</c>."
     },
     "advanced": {
       "title": "Advanced",
@@ -314,7 +314,7 @@
     },
     "selector": {
       "browser-reselect-note": "Recent workspaces require re-selecting the folder due to browser security.",
-      "tagline": "Your AI workspace. Your files. Your machine.",
+      "tagline": "Your practice folder. Your files. Your machine.",
       "open-existing-hint": "Select a workspace folder"
     },
     "grid": {
@@ -466,8 +466,8 @@
   "ai": {
     "assistant": {
       "start-new-chat": "Start new chat:",
-      "how-to-get-keys": "How to get API keys",
-      "keys-stored-locally": "API keys are stored securely in your local workspace and never sent to our servers.",
+      "how-to-get-keys": "How to get account keys",
+      "keys-stored-locally": "Account keys are stored securely on your machine and never sent to our servers.",
       "model-saved-per-workspace": "Model settings are saved per workspace and apply to all new chats."
     },
     "chat": {
@@ -506,11 +506,11 @@
       "expanded-for-next-send": "Expanded for next send"
     },
     "compression": {
-      "title": "Context is full",
-      "body": "This send would use <s>{{current}}</s> tokens, over your {{limit}} limit. Compress older messages to free space ({{projected}} tokens after compression) or send anyway.",
+      "title": "This conversation is getting long",
+      "body": "This message would go over the AI's memory limit for this chat. Shortening the earlier conversation lets it through. Nothing is deleted from your files, only this chat's history is trimmed.",
       "cancel": "Cancel",
       "send-anyway": "Send Anyway",
-      "compress-send": "Compress + Send"
+      "compress-send": "Shorten history and send"
     },
     "context-meter": {
       "next-msg": "~{{cost}} next msg at {{model}}"
@@ -551,13 +551,13 @@
       "apikey": {
         "title": "Add an AI provider key",
         "subtitle": "Optional, but you'll need one to use the AI features.",
-        "body-1": "Keepance is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their API key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
+        "body-1": "Keepance is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their account key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
         "body-2": "The fastest way to get started is with <s>Anthropic Claude</s>:",
         "step-go-to": "Go to <a>console.anthropic.com</a>",
         "step-signup": "Sign up (free, $5 in credits to start)",
         "step-create-key": "Click API Keys, Create Key",
         "step-copy-key": "Copy the key (starts with <c>sk-ant-</c>) and paste it below",
-        "skip-hint": "You can skip this and add a key later in Settings, API Keys.",
+        "skip-hint": "You can skip this and add a key later in Settings, AI Account Keys.",
         "save-cta": "Save key"
       },
       "demo": {
@@ -583,11 +583,11 @@
       "check-linux": "Linux: most installers offer LUKS full-disk encryption. Check your distribution's disk settings, or run lsblk and look for a crypt entry."
     },
     "api-key-card": {
-      "title": "Next step: add your AI key",
-      "description": "Keepance uses your own API key from Anthropic, OpenAI, or Google, so your AI usage goes straight to your provider with no markup from us. Your Keepance plan covers the software.",
+      "title": "Next step: add your AI account key",
+      "description": "Keepance uses your own account key from Anthropic, OpenAI, or Google, so your AI usage goes straight to your provider with no markup from us. Your Keepance plan covers the software.",
       "walk-me-through": "Walk me through it",
-      "add-key": "Add API key",
-      "keys-local": "Keys are stored locally on your computer. Never sent to us."
+      "add-key": "Add account key",
+      "keys-local": "Account keys are stored locally on your computer. Never sent to us."
     },
     "api-key-wizard": {
       "step-1": {
@@ -603,7 +603,7 @@
       "check-ollama": "Check Ollama connection"
     },
     "tutorial": {
-      "open-api-keys": "Open API keys page",
+      "open-api-keys": "Open account keys page",
       "direct-urls": "Direct URLs (click to open in your browser):"
     },
     "welcome": {
@@ -620,7 +620,7 @@
     "no-results": "No results found",
     "tip-quick-open": "to quickly open any file by name",
     "tip-content": "Searches filenames AND file content",
-    "tip-formats": "Markdown, text, docx, xlsx, pptx, RTF are all indexed",
+    "tip-formats": "Text files, docx, xlsx, pptx, RTF are all indexed",
     "tip-snippet": "Click a result to open the file with a match snippet"
   },
   "plugins": {
@@ -674,7 +674,7 @@
       "redline-placeholder": "Tell the AI how to revise this document. For example: \"tighten the indemnity clause\", \"make this more formal\", \"shorten by 20%\".",
       "redline-submit": "Suggest changes",
       "redline-working": "Thinking…",
-      "redline-need-key": "Add an API key for your AI provider (AI Assistant → Keys) to use AI redline.",
+      "redline-need-key": "Add an account key for your AI provider (AI Assistant → Keys) to use AI redline.",
       "redline-ai-paused": "AI redlining is paused while your subscription is inactive. You can still open, edit, and export this document. Resubscribe to turn AI features back on.",
       "redline-error": "AI redline failed",
       "redline-close": "Close",
@@ -786,7 +786,7 @@
   },
   "tts": {
     "output": {
-      "description": "AI responses can be read aloud using a bundled text-to-speech engine. No API key required; audio never leaves your machine."
+      "description": "AI responses can be read aloud using a bundled text-to-speech engine. No account key required; audio never leaves your machine."
     }
   },
   "whats-new": {
@@ -992,7 +992,7 @@
       "assured-section": "Assured inference keys",
       "assured-description": "Store a managed provider key so members can use the Assured (zero-retention proxy) confidentiality mode. The key is encrypted at rest on the server and never shown again.",
       "provider-label": "Provider",
-      "api-key-label": "API key",
+      "api-key-label": "Account key",
       "save-key-action": "Save",
       "save-key-ok": "Managed key saved.",
       "no-keys": "No managed keys configured.",
@@ -1043,7 +1043,7 @@
       },
       "direct": {
         "label": "Sent to your {{provider}} account",
-        "note": "Sent straight from your machine to {{provider}} with your own API key. Keepance is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
+        "note": "Sent straight from your machine to {{provider}} with your own account key. Keepance is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
       },
       "demo": {
         "label": "Browser demo. Do not use with client data",

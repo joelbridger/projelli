@@ -245,11 +245,11 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'manageApiKeys',
     category: 'ai',
-    label: 'API Keys',
-    description: 'Add or remove API keys for AI providers.',
+    label: 'AI Account Keys',
+    description: 'Add or remove account keys for AI providers.',
     type: 'text', // rendered as action link
     defaultValue: '',
-    action: { label: 'Manage API Keys', actionId: 'open-ai-keys' },
+    action: { label: 'Manage AI Account Keys', actionId: 'open-ai-keys' },
   },
   {
     key: 'manageAIRules',
@@ -487,8 +487,8 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'viewApiKeyTutorial',
     category: 'onboarding',
-    label: 'API Key Tutorial',
-    description: 'Step-by-step guide to get an API key from Anthropic, OpenAI, or Google.',
+    label: 'Account Key Setup Guide',
+    description: 'Step-by-step guide to get an account key from Anthropic, OpenAI, or Google.',
     type: 'text',
     defaultValue: '',
     action: { label: 'View guide', actionId: 'open-api-key-tutorial' },

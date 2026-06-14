@@ -10,7 +10,7 @@ describe('App', () => {
     // the pitch data-testid so this doesn't re-break on future copy tweaks.
     expect(screen.getByTestId('welcome-dialog-pitch')).toBeInTheDocument();
     expect(screen.getByTestId('welcome-dialog-pitch').textContent).toMatch(
-      /Your AI workspace/i,
+      /Your practice folder/i,
     );
   });
 

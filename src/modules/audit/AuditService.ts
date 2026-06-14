@@ -500,7 +500,7 @@ function describeAuditEvent(event: AuditEvent): string {
       return `AI request sent to ${where}`;
     }
     case 'mcp_blocked':
-      return `MCP write blocked by Privileged Matter Mode: ${event.payload.path}`;
+      return `External AI write blocked by Privileged Matter Mode: ${event.payload.path}`;
     case 'matter_shared':
       return `Matter shared with firm${event.payload.detail ? `: ${event.payload.detail}` : ''}`;
     case 'matter_unshared':

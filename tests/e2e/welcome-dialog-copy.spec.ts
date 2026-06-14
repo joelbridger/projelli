@@ -18,7 +18,7 @@ test.describe('Welcome screen copy (UX-05 + UX-06)', () => {
   test('tagline is visible', async ({ page }) => {
     const pitch = page.getByTestId('welcome-dialog-pitch');
     await expect(pitch).toBeVisible();
-    await expect(pitch).toContainText(/Your AI workspace/);
+    await expect(pitch).toContainText(/Your practice folder/);
   });
 
   test('"Learn more" link is present in footer', async ({ page }) => {

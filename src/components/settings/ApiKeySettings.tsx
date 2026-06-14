@@ -151,7 +151,7 @@ function ProviderKeyCard({
 
   const handleSave = useCallback(async () => {
     if (!newKey.trim()) {
-      setError('API key is required');
+      setError('Account key is required');
       return;
     }
 
@@ -172,7 +172,7 @@ function ProviderKeyCard({
   }, [newKey, keychainService, provider.id, loadKeyStatus, onKeyChanged]);
 
   const handleDelete = useCallback(async () => {
-    if (!confirm('Are you sure you want to remove this API key?')) {
+    if (!confirm('Are you sure you want to remove this account key?')) {
       return;
     }
 
