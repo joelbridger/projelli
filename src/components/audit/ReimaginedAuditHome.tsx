@@ -22,6 +22,7 @@ import React, {
   useCallback,
   useRef,
   useEffect,
+  useDeferredValue,
   type KeyboardEvent,
 } from 'react';
 import {
@@ -784,6 +785,85 @@ function AuditEmptyState() {
   );
 }
 
+// ── No-match state (filter active, zero results) ───────────────────────────
+
+interface AuditNoMatchStateProps {
+  onClearFilters: () => void;
+}
+
+function AuditNoMatchState({ onClearFilters }: AuditNoMatchStateProps) {
+  return (
+    <div
+      data-testid="audit-no-match-state"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '80px 24px',
+        textAlign: 'center',
+        gap: 12,
+      }}
+    >
+      <Search
+        style={{
+          width: 36,
+          height: 36,
+          color: 'var(--color-muted-foreground)',
+          strokeWidth: 1.5,
+          marginBottom: 4,
+        }}
+      />
+      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+      <div
+        style={{
+          fontSize: 15,
+          fontWeight: 700,
+          color: 'var(--kp-navy)',
+          fontFamily: 'Satoshi, sans-serif',
+        }}
+      >
+        No activity matches your filters.
+      </div>
+      <div
+        style={{
+          fontSize: 13,
+          color: 'var(--color-muted-foreground)',
+          maxWidth: 360,
+          lineHeight: 1.55,
+        }}
+      >
+        Your search or filters did not match any logged activity. Try broadening
+        your search or clearing the filters to see all entries.
+      </div>
+      <button
+        type="button"
+        data-testid="audit-no-match-clear"
+        onClick={onClearFilters}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          height: 32,
+          padding: '0 14px',
+          borderRadius: 6,
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: 'pointer',
+          border: '1px solid rgba(10,37,64,0.2)',
+          background: 'transparent',
+          color: 'var(--kp-navy)',
+          marginTop: 4,
+        }}
+      >
+        <X style={{ width: 12, height: 12 }} />
+        Clear filters
+      </button>
+      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+    </div>
+  );
+}
+
 // ── Filter panel ───────────────────────────────────────────────────────────
 
 type CategoryFilter = ActionCategory | 'all';
@@ -1041,19 +1121,30 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
     return new Set<AuditActionType>(inCategory);
   }, [categoryFilter, selectedTypes]);
 
+  // Defer the search/filter inputs so that typing stays responsive when the
+  // entries array is large. The deferred value lags one frame behind user
+  // input, keeping keystrokes instant while the memo catches up.
+  const deferredSearch = useDeferredValue(searchQuery);
+  const deferredDateFrom = useDeferredValue(dateFrom);
+  const deferredDateTo = useDeferredValue(dateTo);
+  const deferredModelFilter = useDeferredValue(modelFilter);
+  const deferredEffectiveTypes = useDeferredValue(effectiveTypes);
+
   const filteredEntries = useMemo(() => {
     const result = filterEntries(entries, {
-      actionTypes: effectiveTypes,
-      dateFrom: dateFrom || undefined,
-      dateTo: dateTo || undefined,
-      model: modelFilter || undefined,
-      searchQuery: searchQuery || undefined,
+      actionTypes: deferredEffectiveTypes,
+      dateFrom: deferredDateFrom || undefined,
+      dateTo: deferredDateTo || undefined,
+      model: deferredModelFilter || undefined,
+      searchQuery: deferredSearch || undefined,
     });
-    // Newest first
+    // NOTE: If the entries prop is guaranteed newest-first from the source,
+    // this sort could be dropped. For now we sort defensively since the source
+    // order is not documented as a stable guarantee.
     return result.slice().sort(
       (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
-  }, [entries, effectiveTypes, dateFrom, dateTo, modelFilter, searchQuery]);
+  }, [entries, deferredEffectiveTypes, deferredDateFrom, deferredDateTo, deferredModelFilter, deferredSearch]);
 
   const visibleEntries = filteredEntries.slice(0, visibleCount);
   const hasMore = visibleCount < filteredEntries.length;
@@ -1066,6 +1157,17 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
     (modelFilter ? 1 : 0);
 
   const handleReset = useCallback(() => {
+    setCategoryFilter('all');
+    setSelectedTypes(new Set());
+    setDateFrom('');
+    setDateTo('');
+    setModelFilter('');
+    setVisibleCount(PAGE_SIZE);
+  }, []);
+
+  // Resets all filters AND the search query — used by the no-match state CTA.
+  const handleClearAll = useCallback(() => {
+    setSearchQuery('');
     setCategoryFilter('all');
     setSelectedTypes(new Set());
     setDateFrom('');
@@ -1166,37 +1268,70 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
           title="Activity Log"
           description="Every AI request, file change, and workflow run in your workspace, logged and exportable."
           actions={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-              <button
-                type="button"
-                data-testid="audit-home-export-csv"
-                onClick={handleExportCSV}
-                disabled={filteredEntries.length === 0}
-                style={{
-                  ...btnBase,
-                  opacity: filteredEntries.length === 0 ? 0.45 : 1,
-                }}
-                title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as CSV'}
-                aria-label="Export audit log as CSV"
-              >
-                <Download style={{ width: 13, height: 13 }} />
-                CSV
-              </button>
-              <button
-                type="button"
-                data-testid="audit-home-export-json"
-                onClick={handleExportJSON}
-                disabled={filteredEntries.length === 0}
-                style={{
-                  ...btnBase,
-                  opacity: filteredEntries.length === 0 ? 0.45 : 1,
-                }}
-                title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as JSON'}
-                aria-label="Export audit log as JSON"
-              >
-                <Download style={{ width: 13, height: 13 }} />
-                JSON
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  type="button"
+                  data-testid="audit-home-export-csv"
+                  onClick={handleExportCSV}
+                  disabled={filteredEntries.length === 0}
+                  style={{
+                    ...btnBase,
+                    opacity: filteredEntries.length === 0 ? 0.45 : 1,
+                  }}
+                  title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as CSV'}
+                  aria-label="Export audit log as CSV"
+                >
+                  <Download style={{ width: 13, height: 13 }} />
+                  CSV
+                </button>
+                <button
+                  type="button"
+                  data-testid="audit-home-export-json"
+                  onClick={handleExportJSON}
+                  disabled={filteredEntries.length === 0}
+                  style={{
+                    ...btnBase,
+                    opacity: filteredEntries.length === 0 ? 0.45 : 1,
+                  }}
+                  title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as JSON'}
+                  aria-label="Export audit log as JSON"
+                >
+                  <Download style={{ width: 13, height: 13 }} />
+                  JSON
+                </button>
+              </div>
+              {filteredEntries.length > 0 && filteredEntries.length < entries.length && (
+                <div
+                  data-testid="audit-export-filter-note"
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--color-muted-foreground)',
+                    lineHeight: 1.4,
+                    textAlign: 'right',
+                  }}
+                >
+                  Exporting {String(filteredEntries.length)} filtered {filteredEntries.length === 1 ? 'entry' : 'entries'}.{' '}
+                  <button
+                    type="button"
+                    data-testid="audit-export-clear-filters"
+                    onClick={handleClearAll}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      fontSize: 'inherit',
+                      color: 'var(--kp-navy)',
+                      fontWeight: 600,
+                      textDecoration: 'underline',
+                      textDecorationStyle: 'dotted',
+                    }}
+                  >
+                    Clear filters to export all {String(entries.length)}.
+                  </button>
+                </div>
+              )}
             </div>
           }
         />
@@ -1357,8 +1492,10 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
             overflow: 'hidden',
           }}
         >
-          {filteredEntries.length === 0 ? (
+          {filteredEntries.length === 0 && entries.length === 0 ? (
             <AuditEmptyState />
+          ) : filteredEntries.length === 0 ? (
+            <AuditNoMatchState onClearFilters={handleClearAll} />
           ) : (
             <>
               <TableHeader />

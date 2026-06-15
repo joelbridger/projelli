@@ -552,12 +552,23 @@ export function DocumentGridView({
 
   // ── File counts ─────────────────────────────────────────────────────────
 
-  // Fix 2: count items at the CURRENT directory level, not the whole tree.
-  // "1 folder", "3 items" etc., reflecting what is actually shown in the grid.
+  // Count items at the CURRENT directory level, not the whole tree.
+  // When a search is active, count only the filtered nodes and render
+  // "N of M items" so the label reflects what is actually visible.
   const currentDirCount = currentNodes.length;
+  const filteredCount = filteredNodes.length;
+  const isSearching = searchQuery.trim().length > 0;
 
   function currentDirLabel(): string {
     if (currentDirCount === 0) return 'No items';
+
+    // When searching, prefix with "N of M" so the user knows they're seeing a
+    // subset of the directory contents.
+    if (isSearching) {
+      const totalLabel = currentDirCount === 1 ? '1 item' : `${String(currentDirCount)} items`;
+      return `${String(filteredCount)} of ${totalLabel}`;
+    }
+
     const folderCount = currentNodes.filter((n) => n.type === 'folder').length;
     const fileCount = currentNodes.filter((n) => n.type !== 'folder').length;
     if (folderCount > 0 && fileCount === 0) {
@@ -603,6 +614,10 @@ export function DocumentGridView({
   // R6-1: grid drag-and-drop. Dropping a card onto a FOLDER card moves it
   // into that folder; the self/descendant guard lives in FileCard. App.tsx's
   // onMove refreshes the workspace store, so the tree + grid update after.
+  // TODO(a11y): drag-and-drop is the only way to move files in this grid.
+  // A keyboard "Move to folder" affordance is still needed — e.g. a context-menu
+  // action or a modal folder picker triggered by a keyboard shortcut. Design
+  // decision deferred; leaving this note so it stays on record.
   const handleMoveInto = useCallback(
     async (sourcePath: string, targetFolderPath: string) => {
       await onMove(sourcePath, targetFolderPath);
@@ -892,6 +907,7 @@ export function DocumentGridView({
             {/* Subtitle */}
             {breadcrumbs.length === 0 && (
               <div
+                data-testid="grid-dir-label"
                 style={{
                   fontSize: 12,
                   color: 'var(--color-muted-foreground)',

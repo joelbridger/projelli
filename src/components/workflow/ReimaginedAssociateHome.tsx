@@ -29,7 +29,7 @@
  * Prop interface is IDENTICAL to the original so App.tsx is untouched.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   Play,
   CheckCircle2,
@@ -90,6 +90,53 @@ const CATEGORY_ORDER: CategoryConfig[] = [
 
 /** The primary "start here" template id for the legal profession. */
 const LAW_FEATURED_ID = 'deposition-contradiction-finder';
+
+// ── localStorage persistence ───────────────────────────────────────────────
+
+const LS_FILTER_KEY = 'keepance:workflows-filter';
+const LS_COLLAPSED_KEY = 'keepance:workflows-collapsed';
+
+function readStoredFilter(): FilterKey {
+  try {
+    const raw = localStorage.getItem(LS_FILTER_KEY);
+    if (!raw) return 'all';
+    // Validate that the stored value is a known key before trusting it.
+    const valid: string[] = ['all', ...CATEGORY_ORDER.map((c) => c.key)];
+    return valid.includes(raw) ? (raw as FilterKey) : 'all';
+  } catch {
+    return 'all';
+  }
+}
+
+function writeStoredFilter(key: FilterKey): void {
+  try {
+    localStorage.setItem(LS_FILTER_KEY, key);
+  } catch {
+    // ignore
+  }
+}
+
+function readStoredCollapsed(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(LS_COLLAPSED_KEY);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, boolean>;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredCollapsed(state: Record<string, boolean>): void {
+  try {
+    localStorage.setItem(LS_COLLAPSED_KEY, JSON.stringify(state));
+  } catch {
+    // ignore
+  }
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -282,20 +329,29 @@ function TemplateCard({
 function CategorySection({
   config,
   templates,
+  totalCount,
+  searchActive,
   featuredId,
   currentExecution,
   trialLocked,
+  collapsed,
+  onCollapse,
   onRun,
 }: {
   config: CategoryConfig;
   templates: WorkflowTemplate[];
+  /** Pre-search total for this category. Used to show "N of M" when a search has narrowed the list. */
+  totalCount: number;
+  /** Whether the user has an active search query (used to decide whether to show "hidden by search" hint). */
+  searchActive: boolean;
   featuredId: string | null;
   currentExecution: WorkflowExecution | null;
   trialLocked: boolean;
+  collapsed: boolean;
+  onCollapse: (key: string, collapsed: boolean) => void;
   onRun: (t: WorkflowTemplate) => void;
 }) {
   const INITIAL_COUNT = 6;
-  const [collapsed, setCollapsed] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
   const visible = collapsed
@@ -305,6 +361,8 @@ function CategorySection({
     : templates.slice(0, INITIAL_COUNT);
 
   const hiddenCount = templates.length - INITIAL_COUNT;
+  // When a search is active and has narrowed this category, compute how many are hidden by search.
+  const hiddenBySearch = searchActive ? totalCount - templates.length : 0;
 
   return (
     <section
@@ -315,7 +373,7 @@ function CategorySection({
       <button
         type="button"
         data-testid={`associate-section-toggle-${config.key}`}
-        onClick={() => { setCollapsed((c) => !c); }}
+        onClick={() => { onCollapse(config.key, !collapsed); }}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -346,13 +404,16 @@ function CategorySection({
           {config.label}
         </span>
         <span
+          data-testid={`associate-section-count-${config.key}`}
           style={{
             fontSize: 11,
             color: 'var(--color-muted-foreground)',
             fontVariantNumeric: 'tabular-nums',
           }}
         >
-          ({String(templates.length)})
+          {hiddenBySearch > 0
+            ? `(${String(templates.length)} of ${String(totalCount)})`
+            : `(${String(templates.length)})`}
         </span>
       </button>
 
@@ -403,6 +464,40 @@ function CategorySection({
               <ChevronDown style={{ width: 13, height: 13, strokeWidth: 2 }} />
               Show all ({String(templates.length)})
             </button>
+          )}
+
+          {/* Search-hidden hint — shown when search has narrowed this category */}
+          {hiddenBySearch > 0 && (
+            <div
+              data-testid={`associate-search-hidden-${config.key}`}
+              style={{
+                marginTop: 10,
+                fontSize: 11,
+                color: 'var(--color-muted-foreground)',
+                lineHeight: 1.4,
+              }}
+            >
+              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+              {String(hiddenBySearch)} more hidden by search.{' '}
+              <button
+                type="button"
+                data-testid={`associate-search-hidden-clear-${config.key}`}
+                onClick={() => { onCollapse('__clear-search__', false); }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--kp-navy)',
+                  textDecoration: 'underline',
+                }}
+              >
+                Clear search
+              </button>
+              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            </div>
           )}
         </>
       )}
@@ -487,7 +582,18 @@ export function ReimaginedAssociateHome({
   const profession = useProfessionStore((s) => s.profession);
   const activeMatter = useActiveMatter();
   const [query, setQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterKey>(readStoredFilter);
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>(readStoredCollapsed);
+
+  // Persist filter to localStorage whenever it changes.
+  useEffect(() => {
+    writeStoredFilter(activeFilter);
+  }, [activeFilter]);
+
+  // Persist collapsed state to localStorage whenever it changes.
+  useEffect(() => {
+    writeStoredCollapsed(collapsedCategories);
+  }, [collapsedCategories]);
 
   // Load + scope templates exactly as WorkflowPanel does.
   const templates = useMemo(() => {
@@ -504,22 +610,35 @@ export function ReimaginedAssociateHome({
     return CATEGORY_ORDER.filter((cfg) => present.has(cfg.key));
   }, [templates]);
 
-  // Apply practice-area filter chip first, then search query within that scope.
-  const filtered = useMemo(() => {
-    const categoryFiltered =
-      activeFilter === 'all'
-        ? templates
-        : templates.filter((t) => t.category === activeFilter);
+  // Apply practice-area filter chip first to get the pre-search scope.
+  const categoryFiltered = useMemo(() => {
+    return activeFilter === 'all'
+      ? templates
+      : templates.filter((t) => t.category === activeFilter);
+  }, [templates, activeFilter]);
 
+  // Pre-search totals per category (used by CategorySection to show "N of M").
+  const preSearchTotals = useMemo(() => {
+    const totals = new Map<TemplateCategory, number>();
+    for (const t of categoryFiltered) {
+      totals.set(t.category, (totals.get(t.category) ?? 0) + 1);
+    }
+    return totals;
+  }, [categoryFiltered]);
+
+  const searchActive = query.trim().length > 0;
+
+  // Apply search query within the category-filtered scope.
+  const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return categoryFiltered;
     return categoryFiltered.filter((t) => {
       const hay = `${t.name} ${t.description} ${t.category}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [templates, activeFilter, query]);
+  }, [categoryFiltered, query]);
 
-  // Group filtered templates by category in the defined order.
+  // Group filtered templates by category in the defined order, including pre-search totals.
   const groups = useMemo(() => {
     const byCategory = new Map<TemplateCategory, WorkflowTemplate[]>();
     for (const t of filtered) {
@@ -527,10 +646,21 @@ export function ReimaginedAssociateHome({
       bucket.push(t);
       byCategory.set(t.category, bucket);
     }
-    return CATEGORY_ORDER.filter((cfg) => (byCategory.get(cfg.key) ?? []).length > 0).map(
-      (cfg) => ({ config: cfg, templates: byCategory.get(cfg.key) ?? [] }),
-    );
-  }, [filtered]);
+    // Include categories that have templates pre-search even if they're now empty post-search,
+    // so the hidden-by-search hint can appear. However, if a category has 0 filtered results,
+    // we still only show it when searching so we can display the hint.
+    const configsToShow = CATEGORY_ORDER.filter((cfg) => {
+      const filtered_count = (byCategory.get(cfg.key) ?? []).length;
+      const total = preSearchTotals.get(cfg.key) ?? 0;
+      // Show if has filtered results, OR has pre-search templates and search is active (for hint).
+      return filtered_count > 0 || (searchActive && total > 0);
+    });
+    return configsToShow.map((cfg) => ({
+      config: cfg,
+      templates: byCategory.get(cfg.key) ?? [],
+      totalCount: preSearchTotals.get(cfg.key) ?? 0,
+    }));
+  }, [filtered, preSearchTotals, searchActive]);
 
   // Featured template: first task in the legal profession (starts-here hint).
   const featuredId = isLawExperience(profession) ? LAW_FEATURED_ID : null;
@@ -547,6 +677,20 @@ export function ReimaginedAssociateHome({
   function handleClearAll() {
     setQuery('');
     setActiveFilter('all');
+  }
+
+  // Collapse callback forwarded to CategorySection.
+  // The sentinel key '__clear-search__' means: clear the search query (triggered
+  // by the "Clear search" link inside the search-hidden hint).
+  function handleCollapse(key: string, isCollapsed: boolean) {
+    if (key === '__clear-search__') {
+      setQuery('');
+      return;
+    }
+    setCollapsedCategories((prev) => {
+      const next = { ...prev, [key]: isCollapsed };
+      return next;
+    });
   }
 
   return (
@@ -819,7 +963,7 @@ export function ReimaginedAssociateHome({
         )}
 
         {/* Template groups */}
-        {groups.length === 0 ? (
+        {groups.every((g) => g.templates.length === 0) ? (
           <div
             data-testid="associate-empty"
             style={{
@@ -862,14 +1006,18 @@ export function ReimaginedAssociateHome({
             </button>
           </div>
         ) : (
-          groups.map(({ config, templates: groupTemplates }) => (
+          groups.map(({ config, templates: groupTemplates, totalCount }) => (
             <CategorySection
               key={config.key}
               config={config}
               templates={groupTemplates}
+              totalCount={totalCount}
+              searchActive={searchActive}
               featuredId={featuredId}
               currentExecution={currentExecution}
               trialLocked={trialGate.isLocked}
+              collapsed={collapsedCategories[config.key] === true}
+              onCollapse={handleCollapse}
               onRun={onStartWorkflow}
             />
           ))

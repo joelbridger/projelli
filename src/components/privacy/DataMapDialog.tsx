@@ -23,6 +23,7 @@
  */
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 import { useCallback } from 'react';
+import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import {
   Dialog,
   DialogContent,
@@ -75,14 +76,14 @@ export const DATA_MAP_ROWS: MapRow[] = [
     icon: KeyRound,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'Your AI keys live in your operating system keychain',
-    body: 'When you add an API key for Anthropic, OpenAI, or Google, it is stored in your computer’s own secure keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service on Linux). Keepance never holds your keys on a server and never charges you for the AI itself.',
+    body: "When you add an API key for Anthropic, OpenAI, or Google, it is stored in your computer's own secure keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service on Linux). Keepance never holds your keys on a server and never charges you for the AI itself.",
   },
   {
     icon: Cloud,
     tone: 'text-sky-700 bg-sky-50 dark:text-sky-300 dark:bg-sky-950/40',
     title: 'When you use a cloud model, your prompt goes straight to that provider',
-    body: 'If your chat uses Anthropic, OpenAI, or Google, your message (and any file content you include) is sent directly from your machine to that provider’s API using your own key. Keepance is not a middleman in that request. It does not pass through, store, or see it.',
-    caveat: 'The honest asterisk: that provider does receive your prompt. They commonly retain it for a limited window (often around 30 days for abuse monitoring; Google’s window differs), and whether it is used to train their models is governed by your account settings in their console, not by Keepance. Read your provider’s data policy and set your training opt-out there.',
+    body: "If your chat uses Anthropic, OpenAI, or Google, your message (and any file content you include) is sent directly from your machine to that provider's API using your own key. Keepance is not a middleman in that request. It does not pass through, store, or see it.",
+    caveat: "The honest asterisk: that provider does receive your prompt. They commonly retain it for a limited window (often around 30 days for abuse monitoring; Google's window differs), and whether it is used to train their models is governed by your account settings in their console, not by Keepance. Read your provider's data policy and set your training opt-out there.",
   },
   {
     icon: Laptop,
@@ -105,22 +106,29 @@ export const DATA_MAP_ROWS: MapRow[] = [
   {
     icon: Server,
     tone: 'text-slate-700 bg-slate-100 dark:text-slate-300 dark:bg-slate-800/60',
-    title: "The only thing Keepance’s own servers ever see is a license check",
-    body: "Keepance contacts its own server for exactly one reason: to validate your license (a periodic check that your purchase is active). That request does not contain your documents, your prompts, or your client information, only what is needed to confirm the license.",
+    title: "What Keepance's own servers see",
+    body: "The only automatic contact with Keepance's servers is a periodic license check. That request carries nothing about your documents, your prompts, or your clients. It sends only what is needed to confirm your purchase is active. If you opt into anonymous analytics in Settings, small lifecycle events (an anonymous install id plus an event name like 'app launched', with no file content and no prompts) are sent when you enable that option. If you use the bug-report form, the message you type in it is posted to Keepance support. Neither analytics nor bug reports are on by default.",
+  },
+  {
+    icon: Server,
+    tone: 'text-indigo-700 bg-indigo-50 dark:text-indigo-300 dark:bg-indigo-950/40',
+    title: 'For firm Assured mode: AI requests go through a Keepance relay',
+    body: "Firms that use Assured mode have a firm admin configure a managed provider key on the Keepance backend. In that mode, AI requests from your machine go through the Keepance relay, which attaches the firm's key server-side and forwards the request to your AI provider. Keepance retains nothing from those requests (no prompt, no completion) under its Data Processing Agreement. The AI provider still receives your prompt under your firm's agreement with them. This path is visible in the egress indicator when it is active and applies only to firm members whose admin has enabled it. Solo users on direct BYOK are never routed this way.",
+    caveat: "Assured mode is a firm-tier feature. If you are a solo user, the relay is not in the picture for you at all.",
   },
   {
     icon: KeyRound,
     tone: "text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40",
-    title: "Keepance can encrypt this workspace’s files with AES-256",
-    body: "When you enable the vault, every document file is stored as ciphertext on disk (AES-256-GCM). Keepance decrypts files transparently as you work, so your day-to-day experience is unchanged. A 24-word recovery phrase is generated once and never stored by Keepance. If you lose that phrase and your device’s keychain, Keepance cannot recover your files. For firm workspaces, a firm admin holds an escrow copy and can recover the vault on your behalf.",
+    title: "Keepance can encrypt this workspace's files with AES-256",
+    body: "When you enable the vault, every document file is stored as ciphertext on disk (AES-256-GCM). Keepance decrypts files transparently as you work, so your day-to-day experience is unchanged. A 24-word recovery phrase is generated once and never stored by Keepance. If you lose that phrase and your device's keychain, Keepance cannot recover your files. For firm workspaces, a firm admin holds an escrow copy and can recover the vault on your behalf.",
     caveat: "File names and folder structure remain visible on disk regardless of vault status. Only the contents of individual files are encrypted. The recovery phrase is the sole backstop for solo users.",
   },
   {
     icon: HardDrive,
     tone: "text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40",
     title: "Document files rely on your disk encryption",
-    body: "Your documents are normal files in your workspace folder. At-rest protection for those files comes from your operating system’s full-disk encryption: BitLocker on Windows, FileVault on macOS, LUKS on Linux. With it on, your whole workspace is protected if the machine is lost or stolen.",
-    caveat: "How to check: Windows: Settings > Privacy & security > Device encryption. macOS: System Settings > Privacy & Security > FileVault. Linux: your distribution’s disk settings (LUKS).",
+    body: "Your documents are normal files in your workspace folder. At-rest protection for those files comes from your operating system's full-disk encryption: BitLocker on Windows, FileVault on macOS, LUKS on Linux. With it on, your whole workspace is protected if the machine is lost or stolen.",
+    caveat: "How to check: Windows: Settings > Privacy & security > Device encryption. macOS: System Settings > Privacy & Security > FileVault. Linux: your distribution's disk settings (LUKS).",
   },
   {
     icon: Database,
@@ -367,13 +375,20 @@ export function DataMapContent({
         </div>
       )}
 
-      <p className="foot mt-4 text-xs text-muted-foreground">
-        This describes the Keepance desktop app. The online browser demo is
-        different: it can route messages through a shared Keepance relay, so the
-        demo should never be used with confidential or client information.
-        Keepance is a tool you control, not a custodian of your data. You decide
-        what is sent and to whom.
-      </p>
+      {IS_DEMO ? (
+        <p className="foot mt-4 text-xs text-muted-foreground">
+          You are using the online browser demo. The demo routes AI messages
+          through a shared Keepance relay and should never be used with
+          confidential or client information. Download the desktop app for the
+          full private, local-first experience described above.
+        </p>
+      ) : (
+        <p className="foot mt-4 text-xs text-muted-foreground">
+          You are using the Keepance desktop app. Everything described above
+          applies to you. Keepance is a tool you control, not a custodian of
+          your data. You decide what is sent and to whom.
+        </p>
+      )}
     </div>
   );
 }

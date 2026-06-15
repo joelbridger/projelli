@@ -92,6 +92,27 @@ function formatRelativeDate(iso: string | null): string {
   }
 }
 
+/**
+ * Maps a raw backend/provider error to a plain-language message suitable for display.
+ * Auth/401 variants become a reconnect prompt; everything else becomes a generic retry message.
+ */
+function mapMailError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  const lower = msg.toLowerCase();
+  if (
+    lower.includes('401') ||
+    lower.includes('unauthorized') ||
+    lower.includes('unauthenticated') ||
+    lower.includes('token') ||
+    lower.includes('auth')
+  ) {
+    return "Your email account isn't fully connected. Reconnect it in Settings.";
+  }
+  // scope_upgrade_required is handled separately at the compose level — don't remap it
+  if (lower.includes('scope_upgrade_required')) return msg;
+  return 'Something went wrong with that email action. Try again.';
+}
+
 function slugify(s: string): string {
   return s
     .slice(0, 50)
@@ -234,6 +255,7 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
   const matters = useMatters();
   const [filing, setFiling] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [matterSearch, setMatterSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Outside click handler
@@ -250,6 +272,10 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
 
   if (!open) return null;
 
+  const filteredMatters = matterSearch.trim()
+    ? matters.filter((m) => matterLabel(m).toLowerCase().includes(matterSearch.toLowerCase()))
+    : matters;
+
   return (
     <div
       ref={containerRef}
@@ -263,40 +289,64 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
         borderRadius: 6,
         boxShadow: '0 4px 12px rgba(0,0,0,0.10)',
         minWidth: 200,
-        maxHeight: 260,
-        overflowY: 'auto',
+        maxHeight: 300,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
-      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-      {fileError && (
-        <div
+      <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+        <input
+          type="text"
+          data-testid="matter-picker-search"
+          placeholder="Search matters..."
+          value={matterSearch}
+          onChange={(e) => { setMatterSearch(e.target.value); }}
+          onClick={(e) => { e.stopPropagation(); }}
           style={{
-            padding: '8px 12px',
+            width: '100%',
+            border: '1px solid var(--color-border)',
+            borderRadius: 4,
+            padding: '4px 7px',
             fontSize: 11,
-            color: '#b45309',
-            borderBottom: '1px solid var(--color-border)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
+            color: 'var(--color-foreground)',
+            background: '#fff',
+            fontFamily: 'var(--font-sans)',
+            boxSizing: 'border-box',
+            outline: 'none',
           }}
-        >
-          <AlertTriangle style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
-          {fileError}
-        </div>
-      )}
-      {matters.length === 0 ? (
-        <div
-          style={{
-            padding: '12px 14px',
-            fontSize: 12,
-            color: 'var(--color-muted-foreground)',
-          }}
-        >
-          No matters yet
-        </div>
-      ) : (
-        matters.map((m) => (
-          <button
+        />
+      </div>
+      <div style={{ overflowY: 'auto', flex: 1 }}>
+        {fileError && (
+          <div
+            style={{
+              padding: '8px 12px',
+              fontSize: 11,
+              color: '#b45309',
+              borderBottom: '1px solid var(--color-border)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+            }}
+          >
+            <AlertTriangle style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
+            {fileError}
+          </div>
+        )}
+        {filteredMatters.length === 0 ? (
+          <div
+            style={{
+              padding: '12px 14px',
+              fontSize: 12,
+              color: 'var(--color-muted-foreground)',
+            }}
+          >
+            {matters.length === 0 ? 'No matters yet' : 'No matching matters'}
+          </div>
+        ) : (
+          filteredMatters.map((m) => (
+            <button
             key={m.id}
             type="button"
             disabled={filing === m.id}
@@ -339,9 +389,9 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
             )}
             {matterLabel(m)}
           </button>
-        ))
-      )}
-      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -359,6 +409,7 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
   const matters = useMatters();
   const [filing, setFiling] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [matterSearch, setMatterSearch] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -374,6 +425,10 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
 
   if (!open) return null;
 
+  const filteredMatters = matterSearch.trim()
+    ? matters.filter((m) => matterLabel(m).toLowerCase().includes(matterSearch.toLowerCase()))
+    : matters;
+
   return (
     <div
       ref={containerRef}
@@ -387,23 +442,47 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
         borderRadius: 6,
         boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
         minWidth: 210,
-        maxHeight: 260,
-        overflowY: 'auto',
+        maxHeight: 300,
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
-      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-      {fileError && (
-        <div style={{ padding: '8px 12px', fontSize: 11, color: '#b45309', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <AlertTriangle style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
-          {fileError}
-        </div>
-      )}
-      {matters.length === 0 ? (
-        <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--color-muted-foreground)' }}>
-          No matters yet
-        </div>
-      ) : (
-        matters.map((m) => (
+      <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+        <input
+          type="text"
+          data-testid="bulk-matter-picker-search"
+          placeholder="Search matters..."
+          value={matterSearch}
+          onChange={(e) => { setMatterSearch(e.target.value); }}
+          onClick={(e) => { e.stopPropagation(); }}
+          style={{
+            width: '100%',
+            border: '1px solid var(--color-border)',
+            borderRadius: 4,
+            padding: '4px 7px',
+            fontSize: 11,
+            color: 'var(--color-foreground)',
+            background: '#fff',
+            fontFamily: 'var(--font-sans)',
+            boxSizing: 'border-box',
+            outline: 'none',
+          }}
+        />
+      </div>
+      <div style={{ overflowY: 'auto', flex: 1 }}>
+        {fileError && (
+          <div style={{ padding: '8px 12px', fontSize: 11, color: '#b45309', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <AlertTriangle style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
+            {fileError}
+          </div>
+        )}
+        {filteredMatters.length === 0 ? (
+          <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--color-muted-foreground)' }}>
+            {matters.length === 0 ? 'No matters yet' : 'No matching matters'}
+          </div>
+        ) : (
+          filteredMatters.map((m) => (
           <button
             key={m.id}
             type="button"
@@ -446,9 +525,9 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
             )}
             {matterLabel(m)}
           </button>
-        ))
-      )}
-      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -465,9 +544,11 @@ interface MailRowProps {
 
 function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspace }: MailRowProps) {
   const [hovered, setHovered] = useState(false);
+  const [focusWithin, setFocusWithin] = useState(false);
   const [privilegeOpen, setPrivilegeOpen] = useState(false);
   const [matterOpen, setMatterOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportFailed, setExportFailed] = useState(false);
 
   const handleOpen = useCallback(() => {
     const sourceId = `mail:${item.id}`;
@@ -481,6 +562,7 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
   const handleExport = useCallback(async () => {
     if (!onSaveToWorkspace) return;
     setExporting(true);
+    setExportFailed(false);
     try {
       const msg = await mailGetMessage(item.id);
       const to = msg.to.join(', ');
@@ -490,7 +572,9 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
       const suggestedName = `${slugify(item.subject) || 'email'}.txt`;
       await onSaveToWorkspace(content, suggestedName);
     } catch {
-      // swallow; no UI disruption
+      setExportFailed(true);
+      // Auto-clear after 3 s so the button returns to normal
+      setTimeout(() => { setExportFailed(false); }, 3000);
     } finally {
       setExporting(false);
     }
@@ -526,6 +610,13 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
         setHovered(false);
         setPrivilegeOpen(false);
         setMatterOpen(false);
+      }}
+      onFocus={() => { setFocusWithin(true); }}
+      onBlur={(e) => {
+        // Only clear when focus moves entirely outside the row
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setFocusWithin(false);
+        }
       }}
       onClick={handleOpen}
       onKeyDown={(e) => {
@@ -646,8 +737,8 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
           </span>
         )}
 
-        {/* Hover actions */}
-        {hovered && (
+        {/* Hover / focus-within actions */}
+        {(hovered || focusWithin) && (
           <div
             style={{
               position: 'absolute',
@@ -710,16 +801,21 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
                 data-testid={`export-email-${item.id}`}
                 onClick={() => { void handleExport(); }}
                 disabled={exporting}
-                style={actionBtnStyle}
-                title="Export to workspace"
+                style={{
+                  ...actionBtnStyle,
+                  ...(exportFailed ? { color: '#b45309', borderColor: '#f59e0b' } : {}),
+                }}
+                title={exportFailed ? 'Export failed — try again' : 'Export to workspace'}
               >
                 {exporting ? (
                   <Loader2 style={{ width: 12, height: 12, strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
+                ) : exportFailed ? (
+                  <AlertTriangle style={{ width: 12, height: 12, strokeWidth: 2 }} />
                 ) : (
                   <FileDown style={{ width: 12, height: 12, strokeWidth: 1.75 }} />
                 )}
                 { }
-                Export
+                {exportFailed ? 'Export failed' : 'Export'}
                 { }
               </button>
             )}
@@ -750,11 +846,18 @@ const actionBtnStyle: React.CSSProperties = {
 interface AskHitCardProps {
   hit: RagHit;
   rank: number;
+  /** Pass the loaded keyword items so we can resolve subject from id when available. */
+  items: MailListItem[];
 }
 
-function AskHitCard({ hit, rank }: AskHitCardProps) {
+function AskHitCard({ hit, rank, items }: AskHitCardProps) {
   const sid = hit.sourceId ?? hit.path;
-  const displayId = sid.startsWith('mail:') ? sid.slice(5) : sid;
+  const rawId = sid.startsWith('mail:') ? sid.slice(5) : sid;
+
+  // Prefer subject from a loaded list item; otherwise fall back to snippet headline
+  const matchedItem = items.find((it) => it.id === rawId);
+  const title = matchedItem?.subject || hit.chunkText.slice(0, 100);
+  const snippet = matchedItem ? hit.chunkText : null;
 
   const handleOpen = useCallback(() => {
     window.dispatchEvent(
@@ -788,7 +891,7 @@ function AskHitCard({ hit, rank }: AskHitCardProps) {
         (e.currentTarget as HTMLButtonElement).style.boxShadow = 'none';
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: snippet ? 4 : 0 }}>
         <span
           style={{
             fontSize: 11,
@@ -814,7 +917,7 @@ function AskHitCard({ hit, rank }: AskHitCardProps) {
             flex: 1,
           }}
         >
-          {displayId}
+          {title}
         </span>
         <span
           style={{
@@ -829,20 +932,37 @@ function AskHitCard({ hit, rank }: AskHitCardProps) {
           { }
         </span>
       </div>
-      <p
+      {snippet && (
+        <p
+          style={{
+            margin: 0,
+            fontSize: 12,
+            color: 'var(--color-muted-foreground)',
+            lineHeight: 1.5,
+            overflow: 'hidden',
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+          }}
+        >
+          {snippet}
+        </p>
+      )}
+      <span
         style={{
-          margin: 0,
-          fontSize: 12,
+          display: 'block',
+          marginTop: 4,
+          fontSize: 10,
           color: 'var(--color-muted-foreground)',
-          lineHeight: 1.5,
+          fontFamily: 'monospace',
           overflow: 'hidden',
-          display: '-webkit-box',
-          WebkitLineClamp: 3,
-          WebkitBoxOrient: 'vertical',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          opacity: 0.6,
         }}
       >
-        {hit.chunkText}
-      </p>
+        {rawId}
+      </span>
     </button>
   );
 }
@@ -942,6 +1062,9 @@ export function ReimaginedEmailWorkspace({
   // Filter row visibility (collapsed by default)
   const [filtersVisible, setFiltersVisible] = useState(false);
 
+  // Accessibility: track whether the search input has focus (for visible focus ring on wrapper)
+  const [searchFocused, setSearchFocused] = useState(false);
+
   // Search / filter state
   const [query, setQuery] = useState('');
   const [providerFilter, setProviderFilter] = useState<string>('');
@@ -960,6 +1083,8 @@ export function ReimaginedEmailWorkspace({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  // Incrementing this forces Effect A to re-run the query (retry on error)
+  const [retryCount, setRetryCount] = useState(0);
 
   // Ask mode results
   const [askHits, setAskHits] = useState<RagHit[]>([]);
@@ -1067,9 +1192,7 @@ export function ReimaginedEmailWorkspace({
         setTotal(result.total);
       } catch (e: unknown) {
         if (latestQueryRef.current !== thisQuery) return;
-        setError(
-          e instanceof Error ? e.message : 'Failed to load emails. Please try again.',
-        );
+        setError(mapMailError(e));
       } finally {
         if (latestQueryRef.current === thisQuery) {
           setLoading(false);
@@ -1083,7 +1206,7 @@ export function ReimaginedEmailWorkspace({
         clearTimeout(debounceRef.current);
       }
     };
-  }, [mode, accountsLoaded, query, providerFilter, dateFrom, dateTo, hasAttachments]);
+  }, [mode, accountsLoaded, query, providerFilter, dateFrom, dateTo, hasAttachments, retryCount]);
 
   // Effect B: fires immediately when offset > 0 (load-more), but only if the
   // fingerprint hasn't changed (i.e., purely a pagination action, not a filter change).
@@ -1124,9 +1247,7 @@ export function ReimaginedEmailWorkspace({
         setTotal(result.total);
       } catch (e: unknown) {
         if (latestQueryRef.current !== thisQuery) return;
-        setError(
-          e instanceof Error ? e.message : 'Failed to load emails. Please try again.',
-        );
+        setError(mapMailError(e));
       } finally {
         if (latestQueryRef.current === thisQuery) {
           setLoadingMore(false);
@@ -1227,6 +1348,12 @@ export function ReimaginedEmailWorkspace({
     setOffset((o) => o + 50);
   }, []);
 
+  const handleRetry = useCallback(() => {
+    setError(null);
+    setOffset(0);
+    setRetryCount((c) => c + 1);
+  }, []);
+
   const handleClearQuery = useCallback(() => {
     setQuery('');
     setOffset(0);
@@ -1254,10 +1381,30 @@ export function ReimaginedEmailWorkspace({
   // Active filter count for badge
   const activeFilterCount = [providerFilter, dateFrom, dateTo, hasAttachments].filter(Boolean).length;
 
+  // Fix 7: persist list scroll position per-matter in sessionStorage
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollKey = `email-scroll-${activeMatter?.id ?? 'all'}`;
+
+  // Restore scroll on mount
+  useEffect(() => {
+    const saved = sessionStorage.getItem(scrollKey);
+    if (saved && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = Number(saved);
+    }
+    // Save scroll on unmount
+    const el = scrollContainerRef.current;
+    return () => {
+      if (el) {
+        sessionStorage.setItem(scrollKey, String(el.scrollTop));
+      }
+    };
+  }, [scrollKey]);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div
+      ref={scrollContainerRef}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -1363,12 +1510,13 @@ export function ReimaginedEmailWorkspace({
             display: 'flex',
             alignItems: 'center',
             gap: 0,
-            border: '1px solid var(--color-border)',
+            border: searchFocused ? '1px solid var(--kp-navy)' : '1px solid var(--color-border)',
             borderRadius: 8,
             background: '#fff',
             overflow: 'hidden',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+            boxShadow: searchFocused ? '0 0 0 2px rgba(10,37,64,0.12)' : '0 1px 4px rgba(0,0,0,0.06)',
             marginBottom: 8,
+            transition: 'border-color 0.1s, box-shadow 0.1s',
           }}
         >
           {/* Mode toggle tabs */}
@@ -1429,6 +1577,8 @@ export function ReimaginedEmailWorkspace({
             data-testid="email-search-input"
             value={query}
             onChange={handleQueryChange}
+            onFocus={() => { setSearchFocused(true); }}
+            onBlur={() => { setSearchFocused(false); }}
             placeholder={
               mode === 'keyword'
                 ? 'Search email...'
@@ -1751,6 +1901,26 @@ export function ReimaginedEmailWorkspace({
                 <p style={{ margin: 0, fontSize: 12, color: 'var(--color-muted-foreground)', maxWidth: 340 }}>
                   {error}
                 </p>
+                <button
+                  type="button"
+                  data-testid="error-retry"
+                  onClick={handleRetry}
+                  style={{
+                    marginTop: 4,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '5px 14px',
+                    borderRadius: 5,
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: 'var(--color-foreground)',
+                    background: '#fff',
+                    border: '1px solid var(--color-border)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Try again
+                </button>
               </div>
             )}
 
@@ -1800,6 +1970,20 @@ export function ReimaginedEmailWorkspace({
                   overflow: 'hidden',
                 }}
               >
+                <div
+                  data-testid="result-count"
+                  style={{
+                    padding: '7px 16px',
+                    fontSize: 11,
+                    color: 'var(--color-muted-foreground)',
+                    borderBottom: '1px solid var(--color-border)',
+                    background: 'rgba(10,37,64,0.02)',
+                  }}
+                >
+                  {total === items.length && !query
+                    ? 'All email loaded'
+                    : `Showing ${String(items.length)} of ${String(total)}`}
+                </div>
                 {items.map((item) => (
                   <MailRow
                     key={item.id}
@@ -2008,16 +2192,65 @@ export function ReimaginedEmailWorkspace({
                   fontSize: 13,
                   color: 'var(--color-muted-foreground)',
                   textAlign: 'center',
+                  lineHeight: 1.6,
                 }}
               >
                 {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                No matching email found for your question.
+                {!isMemoryEnabled() ? (
+                  <span>
+                    Ask AI needs memory enabled.{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('keepance:open-settings', { detail: { category: 'ai' } }));
+                        onOpenSettings?.();
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        color: 'var(--kp-navy)',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontSize: 'inherit',
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      Enable it in Settings
+                    </button>
+                    .
+                  </span>
+                ) : activeMatter && !scopeAllEmail ? (
+                  <span>
+                    No email is filed to this matter yet.{' '}
+                    <button
+                      type="button"
+                      data-testid="ask-no-results-switch-scope"
+                      onClick={() => { setScopeAllEmail(true); }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        padding: 0,
+                        color: 'var(--kp-navy)',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontSize: 'inherit',
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      Switch to All email
+                    </button>
+                    {' '}above, or file emails to this matter with the File button.
+                  </span>
+                ) : (
+                  'No matching email found for your question.'
+                )}
                 {/* eslint-enable keepance-i18n/no-hardcoded-string */}
               </div>
             )}
 
             {!askLoading && !askError && askHits.map((hit, i) => (
-              <AskHitCard key={hit.sourceId ?? hit.path} hit={hit} rank={i + 1} />
+              <AskHitCard key={hit.sourceId ?? hit.path} hit={hit} rank={i + 1} items={items} />
             ))}
           </div>
         )}
@@ -2382,11 +2615,12 @@ export function ReimaginedEmailWorkspace({
                     })
                     .catch((e: unknown) => {
                       setComposeSending(false);
-                      if (e instanceof Error && e.message.includes('scope_upgrade_required')) {
+                      const msg = e instanceof Error ? e.message : '';
+                      if (msg.includes('scope_upgrade_required')) {
                         setComposeSendResult('scope_upgrade');
                       } else {
                         setComposeSendResult('error');
-                        setComposeSendError(e instanceof Error ? e.message : 'Failed to send email.');
+                        setComposeSendError(mapMailError(e));
                       }
                     });
                 }}

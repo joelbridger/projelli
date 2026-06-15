@@ -385,7 +385,17 @@ function ProfessionStep({ profession, onSelect, onBack, onNext }: ProfessionStep
 // Step 2 — Workspace explainer
 // ---------------------------------------------------------------------------
 
-const WORKSPACE_CHOICES = [
+const CLOUD_SYNC_NOTE = "These folders sync to that company's cloud automatically, so your files leave your device through their app. For the strictest confidentiality, choose your local Documents folder.";
+
+interface WorkspaceChoice {
+  id: string;
+  label: string;
+  badge?: string;
+  path: string;
+  note?: string;
+}
+
+const WORKSPACE_CHOICES: WorkspaceChoice[] = [
   {
     id: 'documents',
     label: 'My Documents',
@@ -396,13 +406,15 @@ const WORKSPACE_CHOICES = [
     id: 'dropbox',
     label: 'Dropbox',
     path: '~/Dropbox/Keepance',
+    note: CLOUD_SYNC_NOTE,
   },
   {
     id: 'icloud',
     label: 'iCloud Drive',
     path: '~/Library/Mobile Documents/com~apple~CloudDocs/Keepance',
+    note: CLOUD_SYNC_NOTE,
   },
-] as const;
+];
 
 function WorkspaceStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   const [selected, setSelected] = useState<string>('documents');
@@ -439,7 +451,7 @@ function WorkspaceStep({ onBack, onNext }: { onBack: () => void; onNext: () => v
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: 'hsl(222.2 84% 4.9%)' }}>{choice.label}</span>
-                  {'badge' in choice && (
+                  {choice.badge && (
                     <span style={{
                       fontSize: 11, fontWeight: 700, color: 'var(--kp-navy)',
                       background: 'rgba(10,37,64,0.08)', borderRadius: 4, padding: '1px 7px',
@@ -458,8 +470,25 @@ function WorkspaceStep({ onBack, onNext }: { onBack: () => void; onNext: () => v
         })}
       </div>
 
+      {/* Show a cloud-sync caveat when Dropbox or iCloud is selected */}
+      {(() => {
+        const chosen = WORKSPACE_CHOICES.find((c) => c.id === selected);
+        return chosen?.note ? (
+          <p
+            data-testid="workspace-cloud-sync-note"
+            style={{
+              fontSize: 12, color: 'hsl(38 92% 30%)', lineHeight: 1.5, marginBottom: 16,
+              background: 'hsl(48 96% 89%)', border: '1px solid hsl(45 93% 70%)',
+              borderRadius: 8, padding: '8px 12px',
+            }}
+          >
+            {chosen.note}
+          </p>
+        ) : null;
+      })()}
+
       <p style={{ fontSize: 12, color: 'hsl(215.4 16.3% 44%)', lineHeight: 1.5, marginBottom: 24 }}>
-        You can change this later in Settings. All your files stay in the folder you pick; nothing is copied or uploaded.
+        You can change this later in Settings. Keepance never uploads your files. Note that cloud-synced folders (Dropbox, iCloud) will still sync them through those apps.
       </p>
 
       <StepFooter onBack={onBack} onNext={onNext} nextTestId="onboarding-workspace-next" />
@@ -484,8 +513,8 @@ function TrustStep({ onBack, onNext }: { onBack: () => void; onNext: () => void 
       <ul style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 28, listStyle: 'none', padding: 0 }}>
         {([
           'Your files and notes stay on your computer.',
-          'When you use AI, your question goes straight to your AI provider, never through Keepance.',
-          'The only thing that touches our servers is a license check, never your content.',
+          'When you use your own AI account, your question goes straight from your machine to your provider with your key. Keepance is not in the middle.',
+          'The only thing that automatically touches our servers is a license check, never your files or questions. You can optionally turn on anonymous analytics (no files, no prompts) in Settings.',
         ] as const).map((bullet) => (
           <li key={bullet} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <span style={{

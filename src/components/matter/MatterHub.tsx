@@ -160,7 +160,12 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
   };
 
   const handleAskSubmit = () => {
-    dispatchLaunch('search');
+    const q = askQ.trim();
+    window.dispatchEvent(
+      new CustomEvent('keepance:matter-launch', {
+        detail: { matterId, surface: 'search', question: q },
+      }),
+    );
   };
 
   const handleAskKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -409,6 +414,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
       >
         {/* Compact Ask row */}
         <div
+          data-ask-wrapper=""
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -417,6 +423,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             border: '1px solid var(--color-border)',
             borderRadius: 7,
             padding: '8px 10px',
+            transition: 'border-color 0.1s',
           }}
         >
           <Sparkles
@@ -435,6 +442,14 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             value={askQ}
             onChange={(e) => { setAskQ(e.target.value); }}
             onKeyDown={handleAskKeyDown}
+            onFocus={(e) => {
+              const wrapper = e.currentTarget.closest<HTMLElement>('[data-ask-wrapper]');
+              if (wrapper) wrapper.style.border = '1.5px solid var(--kp-navy, #0a2540)';
+            }}
+            onBlur={(e) => {
+              const wrapper = e.currentTarget.closest<HTMLElement>('[data-ask-wrapper]');
+              if (wrapper) wrapper.style.border = '1px solid var(--color-border)';
+            }}
             style={{
               flex: 1,
               border: 'none',
@@ -496,7 +511,13 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                 key={i}
                 type="button"
                 data-testid={`hub-recent-q-${String(i)}`}
-                onClick={() => { dispatchLaunch('search'); }}
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent('keepance:matter-launch', {
+                      detail: { matterId, surface: 'search', question: q },
+                    }),
+                  );
+                }}
                 style={{
                   padding: '2px 9px',
                   borderRadius: 4,
@@ -506,7 +527,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                   color: 'var(--color-foreground)',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
-                  maxWidth: 200,
+                  maxWidth: 360,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   fontFamily: 'Satoshi, sans-serif',
@@ -683,11 +704,11 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                   }}
                 >
                   <Loader2
+                    className="animate-spin"
                     style={{
                       width: 13,
                       height: 13,
                       strokeWidth: 2,
-                      animation: 'spin 1s linear infinite',
                     }}
                   />
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
@@ -824,11 +845,16 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                 </div>
               </>
             ) : (
-              <span style={{ color: 'var(--color-muted-foreground)' }}>
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                No recent activity
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <span style={{ color: 'var(--color-foreground)', fontSize: 12 }}>
+                  Matter created {formatDate(matter.createdAt)}
+                </span>
+                <span style={{ color: 'var(--color-muted-foreground)', fontSize: 12 }}>
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  No upcoming deadlines yet. Ask the AI to find any in your documents.
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </span>
+              </div>
             )}
           </div>
         </div>
@@ -970,9 +996,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               <span>Matter opened Apr 3, 2026</span>
               /* eslint-enable keepance-i18n/no-hardcoded-string */
             ) : (
-              /* eslint-disable keepance-i18n/no-hardcoded-string */
-              <span>No recent activity logged</span>
-              /* eslint-enable keepance-i18n/no-hardcoded-string */
+              <span>Matter created {formatDate(matter.createdAt)}</span>
             )}
           </div>
         </div>

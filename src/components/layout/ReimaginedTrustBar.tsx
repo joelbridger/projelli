@@ -15,7 +15,7 @@
  * removed; the meaning (three confidentiality states, color-coded) stays.
  */
 /* eslint-disable keepance-i18n/no-hardcoded-string */
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Briefcase, Globe, Map as MapIcon, Info } from 'lucide-react';
 import { useActiveMatter } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
@@ -28,16 +28,48 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
+import type { EgressProvider } from '@/modules/privacy/egress';
+
+/**
+ * Derive the active AI provider for the egress pill.
+ *
+ * The TrustBar lives at app-shell level, outside any specific chat, so there is
+ * no single "active chat provider" available. We derive the truthful pill value
+ * in priority order:
+ *   1. local-only mode => always "ollama" (nothing leaves regardless of config).
+ *   2. First cloud provider for which the user has saved an API key in
+ *      localStorage (same storage used by useApiKeys), checked in the same order
+ *      the settings UI presents providers: anthropic > openai > google.
+ *   3. Fallback: 'anthropic' (the most common default; resolveEgress labels it
+ *      accurately, so this only fires when no key exists yet).
+ */
+function useActiveEgressProvider(mode: string): EgressProvider {
+  return useMemo(() => {
+    if (mode === 'local-only') return 'ollama';
+    const order: EgressProvider[] = ['anthropic', 'openai', 'google'];
+    for (const p of order) {
+      try {
+        if (localStorage.getItem(`apiKey_${p}`)) return p;
+      } catch {
+        // localStorage may be unavailable in some environments; fall through.
+      }
+    }
+    return 'anthropic';
+  // Re-derive when the confidentiality mode changes; localStorage is not
+  // reactive, but provider selection is stable within a session.
+  }, [mode]);
+}
 
 export function ReimaginedTrustBar() {
   const activeMatter = useActiveMatter();
   const confidentialityMode = useConfidentialityMode();
+  const activeProvider = useActiveEgressProvider(confidentialityMode);
   const [dataMapOpen, setDataMapOpen] = useState(false);
   const entityLabel = useEntityLabel();
 
   const scopeSubtitle = activeMatter
     ? `Scoped to this ${entityLabel.one}. Nothing from other clients can appear.`
-    : `Searching across every ${entityLabel.one}. Nothing crosses between clients.`;
+    : `Searching across every ${entityLabel.one}. Answers may draw on more than one client. Nothing leaves your machine.`;
 
   const egressTooltip =
     confidentialityMode === 'local-only'
@@ -79,7 +111,7 @@ export function ReimaginedTrustBar() {
           viewport width. The flex-shrink:0 wrapper prevents the pill from being
           squeezed by the sibling matter-scope label. */}
       <div style={{ flexShrink: 0 }}>
-        <EgressIndicator provider="anthropic" mode={confidentialityMode} variant="compact" className="max-w-none" />
+        <EgressIndicator provider={activeProvider} mode={confidentialityMode} variant="compact" className="max-w-none" />
       </div>
 
       {/* Info affordance: reveals the full data-routing explanation on hover.

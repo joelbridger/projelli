@@ -223,11 +223,16 @@ describe('DataMapDialog', () => {
     // Email encrypted locally.
     expect(screen.getByText(/encrypted on your machine/i)).toBeTruthy();
 
-    // Keepance servers only see a license check (F-103: fixed British spelling).
-    expect(screen.getByText(/only thing Keepance’s own servers ever see is a license check/i)).toBeTruthy();
+    // Keepance servers: honest about the license check plus opt-in analytics + bug reports.
+    expect(screen.getByText(/only automatic contact with Keepance.s servers is a periodic license check/i)).toBeTruthy();
+    expect(screen.getByText(/Neither analytics nor bug reports are on by default/i)).toBeTruthy();
 
-    // Browser-demo caveat present in the footer.
-    expect(screen.getByText(/never be used with confidential or client/i)).toBeTruthy();
+    // Firm Assured-mode relay path is disclosed honestly.
+    expect(screen.getByText(/For firm Assured mode/i)).toBeTruthy();
+
+    // Desktop build (not demo): the affirmation shows, and the demo-relay caveat does not.
+    expect(screen.getByText(/using the Keepance desktop app/i)).toBeTruthy();
+    expect(screen.queryByText(/never be used with confidential or client/i)).toBeNull();
 
     // Printable region + print control exist.
     expect(document.getElementById('keepance-data-map-printable')).toBeTruthy();

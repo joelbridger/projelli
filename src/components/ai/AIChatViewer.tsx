@@ -1371,6 +1371,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
             provider: chatProvider,
             mode: getConfidentialityMode(),
             isDemo: IS_DEMO,
+            assuredAvailable: assuredAvailableForChat,
           });
           onAuditLog?.(auditEventToEntry({
             type: 'egress',

@@ -11,8 +11,8 @@
  * anything that requires a CSS variable directly. Light theme; no dark mode.
  */
 
-import { useEffect, useState } from 'react';
-import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, X, MessageSquare, FileText, Mail } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, X, MessageSquare, FileText, Mail, Search, ChevronUp, ChevronDown } from 'lucide-react';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { MatterHub } from '@/components/matter/MatterHub';
@@ -25,15 +25,31 @@ import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 /** localStorage key for dismissing the setup card. */
 const SETUP_CARD_DISMISSED_KEY = 'keepance:setup-card-dismissed';
 
+/** Number of matters above which the search box is shown. */
+const SEARCH_THRESHOLD = 5;
+
+// ── Sort state ─────────────────────────────────────────────────────────────
+
+type SortKey = 'name' | 'privilege' | 'documents' | 'created';
+type SortDir = 'asc' | 'desc';
+
+interface SortState {
+  key: SortKey;
+  dir: SortDir;
+}
+
+const DEFAULT_SORT: SortState = { key: 'name', dir: 'asc' };
+
 // ── Get Started card ───────────────────────────────────────────────────────
 
 /**
  * GetStartedCard — compact, dismissible setup card shown inside the empty
  * state. Uses the same live checks as SetupChecklist (useApiKeys + async
- * mail-connection probes). Disappears once dismissed or once both steps are
+ * mail-connection probes). Disappears once dismissed or once all steps are
  * done.
  */
 function GetStartedCard() {
+  const matters = useMatters();
   const { apiKeys } = useApiKeys();
   const aiConnected = apiKeys.some((k) => k.isValid);
   const [emailConnected, setEmailConnected] = useState<boolean | null>(null);
@@ -68,8 +84,12 @@ function GetStartedCard() {
     setDismissed(true);
   };
 
-  // Hide once dismissed or both steps are complete
-  if (dismissed || (aiConnected && emailConnected === true)) return null;
+  // A matter exists when the list has at least one non-sample entry,
+  // or any matter at all (sample counts for "created first matter").
+  const hasMatter = matters.length > 0;
+
+  // Hide once dismissed or all three steps are complete
+  if (dismissed || (hasMatter && aiConnected && emailConnected === true)) return null;
 
   const navigateTo = (category: 'ai' | 'integrations') => {
     window.dispatchEvent(new CustomEvent('keepance:open-settings', { detail: { category } }));
@@ -147,7 +167,29 @@ function GetStartedCard() {
         Get started
       </p>
 
-      {/* Step: Connect AI */}
+      {/* Step 1: Create first matter */}
+      <div style={stepStyle}>
+        {hasMatter
+          ? <CheckCircle2 style={iconDone} />
+          : <Circle style={iconTodo} />
+        }
+        {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+        <span style={stepLabel}>Create your first matter</span>
+        {!hasMatter && (
+          <button
+            type="button"
+            style={stepBtn}
+            data-testid="get-started-create-matter"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
+            }}
+          >
+            Create
+          </button>
+        )}
+      </div>
+
+      {/* Step 2: Connect AI */}
       <div style={stepStyle}>
         {aiConnected
           ? <CheckCircle2 style={iconDone} />
@@ -166,7 +208,7 @@ function GetStartedCard() {
         )}
       </div>
 
-      {/* Step: Connect email */}
+      {/* Step 3: Connect email */}
       <div style={stepStyle}>
         {emailConnected === null ? (
           <Circle style={{ ...iconTodo, opacity: 0.4 }} />
@@ -209,6 +251,8 @@ function formatDate(iso: string): string {
 // ── Sub-components ─────────────────────────────────────────────────────────
 
 function PrivilegePill() {
+  // Non-color cue: the Lock icon + text label "Privileged" provide a redundant
+  // indicator beyond color alone, satisfying the a11y requirement.
   return (
     <span
       style={{
@@ -405,7 +449,12 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
         </div>
       </button>
 
-      {/* Quick-action row — visible at rest (reduced opacity), full opacity on hover */}
+      {/*
+       * Quick-action row.
+       * Accessible at rest (opacity 0.85 > 3:1 contrast on white at navy text)
+       * AND visible on keyboard :focus-within of the row's wrapper div.
+       * The wrapper div is not itself focusable; focus enters via the buttons.
+       */}
       <div
         data-testid={`matter-quick-actions-${matter.id}`}
         style={{
@@ -415,7 +464,7 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
           paddingLeft: '23px',
           paddingRight: 20,
           paddingBottom: 8,
-          opacity: hovered ? 1 : 0.55,
+          opacity: hovered ? 1 : 0.85,
           transition: 'opacity 0.15s',
           background: isActive ? 'rgba(10,37,64,0.04)' : hovered ? 'rgba(10,37,64,0.02)' : 'transparent',
           borderLeft: isActive ? '3px solid var(--kp-navy)' : '3px solid transparent',
@@ -552,12 +601,36 @@ function EmptyState({ entityOne, entityOther }: EmptyStateProps) {
 
 // ── Table header ───────────────────────────────────────────────────────────
 
-interface TableHeaderProps {
-  entityOneLabel: string;
+interface SortIndicatorProps {
+  col: SortKey;
+  sort: SortState;
 }
 
-function TableHeader({ entityOneLabel }: TableHeaderProps) {
-  const colStyle: React.CSSProperties = {
+function SortIndicator({ col, sort }: SortIndicatorProps) {
+  if (sort.key !== col) {
+    return (
+      <span
+        aria-hidden="true"
+        style={{ display: 'inline-flex', flexDirection: 'column', opacity: 0.3, marginLeft: 3 }}
+      >
+        <ChevronUp style={{ width: 9, height: 9, marginBottom: -3 }} />
+        <ChevronDown style={{ width: 9, height: 9 }} />
+      </span>
+    );
+  }
+  return sort.dir === 'asc'
+    ? <ChevronUp aria-hidden="true" style={{ width: 11, height: 11, marginLeft: 3, flex: 'none' }} />
+    : <ChevronDown aria-hidden="true" style={{ width: 11, height: 11, marginLeft: 3, flex: 'none' }} />;
+}
+
+interface TableHeaderProps {
+  entityOneLabel: string;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
+}
+
+function TableHeader({ entityOneLabel, sort, onSort }: TableHeaderProps) {
+  const baseColStyle: React.CSSProperties = {
     fontSize: 11,
     fontWeight: 600,
     letterSpacing: '0.06em',
@@ -565,6 +638,18 @@ function TableHeader({ entityOneLabel }: TableHeaderProps) {
     color: 'var(--color-muted-foreground)',
     padding: '10px 20px 10px 0',
   };
+
+  const colBtnStyle = (col: SortKey): React.CSSProperties => ({
+    ...baseColStyle,
+    display: 'inline-flex',
+    alignItems: 'center',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: 0,
+    color: sort.key === col ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+    fontWeight: sort.key === col ? 700 : 600,
+  });
 
   return (
     <div
@@ -575,10 +660,50 @@ function TableHeader({ entityOneLabel }: TableHeaderProps) {
         borderBottom: '1px solid var(--color-border)',
       }}
     >
-      <div style={{ ...colStyle, paddingLeft: 3 }}>{entityOneLabel}</div>
-      <div style={colStyle}>Privilege</div>
-      <div style={colStyle}>Documents</div>
-      <div style={colStyle}>Created</div>
+      <div style={{ ...baseColStyle, paddingLeft: 3 }}>
+        <button
+          type="button"
+          style={colBtnStyle('name')}
+          onClick={() => { onSort('name'); }}
+          aria-label={`Sort by ${entityOneLabel}${sort.key === 'name' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
+        >
+          {entityOneLabel}
+          <SortIndicator col="name" sort={sort} />
+        </button>
+      </div>
+      <div style={baseColStyle}>
+        <button
+          type="button"
+          style={colBtnStyle('privilege')}
+          onClick={() => { onSort('privilege'); }}
+          aria-label={`Sort by Privilege${sort.key === 'privilege' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
+        >
+          Privilege
+          <SortIndicator col="privilege" sort={sort} />
+        </button>
+      </div>
+      <div style={baseColStyle}>
+        <button
+          type="button"
+          style={colBtnStyle('documents')}
+          onClick={() => { onSort('documents'); }}
+          aria-label={`Sort by Documents${sort.key === 'documents' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
+        >
+          Documents
+          <SortIndicator col="documents" sort={sort} />
+        </button>
+      </div>
+      <div style={baseColStyle}>
+        <button
+          type="button"
+          style={colBtnStyle('created')}
+          onClick={() => { onSort('created'); }}
+          aria-label={`Sort by Created${sort.key === 'created' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
+        >
+          Created
+          <SortIndicator col="created" sort={sort} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -592,8 +717,56 @@ export function ReimaginedMattersHome() {
   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
   const entityLabel = useEntityLabel();
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Sort state — default alphabetical by name
+  const [sort, setSort] = useState<SortState>(DEFAULT_SORT);
+
+  const toggleSort = (key: SortKey) => {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { key, dir: 'asc' },
+    );
+  };
+
   const openCount = matters.length;
   const totalFolders = matters.reduce((sum, m) => sum + m.folderPaths.length, 0);
+
+  // Filter by search query
+  const filteredMatters = useMemo(() => {
+    if (!searchQuery.trim()) return matters;
+    const q = searchQuery.trim().toLowerCase();
+    return matters.filter((m) => {
+      const name = matterLabel(m).toLowerCase();
+      const client = m.client.toLowerCase();
+      return name.includes(q) || client.includes(q);
+    });
+  }, [matters, searchQuery]);
+
+  // Sort filtered matters
+  const sortedMatters = useMemo(() => {
+    return [...filteredMatters].sort((a, b) => {
+      let cmp = 0;
+      if (sort.key === 'name') {
+        cmp = matterLabel(a).localeCompare(matterLabel(b));
+      } else if (sort.key === 'privilege') {
+        // Privileged first when asc
+        const ap = a.privileged ? 1 : 0;
+        const bp = b.privileged ? 1 : 0;
+        cmp = bp - ap;
+      } else if (sort.key === 'documents') {
+        cmp = b.folderPaths.length - a.folderPaths.length;
+      } else {
+        // sort.key === 'created'
+        cmp = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      return sort.dir === 'asc' ? cmp : -cmp;
+    });
+  }, [filteredMatters, sort]);
+
+  const showSearch = matters.length > SEARCH_THRESHOLD;
 
   // If a hub is open, render MatterHub instead of the table
   if (selectedMatterId !== null) {
@@ -652,10 +825,77 @@ export function ReimaginedMattersHome() {
         />
       </div>
 
+      {/* Search box — shown only when there are more than SEARCH_THRESHOLD matters */}
+      {showSearch && (
+        <div
+          style={{
+            padding: '12px 24px 0',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '7px 12px',
+              border: '1px solid var(--color-border)',
+              borderRadius: 6,
+              background: '#fff',
+              maxWidth: 380,
+            }}
+          >
+            <Search
+              aria-hidden="true"
+              style={{
+                width: 14,
+                height: 14,
+                color: 'var(--color-muted-foreground)',
+                flex: 'none',
+              }}
+            />
+            <input
+              type="search"
+              data-testid="matters-search-input"
+              aria-label={`Search ${entityLabel.other}`}
+              placeholder={`Search ${entityLabel.other}...`}
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); }}
+              style={{
+                flex: 1,
+                border: 'none',
+                outline: 'none',
+                fontSize: 13,
+                color: 'var(--kp-navy)',
+                background: 'transparent',
+                fontFamily: 'Satoshi, sans-serif',
+              }}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => { setSearchQuery(''); }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  color: 'var(--color-muted-foreground)',
+                  lineHeight: 1,
+                  display: 'flex',
+                }}
+              >
+                <X style={{ width: 12, height: 12 }} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Table card */}
       <div
         style={{
-          margin: '0 24px 24px',
+          margin: showSearch ? '12px 24px 24px' : '0 24px 24px',
           border: '1px solid var(--color-border)',
           borderRadius: 8,
           background: '#fff',
@@ -666,19 +906,34 @@ export function ReimaginedMattersHome() {
           <EmptyState entityOne={entityLabel.one} entityOther={entityLabel.other} />
         ) : (
           <>
-            <TableHeader entityOneLabel={entityLabel.One} />
+            <TableHeader entityOneLabel={entityLabel.One} sort={sort} onSort={toggleSort} />
             <div>
-              {matters.map((m) => (
-                <MatterRow
-                  key={m.id}
-                  matter={m}
-                  isActive={m.id === activeMatterId}
-                  onSelect={(id) => {
-                    setActiveMatter(id);
-                    setSelectedMatterId(id);
+              {sortedMatters.length === 0 ? (
+                <div
+                  data-testid="matters-no-search-results"
+                  style={{
+                    padding: '24px 20px',
+                    fontSize: 13,
+                    color: 'var(--color-muted-foreground)',
+                    textAlign: 'center',
                   }}
-                />
-              ))}
+                >
+                  {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+                  No {entityLabel.other} match your search.
+                </div>
+              ) : (
+                sortedMatters.map((m) => (
+                  <MatterRow
+                    key={m.id}
+                    matter={m}
+                    isActive={m.id === activeMatterId}
+                    onSelect={(id) => {
+                      setActiveMatter(id);
+                      setSelectedMatterId(id);
+                    }}
+                  />
+                ))
+              )}
             </div>
           </>
         )}

@@ -386,6 +386,9 @@ describe('ReimaginedEmailWorkspace', () => {
   });
 
   // 10. Shows error state when mailListMessages throws
+  // Error messages are now mapped to plain language by mapMailError():
+  //   generic errors → "Something went wrong with that email action. Try again."
+  //   auth/token errors → "Your email account isn't fully connected. Reconnect it in Settings."
   it('shows error state when mailListMessages rejects', async () => {
     mockMailListMessages.mockRejectedValue(new Error('Network error'));
 
@@ -393,7 +396,8 @@ describe('ReimaginedEmailWorkspace', () => {
     await waitForInitialLoad();
 
     expect(screen.getByTestId('error-state')).toBeInTheDocument();
-    expect(screen.getByText('Network error')).toBeInTheDocument();
+    expect(screen.getByText('Something went wrong with that email action. Try again.')).toBeInTheDocument();
+    expect(screen.getByTestId('error-retry')).toBeInTheDocument();
   });
 
   // 11. Opens the compose panel when "New email" button is clicked
@@ -578,6 +582,112 @@ describe('ReimaginedEmailWorkspace', () => {
     // Remove the attachment
     fireEvent.click(removeBtn);
     expect(screen.queryByTestId('compose-remove-attachment-0')).not.toBeInTheDocument();
+  });
+
+  // 18. Result count line — shows "Showing N of M" when partial load
+  it('shows "Showing N of M" count when fewer items loaded than total', async () => {
+    // Simulate 2 loaded of 10 total
+    mockMailListMessages.mockResolvedValue({ items: FIXTURE_ITEMS, total: 10 });
+
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    const countEl = screen.getByTestId('result-count');
+    expect(countEl).toBeInTheDocument();
+    expect(countEl.textContent).toContain('Showing 2 of 10');
+  });
+
+  // 19. Result count line — shows "All email loaded" when total === items.length and no query
+  it('shows "All email loaded" when all items are loaded and there is no query', async () => {
+    // items.length === total (2) and no query
+    mockMailListMessages.mockResolvedValue({ items: FIXTURE_ITEMS, total: FIXTURE_ITEMS.length });
+
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    const countEl = screen.getByTestId('result-count');
+    expect(countEl).toBeInTheDocument();
+    expect(countEl.textContent).toContain('All email loaded');
+  });
+
+  // 20. Result count line — shows "Showing N of M" when query is active (even if N === total in results)
+  it('shows "Showing N of M" when a keyword query is active, even if all returned items equal total', async () => {
+    mockMailListMessages.mockResolvedValue({ items: FIXTURE_ITEMS, total: FIXTURE_ITEMS.length });
+
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    // Type a query
+    const input = screen.getByTestId('email-search-input');
+    fireEvent.change(input, { target: { value: 'deposition' } });
+    await flushDebounce();
+
+    const countEl = screen.getByTestId('result-count');
+    expect(countEl.textContent).toContain(`Showing 2 of ${String(FIXTURE_ITEMS.length)}`);
+  });
+
+  // 21. Matter picker search — filters the matter list
+  it('filters the matter list in MatterPickerPopover when text is typed in the search input', async () => {
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    const rows = screen.getAllByTestId('mail-row');
+    expect(rows[0]).toBeDefined();
+    fireEvent.mouseEnter(rows[0]!);
+
+    // Open the per-row File picker
+    const fileBtn = screen.getByTestId('file-to-matter-msg-001');
+    fireEvent.click(fileBtn);
+
+    // Both matters should appear initially
+    expect(screen.getByText('Acme v. Beta')).toBeInTheDocument();
+    expect(screen.getByText('Gamma Patent')).toBeInTheDocument();
+
+    // Type in the matter search
+    const searchInput = screen.getByTestId('matter-picker-search');
+    fireEvent.change(searchInput, { target: { value: 'Gamma' } });
+
+    // Only Gamma Patent should be visible now
+    expect(screen.queryByText('Acme v. Beta')).not.toBeInTheDocument();
+    expect(screen.getByText('Gamma Patent')).toBeInTheDocument();
+  });
+
+  // 22. Auth error is mapped to a reconnect prompt
+  it('maps auth/401 errors to a plain reconnect message', async () => {
+    mockMailListMessages.mockRejectedValue(new Error('401 Unauthorized'));
+
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    expect(screen.getByTestId('error-state')).toBeInTheDocument();
+    expect(screen.getByText("Your email account isn't fully connected. Reconnect it in Settings.")).toBeInTheDocument();
+  });
+
+  // 23. Error state shows "Try again" button that triggers a retry
+  it('shows a Try again button in error state that clears the error and re-fetches', async () => {
+    let callCount = 0;
+    mockMailListMessages.mockImplementation(() => {
+      callCount++;
+      if (callCount <= 1) {
+        return Promise.reject(new Error('Flaky error'));
+      }
+      return Promise.resolve({ items: FIXTURE_ITEMS, total: FIXTURE_ITEMS.length });
+    });
+
+    render(<ReimaginedEmailWorkspace />);
+    await waitForInitialLoad();
+
+    expect(screen.getByTestId('error-state')).toBeInTheDocument();
+    const retryBtn = screen.getByTestId('error-retry');
+    expect(retryBtn).toBeInTheDocument();
+
+    // Click retry and flush debounce + promise
+    fireEvent.click(retryBtn);
+    await flushDebounce();
+
+    // After retry, results appear
+    expect(screen.queryByTestId('error-state')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('mail-row')).toHaveLength(FIXTURE_ITEMS.length);
   });
 
 });

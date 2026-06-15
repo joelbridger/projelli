@@ -230,65 +230,91 @@ interface TabChipProps {
 function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose }: TabChipProps) {
   const [isHovered, setIsHovered] = useState(false);
 
+  // Shared visual styles for the activatable chip area. The chip is a <button>
+  // so keyboard users can Tab to it and press Enter/Space to activate it.
+  const chipStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    padding: '0 12px',
+    height: '100%',
+    cursor: 'pointer',
+    // borderBottom provides the active-tab underline; border resets the button default.
+    // We set border first (shorthand) then override borderBottom so only the bottom
+    // active indicator shows.
+    border: 'none',
+    borderBottom: isActive ? '2px solid var(--kp-navy)' : '2px solid transparent',
+    borderRadius: 0,
+    outline: 'none',
+    background: isActive
+      ? 'rgba(10,37,64,0.05)'
+      : isHovered
+        ? 'rgba(10,37,64,0.02)'
+        : 'transparent',
+    flexShrink: 0,
+    userSelect: 'none',
+    transition: 'background 0.1s',
+    minWidth: 0,
+    maxWidth: onClose ? 176 : 200, // leave room for the close sibling
+    position: 'relative',
+    fontFamily: 'inherit',
+  };
+
   return (
+    // Wrap chip + close button in a containing div so they sit side-by-side
+    // inside the flex strip without nesting one button inside another.
     <div
-      role="tab"
-      aria-selected={isActive}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 5,
-        padding: '0 12px',
-        height: '100%',
-        cursor: 'pointer',
-        borderBottom: isActive ? '2px solid var(--kp-navy)' : '2px solid transparent',
-        background: isActive
-          ? 'rgba(10,37,64,0.05)'
-          : isHovered
-            ? 'rgba(10,37,64,0.02)'
-            : 'transparent',
-        flexShrink: 0,
-        userSelect: 'none',
-        transition: 'background 0.1s',
-        minWidth: 0,
-        maxWidth: 200,
-        position: 'relative',
-      }}
+      style={{ display: 'flex', alignItems: 'stretch', flexShrink: 0, position: 'relative', maxWidth: 200 }}
       onMouseEnter={() => { setIsHovered(true); }}
       onMouseLeave={() => { setIsHovered(false); }}
-      onClick={onActivate}
     >
-      {icon && (
-        <span style={{ flex: 'none', display: 'flex', alignItems: 'center' }}>{icon}</span>
-      )}
-      <span
-        style={{
-          fontSize: 13,
-          fontWeight: isActive ? 600 : 500,
-          color: isActive ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-          fontFamily: 'Satoshi, sans-serif',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          flex: 1,
-          minWidth: 0,
+      <button
+        type="button"
+        role="tab"
+        aria-selected={isActive}
+        style={chipStyle}
+        onClick={onActivate}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onActivate();
+          }
         }}
       >
-        {label}
-      </span>
-      {isDirty && !onClose && (
+        {icon && (
+          <span style={{ flex: 'none', display: 'flex', alignItems: 'center' }}>{icon}</span>
+        )}
         <span
           style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            background: 'var(--kp-navy)',
-            opacity: 0.5,
-            flex: 'none',
+            fontSize: 13,
+            fontWeight: isActive ? 600 : 500,
+            color: isActive ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+            fontFamily: 'Satoshi, sans-serif',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            flex: 1,
+            minWidth: 0,
           }}
-        />
-      )}
+        >
+          {label}
+        </span>
+        {isDirty && !onClose && (
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: 'var(--kp-navy)',
+              opacity: 0.5,
+              flex: 'none',
+            }}
+          />
+        )}
+      </button>
       {!isPinned && onClose && (
+        // Close button is a sibling of the tab button, not a child, to avoid
+        // nesting interactive elements (button-in-button is invalid HTML).
         <button
           type="button"
           aria-label={`Close ${label}`}
@@ -302,6 +328,7 @@ function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose
             justifyContent: 'center',
             width: 16,
             height: 16,
+            alignSelf: 'center',
             borderRadius: 3,
             border: 'none',
             background: 'none',
@@ -309,6 +336,7 @@ function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose
             color: 'var(--color-muted-foreground)',
             padding: 0,
             flex: 'none',
+            marginRight: 4,
             opacity: isHovered ? 1 : 0,
             transition: 'opacity 0.1s',
           }}
@@ -617,6 +645,8 @@ export function ReimaginedDocumentsHome({
 
       {/* ── Unified tab strip ──────────────────────────────────────────── */}
       <div
+        role="tablist"
+        aria-label="Documents tabs"
         data-testid="documents-tab-strip"
         style={{
           display: 'flex',
