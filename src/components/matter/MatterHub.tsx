@@ -13,6 +13,7 @@ import { Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLe
 import { useMatters, useActiveMatterPrivileged, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useAIChatStore } from '@/stores/aiChatStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
+import { useEntityLabel } from '@/hooks/useEntityLabel';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
   const matters = useMatters();
   const matter = matters.find((m) => m.id === matterId) ?? null;
   const isPrivileged = useActiveMatterPrivileged();
+  const entityLabel = useEntityLabel();
 
   // ai chat sessions for recent questions
   const sessions = useAIChatStore((s: { sessions: Record<string, unknown> }) => s.sessions) as Record<string, { messages?: Array<{ role: string; content: string }> }>;
@@ -114,9 +116,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             cursor: 'pointer',
           }}
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-          Back to Matters
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          Back to {entityLabel.Other}
         </button>
       </div>
     );
@@ -220,7 +220,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         >
           <ArrowLeft style={{ width: 13, height: 13, strokeWidth: 2 }} />
           { }
-          Matters
+          {entityLabel.Other}
           { }
         </button>
 
@@ -341,7 +341,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
           <input
             type="text"
             data-testid="hub-ask-input"
-            placeholder="Ask about this matter..."
+            placeholder={`Ask about this ${entityLabel.one}...`}
             value={askQ}
             onChange={(e) => { setAskQ(e.target.value); }}
             onKeyDown={handleAskKeyDown}

@@ -24,14 +24,46 @@ vi.mock('@/stores/workspaceStore', () => ({
     selector({ rootPath: mockRootPath }),
 }));
 
+let mockProfession = 'legal';
+
 vi.mock('@/onboarding/samples/sampleMatterDemo', () => ({
   getDemoAnswerForWorkspace: vi.fn().mockReturnValue(null),
+  getDemoQuestions: vi.fn().mockImplementation((p: string) => {
+    if (p === 'tax') {
+      return [
+        'Can Diane deduct her home office?',
+        'What open questions remain for the Dwyer return?',
+        'Which deduction method should we use?',
+        'What is the exclusive-use test?',
+      ] as [string, string, string, string];
+    }
+    if (p === 'consulting') {
+      return [
+        'What are the key findings so far?',
+        'What is the engagement scope?',
+        'What are the next steps for Hartwell?',
+        'Why does the Springfield facility have a longer fulfillment lag?',
+      ] as [string, string, string, string];
+    }
+    return [
+      'What are the open issues in this matter?',
+      'Summarize the Garcia matter for me.',
+      'What is the status of the Meridian correspondence?',
+      'What is the fee arrangement?',
+    ] as [string, string, string, string];
+  }),
   DEMO_QUESTIONS: [
     'What are the open issues in this matter?',
     'Summarize the Garcia matter for me.',
     'What is the status of the Meridian correspondence?',
     'What is the fee arrangement?',
   ],
+}));
+
+vi.mock('@/stores/professionStore', () => ({
+  useProfessionStore: (selector: (s: { profession: string }) => unknown) =>
+    selector({ profession: mockProfession }),
+  getProfession: () => mockProfession,
 }));
 vi.mock('@/modules/memory/matterResolver', () => ({
   matterLabel: (m: unknown) => String(m),
@@ -83,6 +115,7 @@ describe('ReimaginedAsk', () => {
     vi.clearAllMocks();
     mockActiveMatter = null;
     mockRootPath = null;
+    mockProfession = 'legal';
     // Restore default: no cloud key (return null so demo branch can fire)
     mockGetKey.mockResolvedValue(null);
     (getDemoAnswerForWorkspace as ReturnType<typeof vi.fn>).mockReturnValue(null);
@@ -599,5 +632,66 @@ describe('ReimaginedAsk', () => {
     // Verify the scope selection registered
     expect((screen.getByTestId('scope-option-documents') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
     expect((screen.getByTestId('scope-option-this-matter') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
+  });
+
+  // -------------------------------------------------------------------------
+  // Profession-aware demo chips
+  // -------------------------------------------------------------------------
+
+  it('shows TAX demo questions when profession is tax and sample matter is active', () => {
+    mockProfession = 'tax';
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Dwyer - 2025 Form 1040', isSample: true };
+    render(<ReimaginedAsk />);
+    expect(screen.getByText(/can diane deduct her home office/i)).toBeDefined();
+    expect(screen.getByText(/what open questions remain for the dwyer return/i)).toBeDefined();
+    // Legal questions must NOT appear
+    expect(screen.queryByText(/summarize the garcia matter/i)).toBeNull();
+    expect(screen.queryByText(/meridian correspondence/i)).toBeNull();
+  });
+
+  it('shows CONSULTING demo questions when profession is consulting and sample matter is active', () => {
+    mockProfession = 'consulting';
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Northwind - Go-to-Market Engagement', isSample: true };
+    render(<ReimaginedAsk />);
+    expect(screen.getByText(/what are the key findings so far/i)).toBeDefined();
+    expect(screen.getByText(/what is the engagement scope/i)).toBeDefined();
+    // Legal questions must NOT appear
+    expect(screen.queryByText(/garcia matter/i)).toBeNull();
+    expect(screen.queryByText(/meridian/i)).toBeNull();
+  });
+
+  it('still shows LEGAL demo questions when profession is legal and sample matter is active', () => {
+    mockProfession = 'legal';
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
+    render(<ReimaginedAsk />);
+    expect(screen.getByText(/what are the open issues in this matter/i)).toBeDefined();
+    expect(screen.getByText(/summarize the garcia matter for me/i)).toBeDefined();
+  });
+
+  it('clicking a TAX demo chip calls getDemoAnswerForWorkspace with the tax profession', async () => {
+    mockProfession = 'tax';
+    mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Dwyer - 2025 Form 1040', isSample: true };
+    mockRootPath = '/workspace';
+    (getDemoAnswerForWorkspace as ReturnType<typeof vi.fn>).mockReturnValue({
+      answer: 'Yes, the studio room qualifies. {1}',
+      citations: [{
+        n: 1,
+        label: 'Sample - Client Research Note.md',
+        excerpt: 'Section 280A(c)(1) creates an exception when a portion of the home is used exclusively and regularly as the principal place of business.',
+        path: '/workspace/Sample - Client Research Note.md',
+        locator: 'Sample - Client Research Note.md §Preliminary Analysis',
+        verified: true,
+      }],
+    });
+    render(<ReimaginedAsk />);
+    const chip = screen.getByText(/can diane deduct her home office/i);
+    fireEvent.click(chip);
+    await waitFor(() => {
+      expect(getDemoAnswerForWorkspace).toHaveBeenCalledWith(
+        'Can Diane deduct her home office?',
+        '/workspace',
+        'tax',
+      );
+    });
   });
 });

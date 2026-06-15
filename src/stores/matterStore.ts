@@ -25,6 +25,8 @@ import { persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import type { Matter, MatterScope } from '@/types/matter';
 import { resolveMatterId, findMatter } from '@/modules/memory/matterResolver';
+import { getProfession } from '@/stores/professionStore';
+import { getSampleMatterName } from '@/onboarding/samples/sampleMatterDemo';
 
 /**
  * Stable id for the built-in sample matter ("Garcia v. Meridian Properties LLC").
@@ -333,11 +335,15 @@ export function resolveMatterIdForPath(path: string): string {
 }
 
 /**
- * Return the sample matter (Garcia v. Meridian Properties LLC) if it already
- * exists in the store, or create it now. The matter is linked to `workspaceRoot`
- * so RAG retrieval later scopes to the right folder.
+ * Return the sample matter if it already exists in the store, or create it now.
+ * The matter name is chosen based on the active profession so a tax preparer
+ * sees "Dwyer - 2025 Form 1040" and a consultant sees "Northwind - Go-to-Market
+ * Engagement" instead of the legal default.
  *
- * This is NOT called automatically — the onboarding flow wires it at the right
+ * The matter is linked to `workspaceRoot` so RAG retrieval later scopes to the
+ * right folder.
+ *
+ * This is NOT called automatically -- the onboarding flow wires it at the right
  * moment (after sample files have been written).
  *
  * @param workspaceRoot  Absolute path to the user's workspace root; the sample
@@ -347,10 +353,15 @@ export function getOrCreateSampleMatter(workspaceRoot: string): Matter {
   const { matters, createMatter } = useMatterStore.getState();
   const existing = findMatter(SAMPLE_MATTER_ID, matters);
   if (existing) return existing;
+  const profession = getProfession();
+  const name = getSampleMatterName(profession);
+  // Derive a sensible client name from the matter name: the part before the
+  // first dash or hyphen, trimmed. Keeps the client label short and readable.
+  const client = name.split(/\s*[-–]\s*/)[0]?.trim() ?? name;
   return createMatter({
     id: SAMPLE_MATTER_ID,
-    name: 'Garcia v. Meridian Properties LLC',
-    client: 'Roberto Garcia',
+    name,
+    client,
     folderPaths: [workspaceRoot],
     isSample: true,
   });

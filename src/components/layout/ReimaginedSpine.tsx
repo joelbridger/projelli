@@ -10,13 +10,13 @@
  * built out, so the production shell and its tests stay untouched.
  */
 import { useRef } from 'react';
-import { useTranslation } from 'react-i18next';
 import {
   Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Mail,
   ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
+import { useEntityLabel } from '@/hooks/useEntityLabel';
 
 type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'email';
 
@@ -57,15 +57,15 @@ export function ReimaginedSpine({
   auditContent, mattersContent, emailContent,
   activeTab = 'matters', onTabChange, collapsed = false, onCollapsedChange,
 }: ReimaginedSpineProps) {
-  const { t } = useTranslation();
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const matters = useMatters();
   const activeMatterId = useActiveMatterId();
   const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
+  const entityLabel = useEntityLabel();
 
   // Matter-centric nav. label/Icon + the existing content tab id it drives.
   const nav: { id: SpineTab; label: string; Icon: LucideIcon }[] = [
-    { id: 'matters', label: t('layout.sidebar.tabs.matters'), Icon: Briefcase },
+    { id: 'matters', label: entityLabel.Other, Icon: Briefcase },
     { id: 'search', label: 'Search', Icon: Sparkles },
     { id: 'files', label: 'Documents', Icon: FolderTree },
     { id: 'email', label: 'Email', Icon: Mail },
@@ -140,7 +140,7 @@ export function ReimaginedSpine({
         {matters.length > 0 ? (
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 10px 10px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', padding: '12px 10px 6px' }}>
-              {t('layout.sidebar.tabs.matters')}
+              {entityLabel.Other}
             </div>
             {matters.map((m) => {
               const on = m.id === activeMatterId;

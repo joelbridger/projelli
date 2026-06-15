@@ -19,6 +19,7 @@ import { MatterHub } from '@/components/matter/MatterHub';
 import { useApiKeys } from '@/hooks/useApiKeys';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/mail-commands';
 import type { Matter } from '@/types/matter';
+import { useEntityLabel } from '@/hooks/useEntityLabel';
 
 /** localStorage key for dismissing the setup card. */
 const SETUP_CARD_DISMISSED_KEY = 'keepance:setup-card-dismissed';
@@ -465,7 +466,12 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
 
 // ── Empty state ────────────────────────────────────────────────────────────
 
-function EmptyState() {
+interface EmptyStateProps {
+  entityOne: string;
+  entityOther: string;
+}
+
+function EmptyState({ entityOne, entityOther }: EmptyStateProps) {
   return (
     <div
       style={{
@@ -499,9 +505,7 @@ function EmptyState() {
           fontFamily: 'Satoshi, sans-serif',
         }}
       >
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-        No matters yet
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        No {entityOther} yet
       </div>
       <div
         style={{
@@ -511,9 +515,7 @@ function EmptyState() {
           lineHeight: 1.5,
         }}
       >
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-        Create your first matter to keep one client's documents and emails together.
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        {`Create your first ${entityOne} to keep one client's documents and emails together.`}
       </div>
       {/* Stub button — full creation requires folder-picking via MatterManagerDialog */}
       <button
@@ -541,7 +543,7 @@ function EmptyState() {
         }}
       >
         <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
-        New matter
+        New {entityOne}
       </button>
     </div>
   );
@@ -549,7 +551,11 @@ function EmptyState() {
 
 // ── Table header ───────────────────────────────────────────────────────────
 
-function TableHeader() {
+interface TableHeaderProps {
+  entityOneLabel: string;
+}
+
+function TableHeader({ entityOneLabel }: TableHeaderProps) {
   const colStyle: React.CSSProperties = {
     fontSize: 11,
     fontWeight: 600,
@@ -568,7 +574,7 @@ function TableHeader() {
         borderBottom: '1px solid var(--color-border)',
       }}
     >
-      <div style={{ ...colStyle, paddingLeft: 3 }}>Matter</div>
+      <div style={{ ...colStyle, paddingLeft: 3 }}>{entityOneLabel}</div>
       <div style={colStyle}>Privilege</div>
       <div style={colStyle}>Documents</div>
       <div style={colStyle}>Created</div>
@@ -583,6 +589,7 @@ export function ReimaginedMattersHome() {
   const activeMatterId = useActiveMatterId();
   const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
   const [selectedMatterId, setSelectedMatterId] = useState<string | null>(null);
+  const entityLabel = useEntityLabel();
 
   const openCount = matters.length;
   const totalFolders = matters.reduce((sum, m) => sum + m.folderPaths.length, 0);
@@ -641,7 +648,7 @@ export function ReimaginedMattersHome() {
                 lineHeight: 1.2,
               }}
             >
-              Matters
+              {entityLabel.Other}
             </h1>
           </div>
           <p
@@ -653,14 +660,14 @@ export function ReimaginedMattersHome() {
             }}
           >
             {openCount === 0
-              ? 'No matters open.'
+              ? `No ${entityLabel.other} open.`
               : openCount === 1
-              ? `1 matter${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
-              : `${String(openCount)} matters${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`}
+              ? `1 ${entityLabel.one}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
+              : `${String(openCount)} ${entityLabel.other}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`}
           </p>
         </div>
 
-        {/* New matter button — stub; real creation via MatterManagerDialog */}
+        {/* New entity button — stub; real creation via MatterManagerDialog */}
         <button
           type="button"
           style={{
@@ -683,7 +690,7 @@ export function ReimaginedMattersHome() {
           }}
         >
           <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
-          New matter
+          New {entityLabel.one}
         </button>
       </div>
 
@@ -698,10 +705,10 @@ export function ReimaginedMattersHome() {
         }}
       >
         {matters.length === 0 ? (
-          <EmptyState />
+          <EmptyState entityOne={entityLabel.one} entityOther={entityLabel.other} />
         ) : (
           <>
-            <TableHeader />
+            <TableHeader entityOneLabel={entityLabel.One} />
             <div>
               {matters.map((m) => (
                 <MatterRow
