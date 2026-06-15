@@ -376,6 +376,41 @@
   .kp-callout--info { background: var(--color-secondary); border-color: var(--color-border); }
   .kp-callout--warning { background: var(--kp-warning-bg); border-color: var(--kp-warning-line); }
   .kp-callout--error { background: var(--kp-danger-bg); border-color: rgba(176, 42, 31, 0.3); }
+
+  /* ---- Overlay / scrim — modals + slide-in panels (one scrim everywhere) ---- */
+  .kp-overlay {
+    position: fixed; inset: 0; z-index: var(--kp-z-overlay);
+    background: rgba(10, 37, 64, 0.18); display: flex;
+  }
+  /* ---- Dropdown / popover — anchored menu over a trigger ---- */
+  .kp-dropdown {
+    position: absolute; z-index: var(--kp-z-dropdown);
+    background: var(--color-background);
+    border: var(--kp-border-width) solid var(--color-border);
+    border-radius: var(--radius-md); box-shadow: var(--kp-shadow-2);
+  }
+  /* ---- SlidePanel — right-edge detail drawer ---- */
+  .kp-slide-panel {
+    position: relative; z-index: var(--kp-z-modal); height: 100%;
+    background: var(--color-background);
+    border-left: var(--kp-border-width) solid var(--color-border);
+    box-shadow: var(--kp-shadow-3);
+    display: flex; flex-direction: column;
+    animation: kp-slide-in var(--kp-duration-base) var(--kp-ease-decelerate);
+  }
+  .kp-slide-panel__header {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--kp-space-md);
+    padding: var(--kp-surface-header-pad);
+    border-bottom: var(--kp-border-width) solid var(--color-border);
+  }
+  .kp-slide-panel__body { flex: 1; overflow-y: auto; padding: var(--kp-card-pad); }
+  @keyframes kp-slide-in {
+    from { transform: translateX(16px); opacity: 0.7; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .kp-slide-panel { animation: none; }
+  }
 }
 
 /* Dark mode */

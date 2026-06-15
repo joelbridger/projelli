@@ -26,4 +26,8 @@ export { EmptyState } from './EmptyState';
 export type { EmptyStateProps } from './EmptyState';
 export { Callout } from './Callout';
 export type { CalloutProps } from './Callout';
+export { Dropdown } from './Dropdown';
+export type { DropdownProps } from './Dropdown';
+export { SlidePanel } from './SlidePanel';
+export type { SlidePanelProps } from './SlidePanel';
 export type { IconType } from './types';
