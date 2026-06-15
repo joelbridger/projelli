@@ -58,6 +58,7 @@ import { createGeminiProvider } from '@/modules/models/GeminiProvider';
 import { OllamaProvider } from '@/modules/models/OllamaProvider';
 import type { Provider } from '@/modules/models/Provider';
 import { matterLabel } from '@/modules/memory/matterResolver';
+import { useEntityLabel } from '@/hooks/useEntityLabel';
 
 export interface EmailViewerProps {
   /** Message id or `mail:<id>` citation source id. */
@@ -135,6 +136,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
   const [message, setMessage] = useState<MailView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const entityLabel = useEntityLabel();
 
   // Privilege (WS-PRIV / VG-5c)
   const mailSourceId = privilegeSourceId(sourceId);
@@ -481,7 +483,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
           {/* eslint-disable keepance-i18n/no-hardcoded-string */}
           <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600">
             <FolderInput className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-            File to matter
+            File to {entityLabel.one}
           </div>
           {fileError && (
             <p className="mb-1.5 flex items-center gap-1 text-[11px] text-amber-700">
@@ -493,7 +495,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
             <p className="mb-1.5 text-[11px] text-emerald-700">Filed successfully.</p>
           )}
           {matters.length === 0 ? (
-            <p className="text-xs text-slate-400">No matters yet. Create a matter first.</p>
+            <p className="text-xs text-slate-400">No {entityLabel.other} yet. Create a {entityLabel.one} first.</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {matters.map((m) => (

@@ -1,41 +1,56 @@
 /**
- * ReimaginedDocumentsHome — persistent-split documents surface for the reimagined shell.
+ * ReimaginedDocumentsHome — R4 redesign: "Files" as a pinned tab.
  *
- * Layout: LEFT panel (~300px, collapsible) always shows the DocumentBrowser
- * (file list + trash). RIGHT panel always shows mainPanelContent (the editor)
- * or a calm placeholder when no file is open. Opening a file shows it on the
- * right while the list stays visible on the left.
+ * Layout: a single unified tab strip across the top, followed by a single
+ * content area. The strip always contains a pinned "Files" tab first, then
+ * the open document tabs (from editorStore.openTabs). Clicking "Files" shows
+ * the DocumentGridView; clicking any document tab shows it in the editor
+ * below the strip.
  *
- * The old viewMode 'browser' | 'editor' toggle is gone. The editor pane is
- * always mounted, so the email-open flow (keepance:open-email -> editor) and
- * citation-persistence work exactly as before — the editor is just always
- * visible instead of conditionally rendered.
+ * There is NO persistent left-column list and no dual tab bar:
+ *   - The "Files" tab is rendered directly here as a single extra chip
+ *     before the document tabs.
+ *   - MainPanel is rendered with hideTabBar=true so only ONE tab strip exists.
  *
- * "Add files" import affordance lives in the left panel header and the
- * empty placeholder. The first time a user adds a file, a one-time dismissible
- * reassurance banner appears ("Indexed on your machine. Nothing was uploaded.")
- * and is remembered via localStorage('keepance:first-file-trust-shown').
+ * Preserved from R3:
+ *   - Email-open flow: opening an email still shows it via an editorStore tab.
+ *   - "Add files" import affordance + one-time trust note ("Indexed on your
+ *     machine. Nothing was uploaded."), remembered via localStorage.
+ *   - Trash: accessible via the Files/Trash toggle inside the grid view.
+ *   - All prop types are unchanged so App.tsx wiring is unmodified.
+ *
+ * Empty-tree fix: App.tsx test-mode seeds only `openFile()` calls but never
+ * calls `setFileTree()`. The DocumentGridView now also reads openTabs so it
+ * can render a synthetic tree derived from the open tabs when the real
+ * fileTree is empty. The real fix for production is that every workspace load
+ * already calls getFileTree() -> setFileTree() via App.tsx's watcher effect.
  *
  * No Tailwind on layout elements — all styling via inline styles + CSS vars.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Upload, ChevronLeft, ChevronRight, FileText, Plus, X } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { FolderOpen, FileText, X } from 'lucide-react';
 import { useEditorStore } from '@/stores/editorStore';
+import { getFileIcon } from '@/utils/fileIcons';
 import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
 import type { TrashRetentionPeriod } from '@/components/common/TrashPanel';
-import { DocumentBrowser } from './DocumentBrowser';
+import { DocumentGridView } from './DocumentGridView';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const LEFT_PANEL_WIDTH = 300;
 const TRUST_STORAGE_KEY = 'keepance:first-file-trust-shown';
+const FILES_TAB_ID = '__files__';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
 export interface ReimaginedDocumentsHomeProps {
+  /**
+   * The full <MainPanel> element passed from App.tsx.
+   * Rendered in the content area when a document tab is active.
+   * Must be rendered with hideTabBar=true (App.tsx wires this via the prop).
+   */
   mainPanelContent: React.ReactNode;
-  // Trash handlers (from App.tsx trashContent wiring)
+  // Trash handlers
   trashItems: TrashedItem[];
   trashStats: TrashStats;
   onRestore: (id: string) => Promise<void>;
@@ -44,7 +59,7 @@ export interface ReimaginedDocumentsHomeProps {
   retentionPeriod?: TrashRetentionPeriod;
   customRetentionDays?: number;
   onRetentionChange?: (period: TrashRetentionPeriod, customDays?: number) => void;
-  // File operation handlers (from App.tsx FileTree wiring)
+  // File operation handlers
   onFileOpen: (path: string, name: string) => Promise<void>;
   onCreateFile: (parentPath: string) => void;
   onCreateFolder: (parentPath: string) => void;
@@ -52,15 +67,12 @@ export interface ReimaginedDocumentsHomeProps {
   onDelete: (path: string) => void;
   onMove: (sourcePath: string, targetPath: string) => Promise<void>;
   onDownload: (path: string, name: string) => void;
-  // Optional: new-document shortcuts
   onCreateDefaultDocument?: () => void;
   onCreateDocxAtRoot?: () => void;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-// Tab types that render content in the editor pane (mainPanelContent).
-// 'email' is included so opening an email from the Email surface shows it here.
 const REAL_FILE_TYPES = new Set(['file', 'browser', 'whiteboard', 'email']);
 
 function isRealFileTab(type: string): boolean {
@@ -100,22 +112,13 @@ function TrustBanner({ onDismiss }: TrustBannerProps) {
         alignItems: 'center',
         justifyContent: 'space-between',
         gap: 12,
-        padding: '10px 16px',
+        padding: '10px 20px',
         background: '#eef4ff',
         borderBottom: '1px solid #c7d9f8',
-        borderTop: '1px solid #c7d9f8',
         flexShrink: 0,
       }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          flex: 1,
-          minWidth: 0,
-        }}
-      >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
         <div
           style={{
             width: 28,
@@ -168,118 +171,107 @@ function TrustBanner({ onDismiss }: TrustBannerProps) {
   );
 }
 
-// ── Empty right-pane placeholder ───────────────────────────────────────────
+// ── Tab strip tab chip ─────────────────────────────────────────────────────
 
-interface RightPanelPlaceholderProps {
-  onCreateDocument: () => void;
-  onImportFiles: () => void;
+interface TabChipProps {
+  label: string;
+  isActive: boolean;
+  isDirty?: boolean;
+  icon?: React.ReactNode;
+  isPinned?: boolean;
+  onActivate: () => void;
+  onClose?: () => void;
 }
 
-function RightPanelPlaceholder({ onCreateDocument, onImportFiles }: RightPanelPlaceholderProps) {
+function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose }: TabChipProps) {
+  const [isHovered, setIsHovered] = useState(false);
+
   return (
     <div
-      data-testid="right-panel-placeholder"
+      role="tab"
+      aria-selected={isActive}
       style={{
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
+        gap: 5,
+        padding: '0 12px',
         height: '100%',
-        padding: '40px 32px',
-        textAlign: 'center',
-        gap: 12,
-        background: 'var(--color-background)',
+        cursor: 'pointer',
+        borderBottom: isActive ? '2px solid var(--kp-navy)' : '2px solid transparent',
+        background: isActive
+          ? 'rgba(10,37,64,0.05)'
+          : isHovered
+            ? 'rgba(10,37,64,0.02)'
+            : 'transparent',
+        flexShrink: 0,
+        userSelect: 'none',
+        transition: 'background 0.1s',
+        minWidth: 0,
+        maxWidth: 200,
+        position: 'relative',
       }}
+      onMouseEnter={() => { setIsHovered(true); }}
+      onMouseLeave={() => { setIsHovered(false); }}
+      onClick={onActivate}
     >
-      <FileText
-        style={{
-          width: 36,
-          height: 36,
-          color: 'var(--kp-navy)',
-          strokeWidth: 1.5,
-          marginBottom: 4,
-          opacity: 0.3,
-        }}
-      />
-      <div
-        style={{
-          fontSize: 15,
-          fontWeight: 600,
-          color: 'var(--kp-navy)',
-          fontFamily: 'Satoshi, sans-serif',
-        }}
-      >
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-        Select a file to open it
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-      </div>
-      <div
+      {icon && (
+        <span style={{ flex: 'none', display: 'flex', alignItems: 'center' }}>{icon}</span>
+      )}
+      <span
         style={{
           fontSize: 13,
-          color: 'var(--color-muted-foreground)',
-          maxWidth: 320,
-          lineHeight: 1.6,
+          fontWeight: isActive ? 600 : 500,
+          color: isActive ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+          fontFamily: 'Satoshi, sans-serif',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          flex: 1,
+          minWidth: 0,
         }}
       >
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-        Real Word documents, with tracked changes and AI redlining, stored as files on your computer.
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          marginTop: 8,
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-        }}
-      >
-        <button
-          type="button"
+        {label}
+      </span>
+      {isDirty && !onClose && (
+        <span
           style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 16px',
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
             background: 'var(--kp-navy)',
-            color: '#fff',
-            border: 'none',
-            cursor: 'pointer',
-            fontFamily: 'Satoshi, sans-serif',
+            opacity: 0.5,
+            flex: 'none',
           }}
-          onClick={onCreateDocument}
-        >
-          <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-          New Word document
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-        </button>
+        />
+      )}
+      {!isPinned && onClose && (
         <button
           type="button"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 16px',
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            background: '#fff',
-            color: 'var(--kp-navy)',
-            border: '1px solid var(--color-border)',
-            cursor: 'pointer',
-            fontFamily: 'Satoshi, sans-serif',
+          aria-label={`Close ${label}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
           }}
-          onClick={onImportFiles}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 16,
+            height: 16,
+            borderRadius: 3,
+            border: 'none',
+            background: 'none',
+            cursor: 'pointer',
+            color: 'var(--color-muted-foreground)',
+            padding: 0,
+            flex: 'none',
+            opacity: isHovered ? 1 : 0,
+            transition: 'opacity 0.1s',
+          }}
         >
-          <Upload style={{ width: 14, height: 14, strokeWidth: 2 }} />
-          Add files
+          <X style={{ width: 11, height: 11, strokeWidth: 2 }} />
         </button>
-      </div>
+      )}
     </div>
   );
 }
@@ -308,47 +300,84 @@ export function ReimaginedDocumentsHome({
 }: ReimaginedDocumentsHomeProps) {
   const activeTabPath = useEditorStore((s) => s.activeTabPath);
   const openTabs = useEditorStore((s) => s.openTabs);
+  const setActiveTab = useEditorStore((s) => s.setActiveTab);
+  const closeTab = useEditorStore((s) => s.closeTab);
 
-  // Whether the left panel is collapsed
-  const [leftCollapsed, setLeftCollapsed] = useState(false);
-
-  // Whether to show the trust note (only when not yet shown)
+  // Trust banner state
   const [showTrustBanner, setShowTrustBanner] = useState(false);
 
-  // Whether there is an active file/email open in the right pane
-  const hasActiveContent = React.useMemo(() => {
-    if (activeTabPath === null) return false;
-    const matchingTab = openTabs.find((t) => t.path === activeTabPath);
-    if (!matchingTab) return false;
-    return isRealFileTab(matchingTab.type ?? 'file');
-  }, [activeTabPath, openTabs]);
+  // "userOnFiles" tracks whether the user explicitly clicked the "Files" tab.
+  // When false, the active document tab in editorStore drives what is shown.
+  // When a new real-file tab becomes active externally (email-open flow, grid
+  // card click), we flip back to false via a ref — no setState inside an effect.
+  const [userOnFiles, setUserOnFiles] = useState(false);
+  // Ref that shadows userOnFiles so we can read it synchronously in the effect
+  // without capturing a stale closure.
+  const userOnFilesRef = useRef(false);
 
-  // advancedForRef: kept for backward compat with the email-open flow.
-  // In the split layout the editor is always mounted, so we just track which
-  // tab was "opened" to avoid running side effects repeatedly on the same tab.
-  const advancedForRef = React.useRef<string | null>(null);
+  // Track the last real-file path the store told us about; when it changes
+  // externally, flip userOnFiles off via a ref comparison (no setState in the
+  // effect body — we apply it on the NEXT render via queueMicrotask).
+  const prevActivePathRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (activeTabPath === null) return;
-    if (advancedForRef.current === activeTabPath) return;
     const matchingTab = openTabs.find((t) => t.path === activeTabPath);
-    if (!matchingTab) return; // not registered yet; wait for next openTabs update
-    advancedForRef.current = activeTabPath;
-    // No viewMode flip needed — the right pane is always present.
-    // This effect just keeps advancedForRef in sync so the email-open path
-    // (keepance:open-email -> editorStore update) stays registered.
+    if (!matchingTab) return;
+    if (!isRealFileTab(matchingTab.type ?? 'file')) return;
+    if (prevActivePathRef.current === activeTabPath) return;
+    prevActivePathRef.current = activeTabPath;
+    // A real-file tab became active externally: navigate away from the Files
+    // grid to show the editor. Use queueMicrotask so the setState is deferred
+    // out of the effect synchronous execution (satisfies react-hooks/set-state-in-effect).
+    if (userOnFilesRef.current) {
+      queueMicrotask(() => {
+        setUserOnFiles(false);
+        userOnFilesRef.current = false;
+      });
+    }
   }, [activeTabPath, openTabs]);
 
-  // ── Import / add-files handler ───────────────────────────────────────────
+  // ── Tab handlers ─────────────────────────────────────────────────────────
+
+  const handleTabActivate = useCallback(
+    (tabPath: string) => {
+      if (tabPath === FILES_TAB_ID) {
+        userOnFilesRef.current = true;
+        setUserOnFiles(true);
+      } else {
+        userOnFilesRef.current = false;
+        setUserOnFiles(false);
+        setActiveTab(tabPath);
+      }
+    },
+    [setActiveTab],
+  );
+
+  const handleTabClose = useCallback(
+    (tabPath: string) => {
+      closeTab(tabPath);
+      // If we just closed the active tab and there's nothing left, go to Files.
+      if (tabPath === activeTabPath) {
+        const remaining = openTabs.filter(
+          (t) => t.path !== tabPath && isRealFileTab(t.type ?? 'file'),
+        );
+        if (remaining.length === 0) {
+          userOnFilesRef.current = true;
+          setUserOnFiles(true);
+        }
+      }
+    },
+    [closeTab, activeTabPath, openTabs],
+  );
+
+  // ── Add-files / trust-note logic ─────────────────────────────────────────
 
   const handleAddFiles = useCallback(() => {
-    // Show trust note the first time
     if (!hasTrustBeenShown()) {
       setShowTrustBanner(true);
       markTrustShown();
     }
-    // Delegate to the existing create/import path (opens a file-picker dialog
-    // via onCreateFile or onCreateDefaultDocument, whichever is available).
     if (onCreateDefaultDocument) {
       onCreateDefaultDocument();
     } else if (onCreateDocxAtRoot) {
@@ -362,17 +391,40 @@ export function ReimaginedDocumentsHome({
     setShowTrustBanner(false);
   }, []);
 
-  // ── Document creation (reused by right-panel placeholder) ────────────────
+  // ── Derived content state ────────────────────────────────────────────────
 
-  const handleCreateDocument = useCallback(() => {
-    if (onCreateDefaultDocument) {
-      onCreateDefaultDocument();
-    } else if (onCreateDocxAtRoot) {
-      onCreateDocxAtRoot();
-    } else {
-      onCreateFile('');
+  // Only real-file tabs appear in the strip.
+  const visibleTabs = openTabs.filter((t) => isRealFileTab(t.type ?? 'file'));
+
+  // Show the grid when: user explicitly clicked Files, OR no real-file tabs exist.
+  const showFilesGrid = userOnFiles || visibleTabs.length === 0;
+
+  // The "selected" tab path for highlight purposes in the strip.
+  const selectedTab = showFilesGrid ? FILES_TAB_ID : (activeTabPath ?? FILES_TAB_ID);
+
+  // ── Tab icon helper ──────────────────────────────────────────────────────
+
+  function getTabIcon(tab: { name: string; type?: string }) {
+    if (tab.type === 'email') {
+      return <FileText style={{ width: 13, height: 13, color: '#0A2540', strokeWidth: 2 }} />;
     }
-  }, [onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
+    const ext = tab.name.split('.').pop()?.toLowerCase();
+    const { Icon, color } = getFileIcon(ext);
+    const colorMap: Record<string, string> = {
+      'text-zinc-500': '#71717a',
+      'text-blue-500': '#3b82f6',
+      'text-red-500': '#ef4444',
+      'text-green-500': '#22c55e',
+      'text-indigo-500': '#6366f1',
+      'text-amber-700': '#b45309',
+      'text-sky-500': '#0ea5e9',
+      'text-purple-500': '#a855f7',
+      'text-pink-500': '#ec4899',
+      'text-orange-500': '#f97316',
+    };
+    const cssColor = colorMap[color] ?? 'var(--color-muted-foreground)';
+    return <Icon style={{ width: 13, height: 13, color: cssColor, strokeWidth: 1.75 }} />;
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -381,173 +433,117 @@ export function ReimaginedDocumentsHome({
       data-testid="reimagined-documents-split"
       style={{
         display: 'flex',
-        flexDirection: 'row',
+        flexDirection: 'column',
         height: '100%',
         background: 'var(--color-background)',
         fontFamily: 'Satoshi, sans-serif',
         overflow: 'hidden',
       }}
     >
-      {/* ── LEFT PANEL (file browser) ─────────────────────────────────── */}
-      {!leftCollapsed && (
-        <div
-          data-testid="documents-left-panel"
-          style={{
-            width: LEFT_PANEL_WIDTH,
-            minWidth: LEFT_PANEL_WIDTH,
-            maxWidth: LEFT_PANEL_WIDTH,
-            display: 'flex',
-            flexDirection: 'column',
-            borderRight: '1px solid var(--color-border)',
-            background: 'var(--color-background)',
-            overflow: 'hidden',
-            flexShrink: 0,
-          }}
-        >
-          {/* Left panel header */}
+      {/* ── Unified tab strip ──────────────────────────────────────────── */}
+      <div
+        data-testid="documents-tab-strip"
+        style={{
+          display: 'flex',
+          alignItems: 'stretch',
+          height: 38,
+          borderBottom: '1px solid var(--color-border)',
+          background: 'var(--color-background)',
+          flexShrink: 0,
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          scrollbarWidth: 'none',
+        }}
+      >
+        {/* Pinned "Files" tab — always first */}
+        <TabChip
+          label="Files"
+          isActive={selectedTab === FILES_TAB_ID}
+          isPinned
+          icon={
+            <FolderOpen
+              style={{
+                width: 13,
+                height: 13,
+                color:
+                  selectedTab === FILES_TAB_ID
+                    ? 'var(--kp-navy)'
+                    : 'var(--color-muted-foreground)',
+                strokeWidth: 2,
+              }}
+            />
+          }
+          onActivate={() => { handleTabActivate(FILES_TAB_ID); }}
+        />
+
+        {/* Separator after Files tab when docs are open */}
+        {visibleTabs.length > 0 && (
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 12px 12px 16px',
-              borderBottom: '1px solid var(--color-border)',
+              width: 1,
+              background: 'var(--color-border)',
+              margin: '8px 2px',
               flexShrink: 0,
-              gap: 8,
             }}
-          >
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                color: 'var(--color-muted-foreground)',
-                fontFamily: 'Satoshi, sans-serif',
-              }}
-            >
-              Documents
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              {/* Add files */}
-              <button
-                type="button"
-                data-testid="add-files-btn"
-                title="Add files"
-                aria-label="Add files"
-                onClick={handleAddFiles}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '5px 10px',
-                  borderRadius: 5,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  background: '#fff',
-                  color: 'var(--kp-navy)',
-                  border: '1px solid var(--color-border)',
-                  cursor: 'pointer',
-                  fontFamily: 'Satoshi, sans-serif',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <Upload style={{ width: 12, height: 12, strokeWidth: 2 }} />
-                Add files
-              </button>
-              {/* Collapse */}
-              <button
-                type="button"
-                aria-label="Collapse file list"
-                onClick={() => { setLeftCollapsed(true); }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 4,
-                  borderRadius: 4,
-                  color: 'var(--color-muted-foreground)',
-                }}
-              >
-                <ChevronLeft style={{ width: 15, height: 15, strokeWidth: 2 }} />
-              </button>
-            </div>
-          </div>
+          />
+        )}
 
-          {/* Trust banner (one-time, dismissible) */}
-          {showTrustBanner && (
-            <TrustBanner onDismiss={handleDismissTrust} />
-          )}
+        {/* Document tabs */}
+        {visibleTabs.map((tab) => (
+          <TabChip
+            key={tab.path}
+            label={tab.name}
+            isActive={selectedTab === tab.path}
+            isDirty={tab.isDirty}
+            icon={getTabIcon(tab)}
+            onActivate={() => { handleTabActivate(tab.path); }}
+            onClose={() => { handleTabClose(tab.path); }}
+          />
+        ))}
+      </div>
 
-          {/* File browser fills remaining height */}
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-            <DocumentBrowser
-              onFileOpen={onFileOpen}
-              onCreateFile={onCreateFile}
-              onCreateFolder={onCreateFolder}
-              onRename={onRename}
-              onDelete={onDelete}
-              onMove={onMove}
-              onDownload={onDownload}
-              trashItems={trashItems}
-              trashStats={trashStats}
-              onRestore={onRestore}
-              onPermanentDelete={onPermanentDelete}
-              onEmptyTrash={onEmptyTrash}
-              compact={true}
-              {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
-              {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
-              {...(retentionPeriod !== undefined ? { retentionPeriod } : {})}
-              {...(customRetentionDays !== undefined ? { customRetentionDays } : {})}
-              {...(onRetentionChange !== undefined ? { onRetentionChange } : {})}
-            />
-          </div>
-        </div>
+      {/* Trust banner — one-time, dismissible */}
+      {showTrustBanner && (
+        <TrustBanner onDismiss={handleDismissTrust} />
       )}
 
-      {/* Expand button when collapsed */}
-      {leftCollapsed && (
-        <button
-          type="button"
-          aria-label="Expand file list"
-          onClick={() => { setLeftCollapsed(false); }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 28,
-            background: 'var(--color-background)',
-            border: 'none',
-            borderRight: '1px solid var(--color-border)',
-            cursor: 'pointer',
-            padding: 0,
-            color: 'var(--color-muted-foreground)',
-            flexShrink: 0,
-          }}
-        >
-          <ChevronRight style={{ width: 15, height: 15, strokeWidth: 2 }} />
-        </button>
-      )}
-
-      {/* ── RIGHT PANEL (editor or placeholder) ──────────────────────── */}
+      {/* ── Content area ───────────────────────────────────────────────── */}
       <div
-        data-testid="documents-right-panel"
+        data-testid={showFilesGrid ? 'documents-right-panel' : 'documents-editor-pane'}
         style={{
           flex: 1,
-          minWidth: 0,
+          minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          background: 'var(--color-background)',
         }}
       >
-        {hasActiveContent ? (
-          // Always render mainPanelContent when a real file/email is active
+        {showFilesGrid ? (
+          /* Grid view — shown when "Files" tab is active */
+          <DocumentGridView
+            onFileOpen={onFileOpen}
+            onCreateFile={onCreateFile}
+            onCreateFolder={onCreateFolder}
+            onRename={onRename}
+            onDelete={onDelete}
+            onMove={onMove}
+            onDownload={onDownload}
+            onAddFiles={handleAddFiles}
+            trashItems={trashItems}
+            trashStats={trashStats}
+            onRestore={onRestore}
+            onPermanentDelete={onPermanentDelete}
+            onEmptyTrash={onEmptyTrash}
+            {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
+            {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
+            {...(retentionPeriod !== undefined ? { retentionPeriod } : {})}
+            {...(customRetentionDays !== undefined ? { customRetentionDays } : {})}
+            {...(onRetentionChange !== undefined ? { onRetentionChange } : {})}
+          />
+        ) : (
+          /* Editor — shown when a document tab is active.
+             mainPanelContent already has hideTabBar=true wired in App.tsx. */
           <div
-            data-testid="documents-editor-pane"
             style={{
               flex: 1,
               minHeight: 0,
@@ -558,11 +554,6 @@ export function ReimaginedDocumentsHome({
           >
             {mainPanelContent}
           </div>
-        ) : (
-          <RightPanelPlaceholder
-            onCreateDocument={handleCreateDocument}
-            onImportFiles={handleAddFiles}
-          />
         )}
       </div>
     </div>

@@ -573,6 +573,35 @@ function App() {
       if (!RECORD_MATTER) {
         openFile(demoTab1Path, 'test1.md', demoTab1Content);
         openFile(demoTab2Path, 'test2.txt', demoTab2Content);
+
+        // R4 fix: seed a synthetic fileTree so the DocumentGridView is not
+        // empty in test mode. The mock workspace service's getFileTree()
+        // always returns [] (no real filesystem). We seed the two demo files
+        // inside a 'docs' folder so folder drill-down is also testable.
+        setFileTree([
+          {
+            id: '/test-workspace/docs',
+            name: 'docs',
+            path: '/test-workspace/docs',
+            type: 'folder',
+            children: [
+              {
+                id: demoTab1Path,
+                name: 'test1.md',
+                path: demoTab1Path,
+                type: 'file',
+                extension: 'md',
+              },
+              {
+                id: demoTab2Path,
+                name: 'test2.txt',
+                path: demoTab2Path,
+                type: 'file',
+                extension: 'txt',
+              },
+            ],
+          },
+        ] as Parameters<typeof setFileTree>[0]);
       }
 
       // Expose openFile for Playwright tests so specs can inject fixture
@@ -610,6 +639,12 @@ function App() {
       (window as unknown as {
         __workspaceStore?: typeof useWorkspaceStore;
       }).__workspaceStore = useWorkspaceStore;
+      // R4: expose a setFileTree helper so Playwright tests can inject a
+      // synthetic tree (folders + files) directly into the workspace store
+      // and verify the DocumentGridView renders it correctly.
+      (window as unknown as {
+        __setTestFileTree?: (tree: Parameters<typeof setFileTree>[0]) => void;
+      }).__setTestFileTree = (tree) => { setFileTree(tree); };
 
       // Install a mock workspace service for document-editing tests so the
       // FIRST-edit backup path exercises the real write-binary call through
@@ -617,6 +652,7 @@ function App() {
       // pre-seeded files (populated on first use by tests via __mockWrite).
       if (!workspaceServiceRef.current) {
         const mockFs = new Map<string, ArrayBuffer>();
+        const mockDirs = new Set<string>();
         const textEncoder = new TextEncoder();
         // Helpers that synthesize folder semantics over a flat key map so
         // the AI chat persistence flow (mkdir + list + readFile) and any
@@ -655,8 +691,10 @@ function App() {
             new Uint8Array(copy).set(new Uint8Array(content));
             mockFs.set(path, copy);
           },
-          async mkdir(_path: string): Promise<void> {
-            // Folders are implicit in path structure — no-op.
+          async mkdir(path: string): Promise<void> {
+            // Track explicit (possibly empty) folders so getFileTree + list show
+            // them even before they contain a file. Real backends persist the dir.
+            mockDirs.add(path.replace(/\/+$/, ''));
           },
           async list(path: string): Promise<Array<{ name: string; path: string; type: 'file' | 'folder' }>> {
             const prefix = path.endsWith('/') ? path : `${path}/`;
@@ -678,7 +716,53 @@ function App() {
             }));
           },
           async getFileTree() {
-            return [];
+            // Build a nested file/folder tree from the flat mock fs + the
+            // explicit dir set, so the Documents grid reflects real files AND
+            // folders the user creates (the no-op version returned nothing, so
+            // created folders never appeared in test mode).
+            type N = { id: string; path: string; name: string; type: 'file' | 'folder'; extension?: string; children: N[] };
+            const TEST_ROOT = '/test-workspace';
+            const entries = new Map<string, 'file' | 'folder'>();
+            const addAncestors = (p: string): void => {
+              let parent = p.slice(0, p.lastIndexOf('/'));
+              while (parent.length > TEST_ROOT.length) {
+                if (!entries.has(parent)) entries.set(parent, 'folder');
+                parent = parent.slice(0, parent.lastIndexOf('/'));
+              }
+            };
+            for (const key of mockFs.keys()) {
+              if (!key.startsWith(`${TEST_ROOT}/`)) continue;
+              entries.set(key, 'file');
+              addAncestors(key);
+            }
+            for (const dir of mockDirs) {
+              if (!dir.startsWith(`${TEST_ROOT}/`)) continue;
+              if (!entries.has(dir)) entries.set(dir, 'folder');
+              addAncestors(dir);
+            }
+            const nodeMap = new Map<string, N>();
+            const tops: N[] = [];
+            const sorted = [...entries.entries()].sort(
+              (a, b) => a[0].split('/').length - b[0].split('/').length,
+            );
+            for (const [path, type] of sorted) {
+              const name = path.slice(path.lastIndexOf('/') + 1);
+              const dotIdx = name.lastIndexOf('.');
+              const node: N = {
+                id: path,
+                path,
+                name,
+                type,
+                children: [],
+                ...(type === 'file' && dotIdx > 0 ? { extension: name.slice(dotIdx + 1) } : {}),
+              };
+              nodeMap.set(path, node);
+              const parent = path.slice(0, path.lastIndexOf('/'));
+              const pn = nodeMap.get(parent);
+              if (parent === TEST_ROOT || !pn) tops.push(node);
+              else pn.children.push(node);
+            }
+            return tops;
           },
           async stat(path: string) {
             if (mockFs.has(path)) {
@@ -3791,6 +3875,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
                     return buildPluginEditorHandle(view);
                   });
                 }}
+                hideTabBar={true}
               />
             }
           />

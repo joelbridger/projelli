@@ -65,6 +65,7 @@ import { registerDevice } from '@/modules/firm/deviceKeys';
 import type { MatterMembersResponse, MatterMineSummary } from '@/modules/firm/contract';
 import { openMatterNotes } from '@/modules/matter/openMatterNotes';
 import { stopMatterSync } from '@/modules/matter/matterNotesSync';
+import { useEntityLabel } from '@/hooks/useEntityLabel';
 
 export interface MatterManagerDialogProps {
   open: boolean;
@@ -400,6 +401,7 @@ function MemberRoster({ matterId, firmMatterId, canInvite }: MemberRosterProps) 
 
 export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogProps) {
   const { t } = useTranslation();
+  const entityLabel = useEntityLabel();
   const matters = useMatters();
   const {
     createMatter,
@@ -645,9 +647,11 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Briefcase className="h-5 w-5 text-primary" />
-            {t('matter.manager.title')}
+            {entityLabel.Other}
           </DialogTitle>
-          <DialogDescription>{t('matter.manager.description')}</DialogDescription>
+          <DialogDescription>
+            {`A ${entityLabel.one} groups one client's work under one or more workspace folders. Files in a ${entityLabel.one}'s folders are scoped to that ${entityLabel.one} so other clients' data never appears.`}
+          </DialogDescription>
         </DialogHeader>
 
         {/* Create */}
@@ -655,7 +659,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label htmlFor="matter-new-name" className="text-xs">
-                {t('matter.manager.matter-name')}
+                {`${entityLabel.One} name`}
               </Label>
               <Input
                 id="matter-new-name"
@@ -712,7 +716,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
             disabled={!newName.trim() && !newClient.trim()}
           >
             <Plus className="h-4 w-4" />
-            {t('matter.manager.create')}
+            {`Create ${entityLabel.one}`}
           </Button>
         </div>
 
@@ -790,7 +794,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
         <div className="space-y-3" data-testid="matter-list">
           {matters.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">
-              {t('matter.manager.empty')}
+              {`No ${entityLabel.other} yet. Create your first ${entityLabel.one} above.`}
             </p>
           ) : (
             matters.map((m) => (
@@ -820,9 +824,8 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                     >
                       Sample
                     </span>
-                    {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
                     <span className="text-xs text-muted-foreground">
-                      This is the built-in training matter. Deleting it removes the demo questions.
+                      {`This is the built-in training ${entityLabel.one}. Deleting it removes the demo questions.`}
                     </span>
                   </div>
                 )}
@@ -834,7 +837,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                       renameMatter(m.id, { name: e.target.value });
                     }}
                     className="h-8 text-sm font-medium"
-                    aria-label={t('matter.manager.matter-name')}
+                    aria-label={`${entityLabel.One} name`}
                     disabled={m.id === SAMPLE_MATTER_ID}
                   />
                   <div className="flex items-center gap-2">
@@ -1087,11 +1090,11 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                 {/* Folder mapping */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">
-                    {t('matter.manager.folders-label')}
+                    {`Folders in this ${entityLabel.one}`}
                   </p>
                   {folderPaths.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      {t('matter.manager.no-folders')}
+                      {`Open a workspace to map folders to this ${entityLabel.one}.`}
                     </p>
                   ) : (
                     <div className="max-h-40 overflow-y-auto rounded border divide-y">
@@ -1134,11 +1137,11 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                 {/* Email account mapping (account-level: every folder in the account) */}
                 <div>
                   <p className="text-xs font-medium text-muted-foreground mb-1">
-                    {t('matter.manager.mail-label')}
+                    {`Email accounts in this ${entityLabel.one}`}
                   </p>
                   {mailAccounts.length === 0 ? (
                     <p className="text-xs text-muted-foreground">
-                      {t('matter.manager.no-mail-accounts')}
+                      {`Connect an email account in Settings to map it to this ${entityLabel.one}.`}
                     </p>
                   ) : (
                     <div className="rounded border divide-y">
@@ -1179,7 +1182,7 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                   )}
                   {mailAccounts.length > 0 && (
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      {t('matter.manager.mail-account-hint')}
+                      {`Email from a mapped account is scoped to this ${entityLabel.one}.`}
                     </p>
                   )}
                 </div>

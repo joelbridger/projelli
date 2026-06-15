@@ -29,7 +29,8 @@ import {
 import { useActiveMatter, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
-import { getDemoAnswerForWorkspace, DEMO_QUESTIONS } from '@/onboarding/samples/sampleMatterDemo';
+import { getDemoAnswerForWorkspace, getDemoQuestions } from '@/onboarding/samples/sampleMatterDemo';
+import { useProfessionStore } from '@/stores/professionStore';
 import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
 import {
   DEFAULT_WORKSPACE_TOP_K,
@@ -637,8 +638,12 @@ function SampleBridgeCallout() {
 export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (content: string) => Promise<void> }) {
   const activeMatter = useActiveMatter();
   const rootPath = useWorkspaceStore((s) => s.rootPath);
+  const profession = useProfessionStore((s) => s.profession);
   const matterScopeLabel = activeMatter ? matterLabel(activeMatter) : 'all matters';
   const isSampleMatterActive = activeMatter?.id === SAMPLE_MATTER_ID;
+  // Profession-aware demo questions: a tax user on the sample matter sees tax
+  // questions; a consultant sees consulting questions; legal is the default.
+  const demoQuestions = getDemoQuestions(profession);
 
   // Derive chatId from active matter
   const baseChatId = activeMatter ? `ask-${activeMatter.id}` : 'ask-global';
@@ -809,7 +814,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
       if (isSampleMatter && rootPath) {
         const cloudKey = await hasCloudKey();
         if (!cloudKey) {
-          const demo = getDemoAnswerForWorkspace(q, rootPath);
+          const demo = getDemoAnswerForWorkspace(q, rootPath, profession);
           if (demo) {
             if (abort.signal.aborted) return;
             const completedTurn: AskTurn = {
@@ -1011,7 +1016,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
       setStreamingTurn(null);
       setStatus('error');
     }
-  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope]);
+  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1213,7 +1218,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 6 }}>
                 {(activeMatter?.id === SAMPLE_MATTER_ID
-                  ? (DEMO_QUESTIONS as unknown as string[])
+                  ? (demoQuestions as unknown as string[])
                   : [
                       'Summarize the latest deposition',
                       'Find every email from opposing counsel',
