@@ -27,15 +27,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useEntityLabel } from '@/hooks/useEntityLabel';
 
 export function ReimaginedTrustBar() {
   const activeMatter = useActiveMatter();
   const confidentialityMode = useConfidentialityMode();
   const [dataMapOpen, setDataMapOpen] = useState(false);
+  const entityLabel = useEntityLabel();
 
   const scopeSubtitle = activeMatter
-    ? 'Scoped to this matter. Nothing from other clients can appear.'
-    : 'Searching across every matter. Nothing crosses between clients.';
+    ? `Scoped to this ${entityLabel.one}. Nothing from other clients can appear.`
+    : `Searching across every ${entityLabel.one}. Nothing crosses between clients.`;
 
   const egressTooltip =
     confidentialityMode === 'local-only'
@@ -65,7 +67,7 @@ export function ReimaginedTrustBar() {
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280,
           }}
         >
-          {activeMatter ? matterLabel(activeMatter) : 'All matters'}
+          {activeMatter ? matterLabel(activeMatter) : `All ${entityLabel.other}`}
         </span>
       </div>
 

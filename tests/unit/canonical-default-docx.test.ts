@@ -34,9 +34,9 @@ describe('canonical default new-document type', () => {
     expect(defaults.defaultNewFileType).toBe('docx');
   });
 
-  it('keeps the setting in the Files & Workspace category', () => {
+  it('keeps the setting in the Workspace section (was Files & Workspace)', () => {
     const def = SETTINGS_SCHEMA.find((d) => d.key === 'defaultNewFileType')!;
-    expect(def.category).toBe('files');
+    expect(def.category).toBe('workspace');
   });
 });
 
