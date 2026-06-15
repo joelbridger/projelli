@@ -29,17 +29,39 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FolderOpen, FileText, X } from 'lucide-react';
+import { FolderOpen, FileText, X, LayoutGrid, ListTree } from 'lucide-react';
 import { useEditorStore } from '@/stores/editorStore';
 import { getFileIcon } from '@/utils/fileIcons';
 import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
 import type { TrashRetentionPeriod } from '@/components/common/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
+import { FileTree } from '@/components/workspace/FileTree';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const TRUST_STORAGE_KEY = 'keepance:first-file-trust-shown';
 const FILES_TAB_ID = '__files__';
+
+// R6-1: which Files view the user last chose (vertical expanding tree vs the
+// folder-drill grid). Persisted so the choice survives reloads.
+const DOCS_VIEW_STORAGE_KEY = 'keepance:docs-view';
+type DocsView = 'tree' | 'grid';
+
+function readDocsView(): DocsView {
+  try {
+    return localStorage.getItem(DOCS_VIEW_STORAGE_KEY) === 'tree' ? 'tree' : 'grid';
+  } catch {
+    return 'grid';
+  }
+}
+
+function writeDocsView(view: DocsView): void {
+  try {
+    localStorage.setItem(DOCS_VIEW_STORAGE_KEY, view);
+  } catch {
+    // ignore
+  }
+}
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -67,8 +89,21 @@ export interface ReimaginedDocumentsHomeProps {
   onDelete: (path: string) => void;
   onMove: (sourcePath: string, targetPath: string) => Promise<void>;
   onDownload: (path: string, name: string) => void;
-  onCreateDefaultDocument?: () => void;
-  onCreateDocxAtRoot?: () => void;
+  onCreateDefaultDocument?: (parentPath?: string) => void;
+  onCreateDocxAtRoot?: (parentPath?: string) => void;
+  /**
+   * R6-1: the vertical expanding tree view (FileTree) shares the Files surface
+   * with the grid via a Tree | Grid toggle. The tree's toolbar offers the same
+   * "new at root" creators the sidebar tree does; these are threaded through so
+   * the toolbar is fully functional. All are optional — when absent the
+   * corresponding toolbar entry simply no-ops, exactly as FileTree allows.
+   */
+  onCreateMarkdownAtRoot?: () => void;
+  onCreateTextFileAtRoot?: () => void;
+  onCreateRichTextFileAtRoot?: () => void;
+  onCreateFolderAtRoot?: () => void;
+  onCreateWhiteboard?: (parentPath: string) => void;
+  onSetLetterheadTemplate?: (path: string) => void;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -276,6 +311,86 @@ function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose
   );
 }
 
+// ── Tree | Grid view toggle ─────────────────────────────────────────────────
+
+interface ViewToggleProps {
+  view: DocsView;
+  onChange: (view: DocsView) => void;
+}
+
+function ViewToggle({ view, onChange }: ViewToggleProps) {
+  const segBase: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 5,
+    padding: '4px 10px',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    border: 'none',
+    borderRadius: 0,
+    transition: 'background 0.1s, color 0.1s',
+    fontFamily: 'Satoshi, sans-serif',
+    whiteSpace: 'nowrap',
+  };
+  const active: React.CSSProperties = { background: 'var(--kp-navy)', color: '#fff' };
+  const inactive: React.CSSProperties = { background: '#fff', color: 'var(--color-muted-foreground)' };
+
+  return (
+    <div
+      data-testid="docs-view-toggle"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        padding: '8px 20px',
+        borderBottom: '1px solid var(--color-border)',
+        flexShrink: 0,
+        background: 'var(--color-background)',
+      }}
+    >
+      <div
+        style={{
+          display: 'inline-flex',
+          borderRadius: 6,
+          overflow: 'hidden',
+          border: '1px solid var(--color-border)',
+        }}
+      >
+        <button
+          type="button"
+          data-testid="docs-view-tree"
+          aria-pressed={view === 'tree'}
+          title="Tree view"
+          style={{
+            ...segBase,
+            ...(view === 'tree' ? active : inactive),
+            borderRight: '1px solid var(--color-border)',
+          }}
+          onClick={() => { onChange('tree'); }}
+        >
+          <ListTree style={{ width: 13, height: 13, strokeWidth: 2 }} />
+          Tree
+        </button>
+        <button
+          type="button"
+          data-testid="docs-view-grid"
+          aria-pressed={view === 'grid'}
+          title="Grid view"
+          style={{
+            ...segBase,
+            ...(view === 'grid' ? active : inactive),
+          }}
+          onClick={() => { onChange('grid'); }}
+        >
+          <LayoutGrid style={{ width: 13, height: 13, strokeWidth: 2 }} />
+          Grid
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main export ────────────────────────────────────────────────────────────
 
 export function ReimaginedDocumentsHome({
@@ -297,6 +412,12 @@ export function ReimaginedDocumentsHome({
   onDownload,
   onCreateDefaultDocument,
   onCreateDocxAtRoot,
+  onCreateMarkdownAtRoot,
+  onCreateTextFileAtRoot,
+  onCreateRichTextFileAtRoot,
+  onCreateFolderAtRoot,
+  onCreateWhiteboard,
+  onSetLetterheadTemplate,
 }: ReimaginedDocumentsHomeProps) {
   const activeTabPath = useEditorStore((s) => s.activeTabPath);
   const openTabs = useEditorStore((s) => s.openTabs);
@@ -305,6 +426,13 @@ export function ReimaginedDocumentsHome({
 
   // Trust banner state
   const [showTrustBanner, setShowTrustBanner] = useState(false);
+
+  // R6-1: Tree | Grid toggle for the Files surface. Restored from localStorage.
+  const [docsView, setDocsView] = useState<DocsView>(() => readDocsView());
+  const handleSetDocsView = useCallback((view: DocsView) => {
+    setDocsView(view);
+    writeDocsView(view);
+  }, []);
 
   // "userOnFiles" tracks whether the user explicitly clicked the "Files" tab.
   // When false, the active document tab in editorStore drives what is shown.
@@ -519,27 +647,65 @@ export function ReimaginedDocumentsHome({
         }}
       >
         {showFilesGrid ? (
-          /* Grid view — shown when "Files" tab is active */
-          <DocumentGridView
-            onFileOpen={onFileOpen}
-            onCreateFile={onCreateFile}
-            onCreateFolder={onCreateFolder}
-            onRename={onRename}
-            onDelete={onDelete}
-            onMove={onMove}
-            onDownload={onDownload}
-            onAddFiles={handleAddFiles}
-            trashItems={trashItems}
-            trashStats={trashStats}
-            onRestore={onRestore}
-            onPermanentDelete={onPermanentDelete}
-            onEmptyTrash={onEmptyTrash}
-            {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
-            {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
-            {...(retentionPeriod !== undefined ? { retentionPeriod } : {})}
-            {...(customRetentionDays !== undefined ? { customRetentionDays } : {})}
-            {...(onRetentionChange !== undefined ? { onRetentionChange } : {})}
-          />
+          /* Files surface — a Tree | Grid toggle header, then the chosen view. */
+          <>
+            <ViewToggle view={docsView} onChange={handleSetDocsView} />
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+              }}
+            >
+              {docsView === 'tree' ? (
+                /* Vertical EXPANDING tree (reused as-is) with working drag-into-
+                   folder DnD. It reads the workspace store directly. */
+                <div data-testid="documents-tree-view" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                  <FileTree
+                    onFileOpen={onFileOpen}
+                    onCreateFile={onCreateFile}
+                    onCreateFolder={onCreateFolder}
+                    onRename={onRename}
+                    onDelete={onDelete}
+                    onMove={onMove}
+                    onDownload={onDownload}
+                    {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
+                    {...(onCreateMarkdownAtRoot !== undefined ? { onCreateMarkdownAtRoot } : {})}
+                    {...(onCreateTextFileAtRoot !== undefined ? { onCreateTextFileAtRoot } : {})}
+                    {...(onCreateRichTextFileAtRoot !== undefined ? { onCreateRichTextFileAtRoot } : {})}
+                    {...(onCreateFolderAtRoot !== undefined ? { onCreateFolderAtRoot } : {})}
+                    {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
+                    {...(onCreateWhiteboard !== undefined ? { onCreateWhiteboard } : {})}
+                    {...(onSetLetterheadTemplate !== undefined ? { onSetLetterheadTemplate } : {})}
+                  />
+                </div>
+              ) : (
+                /* Folder-drill grid — shown when "Files" tab is active */
+                <DocumentGridView
+                  onFileOpen={onFileOpen}
+                  onCreateFile={onCreateFile}
+                  onCreateFolder={onCreateFolder}
+                  onRename={onRename}
+                  onDelete={onDelete}
+                  onMove={onMove}
+                  onDownload={onDownload}
+                  onAddFiles={handleAddFiles}
+                  trashItems={trashItems}
+                  trashStats={trashStats}
+                  onRestore={onRestore}
+                  onPermanentDelete={onPermanentDelete}
+                  onEmptyTrash={onEmptyTrash}
+                  {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
+                  {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
+                  {...(retentionPeriod !== undefined ? { retentionPeriod } : {})}
+                  {...(customRetentionDays !== undefined ? { customRetentionDays } : {})}
+                  {...(onRetentionChange !== undefined ? { onRetentionChange } : {})}
+                />
+              )}
+            </div>
+          </>
         ) : (
           /* Editor — shown when a document tab is active.
              mainPanelContent already has hideTabBar=true wired in App.tsx. */

@@ -40,7 +40,10 @@ function getGridIcon(node: FileNode): React.ReactNode {
       />
     );
   }
-  const ext = (node.extension ?? '').toLowerCase();
+  // Derive the extension from the file name (not node.extension) because the
+  // TauriFSBackend does not populate the extension field on FileNode, so the
+  // desktop icons were always falling through to the generic File glyph.
+  const ext = (node.name.split('.').pop() ?? '').toLowerCase();
   if (ext === 'md' || ext === 'txt' || ext === 'source' || ext === 'rtf' || ext === 'rt') {
     return (
       <FileText
@@ -100,9 +103,17 @@ interface BreadcrumbSegment {
 interface BreadcrumbProps {
   segments: BreadcrumbSegment[];
   onNavigate: (path: string | null) => void;
+  /**
+   * R6-1: drag a file/folder onto a breadcrumb to move it up a level (or to
+   * the workspace root via the "All files" crumb). `targetPath` is null for
+   * the root crumb; the parent resolves it to rootPath before moving.
+   */
+  onDropOnCrumb?: (sourcePath: string, targetPath: string | null) => Promise<void>;
 }
 
-function Breadcrumb({ segments, onNavigate }: BreadcrumbProps) {
+function Breadcrumb({ segments, onNavigate, onDropOnCrumb }: BreadcrumbProps) {
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
   if (segments.length === 0) return null;
   return (
     <div
@@ -115,6 +126,7 @@ function Breadcrumb({ segments, onNavigate }: BreadcrumbProps) {
     >
       {segments.map((seg, idx) => {
         const isLast = idx === segments.length - 1;
+        const isCrumbDragOver = dragOverIdx === idx;
         return (
           <React.Fragment key={seg.path ?? '__root__'}>
             {idx > 0 && (
@@ -130,15 +142,35 @@ function Breadcrumb({ segments, onNavigate }: BreadcrumbProps) {
             )}
             <button
               type="button"
+              data-testid={`breadcrumb-crumb-${String(idx)}`}
               onClick={() => { onNavigate(seg.path); }}
+              onDragOver={(e) => {
+                if (!onDropOnCrumb) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                setDragOverIdx(idx);
+              }}
+              onDragLeave={() => { setDragOverIdx(null); }}
+              onDrop={(e) => {
+                if (!onDropOnCrumb) return;
+                e.preventDefault();
+                setDragOverIdx(null);
+                const sourcePath = e.dataTransfer.getData('text/plain');
+                if (sourcePath) {
+                  void onDropOnCrumb(sourcePath, seg.path);
+                }
+              }}
               style={{
                 fontSize: 13,
                 fontWeight: isLast ? 600 : 400,
                 color: isLast ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-                background: 'none',
-                border: 'none',
+                background: isCrumbDragOver ? 'rgba(10,37,64,0.08)' : 'none',
+                border: isCrumbDragOver
+                  ? '1px dashed var(--kp-navy)'
+                  : '1px solid transparent',
+                borderRadius: 4,
                 cursor: isLast ? 'default' : 'pointer',
-                padding: 0,
+                padding: '1px 4px',
                 fontFamily: 'Satoshi, sans-serif',
               }}
             >
@@ -157,15 +189,76 @@ interface FileCardProps {
   node: FileNode;
   isActive: boolean;
   onOpen: (node: FileNode) => void;
+  /**
+   * R6-1: drag-and-drop. When present, the card is draggable (writes its path
+   * to text/plain on dragStart) and FOLDER cards accept drops, calling
+   * `onMoveInto(sourcePath, folder.path)`. The self/descendant guard lives in
+   * the parent so we never move a folder into itself or a child of itself.
+   */
+  onMoveInto?: (sourcePath: string, targetFolderPath: string) => Promise<void>;
 }
 
-function FileCard({ node, isActive, onOpen }: FileCardProps) {
+function FileCard({ node, isActive, onOpen, onMoveInto }: FileCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const isFolder = node.type === 'folder';
+
+  const handleDragStart = useCallback(
+    (e: React.DragEvent) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', node.path);
+      setIsDragging(true);
+    },
+    [node.path],
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
+    setIsDragOver(false);
+  }, []);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      // Only folders are valid drop targets, and only when moving is wired.
+      if (!isFolder || !onMoveInto) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setIsDragOver(true);
+    },
+    [isFolder, onMoveInto],
+  );
+
+  const handleDragLeave = useCallback(() => {
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      if (!isFolder || !onMoveInto) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragOver(false);
+      const sourcePath = e.dataTransfer.getData('text/plain');
+      if (!sourcePath) return;
+      // Guard: never drop a node onto itself or a folder into its own subtree.
+      if (sourcePath === node.path) return;
+      if (node.path === sourcePath || node.path.startsWith(`${sourcePath}/`)) return;
+      await onMoveInto(sourcePath, node.path);
+    },
+    [isFolder, onMoveInto, node.path],
+  );
 
   return (
     <button
       type="button"
       data-testid={`grid-card-${node.path}`}
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={(e) => { void handleDrop(e); }}
       onClick={() => { onOpen(node); }}
       onMouseEnter={() => { setIsHovered(true); }}
       onMouseLeave={() => { setIsHovered(false); }}
@@ -176,19 +269,24 @@ function FileCard({ node, isActive, onOpen }: FileCardProps) {
         gap: 8,
         padding: '16px 12px',
         borderRadius: 8,
-        border: isActive
-          ? '2px solid var(--kp-navy)'
-          : isHovered
-            ? '2px solid rgba(10,37,64,0.2)'
-            : '2px solid var(--color-border)',
-        background: isActive
-          ? 'rgba(10,37,64,0.04)'
-          : isHovered
-            ? 'rgba(10,37,64,0.02)'
-            : '#fff',
+        border: isDragOver && isFolder
+          ? '2px dashed var(--kp-navy)'
+          : isActive
+            ? '2px solid var(--kp-navy)'
+            : isHovered
+              ? '2px solid rgba(10,37,64,0.2)'
+              : '2px solid var(--color-border)',
+        background: isDragOver && isFolder
+          ? 'rgba(10,37,64,0.08)'
+          : isActive
+            ? 'rgba(10,37,64,0.04)'
+            : isHovered
+              ? 'rgba(10,37,64,0.02)'
+              : '#fff',
+        opacity: isDragging ? 0.5 : 1,
         cursor: 'pointer',
         textAlign: 'center',
-        transition: 'border-color 0.12s, background 0.12s',
+        transition: 'border-color 0.12s, background 0.12s, opacity 0.12s',
         width: '100%',
         minWidth: 0,
         fontFamily: 'Satoshi, sans-serif',
@@ -340,8 +438,14 @@ export interface DocumentGridViewProps {
   onDelete: (path: string) => void;
   onMove: (sourcePath: string, targetPath: string) => Promise<void>;
   onDownload: (path: string, name: string) => void;
-  onCreateDefaultDocument?: () => void;
-  onCreateDocxAtRoot?: () => void;
+  /**
+   * R6-1: both create-document shortcuts now take an optional parentPath so a
+   * new document lands in the folder the user currently has open (mirrors how
+   * "New folder" already passes `currentFolderPath ?? rootPath`). When absent,
+   * App.tsx falls back to the workspace `docs/` folder.
+   */
+  onCreateDefaultDocument?: (parentPath?: string) => void;
+  onCreateDocxAtRoot?: (parentPath?: string) => void;
   onAddFiles: () => void;
   trashItems: TrashedItem[];
   trashStats: TrashStats;
@@ -359,6 +463,7 @@ export function DocumentGridView({
   onFileOpen,
   onCreateFile,
   onCreateFolder,
+  onMove,
   onCreateDefaultDocument,
   onCreateDocxAtRoot,
   onAddFiles,
@@ -470,10 +575,14 @@ export function DocumentGridView({
   }, [onFileOpen]);
 
   function handleCreateDocument() {
+    // R6-1: thread the open folder so a new document lands where the user is.
+    // When at root (currentFolderPath === null) we pass undefined and App.tsx
+    // falls back to its canonical `docs/` folder — same contract as before.
+    const parentPath = currentFolderPath ?? undefined;
     if (onCreateDefaultDocument) {
-      onCreateDefaultDocument();
+      onCreateDefaultDocument(parentPath);
     } else if (onCreateDocxAtRoot) {
-      onCreateDocxAtRoot();
+      onCreateDocxAtRoot(parentPath);
     } else {
       onCreateFile(currentFolderPath ?? rootPath ?? '');
     }
@@ -482,6 +591,32 @@ export function DocumentGridView({
   function handleCreateFolder() {
     onCreateFolder(currentFolderPath ?? rootPath ?? '');
   }
+
+  // R6-1: grid drag-and-drop. Dropping a card onto a FOLDER card moves it
+  // into that folder; the self/descendant guard lives in FileCard. App.tsx's
+  // onMove refreshes the workspace store, so the tree + grid update after.
+  const handleMoveInto = useCallback(
+    async (sourcePath: string, targetFolderPath: string) => {
+      await onMove(sourcePath, targetFolderPath);
+    },
+    [onMove],
+  );
+
+  // R6-1: dropping a card onto a breadcrumb moves it up a level (or to the
+  // workspace root via the "All files" crumb, whose path is null).
+  const handleDropOnCrumb = useCallback(
+    async (sourcePath: string, crumbPath: string | null) => {
+      const target = crumbPath ?? rootPath;
+      if (!target) return;
+      // No-op if it's already a direct child of the target folder.
+      const sourceDir = sourcePath.slice(0, sourcePath.lastIndexOf('/'));
+      if (sourceDir === target) return;
+      // Never move a folder into its own subtree (or onto itself).
+      if (target === sourcePath || target.startsWith(`${sourcePath}/`)) return;
+      await onMove(sourcePath, target);
+    },
+    [onMove, rootPath],
+  );
 
   // ── Is a node the active tab? ────────────────────────────────────────────
 
@@ -737,6 +872,7 @@ export function DocumentGridView({
                     setCurrentFolderPath(path);
                     setSearchQuery('');
                   }}
+                  onDropOnCrumb={handleDropOnCrumb}
                 />
               </div>
             )}
@@ -820,6 +956,7 @@ export function DocumentGridView({
                     node={node}
                     isActive={isNodeActive(node)}
                     onOpen={handleNodeOpen}
+                    onMoveInto={handleMoveInto}
                   />
                 ))}
               </div>
