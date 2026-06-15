@@ -20,10 +20,7 @@ import React, {
   useState,
   useMemo,
   useCallback,
-  useRef,
-  useEffect,
   useDeferredValue,
-  type KeyboardEvent,
 } from 'react';
 import {
   ShieldCheck,
@@ -71,6 +68,7 @@ import {
   Eyebrow,
   Card,
   EmptyState,
+  SlidePanel,
 } from '@/components/ui/kp';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -300,177 +298,95 @@ function DetailPanel({ entry, onClose }: DetailPanelProps) {
   const hasOutputs = Object.keys(entry.outputs).length > 0;
   const hasMetadata = Object.keys(entry.metadata).length > 0;
 
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: Event) => {
-      if ((e as globalThis.KeyboardEvent).key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handler);
-    return () => { document.removeEventListener('keydown', handler); };
-  }, [onClose]);
-
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 200,
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'flex-end',
-        pointerEvents: 'none',
-      }}
-    >
-      {/* Scrim */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'rgba(10,37,64,0.08)',
-          pointerEvents: 'auto',
-        }}
-        onClick={onClose}
-        role="button"
-        tabIndex={-1}
-        aria-label="Close detail panel"
-        onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => { if (e.key === 'Enter' || e.key === ' ') onClose(); }}
-      />
-
-      {/* Slide-in panel */}
-      <div
-        ref={containerRef}
-        data-testid="audit-detail-panel"
-        style={{
-          position: 'relative',
-          pointerEvents: 'auto',
-          width: 420,
-          maxWidth: '90vw',
-          height: '100%',
-          background: '#fff',
-          borderLeft: '1px solid var(--color-border)',
-          display: 'flex',
-          flexDirection: 'column',
-          fontFamily: 'Satoshi, sans-serif',
-          overflowY: 'auto',
-        }}
-      >
-        {/* Panel header */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '16px 20px',
-            borderBottom: '1px solid var(--color-border)',
-            flexShrink: 0,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {renderActionIcon(ACTION_ICONS, entry.action, { width: 'var(--kp-icon-lg)', height: 'var(--kp-icon-lg)', color: iconColor, strokeWidth: 1.75 })}
-            <div>
-              <div style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-bold)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-muted-foreground)', marginBottom: 2 }}>
-                Entry detail
-              </div>
-              <div style={{ fontSize: 'var(--kp-font-md)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)', lineHeight: 'var(--kp-leading-tight)' }}>
-                {lookupLabel(ACTION_LABELS, entry.action)}
-              </div>
-            </div>
-          </div>
-          <button
-            type="button"
-            aria-label="Close detail panel"
-            onClick={onClose}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 'var(--kp-control-sm)',
-              height: 'var(--kp-control-sm)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border)',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: 'var(--color-muted-foreground)',
-            }}
-          >
-            <X style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)' }} />
-          </button>
-        </div>
-
-        {/* Panel body */}
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Description */}
+    <SlidePanel
+      open
+      onClose={onClose}
+      title={
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {renderActionIcon(ACTION_ICONS, entry.action, { width: 'var(--kp-icon-lg)', height: 'var(--kp-icon-lg)', color: iconColor, strokeWidth: 1.75 })}
           <div>
-            <div style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-muted-foreground)', marginBottom: 6 }}>
-              Description
-            </div>
-            <div style={{ fontSize: 'var(--kp-font-md)', color: 'var(--kp-navy)', lineHeight: 'var(--kp-leading-normal)' }}>
-              {entry.description}
+            <Eyebrow style={{ marginBottom: 2 }}>Entry detail</Eyebrow>
+            <div style={{ fontSize: 'var(--kp-font-md)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)', lineHeight: 'var(--kp-leading-tight)' }}>
+              {lookupLabel(ACTION_LABELS, entry.action)}
             </div>
           </div>
-
-          {/* Meta grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 20px' }}>
-            <MetaField label="Timestamp" value={formatFullTimestamp(entry.timestamp)} mono />
-            <MetaField label="ID" value={entry.id} mono truncate />
-            <MetaField label="Action" value={entry.action} mono />
-            {entry.model !== undefined && <MetaField label="Model" value={entry.model} />}
-            {entry.userDecision !== undefined && (
-              <MetaField label="User decision" value={entry.userDecision} />
-            )}
-            {scopeLabel !== null && <MetaField label="Scope" value={scopeLabel} />}
-            {entry.tokensIn !== undefined && (
-              <MetaField label="Tokens in" value={String(entry.tokensIn)} mono />
-            )}
-            {entry.tokensOut !== undefined && (
-              <MetaField label="Tokens out" value={String(entry.tokensOut)} mono />
-            )}
-            {entry.costUsd !== undefined && (
-              <MetaField label="Cost (USD)" value={`$${entry.costUsd.toFixed(6)}`} mono />
-            )}
-            {entry.provider !== undefined && <MetaField label="Provider" value={entry.provider} />}
-          </div>
-
-          {/* Firm governance fields */}
-          {(() => {
-            const fmid = entry.metadata['firm_matter_id'];
-            const mid = entry.metadata['matter_id'];
-            const tuid = entry.metadata['target_user_id'];
-            const oid = entry.metadata['org_id'];
-            if (fmid == null && mid == null && tuid == null) return null;
-            const sfmid = toSafeString(fmid);
-            const smid = toSafeString(mid);
-            const stuid = toSafeString(tuid);
-            const soid = toSafeString(oid);
-            return (
-              <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {sfmid && <GovRow label="Firm matter" value={sfmid} />}
-                {smid && smid !== sfmid && <GovRow label="Local matter" value={smid} />}
-                {stuid && <GovRow label="Target user" value={stuid} />}
-                {soid && <GovRow label="Org" value={soid} />}
-              </div>
-            );
-          })()}
-
-          {/* Inputs */}
-          {hasInputs && (
-            <JsonBlock label="Inputs" value={entry.inputs} />
-          )}
-
-          {/* Outputs */}
-          {hasOutputs && (
-            <JsonBlock label="Outputs" value={entry.outputs} />
-          )}
-
-          {/* Metadata */}
-          {hasMetadata && (
-            <JsonBlock label="Metadata" value={entry.metadata} />
-          )}
         </div>
+      }
+      width={420}
+      closeLabel="Close detail panel"
+      data-testid="audit-detail-panel"
+    >
+      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* Description */}
+        <div>
+          <div style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-muted-foreground)', marginBottom: 6 }}>
+            Description
+          </div>
+          <div style={{ fontSize: 'var(--kp-font-md)', color: 'var(--kp-navy)', lineHeight: 'var(--kp-leading-normal)' }}>
+            {entry.description}
+          </div>
+        </div>
+
+        {/* Meta grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 20px' }}>
+          <MetaField label="Timestamp" value={formatFullTimestamp(entry.timestamp)} mono />
+          <MetaField label="ID" value={entry.id} mono truncate />
+          <MetaField label="Action" value={entry.action} mono />
+          {entry.model !== undefined && <MetaField label="Model" value={entry.model} />}
+          {entry.userDecision !== undefined && (
+            <MetaField label="User decision" value={entry.userDecision} />
+          )}
+          {scopeLabel !== null && <MetaField label="Scope" value={scopeLabel} />}
+          {entry.tokensIn !== undefined && (
+            <MetaField label="Tokens in" value={String(entry.tokensIn)} mono />
+          )}
+          {entry.tokensOut !== undefined && (
+            <MetaField label="Tokens out" value={String(entry.tokensOut)} mono />
+          )}
+          {entry.costUsd !== undefined && (
+            <MetaField label="Cost (USD)" value={`$${entry.costUsd.toFixed(6)}`} mono />
+          )}
+          {entry.provider !== undefined && <MetaField label="Provider" value={entry.provider} />}
+        </div>
+
+        {/* Firm governance fields */}
+        {(() => {
+          const fmid = entry.metadata['firm_matter_id'];
+          const mid = entry.metadata['matter_id'];
+          const tuid = entry.metadata['target_user_id'];
+          const oid = entry.metadata['org_id'];
+          if (fmid == null && mid == null && tuid == null) return null;
+          const sfmid = toSafeString(fmid);
+          const smid = toSafeString(mid);
+          const stuid = toSafeString(tuid);
+          const soid = toSafeString(oid);
+          return (
+            <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {sfmid && <GovRow label="Firm matter" value={sfmid} />}
+              {smid && smid !== sfmid && <GovRow label="Local matter" value={smid} />}
+              {stuid && <GovRow label="Target user" value={stuid} />}
+              {soid && <GovRow label="Org" value={soid} />}
+            </div>
+          );
+        })()}
+
+        {/* Inputs */}
+        {hasInputs && (
+          <JsonBlock label="Inputs" value={entry.inputs} />
+        )}
+
+        {/* Outputs */}
+        {hasOutputs && (
+          <JsonBlock label="Outputs" value={entry.outputs} />
+        )}
+
+        {/* Metadata */}
+        {hasMetadata && (
+          <JsonBlock label="Metadata" value={entry.metadata} />
+        )}
       </div>
-    </div>
+    </SlidePanel>
   );
 }
 

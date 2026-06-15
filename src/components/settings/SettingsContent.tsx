@@ -34,9 +34,9 @@ import {
   useContext,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Button, IconButton, SearchField, Badge, Eyebrow } from '@/components/ui/kp';
 import { cn } from '@/lib/utils';
 import {
   SETTINGS_SCHEMA,
@@ -84,7 +84,6 @@ import {
   isMac,
 } from '@/utils/shortcuts';
 import {
-  Search,
   X,
   Upload,
   Download,
@@ -212,17 +211,14 @@ function NumberStepper({
 
   return (
     <div className="flex items-center gap-1">
-      <Button
-        type="button"
-        variant="outline"
+      <IconButton
+        icon={ChevronDown}
+        label="Decrease"
+        variant="secondary"
         size="sm"
-        className="h-8 w-8 p-0"
         onClick={() => { onChange(clamp(value - step)); }}
         disabled={min !== undefined && value <= min}
-        aria-label="Decrease"
-      >
-        <ChevronDown className="h-3 w-3" />
-      </Button>
+      />
       <Input
         id={id}
         type="number"
@@ -236,17 +232,14 @@ function NumberStepper({
         }}
         className="w-24 h-8 text-center text-sm"
       />
-      <Button
-        type="button"
-        variant="outline"
+      <IconButton
+        icon={ChevronUp}
+        label="Increase"
+        variant="secondary"
         size="sm"
-        className="h-8 w-8 p-0"
         onClick={() => { onChange(clamp(value + step)); }}
         disabled={max !== undefined && value >= max}
-        aria-label="Increase"
-      >
-        <ChevronUp className="h-3 w-3" />
-      </Button>
+      />
     </div>
   );
 }
@@ -310,13 +303,13 @@ function SettingRow({
           <p className="text-xs text-muted-foreground mt-0.5">{def.description}</p>
         </div>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
-          className="shrink-0 gap-1.5 text-xs"
+          iconRight={ExternalLink}
+          className="shrink-0"
           onClick={() => { onAction?.(def.action?.actionId ?? ''); }}
         >
           {def.action.label}
-          <ExternalLink className="h-3 w-3" />
         </Button>
       </div>
     );
@@ -1142,39 +1135,25 @@ export function SettingsContent({
         )}
         <div className="shrink-0 border-b px-8 py-4 flex items-center gap-3">
           {variant === 'modal' && (
-            <h2 className="text-base font-semibold shrink-0">{t('settings.modal.title')}</h2>
+            <Eyebrow primary className="shrink-0">{t('settings.modal.title')}</Eyebrow>
           )}
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-            <Input
-              ref={searchRef}
-              data-testid="settings-search"
-              placeholder={t('settings.modal.search-placeholder')}
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); }}
-              className="pl-9 pr-8 h-8 text-sm"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                onClick={() => { setSearchQuery(''); }}
-                aria-label={t('settings.modal.clear-search-aria')}
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
+          <SearchField
+            ref={searchRef}
+            data-testid="settings-search"
+            placeholder={t('settings.modal.search-placeholder')}
+            value={searchQuery}
+            onChange={(v) => { setSearchQuery(v); }}
+            onClear={() => { setSearchQuery(''); }}
+            size="md"
+          />
           {variant === 'modal' && (
-            <Button
+            <IconButton
+              icon={X}
+              label={t('settings.modal.close-aria')}
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0"
               onClick={() => { onClose?.(); }}
-              aria-label={t('settings.modal.close-aria')}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            />
           )}
         </div>
 
@@ -1202,14 +1181,16 @@ export function SettingsContent({
                 >
                   <span className="flex-1 truncate">{sec.label}</span>
                   {showUpdateBadge && (
-                    <span
+                    <Badge
+                      variant="neutral"
+                      size="sm"
                       data-testid="settings-marketplace-update-badge"
                       data-count={marketplaceUpdateCount}
                       aria-label={t('settings.modal.marketplace-badge-aria', { count: marketplaceUpdateCount })}
-                      className="shrink-0 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full text-[10px] font-medium bg-primary/15 text-primary"
+                      title={t('settings.modal.marketplace-badge-aria', { count: marketplaceUpdateCount })}
                     >
                       {marketplaceUpdateCount}
-                    </span>
+                    </Badge>
                   )}
                 </button>
               );
@@ -1240,32 +1221,29 @@ export function SettingsContent({
         <div className="shrink-0 border-t px-8 py-4 flex items-center justify-end gap-2">
           <Button
             data-testid="settings-export"
-            variant="outline"
+            variant="secondary"
             size="sm"
-            className="gap-1.5 text-xs"
+            iconLeft={Download}
             onClick={handleExport}
           >
-            <Download className="h-3 w-3" />
             {t('settings.modal.export')}
           </Button>
           <Button
             data-testid="settings-import"
-            variant="outline"
+            variant="secondary"
             size="sm"
-            className="gap-1.5 text-xs"
+            iconLeft={Upload}
             onClick={handleImport}
           >
-            <Upload className="h-3 w-3" />
             {t('settings.modal.import')}
           </Button>
           <Button
             data-testid="settings-reset"
-            variant="outline"
+            variant="danger"
             size="sm"
-            className="gap-1.5 text-xs text-destructive hover:text-destructive"
+            iconLeft={RotateCcw}
             onClick={handleReset}
           >
-            <RotateCcw className="h-3 w-3" />
             {t('settings.modal.reset')}
           </Button>
           <input

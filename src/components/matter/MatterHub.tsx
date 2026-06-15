@@ -22,6 +22,7 @@ import {
 import { isMemoryEnabled } from '@/modules/memory/MemoryService';
 import type { MatterAtAGlanceResult } from '@/modules/matter/matterAtAGlance';
 import { Button, IconButton, SearchField, Chip, Badge, Eyebrow, Card } from '@/components/ui/kp';
+import SurfaceHeader from '@/components/layout/SurfaceHeader';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -258,10 +259,9 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         style={{
           padding: 'var(--kp-surface-header-pad)',
           borderBottom: '1px solid var(--color-border)',
-          background: '#fff',
         }}
       >
-        {/* Back button */}
+        {/* Back button — sits above the standard header, not part of it */}
         <div style={{ paddingBottom: 12 }}>
           <Button
             type="button"
@@ -275,56 +275,33 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
           </Button>
         </div>
 
-        {/* Matter name + eyebrow + badges */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-          <div>
-            <h1
-              style={{
-                margin: '0 0 4px',
-                fontSize: 'var(--kp-font-2xl)',
-                fontWeight: 'var(--kp-weight-bold)',
-                color: 'var(--kp-navy, #0a2540)',
-                fontFamily: 'Satoshi, sans-serif',
-                lineHeight: 'var(--kp-leading-tight)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <Briefcase style={{ width: 'var(--kp-icon-lg)', height: 'var(--kp-icon-lg)', color: 'var(--kp-navy, #0a2540)', strokeWidth: 1.75, flex: 'none' }} />
-              {label}
-            </h1>
-            <div
-              style={{
-                fontSize: 'var(--kp-font-xs)',
-                color: 'var(--color-muted-foreground)',
-                display: 'flex',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '0 6px',
-              }}
-            >
-              {matter.client && (
-                <span>{matter.client}</span>
-              )}
-              {(isPrivileged || matter.privileged) && (
-                <span data-testid="hub-isolated-badge">
-                  <Badge variant="privilege" size="sm" icon={Lock}>Isolated</Badge>
-                </span>
-              )}
-              { }
+        <SurfaceHeader
+          Icon={Briefcase}
+          title={label}
+          description={
+            <>
+              {matter.client && <span>{matter.client}</span>}
+              {matter.client && <span> · </span>}
               <span>Created {formatDate(matter.createdAt)}</span>
-              { }
-            </div>
-          </div>
-
-          {/* Sample pill */}
-          {matter.isSample && (
-            <span data-testid="hub-sample-pill" style={{ flex: 'none' }}>
-              <Badge variant="sample" size="sm">Sample</Badge>
-            </span>
-          )}
-        </div>
+            </>
+          }
+          actions={
+            (matter.isSample || isPrivileged || matter.privileged) ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {(isPrivileged || matter.privileged) && (
+                  <span data-testid="hub-isolated-badge">
+                    <Badge variant="privilege" size="sm" icon={Lock}>Isolated</Badge>
+                  </span>
+                )}
+                {matter.isSample && (
+                  <span data-testid="hub-sample-pill">
+                    <Badge variant="sample" size="sm">Sample</Badge>
+                  </span>
+                )}
+              </div>
+            ) : undefined
+          }
+        />
       </div>
 
       {/* ── B. Ask hero ────────────────────────────────────────────────── */}

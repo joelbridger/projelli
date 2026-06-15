@@ -43,7 +43,7 @@ import {
   CheckSquare,
   PenLine,
 } from 'lucide-react';
-import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, Badge, Card, EmptyState } from '@/components/ui/kp';
+import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, Badge, Card, EmptyState, Dropdown } from '@/components/ui/kp';
 import { useActiveMatter, useMatters } from '@/stores/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
 import {
@@ -189,18 +189,11 @@ function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivilegeProp
       </button>
 
       {open && (
-        <div
+        <Dropdown
           style={{
-            position: 'absolute',
             top: 'calc(100% + 4px)',
             left: 0,
-            zIndex: 50,
-            background: '#fff',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--kp-shadow-2)',
             minWidth: 170,
-            overflow: 'hidden',
           }}
         >
           {ALL_PRIVILEGE_STATUSES.map((status) => (
@@ -234,7 +227,7 @@ function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivilegeProp
               )}
             </button>
           ))}
-        </div>
+        </Dropdown>
       )}
     </div>
   );
@@ -277,22 +270,16 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
     : matters;
 
   return (
-    <div
+    <Dropdown
       ref={containerRef}
       style={{
-        position: 'absolute',
         top: 'calc(100% + 4px)',
         right: 0,
-        zIndex: 50,
-        background: '#fff',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-md)',
-        boxShadow: 'var(--kp-shadow-2)',
         minWidth: 200,
         maxHeight: 300,
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden',
+        overflowY: 'auto',
       }}
     >
       <div style={{ padding: `var(--kp-space-2xs) var(--kp-space-xs)`, borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
@@ -381,7 +368,7 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
           ))
         )}
       </div>
-    </div>
+    </Dropdown>
   );
 }
 
@@ -419,22 +406,16 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
     : matters;
 
   return (
-    <div
+    <Dropdown
       ref={containerRef}
       style={{
-        position: 'absolute',
         top: 'calc(100% + 4px)',
         left: 0,
-        zIndex: 60,
-        background: '#fff',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-md)',
-        boxShadow: 'var(--kp-shadow-2)',
         minWidth: 210,
         maxHeight: 300,
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden',
+        overflowY: 'auto',
       }}
     >
       <div style={{ padding: `var(--kp-space-2xs) var(--kp-space-xs)`, borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
@@ -506,7 +487,7 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
           ))
         )}
       </div>
-    </div>
+    </Dropdown>
   );
 }
 

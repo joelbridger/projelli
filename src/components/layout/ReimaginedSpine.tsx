@@ -17,6 +17,7 @@ import {
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
+import { IconButton } from '@/components/ui/kp';
 
 type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'email' | 'settings';
 
@@ -91,18 +92,22 @@ export function ReimaginedSpine({
     return (
       <nav
         aria-label="Primary"
-        style={{ width: 56, background: 'var(--kp-navy)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, paddingTop: 12, position: 'relative' }}
+        style={{ width: 56, background: 'var(--kp-navy)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, paddingTop: 'var(--kp-space-xs)', position: 'relative' }}
       >
         <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 2, background: 'var(--kp-grad)', opacity: 0.85 }} />
-        <button type="button" onClick={() => onCollapsedChange?.(false)} title="Expand"
-          style={{ width: 36, height: 36, borderRadius: 8, border: 0, background: 'transparent', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', marginBottom: 6 }}>
-          <ChevronRight size={18} style={{ margin: '0 auto' }} />
-        </button>
+        <IconButton
+          icon={ChevronRight}
+          label="Expand"
+          variant="ghost"
+          size="sm"
+          onClick={() => onCollapsedChange?.(false)}
+          style={{ color: 'rgba(255,255,255,0.7)', marginBottom: 'var(--kp-space-xs)' }}
+        />
         {nav.map(({ id, label, Icon }) => (
           <button key={id} type="button" title={label} aria-current={active === id ? 'page' : undefined}
             data-testid={`spine-nav-collapsed-${id}`}
             onClick={() => onTabChange?.(id)}
-            style={{ width: 38, height: 38, borderRadius: 8, border: 0, cursor: 'pointer', color: active === id ? '#fff' : 'rgba(255,255,255,0.66)', background: active === id ? 'rgba(93,198,255,0.14)' : 'transparent' }}>
+            style={{ width: 38, height: 38, borderRadius: 'var(--radius-lg)', border: 0, cursor: 'pointer', color: active === id ? '#fff' : 'rgba(255,255,255,0.66)', background: active === id ? 'rgba(93,198,255,0.14)' : 'transparent' }}>
             <Icon size={18} style={{ margin: '0 auto' }} strokeWidth={1.75} />
           </button>
         ))}
@@ -116,11 +121,11 @@ export function ReimaginedSpine({
       <nav aria-label="Primary" data-testid="spine-nav"
         style={{ width: 212, background: 'var(--kp-navy)', color: '#fff', display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative', flex: 'none' }}>
         <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 2, background: 'var(--kp-grad)', opacity: 0.85 }} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '15px 16px 4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', padding: 'var(--kp-space-md) var(--kp-space-md) var(--kp-space-2xs)' }}>
           <KeepanceMark />
-          <span style={{ fontWeight: 800, fontSize: 18, letterSpacing: '-0.02em' }}>Keepance</span>
+          <span style={{ fontWeight: 'var(--kp-weight-bold)', fontSize: 'var(--kp-font-xl)', letterSpacing: '-0.02em' }}>Keepance</span>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '12px 10px', flex: 'none' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: 'var(--kp-space-xs) 10px', flex: 'none' }}>
           {nav.map(({ id, label, Icon }) => {
             const on = active === id;
             return (
@@ -128,21 +133,21 @@ export function ReimaginedSpine({
                 aria-current={on ? 'page' : undefined} onClick={() => onTabChange?.(id)}
                 data-testid={`spine-nav-${id}`}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '8px 11px',
-                  borderRadius: 6, border: 0, cursor: 'pointer', textAlign: 'left', fontSize: 13.5, position: 'relative',
-                  fontWeight: on ? 600 : 500, color: on ? '#fff' : 'rgba(255,255,255,0.72)',
+                  display: 'flex', alignItems: 'center', gap: 'var(--kp-space-sm)', width: '100%', padding: 'var(--kp-space-xs) var(--kp-space-sm)',
+                  borderRadius: 'var(--radius-md)', border: 0, cursor: 'pointer', textAlign: 'left', fontSize: 'var(--kp-font-sm)', position: 'relative',
+                  fontWeight: on ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)', color: on ? '#fff' : 'rgba(255,255,255,0.72)',
                   background: on ? 'rgba(93,198,255,0.13)' : 'transparent',
                 }}>
                 {on && <span style={{ position: 'absolute', left: 3, width: 3, height: 18, borderRadius: 3, background: 'var(--kp-grad)' }} />}
-                <Icon size={17} strokeWidth={1.75} style={{ flex: 'none', opacity: on ? 1 : 0.9 }} />
+                <Icon size={16} strokeWidth={1.75} style={{ flex: 'none', opacity: on ? 1 : 0.9 }} />
                 <span>{label}</span>
               </button>
             );
           })}
         </div>
         {matters.length > 0 ? (
-          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '4px 10px 10px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', padding: '12px 10px 6px' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--kp-space-2xs) 10px var(--kp-space-xs)', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ fontSize: 10, fontWeight: 'var(--kp-weight-bold)', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', padding: 'var(--kp-space-xs) 10px 6px' }}>
               {entityLabel.Other}
             </div>
             {matters.map((m) => {
@@ -150,10 +155,10 @@ export function ReimaginedSpine({
               return (
                 <button key={m.id} type="button"
                   onClick={() => { setActiveMatter(m.id); onTabChange?.('matters'); }}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, cursor: 'pointer', background: on ? 'rgba(93,198,255,0.12)' : 'transparent', color: '#fff', padding: '7px 11px', borderRadius: 6, position: 'relative' }}>
+                  style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, cursor: 'pointer', background: on ? 'rgba(93,198,255,0.12)' : 'transparent', color: '#fff', padding: 'var(--kp-space-xs) var(--kp-space-sm)', borderRadius: 'var(--radius-md)', position: 'relative' }}>
                   {on && <span style={{ position: 'absolute', left: 3, top: 8, bottom: 8, width: 3, borderRadius: 3, background: 'var(--kp-grad)' }} />}
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{matterLabel(m)}</div>
-                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.client}</div>
+                  <div style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: '#fff', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{matterLabel(m)}</div>
+                  <div style={{ fontSize: 'var(--kp-font-2xs)', color: 'rgba(255,255,255,0.6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.client}</div>
                 </button>
               );
             })}
@@ -162,7 +167,7 @@ export function ReimaginedSpine({
           <div style={{ flex: 1 }} />
         )}
         <button type="button" onClick={() => onCollapsedChange?.(true)} title="Collapse"
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 16px', border: 0, borderTop: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: 12 }}>
+          style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', padding: 'var(--kp-space-sm) var(--kp-space-md)', border: 0, borderTop: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: 'var(--kp-font-xs)' }}>
           <ChevronLeft size={16} /> Collapse
         </button>
       </nav>

@@ -28,6 +28,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
+import { IconButton } from '@/components/ui/kp';
 import type { EgressProvider } from '@/modules/privacy/egress';
 
 /**
@@ -95,7 +96,7 @@ export function ReimaginedTrustBar() {
           : <Globe size={14} strokeWidth={1.75} style={{ color: 'var(--kp-navy)', flex: 'none' }} />}
         <span
           style={{
-            fontSize: 12.5, fontWeight: 600, color: 'var(--kp-navy)',
+            fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280,
           }}
         >
@@ -118,20 +119,16 @@ export function ReimaginedTrustBar() {
           A7: title added as a standard browser tooltip alongside the Radix tooltip. */}
       <Tooltip>
         <TooltipTrigger asChild>
-          <button
-            type="button"
-            aria-label="Where does my data go?"
+          <IconButton
+            icon={Info}
+            label="Where does my data go?"
+            variant="ghost"
+            size="xs"
             title="What is this?"
-            style={{
-              width: 24, height: 24, borderRadius: 4, border: 0, background: 'transparent',
-              color: 'var(--color-muted-foreground)', cursor: 'pointer', display: 'grid', placeItems: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <Info size={14} strokeWidth={1.75} />
-          </button>
+            style={{ flexShrink: 0 }}
+          />
         </TooltipTrigger>
-        <TooltipContent side="bottom" style={{ maxWidth: 340, lineHeight: 1.5 }}>
+        <TooltipContent side="bottom" style={{ maxWidth: 340, lineHeight: 1.5, zIndex: 'var(--kp-z-tooltip)' as unknown as number }}>
           <p style={{ marginBottom: 4, fontWeight: 600 }}>Where does your data go?</p>
           <p style={{ marginBottom: 6 }}>{egressTooltip}</p>
           <p style={{ color: 'var(--color-muted-foreground)' }}>{scopeSubtitle}</p>
@@ -139,19 +136,15 @@ export function ReimaginedTrustBar() {
       </Tooltip>
 
       {/* Data Map button — A7: title already set; aria-label retained for screen readers. */}
-      <button
-        type="button"
-        onClick={() => { setDataMapOpen(true); }}
+      <IconButton
+        icon={MapIcon}
+        label="Open the Data Map"
+        variant="ghost"
+        size="xs"
         title="Where your data goes"
-        aria-label="Open the Data Map"
-        style={{
-          width: 24, height: 24, borderRadius: 4, border: 0, background: 'transparent',
-          color: 'var(--color-muted-foreground)', cursor: 'pointer', display: 'grid', placeItems: 'center',
-          flexShrink: 0,
-        }}
-      >
-        <MapIcon size={14} strokeWidth={1.75} />
-      </button>
+        onClick={() => { setDataMapOpen(true); }}
+        style={{ flexShrink: 0 }}
+      />
 
       <DataMapDialog open={dataMapOpen} onOpenChange={setDataMapOpen} />
     </div>

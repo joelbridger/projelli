@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { HTMLAttributes, ReactNode } from 'react';
 import type { IconType } from './types';
 
 type BadgeVariant =
@@ -13,7 +13,7 @@ type BadgeVariant =
   | 'danger'
   | 'featured';
 
-export interface BadgeProps {
+export interface BadgeProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'className'> {
   variant?: BadgeVariant;
   size?: 'sm' | 'md';
   icon?: IconType;
@@ -22,10 +22,12 @@ export interface BadgeProps {
   mono?: boolean;
   children: ReactNode;
   className?: string;
-  title?: string;
 }
 
-/** Non-interactive status / label pill. One radius, one padding scale, per-variant color. */
+/**
+ * Non-interactive status / label pill. One radius, one padding scale, per-variant
+ * color. Forwards DOM props (data-testid, aria-*, title, etc.) onto the span.
+ */
 export function Badge({
   variant = 'neutral',
   size = 'sm',
@@ -34,7 +36,7 @@ export function Badge({
   mono = false,
   children,
   className,
-  title,
+  ...rest
 }: BadgeProps) {
   const classes = [
     'kp-badge',
@@ -48,7 +50,7 @@ export function Badge({
     .join(' ');
   const iconSize = size === 'sm' ? 12 : 14;
   return (
-    <span className={classes} title={title}>
+    <span className={classes} {...rest}>
       {Icon ? <Icon size={iconSize} strokeWidth={1.75} /> : null}
       {children}
     </span>
