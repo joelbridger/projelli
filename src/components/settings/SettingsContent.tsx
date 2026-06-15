@@ -1130,23 +1130,33 @@ export function SettingsContent({
               title="Settings"
               description="Everything about how Keepance works for you."
               testId="settings-surface-header"
+              actions={
+                <SearchField
+                  ref={searchRef}
+                  data-testid="settings-search"
+                  placeholder={t('settings.modal.search-placeholder')}
+                  value={searchQuery}
+                  onChange={(v) => { setSearchQuery(v); }}
+                  onClear={() => { setSearchQuery(''); }}
+                  size="md"
+                  style={{ width: 260 }}
+                />
+              }
             />
           </div>
         )}
-        <div className="shrink-0 border-b px-8 py-4 flex items-center gap-3">
-          {variant === 'modal' && (
+        {variant === 'modal' && (
+          <div className="shrink-0 border-b px-8 py-4 flex items-center gap-3">
             <Eyebrow primary className="shrink-0">{t('settings.modal.title')}</Eyebrow>
-          )}
-          <SearchField
-            ref={searchRef}
-            data-testid="settings-search"
-            placeholder={t('settings.modal.search-placeholder')}
-            value={searchQuery}
-            onChange={(v) => { setSearchQuery(v); }}
-            onClear={() => { setSearchQuery(''); }}
-            size="md"
-          />
-          {variant === 'modal' && (
+            <SearchField
+              ref={searchRef}
+              data-testid="settings-search"
+              placeholder={t('settings.modal.search-placeholder')}
+              value={searchQuery}
+              onChange={(v) => { setSearchQuery(v); }}
+              onClear={() => { setSearchQuery(''); }}
+              size="md"
+            />
             <IconButton
               icon={X}
               label={t('settings.modal.close-aria')}
@@ -1154,8 +1164,8 @@ export function SettingsContent({
               size="sm"
               onClick={() => { onClose?.(); }}
             />
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Body: sidebar + content */}
         <div className="flex flex-1 min-h-0 overflow-hidden">

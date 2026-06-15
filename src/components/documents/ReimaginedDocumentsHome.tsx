@@ -29,8 +29,8 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FolderOpen, FolderTree, FileText, X, LayoutGrid, ListTree, Upload } from 'lucide-react';
-import { Button, IconButton, Callout } from '@/components/ui/kp';
+import { FolderOpen, FolderTree, FileText, X } from 'lucide-react';
+import { IconButton, Callout } from '@/components/ui/kp';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 import { useEditorStore } from '@/stores/editorStore';
 import { getFileIcon } from '@/utils/fileIcons';
@@ -587,127 +587,49 @@ export function ReimaginedDocumentsHome({
         }}
       >
         {showFilesGrid ? (
-          /* Files surface — a Tree | Grid toggle header, then the chosen view. */
-          <>
-            <div
-              data-testid="docs-view-toggle"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-end',
-                padding: 'var(--kp-space-xs) var(--kp-gutter)',
-                borderBottom: '1px solid var(--color-border)',
-                flexShrink: 0,
-                background: 'var(--color-background)',
-              }}
-            >
-              {/* Uses kp-segmented CSS classes for the shared look (filled variant = solid navy active).
-                  Individual buttons keep their data-testid attributes so tests can find/click them. */}
-              <div className="kp-segmented kp-segmented--md kp-segmented--filled" role="group" aria-label="View">
-                <button
-                  type="button"
-                  data-testid="docs-view-tree"
-                  className={`kp-segmented__item${docsView === 'tree' ? ' is-active' : ''}`}
-                  aria-pressed={docsView === 'tree'}
-                  onClick={() => { handleSetDocsView('tree'); }}
-                >
-                  <ListTree size={12} strokeWidth={1.75} />
-                  Tree
-                </button>
-                <button
-                  type="button"
-                  data-testid="docs-view-grid"
-                  className={`kp-segmented__item${docsView === 'grid' ? ' is-active' : ''}`}
-                  aria-pressed={docsView === 'grid'}
-                  onClick={() => { handleSetDocsView('grid'); }}
-                >
-                  <LayoutGrid size={12} strokeWidth={1.75} />
-                  Grid
-                </button>
-              </div>
-            </div>
-            <div
-              style={{
-                flex: 1,
-                minHeight: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-              }}
-            >
-              {docsView === 'tree' ? (
-                /* Vertical EXPANDING tree (reused as-is) with working drag-into-
-                   folder DnD. It reads the workspace store directly. */
-                <div data-testid="documents-tree-view" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  {/* Fix 4: Add files toolbar for tree mode, mirrors grid mode. */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--kp-space-xs)',
-                      padding: 'var(--kp-space-xs) var(--kp-gutter)',
-                      borderBottom: '1px solid var(--color-border)',
-                      flexShrink: 0,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      iconLeft={Upload}
-                      data-testid="tree-add-files-btn"
-                      onClick={handleAddFiles}
-                    >
-                      Add files
-                    </Button>
-                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                  </div>
-                  <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-                    <FileTree
-                      onFileOpen={onFileOpen}
-                      onCreateFile={onCreateFile}
-                      onCreateFolder={onCreateFolder}
-                      onRename={onRename}
-                      onDelete={onDelete}
-                      onMove={onMove}
-                      onDownload={onDownload}
-                      {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
-                      {...(onCreateMarkdownAtRoot !== undefined ? { onCreateMarkdownAtRoot } : {})}
-                      {...(onCreateTextFileAtRoot !== undefined ? { onCreateTextFileAtRoot } : {})}
-                      {...(onCreateRichTextFileAtRoot !== undefined ? { onCreateRichTextFileAtRoot } : {})}
-                      {...(onCreateFolderAtRoot !== undefined ? { onCreateFolderAtRoot } : {})}
-                      {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
-                      {...(onCreateWhiteboard !== undefined ? { onCreateWhiteboard } : {})}
-                      {...(onSetLetterheadTemplate !== undefined ? { onSetLetterheadTemplate } : {})}
-                    />
-                  </div>
-                </div>
-              ) : (
-                /* Folder-drill grid — shown when "Files" tab is active */
-                <DocumentGridView
-                  onFileOpen={onFileOpen}
-                  onCreateFile={onCreateFile}
-                  onCreateFolder={onCreateFolder}
-                  onRename={onRename}
-                  onDelete={onDelete}
-                  onMove={onMove}
-                  onDownload={onDownload}
-                  onAddFiles={handleAddFiles}
-                  trashItems={trashItems}
-                  trashStats={trashStats}
-                  onRestore={onRestore}
-                  onPermanentDelete={onPermanentDelete}
-                  onEmptyTrash={onEmptyTrash}
-                  {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
-                  {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
-                  {...(retentionPeriod !== undefined ? { retentionPeriod } : {})}
-                  {...(customRetentionDays !== undefined ? { customRetentionDays } : {})}
-                  {...(onRetentionChange !== undefined ? { onRetentionChange } : {})}
-                />
-              )}
-            </div>
-          </>
+          /* Files surface — the unified toolbar (with Tree|Grid toggle) + body. */
+          <DocumentGridView
+            onFileOpen={onFileOpen}
+            onCreateFile={onCreateFile}
+            onCreateFolder={onCreateFolder}
+            onRename={onRename}
+            onDelete={onDelete}
+            onMove={onMove}
+            onDownload={onDownload}
+            onAddFiles={handleAddFiles}
+            trashItems={trashItems}
+            trashStats={trashStats}
+            onRestore={onRestore}
+            onPermanentDelete={onPermanentDelete}
+            onEmptyTrash={onEmptyTrash}
+            docsView={docsView}
+            onSetDocsView={handleSetDocsView}
+            treeView={
+              <FileTree
+                hideToolbar
+                onFileOpen={onFileOpen}
+                onCreateFile={onCreateFile}
+                onCreateFolder={onCreateFolder}
+                onRename={onRename}
+                onDelete={onDelete}
+                onMove={onMove}
+                onDownload={onDownload}
+                {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
+                {...(onCreateMarkdownAtRoot !== undefined ? { onCreateMarkdownAtRoot } : {})}
+                {...(onCreateTextFileAtRoot !== undefined ? { onCreateTextFileAtRoot } : {})}
+                {...(onCreateRichTextFileAtRoot !== undefined ? { onCreateRichTextFileAtRoot } : {})}
+                {...(onCreateFolderAtRoot !== undefined ? { onCreateFolderAtRoot } : {})}
+                {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
+                {...(onCreateWhiteboard !== undefined ? { onCreateWhiteboard } : {})}
+                {...(onSetLetterheadTemplate !== undefined ? { onSetLetterheadTemplate } : {})}
+              />
+            }
+            {...(onCreateDefaultDocument !== undefined ? { onCreateDefaultDocument } : {})}
+            {...(onCreateDocxAtRoot !== undefined ? { onCreateDocxAtRoot } : {})}
+            {...(retentionPeriod !== undefined ? { retentionPeriod } : {})}
+            {...(customRetentionDays !== undefined ? { customRetentionDays } : {})}
+            {...(onRetentionChange !== undefined ? { onRetentionChange } : {})}
+          />
         ) : (
           /* Editor — shown when a document tab is active.
              mainPanelContent already has hideTabBar=true wired in App.tsx. */

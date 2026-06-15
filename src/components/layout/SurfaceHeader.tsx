@@ -31,6 +31,7 @@ export function SurfaceHeader({ Icon, title, description, actions, testId }: Sur
         alignItems: 'flex-start',
         justifyContent: 'space-between',
         gap: 'var(--kp-space-md)',
+        flexWrap: 'wrap',
       }}
     >
       <div style={{ minWidth: 0 }}>

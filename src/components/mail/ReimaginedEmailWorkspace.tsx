@@ -1308,62 +1308,45 @@ export function ReimaginedEmailWorkspace({
           }
         />
 
-        {/* Hero search bar */}
+        {/* Hero search bar — a mode pill and a clean search field, side by side
+            (no nested-border container). */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 0,
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            background: '#fff',
-            overflow: 'hidden',
-            boxShadow: 'var(--kp-shadow-1)',
+            gap: 'var(--kp-space-sm)',
             marginTop: 'var(--kp-surface-gap)',
             marginBottom: 'var(--kp-space-xs)',
+            flexWrap: 'wrap',
           }}
         >
-          {/* Mode toggle tabs */}
+          {/* Mode toggle — Keyword | AI search (segmented pill; testids kept for tests) */}
           <div
-            style={{
-              display: 'flex',
-              borderRight: '1px solid var(--color-border)',
-              flex: 'none',
-            }}
+            className="kp-segmented kp-segmented--md kp-segmented--pill"
+            role="group"
+            aria-label="Search mode"
+            style={{ flex: 'none' }}
           >
-            { }
             {(['keyword', 'ask'] as const).map((m) => (
               <button
                 key={m}
                 type="button"
                 data-testid={`mode-${m}`}
+                className={`kp-segmented__item${mode === m ? ' is-active' : ''}`}
+                aria-pressed={mode === m}
                 onClick={() => {
                   setMode(m);
                   setQuery('');
                   setOffset(0);
                   setSelectedIds(new Set());
                 }}
-                style={{
-                  padding: '9px 14px',
-                  fontSize: 'var(--kp-font-xs)',
-                  fontWeight: mode === m ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
-                  color: mode === m ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-                  background: mode === m ? 'rgba(10,37,64,0.05)' : 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  borderBottom: mode === m ? '2px solid var(--kp-navy)' : '2px solid transparent',
-                }}
               >
-                { }
                 {m === 'keyword' ? 'Keyword' : 'AI search'}
-                { }
               </button>
             ))}
-            { }
           </div>
 
-          {/* Search input */}
+          {/* Search input — a normal bordered field */}
           <SearchField
             size="md"
             icon={Search}
@@ -1381,7 +1364,7 @@ export function ReimaginedEmailWorkspace({
             }
             aria-label="Search email"
             data-testid="email-search-input"
-            style={{ flex: 1, border: 'none', boxShadow: 'none', borderRadius: 0 }}
+            style={{ flex: 1, minWidth: 280 }}
           />
         </div>
 

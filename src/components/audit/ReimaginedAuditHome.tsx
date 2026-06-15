@@ -995,64 +995,47 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
           title="Activity Log"
           description="Every AI request, file change, and workflow run in your workspace, logged and exportable."
           actions={
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconLeft={Download}
-                  data-testid="audit-home-export-csv"
-                  onClick={handleExportCSV}
-                  disabled={filteredEntries.length === 0}
-                  title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as CSV'}
-                  aria-label="Export audit log as CSV"
-                >
-                  CSV
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconLeft={Download}
-                  data-testid="audit-home-export-json"
-                  onClick={handleExportJSON}
-                  disabled={filteredEntries.length === 0}
-                  title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as JSON'}
-                  aria-label="Export audit log as JSON"
-                >
-                  JSON
-                </Button>
-              </div>
-              {filteredEntries.length > 0 && filteredEntries.length < entries.length && (
-                <div
-                  data-testid="audit-export-filter-note"
-                  style={{
-                    fontSize: 'var(--kp-font-2xs)',
-                    color: 'var(--color-muted-foreground)',
-                    lineHeight: 'var(--kp-leading-normal)',
-                    textAlign: 'right',
-                  }}
-                >
-                  Exporting {String(filteredEntries.length)} filtered {filteredEntries.length === 1 ? 'entry' : 'entries'}.{' '}
-                  <button
-                    type="button"
-                    data-testid="audit-export-clear-filters"
-                    onClick={handleClearAll}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
-                      cursor: 'pointer',
-                      fontSize: 'inherit',
-                      color: 'var(--kp-navy)',
-                      fontWeight: 'var(--kp-weight-semibold)',
-                      textDecoration: 'underline',
-                      textDecorationStyle: 'dotted',
-                    }}
-                  >
-                    Clear filters to export all {String(entries.length)}.
-                  </button>
-                </div>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <SearchField
+                size="md"
+                style={{ width: 240 }}
+                value={searchQuery}
+                onChange={handleSearchChange}
+                onClear={() => { handleSearchChange(''); }}
+                placeholder="Search by action, resource, or actor..."
+                data-testid="audit-home-search"
+                aria-label="Search audit entries"
+              />
+              <FilterToggle
+                open={showFilters}
+                onToggle={() => { setShowFilters((v) => !v); }}
+                count={activeFilterCount}
+                data-testid="audit-home-filter-toggle"
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={Download}
+                data-testid="audit-home-export-csv"
+                onClick={handleExportCSV}
+                disabled={filteredEntries.length === 0}
+                title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as CSV'}
+                aria-label="Export audit log as CSV"
+              >
+                CSV
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={Download}
+                data-testid="audit-home-export-json"
+                onClick={handleExportJSON}
+                disabled={filteredEntries.length === 0}
+                title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as JSON'}
+                aria-label="Export audit log as JSON"
+              >
+                JSON
+              </Button>
             </div>
           }
         />
@@ -1077,45 +1060,57 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
         </div>
       )}
 
-      {/* Controls row: search + filter toggle */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: 'var(--kp-space-xs) var(--kp-gutter)',
-          borderBottom: showFilters ? 'none' : '1px solid var(--color-border)',
-          flexShrink: 0,
-        }}
-      >
-        {/* Search */}
-        <div style={{ flex: 1, maxWidth: 400 }}>
-          <SearchField
-            size="md"
-            value={searchQuery}
-            onChange={handleSearchChange}
-            onClear={() => { handleSearchChange(''); }}
-            placeholder="Search by action, resource, or actor..."
-            data-testid="audit-home-search"
-            aria-label="Search audit entries"
-          />
+      {/* Result count + export filter note — shown below header when filters/search are active */}
+      {(searchQuery || activeFilterCount > 0 || (filteredEntries.length > 0 && filteredEntries.length < entries.length)) && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '4px var(--kp-gutter)',
+            borderBottom: showFilters ? 'none' : '1px solid var(--color-border)',
+            flexShrink: 0,
+          }}
+        >
+          {(searchQuery || activeFilterCount > 0) && (
+            <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', whiteSpace: 'nowrap' }}>
+              {String(filteredEntries.length)} of {String(entries.length)} shown
+            </span>
+          )}
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          {filteredEntries.length > 0 && filteredEntries.length < entries.length && (
+            <span
+              data-testid="audit-export-filter-note"
+              style={{
+                fontSize: 'var(--kp-font-2xs)',
+                color: 'var(--color-muted-foreground)',
+                lineHeight: 'var(--kp-leading-normal)',
+              }}
+            >
+              Exporting {String(filteredEntries.length)} filtered {filteredEntries.length === 1 ? 'entry' : 'entries'}.{' '}
+              <button
+                type="button"
+                data-testid="audit-export-clear-filters"
+                onClick={handleClearAll}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontSize: 'inherit',
+                  color: 'var(--kp-navy)',
+                  fontWeight: 'var(--kp-weight-semibold)',
+                  textDecoration: 'underline',
+                  textDecorationStyle: 'dotted',
+                }}
+              >
+                Clear filters to export all {String(entries.length)}.
+              </button>
+            </span>
+          )}
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         </div>
-
-        {/* Filter toggle */}
-        <FilterToggle
-          open={showFilters}
-          onToggle={() => { setShowFilters((v) => !v); }}
-          count={activeFilterCount}
-          data-testid="audit-home-filter-toggle"
-        />
-
-        {/* Result count when filtered */}
-        {(searchQuery || activeFilterCount > 0) && (
-          <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', whiteSpace: 'nowrap' }}>
-            {String(filteredEntries.length)} of {String(entries.length)} shown
-          </span>
-        )}
-      </div>
+      )}
 
       {/* Filter panel (expanded) */}
       {showFilters && (

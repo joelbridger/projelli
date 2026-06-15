@@ -20,12 +20,14 @@ export interface SearchFieldProps
 
 /** The one search input. Focus highlights the whole field via a navy border. */
 export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(function SearchField(
-  { value, onChange, size = 'md', icon: Icon = Search, onClear, placeholder, className, ...rest },
+  { value, onChange, size = 'md', icon: Icon = Search, onClear, placeholder, className, style, ...rest },
   ref,
 ) {
   const wrapClasses = ['kp-search', `kp-search--${size}`, className ?? ''].filter(Boolean).join(' ');
+  // `style` sizes the visible field (the wrapper), e.g. width / flex from the
+  // header; input-level attributes (data-testid, aria-label) flow via `rest`.
   return (
-    <div className={wrapClasses}>
+    <div className={wrapClasses} style={style}>
       <span className="kp-search__icon">
         <Icon size={14} strokeWidth={1.75} />
       </span>

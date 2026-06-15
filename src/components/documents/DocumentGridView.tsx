@@ -22,6 +22,8 @@ import {
   Upload,
   Search,
   ChevronRight,
+  ListTree,
+  LayoutGrid,
 } from 'lucide-react';
 import { Button, SearchField, EmptyState } from '@/components/ui/kp';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -349,6 +351,12 @@ export interface DocumentGridViewProps {
   onDelete: (path: string) => void;
   onMove: (sourcePath: string, targetPath: string) => Promise<void>;
   onDownload: (path: string, name: string) => void;
+  /** Current Files view mode: 'tree' or 'grid'. When 'tree', the toolbar still renders but `treeView` is shown as the body. */
+  docsView: 'tree' | 'grid';
+  /** Callback to switch the Files view mode. */
+  onSetDocsView: (v: 'tree' | 'grid') => void;
+  /** The FileTree element to render when docsView === 'tree'. Passed in from the parent to avoid threading ~12 FileTree callbacks through here. */
+  treeView: React.ReactNode;
   /**
    * R6-1: both create-document shortcuts now take an optional parentPath so a
    * new document lands in the folder the user currently has open (mirrors how
@@ -386,6 +394,9 @@ export function DocumentGridView({
   retentionPeriod,
   customRetentionDays,
   onRetentionChange,
+  docsView,
+  onSetDocsView,
+  treeView,
 }: DocumentGridViewProps) {
   const fileTree = useWorkspaceStore((s) => s.fileTree);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
@@ -703,11 +714,44 @@ export function DocumentGridView({
                 size="md"
               />
             </div>
+
+            {/* Tree | Grid view toggle */}
+            <div className="kp-segmented kp-segmented--md kp-segmented--filled" role="group" aria-label="View" data-testid="docs-view-toggle" style={{ flex: 'none' }}>
+              <button
+                type="button"
+                data-testid="docs-view-tree"
+                className={`kp-segmented__item${docsView === 'tree' ? ' is-active' : ''}`}
+                aria-pressed={docsView === 'tree'}
+                onClick={() => { onSetDocsView('tree'); }}
+              >
+                <ListTree size={12} strokeWidth={1.75} />
+                Tree
+              </button>
+              <button
+                type="button"
+                data-testid="docs-view-grid"
+                className={`kp-segmented__item${docsView === 'grid' ? ' is-active' : ''}`}
+                aria-pressed={docsView === 'grid'}
+                onClick={() => { onSetDocsView('grid'); }}
+              >
+                <LayoutGrid size={12} strokeWidth={1.75} />
+                Grid
+              </button>
+            </div>
           </>
         )}
       </div>
 
       {/* ── Content area ───────────────────────────────────────────────── */}
+      {activeView === 'files' && docsView === 'tree' ? (
+        /* Tree view — full height, no padding wrapper */
+        <div
+          data-testid="documents-tree-view"
+          style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        >
+          {treeView}
+        </div>
+      ) : (
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--kp-surface-gap) var(--kp-gutter)' }}>
         {activeView === 'files' ? (
           <>
@@ -804,6 +848,7 @@ export function DocumentGridView({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

@@ -47,7 +47,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
-import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout } from '@/components/ui/kp';
+import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField } from '@/components/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { prioritizeByProfession } from '@/modules/workflow/prioritizeByProfession';
@@ -649,74 +649,32 @@ export function ReimaginedAssociateHome({
           flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <div>
-              <SurfaceHeader
-                Icon={ListChecks}
-                title="Workflows"
-                description={`Your tireless associate. ${String(templates.length)} workflow${templates.length === 1 ? '' : 's'} ready — pick one to run.`}
-              />
-
-              {/* Active-matter context badge — shown below the header */}
-              {activeMatter !== null && (
-                <div data-testid="associate-active-matter-chip" style={{ marginTop: 8 }}>
-                  <Badge variant="neutral" size="sm" icon={Briefcase}>
-                    Running in: {matterLabel(activeMatter)}
-                  </Badge>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Search box */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)',
-              padding: '7px 12px',
-              background: '#fff',
-              minWidth: 220,
-              flex: '0 1 280px',
-            }}
-          >
-            <Search style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--color-muted-foreground)', flex: 'none' }} />
-            <input
-              data-testid="associate-search"
-              type="text"
+        <SurfaceHeader
+          Icon={ListChecks}
+          title="Workflows"
+          description={`Your tireless associate. ${String(templates.length)} workflow${templates.length === 1 ? '' : 's'} ready — pick one to run.`}
+          actions={
+            <SearchField
+              size="md"
               value={query}
-              onChange={(e) => { setQuery(e.target.value); }}
-              // eslint-disable keepance-i18n/no-hardcoded-string
+              onChange={(v) => { setQuery(v); }}
+              onClear={() => { setQuery(''); }}
               placeholder="Search workflows..."
               aria-label="Search workflows"
-              // eslint-enable keepance-i18n/no-hardcoded-string
-              style={{
-                border: 'none',
-                outline: 'none',
-                fontSize: 'var(--kp-font-sm)',
-                color: 'var(--kp-navy)',
-                background: 'transparent',
-                width: '100%',
-                fontFamily: 'Satoshi, sans-serif',
-              }}
+              data-testid="associate-search"
+              style={{ width: 260 }}
             />
-            {query && (
-              <button
-                type="button"
-                onClick={() => { setQuery(''); }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--color-muted-foreground)' }}
-                // eslint-disable keepance-i18n/no-hardcoded-string
-                aria-label="Clear search"
-                // eslint-enable keepance-i18n/no-hardcoded-string
-              >
-                <XCircle style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)' }} />
-              </button>
-            )}
+          }
+        />
+
+        {/* Active-matter context badge — shown below the header */}
+        {activeMatter !== null && (
+          <div data-testid="associate-active-matter-chip" style={{ marginTop: 8 }}>
+            <Badge variant="neutral" size="sm" icon={Briefcase}>
+              Running in: {matterLabel(activeMatter)}
+            </Badge>
           </div>
-        </div>
+        )}
 
         {/* Practice-area filter chips */}
         {presentCategories.length > 1 && (

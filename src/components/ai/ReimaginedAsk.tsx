@@ -292,14 +292,13 @@ function ScopeToggle({
       data-testid="scope-toggle"
       role="group"
       aria-label="Search scope"
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}
     >
       {options.map((opt) => (
         <Chip
           key={opt.value}
-          size="sm"
+          size="md"
           active={scope === opt.value}
-          icon={opt.Icon}
           data-testid={`scope-option-${opt.value}`}
           onClick={() => { onChange(opt.value); }}
         >

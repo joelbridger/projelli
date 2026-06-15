@@ -590,7 +590,9 @@ describe('ReimaginedDocumentsHome — Tree | Grid toggle (R6-1)', () => {
     fireEvent.click(screen.getByTestId('docs-view-tree'));
     expect(screen.getByTestId('documents-tree-view')).toBeTruthy();
     expect(screen.getByTestId('file-tree')).toBeTruthy();
-    expect(screen.queryByTestId('document-grid-view')).toBeNull();
+    // New architecture: DocumentGridView stays mounted (it owns the shared
+    // toolbar); the grid *body* is what hides in tree mode.
+    expect(screen.queryByTestId('document-grid-cards')).toBeNull();
   });
 
   it('switching back to Grid restores the grid view', () => {

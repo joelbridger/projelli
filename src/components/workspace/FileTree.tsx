@@ -88,6 +88,9 @@ export function resolveExplorerPath(rootPath: string, selectedPath: string | nul
 }
 
 interface FileTreeProps {
+  /** Hide the internal create-file/folder toolbar — used when a parent surface
+   *  already provides those actions (e.g. the unified Documents toolbar). */
+  hideToolbar?: boolean;
   onFileOpen: (path: string, name: string) => Promise<void>;
   onCreateFile?: (parentPath: string, extension?: string) => void;
   onCreateFolder?: (parentPath: string) => void;
@@ -145,6 +148,7 @@ interface FileTreeProps {
 }
 
 export function FileTree({
+  hideToolbar = false,
   onFileOpen,
   onCreateFile,
   onCreateFolder,
@@ -364,7 +368,8 @@ export function FileTree({
 
   return (
     <div data-testid="file-tree" className="flex flex-col h-full">
-      {/* Toolbar with create buttons */}
+      {/* Toolbar with create buttons (hidden when a parent surface provides them) */}
+      {!hideToolbar && (
       <div data-testid="file-tree-toolbar" className="flex items-center gap-1 px-2 py-1.5 border-b flex-wrap">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -492,6 +497,7 @@ export function FileTree({
         )}
         {/* Grid View button moved to Sidebar Files header (fix 3). */}
       </div>
+      )}
 
       {/* Multi-select actions bar */}
       {selectedPaths.size > 0 && (

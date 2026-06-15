@@ -652,47 +652,39 @@ export function ReimaginedMattersHome() {
               : `${String(openCount)} ${entityLabel.other}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
           }
           actions={
-            <Button
-              variant="primary"
-              size="md"
-              iconLeft={Plus}
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
-              }}
-            >
-              New {entityLabel.one}
-            </Button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', flexWrap: 'wrap' }}>
+              {showSearch && (
+                <SearchField
+                  size="md"
+                  value={searchQuery}
+                  onChange={(v) => { setSearchQuery(v); }}
+                  onClear={() => { setSearchQuery(''); }}
+                  placeholder={`Search ${entityLabel.other}...`}
+                  data-testid="matters-search-input"
+                  aria-label={`Search ${entityLabel.other}`}
+                  style={{ width: 240 }}
+                />
+              )}
+              <Button
+                variant="primary"
+                size="md"
+                iconLeft={Plus}
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
+                }}
+              >
+                New {entityLabel.one}
+              </Button>
+            </div>
           }
         />
       </div>
 
-      {/* Search box — shown only when there are more than SEARCH_THRESHOLD matters */}
-      {showSearch && (
-        <div
-          style={{
-            padding: 'var(--kp-surface-gap) var(--kp-gutter) 0',
-          }}
-        >
-          <SearchField
-            size="md"
-            data-testid="matters-search-input"
-            aria-label={`Search ${entityLabel.other}`}
-            placeholder={`Search ${entityLabel.other}...`}
-            value={searchQuery}
-            onChange={(v) => { setSearchQuery(v); }}
-            onClear={() => { setSearchQuery(''); }}
-          />
-        </div>
-      )}
-
-      {/* Table card — top gap below the header (or below the search box) is never 0:
-          the surface gap keeps it off the divider line (internal <= external rule). */}
+      {/* Table card — top gap below the header; surface gap keeps it off the divider line. */}
       <Card
         variant="flat"
         style={{
-          margin: showSearch
-            ? 'var(--kp-space-md) var(--kp-gutter) var(--kp-gutter)'
-            : 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
+          margin: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
           overflow: 'hidden',
         }}
       >
