@@ -101,18 +101,19 @@ function GetStartedCard() {
     gap: 10,
     padding: '8px 0',
   };
-  const iconDone: React.CSSProperties = { width: 16, height: 16, color: '#059669', flex: 'none' };
-  const iconTodo: React.CSSProperties = { width: 16, height: 16, color: '#9ca3af', flex: 'none' };
+  const iconDone: React.CSSProperties = { width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', color: '#059669', flex: 'none' };
+  const iconTodo: React.CSSProperties = { width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', color: '#9ca3af', flex: 'none' };
   const stepLabel: React.CSSProperties = {
     flex: 1,
-    fontSize: 13,
+    fontSize: 'var(--kp-font-sm)',
+    lineHeight: 'var(--kp-leading-normal)',
     color: 'var(--kp-navy)',
     textAlign: 'left',
   };
   const stepBtn: React.CSSProperties = {
     padding: '3px 10px',
-    fontSize: 12,
-    fontWeight: 600,
+    fontSize: 'var(--kp-font-xs)',
+    fontWeight: 'var(--kp-weight-semibold)',
     borderRadius: 5,
     border: '1px solid rgba(10,37,64,0.22)',
     background: '#fff',
@@ -127,10 +128,11 @@ function GetStartedCard() {
       style={{
         margin: '0 0 20px',
         border: '1px solid rgba(10,37,64,0.14)',
-        borderRadius: 8,
+        borderRadius: 'var(--radius-lg)',
         background: 'rgba(10,37,64,0.03)',
         padding: '14px 16px',
         position: 'relative',
+        boxShadow: 'var(--kp-shadow-1)',
       }}
     >
       {/* Dismiss */}
@@ -151,14 +153,14 @@ function GetStartedCard() {
           lineHeight: 1,
         }}
       >
-        <X style={{ width: 13, height: 13 }} />
+        <X style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)' }} />
       </button>
 
       <p
         style={{
           margin: '0 0 8px',
-          fontSize: 12,
-          fontWeight: 700,
+          fontSize: 'var(--kp-font-xs)',
+          fontWeight: 'var(--kp-weight-bold)',
           letterSpacing: '0.05em',
           textTransform: 'uppercase',
           color: 'var(--color-muted-foreground)',
@@ -261,8 +263,8 @@ function PrivilegePill() {
         gap: 4,
         padding: '2px 8px',
         borderRadius: 4,
-        fontSize: 11,
-        fontWeight: 600,
+        fontSize: 'var(--kp-font-2xs)',
+        fontWeight: 'var(--kp-weight-semibold)',
         letterSpacing: '0.03em',
         background: 'rgba(10,37,64,0.07)',
         color: 'var(--kp-navy)',
@@ -285,8 +287,8 @@ function SamplePill() {
         alignItems: 'center',
         padding: '2px 8px',
         borderRadius: 4,
-        fontSize: 11,
-        fontWeight: 600,
+        fontSize: 'var(--kp-font-2xs)',
+        fontWeight: 'var(--kp-weight-semibold)',
         letterSpacing: '0.03em',
         background: 'rgba(16,185,129,0.09)',
         color: '#065f46',
@@ -331,8 +333,8 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
     gap: 4,
     padding: '3px 9px',
     borderRadius: 4,
-    fontSize: 11,
-    fontWeight: 600,
+    fontSize: 'var(--kp-font-2xs)',
+    fontWeight: 'var(--kp-weight-semibold)',
     border: '1px solid rgba(10,37,64,0.18)',
     background: '#fff',
     color: 'var(--kp-navy)',
@@ -386,11 +388,11 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
           >
             <span
               style={{
-                fontSize: 14,
-                fontWeight: 600,
+                fontSize: 'var(--kp-font-md)',
+                fontWeight: 'var(--kp-weight-semibold)',
                 color: 'var(--kp-navy)',
                 fontFamily: 'Satoshi, sans-serif',
-                lineHeight: 1.3,
+                lineHeight: 'var(--kp-leading-snug)',
                 overflow: 'hidden',
                 whiteSpace: 'nowrap',
                 textOverflow: 'ellipsis',
@@ -404,9 +406,9 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
           {matter.client && matter.client !== matter.name && (
             <div
               style={{
-                fontSize: 12,
+                fontSize: 'var(--kp-font-xs)',
                 color: 'var(--color-muted-foreground)',
-                fontWeight: 400,
+                fontWeight: 'var(--kp-weight-regular)',
               }}
             >
               {matter.client}
@@ -422,14 +424,15 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
         {/* Documents / scope */}
         <div
           style={{
-            fontSize: 13,
+            fontSize: 'var(--kp-font-sm)',
+            lineHeight: 'var(--kp-leading-normal)',
             color: 'var(--color-muted-foreground)',
             display: 'flex',
             alignItems: 'center',
             gap: 5,
           }}
         >
-          <FolderOpen style={{ width: 13, height: 13, strokeWidth: 1.75, flex: 'none' }} />
+          <FolderOpen style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 1.75, flex: 'none' }} />
           {folderCount === 0
             ? 'No folders'
             : folderCount === 1
@@ -440,7 +443,7 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
         {/* Created */}
         <div
           style={{
-            fontSize: 12,
+            fontSize: 'var(--kp-font-xs)',
             color: 'var(--color-muted-foreground)',
             fontVariantNumeric: 'tabular-nums',
           }}
@@ -549,8 +552,9 @@ function EmptyState({ entityOne, entityOther }: EmptyStateProps) {
       />
       <div
         style={{
-          fontSize: 15,
-          fontWeight: 600,
+          fontSize: 'var(--kp-font-lg)',
+          fontWeight: 'var(--kp-weight-semibold)',
+          lineHeight: 'var(--kp-leading-tight)',
           color: 'var(--kp-navy)',
           fontFamily: 'Satoshi, sans-serif',
         }}
@@ -559,10 +563,10 @@ function EmptyState({ entityOne, entityOther }: EmptyStateProps) {
       </div>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 'var(--kp-font-sm)',
           color: 'var(--color-muted-foreground)',
           maxWidth: 320,
-          lineHeight: 1.5,
+          lineHeight: 'var(--kp-leading-relaxed)',
         }}
       >
         {`Create your first ${entityOne} to keep one client's documents and emails together.`}
@@ -576,9 +580,9 @@ function EmptyState({ entityOne, entityOther }: EmptyStateProps) {
           alignItems: 'center',
           gap: 6,
           padding: '8px 16px',
-          borderRadius: 6,
-          fontSize: 13,
-          fontWeight: 600,
+          borderRadius: 'var(--radius-md)',
+          fontSize: 'var(--kp-font-sm)',
+          fontWeight: 'var(--kp-weight-semibold)',
           background: 'var(--kp-navy)',
           color: '#fff',
           border: 'none',
@@ -592,7 +596,7 @@ function EmptyState({ entityOne, entityOther }: EmptyStateProps) {
           window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
         }}
       >
-        <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
+        <Plus style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
         New {entityOne}
       </button>
     </div>
@@ -631,8 +635,8 @@ interface TableHeaderProps {
 
 function TableHeader({ entityOneLabel, sort, onSort }: TableHeaderProps) {
   const baseColStyle: React.CSSProperties = {
-    fontSize: 11,
-    fontWeight: 600,
+    fontSize: 'var(--kp-font-2xs)',
+    fontWeight: 'var(--kp-weight-semibold)',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     color: 'var(--color-muted-foreground)',
@@ -648,7 +652,7 @@ function TableHeader({ entityOneLabel, sort, onSort }: TableHeaderProps) {
     cursor: 'pointer',
     padding: 0,
     color: sort.key === col ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-    fontWeight: sort.key === col ? 700 : 600,
+    fontWeight: sort.key === col ? 'var(--kp-weight-bold)' : 'var(--kp-weight-semibold)',
   });
 
   return (
@@ -779,6 +783,8 @@ export function ReimaginedMattersHome() {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        flex: 1,
+        minWidth: 0,
         background: 'var(--color-background)',
         fontFamily: 'Satoshi, sans-serif',
         overflowY: 'auto',
@@ -804,9 +810,9 @@ export function ReimaginedMattersHome() {
                 alignItems: 'center',
                 gap: 6,
                 padding: '8px 14px',
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 600,
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--kp-font-sm)',
+                fontWeight: 'var(--kp-weight-semibold)',
                 background: 'var(--kp-navy)',
                 color: '#fff',
                 border: 'none',
@@ -818,7 +824,7 @@ export function ReimaginedMattersHome() {
                 window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
               }}
             >
-              <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
+              <Plus style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
               New {entityLabel.one}
             </button>
           }
@@ -839,7 +845,7 @@ export function ReimaginedMattersHome() {
               gap: 8,
               padding: '7px 12px',
               border: '1px solid var(--color-border)',
-              borderRadius: 6,
+              borderRadius: 'var(--radius-md)',
               background: '#fff',
               maxWidth: 380,
             }}
@@ -847,8 +853,8 @@ export function ReimaginedMattersHome() {
             <Search
               aria-hidden="true"
               style={{
-                width: 14,
-                height: 14,
+                width: 'var(--kp-icon-sm)',
+                height: 'var(--kp-icon-sm)',
                 color: 'var(--color-muted-foreground)',
                 flex: 'none',
               }}
@@ -864,7 +870,7 @@ export function ReimaginedMattersHome() {
                 flex: 1,
                 border: 'none',
                 outline: 'none',
-                fontSize: 13,
+                fontSize: 'var(--kp-font-sm)',
                 color: 'var(--kp-navy)',
                 background: 'transparent',
                 fontFamily: 'Satoshi, sans-serif',
@@ -885,7 +891,7 @@ export function ReimaginedMattersHome() {
                   display: 'flex',
                 }}
               >
-                <X style={{ width: 12, height: 12 }} />
+                <X style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)' }} />
               </button>
             )}
           </div>
@@ -900,7 +906,7 @@ export function ReimaginedMattersHome() {
             ? 'var(--kp-space-md) var(--kp-gutter) var(--kp-gutter)'
             : 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
           border: '1px solid var(--color-border)',
-          borderRadius: 8,
+          borderRadius: 'var(--radius-lg)',
           background: '#fff',
           overflow: 'hidden',
         }}
@@ -916,7 +922,7 @@ export function ReimaginedMattersHome() {
                   data-testid="matters-no-search-results"
                   style={{
                     padding: '24px 20px',
-                    fontSize: 13,
+                    fontSize: 'var(--kp-font-sm)',
                     color: 'var(--color-muted-foreground)',
                     textAlign: 'center',
                   }}

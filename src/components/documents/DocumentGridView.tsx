@@ -132,8 +132,8 @@ function Breadcrumb({ segments, onNavigate, onDropOnCrumb }: BreadcrumbProps) {
             {idx > 0 && (
               <ChevronRight
                 style={{
-                  width: 13,
-                  height: 13,
+                  width: 'var(--kp-icon-sm)',
+                  height: 'var(--kp-icon-sm)',
                   color: 'var(--color-muted-foreground)',
                   strokeWidth: 2,
                   flex: 'none',
@@ -161,8 +161,8 @@ function Breadcrumb({ segments, onNavigate, onDropOnCrumb }: BreadcrumbProps) {
                 }
               }}
               style={{
-                fontSize: 13,
-                fontWeight: isLast ? 600 : 400,
+                fontSize: 'var(--kp-font-sm)',
+                fontWeight: isLast ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
                 color: isLast ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
                 background: isCrumbDragOver ? 'rgba(10,37,64,0.08)' : 'none',
                 border: isCrumbDragOver
@@ -172,6 +172,7 @@ function Breadcrumb({ segments, onNavigate, onDropOnCrumb }: BreadcrumbProps) {
                 cursor: isLast ? 'default' : 'pointer',
                 padding: '1px 4px',
                 fontFamily: 'Satoshi, sans-serif',
+                lineHeight: 'var(--kp-leading-snug)',
               }}
             >
               {seg.label}
@@ -268,7 +269,7 @@ function FileCard({ node, isActive, onOpen, onMoveInto }: FileCardProps) {
         alignItems: 'center',
         gap: 'var(--kp-space-xs)',
         padding: 'var(--kp-space-md) var(--kp-space-sm)',
-        borderRadius: 8,
+        borderRadius: 'var(--radius-lg)',
         border: isDragOver && isFolder
           ? '2px dashed var(--kp-navy)'
           : isActive
@@ -295,11 +296,11 @@ function FileCard({ node, isActive, onOpen, onMoveInto }: FileCardProps) {
       {getGridIcon(node)}
       <span
         style={{
-          fontSize: 12,
-          fontWeight: node.type === 'folder' ? 700 : 500,
+          fontSize: 'var(--kp-font-xs)',
+          fontWeight: node.type === 'folder' ? 'var(--kp-weight-bold)' : 'var(--kp-weight-medium)',
           color: 'var(--kp-navy)',
           wordBreak: 'break-word',
-          lineHeight: 1.3,
+          lineHeight: 'var(--kp-leading-tight)',
           maxWidth: '100%',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
@@ -347,10 +348,11 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
       />
       <div
         style={{
-          fontSize: 15,
-          fontWeight: 600,
+          fontSize: 'var(--kp-font-lg)',
+          fontWeight: 'var(--kp-weight-semibold)',
           color: 'var(--kp-navy)',
           fontFamily: 'Satoshi, sans-serif',
+          lineHeight: 'var(--kp-leading-tight)',
         }}
       >
         {/* eslint-disable keepance-i18n/no-hardcoded-string */}
@@ -359,10 +361,10 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
       </div>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 'var(--kp-font-sm)',
           color: 'var(--color-muted-foreground)',
           maxWidth: 340,
-          lineHeight: 1.6,
+          lineHeight: 'var(--kp-leading-relaxed)',
         }}
       >
         {/* eslint-disable keepance-i18n/no-hardcoded-string */}
@@ -386,9 +388,9 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
             alignItems: 'center',
             gap: 6,
             padding: 'var(--kp-space-xs) var(--kp-space-md)',
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: 'var(--kp-weight-semibold)',
             background: 'var(--kp-navy)',
             color: '#fff',
             border: 'none',
@@ -397,7 +399,7 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
           }}
           onClick={onCreateDocument}
         >
-          <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
+          <Plus style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
           {/* eslint-disable keepance-i18n/no-hardcoded-string */}
           New Word document
           {/* eslint-enable keepance-i18n/no-hardcoded-string */}
@@ -409,9 +411,9 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
             alignItems: 'center',
             gap: 6,
             padding: 'var(--kp-space-xs) var(--kp-space-md)',
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: 'var(--kp-weight-semibold)',
             background: '#fff',
             color: 'var(--kp-navy)',
             border: '1px solid var(--color-border)',
@@ -420,7 +422,7 @@ function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
           }}
           onClick={onCreateFolder}
         >
-          <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
+          <Plus style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
           New folder
         </button>
       </div>
@@ -665,8 +667,8 @@ export function DocumentGridView({
     display: 'inline-flex',
     alignItems: 'center',
     padding: '5px 14px',
-    fontSize: 13,
-    fontWeight: 600,
+    fontSize: 'var(--kp-font-sm)',
+    fontWeight: 'var(--kp-weight-semibold)',
     cursor: 'pointer',
     border: 'none',
     borderRadius: 0,
@@ -715,7 +717,7 @@ export function DocumentGridView({
         <div
           style={{
             display: 'inline-flex',
-            borderRadius: 6,
+            borderRadius: 'var(--radius-md)',
             overflow: 'hidden',
             border: '1px solid var(--color-border)',
             flex: 'none',
@@ -751,8 +753,8 @@ export function DocumentGridView({
                   minWidth: 18,
                   height: 18,
                   borderRadius: 9,
-                  fontSize: 10,
-                  fontWeight: 700,
+                  fontSize: 'var(--kp-font-2xs)',
+                  fontWeight: 'var(--kp-weight-bold)',
                   background:
                     activeView === 'trash'
                       ? 'rgba(255,255,255,0.25)'
@@ -777,9 +779,9 @@ export function DocumentGridView({
                 alignItems: 'center',
                 gap: 6,
                 padding: '6px 12px',
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 600,
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--kp-font-sm)',
+                fontWeight: 'var(--kp-weight-semibold)',
                 background: 'var(--kp-navy)',
                 color: '#fff',
                 border: 'none',
@@ -789,7 +791,7 @@ export function DocumentGridView({
               }}
               onClick={handleCreateDocument}
             >
-              <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
+              <Plus style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
               New document
             </button>
 
@@ -800,9 +802,9 @@ export function DocumentGridView({
                 alignItems: 'center',
                 gap: 6,
                 padding: '6px 12px',
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 600,
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--kp-font-sm)',
+                fontWeight: 'var(--kp-weight-semibold)',
                 background: '#fff',
                 color: 'var(--kp-navy)',
                 border: '1px solid var(--color-border)',
@@ -812,7 +814,7 @@ export function DocumentGridView({
               }}
               onClick={handleCreateFolder}
             >
-              <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
+              <Plus style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
               New folder
             </button>
 
@@ -824,9 +826,9 @@ export function DocumentGridView({
                 alignItems: 'center',
                 gap: 6,
                 padding: '6px 12px',
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 600,
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--kp-font-sm)',
+                fontWeight: 'var(--kp-weight-semibold)',
                 background: '#fff',
                 color: 'var(--kp-navy)',
                 border: '1px solid var(--color-border)',
@@ -836,7 +838,7 @@ export function DocumentGridView({
               }}
               onClick={onAddFiles}
             >
-              <Upload style={{ width: 14, height: 14, strokeWidth: 2 }} />
+              <Upload style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
               Add files
             </button>
 
@@ -851,15 +853,15 @@ export function DocumentGridView({
                 flex: '1 1 auto',
                 minWidth: 0,
                 border: '1px solid var(--color-border)',
-                borderRadius: 6,
+                borderRadius: 'var(--radius-md)',
                 padding: '5px 10px',
                 background: '#fff',
               }}
             >
               <Search
                 style={{
-                  width: 13,
-                  height: 13,
+                  width: 'var(--kp-icon-sm)',
+                  height: 'var(--kp-icon-sm)',
                   color: 'var(--color-muted-foreground)',
                   strokeWidth: 2,
                   flex: 'none',
@@ -871,7 +873,7 @@ export function DocumentGridView({
                 onChange={(e) => { setSearchQuery(e.target.value); }}
                 placeholder="Search files..."
                 style={{
-                  fontSize: 13,
+                  fontSize: 'var(--kp-font-sm)',
                   border: 'none',
                   outline: 'none',
                   background: 'transparent',
@@ -909,9 +911,10 @@ export function DocumentGridView({
               <div
                 data-testid="grid-dir-label"
                 style={{
-                  fontSize: 12,
+                  fontSize: 'var(--kp-font-xs)',
                   color: 'var(--color-muted-foreground)',
                   marginBottom: 'var(--kp-space-sm)',
+                  lineHeight: 'var(--kp-leading-normal)',
                 }}
               >
                 {fileTree.length === 0 ? 'No documents yet' : currentDirLabel()}
@@ -946,15 +949,16 @@ export function DocumentGridView({
                 />
                 <div
                   style={{
-                    fontSize: 14,
-                    fontWeight: 600,
+                    fontSize: 'var(--kp-font-md)',
+                    fontWeight: 'var(--kp-weight-semibold)',
                     color: 'var(--kp-navy)',
                     fontFamily: 'Satoshi, sans-serif',
+                    lineHeight: 'var(--kp-leading-tight)',
                   }}
                 >
                   No results
                 </div>
-                <div style={{ fontSize: 13, color: 'var(--color-muted-foreground)' }}>
+                <div style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)', lineHeight: 'var(--kp-leading-normal)' }}>
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                   No files match your search. Try a different name.
                   {/* eslint-enable keepance-i18n/no-hardcoded-string */}
@@ -991,7 +995,7 @@ export function DocumentGridView({
           <div
             style={{
               border: '1px solid var(--color-border)',
-              borderRadius: 8,
+              borderRadius: 'var(--radius-lg)',
               background: '#fff',
               overflow: 'hidden',
             }}

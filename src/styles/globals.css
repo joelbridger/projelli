@@ -64,6 +64,61 @@
   --kp-section-gap: var(--kp-space-xl);                                     /* 32px — vertical space between major sections */
   --kp-stack-gap: var(--kp-space-md);                                       /* 16px — vertical space between stacked, related items */
 
+  /* ---- Typography (Satoshi). Primitive sizes + weights + line-heights.
+     Semantic roles (docs/design/DESIGN-SYSTEM-EXPANSION.md): title=2xl/bold,
+     heading=xl/semibold, subheading=lg/semibold, body=md/regular, label=sm/medium,
+     caption=xs/regular, eyebrow=2xs/semibold-uppercase, mono=sm/mono. ---- */
+  --kp-font-2xs: 11px;
+  --kp-font-xs:  12px;
+  --kp-font-sm:  13px;
+  --kp-font-md:  14px;   /* body / default UI text */
+  --kp-font-lg:  16px;
+  --kp-font-xl:  18px;
+  --kp-font-2xl: 22px;   /* surface titles */
+  --kp-font-3xl: 28px;
+  --kp-weight-regular: 400;
+  --kp-weight-medium: 500;
+  --kp-weight-semibold: 600;
+  --kp-weight-bold: 700;
+  --kp-leading-tight: 1.2;     /* titles / headings */
+  --kp-leading-snug: 1.35;
+  --kp-leading-normal: 1.45;   /* body (>= 1.4 for readability) */
+  --kp-leading-relaxed: 1.6;
+
+  /* ---- Elevation — navy-tinted shadows (branded depth; each = key + ambient). ---- */
+  --kp-shadow-0: none;
+  --kp-shadow-1: 0 1px 2px rgba(10, 37, 64, 0.06), 0 1px 3px rgba(10, 37, 64, 0.04);    /* resting cards / panels */
+  --kp-shadow-2: 0 4px 12px rgba(10, 37, 64, 0.08), 0 2px 4px rgba(10, 37, 64, 0.05);   /* popovers, dropdowns, pickers */
+  --kp-shadow-3: 0 16px 40px rgba(10, 37, 64, 0.16), 0 4px 12px rgba(10, 37, 64, 0.08); /* modals, overlays, Data Map */
+
+  /* ---- Sizing — icon sizes + control heights. ---- */
+  --kp-icon-xs: 12px; --kp-icon-sm: 14px; --kp-icon-md: 16px; --kp-icon-lg: 18px; --kp-icon-xl: 22px;
+  --kp-control-sm: 28px; --kp-control-md: 32px; --kp-control-lg: 40px;
+
+  /* ---- Motion — calm + quick (a professional tool). ---- */
+  --kp-duration-fast: 120ms;
+  --kp-duration-base: 200ms;
+  --kp-duration-slow: 320ms;
+  --kp-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --kp-ease-decelerate: cubic-bezier(0, 0, 0, 1);   /* entering */
+  --kp-ease-accelerate: cubic-bezier(0.3, 0, 1, 1); /* leaving */
+
+  /* ---- Z-index scale — ends ad-hoc stacking conflicts. ---- */
+  --kp-z-sticky: 10;
+  --kp-z-dropdown: 100;
+  --kp-z-overlay: 1000;
+  --kp-z-modal: 1100;
+  --kp-z-popover: 1200;
+  --kp-z-toast: 1300;
+  --kp-z-tooltip: 1400;
+
+  /* ---- Focus ring (one accessible ring), borders, opacity. ---- */
+  --kp-focus-ring: 0 0 0 2px var(--color-background), 0 0 0 4px var(--kp-navy);
+  --kp-border-width: 1px;
+  --kp-border-width-strong: 1.5px;
+  --kp-opacity-disabled: 0.45;
+  --kp-opacity-muted: 0.65;
+
   /* Border radius */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

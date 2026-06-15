@@ -175,8 +175,8 @@ function PracticeFilterChip({
         alignItems: 'center',
         padding: '4px 12px',
         borderRadius: 20,
-        fontSize: 12,
-        fontWeight: active ? 700 : 500,
+        fontSize: 'var(--kp-font-xs)',
+        fontWeight: active ? 'var(--kp-weight-bold)' : 'var(--kp-weight-medium)',
         cursor: 'pointer',
         border: active ? '1.5px solid var(--kp-navy)' : '1px solid var(--color-border)',
         background: active ? 'var(--kp-navy)' : '#fff',
@@ -218,9 +218,10 @@ function TemplateCard({
         border: isFeatured
           ? '2px solid var(--kp-navy)'
           : '1px solid var(--color-border)',
-        borderRadius: 8,
+        borderRadius: 'var(--radius-lg)',
         padding: 'var(--kp-card-pad)',
         background: isFeatured ? 'rgba(10,37,64,0.03)' : '#fff',
+        boxShadow: 'var(--kp-shadow-1)',
         display: 'flex',
         flexDirection: 'column',
         gap: 'var(--kp-space-sm)',
@@ -241,14 +242,14 @@ function TemplateCard({
             padding: '2px 8px',
             background: 'var(--kp-navy)',
             color: '#fff',
-            fontSize: 10,
-            fontWeight: 700,
+            fontSize: 'var(--kp-font-2xs)',
+            fontWeight: 'var(--kp-weight-bold)',
             letterSpacing: '0.07em',
             textTransform: 'uppercase',
             borderRadius: '0 0 4px 4px',
           }}
         >
-          <Star style={{ width: 9, height: 9, fill: '#fff', strokeWidth: 0 }} />
+          <Star style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', fill: '#fff', strokeWidth: 0 }} />
           Start here
         </div>
       )}
@@ -257,10 +258,10 @@ function TemplateCard({
       <div style={{ flex: 1 }}>
         <div
           style={{
-            fontSize: 13,
-            fontWeight: 700,
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: 'var(--kp-weight-bold)',
             color: 'var(--kp-navy)',
-            lineHeight: 1.35,
+            lineHeight: 'var(--kp-leading-snug)',
             marginBottom: 'var(--kp-space-2xs)',
             paddingRight: isFeatured ? 80 : 0,
           }}
@@ -269,9 +270,9 @@ function TemplateCard({
         </div>
         <div
           style={{
-            fontSize: 12,
+            fontSize: 'var(--kp-font-xs)',
             color: 'var(--color-muted-foreground)',
-            lineHeight: 1.5,
+            lineHeight: 'var(--kp-leading-relaxed)',
             display: '-webkit-box',
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
@@ -296,8 +297,8 @@ function TemplateCard({
           gap: 6,
           padding: '6px 14px',
           borderRadius: 5,
-          fontSize: 12,
-          fontWeight: 600,
+          fontSize: 'var(--kp-font-xs)',
+          fontWeight: 'var(--kp-weight-semibold)',
           background: disabled
             ? 'var(--color-muted)'
             : isFeatured
@@ -315,9 +316,9 @@ function TemplateCard({
         }}
       >
         {isRunning ? (
-          <Loader2 style={{ width: 12, height: 12, strokeWidth: 2 }} className="animate-spin" />
+          <Loader2 style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} className="animate-spin" />
         ) : (
-          <Play style={{ width: 12, height: 12, strokeWidth: 2, fill: disabled ? 'none' : (isFeatured ? '#fff' : 'var(--kp-navy)') }} />
+          <Play style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, fill: disabled ? 'none' : (isFeatured ? '#fff' : 'var(--kp-navy)') }} />
         )}
         {isRunning ? 'Running' : 'Run'}
       </button>
@@ -388,14 +389,14 @@ function CategorySection({
         aria-expanded={!collapsed}
       >
         {collapsed ? (
-          <ChevronRight style={{ width: 14, height: 14, color: 'var(--color-muted-foreground)', flex: 'none' }} />
+          <ChevronRight style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--color-muted-foreground)', flex: 'none' }} />
         ) : (
-          <ChevronDown style={{ width: 14, height: 14, color: 'var(--color-muted-foreground)', flex: 'none' }} />
+          <ChevronDown style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--color-muted-foreground)', flex: 'none' }} />
         )}
         <span
           style={{
-            fontSize: 11,
-            fontWeight: 700,
+            fontSize: 'var(--kp-font-2xs)',
+            fontWeight: 'var(--kp-weight-bold)',
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             color: 'var(--kp-navy)',
@@ -406,7 +407,7 @@ function CategorySection({
         <span
           data-testid={`associate-section-count-${config.key}`}
           style={{
-            fontSize: 11,
+            fontSize: 'var(--kp-font-2xs)',
             color: 'var(--color-muted-foreground)',
             fontVariantNumeric: 'tabular-nums',
           }}
@@ -451,8 +452,8 @@ function CategorySection({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 5,
-                fontSize: 12,
-                fontWeight: 600,
+                fontSize: 'var(--kp-font-xs)',
+                fontWeight: 'var(--kp-weight-semibold)',
                 color: 'var(--kp-navy)',
                 background: 'none',
                 border: 'none',
@@ -461,7 +462,7 @@ function CategorySection({
                 letterSpacing: '0.01em',
               }}
             >
-              <ChevronDown style={{ width: 13, height: 13, strokeWidth: 2 }} />
+              <ChevronDown style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
               Show all ({String(templates.length)})
             </button>
           )}
@@ -472,9 +473,9 @@ function CategorySection({
               data-testid={`associate-search-hidden-${config.key}`}
               style={{
                 marginTop: 'var(--kp-space-sm)',
-                fontSize: 11,
+                fontSize: 'var(--kp-font-2xs)',
                 color: 'var(--color-muted-foreground)',
-                lineHeight: 1.4,
+                lineHeight: 'var(--kp-leading-normal)',
               }}
             >
               {/* eslint-disable keepance-i18n/no-hardcoded-string */}
@@ -488,8 +489,8 @@ function CategorySection({
                   border: 'none',
                   cursor: 'pointer',
                   padding: 0,
-                  fontSize: 11,
-                  fontWeight: 600,
+                  fontSize: 'var(--kp-font-2xs)',
+                  fontWeight: 'var(--kp-weight-semibold)',
                   color: 'var(--kp-navy)',
                   textDecoration: 'underline',
                 }}
@@ -515,11 +516,11 @@ function RunRow({
 }) {
   const statusIcon =
     run.status === 'completed' ? (
-      <CheckCircle2 style={{ width: 13, height: 13, color: '#22c55e', flex: 'none' }} />
+      <CheckCircle2 style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: '#22c55e', flex: 'none' }} />
     ) : run.status === 'failed' ? (
-      <XCircle style={{ width: 13, height: 13, color: '#ef4444', flex: 'none' }} />
+      <XCircle style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: '#ef4444', flex: 'none' }} />
     ) : (
-      <Clock style={{ width: 13, height: 13, color: 'var(--color-muted-foreground)', flex: 'none' }} />
+      <Clock style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--color-muted-foreground)', flex: 'none' }} />
     );
 
   return (
@@ -544,9 +545,9 @@ function RunRow({
       <span
         style={{
           flex: 1,
-          fontSize: 13,
+          fontSize: 'var(--kp-font-sm)',
           color: 'var(--kp-navy)',
-          fontWeight: 500,
+          fontWeight: 'var(--kp-weight-medium)',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
@@ -556,7 +557,7 @@ function RunRow({
       </span>
       <span
         style={{
-          fontSize: 11,
+          fontSize: 'var(--kp-font-2xs)',
           color: 'var(--color-muted-foreground)',
           fontVariantNumeric: 'tabular-nums',
           flex: 'none',
@@ -700,6 +701,8 @@ export function ReimaginedAssociateHome({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        flex: 1,
+        minWidth: 0,
         background: 'var(--color-background)',
         fontFamily: 'Satoshi, sans-serif',
         overflowY: 'auto',
@@ -735,8 +738,8 @@ export function ReimaginedAssociateHome({
                     borderRadius: 20,
                     border: '1px solid rgba(10,37,64,0.18)',
                     background: 'rgba(10,37,64,0.05)',
-                    fontSize: 11,
-                    fontWeight: 600,
+                    fontSize: 'var(--kp-font-2xs)',
+                    fontWeight: 'var(--kp-weight-semibold)',
                     letterSpacing: '0.02em',
                     color: 'var(--kp-navy)',
                     maxWidth: 360,
@@ -745,7 +748,7 @@ export function ReimaginedAssociateHome({
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  <Briefcase style={{ width: 10, height: 10, strokeWidth: 2, flex: 'none' }} />
+                  <Briefcase style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, flex: 'none' }} />
                   Running in: {matterLabel(activeMatter)}
                 </div>
               )}
@@ -759,14 +762,14 @@ export function ReimaginedAssociateHome({
               alignItems: 'center',
               gap: 8,
               border: '1px solid var(--color-border)',
-              borderRadius: 6,
+              borderRadius: 'var(--radius-md)',
               padding: '7px 12px',
               background: '#fff',
               minWidth: 220,
               flex: '0 1 280px',
             }}
           >
-            <Search style={{ width: 14, height: 14, color: 'var(--color-muted-foreground)', flex: 'none' }} />
+            <Search style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--color-muted-foreground)', flex: 'none' }} />
             <input
               data-testid="associate-search"
               type="text"
@@ -779,7 +782,7 @@ export function ReimaginedAssociateHome({
               style={{
                 border: 'none',
                 outline: 'none',
-                fontSize: 13,
+                fontSize: 'var(--kp-font-sm)',
                 color: 'var(--kp-navy)',
                 background: 'transparent',
                 width: '100%',
@@ -795,7 +798,7 @@ export function ReimaginedAssociateHome({
                 aria-label="Clear search"
                 // eslint-enable keepance-i18n/no-hardcoded-string
               >
-                <XCircle style={{ width: 13, height: 13 }} />
+                <XCircle style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)' }} />
               </button>
             )}
           </div>
@@ -841,10 +844,10 @@ export function ReimaginedAssociateHome({
           style={{
             margin: 'var(--kp-space-sm) var(--kp-gutter) 0',
             padding: '10px 14px',
-            borderRadius: 6,
+            borderRadius: 'var(--radius-md)',
             border: '1px solid #fbbf24',
             background: '#fffbeb',
-            fontSize: 13,
+            fontSize: 'var(--kp-font-sm)',
             color: '#92400e',
           }}
         >
@@ -862,10 +865,10 @@ export function ReimaginedAssociateHome({
           style={{
             margin: 'var(--kp-space-sm) var(--kp-gutter) 0',
             padding: '10px 14px',
-            borderRadius: 6,
+            borderRadius: 'var(--radius-md)',
             border: '1px solid #fca5a5',
             background: '#fff1f2',
-            fontSize: 13,
+            fontSize: 'var(--kp-font-sm)',
             color: '#7f1d1d',
             display: 'flex',
             alignItems: 'center',
@@ -900,8 +903,8 @@ export function ReimaginedAssociateHome({
                 gap: 5,
                 padding: '5px 12px',
                 borderRadius: 5,
-                fontSize: 12,
-                fontWeight: 600,
+                fontSize: 'var(--kp-font-xs)',
+                fontWeight: 'var(--kp-weight-semibold)',
                 background: 'var(--kp-navy)',
                 color: '#fff',
                 border: 'none',
@@ -909,7 +912,7 @@ export function ReimaginedAssociateHome({
                 flex: 'none',
               }}
             >
-              <Settings style={{ width: 12, height: 12 }} />
+              <Settings style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)' }} />
               Open settings
             </button>
           )}
@@ -931,8 +934,8 @@ export function ReimaginedAssociateHome({
           <div style={{ marginBottom: 'var(--kp-section-gap)' }}>
             <div
               style={{
-                fontSize: 11,
-                fontWeight: 700,
+                fontSize: 'var(--kp-font-2xs)',
+                fontWeight: 'var(--kp-weight-bold)',
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 color: 'var(--kp-navy)',
@@ -945,7 +948,7 @@ export function ReimaginedAssociateHome({
               data-testid="associate-recent-runs"
               style={{
                 border: '1px solid var(--color-border)',
-                borderRadius: 7,
+                borderRadius: 'var(--radius-lg)',
                 background: '#fff',
                 overflow: 'hidden',
                 padding: '0 14px',
@@ -977,12 +980,12 @@ export function ReimaginedAssociateHome({
             }}
           >
             <Search style={{ width: 32, height: 32, color: 'var(--color-muted-foreground)', strokeWidth: 1.5 }} />
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--kp-navy)' }}>
+            <div style={{ fontSize: 'var(--kp-font-lg)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
               {/* eslint-disable keepance-i18n/no-hardcoded-string */}
               No workflows match
               {/* eslint-enable keepance-i18n/no-hardcoded-string */}
             </div>
-            <div style={{ fontSize: 13, color: 'var(--color-muted-foreground)', maxWidth: 280, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)', maxWidth: 280, lineHeight: 'var(--kp-leading-relaxed)' }}>
               {/* eslint-disable keepance-i18n/no-hardcoded-string */}
               Try a different search term, or clear the filter to see all workflows.
               {/* eslint-enable keepance-i18n/no-hardcoded-string */}
@@ -994,8 +997,8 @@ export function ReimaginedAssociateHome({
                 marginTop: 4,
                 padding: '7px 16px',
                 borderRadius: 5,
-                fontSize: 13,
-                fontWeight: 600,
+                fontSize: 'var(--kp-font-sm)',
+                fontWeight: 'var(--kp-weight-semibold)',
                 background: 'var(--kp-navy)',
                 color: '#fff',
                 border: 'none',

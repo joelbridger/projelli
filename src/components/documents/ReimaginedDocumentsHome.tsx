@@ -175,15 +175,15 @@ function TrustBanner({ onDismiss }: TrustBannerProps) {
             flex: 'none',
           }}
         >
-          <FileText style={{ width: 14, height: 14, color: '#fff', strokeWidth: 2 }} />
+          <FileText style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: '#fff', strokeWidth: 2 }} />
         </div>
         <span
           style={{
-            fontSize: 13,
-            fontWeight: 600,
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: 'var(--kp-weight-semibold)',
             color: 'var(--kp-navy)',
             fontFamily: 'Satoshi, sans-serif',
-            lineHeight: 1.4,
+            lineHeight: 'var(--kp-leading-normal)',
           }}
         >
           {/* eslint-disable keepance-i18n/no-hardcoded-string */}
@@ -209,7 +209,7 @@ function TrustBanner({ onDismiss }: TrustBannerProps) {
           flex: 'none',
         }}
       >
-        <X style={{ width: 14, height: 14, strokeWidth: 2 }} />
+        <X style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
       </button>
     </div>
   );
@@ -286,8 +286,8 @@ function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose
         )}
         <span
           style={{
-            fontSize: 13,
-            fontWeight: isActive ? 600 : 500,
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: isActive ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)',
             color: isActive ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
             fontFamily: 'Satoshi, sans-serif',
             overflow: 'hidden',
@@ -295,6 +295,7 @@ function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose
             whiteSpace: 'nowrap',
             flex: 1,
             minWidth: 0,
+            lineHeight: 'var(--kp-leading-tight)',
           }}
         >
           {label}
@@ -341,7 +342,7 @@ function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose
             transition: 'opacity 0.1s',
           }}
         >
-          <X style={{ width: 11, height: 11, strokeWidth: 2 }} />
+          <X style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
         </button>
       )}
     </div>
@@ -361,8 +362,8 @@ function ViewToggle({ view, onChange }: ViewToggleProps) {
     alignItems: 'center',
     gap: 5,
     padding: '4px 10px',
-    fontSize: 12,
-    fontWeight: 600,
+    fontSize: 'var(--kp-font-xs)',
+    fontWeight: 'var(--kp-weight-semibold)',
     cursor: 'pointer',
     border: 'none',
     borderRadius: 0,
@@ -389,7 +390,7 @@ function ViewToggle({ view, onChange }: ViewToggleProps) {
       <div
         style={{
           display: 'inline-flex',
-          borderRadius: 6,
+          borderRadius: 'var(--radius-md)',
           overflow: 'hidden',
           border: '1px solid var(--color-border)',
         }}
@@ -406,7 +407,7 @@ function ViewToggle({ view, onChange }: ViewToggleProps) {
           }}
           onClick={() => { onChange('tree'); }}
         >
-          <ListTree style={{ width: 13, height: 13, strokeWidth: 2 }} />
+          <ListTree style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
           Tree
         </button>
         <button
@@ -420,7 +421,7 @@ function ViewToggle({ view, onChange }: ViewToggleProps) {
           }}
           onClick={() => { onChange('grid'); }}
         >
-          <LayoutGrid style={{ width: 13, height: 13, strokeWidth: 2 }} />
+          <LayoutGrid style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
           Grid
         </button>
       </div>
@@ -600,7 +601,7 @@ export function ReimaginedDocumentsHome({
 
   function getTabIcon(tab: { name: string; type?: string }) {
     if (tab.type === 'email') {
-      return <FileText style={{ width: 13, height: 13, color: '#0A2540', strokeWidth: 2 }} />;
+      return <FileText style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: '#0A2540', strokeWidth: 2 }} />;
     }
     const ext = tab.name.split('.').pop()?.toLowerCase();
     const { Icon, color } = getFileIcon(ext);
@@ -617,7 +618,7 @@ export function ReimaginedDocumentsHome({
       'text-orange-500': '#f97316',
     };
     const cssColor = colorMap[color] ?? 'var(--color-muted-foreground)';
-    return <Icon style={{ width: 13, height: 13, color: cssColor, strokeWidth: 1.75 }} />;
+    return <Icon style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: cssColor, strokeWidth: 1.75 }} />;
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -629,6 +630,8 @@ export function ReimaginedDocumentsHome({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        flex: 1,
+        minWidth: 0,
         background: 'var(--color-background)',
         fontFamily: 'Satoshi, sans-serif',
         overflow: 'hidden',
@@ -668,8 +671,8 @@ export function ReimaginedDocumentsHome({
           icon={
             <FolderOpen
               style={{
-                width: 13,
-                height: 13,
+                width: 'var(--kp-icon-sm)',
+                height: 'var(--kp-icon-sm)',
                 color:
                   selectedTab === FILES_TAB_ID
                     ? 'var(--kp-navy)'
@@ -760,9 +763,9 @@ export function ReimaginedDocumentsHome({
                         alignItems: 'center',
                         gap: 6,
                         padding: '5px 11px',
-                        borderRadius: 6,
-                        fontSize: 12,
-                        fontWeight: 600,
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: 'var(--kp-font-xs)',
+                        fontWeight: 'var(--kp-weight-semibold)',
                         background: '#fff',
                         color: 'var(--kp-navy)',
                         border: '1px solid var(--color-border)',
@@ -772,7 +775,7 @@ export function ReimaginedDocumentsHome({
                       }}
                       onClick={handleAddFiles}
                     >
-                      <Upload style={{ width: 13, height: 13, strokeWidth: 2 }} />
+                      <Upload style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
                       Add files
                     </button>
                   </div>

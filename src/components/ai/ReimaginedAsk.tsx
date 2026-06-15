@@ -296,7 +296,7 @@ function ScopeToggle({
         gap: 2,
         background: 'var(--color-secondary)',
         border: '1px solid var(--color-border)',
-        borderRadius: 7,
+        borderRadius: 'var(--radius-lg)',
         padding: 2,
       }}
     >
@@ -314,15 +314,15 @@ function ScopeToggle({
               alignItems: 'center',
               gap: 4,
               padding: '3px 9px',
-              borderRadius: 5,
+              borderRadius: 'var(--radius-md)',
               border: 'none',
               background: isActive ? 'var(--color-background)' : 'transparent',
               color: isActive ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-              fontSize: 11.5,
-              fontWeight: isActive ? 600 : 400,
+              fontSize: 'var(--kp-font-2xs)',
+              fontWeight: isActive ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
               cursor: 'pointer',
               transition: 'background 0.12s, color 0.12s',
-              boxShadow: isActive ? '0 1px 3px 0 rgba(10,37,64,0.10)' : 'none',
+              boxShadow: isActive ? 'var(--kp-shadow-1)' : 'none',
               whiteSpace: 'nowrap',
             }}
           >
@@ -352,7 +352,7 @@ function CitationText({
 }) {
   const parts = text.split(/(\{\d+\})/g);
   return (
-    <p style={{ fontSize: 15, lineHeight: 1.72, color: 'var(--color-foreground)', margin: 0 }}>
+    <p style={{ fontSize: 'var(--kp-font-md)', lineHeight: 'var(--kp-leading-relaxed)', color: 'var(--color-foreground)', margin: 0 }}>
       {parts.map((part, i) => {
         const match = part.match(/^\{(\d+)\}$/);
         if (!match) return <span key={i}>{part}</span>;
@@ -417,8 +417,9 @@ function SourcePanel({
       <div
         style={{
           border: '1px solid var(--color-border)',
-          borderRadius: 10,
+          borderRadius: 'var(--radius-lg)',
           background: 'var(--color-background)',
+          boxShadow: 'var(--kp-shadow-1)',
           padding: 'var(--kp-card-pad)',
           display: 'flex',
           flexDirection: 'column',
@@ -427,7 +428,7 @@ function SourcePanel({
           gap: 'var(--kp-space-xs)',
           minHeight: 160,
           color: 'var(--color-muted-foreground)',
-          fontSize: 13,
+          fontSize: 'var(--kp-font-sm)',
           textAlign: 'center',
         }}
       >
@@ -443,8 +444,9 @@ function SourcePanel({
     <div
       style={{
         border: '1px solid var(--color-border)',
-        borderRadius: 10,
+        borderRadius: 'var(--radius-lg)',
         background: 'var(--color-background)',
+        boxShadow: 'var(--kp-shadow-1)',
         overflow: 'hidden',
         position: 'sticky',
         top: 8,
@@ -462,8 +464,8 @@ function SourcePanel({
       >
         <span
           style={{
-            fontSize: 10,
-            fontWeight: 700,
+            fontSize: 'var(--kp-font-2xs)',
+            fontWeight: 'var(--kp-weight-bold)',
             letterSpacing: '0.12em',
             textTransform: 'uppercase',
             color: 'var(--color-muted-foreground)',
@@ -476,8 +478,8 @@ function SourcePanel({
             className="inline-flex items-center gap-1"
             style={{
               marginLeft: 'auto',
-              fontSize: 11,
-              fontWeight: 600,
+              fontSize: 'var(--kp-font-2xs)',
+              fontWeight: 'var(--kp-weight-semibold)',
               color: '#16a34a',
               background: '#f0fdf4',
               border: '1px solid #bbf7d0',
@@ -500,13 +502,13 @@ function SourcePanel({
             style={{ color: 'var(--kp-navy)', marginTop: 1, flex: 'none' }}
           />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-foreground)', lineHeight: 1.35 }}>
+            <div style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--color-foreground)', lineHeight: 'var(--kp-leading-snug)' }}>
               {cite.label}
             </div>
             <div
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 11,
+                fontSize: 'var(--kp-font-2xs)',
                 color: 'var(--color-muted-foreground)',
                 marginTop: 3,
               }}
@@ -523,8 +525,8 @@ function SourcePanel({
             borderLeft: '3px solid var(--kp-accent)',
             background: 'var(--color-secondary)',
             borderRadius: '0 7px 7px 0',
-            fontSize: 13,
-            lineHeight: 1.6,
+            fontSize: 'var(--kp-font-sm)',
+            lineHeight: 'var(--kp-leading-relaxed)',
             color: 'var(--color-foreground)',
           }}
         >
@@ -543,12 +545,12 @@ function SourcePanel({
               justifyContent: 'center',
               gap: 6,
               padding: '7px 12px',
-              fontSize: 12.5,
-              fontWeight: 500,
+              fontSize: 'var(--kp-font-xs)',
+              fontWeight: 'var(--kp-weight-medium)',
               color: 'var(--kp-navy)',
               background: 'transparent',
               border: '1px solid var(--color-border)',
-              borderRadius: 6,
+              borderRadius: 'var(--radius-md)',
               cursor: 'pointer',
             }}
           >
@@ -597,7 +599,7 @@ function SampleBridgeCallout() {
         alignItems: 'flex-start',
         gap: 'var(--kp-space-sm)',
         padding: 'var(--kp-space-sm) var(--kp-space-md)',
-        borderRadius: 9,
+        borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--color-border)',
         background: 'var(--color-secondary)',
         marginTop: 'var(--kp-space-xs)',
@@ -606,9 +608,9 @@ function SampleBridgeCallout() {
       <div style={{ flex: 1, minWidth: 0 }}>
         <p
           style={{
-            fontSize: 13,
+            fontSize: 'var(--kp-font-sm)',
             color: 'var(--color-foreground)',
-            lineHeight: 1.55,
+            lineHeight: 'var(--kp-leading-normal)',
             margin: 0,
           }}
         >
@@ -627,12 +629,12 @@ function SampleBridgeCallout() {
             alignItems: 'center',
             gap: 5,
             padding: '5px 11px',
-            borderRadius: 6,
+            borderRadius: 'var(--radius-md)',
             border: '1px solid var(--kp-navy)',
             background: 'var(--kp-navy)',
             color: '#fff',
-            fontSize: 12,
-            fontWeight: 600,
+            fontSize: 'var(--kp-font-xs)',
+            fontWeight: 'var(--kp-weight-semibold)',
             cursor: 'pointer',
             whiteSpace: 'nowrap',
           }}
@@ -652,7 +654,7 @@ function SampleBridgeCallout() {
             justifyContent: 'center',
             width: 24,
             height: 24,
-            borderRadius: 5,
+            borderRadius: 'var(--radius-md)',
             border: '1px solid var(--color-border)',
             background: 'var(--color-background)',
             color: 'var(--color-muted-foreground)',
@@ -1159,6 +1161,7 @@ export function ReimaginedAsk({
     <div
       style={{
         flex: 1,
+        minWidth: 0,
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',
@@ -1195,12 +1198,12 @@ export function ReimaginedAsk({
                     alignItems: 'center',
                     gap: 5,
                     padding: '6px 11px',
-                    borderRadius: 7,
+                    borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--color-border)',
                     background: 'var(--color-background)',
                     color: 'var(--kp-navy)',
-                    fontSize: 12,
-                    fontWeight: 600,
+                    fontSize: 'var(--kp-font-xs)',
+                    fontWeight: 'var(--kp-weight-semibold)',
                     cursor: 'pointer',
                     flexShrink: 0,
                   }}
@@ -1243,8 +1246,8 @@ export function ReimaginedAsk({
                 border: `1px solid ${sid === chatId ? 'var(--kp-navy)' : 'var(--color-border)'}`,
                 background: sid === chatId ? 'var(--kp-navy)' : 'var(--color-background)',
                 color: sid === chatId ? '#fff' : 'var(--color-foreground)',
-                fontSize: 11.5,
-                fontWeight: 500,
+                fontSize: 'var(--kp-font-2xs)',
+                fontWeight: 'var(--kp-weight-medium)',
                 cursor: 'pointer',
                 flexShrink: 0,
                 maxWidth: 260,
@@ -1256,7 +1259,7 @@ export function ReimaginedAsk({
                   {label.length > 48 ? `${label.slice(0, 48)}…` : label}
                 </span>
                 {dateLabel && (
-                  <span style={{ fontSize: 10, opacity: 0.65, whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: 'var(--kp-font-2xs)', opacity: 0.65, whiteSpace: 'nowrap' }}>
                     {dateLabel}
                   </span>
                 )}
@@ -1304,10 +1307,10 @@ export function ReimaginedAsk({
             >
               {/* eslint-disable keepance-i18n/no-hardcoded-string */}
               <Sparkles size={36} strokeWidth={1.4} style={{ color: 'var(--kp-navy)', opacity: 0.22, marginBottom: 2 }} />
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--kp-navy)', letterSpacing: '-0.01em' }}>
+              <div style={{ fontSize: 'var(--kp-font-lg)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)', lineHeight: 'var(--kp-leading-tight)', letterSpacing: '-0.01em' }}>
                 What do you want to find?
               </div>
-              <div style={{ fontSize: 12.5, maxWidth: 260, lineHeight: 1.6, color: 'var(--color-muted-foreground)', opacity: 0.85 }}>
+              <div style={{ fontSize: 'var(--kp-font-xs)', maxWidth: 260, lineHeight: 'var(--kp-leading-relaxed)', color: 'var(--color-muted-foreground)', opacity: 0.85 }}>
                 {activeMatter?.id === SAMPLE_MATTER_ID
                   ? 'This is a sample matter. Click a question below and see a cited answer. Click any citation to read the exact passage.'
                   : 'Every answer cites the document and locator. Click any chip to read the exact passage.'}
@@ -1340,8 +1343,8 @@ export function ReimaginedAsk({
                       border: '1.5px solid var(--kp-navy)',
                       background: 'transparent',
                       color: 'var(--kp-navy)',
-                      fontSize: 12,
-                      fontWeight: 500,
+                      fontSize: 'var(--kp-font-xs)',
+                      fontWeight: 'var(--kp-weight-medium)',
                       cursor: 'pointer',
                       opacity: 0.7,
                       transition: 'opacity 0.12s, background 0.12s',
@@ -1367,8 +1370,8 @@ export function ReimaginedAsk({
                 >
                   <div
                     style={{
-                      fontSize: 10,
-                      fontWeight: 700,
+                      fontSize: 'var(--kp-font-2xs)',
+                      fontWeight: 'var(--kp-weight-bold)',
                       letterSpacing: '0.11em',
                       textTransform: 'uppercase',
                       color: 'var(--color-muted-foreground)',
@@ -1390,12 +1393,12 @@ export function ReimaginedAsk({
                           alignItems: 'center',
                           gap: 8,
                           padding: '7px 11px',
-                          borderRadius: 7,
+                          borderRadius: 'var(--radius-md)',
                           border: '1px solid var(--color-border)',
                           background: 'var(--color-background)',
                           color: 'var(--color-foreground)',
-                          fontSize: 12.5,
-                          fontWeight: 400,
+                          fontSize: 'var(--kp-font-xs)',
+                          fontWeight: 'var(--kp-weight-regular)',
                           cursor: 'pointer',
                           textAlign: 'left',
                           width: '100%',
@@ -1410,7 +1413,7 @@ export function ReimaginedAsk({
                             {label.length > 60 ? `${label.slice(0, 60)}…` : label}
                           </span>
                           {dateLabel && (
-                            <span style={{ fontSize: 11, color: 'var(--color-muted-foreground)', marginTop: 1 }}>
+                            <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', marginTop: 1 }}>
                               {dateLabel}
                             </span>
                           )}
@@ -1475,10 +1478,10 @@ export function ReimaginedAsk({
                 gap: 8,
                 alignItems: 'flex-start',
                 padding: '9px 12px',
-                borderRadius: 7,
+                borderRadius: 'var(--radius-md)',
                 background: 'var(--kp-danger-bg)',
                 border: '1px solid #e5b5b0',
-                fontSize: 12.5,
+                fontSize: 'var(--kp-font-xs)',
                 color: 'var(--kp-danger)',
               }}
             >
@@ -1513,7 +1516,7 @@ export function ReimaginedAsk({
             gap: 8,
             alignItems: 'center',
             padding: 'var(--kp-space-xs) var(--kp-gutter)',
-            fontSize: 12.5,
+            fontSize: 'var(--kp-font-xs)',
             color: 'var(--kp-direct)',
             background: 'var(--kp-direct-bg)',
             borderTop: '1px solid var(--kp-direct-line)',
@@ -1538,12 +1541,12 @@ export function ReimaginedAsk({
               alignItems: 'center',
               gap: 5,
               padding: '4px 11px',
-              borderRadius: 6,
+              borderRadius: 'var(--radius-md)',
               border: '1px solid var(--kp-direct-line)',
               background: 'var(--color-background)',
               color: 'var(--kp-direct)',
-              fontSize: 12,
-              fontWeight: 600,
+              fontSize: 'var(--kp-font-xs)',
+              fontWeight: 'var(--kp-weight-semibold)',
               cursor: 'pointer',
               flexShrink: 0,
             }}
@@ -1577,9 +1580,9 @@ export function ReimaginedAsk({
             padding: '4px 6px 4px 13px',
             /* Fix #7: visible focus ring on the wrapper when the input is focused. */
             border: composerFocused ? '1.5px solid var(--kp-navy)' : '1.5px solid var(--color-border)',
-            borderRadius: 9,
+            borderRadius: 'var(--radius-lg)',
             background: 'var(--color-background)',
-            boxShadow: '0 1px 4px 0 rgba(10,37,64,0.06)',
+            boxShadow: 'var(--kp-shadow-1)',
             transition: 'border-color 0.15s',
           }}
         >
@@ -1612,7 +1615,7 @@ export function ReimaginedAsk({
               border: 0,
               outline: 'none',
               background: 'transparent',
-              fontSize: 13.5,
+              fontSize: 'var(--kp-font-sm)',
               color: 'var(--color-foreground)',
               padding: '9px 0',
               fontFamily: 'var(--font-sans)',
@@ -1631,12 +1634,12 @@ export function ReimaginedAsk({
                 alignItems: 'center',
                 gap: 4,
                 padding: '5px 9px',
-                borderRadius: 6,
+                borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--color-border)',
                 background: 'var(--color-background)',
                 color: 'var(--kp-navy)',
-                fontSize: 11.5,
-                fontWeight: 600,
+                fontSize: 'var(--kp-font-2xs)',
+                fontWeight: 'var(--kp-weight-semibold)',
                 cursor: 'pointer',
               }}
             >
@@ -1656,12 +1659,12 @@ export function ReimaginedAsk({
               alignItems: 'center',
               gap: 5,
               padding: '7px 13px',
-              borderRadius: 7,
+              borderRadius: 'var(--radius-md)',
               border: 0,
               background: 'var(--kp-navy)',
               color: '#fff',
-              fontSize: 12.5,
-              fontWeight: 600,
+              fontSize: 'var(--kp-font-xs)',
+              fontWeight: 'var(--kp-weight-semibold)',
               cursor: isBusy || !question.trim() ? 'not-allowed' : 'pointer',
               opacity: isBusy || !question.trim() ? 0.55 : 1,
               transition: 'opacity 0.15s',
@@ -1733,10 +1736,10 @@ function TurnBlock({
         />
         <span
           style={{
-            fontSize: 13.5,
+            fontSize: 'var(--kp-font-sm)',
             color: 'var(--color-muted-foreground)',
             fontStyle: 'italic',
-            lineHeight: 1.55,
+            lineHeight: 'var(--kp-leading-normal)',
           }}
         >
           {turn.question}
@@ -1753,13 +1756,13 @@ function TurnBlock({
         }}
       >
         {isStreaming && !turn.answer ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-muted-foreground)', fontSize: 13 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
             <Loader2 size={14} strokeWidth={2} className="animate-spin" />
             <span>Answering…</span>
           </div>
         ) : isPersisted || turn.citations.length === 0 ? (
           // Persisted turns or no-citation turns: plain text
-          <p style={{ fontSize: 15, lineHeight: 1.72, color: 'var(--color-foreground)', margin: 0 }}>
+          <p style={{ fontSize: 'var(--kp-font-md)', lineHeight: 'var(--kp-leading-relaxed)', color: 'var(--color-foreground)', margin: 0 }}>
             {turn.answer}
           </p>
         ) : (
@@ -1778,13 +1781,13 @@ function TurnBlock({
           <div
             style={{
               padding: '9px 12px',
-              borderRadius: 7,
+              borderRadius: 'var(--radius-md)',
               background: 'var(--kp-local-bg)',
               border: '1px solid var(--kp-local-line)',
               display: 'flex',
               gap: 8,
               alignItems: 'center',
-              fontSize: 11.5,
+              fontSize: 'var(--kp-font-2xs)',
               color: 'var(--kp-local)',
             }}
           >
@@ -1798,7 +1801,7 @@ function TurnBlock({
         {/* No citations note — only shows when there are genuinely no citations.
             A2: mutually exclusive with the attestation above. */}
         {!isStreaming && turn.citations.length === 0 && turn.answer && (
-          <div style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}>
+          <div style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
             {/* eslint-disable keepance-i18n/no-hardcoded-string */}
             No indexed sources were cited. Index your files to get click-to-verify answers.
             {/* eslint-enable keepance-i18n/no-hardcoded-string */}
@@ -1817,12 +1820,12 @@ function TurnBlock({
               alignItems: 'center',
               gap: 5,
               padding: '5px 11px',
-              borderRadius: 6,
+              borderRadius: 'var(--radius-md)',
               border: '1px solid var(--color-border)',
               background: 'var(--color-background)',
               color: 'var(--kp-navy)',
-              fontSize: 12,
-              fontWeight: 500,
+              fontSize: 'var(--kp-font-xs)',
+              fontWeight: 'var(--kp-weight-medium)',
               cursor: isSaving ? 'not-allowed' : 'pointer',
               opacity: isSaving ? 0.6 : 1,
             }}

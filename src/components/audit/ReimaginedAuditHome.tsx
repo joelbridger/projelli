@@ -368,12 +368,12 @@ function DetailPanel({ entry, onClose }: DetailPanelProps) {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {renderActionIcon(ACTION_ICONS, entry.action, { width: 18, height: 18, color: iconColor, strokeWidth: 1.75 })}
+            {renderActionIcon(ACTION_ICONS, entry.action, { width: 'var(--kp-icon-lg)', height: 'var(--kp-icon-lg)', color: iconColor, strokeWidth: 1.75 })}
             <div>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-muted-foreground)', marginBottom: 2 }}>
+              <div style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-bold)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-muted-foreground)', marginBottom: 2 }}>
                 Entry detail
               </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--kp-navy)' }}>
+              <div style={{ fontSize: 'var(--kp-font-md)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)', lineHeight: 'var(--kp-leading-tight)' }}>
                 {lookupLabel(ACTION_LABELS, entry.action)}
               </div>
             </div>
@@ -386,16 +386,16 @@ function DetailPanel({ entry, onClose }: DetailPanelProps) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              width: 28,
-              height: 28,
-              borderRadius: 6,
+              width: 'var(--kp-control-sm)',
+              height: 'var(--kp-control-sm)',
+              borderRadius: 'var(--radius-md)',
               border: '1px solid var(--color-border)',
               background: 'transparent',
               cursor: 'pointer',
               color: 'var(--color-muted-foreground)',
             }}
           >
-            <X style={{ width: 14, height: 14 }} />
+            <X style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)' }} />
           </button>
         </div>
 
@@ -403,10 +403,10 @@ function DetailPanel({ entry, onClose }: DetailPanelProps) {
         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Description */}
           <div>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-muted-foreground)', marginBottom: 6 }}>
+            <div style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-muted-foreground)', marginBottom: 6 }}>
               Description
             </div>
-            <div style={{ fontSize: 14, color: 'var(--kp-navy)', lineHeight: 1.5 }}>
+            <div style={{ fontSize: 'var(--kp-font-md)', color: 'var(--kp-navy)', lineHeight: 'var(--kp-leading-normal)' }}>
               {entry.description}
             </div>
           </div>
@@ -445,7 +445,7 @@ function DetailPanel({ entry, onClose }: DetailPanelProps) {
             const stuid = toSafeString(tuid);
             const soid = toSafeString(oid);
             return (
-              <div style={{ borderRadius: 6, border: '1px solid var(--color-border)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {sfmid && <GovRow label="Firm matter" value={sfmid} />}
                 {smid && smid !== sfmid && <GovRow label="Local matter" value={smid} />}
                 {stuid && <GovRow label="Target user" value={stuid} />}
@@ -485,12 +485,12 @@ function MetaField({ label, value, mono = false, truncate = false }: MetaFieldPr
   if (!value) return null;
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-muted-foreground)', marginBottom: 3 }}>
+      <div style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-muted-foreground)', marginBottom: 3 }}>
         {label}
       </div>
       <div
         style={{
-          fontSize: 12,
+          fontSize: 'var(--kp-font-xs)',
           color: 'var(--kp-navy)',
           fontFamily: mono ? 'ui-monospace, SFMono-Regular, monospace' : undefined,
           wordBreak: truncate ? 'break-all' : undefined,
@@ -510,8 +510,8 @@ interface GovRowProps { label: string; value: string }
 function GovRow({ label, value }: GovRowProps) {
   return (
     <div style={{ display: 'flex', gap: 8 }}>
-      <span style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)', width: 100, flexShrink: 0 }}>{label}</span>
-      <span style={{ fontSize: 11, fontFamily: 'ui-monospace, SFMono-Regular, monospace', color: 'var(--kp-navy)', wordBreak: 'break-all' }}>{value}</span>
+      <span style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)', width: 100, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 'var(--kp-font-2xs)', fontFamily: 'ui-monospace, SFMono-Regular, monospace', color: 'var(--kp-navy)', wordBreak: 'break-all' }}>{value}</span>
     </div>
   );
 }
@@ -520,18 +520,18 @@ interface JsonBlockProps { label: string; value: Record<string, unknown> }
 function JsonBlock({ label, value }: JsonBlockProps) {
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-muted-foreground)', marginBottom: 6 }}>
+      <div style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-muted-foreground)', marginBottom: 6 }}>
         {label}
       </div>
       <pre
         style={{
           margin: 0,
           padding: '10px 12px',
-          borderRadius: 6,
+          borderRadius: 'var(--radius-md)',
           background: 'rgba(10,37,64,0.03)',
           border: '1px solid var(--color-border)',
-          fontSize: 11,
-          lineHeight: 1.55,
+          fontSize: 'var(--kp-font-2xs)',
+          lineHeight: 'var(--kp-leading-snug)',
           fontFamily: 'ui-monospace, SFMono-Regular, monospace',
           color: '#334155',
           overflowX: 'auto',
@@ -586,7 +586,7 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
       {/* Timestamp */}
       <div
         style={{
-          fontSize: 12,
+          fontSize: 'var(--kp-font-xs)',
           color: 'var(--color-muted-foreground)',
           fontVariantNumeric: 'tabular-nums',
           fontFamily: 'ui-monospace, SFMono-Regular, monospace',
@@ -607,17 +607,17 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
               justifyContent: 'center',
               width: 20,
               height: 20,
-              borderRadius: 5,
+              borderRadius: 'var(--radius-sm)',
               background: iconBg,
               flexShrink: 0,
             }}
           >
-            {renderActionIcon(ACTION_ICONS, entry.action, { width: 11, height: 11, color: iconColor, strokeWidth: 2 })}
+            {renderActionIcon(ACTION_ICONS, entry.action, { width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', color: iconColor, strokeWidth: 2 })}
           </span>
           <span
             style={{
-              fontSize: 12,
-              fontWeight: 600,
+              fontSize: 'var(--kp-font-xs)',
+              fontWeight: 'var(--kp-weight-semibold)',
               color: iconColor,
               whiteSpace: 'nowrap',
             }}
@@ -627,9 +627,9 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
           {entry.model !== undefined && entry.model !== '' && (
             <span
               style={{
-                fontSize: 11,
+                fontSize: 'var(--kp-font-2xs)',
                 padding: '1px 6px',
-                borderRadius: 4,
+                borderRadius: 'var(--radius-sm)',
                 background: 'rgba(10,37,64,0.06)',
                 color: 'var(--color-muted-foreground)',
                 whiteSpace: 'nowrap',
@@ -642,9 +642,9 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
         </div>
         <div
           style={{
-            fontSize: 13,
+            fontSize: 'var(--kp-font-sm)',
             color: '#1e293b',
-            lineHeight: 1.35,
+            lineHeight: 'var(--kp-leading-snug)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -657,7 +657,7 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
       {/* Actor / user decision */}
       <div
         style={{
-          fontSize: 12,
+          fontSize: 'var(--kp-font-xs)',
           color: 'var(--color-muted-foreground)',
           paddingRight: 12,
           overflow: 'hidden',
@@ -666,10 +666,10 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
         }}
       >
         {entry.userDecision === 'approved' && (
-          <span style={{ color: '#16a34a', fontWeight: 600 }}>Approved</span>
+          <span style={{ color: '#16a34a', fontWeight: 'var(--kp-weight-semibold)' }}>Approved</span>
         )}
         {entry.userDecision === 'rejected' && (
-          <span style={{ color: '#dc2626', fontWeight: 600 }}>Rejected</span>
+          <span style={{ color: '#dc2626', fontWeight: 'var(--kp-weight-semibold)' }}>Rejected</span>
         )}
         {entry.userDecision === 'auto' && (
           <span style={{ color: 'var(--color-muted-foreground)' }}>Auto</span>
@@ -688,9 +688,9 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
               display: 'inline-flex',
               alignItems: 'center',
               padding: '2px 8px',
-              borderRadius: 4,
-              fontSize: 11,
-              fontWeight: 600,
+              borderRadius: 'var(--radius-sm)',
+              fontSize: 'var(--kp-font-2xs)',
+              fontWeight: 'var(--kp-weight-semibold)',
               letterSpacing: '0.02em',
               ...scopeStyle(scopeLabel),
             }}
@@ -707,8 +707,8 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
 
 function TableHeader() {
   const col: React.CSSProperties = {
-    fontSize: 10,
-    fontWeight: 700,
+    fontSize: 'var(--kp-font-2xs)',
+    fontWeight: 'var(--kp-weight-bold)',
     letterSpacing: '0.07em',
     textTransform: 'uppercase',
     color: 'var(--color-muted-foreground)',
@@ -760,20 +760,21 @@ function AuditEmptyState() {
       {/* eslint-disable keepance-i18n/no-hardcoded-string */}
       <div
         style={{
-          fontSize: 15,
-          fontWeight: 700,
+          fontSize: 'var(--kp-font-lg)',
+          fontWeight: 'var(--kp-weight-bold)',
           color: 'var(--kp-navy)',
           fontFamily: 'Satoshi, sans-serif',
+          lineHeight: 'var(--kp-leading-tight)',
         }}
       >
         No activity logged yet
       </div>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 'var(--kp-font-sm)',
           color: 'var(--color-muted-foreground)',
           maxWidth: 360,
-          lineHeight: 1.55,
+          lineHeight: 'var(--kp-leading-relaxed)',
         }}
       >
         Every AI request, file operation, workflow run, and governance action
@@ -817,20 +818,21 @@ function AuditNoMatchState({ onClearFilters }: AuditNoMatchStateProps) {
       {/* eslint-disable keepance-i18n/no-hardcoded-string */}
       <div
         style={{
-          fontSize: 15,
-          fontWeight: 700,
+          fontSize: 'var(--kp-font-lg)',
+          fontWeight: 'var(--kp-weight-bold)',
           color: 'var(--kp-navy)',
           fontFamily: 'Satoshi, sans-serif',
+          lineHeight: 'var(--kp-leading-tight)',
         }}
       >
         No activity matches your filters.
       </div>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 'var(--kp-font-sm)',
           color: 'var(--color-muted-foreground)',
           maxWidth: 360,
-          lineHeight: 1.55,
+          lineHeight: 'var(--kp-leading-relaxed)',
         }}
       >
         Your search or filters did not match any logged activity. Try broadening
@@ -844,11 +846,11 @@ function AuditNoMatchState({ onClearFilters }: AuditNoMatchStateProps) {
           display: 'inline-flex',
           alignItems: 'center',
           gap: 6,
-          height: 32,
+          height: 'var(--kp-control-md)',
           padding: '0 14px',
-          borderRadius: 6,
-          fontSize: 13,
-          fontWeight: 600,
+          borderRadius: 'var(--radius-md)',
+          fontSize: 'var(--kp-font-sm)',
+          fontWeight: 'var(--kp-weight-semibold)',
           cursor: 'pointer',
           border: '1px solid rgba(10,37,64,0.2)',
           background: 'transparent',
@@ -856,7 +858,7 @@ function AuditNoMatchState({ onClearFilters }: AuditNoMatchStateProps) {
           marginTop: 4,
         }}
       >
-        <X style={{ width: 12, height: 12 }} />
+        <X style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)' }} />
         Clear filters
       </button>
       {/* eslint-enable keepance-i18n/no-hardcoded-string */}
@@ -902,19 +904,19 @@ function FilterPanel({
   const categories: CategoryFilter[] = ['all', 'file', 'ai', 'workflow', 'privilege', 'firm', 'system'];
 
   const inputStyle: React.CSSProperties = {
-    height: 28,
+    height: 'var(--kp-control-sm)',
     padding: '0 8px',
-    borderRadius: 5,
+    borderRadius: 'var(--radius-md)',
     border: '1px solid var(--color-border)',
     background: '#fff',
-    fontSize: 12,
+    fontSize: 'var(--kp-font-xs)',
     color: 'var(--kp-navy)',
     outline: 'none',
   };
 
   const labelStyle: React.CSSProperties = {
-    fontSize: 11,
-    fontWeight: 600,
+    fontSize: 'var(--kp-font-2xs)',
+    fontWeight: 'var(--kp-weight-semibold)',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     color: 'var(--color-muted-foreground)',
@@ -930,6 +932,7 @@ function FilterPanel({
         display: 'flex',
         flexDirection: 'column',
         gap: 'var(--kp-space-sm)',
+        boxShadow: 'var(--kp-shadow-2)',
       }}
     >
       {/* Category chips */}
@@ -952,9 +955,9 @@ function FilterPanel({
                   display: 'inline-flex',
                   alignItems: 'center',
                   padding: '3px 10px',
-                  borderRadius: 5,
-                  fontSize: 12,
-                  fontWeight: active ? 700 : 500,
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--kp-font-xs)',
+                  fontWeight: active ? 'var(--kp-weight-bold)' : 'var(--kp-weight-medium)',
                   color: active ? color : 'var(--color-muted-foreground)',
                   background: active ? bg : 'transparent',
                   border: `1px solid ${active ? color + '44' : 'var(--color-border)'}`,
@@ -1025,17 +1028,17 @@ function FilterPanel({
               display: 'inline-flex',
               alignItems: 'center',
               gap: 4,
-              height: 28,
+              height: 'var(--kp-control-sm)',
               padding: '0 10px',
-              borderRadius: 5,
+              borderRadius: 'var(--radius-md)',
               border: '1px solid var(--color-border)',
               background: 'transparent',
-              fontSize: 12,
+              fontSize: 'var(--kp-font-xs)',
               color: 'var(--color-muted-foreground)',
               cursor: 'pointer',
             }}
           >
-            <X style={{ width: 12, height: 12 }} />
+            <X style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)' }} />
             Reset
           </button>
         )}
@@ -1064,9 +1067,9 @@ function FilterPanel({
                       display: 'inline-flex',
                       alignItems: 'center',
                       padding: '2px 8px',
-                      borderRadius: 4,
-                      fontSize: 11,
-                      fontWeight: active ? 700 : 400,
+                      borderRadius: 'var(--radius-sm)',
+                      fontSize: 'var(--kp-font-2xs)',
+                      fontWeight: active ? 'var(--kp-weight-bold)' : 'var(--kp-weight-regular)',
                       color: active ? chipColor : 'var(--color-muted-foreground)',
                       background: active ? chipBg : 'transparent',
                       border: `1px solid ${active ? chipColor + '44' : 'var(--color-border)'}`,
@@ -1230,11 +1233,11 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    height: 32,
+    height: 'var(--kp-control-md)',
     padding: '0 12px',
-    borderRadius: 6,
-    fontSize: 12,
-    fontWeight: 600,
+    borderRadius: 'var(--radius-md)',
+    fontSize: 'var(--kp-font-xs)',
+    fontWeight: 'var(--kp-weight-semibold)',
     cursor: 'pointer',
     border: '1px solid var(--color-border)',
     background: 'transparent',
@@ -1249,6 +1252,8 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        flex: 1,
+        minWidth: 0,
         background: 'var(--color-background)',
         fontFamily: 'Satoshi, sans-serif',
         overflow: 'hidden',
@@ -1282,7 +1287,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                   title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as CSV'}
                   aria-label="Export audit log as CSV"
                 >
-                  <Download style={{ width: 13, height: 13 }} />
+                  <Download style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)' }} />
                   CSV
                 </button>
                 <button
@@ -1297,7 +1302,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                   title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as JSON'}
                   aria-label="Export audit log as JSON"
                 >
-                  <Download style={{ width: 13, height: 13 }} />
+                  <Download style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)' }} />
                   JSON
                 </button>
               </div>
@@ -1305,9 +1310,9 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                 <div
                   data-testid="audit-export-filter-note"
                   style={{
-                    fontSize: 11,
+                    fontSize: 'var(--kp-font-2xs)',
                     color: 'var(--color-muted-foreground)',
-                    lineHeight: 1.4,
+                    lineHeight: 'var(--kp-leading-normal)',
                     textAlign: 'right',
                   }}
                 >
@@ -1323,7 +1328,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                       cursor: 'pointer',
                       fontSize: 'inherit',
                       color: 'var(--kp-navy)',
-                      fontWeight: 600,
+                      fontWeight: 'var(--kp-weight-semibold)',
                       textDecoration: 'underline',
                       textDecorationStyle: 'dotted',
                     }}
@@ -1343,7 +1348,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
         <div
           style={{
             padding: 'var(--kp-space-xs) var(--kp-gutter)',
-            fontSize: 11,
+            fontSize: 'var(--kp-font-2xs)',
             color: 'var(--color-muted-foreground)',
             background: 'rgba(100,116,139,0.05)',
             borderBottom: '1px solid var(--color-border)',
@@ -1375,8 +1380,8 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
               left: 10,
               top: '50%',
               transform: 'translateY(-50%)',
-              width: 14,
-              height: 14,
+              width: 'var(--kp-icon-sm)',
+              height: 'var(--kp-icon-sm)',
               color: 'var(--color-muted-foreground)',
             }}
           />
@@ -1388,13 +1393,13 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
             onChange={(e) => { handleSearchChange(e.target.value); }}
             style={{
               width: '100%',
-              height: 32,
+              height: 'var(--kp-control-md)',
               paddingLeft: 32,
               paddingRight: 10,
-              borderRadius: 6,
+              borderRadius: 'var(--radius-md)',
               border: '1px solid var(--color-border)',
               background: '#fff',
-              fontSize: 13,
+              fontSize: 'var(--kp-font-sm)',
               color: 'var(--kp-navy)',
               outline: 'none',
             }}
@@ -1416,7 +1421,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
           aria-expanded={showFilters}
           aria-label={activeFilterCount > 0 ? `Filters (${String(activeFilterCount)} active)` : 'Filters'}
         >
-          <Filter style={{ width: 13, height: 13 }} />
+          <Filter style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)' }} />
           Filters
           {activeFilterCount > 0 && (
             <span
@@ -1429,8 +1434,8 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                 borderRadius: '50%',
                 background: 'var(--kp-navy)',
                 color: '#fff',
-                fontSize: 10,
-                fontWeight: 700,
+                fontSize: 'var(--kp-font-2xs)',
+                fontWeight: 'var(--kp-weight-bold)',
               }}
             >
               {String(activeFilterCount)}
@@ -1438,8 +1443,8 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
           )}
           <ChevronDown
             style={{
-              width: 12,
-              height: 12,
+              width: 'var(--kp-icon-xs)',
+              height: 'var(--kp-icon-xs)',
               transform: showFilters ? 'rotate(180deg)' : 'rotate(0)',
               transition: 'transform 0.15s',
             }}
@@ -1448,7 +1453,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
 
         {/* Result count when filtered */}
         {(searchQuery || activeFilterCount > 0) && (
-          <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', whiteSpace: 'nowrap' }}>
             {String(filteredEntries.length)} of {String(entries.length)} shown
           </span>
         )}
@@ -1486,7 +1491,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
           style={{
             margin: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
             border: '1px solid var(--color-border)',
-            borderRadius: 8,
+            borderRadius: 'var(--radius-lg)',
             background: '#fff',
             overflow: 'hidden',
           }}
@@ -1531,7 +1536,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                   >
                     Load {String(Math.min(PAGE_SIZE, filteredEntries.length - visibleCount))} more
                   </button>
-                  <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--color-muted-foreground)' }}>
+                  <span style={{ marginLeft: 12, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
                     showing {String(visibleEntries.length)} of {String(filteredEntries.length)}
                   </span>
                 </div>

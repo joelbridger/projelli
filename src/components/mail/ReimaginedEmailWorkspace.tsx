@@ -173,8 +173,8 @@ function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivilegeProp
           gap: 4,
           padding: '3px 7px',
           borderRadius: 4,
-          fontSize: 11,
-          fontWeight: isPrivileged(privilege) ? 600 : 400,
+          fontSize: 'var(--kp-font-2xs)',
+          fontWeight: isPrivileged(privilege) ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
           background: isPrivileged(privilege) ? 'rgba(10,37,64,0.08)' : 'transparent',
           color: isPrivileged(privilege) ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
           border: isPrivileged(privilege)
@@ -183,9 +183,9 @@ function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivilegeProp
           cursor: 'pointer',
         }}
       >
-        <ShieldCheck style={{ width: 11, height: 11, strokeWidth: 2 }} />
+        <ShieldCheck style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
         {isPrivileged(privilege) ? privilegeLabels[privilege] : 'Privilege'}
-        <ChevronDown style={{ width: 10, height: 10, strokeWidth: 2 }} />
+        <ChevronDown style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
       </button>
 
       {open && (
@@ -197,8 +197,8 @@ function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivilegeProp
             zIndex: 50,
             background: '#fff',
             border: '1px solid var(--color-border)',
-            borderRadius: 6,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.10)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: 'var(--kp-shadow-2)',
             minWidth: 170,
             overflow: 'hidden',
           }}
@@ -219,8 +219,8 @@ function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivilegeProp
                 justifyContent: 'space-between',
                 width: '100%',
                 padding: `var(--kp-space-xs) var(--kp-space-sm)`,
-                fontSize: 12,
-                fontWeight: privilege === status ? 600 : 400,
+                fontSize: 'var(--kp-font-xs)',
+                fontWeight: privilege === status ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
                 color: 'var(--color-foreground)',
                 background: privilege === status ? 'rgba(10,37,64,0.04)' : 'transparent',
                 border: 'none',
@@ -230,7 +230,7 @@ function MailRowPrivilege({ sourceId, open, onOpenChange }: MailRowPrivilegeProp
             >
               {privilegeLabels[status]}
               {privilege === status && (
-                <Check style={{ width: 12, height: 12, color: 'var(--kp-navy)', strokeWidth: 2.5 }} />
+                <Check style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', color: 'var(--kp-navy)', strokeWidth: 2.5 }} />
               )}
             </button>
           ))}
@@ -286,8 +286,8 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
         zIndex: 50,
         background: '#fff',
         border: '1px solid var(--color-border)',
-        borderRadius: 6,
-        boxShadow: '0 4px 12px rgba(0,0,0,0.10)',
+        borderRadius: 'var(--radius-md)',
+        boxShadow: 'var(--kp-shadow-2)',
         minWidth: 200,
         maxHeight: 300,
         display: 'flex',
@@ -308,7 +308,7 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
             border: '1px solid var(--color-border)',
             borderRadius: 4,
             padding: '4px 7px',
-            fontSize: 11,
+            fontSize: 'var(--kp-font-2xs)',
             color: 'var(--color-foreground)',
             background: '#fff',
             fontFamily: 'var(--font-sans)',
@@ -322,7 +322,7 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
           <div
             style={{
               padding: `var(--kp-space-xs) var(--kp-space-sm)`,
-              fontSize: 11,
+              fontSize: 'var(--kp-font-2xs)',
               color: '#b45309',
               borderBottom: '1px solid var(--color-border)',
               display: 'flex',
@@ -330,7 +330,7 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
               gap: 4,
             }}
           >
-            <AlertTriangle style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
+            <AlertTriangle style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, flex: 'none' }} />
             {fileError}
           </div>
         )}
@@ -338,7 +338,7 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
           <div
             style={{
               padding: `var(--kp-space-sm) var(--kp-space-sm)`,
-              fontSize: 12,
+              fontSize: 'var(--kp-font-xs)',
               color: 'var(--color-muted-foreground)',
             }}
           >
@@ -374,7 +374,7 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
               gap: 'var(--kp-space-xs)',
               width: '100%',
               padding: `var(--kp-space-xs) var(--kp-space-sm)`,
-              fontSize: 12,
+              fontSize: 'var(--kp-font-xs)',
               color: 'var(--color-foreground)',
               background: 'transparent',
               border: 'none',
@@ -383,9 +383,9 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
             }}
           >
             {filing === m.id ? (
-              <Loader2 style={{ width: 11, height: 11, strokeWidth: 2, animation: 'spin 1s linear infinite', flex: 'none' }} />
+              <Loader2 style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, animation: 'spin 1s linear infinite', flex: 'none' }} />
             ) : (
-              <FolderInput style={{ width: 11, height: 11, strokeWidth: 1.75, flex: 'none', color: 'var(--color-muted-foreground)' }} />
+              <FolderInput style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 1.75, flex: 'none', color: 'var(--color-muted-foreground)' }} />
             )}
             {matterLabel(m)}
           </button>
@@ -439,8 +439,8 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
         zIndex: 60,
         background: '#fff',
         border: '1px solid var(--color-border)',
-        borderRadius: 6,
-        boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+        borderRadius: 'var(--radius-md)',
+        boxShadow: 'var(--kp-shadow-2)',
         minWidth: 210,
         maxHeight: 300,
         display: 'flex',
@@ -461,7 +461,7 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
             border: '1px solid var(--color-border)',
             borderRadius: 4,
             padding: '4px 7px',
-            fontSize: 11,
+            fontSize: 'var(--kp-font-2xs)',
             color: 'var(--color-foreground)',
             background: '#fff',
             fontFamily: 'var(--font-sans)',
@@ -472,13 +472,13 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
       </div>
       <div style={{ overflowY: 'auto', flex: 1 }}>
         {fileError && (
-          <div style={{ padding: `var(--kp-space-xs) var(--kp-space-sm)`, fontSize: 11, color: '#b45309', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 4 }}>
-            <AlertTriangle style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
+          <div style={{ padding: `var(--kp-space-xs) var(--kp-space-sm)`, fontSize: 'var(--kp-font-2xs)', color: '#b45309', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <AlertTriangle style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, flex: 'none' }} />
             {fileError}
           </div>
         )}
         {filteredMatters.length === 0 ? (
-          <div style={{ padding: `var(--kp-space-sm) var(--kp-space-sm)`, fontSize: 12, color: 'var(--color-muted-foreground)' }}>
+          <div style={{ padding: `var(--kp-space-sm) var(--kp-space-sm)`, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
             {matters.length === 0 ? 'No matters yet' : 'No matching matters'}
           </div>
         ) : (
@@ -510,7 +510,7 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
               gap: 'var(--kp-space-xs)',
               width: '100%',
               padding: `var(--kp-space-xs) var(--kp-space-sm)`,
-              fontSize: 12,
+              fontSize: 'var(--kp-font-xs)',
               color: 'var(--color-foreground)',
               background: 'transparent',
               border: 'none',
@@ -519,9 +519,9 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
             }}
           >
             {filing === m.id ? (
-              <Loader2 style={{ width: 11, height: 11, strokeWidth: 2, animation: 'spin 1s linear infinite', flex: 'none' }} />
+              <Loader2 style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, animation: 'spin 1s linear infinite', flex: 'none' }} />
             ) : (
-              <FolderInput style={{ width: 11, height: 11, strokeWidth: 1.75, flex: 'none', color: 'var(--color-muted-foreground)' }} />
+              <FolderInput style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 1.75, flex: 'none', color: 'var(--color-muted-foreground)' }} />
             )}
             {matterLabel(m)}
           </button>
@@ -651,9 +651,9 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
         tabIndex={showCheckbox ? 0 : -1}
       >
         {selected ? (
-          <CheckSquare style={{ width: 15, height: 15, color: 'var(--kp-navy)', strokeWidth: 1.75, flex: 'none' }} />
+          <CheckSquare style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--kp-navy)', strokeWidth: 1.75, flex: 'none' }} />
         ) : (
-          <Square style={{ width: 15, height: 15, color: 'var(--color-muted-foreground)', strokeWidth: 1.75, flex: 'none' }} />
+          <Square style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--color-muted-foreground)', strokeWidth: 1.75, flex: 'none' }} />
         )}
       </div>
 
@@ -663,8 +663,9 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 2 }}>
           <span
             style={{
-              fontSize: 13,
-              fontWeight: 600,
+              fontSize: 'var(--kp-font-sm)',
+              fontWeight: 'var(--kp-weight-semibold)',
+              lineHeight: 'var(--kp-leading-snug)',
               color: 'var(--kp-navy)',
               fontFamily: 'var(--font-sans)',
               overflow: 'hidden',
@@ -677,7 +678,7 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
           </span>
           <span
             style={{
-              fontSize: 11,
+              fontSize: 'var(--kp-font-2xs)',
               color: 'var(--color-muted-foreground)',
               whiteSpace: 'nowrap',
               fontVariantNumeric: 'tabular-nums',
@@ -690,11 +691,11 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
 
         {/* From + badges */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-          <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {item.fromName ? `${item.fromName} <${item.fromAddr}>` : item.fromAddr}
           </span>
           {item.hasAttachments && (
-            <Paperclip style={{ width: 11, height: 11, color: 'var(--color-muted-foreground)', strokeWidth: 1.75, flex: 'none' }} />
+            <Paperclip style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', color: 'var(--color-muted-foreground)', strokeWidth: 1.75, flex: 'none' }} />
           )}
           {isPrivileged(privilege) && (
             <span
@@ -704,8 +705,8 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
                 gap: 3,
                 padding: '1px 5px',
                 borderRadius: 3,
-                fontSize: 10,
-                fontWeight: 600,
+                fontSize: 'var(--kp-font-2xs)',
+                fontWeight: 'var(--kp-weight-semibold)',
                 letterSpacing: '0.03em',
                 background: 'rgba(10,37,64,0.07)',
                 color: 'var(--kp-navy)',
@@ -714,7 +715,7 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
                 flex: 'none',
               }}
             >
-              <ShieldCheck style={{ width: 9, height: 9, strokeWidth: 2 }} />
+              <ShieldCheck style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
               { }
               Privileged
               { }
@@ -726,7 +727,8 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
         {item.snippet && (
           <span
             style={{
-              fontSize: 12,
+              fontSize: 'var(--kp-font-xs)',
+              lineHeight: 'var(--kp-leading-normal)',
               color: 'var(--color-muted-foreground)',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -759,7 +761,7 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
               title="Open email"
             >
               { }
-              <Mail style={{ width: 12, height: 12, strokeWidth: 1.75 }} />
+              <Mail style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 1.75 }} />
               Open
               { }
             </button>
@@ -774,7 +776,7 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
                 title="File this email to a matter"
               >
                 { }
-                <FolderInput style={{ width: 12, height: 12, strokeWidth: 1.75 }} />
+                <FolderInput style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 1.75 }} />
                 File
                 { }
               </button>
@@ -808,11 +810,11 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
                 title={exportFailed ? 'Export failed — try again' : 'Export to workspace'}
               >
                 {exporting ? (
-                  <Loader2 style={{ width: 12, height: 12, strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
+                  <Loader2 style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
                 ) : exportFailed ? (
-                  <AlertTriangle style={{ width: 12, height: 12, strokeWidth: 2 }} />
+                  <AlertTriangle style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
                 ) : (
-                  <FileDown style={{ width: 12, height: 12, strokeWidth: 1.75 }} />
+                  <FileDown style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 1.75 }} />
                 )}
                 { }
                 {exportFailed ? 'Export failed' : 'Export'}
@@ -832,13 +834,13 @@ const actionBtnStyle: React.CSSProperties = {
   gap: 4,
   padding: '4px 8px',
   borderRadius: 4,
-  fontSize: 11,
-  fontWeight: 500,
+  fontSize: 'var(--kp-font-2xs)',
+  fontWeight: 'var(--kp-weight-medium)',
   color: 'var(--color-foreground)',
   background: '#fff',
   border: '1px solid var(--color-border)',
   cursor: 'pointer',
-  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  boxShadow: 'var(--kp-shadow-1)',
 };
 
 // ── AskHit card ────────────────────────────────────────────────────────────
@@ -877,25 +879,26 @@ function AskHitCard({ hit, rank, items }: AskHitCardProps) {
         width: '100%',
         textAlign: 'left',
         padding: `var(--kp-space-sm) var(--kp-space-md)`,
-        borderRadius: 8,
+        borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--color-border)',
         background: '#fff',
         cursor: 'pointer',
         marginBottom: 'var(--kp-space-xs)',
+        boxShadow: 'var(--kp-shadow-1)',
         transition: 'box-shadow 0.12s',
       }}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)';
+        (e.currentTarget as HTMLButtonElement).style.boxShadow = 'var(--kp-shadow-2)';
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.boxShadow = 'none';
+        (e.currentTarget as HTMLButtonElement).style.boxShadow = 'var(--kp-shadow-1)';
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: snippet ? 4 : 0 }}>
         <span
           style={{
-            fontSize: 11,
-            fontWeight: 700,
+            fontSize: 'var(--kp-font-2xs)',
+            fontWeight: 'var(--kp-weight-bold)',
             color: 'var(--color-muted-foreground)',
             fontVariantNumeric: 'tabular-nums',
             flex: 'none',
@@ -907,8 +910,8 @@ function AskHitCard({ hit, rank, items }: AskHitCardProps) {
         </span>
         <span
           style={{
-            fontSize: 12,
-            fontWeight: 600,
+            fontSize: 'var(--kp-font-xs)',
+            fontWeight: 'var(--kp-weight-semibold)',
             color: 'var(--kp-navy)',
             fontFamily: 'var(--font-sans)',
             overflow: 'hidden',
@@ -921,7 +924,7 @@ function AskHitCard({ hit, rank, items }: AskHitCardProps) {
         </span>
         <span
           style={{
-            fontSize: 10,
+            fontSize: 'var(--kp-font-2xs)',
             color: 'var(--color-muted-foreground)',
             fontVariantNumeric: 'tabular-nums',
             flex: 'none',
@@ -936,9 +939,9 @@ function AskHitCard({ hit, rank, items }: AskHitCardProps) {
         <p
           style={{
             margin: 0,
-            fontSize: 12,
+            fontSize: 'var(--kp-font-xs)',
             color: 'var(--color-muted-foreground)',
-            lineHeight: 1.5,
+            lineHeight: 'var(--kp-leading-normal)',
             overflow: 'hidden',
             display: '-webkit-box',
             WebkitLineClamp: 3,
@@ -952,7 +955,7 @@ function AskHitCard({ hit, rank, items }: AskHitCardProps) {
         style={{
           display: 'block',
           marginTop: 4,
-          fontSize: 10,
+          fontSize: 'var(--kp-font-2xs)',
           color: 'var(--color-muted-foreground)',
           fontFamily: 'monospace',
           overflow: 'hidden',
@@ -999,8 +1002,9 @@ function NoAccountsState({ onOpenSettings }: NoAccountsStateProps) {
       {/* eslint-disable keepance-i18n/no-hardcoded-string */}
       <div
         style={{
-          fontSize: 15,
-          fontWeight: 600,
+          fontSize: 'var(--kp-font-lg)',
+          fontWeight: 'var(--kp-weight-semibold)',
+          lineHeight: 'var(--kp-leading-tight)',
           color: 'var(--kp-navy)',
           fontFamily: 'var(--font-sans)',
         }}
@@ -1009,10 +1013,10 @@ function NoAccountsState({ onOpenSettings }: NoAccountsStateProps) {
       </div>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 'var(--kp-font-sm)',
           color: 'var(--color-muted-foreground)',
           maxWidth: 340,
-          lineHeight: 1.6,
+          lineHeight: 'var(--kp-leading-relaxed)',
         }}
       >
         Connect your email to search across it, file messages to a matter, and cite them in answers. It is imported to your machine, not our servers.
@@ -1027,9 +1031,9 @@ function NoAccountsState({ onOpenSettings }: NoAccountsStateProps) {
             alignItems: 'center',
             gap: 6,
             padding: '8px 16px',
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: 'var(--kp-weight-semibold)',
             background: 'var(--kp-navy)',
             color: '#fff',
             border: 'none',
@@ -1409,6 +1413,8 @@ export function ReimaginedEmailWorkspace({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
+        flex: 1,
+        minWidth: 0,
         background: 'var(--color-background)',
         fontFamily: 'var(--font-sans)',
         overflowY: 'auto',
@@ -1442,9 +1448,9 @@ export function ReimaginedEmailWorkspace({
                   alignItems: 'center',
                   gap: 5,
                   padding: '5px 12px',
-                  borderRadius: 6,
-                  fontSize: 12,
-                  fontWeight: 600,
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--kp-font-xs)',
+                  fontWeight: 'var(--kp-weight-semibold)',
                   background: 'var(--kp-navy)',
                   color: '#fff',
                   border: 'none',
@@ -1452,7 +1458,7 @@ export function ReimaginedEmailWorkspace({
                   fontFamily: 'var(--font-sans)',
                 }}
               >
-                <PenLine style={{ width: 13, height: 13, strokeWidth: 2 }} />
+                <PenLine style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
                 {' '}New email{' '}
               </button>
 
@@ -1463,7 +1469,7 @@ export function ReimaginedEmailWorkspace({
                     display: 'flex',
                     alignItems: 'center',
                     background: 'rgba(10,37,64,0.05)',
-                    borderRadius: 6,
+                    borderRadius: 'var(--radius-md)',
                     padding: 2,
                     gap: 2,
                   }}
@@ -1484,13 +1490,13 @@ export function ReimaginedEmailWorkspace({
                       style={{
                         padding: '4px 10px',
                         borderRadius: 4,
-                        fontSize: 12,
-                        fontWeight: scopeAllEmail === all ? 600 : 400,
+                        fontSize: 'var(--kp-font-xs)',
+                        fontWeight: scopeAllEmail === all ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
                         background: scopeAllEmail === all ? '#fff' : 'transparent',
                         color: scopeAllEmail === all ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
                         border: scopeAllEmail === all ? '1px solid var(--color-border)' : '1px solid transparent',
                         cursor: 'pointer',
-                        boxShadow: scopeAllEmail === all ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                        boxShadow: scopeAllEmail === all ? 'var(--kp-shadow-1)' : 'none',
                         transition: 'all 0.1s',
                       }}
                     >
@@ -1511,10 +1517,11 @@ export function ReimaginedEmailWorkspace({
             alignItems: 'center',
             gap: 0,
             border: searchFocused ? '1px solid var(--kp-navy)' : '1px solid var(--color-border)',
-            borderRadius: 8,
+            borderRadius: 'var(--radius-lg)',
             background: '#fff',
             overflow: 'hidden',
-            boxShadow: searchFocused ? '0 0 0 2px rgba(10,37,64,0.12)' : '0 1px 4px rgba(0,0,0,0.06)',
+            boxShadow: searchFocused ? '0 0 0 2px rgba(10,37,64,0.12)' : 'var(--kp-shadow-1)',
+            marginTop: 'var(--kp-surface-gap)',
             marginBottom: 'var(--kp-space-xs)',
             transition: 'border-color 0.1s, box-shadow 0.1s',
           }}
@@ -1541,8 +1548,8 @@ export function ReimaginedEmailWorkspace({
                 }}
                 style={{
                   padding: '9px 14px',
-                  fontSize: 12,
-                  fontWeight: mode === m ? 600 : 400,
+                  fontSize: 'var(--kp-font-xs)',
+                  fontWeight: mode === m ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
                   color: mode === m ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
                   background: mode === m ? 'rgba(10,37,64,0.05)' : 'transparent',
                   border: 'none',
@@ -1562,8 +1569,8 @@ export function ReimaginedEmailWorkspace({
           {/* Search icon */}
           <Search
             style={{
-              width: 15,
-              height: 15,
+              width: 'var(--kp-icon-sm)',
+              height: 'var(--kp-icon-sm)',
               color: 'var(--color-muted-foreground)',
               strokeWidth: 1.75,
               flex: 'none',
@@ -1588,7 +1595,7 @@ export function ReimaginedEmailWorkspace({
               flex: 1,
               border: 'none',
               outline: 'none',
-              fontSize: 14,
+              fontSize: 'var(--kp-font-md)',
               color: 'var(--color-foreground)',
               background: 'transparent',
               padding: '9px 0',
@@ -1614,7 +1621,7 @@ export function ReimaginedEmailWorkspace({
                 alignItems: 'center',
               }}
             >
-              <X style={{ width: 13, height: 13, strokeWidth: 2 }} />
+              <X style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
             </button>
           )}
         </div>
@@ -1632,15 +1639,15 @@ export function ReimaginedEmailWorkspace({
                 gap: 5,
                 padding: '3px 8px',
                 borderRadius: 5,
-                fontSize: 11,
-                fontWeight: 500,
+                fontSize: 'var(--kp-font-2xs)',
+                fontWeight: 'var(--kp-weight-medium)',
                 color: activeFilterCount > 0 ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
                 background: activeFilterCount > 0 ? 'rgba(10,37,64,0.06)' : 'transparent',
                 border: '1px solid var(--color-border)',
                 cursor: 'pointer',
               }}
             >
-              <Filter style={{ width: 11, height: 11, strokeWidth: 1.75 }} />
+              <Filter style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 1.75 }} />
               { }
               Filters
               {activeFilterCount > 0 && (
@@ -1654,8 +1661,8 @@ export function ReimaginedEmailWorkspace({
                     borderRadius: '50%',
                     background: 'var(--kp-navy)',
                     color: '#fff',
-                    fontSize: 9,
-                    fontWeight: 700,
+                    fontSize: 'var(--kp-font-2xs)',
+                    fontWeight: 'var(--kp-weight-bold)',
                   }}
                 >
                   {activeFilterCount}
@@ -1663,8 +1670,8 @@ export function ReimaginedEmailWorkspace({
               )}
               <ChevronDown
                 style={{
-                  width: 10,
-                  height: 10,
+                  width: 'var(--kp-icon-xs)',
+                  height: 'var(--kp-icon-xs)',
                   strokeWidth: 2,
                   transform: filtersVisible ? 'rotate(180deg)' : 'none',
                   transition: 'transform 0.15s',
@@ -1708,7 +1715,7 @@ export function ReimaginedEmailWorkspace({
                 )}
 
                 {/* Date from */}
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--color-muted-foreground)' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
                   { }
                   From
                   { }
@@ -1723,7 +1730,7 @@ export function ReimaginedEmailWorkspace({
                 </label>
 
                 {/* Date to */}
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--color-muted-foreground)' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
                   { }
                   To
                   { }
@@ -1743,7 +1750,7 @@ export function ReimaginedEmailWorkspace({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 5,
-                    fontSize: 12,
+                    fontSize: 'var(--kp-font-xs)',
                     color: 'var(--color-muted-foreground)',
                     cursor: 'pointer',
                   }}
@@ -1787,12 +1794,12 @@ export function ReimaginedEmailWorkspace({
                   alignItems: 'center',
                   gap: 10,
                   padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-                  borderRadius: 6,
+                  borderRadius: 'var(--radius-md)',
                   border: '1px solid rgba(10,37,64,0.18)',
                   background: 'rgba(10,37,64,0.04)',
-                  fontSize: 12,
+                  fontSize: 'var(--kp-font-xs)',
                   color: 'var(--kp-navy)',
-                  fontWeight: 500,
+                  fontWeight: 'var(--kp-weight-medium)',
                 }}
               >
                 {/* eslint-disable keepance-i18n/no-hardcoded-string */}
@@ -1806,9 +1813,9 @@ export function ReimaginedEmailWorkspace({
                     onClick={() => { setBulkMatterOpen((o) => !o); }}
                     style={actionBtnStyle}
                   >
-                    <FolderInput style={{ width: 12, height: 12, strokeWidth: 1.75 }} />
+                    <FolderInput style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 1.75 }} />
                     File to matter
-                    <ChevronDown style={{ width: 10, height: 10, strokeWidth: 2 }} />
+                    <ChevronDown style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
                   </button>
                   <BulkMatterPicker
                     selectedIds={selectedIds}
@@ -1826,15 +1833,15 @@ export function ReimaginedEmailWorkspace({
                     gap: 4,
                     padding: '4px 8px',
                     borderRadius: 4,
-                    fontSize: 11,
-                    fontWeight: 500,
+                    fontSize: 'var(--kp-font-2xs)',
+                    fontWeight: 'var(--kp-weight-medium)',
                     color: 'var(--color-muted-foreground)',
                     background: 'transparent',
                     border: '1px solid var(--color-border)',
                     cursor: 'pointer',
                   }}
                 >
-                  <X style={{ width: 11, height: 11, strokeWidth: 2 }} />
+                  <X style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
                   Clear selection
                 </button>
                 {/* eslint-enable keepance-i18n/no-hardcoded-string */}
@@ -1852,13 +1859,13 @@ export function ReimaginedEmailWorkspace({
                   padding: `var(--kp-space-2xl) var(--kp-gutter)`,
                   gap: 'var(--kp-space-xs)',
                   color: 'var(--color-muted-foreground)',
-                  fontSize: 13,
+                  fontSize: 'var(--kp-font-sm)',
                 }}
               >
                 <Loader2
                   style={{
-                    width: 16,
-                    height: 16,
+                    width: 'var(--kp-icon-md)',
+                    height: 'var(--kp-icon-md)',
                     strokeWidth: 2,
                     animation: 'spin 1s linear infinite',
                   }}
@@ -1893,12 +1900,12 @@ export function ReimaginedEmailWorkspace({
                     strokeWidth: 1.75,
                   }}
                 />
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--color-foreground)', fontWeight: 500 }}>
+                <p style={{ margin: 0, fontSize: 'var(--kp-font-sm)', color: 'var(--color-foreground)', fontWeight: 'var(--kp-weight-medium)' }}>
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                   Could not load email
                   {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                 </p>
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--color-muted-foreground)', maxWidth: 340 }}>
+                <p style={{ margin: 0, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', maxWidth: 340 }}>
                   {error}
                 </p>
                 <button
@@ -1911,8 +1918,8 @@ export function ReimaginedEmailWorkspace({
                     alignItems: 'center',
                     padding: '5px 14px',
                     borderRadius: 5,
-                    fontSize: 12,
-                    fontWeight: 500,
+                    fontSize: 'var(--kp-font-xs)',
+                    fontWeight: 'var(--kp-weight-medium)',
                     color: 'var(--color-foreground)',
                     background: '#fff',
                     border: '1px solid var(--color-border)',
@@ -1946,12 +1953,12 @@ export function ReimaginedEmailWorkspace({
                     strokeWidth: 1.5,
                   }}
                 />
-                <p style={{ margin: 0, fontSize: 13, color: 'var(--color-foreground)', fontWeight: 500 }}>
+                <p style={{ margin: 0, fontSize: 'var(--kp-font-sm)', color: 'var(--color-foreground)', fontWeight: 'var(--kp-weight-medium)' }}>
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                   No emails found
                   {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                 </p>
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--color-muted-foreground)' }}>
+                <p style={{ margin: 0, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
                   { }
                   {query ? 'Try a different keyword or adjust the filters.' : 'No email has been synced yet.'}
                   { }
@@ -1965,16 +1972,17 @@ export function ReimaginedEmailWorkspace({
                 style={{
                   margin: `var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)`,
                   border: '1px solid var(--color-border)',
-                  borderRadius: 8,
+                  borderRadius: 'var(--radius-lg)',
                   background: '#fff',
                   overflow: 'hidden',
+                  boxShadow: 'var(--kp-shadow-1)',
                 }}
               >
                 <div
                   data-testid="result-count"
                   style={{
                     padding: `var(--kp-space-2xs) var(--kp-space-md)`,
-                    fontSize: 11,
+                    fontSize: 'var(--kp-font-2xs)',
                     color: 'var(--color-muted-foreground)',
                     borderBottom: '1px solid var(--color-border)',
                     background: 'rgba(10,37,64,0.02)',
@@ -2017,8 +2025,8 @@ export function ReimaginedEmailWorkspace({
                         gap: 6,
                         padding: '6px 14px',
                         borderRadius: 5,
-                        fontSize: 12,
-                        fontWeight: 500,
+                        fontSize: 'var(--kp-font-xs)',
+                        fontWeight: 'var(--kp-weight-medium)',
                         color: 'var(--color-foreground)',
                         background: '#fff',
                         border: '1px solid var(--color-border)',
@@ -2028,8 +2036,8 @@ export function ReimaginedEmailWorkspace({
                       {loadingMore && (
                         <Loader2
                           style={{
-                            width: 12,
-                            height: 12,
+                            width: 'var(--kp-icon-xs)',
+                            height: 'var(--kp-icon-xs)',
                             strokeWidth: 2,
                             animation: 'spin 1s linear infinite',
                           }}
@@ -2060,13 +2068,13 @@ export function ReimaginedEmailWorkspace({
                   gap: 'var(--kp-space-xs)',
                   padding: `var(--kp-space-lg) 0`,
                   color: 'var(--color-muted-foreground)',
-                  fontSize: 13,
+                  fontSize: 'var(--kp-font-sm)',
                 }}
               >
                 <Loader2
                   style={{
-                    width: 15,
-                    height: 15,
+                    width: 'var(--kp-icon-sm)',
+                    height: 'var(--kp-icon-sm)',
                     strokeWidth: 2,
                     animation: 'spin 1s linear infinite',
                   }}
@@ -2084,14 +2092,14 @@ export function ReimaginedEmailWorkspace({
                 data-testid="ask-error"
                 style={{
                   padding: `var(--kp-space-md) 0`,
-                  fontSize: 13,
+                  fontSize: 'var(--kp-font-sm)',
                   color: '#b45309',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
                 }}
               >
-                <AlertTriangle style={{ width: 14, height: 14, strokeWidth: 2, flex: 'none' }} />
+                <AlertTriangle style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2, flex: 'none' }} />
                 {askError}
               </div>
             )}
@@ -2112,8 +2120,9 @@ export function ReimaginedEmailWorkspace({
                 {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                 <div
                   style={{
-                    fontSize: 16,
-                    fontWeight: 700,
+                    fontSize: 'var(--kp-font-lg)',
+                    fontWeight: 'var(--kp-weight-bold)',
+                    lineHeight: 'var(--kp-leading-tight)',
                     color: 'var(--kp-navy)',
                     fontFamily: 'var(--font-sans)',
                     letterSpacing: '-0.01em',
@@ -2123,10 +2132,10 @@ export function ReimaginedEmailWorkspace({
                 </div>
                 <div
                   style={{
-                    fontSize: 13,
+                    fontSize: 'var(--kp-font-sm)',
                     color: 'var(--color-muted-foreground)',
                     maxWidth: 360,
-                    lineHeight: 1.55,
+                    lineHeight: 'var(--kp-leading-normal)',
                   }}
                 >
                   I search across your imported email and answer with citations you can open.
@@ -2157,8 +2166,8 @@ export function ReimaginedEmailWorkspace({
                         alignItems: 'center',
                         padding: '6px 12px',
                         borderRadius: 20,
-                        fontSize: 12,
-                        fontWeight: 500,
+                        fontSize: 'var(--kp-font-xs)',
+                        fontWeight: 'var(--kp-weight-medium)',
                         color: 'var(--kp-navy)',
                         background: 'rgba(10,37,64,0.05)',
                         border: '1px solid rgba(10,37,64,0.14)',
@@ -2189,10 +2198,10 @@ export function ReimaginedEmailWorkspace({
                 data-testid="ask-no-results"
                 style={{
                   padding: `var(--kp-space-lg) 0`,
-                  fontSize: 13,
+                  fontSize: 'var(--kp-font-sm)',
                   color: 'var(--color-muted-foreground)',
                   textAlign: 'center',
-                  lineHeight: 1.6,
+                  lineHeight: 'var(--kp-leading-relaxed)',
                 }}
               >
                 {/* eslint-disable keepance-i18n/no-hardcoded-string */}
@@ -2210,7 +2219,7 @@ export function ReimaginedEmailWorkspace({
                         border: 'none',
                         padding: 0,
                         color: 'var(--kp-navy)',
-                        fontWeight: 600,
+                        fontWeight: 'var(--kp-weight-semibold)',
                         cursor: 'pointer',
                         fontSize: 'inherit',
                         textDecoration: 'underline',
@@ -2232,7 +2241,7 @@ export function ReimaginedEmailWorkspace({
                         border: 'none',
                         padding: 0,
                         color: 'var(--kp-navy)',
-                        fontWeight: 600,
+                        fontWeight: 'var(--kp-weight-semibold)',
                         cursor: 'pointer',
                         fontSize: 'inherit',
                         textDecoration: 'underline',
@@ -2278,8 +2287,8 @@ export function ReimaginedEmailWorkspace({
           <div
             style={{
               background: '#fff',
-              borderRadius: 10,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: 'var(--kp-shadow-3)',
               width: 560,
               maxWidth: '95vw',
               maxHeight: '80vh',
@@ -2298,7 +2307,7 @@ export function ReimaginedEmailWorkspace({
                 borderBottom: '1px solid var(--color-border)',
               }}
             >
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--kp-navy)', fontFamily: 'var(--font-sans)' }}>
+              <span style={{ fontSize: 'var(--kp-font-md)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)', fontFamily: 'var(--font-sans)' }}>
                 New email
               </span>
               <button
@@ -2316,7 +2325,7 @@ export function ReimaginedEmailWorkspace({
                   borderRadius: 4,
                 }}
               >
-                <X style={{ width: 16, height: 16, strokeWidth: 2 }} />
+                <X style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
               </button>
             </div>
 
@@ -2324,12 +2333,12 @@ export function ReimaginedEmailWorkspace({
             <div style={{ flex: 1, overflowY: 'auto', padding: `var(--kp-space-sm) var(--kp-card-pad) var(--kp-card-pad)`, display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
               {/* From selector */}
               {accounts.length === 0 ? (
-                <div data-testid="compose-no-accounts" style={{ fontSize: 12, color: 'var(--color-muted-foreground)', padding: '8px 0' }}>
+                <div data-testid="compose-no-accounts" style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', padding: '8px 0' }}>
                   Connect an account first in Settings.
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 40, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+                  <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
                     From
                   </span>
                   <select
@@ -2339,7 +2348,7 @@ export function ReimaginedEmailWorkspace({
                       setComposeProvider(p);
                       setComposeAccount(a);
                     }}
-                    style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 13, fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
+                    style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
                   >
                     {accounts.map((acc) => (
                       <option key={`${acc.provider}::${acc.account}`} value={`${acc.provider}::${acc.account}`}>
@@ -2352,7 +2361,7 @@ export function ReimaginedEmailWorkspace({
 
               {/* To field */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 40, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+                <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
                   To
                 </span>
                 <input
@@ -2361,13 +2370,13 @@ export function ReimaginedEmailWorkspace({
                   value={composeTo}
                   onChange={(e) => { setComposeTo(e.target.value); }}
                   placeholder="recipient@example.com"
-                  style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 13, fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
+                  style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
                 />
                 <button
                   type="button"
                   data-testid="compose-cc-bcc-toggle"
                   onClick={() => { setComposeCcBccOpen((o) => !o); }}
-                  style={{ flexShrink: 0, fontSize: 11, color: 'var(--color-muted-foreground)', background: 'transparent', border: 'none', cursor: 'pointer' }}
+                  style={{ flexShrink: 0, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', background: 'transparent', border: 'none', cursor: 'pointer' }}
                 >
                   Cc / Bcc
                 </button>
@@ -2377,7 +2386,7 @@ export function ReimaginedEmailWorkspace({
               {composeCcBccOpen && (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 40, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+                    <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
                       Cc
                     </span>
                     <input
@@ -2386,11 +2395,11 @@ export function ReimaginedEmailWorkspace({
                       value={composeCc}
                       onChange={(e) => { setComposeCc(e.target.value); }}
                       placeholder="cc@example.com"
-                      style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 13, fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
+                      style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
                     />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 40, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+                    <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
                       Bcc
                     </span>
                     <input
@@ -2399,7 +2408,7 @@ export function ReimaginedEmailWorkspace({
                       value={composeBcc}
                       onChange={(e) => { setComposeBcc(e.target.value); }}
                       placeholder="bcc@example.com"
-                      style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 13, fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
+                      style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
                     />
                   </div>
                 </>
@@ -2407,7 +2416,7 @@ export function ReimaginedEmailWorkspace({
 
               {/* Subject */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 50, flexShrink: 0, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+                <span style={{ width: 50, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
                   Subject
                 </span>
                 <input
@@ -2416,7 +2425,7 @@ export function ReimaginedEmailWorkspace({
                   value={composeSubject}
                   onChange={(e) => { setComposeSubject(e.target.value); }}
                   placeholder="Subject"
-                  style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 13, fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
+                  style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
                 />
               </div>
 
@@ -2432,7 +2441,8 @@ export function ReimaginedEmailWorkspace({
                   border: '1px solid var(--color-border)',
                   borderRadius: 5,
                   padding: '8px',
-                  fontSize: 13,
+                  fontSize: 'var(--kp-font-sm)',
+                  lineHeight: 'var(--kp-leading-normal)',
                   fontFamily: 'var(--font-sans)',
                   background: '#fff',
                   color: 'var(--color-foreground)',
@@ -2454,8 +2464,8 @@ export function ReimaginedEmailWorkspace({
                       gap: 5,
                       padding: '4px 10px',
                       borderRadius: 5,
-                      fontSize: 12,
-                      fontWeight: 500,
+                      fontSize: 'var(--kp-font-xs)',
+                      fontWeight: 'var(--kp-weight-medium)',
                       background: 'transparent',
                       color: 'var(--color-muted-foreground)',
                       border: '1px solid var(--color-border)',
@@ -2463,7 +2473,7 @@ export function ReimaginedEmailWorkspace({
                       fontFamily: 'var(--font-sans)',
                     }}
                   >
-                    <Paperclip style={{ width: 12, height: 12, strokeWidth: 2 }} />
+                    <Paperclip style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
                     Attach
                   </button>
                   <input
@@ -2503,14 +2513,14 @@ export function ReimaginedEmailWorkspace({
                           gap: 4,
                           padding: '3px 8px',
                           borderRadius: 4,
-                          fontSize: 11,
+                          fontSize: 'var(--kp-font-2xs)',
                           background: '#f0f4ff',
                           border: '1px solid var(--color-border)',
                           color: 'var(--color-foreground)',
                           fontFamily: 'var(--font-sans)',
                         }}
                       >
-                        <Paperclip style={{ width: 10, height: 10, strokeWidth: 2, color: 'var(--color-muted-foreground)' }} />
+                        <Paperclip style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, color: 'var(--color-muted-foreground)' }} />
                         <span style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {att.name}
                         </span>
@@ -2529,7 +2539,7 @@ export function ReimaginedEmailWorkspace({
                             color: 'var(--color-muted-foreground)',
                           }}
                         >
-                          <X style={{ width: 10, height: 10, strokeWidth: 2 }} />
+                          <X style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
                         </button>
                       </div>
                     ))}
@@ -2539,18 +2549,18 @@ export function ReimaginedEmailWorkspace({
 
               {/* Send result states */}
               {composeSendResult === 'success' && (
-                <div data-testid="compose-success" style={{ fontSize: 12, color: '#047857' }}>
+                <div data-testid="compose-success" style={{ fontSize: 'var(--kp-font-xs)', color: '#047857' }}>
                   Email sent
                 </div>
               )}
               {composeSendResult === 'error' && composeSendError && (
-                <div data-testid="compose-error" style={{ fontSize: 12, color: '#b45309', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <AlertTriangle style={{ width: 12, height: 12, strokeWidth: 2, flex: 'none' }} />
+                <div data-testid="compose-error" style={{ fontSize: 'var(--kp-font-xs)', color: '#b45309', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <AlertTriangle style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, flex: 'none' }} />
                   {composeSendError}
                 </div>
               )}
               {composeSendResult === 'scope_upgrade' && (
-                <div data-testid="compose-scope-upgrade" style={{ fontSize: 12, color: '#b45309' }}>
+                <div data-testid="compose-scope-upgrade" style={{ fontSize: 'var(--kp-font-xs)', color: '#b45309' }}>
                   Sending needs a one-time reconnect for the send permission. Go to Settings to reconnect your email.
                   {onOpenSettings && (
                     <button
@@ -2561,8 +2571,8 @@ export function ReimaginedEmailWorkspace({
                         marginTop: 6,
                         padding: '4px 10px',
                         borderRadius: 5,
-                        fontSize: 11,
-                        fontWeight: 600,
+                        fontSize: 'var(--kp-font-2xs)',
+                        fontWeight: 'var(--kp-weight-semibold)',
                         background: 'transparent',
                         color: 'var(--kp-navy)',
                         border: '1px solid var(--color-border)',
@@ -2629,9 +2639,9 @@ export function ReimaginedEmailWorkspace({
                   alignItems: 'center',
                   gap: 6,
                   padding: '7px 18px',
-                  borderRadius: 6,
-                  fontSize: 13,
-                  fontWeight: 600,
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--kp-font-sm)',
+                  fontWeight: 'var(--kp-weight-semibold)',
                   background: 'var(--kp-navy)',
                   color: '#fff',
                   border: 'none',
@@ -2641,7 +2651,7 @@ export function ReimaginedEmailWorkspace({
                 }}
               >
                 {composeSending && (
-                  <Loader2 style={{ width: 13, height: 13, strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
+                  <Loader2 style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
                 )}
                 Send
               </button>
@@ -2658,7 +2668,7 @@ const filterInputStyle: React.CSSProperties = {
   padding: '4px 8px',
   borderRadius: 5,
   border: '1px solid var(--color-border)',
-  fontSize: 12,
+  fontSize: 'var(--kp-font-xs)',
   color: 'var(--color-foreground)',
   background: '#fff',
   fontFamily: 'var(--font-sans)',

@@ -186,7 +186,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
           gap: 12,
           fontFamily: 'Satoshi, sans-serif',
           color: 'var(--color-muted-foreground)',
-          fontSize: 14,
+          fontSize: 'var(--kp-font-md)',
         }}
       >
         {/* eslint-disable keepance-i18n/no-hardcoded-string */}
@@ -198,9 +198,9 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
           style={{
             marginTop: 8,
             padding: '6px 14px',
-            borderRadius: 5,
-            fontSize: 13,
-            fontWeight: 600,
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: 'var(--kp-weight-semibold)',
             border: '1px solid var(--color-border)',
             background: '#fff',
             color: 'var(--kp-navy)',
@@ -220,12 +220,13 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
 
   const panelCard: React.CSSProperties = {
     border: '1px solid var(--color-border)',
-    borderRadius: 8,
+    borderRadius: 'var(--radius-lg)',
     background: '#fff',
     padding: 'var(--kp-card-pad)',
     display: 'flex',
     flexDirection: 'column',
     gap: 'var(--kp-stack-gap)',
+    boxShadow: 'var(--kp-shadow-1)',
   };
 
   const panelHeader: React.CSSProperties = {
@@ -239,11 +240,12 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
     display: 'flex',
     alignItems: 'center',
     gap: 6,
-    fontSize: 11,
-    fontWeight: 700,
+    fontSize: 'var(--kp-font-2xs)',
+    fontWeight: 'var(--kp-weight-bold)',
     letterSpacing: '0.06em',
     textTransform: 'uppercase',
     color: 'var(--color-muted-foreground)',
+    lineHeight: 'var(--kp-leading-tight)',
   };
 
   const panelArrow: React.CSSProperties = {
@@ -254,18 +256,18 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
     padding: 2,
     display: 'flex',
     alignItems: 'center',
-    borderRadius: 4,
+    borderRadius: 'var(--radius-md)',
   };
 
   const panelPreview: React.CSSProperties = {
-    fontSize: 12,
+    fontSize: 'var(--kp-font-xs)',
     color: 'var(--color-muted-foreground)',
-    lineHeight: 1.5,
+    lineHeight: 'var(--kp-leading-relaxed)',
   };
 
   const panelCount: React.CSSProperties = {
-    fontSize: 11,
-    fontWeight: 600,
+    fontSize: 'var(--kp-font-2xs)',
+    fontWeight: 'var(--kp-weight-semibold)',
     color: 'var(--color-muted-foreground)',
     marginLeft: 'auto',
     marginRight: 4,
@@ -274,6 +276,8 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
   return (
     <div
       style={{
+        flex: 1,
+        minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
@@ -303,13 +307,13 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             border: 'none',
             cursor: 'pointer',
             color: 'var(--color-muted-foreground)',
-            fontSize: 12,
-            fontWeight: 500,
+            fontSize: 'var(--kp-font-xs)',
+            fontWeight: 'var(--kp-weight-medium)',
             padding: '0 0 12px 0',
             fontFamily: 'Satoshi, sans-serif',
           }}
         >
-          <ArrowLeft style={{ width: 13, height: 13, strokeWidth: 2 }} />
+          <ArrowLeft style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
           { }
           {entityLabel.Other}
           { }
@@ -321,22 +325,22 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             <h1
               style={{
                 margin: '0 0 4px',
-                fontSize: 20,
-                fontWeight: 700,
+                fontSize: 'var(--kp-font-2xl)',
+                fontWeight: 'var(--kp-weight-bold)',
                 color: 'var(--kp-navy, #0a2540)',
                 fontFamily: 'Satoshi, sans-serif',
-                lineHeight: 1.2,
+                lineHeight: 'var(--kp-leading-tight)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
               }}
             >
-              <Briefcase style={{ width: 18, height: 18, color: 'var(--kp-navy, #0a2540)', strokeWidth: 1.75, flex: 'none' }} />
+              <Briefcase style={{ width: 'var(--kp-icon-lg)', height: 'var(--kp-icon-lg)', color: 'var(--kp-navy, #0a2540)', strokeWidth: 1.75, flex: 'none' }} />
               {label}
             </h1>
             <div
               style={{
-                fontSize: 12,
+                fontSize: 'var(--kp-font-xs)',
                 color: 'var(--color-muted-foreground)',
                 display: 'flex',
                 alignItems: 'center',
@@ -356,15 +360,15 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                       alignItems: 'center',
                       gap: 3,
                       padding: '1px 7px',
-                      borderRadius: 4,
-                      fontSize: 11,
-                      fontWeight: 600,
+                      borderRadius: 'var(--radius-md)',
+                      fontSize: 'var(--kp-font-2xs)',
+                      fontWeight: 'var(--kp-weight-semibold)',
                       background: 'rgba(10,37,64,0.07)',
                       color: 'var(--kp-navy, #0a2540)',
                       border: '1px solid rgba(10,37,64,0.18)',
                     }}
                   >
-                    <Lock style={{ width: 11, height: 11, strokeWidth: 2 }} />
+                    <Lock style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
                     { }
                     Isolated
                     { }
@@ -385,9 +389,9 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                 display: 'inline-flex',
                 alignItems: 'center',
                 padding: '2px 8px',
-                borderRadius: 4,
-                fontSize: 11,
-                fontWeight: 600,
+                borderRadius: 'var(--radius-md)',
+                fontSize: 'var(--kp-font-2xs)',
+                fontWeight: 'var(--kp-weight-semibold)',
                 letterSpacing: '0.03em',
                 background: 'rgba(16,185,129,0.09)',
                 color: '#065f46',
@@ -421,15 +425,15 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             gap: 8,
             background: '#fff',
             border: '1px solid var(--color-border)',
-            borderRadius: 7,
+            borderRadius: 'var(--radius-lg)',
             padding: '8px 10px',
             transition: 'border-color 0.1s',
           }}
         >
           <Sparkles
             style={{
-              width: 15,
-              height: 15,
+              width: 'var(--kp-icon-md)',
+              height: 'var(--kp-icon-md)',
               color: 'var(--color-muted-foreground)',
               flex: 'none',
               strokeWidth: 1.75,
@@ -454,7 +458,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               flex: 1,
               border: 'none',
               outline: 'none',
-              fontSize: 13,
+              fontSize: 'var(--kp-font-sm)',
               color: 'var(--color-foreground)',
               background: 'transparent',
               fontFamily: 'Satoshi, sans-serif',
@@ -466,9 +470,9 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             onClick={handleAskSubmit}
             style={{
               padding: '4px 12px',
-              borderRadius: 5,
-              fontSize: 12,
-              fontWeight: 600,
+              borderRadius: 'var(--radius-md)',
+              fontSize: 'var(--kp-font-xs)',
+              fontWeight: 'var(--kp-weight-semibold)',
               background: 'var(--kp-navy, #0a2540)',
               color: '#fff',
               border: 'none',
@@ -495,9 +499,9 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
           >
             <span
               style={{
-                fontSize: 11,
+                fontSize: 'var(--kp-font-2xs)',
                 color: 'var(--color-muted-foreground)',
-                fontWeight: 600,
+                fontWeight: 'var(--kp-weight-semibold)',
                 letterSpacing: '0.02em',
                 flex: 'none',
               }}
@@ -520,8 +524,8 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                 }}
                 style={{
                   padding: '2px 9px',
-                  borderRadius: 4,
-                  fontSize: 11,
+                  borderRadius: 'var(--radius-md)',
+                  fontSize: 'var(--kp-font-2xs)',
                   border: '1px solid var(--color-border)',
                   background: '#fff',
                   color: 'var(--color-foreground)',
@@ -551,15 +555,24 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         }}
       >
         {/* Left: At a Glance */}
-        <div>
+        <div
+          style={{
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-lg)',
+            background: '#fff',
+            padding: 'var(--kp-card-pad)',
+            boxShadow: 'var(--kp-shadow-1)',
+          }}
+        >
           <div
             style={{
-              fontSize: 11,
-              fontWeight: 700,
+              fontSize: 'var(--kp-font-2xs)',
+              fontWeight: 'var(--kp-weight-bold)',
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               color: 'var(--color-muted-foreground)',
               marginBottom: 8,
+              lineHeight: 'var(--kp-leading-tight)',
             }}
           >
             {/* eslint-disable keepance-i18n/no-hardcoded-string */}
@@ -568,19 +581,19 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
           </div>
 
           {isSample ? (
-            <div data-testid="hub-sample-glance" style={{ fontSize: 13, lineHeight: 1.6 }}>
+            <div data-testid="hub-sample-glance" style={{ fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)' }}>
               <div style={{ color: 'var(--color-foreground)' }}>
                 <strong>6</strong>
                 { }
                 {' open issues'}
                 { }
               </div>
-              <div style={{ color: 'var(--color-muted-foreground)', fontSize: 12, marginTop: 2 }}>
+              <div style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', marginTop: 2 }}>
                 {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                 HVAC habitability - lease amendment needed - damages calculation in progress
                 {/* eslint-enable keepance-i18n/no-hardcoded-string */}
               </div>
-              <div style={{ color: 'var(--color-muted-foreground)', fontSize: 12, marginTop: 4 }}>
+              <div style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', marginTop: 4 }}>
                 {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                 Fee: $350/hr, $3,000 retainer deposited
                 {/* eslint-enable keepance-i18n/no-hardcoded-string */}
@@ -588,7 +601,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             </div>
           ) : glanceStatus === 'no-key' ? (
             /* No cloud key: honest counts / recent-activity fallback */
-            <div data-testid="hub-real-glance" style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--color-foreground)' }}>
+            <div data-testid="hub-real-glance" style={{ fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)', color: 'var(--color-foreground)' }}>
               {(() => {
                 const folderCount = matter.folderPaths.length;
                 const questionCount = Object.keys(sessions)
@@ -618,7 +631,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                       </div>
                     )}
                     {questionCount > 0 && (
-                      <div style={{ color: 'var(--color-muted-foreground)', fontSize: 12 }}>
+                      <div style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
                         <strong>{String(questionCount)}</strong>
                         { }
                         {questionCount === 1 ? ' question asked' : ' questions asked'}
@@ -631,7 +644,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             </div>
           ) : (
             /* Real matter + cloud key: AI at-a-glance (loading / done / empty / error) */
-            <div data-testid="hub-ai-glance" style={{ fontSize: 13, lineHeight: 1.6 }}>
+            <div data-testid="hub-ai-glance" style={{ fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)' }}>
               {/* Header row: "Generated by AI" tag + Refresh button */}
               <div
                 style={{
@@ -644,21 +657,21 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                 <span
                   data-testid="hub-ai-glance-tag"
                   style={{
-                    fontSize: 10,
-                    fontWeight: 600,
+                    fontSize: 'var(--kp-font-2xs)',
+                    fontWeight: 'var(--kp-weight-semibold)',
                     letterSpacing: '0.05em',
                     textTransform: 'uppercase',
                     color: 'var(--kp-navy, #0a2540)',
                     background: 'rgba(10,37,64,0.07)',
                     border: '1px solid rgba(10,37,64,0.15)',
-                    borderRadius: 4,
+                    borderRadius: 'var(--radius-md)',
                     padding: '1px 6px',
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 3,
                   }}
                 >
-                  <Sparkles style={{ width: 9, height: 9, strokeWidth: 2 }} />
+                  <Sparkles style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
                   { }
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                   Generated by AI
@@ -678,13 +691,13 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                       display: 'flex',
                       alignItems: 'center',
                       gap: 3,
-                      fontSize: 11,
+                      fontSize: 'var(--kp-font-2xs)',
                       padding: '2px 4px',
-                      borderRadius: 4,
+                      borderRadius: 'var(--radius-md)',
                       fontFamily: 'Satoshi, sans-serif',
                     }}
                   >
-                    <RefreshCw style={{ width: 11, height: 11, strokeWidth: 2 }} />
+                    <RefreshCw style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
                     { }
                     Refresh
                   </button>
@@ -700,14 +713,14 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                     alignItems: 'center',
                     gap: 6,
                     color: 'var(--color-muted-foreground)',
-                    fontSize: 12,
+                    fontSize: 'var(--kp-font-xs)',
                   }}
                 >
                   <Loader2
                     className="animate-spin"
                     style={{
-                      width: 13,
-                      height: 13,
+                      width: 'var(--kp-icon-sm)',
+                      height: 'var(--kp-icon-sm)',
                       strokeWidth: 2,
                     }}
                   />
@@ -726,18 +739,19 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                     <div>
                       <div
                         style={{
-                          fontSize: 10,
-                          fontWeight: 700,
+                          fontSize: 'var(--kp-font-2xs)',
+                          fontWeight: 'var(--kp-weight-bold)',
                           letterSpacing: '0.05em',
                           textTransform: 'uppercase',
                           color: 'var(--color-muted-foreground)',
                           marginBottom: 2,
+                          lineHeight: 'var(--kp-leading-tight)',
                         }}
                       >
                         Open Issues
                       </div>
                       {glanceResult.openIssues.map((issue, i) => (
-                        <div key={i} style={{ fontSize: 12, color: 'var(--color-foreground)', lineHeight: 1.5 }}>
+                        <div key={i} style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-foreground)', lineHeight: 'var(--kp-leading-snug)' }}>
                           {issue}
                         </div>
                       ))}
@@ -747,18 +761,19 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                     <div>
                       <div
                         style={{
-                          fontSize: 10,
-                          fontWeight: 700,
+                          fontSize: 'var(--kp-font-2xs)',
+                          fontWeight: 'var(--kp-weight-bold)',
                           letterSpacing: '0.05em',
                           textTransform: 'uppercase',
                           color: 'var(--color-muted-foreground)',
                           marginBottom: 2,
+                          lineHeight: 'var(--kp-leading-tight)',
                         }}
                       >
                         Key Dates
                       </div>
                       {glanceResult.deadlines.map((d, i) => (
-                        <div key={i} style={{ fontSize: 12, color: 'var(--color-foreground)', lineHeight: 1.5 }}>
+                        <div key={i} style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-foreground)', lineHeight: 'var(--kp-leading-snug)' }}>
                           {d}
                         </div>
                       ))}
@@ -768,18 +783,19 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                     <div>
                       <div
                         style={{
-                          fontSize: 10,
-                          fontWeight: 700,
+                          fontSize: 'var(--kp-font-2xs)',
+                          fontWeight: 'var(--kp-weight-bold)',
                           letterSpacing: '0.05em',
                           textTransform: 'uppercase',
                           color: 'var(--color-muted-foreground)',
                           marginBottom: 2,
+                          lineHeight: 'var(--kp-leading-tight)',
                         }}
                       >
                         Next Actions
                       </div>
                       {glanceResult.nextActions.map((a, i) => (
-                        <div key={i} style={{ fontSize: 12, color: 'var(--color-foreground)', lineHeight: 1.5 }}>
+                        <div key={i} style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-foreground)', lineHeight: 'var(--kp-leading-snug)' }}>
                           {a}
                         </div>
                       ))}
@@ -791,7 +807,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               {glanceStatus === 'empty' && (
                 <div
                   data-testid="hub-ai-glance-empty"
-                  style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}
+                  style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
                 >
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                   Nothing notable yet. Add documents or ask a question.
@@ -802,7 +818,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               {glanceStatus === 'error' && (
                 <div
                   data-testid="hub-ai-glance-error"
-                  style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}
+                  style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}
                 >
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                   Could not generate a summary. Try refreshing.
@@ -817,12 +833,13 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         <div>
           <div
             style={{
-              fontSize: 11,
-              fontWeight: 700,
+              fontSize: 'var(--kp-font-2xs)',
+              fontWeight: 'var(--kp-weight-bold)',
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               color: 'var(--color-muted-foreground)',
               marginBottom: 8,
+              lineHeight: 'var(--kp-leading-tight)',
             }}
           >
             { }
@@ -830,7 +847,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
             { }
           </div>
 
-          <div data-testid="hub-activity" style={{ fontSize: 13, lineHeight: 1.6 }}>
+          <div data-testid="hub-activity" style={{ fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)' }}>
             {isSample ? (
               <>
                 <div style={{ color: 'var(--color-foreground)' }}>
@@ -838,7 +855,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                   Deadline: Lease copy from client (end of week)
                   {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                 </div>
-                <div style={{ color: 'var(--color-muted-foreground)', fontSize: 12, marginTop: 4 }}>
+                <div style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', marginTop: 4 }}>
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                   Certified mail responses sent (May 25)
                   {/* eslint-enable keepance-i18n/no-hardcoded-string */}
@@ -846,10 +863,10 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               </>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span style={{ color: 'var(--color-foreground)', fontSize: 12 }}>
+                <span style={{ color: 'var(--color-foreground)', fontSize: 'var(--kp-font-xs)' }}>
                   Matter created {formatDate(matter.createdAt)}
                 </span>
-                <span style={{ color: 'var(--color-muted-foreground)', fontSize: 12 }}>
+                <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                   No upcoming deadlines yet. Ask the AI to find any in your documents.
                   {/* eslint-enable keepance-i18n/no-hardcoded-string */}
@@ -873,7 +890,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         <div data-testid="hub-panel-documents" style={panelCard}>
           <div style={panelHeader}>
             <span style={panelTitle}>
-              <FileText style={{ width: 13, height: 13, strokeWidth: 2 }} />
+              <FileText style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
               { }
               Documents
               { }
@@ -888,7 +905,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               style={panelArrow}
               onClick={() => { dispatchLaunch('files'); }}
             >
-              <ChevronRight style={{ width: 15, height: 15, strokeWidth: 2 }} />
+              <ChevronRight style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
             </button>
           </div>
           <div style={panelPreview}>
@@ -908,7 +925,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         <div data-testid="hub-panel-email" style={panelCard}>
           <div style={panelHeader}>
             <span style={panelTitle}>
-              <Mail style={{ width: 13, height: 13, strokeWidth: 2 }} />
+              <Mail style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
               { }
               Email
               { }
@@ -923,7 +940,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               style={panelArrow}
               onClick={() => { dispatchLaunch('email'); }}
             >
-              <ChevronRight style={{ width: 15, height: 15, strokeWidth: 2 }} />
+              <ChevronRight style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
             </button>
           </div>
           <div style={panelPreview}>
@@ -943,7 +960,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         <div data-testid="hub-panel-workflows" style={panelCard}>
           <div style={panelHeader}>
             <span style={panelTitle}>
-              <GitBranch style={{ width: 13, height: 13, strokeWidth: 2 }} />
+              <GitBranch style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
               { }
               Workflows
               { }
@@ -955,12 +972,12 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               style={panelArrow}
               onClick={() => { dispatchLaunch('workflows'); }}
             >
-              <ChevronRight style={{ width: 15, height: 15, strokeWidth: 2 }} />
+              <ChevronRight style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
             </button>
           </div>
           <div style={panelPreview}>
             {isSample ? (
-               
+
               <span>2 workflows available</span>
                
             ) : (
@@ -975,7 +992,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         <div data-testid="hub-panel-activity" style={panelCard}>
           <div style={panelHeader}>
             <span style={panelTitle}>
-              <Clock style={{ width: 13, height: 13, strokeWidth: 2 }} />
+              <Clock style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
               { }
               Activity
               { }
@@ -987,7 +1004,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               style={panelArrow}
               onClick={() => { dispatchLaunch('audit'); }}
             >
-              <ChevronRight style={{ width: 15, height: 15, strokeWidth: 2 }} />
+              <ChevronRight style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
             </button>
           </div>
           <div style={panelPreview}>
