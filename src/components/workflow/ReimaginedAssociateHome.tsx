@@ -31,7 +31,6 @@
 
 import { useMemo, useState } from 'react';
 import {
-  Scale,
   Play,
   CheckCircle2,
   XCircle,
@@ -43,7 +42,9 @@ import {
   Star,
   Settings,
   Briefcase,
+  ListChecks,
 } from 'lucide-react';
+import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { prioritizeByProfession } from '@/modules/workflow/prioritizeByProfession';
@@ -570,55 +571,14 @@ export function ReimaginedAssociateHome({
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-            <Scale
-              style={{
-                width: 22,
-                height: 22,
-                color: 'var(--kp-navy)',
-                strokeWidth: 1.75,
-                flex: 'none',
-                marginTop: 2,
-              }}
-            />
             <div>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: '0.13em',
-                  textTransform: 'uppercase',
-                  color: 'var(--color-muted-foreground)',
-                  marginBottom: 3,
-                }}
-              >
-                WORKFLOWS
-              </div>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: 22,
-                  fontWeight: 800,
-                  color: 'var(--kp-navy)',
-                  letterSpacing: '-0.02em',
-                  lineHeight: 1.15,
-                }}
-              >
-                Workflows
-              </h1>
-              <p
-                style={{
-                  margin: '5px 0 0',
-                  fontSize: 13,
-                  color: 'var(--color-muted-foreground)',
-                  lineHeight: 1.45,
-                }}
-              >
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                Your tireless litigation associate. {String(templates.length)} workflow{templates.length === 1 ? '' : 's'} ready — pick one to run.
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-              </p>
+              <SurfaceHeader
+                Icon={ListChecks}
+                title="Workflows"
+                description={`Your tireless associate. ${String(templates.length)} workflow${templates.length === 1 ? '' : 's'} ready — pick one to run.`}
+              />
 
-              {/* Active-matter context chip */}
+              {/* Active-matter context chip — shown below the header */}
               {activeMatter !== null && (
                 <div
                   data-testid="associate-active-matter-chip"

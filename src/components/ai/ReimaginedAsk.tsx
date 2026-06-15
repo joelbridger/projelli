@@ -50,6 +50,7 @@ import type { Provider } from '@/modules/models/Provider';
 import { cn } from '@/lib/utils';
 import { useAIChatStore } from '@/stores/aiChatStore';
 import type { ChatMessage } from '@/types/ai';
+import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
@@ -639,7 +640,6 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
   const activeMatter = useActiveMatter();
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const profession = useProfessionStore((s) => s.profession);
-  const matterScopeLabel = activeMatter ? matterLabel(activeMatter) : 'all matters';
   const isSampleMatterActive = activeMatter?.id === SAMPLE_MATTER_ID;
   // Profession-aware demo questions: a tax user on the sample matter sees tax
   // questions; a consultant sees consulting questions; legal is the default.
@@ -1056,71 +1056,47 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
         style={{
           padding: '16px 18px 10px',
           borderBottom: '1px solid var(--color-border)',
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: 12,
           flexShrink: 0,
         }}
       >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
-              letterSpacing: '0.13em',
-              textTransform: 'uppercase',
-              color: 'var(--color-muted-foreground)',
-              marginBottom: 3,
-            }}
-          >
-            Search &middot; {matterScopeLabel}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 2 }}>
-            <h2
-              style={{
-                fontSize: 18,
-                fontWeight: 800,
-                color: 'var(--kp-navy)',
-                letterSpacing: '-0.02em',
-                lineHeight: 1.2,
-                margin: 0,
-              }}
-            >
-              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-              Find anything. Click to verify.
-              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-            </h2>
-            <ScopeToggle
-              scope={askScope}
-              onChange={setAskScope}
-              hasMatter={!!activeMatter}
-              isSample={isSampleMatterActive}
-            />
-          </div>
-        </div>
-        {turns.length > 0 && (
-          <button
-            type="button"
-            onClick={handleNewAsk}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '6px 11px',
-              borderRadius: 7,
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-background)',
-              color: 'var(--kp-navy)',
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
-          >
-            <Plus size={13} strokeWidth={2} />
-            New search
-          </button>
-        )}
+        <SurfaceHeader
+          Icon={Sparkles}
+          title="Search"
+          description="Find anything across your work. Every answer cites its source."
+          actions={
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+              <ScopeToggle
+                scope={askScope}
+                onChange={setAskScope}
+                hasMatter={!!activeMatter}
+                isSample={isSampleMatterActive}
+              />
+              {turns.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleNewAsk}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    padding: '6px 11px',
+                    borderRadius: 7,
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-background)',
+                    color: 'var(--kp-navy)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Plus size={13} strokeWidth={2} />
+                  New search
+                </button>
+              )}
+            </div>
+          }
+        />
       </div>
 
       {/* Recent sessions chips */}
