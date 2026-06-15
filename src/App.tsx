@@ -73,6 +73,7 @@ import { createWorkflowEngine } from '@/modules/workflow/WorkflowEngine';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { MemoryService } from '@/modules/memory/MemoryService';
 import { getActiveScope, getOrCreateSampleMatter, useMatterStore } from '@/stores/matterStore';
+import { useMatterUiStore, isWorkingSurface } from '@/stores/matterUiStore';
 import { MattersSidebarPanel } from '@/components/matter/MattersSidebarPanel';
 import { MatterManagerDialog } from '@/components/matter/MatterManagerDialog';
 import { ragVerifyCitation, type RetrievalScope } from '@/utils/tauri-commands';
@@ -304,6 +305,9 @@ function App() {
 
   // Sidebar state
   const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'email' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'settings' | 'trash' | 'plugins'>('files');
+  // Per-matter UI memory (matterUiStore): subscribe to the active matter so we
+  // can save + restore each matter's last working surface and focused document.
+  const activeMatterId = useMatterStore((s) => s.activeMatterId);
   // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -1661,27 +1665,65 @@ function App() {
     return () => { window.removeEventListener('keepance:open-settings', handler); };
   }, [openSettings]);
 
-  // Wave F — listen for 'keepance:matter-launch' dispatched by the quick-action
-  // buttons on each matter row in ReimaginedMattersHome. Sets the active matter
-  // and jumps to the requested surface (search = Ask, files = Documents, email).
+  // Per-matter UI memory: as the user works inside a matter, keep its snapshot
+  // (last working surface + focused document) up to date, so returning to the
+  // matter later restores it. Hub/Settings are NOT remembered (browse/config),
+  // so opening a matter's hub never clobbers its remembered work.
+  useEffect(() => {
+    if (!activeMatterId) return;
+    if (!isWorkingSurface(sidebarActiveTab)) return;
+    useMatterUiStore.getState().saveSnapshot(activeMatterId, {
+      surface: sidebarActiveTab,
+      activeTabPath: sidebarActiveTab === 'files' ? (activeTabPath ?? null) : null,
+    });
+  }, [activeMatterId, sidebarActiveTab, activeTabPath]);
+
+  // Wave F — listen for 'keepance:matter-launch'. Quick-action buttons pass an
+  // explicit surface (search = Ask, files = Documents, email) and jump there.
+  // Selecting a matter to RETURN to it (e.g. the navy rail) passes no surface,
+  // so we restore that matter's remembered working surface + focused document.
   useEffect(() => {
     const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'workflows', 'audit'] as const);
     type AllowedSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit';
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ matterId?: string; surface?: string; question?: string } | null>).detail;
       if (!detail?.matterId) return;
-      const surface = ALLOWED_SURFACES.has(detail.surface as AllowedSurface)
-        ? (detail.surface as AllowedSurface)
-        : 'search';
-      useMatterStore.getState().setActiveMatter(detail.matterId);
-      // Launching a matter into Documents lands on its file browser, not an editor.
-      if (surface === 'files') setDocumentsView('browser');
-      setSidebarActiveTab(surface);
-      // Prefill ReimaginedAsk when the caller includes a question and the
-      // destination surface is Search (Ask).
-      if (surface === 'search' && detail.question) {
-        setAskPrefill({ question: detail.question, autoSubmit: true });
+      const matterId = detail.matterId;
+      const hasExplicitSurface = ALLOWED_SURFACES.has(detail.surface as AllowedSurface);
+      useMatterStore.getState().setActiveMatter(matterId);
+
+      if (hasExplicitSurface) {
+        const surface = detail.surface as AllowedSurface;
+        // Launching a matter into Documents lands on its file browser, not an editor.
+        if (surface === 'files') setDocumentsView('browser');
+        setSidebarActiveTab(surface);
+        // Prefill ReimaginedAsk when the caller includes a question and the
+        // destination surface is Search (Ask).
+        if (surface === 'search' && detail.question) {
+          setAskPrefill({ question: detail.question, autoSubmit: true });
+        }
+        return;
       }
+
+      // No explicit surface: restore the matter's remembered view (its last
+      // working surface + the document it had focused), or its hub on first visit.
+      const snap = useMatterUiStore.getState().getSnapshot(matterId);
+      if (!snap) {
+        setSidebarActiveTab('matters');
+        return;
+      }
+      if (snap.surface === 'files' && snap.activeTabPath) {
+        const tabs = useEditorStore.getState().openTabs;
+        if (tabs.some((t) => t.path === snap.activeTabPath)) {
+          useEditorStore.getState().setActiveTab(snap.activeTabPath);
+          setDocumentsView('editor');
+        } else {
+          setDocumentsView('browser');
+        }
+      } else if (snap.surface === 'files') {
+        setDocumentsView('browser');
+      }
+      setSidebarActiveTab(snap.surface);
     };
     window.addEventListener('keepance:matter-launch', handler);
     return () => { window.removeEventListener('keepance:matter-launch', handler); };

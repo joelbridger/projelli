@@ -14,7 +14,7 @@ import {
   Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Mail, Settings,
   ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
-import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
+import { useMatters, useActiveMatterId } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
 import { IconButton } from '@/components/ui/kp';
@@ -62,7 +62,6 @@ export function ReimaginedSpine({
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const matters = useMatters();
   const activeMatterId = useActiveMatterId();
-  const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
   const entityLabel = useEntityLabel();
 
   // Matter-centric nav. label/Icon + the existing content tab id it drives.
@@ -154,7 +153,11 @@ export function ReimaginedSpine({
               const on = m.id === activeMatterId;
               return (
                 <button key={m.id} type="button"
-                  onClick={() => { setActiveMatter(m.id); onTabChange?.('matters'); }}
+                  onClick={() => {
+                    // Return to this matter: App restores its last working
+                    // surface + focused document (no explicit surface here).
+                    window.dispatchEvent(new CustomEvent('keepance:matter-launch', { detail: { matterId: m.id } }));
+                  }}
                   style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, cursor: 'pointer', background: on ? 'rgba(93,198,255,0.12)' : 'transparent', color: '#fff', padding: 'var(--kp-space-xs) var(--kp-space-sm)', borderRadius: 'var(--radius-md)', position: 'relative' }}>
                   {on && <span style={{ position: 'absolute', left: 3, top: 8, bottom: 8, width: 3, borderRadius: 3, background: 'var(--kp-grad)' }} />}
                   <div style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: '#fff', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{matterLabel(m)}</div>
