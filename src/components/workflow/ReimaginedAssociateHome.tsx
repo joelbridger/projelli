@@ -43,8 +43,11 @@ import {
   Settings,
   Briefcase,
   ListChecks,
+  AlertTriangle,
+  AlertCircle,
 } from 'lucide-react';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
+import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout } from '@/components/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { prioritizeByProfession } from '@/modules/workflow/prioritizeByProfession';
@@ -166,30 +169,14 @@ function PracticeFilterChip({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <Chip
+      active={active}
+      size="md"
       data-testid={testId}
       onClick={onClick}
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '4px 12px',
-        borderRadius: 20,
-        fontSize: 'var(--kp-font-xs)',
-        fontWeight: active ? 'var(--kp-weight-bold)' : 'var(--kp-weight-medium)',
-        cursor: 'pointer',
-        border: active ? '1.5px solid var(--kp-navy)' : '1px solid var(--color-border)',
-        background: active ? 'var(--kp-navy)' : '#fff',
-        color: active ? '#fff' : 'var(--color-muted-foreground)',
-        transition: 'background 0.1s, color 0.1s, border-color 0.1s',
-        whiteSpace: 'nowrap',
-        letterSpacing: '0.01em',
-        lineHeight: 1,
-        flexShrink: 0,
-      }}
     >
       {label}
-    </button>
+    </Chip>
   );
 }
 
@@ -212,24 +199,18 @@ function TemplateCard({
   const disabled = trialLocked || (executionActive && !isRunning);
 
   return (
-    <div
+    <Card
+      variant="raised"
+      featured={isFeatured}
       data-testid={`associate-card-${template.id}`}
       style={{
-        border: isFeatured
-          ? '2px solid var(--kp-navy)'
-          : '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
-        padding: 'var(--kp-card-pad)',
-        background: isFeatured ? 'rgba(10,37,64,0.03)' : '#fff',
-        boxShadow: 'var(--kp-shadow-1)',
         display: 'flex',
         flexDirection: 'column',
         gap: 'var(--kp-space-sm)',
         position: 'relative',
-        transition: 'box-shadow 0.12s',
       }}
     >
-      {/* Featured badge */}
+      {/* Featured badge — drooping tab below card top edge */}
       {isFeatured && (
         <div
           style={{
@@ -284,45 +265,19 @@ function TemplateCard({
       </div>
 
       {/* Run button */}
-      <button
-        type="button"
+      <Button
+        variant={isFeatured ? 'primary' : 'secondary'}
+        size="sm"
+        iconLeft={isRunning ? Loader2 : Play}
         data-testid={`associate-run-${template.id}`}
         disabled={disabled}
         onClick={() => { if (!disabled) onRun(template); }}
-        title={trialLocked ? 'Trial ended — activate a license to run workflows' : `Run ${template.name}`}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 6,
-          padding: '6px 14px',
-          borderRadius: 5,
-          fontSize: 'var(--kp-font-xs)',
-          fontWeight: 'var(--kp-weight-semibold)',
-          background: disabled
-            ? 'var(--color-muted)'
-            : isFeatured
-            ? 'var(--kp-navy)'
-            : 'transparent',
-          color: disabled
-            ? 'var(--color-muted-foreground)'
-            : isFeatured
-            ? '#fff'
-            : 'var(--kp-navy)',
-          border: `1px solid ${disabled ? 'var(--color-border)' : 'var(--kp-navy)'}`,
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          alignSelf: 'flex-start',
-          transition: 'opacity 0.1s',
-        }}
+        title={trialLocked ? 'Trial ended - activate a license to run workflows' : `Run ${template.name}`}
+        style={{ alignSelf: 'flex-start' }}
       >
-        {isRunning ? (
-          <Loader2 style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} className="animate-spin" />
-        ) : (
-          <Play style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, fill: disabled ? 'none' : (isFeatured ? '#fff' : 'var(--kp-navy)') }} />
-        )}
         {isRunning ? 'Running' : 'Run'}
-      </button>
-    </div>
+      </Button>
+    </Card>
   );
 }
 
@@ -393,17 +348,7 @@ function CategorySection({
         ) : (
           <ChevronDown style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--color-muted-foreground)', flex: 'none' }} />
         )}
-        <span
-          style={{
-            fontSize: 'var(--kp-font-2xs)',
-            fontWeight: 'var(--kp-weight-bold)',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: 'var(--kp-navy)',
-          }}
-        >
-          {config.label}
-        </span>
+        <Eyebrow primary>{config.label}</Eyebrow>
         <span
           data-testid={`associate-section-count-${config.key}`}
           style={{
@@ -443,28 +388,16 @@ function CategorySection({
 
           {/* Expander */}
           {!showAll && hiddenCount > 0 && (
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
+              iconLeft={ChevronDown}
               data-testid={`associate-show-all-${config.key}`}
               onClick={() => { setShowAll(true); }}
-              style={{
-                marginTop: 'var(--kp-space-sm)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                fontSize: 'var(--kp-font-xs)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                color: 'var(--kp-navy)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px 0',
-                letterSpacing: '0.01em',
-              }}
+              style={{ marginTop: 'var(--kp-space-sm)' }}
             >
-              <ChevronDown style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
               Show all ({String(templates.length)})
-            </button>
+            </Button>
           )}
 
           {/* Search-hidden hint — shown when search has narrowed this category */}
@@ -725,31 +658,12 @@ export function ReimaginedAssociateHome({
                 description={`Your tireless associate. ${String(templates.length)} workflow${templates.length === 1 ? '' : 's'} ready — pick one to run.`}
               />
 
-              {/* Active-matter context chip — shown below the header */}
+              {/* Active-matter context badge — shown below the header */}
               {activeMatter !== null && (
-                <div
-                  data-testid="associate-active-matter-chip"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    marginTop: 8,
-                    padding: '3px 10px',
-                    borderRadius: 20,
-                    border: '1px solid rgba(10,37,64,0.18)',
-                    background: 'rgba(10,37,64,0.05)',
-                    fontSize: 'var(--kp-font-2xs)',
-                    fontWeight: 'var(--kp-weight-semibold)',
-                    letterSpacing: '0.02em',
-                    color: 'var(--kp-navy)',
-                    maxWidth: 360,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <Briefcase style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, flex: 'none' }} />
-                  Running in: {matterLabel(activeMatter)}
+                <div data-testid="associate-active-matter-chip" style={{ marginTop: 8 }}>
+                  <Badge variant="neutral" size="sm" icon={Briefcase}>
+                    Running in: {matterLabel(activeMatter)}
+                  </Badge>
                 </div>
               )}
             </div>
@@ -841,19 +755,13 @@ export function ReimaginedAssociateHome({
       {trialGate.isLocked && (
         <div
           data-testid="associate-trial-banner"
-          style={{
-            margin: 'var(--kp-space-sm) var(--kp-gutter) 0',
-            padding: '10px 14px',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid #fbbf24',
-            background: '#fffbeb',
-            fontSize: 'var(--kp-font-sm)',
-            color: '#92400e',
-          }}
+          style={{ margin: 'var(--kp-space-sm) var(--kp-gutter) 0' }}
         >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-          <strong>Trial ended.</strong> Activate a license to run workflows. Your work is still here and fully accessible.
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          <Callout variant="warning" icon={AlertTriangle}>
+            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            <strong>Trial ended.</strong> Activate a license to run workflows. Your work is still here and fully accessible.
+            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          </Callout>
         </div>
       )}
 
@@ -862,60 +770,39 @@ export function ReimaginedAssociateHome({
         <div
           data-testid="associate-provider-error"
           role="alert"
-          style={{
-            margin: 'var(--kp-space-sm) var(--kp-gutter) 0',
-            padding: '10px 14px',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid #fca5a5',
-            background: '#fff1f2',
-            fontSize: 'var(--kp-font-sm)',
-            color: '#7f1d1d',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            flexWrap: 'wrap',
-          }}
+          style={{ margin: 'var(--kp-space-sm) var(--kp-gutter) 0' }}
         >
-          <span style={{ flex: 1 }}>
-            {providerError === 'ollama-unreachable' ? (
-              <span>
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                <strong>Local AI unreachable.</strong>
-                {' Ollama is not responding. Check that it is running and try again.'}
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          <Callout variant="error" icon={AlertCircle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ flex: 1 }}>
+                {providerError === 'ollama-unreachable' ? (
+                  <span>
+                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    <strong>Local AI unreachable.</strong>
+                    {' Ollama is not responding. Check that it is running and try again.'}
+                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                  </span>
+                ) : (
+                  <span>
+                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    <strong>No AI provider configured.</strong>
+                    {' Add an API key or connect to Ollama to run workflows.'}
+                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                  </span>
+                )}
               </span>
-            ) : (
-              <span>
-                {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                <strong>No AI provider configured.</strong>
-                {' Add an API key or connect to Ollama to run workflows.'}
-                {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-              </span>
-            )}
-          </span>
-          {onOpenSettings && providerError === 'needs-provider' && (
-            <button
-              type="button"
-              onClick={onOpenSettings}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '5px 12px',
-                borderRadius: 5,
-                fontSize: 'var(--kp-font-xs)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                background: 'var(--kp-navy)',
-                color: '#fff',
-                border: 'none',
-                cursor: 'pointer',
-                flex: 'none',
-              }}
-            >
-              <Settings style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)' }} />
-              Open settings
-            </button>
-          )}
+              {onOpenSettings && providerError === 'needs-provider' && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  iconLeft={Settings}
+                  onClick={onOpenSettings}
+                >
+                  Open settings
+                </Button>
+              )}
+            </div>
+          </Callout>
         </div>
       )}
 
@@ -932,27 +819,13 @@ export function ReimaginedAssociateHome({
         {/* Recent runs strip */}
         {recentRuns.length > 0 && (
           <div style={{ marginBottom: 'var(--kp-section-gap)' }}>
-            <div
-              style={{
-                fontSize: 'var(--kp-font-2xs)',
-                fontWeight: 'var(--kp-weight-bold)',
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: 'var(--kp-navy)',
-                marginBottom: 6,
-              }}
-            >
-              Recent runs
+            <div style={{ marginBottom: 6 }}>
+              <Eyebrow primary>Recent runs</Eyebrow>
             </div>
-            <div
+            <Card
+              variant="flat"
               data-testid="associate-recent-runs"
-              style={{
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-lg)',
-                background: '#fff',
-                overflow: 'hidden',
-                padding: '0 14px',
-              }}
+              style={{ overflow: 'hidden' }}
             >
               {recentRuns.map((run) => (
                 <RunRow
@@ -961,53 +834,25 @@ export function ReimaginedAssociateHome({
                   {...(onFocusExecutionTab !== undefined && { onFocus: onFocusExecutionTab })}
                 />
               ))}
-            </div>
+            </Card>
           </div>
         )}
 
         {/* Template groups */}
         {groups.every((g) => g.templates.length === 0) ? (
-          <div
+          // eslint-disable keepance-i18n/no-hardcoded-string
+          <EmptyState
             data-testid="associate-empty"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '64px 0',
-              gap: 12,
-              textAlign: 'center',
-            }}
-          >
-            <Search style={{ width: 32, height: 32, color: 'var(--color-muted-foreground)', strokeWidth: 1.5 }} />
-            <div style={{ fontSize: 'var(--kp-font-lg)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-              No workflows match
-              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-            </div>
-            <div style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)', maxWidth: 280, lineHeight: 'var(--kp-leading-relaxed)' }}>
-              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-              Try a different search term, or clear the filter to see all workflows.
-              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-            </div>
-            <button
-              type="button"
-              onClick={handleClearAll}
-              style={{
-                marginTop: 4,
-                padding: '7px 16px',
-                borderRadius: 5,
-                fontSize: 'var(--kp-font-sm)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                background: 'var(--kp-navy)',
-                color: '#fff',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              Clear search
-            </button>
-          </div>
+            icon={Search}
+            title="No workflows match"
+            body="Try a different search term, or clear the filter to see all workflows."
+            actions={
+              <Button variant="secondary" size="sm" onClick={handleClearAll}>
+                Clear search
+              </Button>
+            }
+          />
+          // eslint-enable keepance-i18n/no-hardcoded-string
         ) : (
           groups.map(({ config, templates: groupTemplates, totalCount }) => (
             <CategorySection

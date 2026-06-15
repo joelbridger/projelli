@@ -30,22 +30,22 @@ export function SurfaceHeader({ Icon, title, description, actions, testId }: Sur
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'space-between',
-        gap: 16,
+        gap: 'var(--kp-space-md)',
       }}
     >
       <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', marginBottom: 'var(--kp-space-2xs)' }}>
           <Icon
-            style={{ width: 18, height: 18, color: 'var(--kp-navy)', strokeWidth: 1.75, flex: 'none' }}
+            style={{ width: 'var(--kp-icon-lg)', height: 'var(--kp-icon-lg)', color: 'var(--kp-navy)', strokeWidth: 'var(--kp-icon-stroke)', flex: 'none' }}
           />
           <h1
             style={{
               margin: 0,
-              fontSize: 22,
-              fontWeight: 700,
+              fontSize: 'var(--kp-font-2xl)',
+              fontWeight: 'var(--kp-weight-bold)',
               color: 'var(--kp-navy)',
               letterSpacing: '-0.01em',
-              lineHeight: 1.2,
+              lineHeight: 'var(--kp-leading-tight)',
             }}
           >
             {title}
@@ -55,9 +55,9 @@ export function SurfaceHeader({ Icon, title, description, actions, testId }: Sur
           <p
             style={{
               margin: 0,
-              fontSize: 13,
+              fontSize: 'var(--kp-font-sm)',
               color: 'var(--color-muted-foreground)',
-              lineHeight: 1.4,
+              lineHeight: 'var(--kp-leading-normal)',
             }}
           >
             {description}

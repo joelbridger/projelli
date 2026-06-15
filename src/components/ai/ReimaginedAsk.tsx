@@ -26,6 +26,8 @@ import {
   ExternalLink, Quote, ShieldCheck, AlertTriangle, Loader2,
   MessageSquare, Plus, Save, X, Mail, FolderOpen,
 } from 'lucide-react';
+import { Button, Chip, Badge, Eyebrow, Card, EmptyState } from '@/components/ui/kp';
+import type { IconType } from '@/components/ui/kp';
 import { useActiveMatter, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
@@ -257,10 +259,10 @@ function filterHitsByScope(hits: RagHit[], scope: AskScope): RagHit[] {
 /* ScopeToggle — compact segmented pill control                                */
 /* -------------------------------------------------------------------------- */
 
-interface ScopeOption {
+interface ScopeOptionDef {
   value: AskScope;
   label: string;
-  icon: React.ReactNode;
+  Icon: IconType;
 }
 
 function ScopeToggle({
@@ -276,12 +278,12 @@ function ScopeToggle({
 }) {
   // Build the available options based on context.
   // Email/Documents hidden on the sample matter so demo chips stay prominent.
-  const options: ScopeOption[] = [
-    ...(hasMatter ? [{ value: 'this-matter' as AskScope, label: 'This matter', icon: <FileText size={11} strokeWidth={1.75} /> }] : []),
-    { value: 'all-matters' as AskScope, label: 'All matters', icon: <FolderOpen size={11} strokeWidth={1.75} /> },
+  const options: ScopeOptionDef[] = [
+    ...(hasMatter ? [{ value: 'this-matter' as AskScope, label: 'This matter', Icon: FileText }] : []),
+    { value: 'all-matters' as AskScope, label: 'All matters', Icon: FolderOpen },
     ...(!isSample ? [
-      { value: 'email' as AskScope, label: 'Email', icon: <Mail size={11} strokeWidth={1.75} /> },
-      { value: 'documents' as AskScope, label: 'Documents', icon: <FileText size={11} strokeWidth={1.75} /> },
+      { value: 'email' as AskScope, label: 'Email', Icon: Mail },
+      { value: 'documents' as AskScope, label: 'Documents', Icon: FileText },
     ] : []),
   ];
 
@@ -290,47 +292,20 @@ function ScopeToggle({
       data-testid="scope-toggle"
       role="group"
       aria-label="Search scope"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 2,
-        background: 'var(--color-secondary)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
-        padding: 2,
-      }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}
     >
-      {options.map((opt) => {
-        const isActive = scope === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            data-testid={`scope-option-${opt.value}`}
-            aria-pressed={isActive}
-            onClick={() => { onChange(opt.value); }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '3px 9px',
-              borderRadius: 'var(--radius-md)',
-              border: 'none',
-              background: isActive ? 'var(--color-background)' : 'transparent',
-              color: isActive ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-              fontSize: 'var(--kp-font-2xs)',
-              fontWeight: isActive ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
-              cursor: 'pointer',
-              transition: 'background 0.12s, color 0.12s',
-              boxShadow: isActive ? 'var(--kp-shadow-1)' : 'none',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {opt.icon}
-            {opt.label}
-          </button>
-        );
-      })}
+      {options.map((opt) => (
+        <Chip
+          key={opt.value}
+          size="sm"
+          active={scope === opt.value}
+          icon={opt.Icon}
+          data-testid={`scope-option-${opt.value}`}
+          onClick={() => { onChange(opt.value); }}
+        >
+          {opt.label}
+        </Chip>
+      ))}
     </div>
   );
 }
@@ -414,13 +389,9 @@ function SourcePanel({
 }) {
   if (!cite) {
     return (
-      <div
+      <Card
+        variant="raised"
         style={{
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
-          background: 'var(--color-background)',
-          boxShadow: 'var(--kp-shadow-1)',
-          padding: 'var(--kp-card-pad)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -436,7 +407,7 @@ function SourcePanel({
         {/* eslint-disable keepance-i18n/no-hardcoded-string */}
         Click a citation chip to see the source passage
         {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-      </div>
+      </Card>
     );
   }
 
@@ -462,34 +433,22 @@ function SourcePanel({
           gap: 8,
         }}
       >
-        <span
-          style={{
-            fontSize: 'var(--kp-font-2xs)',
-            fontWeight: 'var(--kp-weight-bold)',
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            color: 'var(--color-muted-foreground)',
-          }}
-        >
+        <Eyebrow>
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
           Source · citation {cite.n}
-        </span>
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </Eyebrow>
         {cite.verified && (
-          <span
-            className="inline-flex items-center gap-1"
-            style={{
-              marginLeft: 'auto',
-              fontSize: 'var(--kp-font-2xs)',
-              fontWeight: 'var(--kp-weight-semibold)',
-              color: '#16a34a',
-              background: '#f0fdf4',
-              border: '1px solid #bbf7d0',
-              borderRadius: 99,
-              padding: '2px 8px',
-            }}
+          <Badge
+            variant="local"
+            size="sm"
+            icon={CheckCircle2}
+            className="ml-auto"
           >
-            <CheckCircle2 size={11} strokeWidth={2.25} />
+            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
             Verified
-          </span>
+            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          </Badge>
         )}
       </div>
 
@@ -534,31 +493,18 @@ function SourcePanel({
         </blockquote>
 
         {cite.path && (
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={ExternalLink}
+            fullWidth
             onClick={() => { onOpenFile?.(cite.path ?? ''); }}
-            style={{
-              marginTop: 'var(--kp-space-sm)',
-              width: '100%',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              padding: '7px 12px',
-              fontSize: 'var(--kp-font-xs)',
-              fontWeight: 'var(--kp-weight-medium)',
-              color: 'var(--kp-navy)',
-              background: 'transparent',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)',
-              cursor: 'pointer',
-            }}
+            style={{ marginTop: 'var(--kp-space-sm)' }}
           >
-            <ExternalLink size={13} strokeWidth={1.75} />
             {/* eslint-disable keepance-i18n/no-hardcoded-string */}
             Open in editor
             {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -620,29 +566,16 @@ function SampleBridgeCallout() {
         </p>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="sm"
           data-testid="sample-bridge-add-matter"
           onClick={handleAddMatter}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            padding: '5px 11px',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--kp-navy)',
-            background: 'var(--kp-navy)',
-            color: '#fff',
-            fontSize: 'var(--kp-font-xs)',
-            fontWeight: 'var(--kp-weight-semibold)',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-          }}
         >
           {/* eslint-disable keepance-i18n/no-hardcoded-string */}
           Add a matter
           {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-        </button>
+        </Button>
         <button
           type="button"
           data-testid="sample-bridge-dismiss"
@@ -1190,27 +1123,16 @@ export function ReimaginedAsk({
                 isSample={isSampleMatterActive}
               />
               {turns.length > 0 && (
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft={Plus}
                   onClick={handleNewAsk}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 5,
-                    padding: '6px 11px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--color-border)',
-                    background: 'var(--color-background)',
-                    color: 'var(--kp-navy)',
-                    fontSize: 'var(--kp-font-xs)',
-                    fontWeight: 'var(--kp-weight-semibold)',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                  }}
                 >
-                  <Plus size={13} strokeWidth={2} />
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                   New search
-                </button>
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </Button>
               )}
             </div>
           }
@@ -1233,27 +1155,14 @@ export function ReimaginedAsk({
         >
           {/* Fix #6: chips now show a date/time sub-label so similar-start sessions are distinguishable. */}
           {recentSessions.map(({ chatId: sid, label, dateLabel }) => (
-            <button
+            <Chip
               key={sid}
-              type="button"
+              size="sm"
+              active={sid === chatId}
+              icon={MessageSquare}
               onClick={() => { handleLoadSession(sid); }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '4px 10px',
-                borderRadius: 99,
-                border: `1px solid ${sid === chatId ? 'var(--kp-navy)' : 'var(--color-border)'}`,
-                background: sid === chatId ? 'var(--kp-navy)' : 'var(--color-background)',
-                color: sid === chatId ? '#fff' : 'var(--color-foreground)',
-                fontSize: 'var(--kp-font-2xs)',
-                fontWeight: 'var(--kp-weight-medium)',
-                cursor: 'pointer',
-                flexShrink: 0,
-                maxWidth: 260,
-              }}
+              style={{ flexShrink: 0, maxWidth: 260 }}
             >
-              <MessageSquare size={11} strokeWidth={1.75} style={{ flex: 'none' }} />
               <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
                   {label.length > 48 ? `${label.slice(0, 48)}…` : label}
@@ -1264,7 +1173,7 @@ export function ReimaginedAsk({
                   </span>
                 )}
               </span>
-            </button>
+            </Chip>
           ))}
         </div>
       )}
@@ -1302,61 +1211,45 @@ export function ReimaginedAsk({
                 justifyContent: 'center',
                 gap: 'var(--kp-space-sm)',
                 padding: 'var(--kp-space-4xl) 0',
-                textAlign: 'center',
               }}
             >
               {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-              <Sparkles size={36} strokeWidth={1.4} style={{ color: 'var(--kp-navy)', opacity: 0.22, marginBottom: 2 }} />
-              <div style={{ fontSize: 'var(--kp-font-lg)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)', lineHeight: 'var(--kp-leading-tight)', letterSpacing: '-0.01em' }}>
-                What do you want to find?
-              </div>
-              <div style={{ fontSize: 'var(--kp-font-xs)', maxWidth: 260, lineHeight: 'var(--kp-leading-relaxed)', color: 'var(--color-muted-foreground)', opacity: 0.85 }}>
-                {activeMatter?.id === SAMPLE_MATTER_ID
-                  ? 'This is a sample matter. Click a question below and see a cited answer. Click any citation to read the exact passage.'
-                  : 'Every answer cites the document and locator. Click any chip to read the exact passage.'}
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-xs)', justifyContent: 'center', marginTop: 'var(--kp-space-xs)', maxWidth: 480 }}>
-                {(activeMatter?.id === SAMPLE_MATTER_ID
-                  ? (demoQuestions as unknown as string[])
-                  : [
-                      'Summarize the latest deposition',
-                      'Find every email from opposing counsel',
-                      'What deadlines are coming up?',
-                    ]
-                ).map((example) => (
-                  <button
-                    key={example}
-                    type="button"
-                    onClick={() => {
-                      if (activeMatter?.id === SAMPLE_MATTER_ID) {
-                        void handleAsk(example);
-                      } else {
-                        setQuestion(example);
-                      }
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      padding: '7px 13px',
-                      borderRadius: 99,
-                      border: '1.5px solid var(--kp-navy)',
-                      background: 'transparent',
-                      color: 'var(--kp-navy)',
-                      fontSize: 'var(--kp-font-xs)',
-                      fontWeight: 'var(--kp-weight-medium)',
-                      cursor: 'pointer',
-                      opacity: 0.7,
-                      transition: 'opacity 0.12s, background 0.12s',
-                      whiteSpace: 'nowrap',
-                    }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; (e.currentTarget as HTMLButtonElement).style.background = 'rgba(14,60,110,0.06)'; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.7'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
-                  >
-                    {example}
-                  </button>
-                ))}
-              </div>
+              <EmptyState
+                icon={Sparkles}
+                iconSize={36}
+                title="What do you want to find?"
+                body={
+                  activeMatter?.id === SAMPLE_MATTER_ID
+                    ? 'This is a sample matter. Click a question below and see a cited answer. Click any citation to read the exact passage.'
+                    : 'Every answer cites the document and locator. Click any chip to read the exact passage.'
+                }
+                actions={
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-xs)', justifyContent: 'center', maxWidth: 480 }}>
+                    {(activeMatter?.id === SAMPLE_MATTER_ID
+                      ? (demoQuestions as unknown as string[])
+                      : [
+                          'Summarize the latest deposition',
+                          'Find every email from opposing counsel',
+                          'What deadlines are coming up?',
+                        ]
+                    ).map((example) => (
+                      <Chip
+                        key={example}
+                        size="md"
+                        onClick={() => {
+                          if (activeMatter?.id === SAMPLE_MATTER_ID) {
+                            void handleAsk(example);
+                          } else {
+                            setQuestion(example);
+                          }
+                        }}
+                      >
+                        {example}
+                      </Chip>
+                    ))}
+                  </div>
+                }
+              />
               {/* C1 — "Recent in this matter" for non-sample real matters */}
               {activeMatter && activeMatter.id !== SAMPLE_MATTER_ID && matterRecentSessions.length > 0 && (
                 <div
@@ -1368,18 +1261,9 @@ export function ReimaginedAsk({
                     textAlign: 'left',
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 'var(--kp-font-2xs)',
-                      fontWeight: 'var(--kp-weight-bold)',
-                      letterSpacing: '0.11em',
-                      textTransform: 'uppercase',
-                      color: 'var(--color-muted-foreground)',
-                      marginBottom: 'var(--kp-space-xs)',
-                    }}
-                  >
+                  <Eyebrow style={{ marginBottom: 'var(--kp-space-xs)' }}>
                     Recent in this matter
-                  </div>
+                  </Eyebrow>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-2xs)' }}>
                     {/* Fix #6: each item shows the date/time sub-label so similar-start sessions are distinguishable. */}
                     {matterRecentSessions.map(({ chatId: sid, label, dateLabel }) => (
@@ -1531,28 +1415,16 @@ export function ReimaginedAsk({
             {/* eslint-enable keepance-i18n/no-hardcoded-string */}
           </span>
           {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => {
               window.dispatchEvent(new CustomEvent('keepance:open-settings', { detail: { category: 'ai' } }));
             }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '4px 11px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--kp-direct-line)',
-              background: 'var(--color-background)',
-              color: 'var(--kp-direct)',
-              fontSize: 'var(--kp-font-xs)',
-              fontWeight: 'var(--kp-weight-semibold)',
-              cursor: 'pointer',
-              flexShrink: 0,
-            }}
+            style={{ flexShrink: 0 }}
           >
             Enable indexing
-          </button>
+          </Button>
           {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         </div>
       )}
@@ -1624,67 +1496,35 @@ export function ReimaginedAsk({
           />
           {/* Fix #3: "New search" always reachable inline in composer when turns exist. */}
           {turns.length > 0 && (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={Plus}
               onClick={handleNewAsk}
               title="Start a new search"
-              style={{
-                flex: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                padding: '5px 9px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-background)',
-                color: 'var(--kp-navy)',
-                fontSize: 'var(--kp-font-2xs)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                cursor: 'pointer',
-              }}
+              style={{ flex: 'none' }}
             >
               {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-              <Plus size={12} strokeWidth={2} />
               New search
               {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => void handleAsk()}
             disabled={isBusy || !question.trim()}
-            style={{
-              flex: 'none',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '7px 13px',
-              borderRadius: 'var(--radius-md)',
-              border: 0,
-              background: 'var(--kp-navy)',
-              color: '#fff',
-              fontSize: 'var(--kp-font-xs)',
-              fontWeight: 'var(--kp-weight-semibold)',
-              cursor: isBusy || !question.trim() ? 'not-allowed' : 'pointer',
-              opacity: isBusy || !question.trim() ? 0.55 : 1,
-              transition: 'opacity 0.15s',
-            }}
+            loading={isBusy}
+            iconLeft={isBusy ? undefined : ArrowRight}
+            style={{ flex: 'none' }}
+            aria-label={status === 'retrieving' ? 'Searching your documents' : status === 'answering' ? 'Answering' : undefined}
           >
-            {/* Fix #7: aria-hidden on decorative spinner; role/aria-label on status text for screen readers. */}
-            {isBusy ? (
-              <Loader2 size={14} strokeWidth={2} className="animate-spin" aria-hidden="true" />
-            ) : (
-              <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
-            )}
-            <span
-              role={isBusy ? 'status' : undefined}
-              aria-label={status === 'retrieving' ? 'Searching your documents' : status === 'answering' ? 'Answering' : undefined}
-            >
-              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            <span role={isBusy ? 'status' : undefined}>
               {status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : 'Search'}
-              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
             </span>
-          </button>
+            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          </Button>
         </div>
       </div>
     </div>
@@ -1810,29 +1650,18 @@ function TurnBlock({
 
         {/* Save to document button */}
         {!isStreaming && turn.answer && onSaveToDocument && (
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={Save}
+            loading={isSaving}
             onClick={() => void onSaveToDocument(turnIdx, turn.answer)}
-            disabled={isSaving}
-            style={{
-              display: 'inline-flex',
-              alignSelf: 'flex-start',
-              alignItems: 'center',
-              gap: 5,
-              padding: '5px 11px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border)',
-              background: 'var(--color-background)',
-              color: 'var(--kp-navy)',
-              fontSize: 'var(--kp-font-xs)',
-              fontWeight: 'var(--kp-weight-medium)',
-              cursor: isSaving ? 'not-allowed' : 'pointer',
-              opacity: isSaving ? 0.6 : 1,
-            }}
+            style={{ alignSelf: 'flex-start' }}
           >
-            <Save size={12} strokeWidth={1.75} />
+            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
             {isSaving ? 'Saving…' : 'Save to document'}
-          </button>
+            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          </Button>
         )}
       </div>
     </div>

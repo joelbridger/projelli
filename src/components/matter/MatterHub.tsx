@@ -21,6 +21,7 @@ import {
 } from '@/modules/matter/matterAtAGlance';
 import { isMemoryEnabled } from '@/modules/memory/MemoryService';
 import type { MatterAtAGlanceResult } from '@/modules/matter/matterAtAGlance';
+import { Button, IconButton, SearchField, Chip, Badge, Eyebrow, Card } from '@/components/ui/kp';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -218,45 +219,11 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
 
   // ── Styles ────────────────────────────────────────────────────────────
 
-  const panelCard: React.CSSProperties = {
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-lg)',
-    background: '#fff',
-    padding: 'var(--kp-card-pad)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 'var(--kp-stack-gap)',
-    boxShadow: 'var(--kp-shadow-1)',
-  };
-
   const panelHeader: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
-  };
-
-  const panelTitle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    fontSize: 'var(--kp-font-2xs)',
-    fontWeight: 'var(--kp-weight-bold)',
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: 'var(--color-muted-foreground)',
-    lineHeight: 'var(--kp-leading-tight)',
-  };
-
-  const panelArrow: React.CSSProperties = {
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    color: 'var(--color-muted-foreground)',
-    padding: 2,
-    display: 'flex',
-    alignItems: 'center',
-    borderRadius: 'var(--radius-md)',
   };
 
   const panelPreview: React.CSSProperties = {
@@ -295,29 +262,18 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         }}
       >
         {/* Back button */}
-        <button
-          type="button"
-          data-testid="hub-back-btn"
-          onClick={onBack}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            color: 'var(--color-muted-foreground)',
-            fontSize: 'var(--kp-font-xs)',
-            fontWeight: 'var(--kp-weight-medium)',
-            padding: '0 0 12px 0',
-            fontFamily: 'Satoshi, sans-serif',
-          }}
-        >
-          <ArrowLeft style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-          { }
-          {entityLabel.Other}
-          { }
-        </button>
+        <div style={{ paddingBottom: 12 }}>
+          <Button
+            type="button"
+            data-testid="hub-back-btn"
+            variant="link"
+            size="sm"
+            iconLeft={ArrowLeft}
+            onClick={onBack}
+          >
+            {entityLabel.Other}
+          </Button>
+        </div>
 
         {/* Matter name + eyebrow + badges */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
@@ -352,28 +308,9 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                 <span>{matter.client}</span>
               )}
               {(isPrivileged || matter.privileged) && (
-                <>
-                  <span
-                    data-testid="hub-isolated-badge"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 3,
-                      padding: '1px 7px',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 'var(--kp-font-2xs)',
-                      fontWeight: 'var(--kp-weight-semibold)',
-                      background: 'rgba(10,37,64,0.07)',
-                      color: 'var(--kp-navy, #0a2540)',
-                      border: '1px solid rgba(10,37,64,0.18)',
-                    }}
-                  >
-                    <Lock style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
-                    { }
-                    Isolated
-                    { }
-                  </span>
-                </>
+                <span data-testid="hub-isolated-badge">
+                  <Badge variant="privilege" size="sm" icon={Lock}>Isolated</Badge>
+                </span>
               )}
               { }
               <span>Created {formatDate(matter.createdAt)}</span>
@@ -383,26 +320,8 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
 
           {/* Sample pill */}
           {matter.isSample && (
-            <span
-              data-testid="hub-sample-pill"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '2px 8px',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 'var(--kp-font-2xs)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                letterSpacing: '0.03em',
-                background: 'rgba(16,185,129,0.09)',
-                color: '#065f46',
-                border: '1px solid rgba(16,185,129,0.28)',
-                whiteSpace: 'nowrap',
-                flex: 'none',
-              }}
-            >
-              { }
-              Sample
-              { }
+            <span data-testid="hub-sample-pill" style={{ flex: 'none' }}>
+              <Badge variant="sample" size="sm">Sample</Badge>
             </span>
           )}
         </div>
@@ -417,73 +336,28 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         }}
       >
         {/* Compact Ask row */}
-        <div
-          data-ask-wrapper=""
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            background: '#fff',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '8px 10px',
-            transition: 'border-color 0.1s',
-          }}
-        >
-          <Sparkles
-            style={{
-              width: 'var(--kp-icon-md)',
-              height: 'var(--kp-icon-md)',
-              color: 'var(--color-muted-foreground)',
-              flex: 'none',
-              strokeWidth: 1.75,
-            }}
-          />
-          <input
-            type="text"
-            data-testid="hub-ask-input"
-            placeholder={`Search this ${entityLabel.one}...`}
-            value={askQ}
-            onChange={(e) => { setAskQ(e.target.value); }}
-            onKeyDown={handleAskKeyDown}
-            onFocus={(e) => {
-              const wrapper = e.currentTarget.closest<HTMLElement>('[data-ask-wrapper]');
-              if (wrapper) wrapper.style.border = '1.5px solid var(--kp-navy, #0a2540)';
-            }}
-            onBlur={(e) => {
-              const wrapper = e.currentTarget.closest<HTMLElement>('[data-ask-wrapper]');
-              if (wrapper) wrapper.style.border = '1px solid var(--color-border)';
-            }}
-            style={{
-              flex: 1,
-              border: 'none',
-              outline: 'none',
-              fontSize: 'var(--kp-font-sm)',
-              color: 'var(--color-foreground)',
-              background: 'transparent',
-              fontFamily: 'Satoshi, sans-serif',
-            }}
-          />
-          <button
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <SearchField
+              data-testid="hub-ask-input"
+              icon={Sparkles}
+              size="md"
+              value={askQ}
+              onChange={(v: string) => { setAskQ(v); }}
+              onClear={() => { setAskQ(''); }}
+              placeholder={`Search this ${entityLabel.one}...`}
+              onKeyDown={handleAskKeyDown}
+            />
+          </div>
+          <Button
             type="button"
             data-testid="hub-ask-submit"
+            variant="primary"
+            size="sm"
             onClick={handleAskSubmit}
-            style={{
-              padding: '4px 12px',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 'var(--kp-font-xs)',
-              fontWeight: 'var(--kp-weight-semibold)',
-              background: 'var(--kp-navy, #0a2540)',
-              color: '#fff',
-              border: 'none',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
           >
-            { }
             Search
-            { }
-          </button>
+          </Button>
         </div>
 
         {/* Recent questions */}
@@ -511,9 +385,9 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               { }
             </span>
             {recentQuestions.map((q, i) => (
-              <button
+              <Chip
                 key={i}
-                type="button"
+                size="sm"
                 data-testid={`hub-recent-q-${String(i)}`}
                 onClick={() => {
                   window.dispatchEvent(
@@ -522,23 +396,9 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                     }),
                   );
                 }}
-                style={{
-                  padding: '2px 9px',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 'var(--kp-font-2xs)',
-                  border: '1px solid var(--color-border)',
-                  background: '#fff',
-                  color: 'var(--color-foreground)',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  maxWidth: 360,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  fontFamily: 'Satoshi, sans-serif',
-                }}
               >
                 {q}
-              </button>
+              </Chip>
             ))}
           </div>
         )}
@@ -555,28 +415,10 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         }}
       >
         {/* Left: At a Glance */}
-        <div
-          style={{
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            background: '#fff',
-            padding: 'var(--kp-card-pad)',
-            boxShadow: 'var(--kp-shadow-1)',
-          }}
-        >
-          <div
-            style={{
-              fontSize: 'var(--kp-font-2xs)',
-              fontWeight: 'var(--kp-weight-bold)',
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: 'var(--color-muted-foreground)',
-              marginBottom: 8,
-              lineHeight: 'var(--kp-leading-tight)',
-            }}
-          >
+        <Card variant="raised">
+          <div style={{ marginBottom: 8 }}>
             {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            At a Glance
+            <Eyebrow>At a Glance</Eyebrow>
             {/* eslint-enable keepance-i18n/no-hardcoded-string */}
           </div>
 
@@ -654,53 +496,20 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                   marginBottom: 6,
                 }}
               >
-                <span
-                  data-testid="hub-ai-glance-tag"
-                  style={{
-                    fontSize: 'var(--kp-font-2xs)',
-                    fontWeight: 'var(--kp-weight-semibold)',
-                    letterSpacing: '0.05em',
-                    textTransform: 'uppercase',
-                    color: 'var(--kp-navy, #0a2540)',
-                    background: 'rgba(10,37,64,0.07)',
-                    border: '1px solid rgba(10,37,64,0.15)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: '1px 6px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 3,
-                  }}
-                >
-                  <Sparkles style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
-                  { }
+                <span data-testid="hub-ai-glance-tag">
                   {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  Generated by AI
+                  <Badge variant="neutral" size="sm" icon={Sparkles} uppercase>Generated by AI</Badge>
                   {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                 </span>
                 {(glanceStatus === 'done' || glanceStatus === 'empty' || glanceStatus === 'error') && (
-                  <button
-                    type="button"
+                  <IconButton
+                    icon={RefreshCw}
+                    label="Refresh"
+                    variant="ghost"
+                    size="xs"
                     data-testid="hub-ai-glance-refresh"
                     onClick={handleGlanceRefresh}
-                    title="Refresh summary"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--color-muted-foreground)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 3,
-                      fontSize: 'var(--kp-font-2xs)',
-                      padding: '2px 4px',
-                      borderRadius: 'var(--radius-md)',
-                      fontFamily: 'Satoshi, sans-serif',
-                    }}
-                  >
-                    <RefreshCw style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
-                    { }
-                    Refresh
-                  </button>
+                  />
                 )}
               </div>
 
@@ -737,18 +546,8 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                 >
                   {glanceResult.openIssues.length > 0 && (
                     <div>
-                      <div
-                        style={{
-                          fontSize: 'var(--kp-font-2xs)',
-                          fontWeight: 'var(--kp-weight-bold)',
-                          letterSpacing: '0.05em',
-                          textTransform: 'uppercase',
-                          color: 'var(--color-muted-foreground)',
-                          marginBottom: 2,
-                          lineHeight: 'var(--kp-leading-tight)',
-                        }}
-                      >
-                        Open Issues
+                      <div style={{ marginBottom: 2 }}>
+                        <Eyebrow>Open Issues</Eyebrow>
                       </div>
                       {glanceResult.openIssues.map((issue, i) => (
                         <div key={i} style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-foreground)', lineHeight: 'var(--kp-leading-snug)' }}>
@@ -759,18 +558,8 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                   )}
                   {glanceResult.deadlines.length > 0 && (
                     <div>
-                      <div
-                        style={{
-                          fontSize: 'var(--kp-font-2xs)',
-                          fontWeight: 'var(--kp-weight-bold)',
-                          letterSpacing: '0.05em',
-                          textTransform: 'uppercase',
-                          color: 'var(--color-muted-foreground)',
-                          marginBottom: 2,
-                          lineHeight: 'var(--kp-leading-tight)',
-                        }}
-                      >
-                        Key Dates
+                      <div style={{ marginBottom: 2 }}>
+                        <Eyebrow>Key Dates</Eyebrow>
                       </div>
                       {glanceResult.deadlines.map((d, i) => (
                         <div key={i} style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-foreground)', lineHeight: 'var(--kp-leading-snug)' }}>
@@ -781,18 +570,8 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                   )}
                   {glanceResult.nextActions.length > 0 && (
                     <div>
-                      <div
-                        style={{
-                          fontSize: 'var(--kp-font-2xs)',
-                          fontWeight: 'var(--kp-weight-bold)',
-                          letterSpacing: '0.05em',
-                          textTransform: 'uppercase',
-                          color: 'var(--color-muted-foreground)',
-                          marginBottom: 2,
-                          lineHeight: 'var(--kp-leading-tight)',
-                        }}
-                      >
-                        Next Actions
+                      <div style={{ marginBottom: 2 }}>
+                        <Eyebrow>Next Actions</Eyebrow>
                       </div>
                       {glanceResult.nextActions.map((a, i) => (
                         <div key={i} style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-foreground)', lineHeight: 'var(--kp-leading-snug)' }}>
@@ -827,24 +606,14 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               )}
             </div>
           )}
-        </div>
+        </Card>
 
         {/* Right: Upcoming / Activity */}
-        <div>
-          <div
-            style={{
-              fontSize: 'var(--kp-font-2xs)',
-              fontWeight: 'var(--kp-weight-bold)',
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              color: 'var(--color-muted-foreground)',
-              marginBottom: 8,
-              lineHeight: 'var(--kp-leading-tight)',
-            }}
-          >
-            { }
-            Upcoming / Activity
-            { }
+        <Card variant="raised">
+          <div style={{ marginBottom: 8 }}>
+            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            <Eyebrow>Upcoming / Activity</Eyebrow>
+            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
           </div>
 
           <div data-testid="hub-activity" style={{ fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)' }}>
@@ -874,7 +643,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               </div>
             )}
           </div>
-        </div>
+        </Card>
       </div>
 
       {/* ── D. Four panels ─────────────────────────────────────────────── */}
@@ -887,26 +656,23 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
         }}
       >
         {/* Documents */}
-        <div data-testid="hub-panel-documents" style={panelCard}>
+        <Card variant="raised" data-testid="hub-panel-documents" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-stack-gap)' }}>
           <div style={panelHeader}>
-            <span style={panelTitle}>
+            <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <FileText style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-              { }
               Documents
-              { }
-            </span>
+            </Eyebrow>
             <span style={panelCount}>
               ({String(matter.folderPaths.length)})
             </span>
-            <button
-              type="button"
+            <IconButton
+              icon={ChevronRight}
+              label="Open Documents"
+              variant="ghost"
+              size="sm"
               data-testid="hub-panel-documents-open"
-              aria-label="Open Documents"
-              style={panelArrow}
               onClick={() => { dispatchLaunch('files'); }}
-            >
-              <ChevronRight style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
-            </button>
+            />
           </div>
           <div style={panelPreview}>
             {matter.folderPaths.length === 0 ? (
@@ -919,29 +685,26 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               ))
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Email */}
-        <div data-testid="hub-panel-email" style={panelCard}>
+        <Card variant="raised" data-testid="hub-panel-email" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-stack-gap)' }}>
           <div style={panelHeader}>
-            <span style={panelTitle}>
+            <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Mail style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-              { }
               Email
-              { }
-            </span>
+            </Eyebrow>
             <span style={panelCount}>
               ({String((matter.mailFolderPaths ?? []).length)})
             </span>
-            <button
-              type="button"
+            <IconButton
+              icon={ChevronRight}
+              label="Open Email"
+              variant="ghost"
+              size="sm"
               data-testid="hub-panel-email-open"
-              aria-label="Open Email"
-              style={panelArrow}
               onClick={() => { dispatchLaunch('email'); }}
-            >
-              <ChevronRight style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
-            </button>
+            />
           </div>
           <div style={panelPreview}>
             {(matter.mailFolderPaths ?? []).length === 0 ? (
@@ -954,58 +717,50 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               /* eslint-enable keepance-i18n/no-hardcoded-string */
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Workflows */}
-        <div data-testid="hub-panel-workflows" style={panelCard}>
+        <Card variant="raised" data-testid="hub-panel-workflows" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-stack-gap)' }}>
           <div style={panelHeader}>
-            <span style={panelTitle}>
+            <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <GitBranch style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-              { }
               Workflows
-              { }
-            </span>
-            <button
-              type="button"
+            </Eyebrow>
+            <IconButton
+              icon={ChevronRight}
+              label="Open Workflows"
+              variant="ghost"
+              size="sm"
               data-testid="hub-panel-workflows-open"
-              aria-label="Open Workflows"
-              style={panelArrow}
               onClick={() => { dispatchLaunch('workflows'); }}
-            >
-              <ChevronRight style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
-            </button>
+            />
           </div>
           <div style={panelPreview}>
             {isSample ? (
-
               <span>2 workflows available</span>
-               
             ) : (
               /* eslint-disable keepance-i18n/no-hardcoded-string */
               <span>Run a workflow on this matter</span>
               /* eslint-enable keepance-i18n/no-hardcoded-string */
             )}
           </div>
-        </div>
+        </Card>
 
         {/* Activity */}
-        <div data-testid="hub-panel-activity" style={panelCard}>
+        <Card variant="raised" data-testid="hub-panel-activity" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-stack-gap)' }}>
           <div style={panelHeader}>
-            <span style={panelTitle}>
+            <Eyebrow style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <Clock style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-              { }
               Activity
-              { }
-            </span>
-            <button
-              type="button"
+            </Eyebrow>
+            <IconButton
+              icon={ChevronRight}
+              label="Open Activity"
+              variant="ghost"
+              size="sm"
               data-testid="hub-panel-activity-open"
-              aria-label="Open Activity"
-              style={panelArrow}
               onClick={() => { dispatchLaunch('audit'); }}
-            >
-              <ChevronRight style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
-            </button>
+            />
           </div>
           <div style={panelPreview}>
             {isSample ? (
@@ -1016,7 +771,7 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
               <span>Matter created {formatDate(matter.createdAt)}</span>
             )}
           </div>
-        </div>
+        </Card>
       </div>
     </div>
   );

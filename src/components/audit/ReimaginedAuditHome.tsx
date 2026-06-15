@@ -28,10 +28,8 @@ import React, {
 import {
   ShieldCheck,
   Search,
-  Filter,
   Download,
   X,
-  ChevronDown,
   History,
   FilePlus,
   FileText,
@@ -63,6 +61,17 @@ import {
 } from '@/utils/audit-export';
 import { isAuditEncrypted } from '@/modules/audit/AuditService';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
+import {
+  Button,
+  SearchField,
+  FilterToggle,
+  FilterPanel,
+  Badge,
+  Chip,
+  Eyebrow,
+  Card,
+  EmptyState,
+} from '@/components/ui/kp';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -275,15 +284,6 @@ function getScopeLabel(entry: AuditEntry): string | null {
   return null;
 }
 
-const SCOPE_STYLE: Record<string, React.CSSProperties> = {
-  Local: { background: 'rgba(22,163,74,0.10)', color: '#15803d', border: '1px solid rgba(22,163,74,0.2)' },
-  Direct: { background: 'rgba(14,116,144,0.09)', color: '#0e7490', border: '1px solid rgba(14,116,144,0.2)' },
-  Assured: { background: 'rgba(79,70,229,0.09)', color: '#4338ca', border: '1px solid rgba(79,70,229,0.18)' },
-};
-
-function scopeStyle(label: string): React.CSSProperties {
-  return SCOPE_STYLE[label] ?? { background: 'rgba(100,116,139,0.09)', color: '#475569', border: '1px solid rgba(100,116,139,0.18)' };
-}
 
 // ── Detail panel ───────────────────────────────────────────────────────────
 
@@ -625,19 +625,7 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
             {lookupLabel(ACTION_LABELS, entry.action)}
           </span>
           {entry.model !== undefined && entry.model !== '' && (
-            <span
-              style={{
-                fontSize: 'var(--kp-font-2xs)',
-                padding: '1px 6px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'rgba(10,37,64,0.06)',
-                color: 'var(--color-muted-foreground)',
-                whiteSpace: 'nowrap',
-                fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-              }}
-            >
-              {entry.model}
-            </span>
+            <Badge variant="neutral" size="sm" mono>{entry.model}</Badge>
           )}
         </div>
         <div
@@ -666,10 +654,10 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
         }}
       >
         {entry.userDecision === 'approved' && (
-          <span style={{ color: '#16a34a', fontWeight: 'var(--kp-weight-semibold)' }}>Approved</span>
+          <Badge variant="success">Approved</Badge>
         )}
         {entry.userDecision === 'rejected' && (
-          <span style={{ color: '#dc2626', fontWeight: 'var(--kp-weight-semibold)' }}>Rejected</span>
+          <Badge variant="danger">Rejected</Badge>
         )}
         {entry.userDecision === 'auto' && (
           <span style={{ color: 'var(--color-muted-foreground)' }}>Auto</span>
@@ -682,20 +670,18 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
       {/* Scope pill */}
       <div>
         {scopeLabel !== null && (
-          <span
-            data-testid="audit-scope-pill"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '2px 8px',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: 'var(--kp-font-2xs)',
-              fontWeight: 'var(--kp-weight-semibold)',
-              letterSpacing: '0.02em',
-              ...scopeStyle(scopeLabel),
-            }}
-          >
-            {scopeLabel}
+          <span data-testid="audit-scope-pill">
+            <Badge
+              variant={
+                scopeLabel === 'Local' ? 'local' :
+                scopeLabel === 'Direct' ? 'direct' :
+                scopeLabel === 'Assured' ? 'assured' :
+                'neutral'
+              }
+              size="sm"
+            >
+              {scopeLabel}
+            </Badge>
           </span>
         )}
       </div>
@@ -706,14 +692,6 @@ function AuditRow({ entry, onSelect }: AuditRowProps) {
 // ── Table header ───────────────────────────────────────────────────────────
 
 function TableHeader() {
-  const col: React.CSSProperties = {
-    fontSize: 'var(--kp-font-2xs)',
-    fontWeight: 'var(--kp-weight-bold)',
-    letterSpacing: '0.07em',
-    textTransform: 'uppercase',
-    color: 'var(--color-muted-foreground)',
-    padding: '9px 0',
-  };
   return (
     <div
       style={{
@@ -724,10 +702,10 @@ function TableHeader() {
         background: 'rgba(10,37,64,0.025)',
       }}
     >
-      <div style={col}>Timestamp</div>
-      <div style={col}>Action / Description</div>
-      <div style={col}>Actor</div>
-      <div style={col}>Scope</div>
+      <Eyebrow style={{ padding: '9px 0' }}>Timestamp</Eyebrow>
+      <Eyebrow style={{ padding: '9px 0' }}>Action / Description</Eyebrow>
+      <Eyebrow style={{ padding: '9px 0' }}>Actor</Eyebrow>
+      <Eyebrow style={{ padding: '9px 0' }}>Scope</Eyebrow>
     </div>
   );
 }
@@ -736,53 +714,15 @@ function TableHeader() {
 
 function AuditEmptyState() {
   return (
-    <div
-      data-testid="audit-empty-state"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'var(--kp-space-4xl) var(--kp-card-pad)',
-        textAlign: 'center',
-        gap: 'var(--kp-space-sm)',
-      }}
-    >
-      <ShieldCheck
-        style={{
-          width: 36,
-          height: 36,
-          color: 'var(--color-muted-foreground)',
-          strokeWidth: 1.5,
-          marginBottom: 4,
-        }}
+    /* eslint-disable keepance-i18n/no-hardcoded-string */
+    <div data-testid="audit-empty-state">
+      <EmptyState
+        icon={ShieldCheck}
+        title="No activity logged yet"
+        body="Every AI request, file operation, workflow run, and governance action will appear here. This record stays on your machine and is yours to export whenever you need it."
       />
-      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-      <div
-        style={{
-          fontSize: 'var(--kp-font-lg)',
-          fontWeight: 'var(--kp-weight-bold)',
-          color: 'var(--kp-navy)',
-          fontFamily: 'Satoshi, sans-serif',
-          lineHeight: 'var(--kp-leading-tight)',
-        }}
-      >
-        No activity logged yet
-      </div>
-      <div
-        style={{
-          fontSize: 'var(--kp-font-sm)',
-          color: 'var(--color-muted-foreground)',
-          maxWidth: 360,
-          lineHeight: 'var(--kp-leading-relaxed)',
-        }}
-      >
-        Every AI request, file operation, workflow run, and governance action
-        will appear here. This record stays on your machine and is yours to
-        export whenever you need it.
-      </div>
-      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
     </div>
+    /* eslint-enable keepance-i18n/no-hardcoded-string */
   );
 }
 
@@ -794,75 +734,26 @@ interface AuditNoMatchStateProps {
 
 function AuditNoMatchState({ onClearFilters }: AuditNoMatchStateProps) {
   return (
-    <div
-      data-testid="audit-no-match-state"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'var(--kp-space-4xl) var(--kp-card-pad)',
-        textAlign: 'center',
-        gap: 'var(--kp-space-sm)',
-      }}
-    >
-      <Search
-        style={{
-          width: 36,
-          height: 36,
-          color: 'var(--color-muted-foreground)',
-          strokeWidth: 1.5,
-          marginBottom: 4,
-        }}
+    /* eslint-disable keepance-i18n/no-hardcoded-string */
+    <div data-testid="audit-no-match-state">
+      <EmptyState
+        icon={Search}
+        title="No activity matches your filters."
+        body="Your search or filters did not match any logged activity. Try broadening your search or clearing the filters to see all entries."
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={X}
+            data-testid="audit-no-match-clear"
+            onClick={onClearFilters}
+          >
+            Clear filters
+          </Button>
+        }
       />
-      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-      <div
-        style={{
-          fontSize: 'var(--kp-font-lg)',
-          fontWeight: 'var(--kp-weight-bold)',
-          color: 'var(--kp-navy)',
-          fontFamily: 'Satoshi, sans-serif',
-          lineHeight: 'var(--kp-leading-tight)',
-        }}
-      >
-        No activity matches your filters.
-      </div>
-      <div
-        style={{
-          fontSize: 'var(--kp-font-sm)',
-          color: 'var(--color-muted-foreground)',
-          maxWidth: 360,
-          lineHeight: 'var(--kp-leading-relaxed)',
-        }}
-      >
-        Your search or filters did not match any logged activity. Try broadening
-        your search or clearing the filters to see all entries.
-      </div>
-      <button
-        type="button"
-        data-testid="audit-no-match-clear"
-        onClick={onClearFilters}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          height: 'var(--kp-control-md)',
-          padding: '0 14px',
-          borderRadius: 'var(--radius-md)',
-          fontSize: 'var(--kp-font-sm)',
-          fontWeight: 'var(--kp-weight-semibold)',
-          cursor: 'pointer',
-          border: '1px solid rgba(10,37,64,0.2)',
-          background: 'transparent',
-          color: 'var(--kp-navy)',
-          marginTop: 4,
-        }}
-      >
-        <X style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)' }} />
-        Clear filters
-      </button>
-      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
     </div>
+    /* eslint-enable keepance-i18n/no-hardcoded-string */
   );
 }
 
@@ -870,7 +761,7 @@ function AuditNoMatchState({ onClearFilters }: AuditNoMatchStateProps) {
 
 type CategoryFilter = ActionCategory | 'all';
 
-interface FilterPanelProps {
+interface AuditFilterPanelProps {
   categoryFilter: CategoryFilter;
   onCategoryChange: (c: CategoryFilter) => void;
   selectedTypes: Set<AuditActionType>;
@@ -886,7 +777,7 @@ interface FilterPanelProps {
   onReset: () => void;
 }
 
-function FilterPanel({
+function AuditFilterPanel({
   categoryFilter,
   onCategoryChange,
   selectedTypes,
@@ -900,7 +791,7 @@ function FilterPanel({
   onModelChange,
   activeFilterCount,
   onReset,
-}: FilterPanelProps) {
+}: AuditFilterPanelProps) {
   const categories: CategoryFilter[] = ['all', 'file', 'ai', 'workflow', 'privilege', 'firm', 'system'];
 
   const inputStyle: React.CSSProperties = {
@@ -914,59 +805,24 @@ function FilterPanel({
     outline: 'none',
   };
 
-  const labelStyle: React.CSSProperties = {
-    fontSize: 'var(--kp-font-2xs)',
-    fontWeight: 'var(--kp-weight-semibold)',
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: 'var(--color-muted-foreground)',
-    marginBottom: 6,
-  };
-
   return (
-    <div
-      data-testid="audit-filter-panel"
-      style={{
-        padding: 'var(--kp-space-sm) var(--kp-gutter) var(--kp-space-md)',
-        borderBottom: '1px solid var(--color-border)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--kp-space-sm)',
-        boxShadow: 'var(--kp-shadow-2)',
-      }}
-    >
+    <FilterPanel data-testid="audit-filter-panel">
       {/* Category chips */}
       <div>
-        <div style={labelStyle}>
-          Category
-        </div>
+        <Eyebrow style={{ marginBottom: 6 }}>Category</Eyebrow>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {categories.map((cat) => {
             const active = categoryFilter === cat;
-            const color = cat === 'all' ? 'var(--kp-navy)' : (CATEGORY_COLOR as Record<string, string>)[cat] ?? 'var(--kp-navy)';
-            const bg = cat === 'all' ? 'rgba(10,37,64,0.07)' : (CATEGORY_BG as Record<string, string>)[cat] ?? 'rgba(10,37,64,0.07)';
             const catLabel = cat === 'all' ? 'All categories' : (CATEGORY_LABEL as Record<string, string>)[cat] ?? cat;
             return (
-              <button
+              <Chip
                 key={cat}
-                type="button"
+                active={active}
+                size="sm"
                 onClick={() => { onCategoryChange(cat); }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  padding: '3px 10px',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 'var(--kp-font-xs)',
-                  fontWeight: active ? 'var(--kp-weight-bold)' : 'var(--kp-weight-medium)',
-                  color: active ? color : 'var(--color-muted-foreground)',
-                  background: active ? bg : 'transparent',
-                  border: `1px solid ${active ? color + '44' : 'var(--color-border)'}`,
-                  cursor: 'pointer',
-                  transition: 'all 0.1s',
-                }}
               >
                 {catLabel}
-              </button>
+              </Chip>
             );
           })}
         </div>
@@ -975,9 +831,7 @@ function FilterPanel({
       {/* Date + model row */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 16 }}>
         <div>
-          <div style={labelStyle}>
-            From
-          </div>
+          <Eyebrow style={{ marginBottom: 6 }}>From</Eyebrow>
           <input
             type="date"
             value={dateFrom}
@@ -988,9 +842,7 @@ function FilterPanel({
           />
         </div>
         <div>
-          <div style={labelStyle}>
-            To
-          </div>
+          <Eyebrow style={{ marginBottom: 6 }}>To</Eyebrow>
           <input
             type="date"
             value={dateTo}
@@ -1002,9 +854,7 @@ function FilterPanel({
         </div>
         {availableModels.length > 0 && (
           <div>
-            <div style={labelStyle}>
-              Model
-            </div>
+            <Eyebrow style={{ marginBottom: 6 }}>Model</Eyebrow>
             <select
               value={modelFilter}
               onChange={(e) => { onModelChange(e.target.value); }}
@@ -1020,70 +870,43 @@ function FilterPanel({
           </div>
         )}
         {activeFilterCount > 0 && (
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={X}
             data-testid="audit-home-filter-reset"
             onClick={onReset}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              height: 'var(--kp-control-sm)',
-              padding: '0 10px',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border)',
-              background: 'transparent',
-              fontSize: 'var(--kp-font-xs)',
-              color: 'var(--color-muted-foreground)',
-              cursor: 'pointer',
-            }}
           >
-            <X style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)' }} />
             Reset
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Action-type chip filter (secondary, within selected category) */}
       {categoryFilter !== 'all' && (
         <div>
-          <div style={labelStyle}>
-            Action type
-          </div>
+          <Eyebrow style={{ marginBottom: 6 }}>Action type</Eyebrow>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
             {(Object.entries(ACTION_CATEGORY) as [AuditActionType, ActionCategory][])
               .filter(([, cat]) => cat === categoryFilter)
               .map(([type]) => {
                 // categoryFilter !== 'all' is guaranteed by the outer guard.
                 const active = selectedTypes.has(type);
-                const chipColor = CATEGORY_COLOR[categoryFilter];
-                const chipBg = CATEGORY_BG[categoryFilter];
                 return (
-                  <button
+                  <Chip
                     key={type}
-                    type="button"
+                    active={active}
+                    size="sm"
                     onClick={() => { onToggleType(type); }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      padding: '2px 8px',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: 'var(--kp-font-2xs)',
-                      fontWeight: active ? 'var(--kp-weight-bold)' : 'var(--kp-weight-regular)',
-                      color: active ? chipColor : 'var(--color-muted-foreground)',
-                      background: active ? chipBg : 'transparent',
-                      border: `1px solid ${active ? chipColor + '44' : 'var(--color-border)'}`,
-                      cursor: 'pointer',
-                    }}
                   >
                     {lookupLabel(ACTION_LABELS, type)}
-                  </button>
+                  </Chip>
                 );
               })}
           </div>
         </div>
       )}
-    </div>
+    </FilterPanel>
   );
 }
 
@@ -1228,23 +1051,6 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
 
   const encrypted = isAuditEncrypted();
 
-  // ── Button style helpers ──────────────────────────────────────────────
-  const btnBase: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    height: 'var(--kp-control-md)',
-    padding: '0 12px',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 'var(--kp-font-xs)',
-    fontWeight: 'var(--kp-weight-semibold)',
-    cursor: 'pointer',
-    border: '1px solid var(--color-border)',
-    background: 'transparent',
-    color: 'var(--color-muted-foreground)',
-    transition: 'background 0.1s',
-    whiteSpace: 'nowrap' as const,
-  };
 
   return (
     <div
@@ -1275,36 +1081,30 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
           actions={
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft={Download}
                   data-testid="audit-home-export-csv"
                   onClick={handleExportCSV}
                   disabled={filteredEntries.length === 0}
-                  style={{
-                    ...btnBase,
-                    opacity: filteredEntries.length === 0 ? 0.45 : 1,
-                  }}
                   title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as CSV'}
                   aria-label="Export audit log as CSV"
                 >
-                  <Download style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)' }} />
                   CSV
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  iconLeft={Download}
                   data-testid="audit-home-export-json"
                   onClick={handleExportJSON}
                   disabled={filteredEntries.length === 0}
-                  style={{
-                    ...btnBase,
-                    opacity: filteredEntries.length === 0 ? 0.45 : 1,
-                  }}
                   title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as JSON'}
                   aria-label="Export audit log as JSON"
                 >
-                  <Download style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)' }} />
                   JSON
-                </button>
+                </Button>
               </div>
               {filteredEntries.length > 0 && filteredEntries.length < entries.length && (
                 <div
@@ -1373,83 +1173,25 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
         }}
       >
         {/* Search */}
-        <div style={{ position: 'relative', flex: 1, maxWidth: 400 }}>
-          <Search
-            style={{
-              position: 'absolute',
-              left: 10,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              width: 'var(--kp-icon-sm)',
-              height: 'var(--kp-icon-sm)',
-              color: 'var(--color-muted-foreground)',
-            }}
-          />
-          <input
-            type="search"
-            data-testid="audit-home-search"
-            placeholder="Search by action, resource, or actor..."
+        <div style={{ flex: 1, maxWidth: 400 }}>
+          <SearchField
+            size="md"
             value={searchQuery}
-            onChange={(e) => { handleSearchChange(e.target.value); }}
-            style={{
-              width: '100%',
-              height: 'var(--kp-control-md)',
-              paddingLeft: 32,
-              paddingRight: 10,
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--color-border)',
-              background: '#fff',
-              fontSize: 'var(--kp-font-sm)',
-              color: 'var(--kp-navy)',
-              outline: 'none',
-            }}
+            onChange={handleSearchChange}
+            onClear={() => { handleSearchChange(''); }}
+            placeholder="Search by action, resource, or actor..."
+            data-testid="audit-home-search"
             aria-label="Search audit entries"
           />
         </div>
 
         {/* Filter toggle */}
-        <button
-          type="button"
+        <FilterToggle
+          open={showFilters}
+          onToggle={() => { setShowFilters((v) => !v); }}
+          count={activeFilterCount}
           data-testid="audit-home-filter-toggle"
-          onClick={() => { setShowFilters((v) => !v); }}
-          style={{
-            ...btnBase,
-            background: showFilters ? 'rgba(10,37,64,0.05)' : 'transparent',
-            color: showFilters ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-            border: showFilters ? '1px solid rgba(10,37,64,0.2)' : '1px solid var(--color-border)',
-          }}
-          aria-expanded={showFilters}
-          aria-label={activeFilterCount > 0 ? `Filters (${String(activeFilterCount)} active)` : 'Filters'}
-        >
-          <Filter style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)' }} />
-          Filters
-          {activeFilterCount > 0 && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 18,
-                height: 18,
-                borderRadius: '50%',
-                background: 'var(--kp-navy)',
-                color: '#fff',
-                fontSize: 'var(--kp-font-2xs)',
-                fontWeight: 'var(--kp-weight-bold)',
-              }}
-            >
-              {String(activeFilterCount)}
-            </span>
-          )}
-          <ChevronDown
-            style={{
-              width: 'var(--kp-icon-xs)',
-              height: 'var(--kp-icon-xs)',
-              transform: showFilters ? 'rotate(180deg)' : 'rotate(0)',
-              transition: 'transform 0.15s',
-            }}
-          />
-        </button>
+        />
 
         {/* Result count when filtered */}
         {(searchQuery || activeFilterCount > 0) && (
@@ -1461,7 +1203,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
 
       {/* Filter panel (expanded) */}
       {showFilters && (
-        <FilterPanel
+        <AuditFilterPanel
           categoryFilter={categoryFilter}
           onCategoryChange={handleCategoryChange}
           selectedTypes={selectedTypes}
@@ -1487,12 +1229,10 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
         }}
       >
         {/* Table card */}
-        <div
+        <Card
+          variant="flat"
           style={{
             margin: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            background: '#fff',
             overflow: 'hidden',
           }}
         >
@@ -1524,18 +1264,14 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                     borderTop: '1px solid var(--color-border)',
                   }}
                 >
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     data-testid="audit-load-more"
                     onClick={() => { setVisibleCount((v) => v + PAGE_SIZE); }}
-                    style={{
-                      ...btnBase,
-                      color: 'var(--kp-navy)',
-                      border: '1px solid rgba(10,37,64,0.2)',
-                    }}
                   >
                     Load {String(Math.min(PAGE_SIZE, filteredEntries.length - visibleCount))} more
-                  </button>
+                  </Button>
                   <span style={{ marginLeft: 12, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
                     showing {String(visibleEntries.length)} of {String(filteredEntries.length)}
                   </span>
@@ -1543,7 +1279,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
               )}
             </>
           )}
-        </div>
+        </Card>
       </div>
 
       {/* Detail panel */}

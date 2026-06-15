@@ -30,6 +30,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FolderOpen, FolderTree, FileText, X, LayoutGrid, ListTree, Upload } from 'lucide-react';
+import { Button, IconButton, Callout } from '@/components/ui/kp';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 import { useEditorStore } from '@/stores/editorStore';
 import { getFileIcon } from '@/utils/fileIcons';
@@ -152,65 +153,16 @@ function TrustBanner({ onDismiss }: TrustBannerProps) {
       aria-live="polite"
       data-testid="trust-banner"
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 'var(--kp-space-sm)',
         padding: 'var(--kp-space-xs) var(--kp-gutter)',
-        background: '#eef4ff',
-        borderBottom: '1px solid #c7d9f8',
+        borderBottom: '1px solid var(--color-border)',
         flexShrink: 0,
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: '50%',
-            background: 'var(--kp-navy)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flex: 'none',
-          }}
-        >
-          <FileText style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: '#fff', strokeWidth: 2 }} />
-        </div>
-        <span
-          style={{
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight: 'var(--kp-weight-semibold)',
-            color: 'var(--kp-navy)',
-            fontFamily: 'Satoshi, sans-serif',
-            lineHeight: 'var(--kp-leading-normal)',
-          }}
-        >
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-          Indexed on your machine. Nothing was uploaded.
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-        </span>
-      </div>
-      <button
-        type="button"
-        aria-label="Dismiss"
-        onClick={onDismiss}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: 4,
-          borderRadius: 4,
-          color: 'var(--kp-navy)',
-          opacity: 0.6,
-          flex: 'none',
-        }}
-      >
-        <X style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-      </button>
+      <Callout variant="info" icon={FileText} onDismiss={onDismiss}>
+        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+        Indexed on your machine. Nothing was uploaded.
+        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+      </Callout>
     </div>
   );
 }
@@ -316,115 +268,23 @@ function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose
       {!isPinned && onClose && (
         // Close button is a sibling of the tab button, not a child, to avoid
         // nesting interactive elements (button-in-button is invalid HTML).
-        <button
-          type="button"
-          aria-label={`Close ${label}`}
+        <IconButton
+          icon={X}
+          label={`Close ${label}`}
+          variant="ghost"
+          size="xs"
           onClick={(e) => {
             e.stopPropagation();
             onClose();
           }}
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 16,
-            height: 16,
             alignSelf: 'center',
-            borderRadius: 3,
-            border: 'none',
-            background: 'none',
-            cursor: 'pointer',
-            color: 'var(--color-muted-foreground)',
-            padding: 0,
-            flex: 'none',
             marginRight: 4,
             opacity: isHovered ? 1 : 0,
             transition: 'opacity 0.1s',
           }}
-        >
-          <X style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
-        </button>
+        />
       )}
-    </div>
-  );
-}
-
-// ── Tree | Grid view toggle ─────────────────────────────────────────────────
-
-interface ViewToggleProps {
-  view: DocsView;
-  onChange: (view: DocsView) => void;
-}
-
-function ViewToggle({ view, onChange }: ViewToggleProps) {
-  const segBase: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 5,
-    padding: '4px 10px',
-    fontSize: 'var(--kp-font-xs)',
-    fontWeight: 'var(--kp-weight-semibold)',
-    cursor: 'pointer',
-    border: 'none',
-    borderRadius: 0,
-    transition: 'background 0.1s, color 0.1s',
-    fontFamily: 'Satoshi, sans-serif',
-    whiteSpace: 'nowrap',
-  };
-  const active: React.CSSProperties = { background: 'var(--kp-navy)', color: '#fff' };
-  const inactive: React.CSSProperties = { background: '#fff', color: 'var(--color-muted-foreground)' };
-
-  return (
-    <div
-      data-testid="docs-view-toggle"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'flex-end',
-        padding: 'var(--kp-space-xs) var(--kp-gutter)',
-        borderBottom: '1px solid var(--color-border)',
-        flexShrink: 0,
-        background: 'var(--color-background)',
-      }}
-    >
-      <div
-        style={{
-          display: 'inline-flex',
-          borderRadius: 'var(--radius-md)',
-          overflow: 'hidden',
-          border: '1px solid var(--color-border)',
-        }}
-      >
-        <button
-          type="button"
-          data-testid="docs-view-tree"
-          aria-pressed={view === 'tree'}
-          title="Tree view"
-          style={{
-            ...segBase,
-            ...(view === 'tree' ? active : inactive),
-            borderRight: '1px solid var(--color-border)',
-          }}
-          onClick={() => { onChange('tree'); }}
-        >
-          <ListTree style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-          Tree
-        </button>
-        <button
-          type="button"
-          data-testid="docs-view-grid"
-          aria-pressed={view === 'grid'}
-          title="Grid view"
-          style={{
-            ...segBase,
-            ...(view === 'grid' ? active : inactive),
-          }}
-          onClick={() => { onChange('grid'); }}
-        >
-          <LayoutGrid style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-          Grid
-        </button>
-      </div>
     </div>
   );
 }
@@ -601,7 +461,7 @@ export function ReimaginedDocumentsHome({
 
   function getTabIcon(tab: { name: string; type?: string }) {
     if (tab.type === 'email') {
-      return <FileText style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: '#0A2540', strokeWidth: 2 }} />;
+      return <FileText style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--kp-navy)', strokeWidth: 2 }} />;
     }
     const ext = tab.name.split('.').pop()?.toLowerCase();
     const { Icon, color } = getFileIcon(ext);
@@ -729,7 +589,43 @@ export function ReimaginedDocumentsHome({
         {showFilesGrid ? (
           /* Files surface — a Tree | Grid toggle header, then the chosen view. */
           <>
-            <ViewToggle view={docsView} onChange={handleSetDocsView} />
+            <div
+              data-testid="docs-view-toggle"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end',
+                padding: 'var(--kp-space-xs) var(--kp-gutter)',
+                borderBottom: '1px solid var(--color-border)',
+                flexShrink: 0,
+                background: 'var(--color-background)',
+              }}
+            >
+              {/* Uses kp-segmented CSS classes for the shared look (filled variant = solid navy active).
+                  Individual buttons keep their data-testid attributes so tests can find/click them. */}
+              <div className="kp-segmented kp-segmented--md kp-segmented--filled" role="group" aria-label="View">
+                <button
+                  type="button"
+                  data-testid="docs-view-tree"
+                  className={`kp-segmented__item${docsView === 'tree' ? ' is-active' : ''}`}
+                  aria-pressed={docsView === 'tree'}
+                  onClick={() => { handleSetDocsView('tree'); }}
+                >
+                  <ListTree size={12} strokeWidth={1.75} />
+                  Tree
+                </button>
+                <button
+                  type="button"
+                  data-testid="docs-view-grid"
+                  className={`kp-segmented__item${docsView === 'grid' ? ' is-active' : ''}`}
+                  aria-pressed={docsView === 'grid'}
+                  onClick={() => { handleSetDocsView('grid'); }}
+                >
+                  <LayoutGrid size={12} strokeWidth={1.75} />
+                  Grid
+                </button>
+              </div>
+            </div>
             <div
               style={{
                 flex: 1,
@@ -755,29 +651,17 @@ export function ReimaginedDocumentsHome({
                       flexWrap: 'wrap',
                     }}
                   >
-                    <button
-                      type="button"
+                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      iconLeft={Upload}
                       data-testid="tree-add-files-btn"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '5px 11px',
-                        borderRadius: 'var(--radius-md)',
-                        fontSize: 'var(--kp-font-xs)',
-                        fontWeight: 'var(--kp-weight-semibold)',
-                        background: '#fff',
-                        color: 'var(--kp-navy)',
-                        border: '1px solid var(--color-border)',
-                        cursor: 'pointer',
-                        fontFamily: 'Satoshi, sans-serif',
-                        whiteSpace: 'nowrap',
-                      }}
                       onClick={handleAddFiles}
                     >
-                      <Upload style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
                       Add files
-                    </button>
+                    </Button>
+                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                   </div>
                   <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                     <FileTree

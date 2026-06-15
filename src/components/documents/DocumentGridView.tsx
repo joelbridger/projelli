@@ -23,6 +23,7 @@ import {
   Search,
   ChevronRight,
 } from 'lucide-react';
+import { Button, SearchField, EmptyState } from '@/components/ui/kp';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { TrashPanel } from '@/components/common/TrashPanel';
@@ -200,7 +201,6 @@ interface FileCardProps {
 }
 
 function FileCard({ node, isActive, onOpen, onMoveInto }: FileCardProps) {
-  const [isHovered, setIsHovered] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const isFolder = node.type === 'folder';
@@ -250,9 +250,32 @@ function FileCard({ node, isActive, onOpen, onMoveInto }: FileCardProps) {
     [isFolder, onMoveInto, node.path],
   );
 
+  // Dynamic states (drag-over, active, dragging) are layered via style on top of
+  // the kp-card--interactive CSS classes. Card's :hover shadow is intentionally
+  // left to the CSS; we only override border-color and background for the
+  // drag/active states that need runtime values.
+  const dynamicStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 'var(--kp-space-xs)',
+    padding: 'var(--kp-space-md) var(--kp-space-sm)',
+    textAlign: 'center',
+    width: '100%',
+    minWidth: 0,
+    fontFamily: 'Satoshi, sans-serif',
+    opacity: isDragging ? 0.5 : 1,
+    ...(isDragOver && isFolder
+      ? { borderStyle: 'dashed', borderColor: 'var(--kp-navy)', background: 'rgba(10,37,64,0.08)' }
+      : isActive
+        ? { borderColor: 'var(--kp-navy)', borderWidth: 2, background: 'rgba(10,37,64,0.04)' }
+        : {}),
+  };
+
   return (
     <button
       type="button"
+      className="kp-card kp-card--interactive"
       data-testid={`grid-card-${node.path}`}
       draggable
       onDragStart={handleDragStart}
@@ -261,37 +284,7 @@ function FileCard({ node, isActive, onOpen, onMoveInto }: FileCardProps) {
       onDragLeave={handleDragLeave}
       onDrop={(e) => { void handleDrop(e); }}
       onClick={() => { onOpen(node); }}
-      onMouseEnter={() => { setIsHovered(true); }}
-      onMouseLeave={() => { setIsHovered(false); }}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 'var(--kp-space-xs)',
-        padding: 'var(--kp-space-md) var(--kp-space-sm)',
-        borderRadius: 'var(--radius-lg)',
-        border: isDragOver && isFolder
-          ? '2px dashed var(--kp-navy)'
-          : isActive
-            ? '2px solid var(--kp-navy)'
-            : isHovered
-              ? '2px solid rgba(10,37,64,0.2)'
-              : '2px solid var(--color-border)',
-        background: isDragOver && isFolder
-          ? 'rgba(10,37,64,0.08)'
-          : isActive
-            ? 'rgba(10,37,64,0.04)'
-            : isHovered
-              ? 'rgba(10,37,64,0.02)'
-              : '#fff',
-        opacity: isDragging ? 0.5 : 1,
-        cursor: 'pointer',
-        textAlign: 'center',
-        transition: 'border-color 0.12s, background 0.12s, opacity 0.12s',
-        width: '100%',
-        minWidth: 0,
-        fontFamily: 'Satoshi, sans-serif',
-      }}
+      style={dynamicStyle}
     >
       {getGridIcon(node)}
       <span
@@ -317,115 +310,31 @@ function FileCard({ node, isActive, onOpen, onMoveInto }: FileCardProps) {
 
 // ── Empty state ────────────────────────────────────────────────────────────
 
-interface EmptyStateProps {
+interface WorkspaceEmptyStateProps {
   onCreateDocument: () => void;
   onCreateFolder: () => void;
 }
 
-function EmptyState({ onCreateDocument, onCreateFolder }: EmptyStateProps) {
+function WorkspaceEmptyState({ onCreateDocument, onCreateFolder }: WorkspaceEmptyStateProps) {
   return (
-    <div
-      data-testid="grid-empty-state"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'var(--kp-space-3xl) var(--kp-space-lg)',
-        textAlign: 'center',
-        gap: 'var(--kp-space-sm)',
-      }}
-    >
-      <Folder
-        style={{
-          width: 40,
-          height: 40,
-          color: 'var(--kp-navy)',
-          strokeWidth: 1.25,
-          opacity: 0.25,
-          marginBottom: 'var(--kp-space-2xs)',
-        }}
+    <div data-testid="grid-empty-state">
+      <EmptyState
+        icon={Folder}
+        title="Your workspace is ready"
+        body="Real Word documents, with tracked changes and AI redlining, stored as files on your computer."
+        actions={
+          <>
+            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            <Button variant="primary" size="md" iconLeft={Plus} onClick={onCreateDocument}>
+              New Word document
+            </Button>
+            <Button variant="secondary" size="md" onClick={onCreateFolder}>
+              New folder
+            </Button>
+            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          </>
+        }
       />
-      <div
-        style={{
-          fontSize: 'var(--kp-font-lg)',
-          fontWeight: 'var(--kp-weight-semibold)',
-          color: 'var(--kp-navy)',
-          fontFamily: 'Satoshi, sans-serif',
-          lineHeight: 'var(--kp-leading-tight)',
-        }}
-      >
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-        Your workspace is ready
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-      </div>
-      <div
-        style={{
-          fontSize: 'var(--kp-font-sm)',
-          color: 'var(--color-muted-foreground)',
-          maxWidth: 340,
-          lineHeight: 'var(--kp-leading-relaxed)',
-        }}
-      >
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-        Real Word documents, with tracked changes and AI redlining, stored as files on your computer.
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-      </div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--kp-space-xs)',
-          marginTop: 'var(--kp-space-xs)',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-        }}
-      >
-        <button
-          type="button"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: 'var(--kp-space-xs) var(--kp-space-md)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight: 'var(--kp-weight-semibold)',
-            background: 'var(--kp-navy)',
-            color: '#fff',
-            border: 'none',
-            cursor: 'pointer',
-            fontFamily: 'Satoshi, sans-serif',
-          }}
-          onClick={onCreateDocument}
-        >
-          <Plus style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-          New Word document
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-        </button>
-        <button
-          type="button"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: 'var(--kp-space-xs) var(--kp-space-md)',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight: 'var(--kp-weight-semibold)',
-            background: '#fff',
-            color: 'var(--kp-navy)',
-            border: '1px solid var(--color-border)',
-            cursor: 'pointer',
-            fontFamily: 'Satoshi, sans-serif',
-          }}
-          onClick={onCreateFolder}
-        >
-          <Plus style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
-          New folder
-        </button>
-      </div>
     </div>
   );
 }
@@ -772,116 +681,26 @@ export function DocumentGridView({
         {/* Action buttons — shown only in files view */}
         {activeView === 'files' && (
           <>
-            <button
-              type="button"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 12px',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 'var(--kp-font-sm)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                background: 'var(--kp-navy)',
-                color: '#fff',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: 'Satoshi, sans-serif',
-                whiteSpace: 'nowrap',
-              }}
-              onClick={handleCreateDocument}
-            >
-              <Plus style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
+            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            <Button variant="primary" size="md" iconLeft={Plus} onClick={handleCreateDocument}>
               New document
-            </button>
-
-            <button
-              type="button"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 12px',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 'var(--kp-font-sm)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                background: '#fff',
-                color: 'var(--kp-navy)',
-                border: '1px solid var(--color-border)',
-                cursor: 'pointer',
-                fontFamily: 'Satoshi, sans-serif',
-                whiteSpace: 'nowrap',
-              }}
-              onClick={handleCreateFolder}
-            >
-              <Plus style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
+            </Button>
+            <Button variant="secondary" size="md" iconLeft={Plus} onClick={handleCreateFolder}>
               New folder
-            </button>
-
-            <button
-              type="button"
-              data-testid="add-files-btn"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 12px',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 'var(--kp-font-sm)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                background: '#fff',
-                color: 'var(--kp-navy)',
-                border: '1px solid var(--color-border)',
-                cursor: 'pointer',
-                fontFamily: 'Satoshi, sans-serif',
-                whiteSpace: 'nowrap',
-              }}
-              onClick={onAddFiles}
-            >
-              <Upload style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
+            </Button>
+            <Button variant="secondary" size="md" iconLeft={Upload} data-testid="add-files-btn" onClick={onAddFiles}>
               Add files
-            </button>
+            </Button>
+            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
 
-            {/* Spacer + search — Fix 3: flex:1 + minWidth:0 so it shrinks
-                and wraps cleanly when the toolbar is narrow. */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                marginLeft: 'auto',
-                flex: '1 1 auto',
-                minWidth: 0,
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)',
-                padding: '5px 10px',
-                background: '#fff',
-              }}
-            >
-              <Search
-                style={{
-                  width: 'var(--kp-icon-sm)',
-                  height: 'var(--kp-icon-sm)',
-                  color: 'var(--color-muted-foreground)',
-                  strokeWidth: 2,
-                  flex: 'none',
-                }}
-              />
-              <input
-                type="text"
+            {/* Spacer + search — flex:1 + minWidth:0 so it shrinks and wraps cleanly when the toolbar is narrow. */}
+            <div style={{ marginLeft: 'auto', flex: '1 1 auto', minWidth: 0 }}>
+              <SearchField
                 value={searchQuery}
-                onChange={(e) => { setSearchQuery(e.target.value); }}
+                onChange={setSearchQuery}
+                onClear={() => { setSearchQuery(''); }}
                 placeholder="Search files..."
-                style={{
-                  fontSize: 'var(--kp-font-sm)',
-                  border: 'none',
-                  outline: 'none',
-                  background: 'transparent',
-                  color: 'var(--color-foreground)',
-                  flex: 1,
-                  minWidth: 0,
-                  fontFamily: 'Satoshi, sans-serif',
-                }}
+                size="md"
               />
             </div>
           </>
@@ -923,49 +742,21 @@ export function DocumentGridView({
 
             {/* Grid or empty state */}
             {fileTree.length === 0 ? (
-              <EmptyState
+              <WorkspaceEmptyState
                 onCreateDocument={handleCreateDocument}
                 onCreateFolder={handleCreateFolder}
               />
             ) : filteredNodes.length === 0 && searchQuery.trim() ? (
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  padding: 'var(--kp-space-2xl) var(--kp-space-lg)',
-                  textAlign: 'center',
-                  gap: 'var(--kp-space-xs)',
-                }}
-              >
-                <Search
-                  style={{
-                    width: 28,
-                    height: 28,
-                    color: 'var(--color-muted-foreground)',
-                    strokeWidth: 1.5,
-                    marginBottom: 'var(--kp-space-2xs)',
-                  }}
-                />
-                <div
-                  style={{
-                    fontSize: 'var(--kp-font-md)',
-                    fontWeight: 'var(--kp-weight-semibold)',
-                    color: 'var(--kp-navy)',
-                    fontFamily: 'Satoshi, sans-serif',
-                    lineHeight: 'var(--kp-leading-tight)',
-                  }}
-                >
-                  No results
-                </div>
-                <div style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)', lineHeight: 'var(--kp-leading-normal)' }}>
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  No files match your search. Try a different name.
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                </div>
-              </div>
-            ) : filteredNodes.length === 0 ? (
+              /* eslint-disable keepance-i18n/no-hardcoded-string */
               <EmptyState
+                icon={Search}
+                title="No results"
+                body="No files match your search. Try a different name."
+                compact
+              />
+              /* eslint-enable keepance-i18n/no-hardcoded-string */
+            ) : filteredNodes.length === 0 ? (
+              <WorkspaceEmptyState
                 onCreateDocument={handleCreateDocument}
                 onCreateFolder={handleCreateFolder}
               />

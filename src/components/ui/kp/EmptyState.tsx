@@ -11,6 +11,7 @@ export interface EmptyStateProps {
   compact?: boolean;
   iconSize?: number;
   className?: string;
+  'data-testid'?: string;
 }
 
 /** One empty-state layout: icon → title → body → optional actions, centered. */
@@ -22,12 +23,13 @@ export function EmptyState({
   compact = false,
   iconSize = 32,
   className,
+  'data-testid': testId,
 }: EmptyStateProps) {
   const classes = ['kp-empty', compact ? 'kp-empty--compact' : '', className ?? '']
     .filter(Boolean)
     .join(' ');
   return (
-    <div className={classes}>
+    <div className={classes} data-testid={testId}>
       <span className="kp-empty__icon">
         <Icon size={iconSize} strokeWidth={1.5} />
       </span>

@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useState, useMemo } from 'react';
-import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, X, MessageSquare, FileText, Mail, Search, ChevronUp, ChevronDown } from 'lucide-react';
+import { Briefcase, Lock, Plus, FolderOpen, Scale, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown } from 'lucide-react';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { MatterHub } from '@/components/matter/MatterHub';
@@ -21,6 +21,7 @@ import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/
 import type { Matter } from '@/types/matter';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
+import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout } from '@/components/ui/kp';
 
 /** localStorage key for dismissing the setup card. */
 const SETUP_CARD_DISMISSED_KEY = 'keepance:setup-card-dismissed';
@@ -101,8 +102,8 @@ function GetStartedCard() {
     gap: 10,
     padding: '8px 0',
   };
-  const iconDone: React.CSSProperties = { width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', color: '#059669', flex: 'none' };
-  const iconTodo: React.CSSProperties = { width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', color: '#9ca3af', flex: 'none' };
+  const iconDone: React.CSSProperties = { width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', color: 'var(--kp-success)', flex: 'none' };
+  const iconTodo: React.CSSProperties = { width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', color: 'var(--color-muted-foreground)', flex: 'none' };
   const stepLabel: React.CSSProperties = {
     flex: 1,
     fontSize: 'var(--kp-font-sm)',
@@ -110,128 +111,81 @@ function GetStartedCard() {
     color: 'var(--kp-navy)',
     textAlign: 'left',
   };
-  const stepBtn: React.CSSProperties = {
-    padding: '3px 10px',
-    fontSize: 'var(--kp-font-xs)',
-    fontWeight: 'var(--kp-weight-semibold)',
-    borderRadius: 5,
-    border: '1px solid rgba(10,37,64,0.22)',
-    background: '#fff',
-    color: 'var(--kp-navy)',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  };
 
   return (
-    <div
-      data-testid="get-started-card"
-      style={{
-        margin: '0 0 20px',
-        border: '1px solid rgba(10,37,64,0.14)',
-        borderRadius: 'var(--radius-lg)',
-        background: 'rgba(10,37,64,0.03)',
-        padding: '14px 16px',
-        position: 'relative',
-        boxShadow: 'var(--kp-shadow-1)',
-      }}
+    <div data-testid="get-started-card">
+    <Callout
+      variant="info"
+      onDismiss={dismiss}
     >
-      {/* Dismiss */}
-      <button
-        type="button"
-        data-testid="get-started-card-dismiss"
-        aria-label="Dismiss setup card"
-        onClick={dismiss}
-        style={{
-          position: 'absolute',
-          top: 10,
-          right: 10,
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          color: '#9ca3af',
-          padding: 2,
-          lineHeight: 1,
-        }}
-      >
-        <X style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)' }} />
-      </button>
+      <div>
+        <Eyebrow style={{ marginBottom: 8 }}>Get started</Eyebrow>
 
-      <p
-        style={{
-          margin: '0 0 8px',
-          fontSize: 'var(--kp-font-xs)',
-          fontWeight: 'var(--kp-weight-bold)',
-          letterSpacing: '0.05em',
-          textTransform: 'uppercase',
-          color: 'var(--color-muted-foreground)',
-        }}
-      >
-        Get started
-      </p>
+        {/* Step 1: Create first matter */}
+        <div style={stepStyle}>
+          {hasMatter
+            ? <CheckCircle2 style={iconDone} />
+            : <Circle style={iconTodo} />
+          }
+          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+          <span style={stepLabel}>Create your first matter</span>
+          {!hasMatter && (
+            <Button
+              variant="secondary"
+              size="sm"
+              data-testid="get-started-create-matter"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
+              }}
+            >
+              Create
+            </Button>
+          )}
+        </div>
 
-      {/* Step 1: Create first matter */}
-      <div style={stepStyle}>
-        {hasMatter
-          ? <CheckCircle2 style={iconDone} />
-          : <Circle style={iconTodo} />
-        }
-        {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
-        <span style={stepLabel}>Create your first matter</span>
-        {!hasMatter && (
-          <button
-            type="button"
-            style={stepBtn}
-            data-testid="get-started-create-matter"
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
-            }}
-          >
-            Create
-          </button>
-        )}
+        {/* Step 2: Connect AI */}
+        <div style={stepStyle}>
+          {aiConnected
+            ? <CheckCircle2 style={iconDone} />
+            : <Circle style={iconTodo} />
+          }
+          {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
+          <span style={stepLabel}>Connect an AI</span>
+          {!aiConnected && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => { navigateTo('ai'); }}
+            >
+              Set up
+            </Button>
+          )}
+        </div>
+
+        {/* Step 3: Connect email */}
+        <div style={stepStyle}>
+          {emailConnected === null ? (
+            <Circle style={{ ...iconTodo, opacity: 0.4 }} />
+          ) : emailConnected ? (
+            <CheckCircle2 style={iconDone} />
+          ) : (
+            <Circle style={iconTodo} />
+          )}
+          <span style={{ ...stepLabel, opacity: emailConnected === null ? 0.5 : 1 }}>
+            Connect email
+          </span>
+          {emailConnected === false && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => { navigateTo('integrations'); }}
+            >
+              Set up
+            </Button>
+          )}
+        </div>
       </div>
-
-      {/* Step 2: Connect AI */}
-      <div style={stepStyle}>
-        {aiConnected
-          ? <CheckCircle2 style={iconDone} />
-          : <Circle style={iconTodo} />
-        }
-        {/* eslint-disable-next-line keepance-i18n/no-hardcoded-string */}
-        <span style={stepLabel}>Connect an AI</span>
-        {!aiConnected && (
-          <button
-            type="button"
-            style={stepBtn}
-            onClick={() => { navigateTo('ai'); }}
-          >
-            Set up
-          </button>
-        )}
-      </div>
-
-      {/* Step 3: Connect email */}
-      <div style={stepStyle}>
-        {emailConnected === null ? (
-          <Circle style={{ ...iconTodo, opacity: 0.4 }} />
-        ) : emailConnected ? (
-          <CheckCircle2 style={iconDone} />
-        ) : (
-          <Circle style={iconTodo} />
-        )}
-        <span style={{ ...stepLabel, opacity: emailConnected === null ? 0.5 : 1 }}>
-          Connect email
-        </span>
-        {emailConnected === false && (
-          <button
-            type="button"
-            style={stepBtn}
-            onClick={() => { navigateTo('integrations'); }}
-          >
-            Set up
-          </button>
-        )}
-      </div>
+    </Callout>
     </div>
   );
 }
@@ -256,48 +210,14 @@ function PrivilegePill() {
   // Non-color cue: the Lock icon + text label "Privileged" provide a redundant
   // indicator beyond color alone, satisfying the a11y requirement.
   return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 4,
-        padding: '2px 8px',
-        borderRadius: 4,
-        fontSize: 'var(--kp-font-2xs)',
-        fontWeight: 'var(--kp-weight-semibold)',
-        letterSpacing: '0.03em',
-        background: 'rgba(10,37,64,0.07)',
-        color: 'var(--kp-navy)',
-        border: '1px solid rgba(10,37,64,0.18)',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      <Lock style={{ width: 10, height: 10, strokeWidth: 2 }} />
-      Privileged
-    </span>
+    <Badge variant="privilege" size="sm" icon={Lock}>Privileged</Badge>
   );
 }
 
 function SamplePill() {
   return (
-    <span
-      data-testid="sample-matter-pill"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        padding: '2px 8px',
-        borderRadius: 4,
-        fontSize: 'var(--kp-font-2xs)',
-        fontWeight: 'var(--kp-weight-semibold)',
-        letterSpacing: '0.03em',
-        background: 'rgba(16,185,129,0.09)',
-        color: '#065f46',
-        border: '1px solid rgba(16,185,129,0.28)',
-        whiteSpace: 'nowrap',
-        marginLeft: 6,
-      }}
-    >
-      Sample
+    <span data-testid="sample-matter-pill" style={{ marginLeft: 6, display: 'inline-flex' }}>
+      <Badge variant="sample" size="sm">Sample</Badge>
     </span>
   );
 }
@@ -327,23 +247,6 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
     );
   };
 
-  const quickActionBtn: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-    padding: '3px 9px',
-    borderRadius: 4,
-    fontSize: 'var(--kp-font-2xs)',
-    fontWeight: 'var(--kp-weight-semibold)',
-    border: '1px solid rgba(10,37,64,0.18)',
-    background: '#fff',
-    color: 'var(--kp-navy)',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-    letterSpacing: '0.01em',
-    lineHeight: 1,
-    transition: 'background 0.1s',
-  };
 
   return (
     <div
@@ -473,45 +376,36 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
           borderLeft: isActive ? '3px solid var(--kp-navy)' : '3px solid transparent',
         }}
       >
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="sm"
           data-testid={`matter-launch-ask-${matter.id}`}
           aria-label={`Search ${label}`}
-          style={{
-            ...quickActionBtn,
-            background: hovered ? 'rgba(10,37,64,0.05)' : '#fff',
-          }}
+          iconLeft={MessageSquare}
           onClick={(e) => { launchSurface('search', e); }}
         >
-          <MessageSquare style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
           Search
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           data-testid={`matter-launch-documents-${matter.id}`}
           aria-label={`Open documents for ${label}`}
-          style={{
-            ...quickActionBtn,
-            background: hovered ? 'rgba(10,37,64,0.05)' : '#fff',
-          }}
+          iconLeft={FileText}
           onClick={(e) => { launchSurface('files', e); }}
         >
-          <FileText style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
           Documents
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           data-testid={`matter-launch-email-${matter.id}`}
           aria-label={`Open email for ${label}`}
-          style={{
-            ...quickActionBtn,
-            background: hovered ? 'rgba(10,37,64,0.05)' : '#fff',
-          }}
+          iconLeft={Mail}
           onClick={(e) => { launchSurface('email', e); }}
         >
-          <Mail style={{ width: 11, height: 11, strokeWidth: 2, flex: 'none' }} />
           Email
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -519,12 +413,12 @@ function MatterRow({ matter, isActive, onSelect }: MatterRowProps) {
 
 // ── Empty state ────────────────────────────────────────────────────────────
 
-interface EmptyStateProps {
+interface MattersEmptyStateProps {
   entityOne: string;
   entityOther: string;
 }
 
-function EmptyState({ entityOne, entityOther }: EmptyStateProps) {
+function MattersEmptyState({ entityOne, entityOther }: MattersEmptyStateProps) {
   return (
     <div
       style={{
@@ -541,64 +435,27 @@ function EmptyState({ entityOne, entityOther }: EmptyStateProps) {
       <div style={{ width: '100%', maxWidth: 340, marginBottom: 8 }}>
         <GetStartedCard />
       </div>
-      <Scale
-        style={{
-          width: 36,
-          height: 36,
-          color: 'var(--color-muted-foreground)',
-          strokeWidth: 1.5,
-          marginBottom: 4,
-        }}
+      <EmptyState
+        icon={Scale}
+        title={`No ${entityOther} yet`}
+        body={`Create your first ${entityOne} to keep one client's documents and emails together.`}
+        actions={
+          /* Stub button — full creation requires folder-picking via MatterManagerDialog */
+          <Button
+            variant="primary"
+            size="md"
+            iconLeft={Plus}
+            onClick={() => {
+              // Full matter creation requires folder-picking; the MatterManagerDialog
+              // is the canonical entry point. Dispatching a custom event lets any
+              // parent listening (e.g. App.tsx) open that dialog without a prop chain.
+              window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
+            }}
+          >
+            New {entityOne}
+          </Button>
+        }
       />
-      <div
-        style={{
-          fontSize: 'var(--kp-font-lg)',
-          fontWeight: 'var(--kp-weight-semibold)',
-          lineHeight: 'var(--kp-leading-tight)',
-          color: 'var(--kp-navy)',
-          fontFamily: 'Satoshi, sans-serif',
-        }}
-      >
-        No {entityOther} yet
-      </div>
-      <div
-        style={{
-          fontSize: 'var(--kp-font-sm)',
-          color: 'var(--color-muted-foreground)',
-          maxWidth: 320,
-          lineHeight: 'var(--kp-leading-relaxed)',
-        }}
-      >
-        {`Create your first ${entityOne} to keep one client's documents and emails together.`}
-      </div>
-      {/* Stub button — full creation requires folder-picking via MatterManagerDialog */}
-      <button
-        type="button"
-        style={{
-          marginTop: 8,
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '8px 16px',
-          borderRadius: 'var(--radius-md)',
-          fontSize: 'var(--kp-font-sm)',
-          fontWeight: 'var(--kp-weight-semibold)',
-          background: 'var(--kp-navy)',
-          color: '#fff',
-          border: 'none',
-          cursor: 'pointer',
-          fontFamily: 'Satoshi, sans-serif',
-        }}
-        onClick={() => {
-          // Full matter creation requires folder-picking; the MatterManagerDialog
-          // is the canonical entry point. Dispatching a custom event lets any
-          // parent listening (e.g. App.tsx) open that dialog without a prop chain.
-          window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
-        }}
-      >
-        <Plus style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-        New {entityOne}
-      </button>
     </div>
   );
 }
@@ -635,25 +492,17 @@ interface TableHeaderProps {
 
 function TableHeader({ entityOneLabel, sort, onSort }: TableHeaderProps) {
   const baseColStyle: React.CSSProperties = {
-    fontSize: 'var(--kp-font-2xs)',
-    fontWeight: 'var(--kp-weight-semibold)',
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: 'var(--color-muted-foreground)',
     padding: '10px 20px 10px 0',
   };
 
-  const colBtnStyle = (col: SortKey): React.CSSProperties => ({
-    ...baseColStyle,
+  const colBtnStyle: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
     background: 'none',
     border: 'none',
     cursor: 'pointer',
     padding: 0,
-    color: sort.key === col ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-    fontWeight: sort.key === col ? 'var(--kp-weight-bold)' : 'var(--kp-weight-semibold)',
-  });
+  };
 
   return (
     <div
@@ -667,44 +516,44 @@ function TableHeader({ entityOneLabel, sort, onSort }: TableHeaderProps) {
       <div style={{ ...baseColStyle, paddingLeft: 3 }}>
         <button
           type="button"
-          style={colBtnStyle('name')}
+          style={colBtnStyle}
           onClick={() => { onSort('name'); }}
           aria-label={`Sort by ${entityOneLabel}${sort.key === 'name' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
         >
-          {entityOneLabel}
+          <span className={`kp-eyebrow${sort.key === 'name' ? ' kp-eyebrow--primary' : ''}`}>{entityOneLabel}</span>
           <SortIndicator col="name" sort={sort} />
         </button>
       </div>
       <div style={baseColStyle}>
         <button
           type="button"
-          style={colBtnStyle('privilege')}
+          style={colBtnStyle}
           onClick={() => { onSort('privilege'); }}
           aria-label={`Sort by Privilege${sort.key === 'privilege' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
         >
-          Privilege
+          <span className={`kp-eyebrow${sort.key === 'privilege' ? ' kp-eyebrow--primary' : ''}`}>Privilege</span>
           <SortIndicator col="privilege" sort={sort} />
         </button>
       </div>
       <div style={baseColStyle}>
         <button
           type="button"
-          style={colBtnStyle('documents')}
+          style={colBtnStyle}
           onClick={() => { onSort('documents'); }}
           aria-label={`Sort by Documents${sort.key === 'documents' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
         >
-          Documents
+          <span className={`kp-eyebrow${sort.key === 'documents' ? ' kp-eyebrow--primary' : ''}`}>Documents</span>
           <SortIndicator col="documents" sort={sort} />
         </button>
       </div>
       <div style={baseColStyle}>
         <button
           type="button"
-          style={colBtnStyle('created')}
+          style={colBtnStyle}
           onClick={() => { onSort('created'); }}
           aria-label={`Sort by Created${sort.key === 'created' ? (sort.dir === 'asc' ? ', currently ascending' : ', currently descending') : ''}`}
         >
-          Created
+          <span className={`kp-eyebrow${sort.key === 'created' ? ' kp-eyebrow--primary' : ''}`}>Created</span>
           <SortIndicator col="created" sort={sort} />
         </button>
       </div>
@@ -803,30 +652,16 @@ export function ReimaginedMattersHome() {
               : `${String(openCount)} ${entityLabel.other}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
           }
           actions={
-            <button
-              type="button"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '8px 14px',
-                borderRadius: 'var(--radius-md)',
-                fontSize: 'var(--kp-font-sm)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                background: 'var(--kp-navy)',
-                color: '#fff',
-                border: 'none',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                flex: 'none',
-              }}
+            <Button
+              variant="primary"
+              size="md"
+              iconLeft={Plus}
               onClick={() => {
                 window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
               }}
             >
-              <Plus style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
               New {entityLabel.one}
-            </button>
+            </Button>
           }
         />
       </div>
@@ -838,81 +673,31 @@ export function ReimaginedMattersHome() {
             padding: 'var(--kp-surface-gap) var(--kp-gutter) 0',
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '7px 12px',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)',
-              background: '#fff',
-              maxWidth: 380,
-            }}
-          >
-            <Search
-              aria-hidden="true"
-              style={{
-                width: 'var(--kp-icon-sm)',
-                height: 'var(--kp-icon-sm)',
-                color: 'var(--color-muted-foreground)',
-                flex: 'none',
-              }}
-            />
-            <input
-              type="search"
-              data-testid="matters-search-input"
-              aria-label={`Search ${entityLabel.other}`}
-              placeholder={`Search ${entityLabel.other}...`}
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); }}
-              style={{
-                flex: 1,
-                border: 'none',
-                outline: 'none',
-                fontSize: 'var(--kp-font-sm)',
-                color: 'var(--kp-navy)',
-                background: 'transparent',
-                fontFamily: 'Satoshi, sans-serif',
-              }}
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                aria-label="Clear search"
-                onClick={() => { setSearchQuery(''); }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 0,
-                  color: 'var(--color-muted-foreground)',
-                  lineHeight: 1,
-                  display: 'flex',
-                }}
-              >
-                <X style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)' }} />
-              </button>
-            )}
-          </div>
+          <SearchField
+            size="md"
+            data-testid="matters-search-input"
+            aria-label={`Search ${entityLabel.other}`}
+            placeholder={`Search ${entityLabel.other}...`}
+            value={searchQuery}
+            onChange={(v) => { setSearchQuery(v); }}
+            onClear={() => { setSearchQuery(''); }}
+          />
         </div>
       )}
 
       {/* Table card — top gap below the header (or below the search box) is never 0:
           the surface gap keeps it off the divider line (internal <= external rule). */}
-      <div
+      <Card
+        variant="flat"
         style={{
           margin: showSearch
             ? 'var(--kp-space-md) var(--kp-gutter) var(--kp-gutter)'
             : 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)',
-          background: '#fff',
           overflow: 'hidden',
         }}
       >
         {matters.length === 0 ? (
-          <EmptyState entityOne={entityLabel.one} entityOther={entityLabel.other} />
+          <MattersEmptyState entityOne={entityLabel.one} entityOther={entityLabel.other} />
         ) : (
           <>
             <TableHeader entityOneLabel={entityLabel.One} sort={sort} onSort={toggleSort} />
@@ -946,7 +731,7 @@ export function ReimaginedMattersHome() {
             </div>
           </>
         )}
-      </div>
+      </Card>
     </div>
   );
 }

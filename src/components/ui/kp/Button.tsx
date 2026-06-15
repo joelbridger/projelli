@@ -12,10 +12,11 @@ const ICON_SIZE: Record<ButtonSize, number> = { sm: 14, md: 16, lg: 16 };
 export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  /** Leading icon component (e.g. lucide `Plus`). Sized from `size`. */
-  iconLeft?: IconType;
+  /** Leading icon component (e.g. lucide `Plus`). Sized from `size`. Accepts
+   *  `undefined` so callers can write `iconLeft={busy ? undefined : Icon}`. */
+  iconLeft?: IconType | undefined;
   /** Trailing icon component. Sized from `size`. */
-  iconRight?: IconType;
+  iconRight?: IconType | undefined;
   loading?: boolean;
   fullWidth?: boolean;
   className?: string;

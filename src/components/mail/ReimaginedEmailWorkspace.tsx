@@ -30,7 +30,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Mail,
   Search,
-  Filter,
   ChevronDown,
   Loader2,
   AlertTriangle,
@@ -44,6 +43,7 @@ import {
   CheckSquare,
   PenLine,
 } from 'lucide-react';
+import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, Badge, Card, EmptyState } from '@/components/ui/kp';
 import { useActiveMatter, useMatters } from '@/stores/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
 import {
@@ -296,25 +296,14 @@ function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message
       }}
     >
       <div style={{ padding: `var(--kp-space-2xs) var(--kp-space-xs)`, borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        <input
-          type="text"
-          data-testid="matter-picker-search"
-          placeholder="Search matters..."
+        <SearchField
+          size="sm"
           value={matterSearch}
-          onChange={(e) => { setMatterSearch(e.target.value); }}
-          onClick={(e) => { e.stopPropagation(); }}
-          style={{
-            width: '100%',
-            border: '1px solid var(--color-border)',
-            borderRadius: 4,
-            padding: '4px 7px',
-            fontSize: 'var(--kp-font-2xs)',
-            color: 'var(--color-foreground)',
-            background: '#fff',
-            fontFamily: 'var(--font-sans)',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
+          onChange={(v) => { setMatterSearch(v); }}
+          placeholder="Search matters..."
+          aria-label="Search matters"
+          data-testid="matter-picker-search"
+          onClick={(e: React.MouseEvent<HTMLInputElement>) => { e.stopPropagation(); }}
         />
       </div>
       <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -449,25 +438,14 @@ function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatte
       }}
     >
       <div style={{ padding: `var(--kp-space-2xs) var(--kp-space-xs)`, borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-        <input
-          type="text"
-          data-testid="bulk-matter-picker-search"
-          placeholder="Search matters..."
+        <SearchField
+          size="sm"
           value={matterSearch}
-          onChange={(e) => { setMatterSearch(e.target.value); }}
-          onClick={(e) => { e.stopPropagation(); }}
-          style={{
-            width: '100%',
-            border: '1px solid var(--color-border)',
-            borderRadius: 4,
-            padding: '4px 7px',
-            fontSize: 'var(--kp-font-2xs)',
-            color: 'var(--color-foreground)',
-            background: '#fff',
-            fontFamily: 'var(--font-sans)',
-            boxSizing: 'border-box',
-            outline: 'none',
-          }}
+          onChange={(v) => { setMatterSearch(v); }}
+          placeholder="Search matters..."
+          aria-label="Search matters"
+          data-testid="bulk-matter-picker-search"
+          onClick={(e: React.MouseEvent<HTMLInputElement>) => { e.stopPropagation(); }}
         />
       </div>
       <div style={{ overflowY: 'auto', flex: 1 }}>
@@ -698,28 +676,7 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
             <Paperclip style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', color: 'var(--color-muted-foreground)', strokeWidth: 1.75, flex: 'none' }} />
           )}
           {isPrivileged(privilege) && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 3,
-                padding: '1px 5px',
-                borderRadius: 3,
-                fontSize: 'var(--kp-font-2xs)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                letterSpacing: '0.03em',
-                background: 'rgba(10,37,64,0.07)',
-                color: 'var(--kp-navy)',
-                border: '1px solid rgba(10,37,64,0.18)',
-                whiteSpace: 'nowrap',
-                flex: 'none',
-              }}
-            >
-              <ShieldCheck style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
-              { }
-              Privileged
-              { }
-            </span>
+            <Badge variant="privilege" size="sm" icon={ShieldCheck}>Privileged</Badge>
           )}
         </div>
 
@@ -753,33 +710,29 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
             onClick={(e) => { e.stopPropagation(); }}
           >
             {/* Open */}
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={Mail}
               data-testid={`open-email-${item.id}`}
               onClick={handleOpen}
-              style={actionBtnStyle}
               title="Open email"
             >
-              { }
-              <Mail style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 1.75 }} />
               Open
-              { }
-            </button>
+            </Button>
 
             {/* File this email to matter (per-message) */}
             <div style={{ position: 'relative' }}>
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={FolderInput}
                 data-testid={`file-to-matter-${item.id}`}
                 onClick={() => { setMatterOpen((o) => !o); }}
-                style={actionBtnStyle}
                 title="File this email to a matter"
               >
-                { }
-                <FolderInput style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 1.75 }} />
                 File
-                { }
-              </button>
+              </Button>
               <MatterPickerPopover
                 item={item}
                 open={matterOpen}
@@ -798,28 +751,18 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
 
             {/* Export */}
             {onSaveToWorkspace && (
-              <button
-                type="button"
+              <Button
+                variant={exportFailed ? 'danger' : 'secondary'}
+                size="sm"
+                iconLeft={exportFailed ? AlertTriangle : FileDown}
+                loading={exporting}
                 data-testid={`export-email-${item.id}`}
                 onClick={() => { void handleExport(); }}
                 disabled={exporting}
-                style={{
-                  ...actionBtnStyle,
-                  ...(exportFailed ? { color: '#b45309', borderColor: '#f59e0b' } : {}),
-                }}
-                title={exportFailed ? 'Export failed — try again' : 'Export to workspace'}
+                title={exportFailed ? 'Export failed, try again' : 'Export to workspace'}
               >
-                {exporting ? (
-                  <Loader2 style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
-                ) : exportFailed ? (
-                  <AlertTriangle style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
-                ) : (
-                  <FileDown style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 1.75 }} />
-                )}
-                { }
                 {exportFailed ? 'Export failed' : 'Export'}
-                { }
-              </button>
+              </Button>
             )}
           </div>
         )}
@@ -828,20 +771,6 @@ function MailRow({ item, selected, anySelected, onToggleSelect, onSaveToWorkspac
   );
 }
 
-const actionBtnStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 4,
-  padding: '4px 8px',
-  borderRadius: 4,
-  fontSize: 'var(--kp-font-2xs)',
-  fontWeight: 'var(--kp-weight-medium)',
-  color: 'var(--color-foreground)',
-  background: '#fff',
-  border: '1px solid var(--color-border)',
-  cursor: 'pointer',
-  boxShadow: 'var(--kp-shadow-1)',
-};
 
 // ── AskHit card ────────────────────────────────────────────────────────────
 
@@ -870,28 +799,16 @@ function AskHitCard({ hit, rank, items }: AskHitCardProps) {
   }, [sid]);
 
   return (
-    <button
-      type="button"
+    <Card
+      variant="interactive"
       data-testid="ask-hit-card"
       onClick={handleOpen}
       style={{
         display: 'block',
         width: '100%',
         textAlign: 'left',
-        padding: `var(--kp-space-sm) var(--kp-space-md)`,
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--color-border)',
-        background: '#fff',
-        cursor: 'pointer',
         marginBottom: 'var(--kp-space-xs)',
-        boxShadow: 'var(--kp-shadow-1)',
-        transition: 'box-shadow 0.12s',
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.boxShadow = 'var(--kp-shadow-2)';
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.boxShadow = 'var(--kp-shadow-1)';
+        cursor: 'pointer',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: snippet ? 4 : 0 }}>
@@ -966,7 +883,7 @@ function AskHitCard({ hit, rank, items }: AskHitCardProps) {
       >
         {rawId}
       </span>
-    </button>
+    </Card>
   );
 }
 
@@ -978,74 +895,22 @@ interface NoAccountsStateProps {
 
 function NoAccountsState({ onOpenSettings }: NoAccountsStateProps) {
   return (
-    <div
-      data-testid="no-accounts-state"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: `var(--kp-space-3xl) var(--kp-gutter)`,
-        textAlign: 'center',
-        gap: 'var(--kp-space-sm)',
-      }}
-    >
-      <Mail
-        style={{
-          width: 36,
-          height: 36,
-          color: 'var(--color-muted-foreground)',
-          strokeWidth: 1.5,
-          marginBottom: 4,
-        }}
+    /* eslint-disable keepance-i18n/no-hardcoded-string */
+    <div data-testid="no-accounts-state">
+      <EmptyState
+        icon={Mail}
+        title="No email connected"
+        body="Connect your email to search across it, file messages to a matter, and cite them in answers. It is imported to your machine, not our servers."
+        actions={
+          onOpenSettings ? (
+            <Button variant="primary" size="md" onClick={onOpenSettings}>
+              Connect your email
+            </Button>
+          ) : undefined
+        }
       />
-      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-      <div
-        style={{
-          fontSize: 'var(--kp-font-lg)',
-          fontWeight: 'var(--kp-weight-semibold)',
-          lineHeight: 'var(--kp-leading-tight)',
-          color: 'var(--kp-navy)',
-          fontFamily: 'var(--font-sans)',
-        }}
-      >
-        No email connected
-      </div>
-      <div
-        style={{
-          fontSize: 'var(--kp-font-sm)',
-          color: 'var(--color-muted-foreground)',
-          maxWidth: 340,
-          lineHeight: 'var(--kp-leading-relaxed)',
-        }}
-      >
-        Connect your email to search across it, file messages to a matter, and cite them in answers. It is imported to your machine, not our servers.
-      </div>
-      {onOpenSettings && (
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          style={{
-            marginTop: 8,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 16px',
-            borderRadius: 'var(--radius-md)',
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight: 'var(--kp-weight-semibold)',
-            background: 'var(--kp-navy)',
-            color: '#fff',
-            border: 'none',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)',
-          }}
-        >
-          Connect your email
-        </button>
-      )}
-      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
     </div>
+    /* eslint-enable keepance-i18n/no-hardcoded-string */
   );
 }
 
@@ -1065,9 +930,6 @@ export function ReimaginedEmailWorkspace({
 
   // Filter row visibility (collapsed by default)
   const [filtersVisible, setFiltersVisible] = useState(false);
-
-  // Accessibility: track whether the search input has focus (for visible focus ring on wrapper)
-  const [searchFocused, setSearchFocused] = useState(false);
 
   // Search / filter state
   const [query, setQuery] = useState('');
@@ -1318,11 +1180,6 @@ export function ReimaginedEmailWorkspace({
   }, [mode, query, activeMatter, scopeAllEmail]);
 
   // Reset offset + selection when filters change
-  const handleQueryChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setQuery(e.target.value);
-    setOffset(0);
-    setSelectedIds(new Set());
-  }, []);
 
   const handleProviderChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
     setProviderFilter(e.target.value);
@@ -1434,8 +1291,10 @@ export function ReimaginedEmailWorkspace({
           description="Search, read, and file your imported email."
           actions={
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 'none' }}>
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                size="md"
+                iconLeft={PenLine}
                 data-testid="compose-btn"
                 onClick={() => {
                   setComposeOpen(true);
@@ -1443,68 +1302,26 @@ export function ReimaginedEmailWorkspace({
                   setComposeSendError(null);
                   setComposeAttachments([]);
                 }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  padding: '5px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: 'var(--kp-font-xs)',
-                  fontWeight: 'var(--kp-weight-semibold)',
-                  background: 'var(--kp-navy)',
-                  color: '#fff',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-sans)',
-                }}
               >
-                <PenLine style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-                {' '}New email{' '}
-              </button>
+                New email
+              </Button>
 
               {/* Scope toggle — only when a matter is active AND in Ask AI mode */}
               {activeMatter && mode !== 'keyword' && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    background: 'rgba(10,37,64,0.05)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: 2,
-                    gap: 2,
+                <SegmentedToggle
+                  ariaLabel="Email scope"
+                  variant="pill"
+                  size="md"
+                  options={[
+                    { value: 'matter' as const, label: 'This matter' },
+                    { value: 'all' as const, label: 'All email' },
+                  ]}
+                  value={scopeAllEmail ? 'all' : 'matter'}
+                  onChange={(v) => {
+                    setScopeAllEmail(v === 'all');
+                    setOffset(0);
                   }}
-                >
-                  { }
-                  {[
-                    { label: 'This matter', all: false },
-                    { label: 'All email', all: true },
-                  ].map(({ label, all }) => (
-                    <button
-                      key={label}
-                      type="button"
-                      data-testid={`scope-${all ? 'all' : 'matter'}`}
-                      onClick={() => {
-                        setScopeAllEmail(all);
-                        setOffset(0);
-                      }}
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: 4,
-                        fontSize: 'var(--kp-font-xs)',
-                        fontWeight: scopeAllEmail === all ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
-                        background: scopeAllEmail === all ? '#fff' : 'transparent',
-                        color: scopeAllEmail === all ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-                        border: scopeAllEmail === all ? '1px solid var(--color-border)' : '1px solid transparent',
-                        cursor: 'pointer',
-                        boxShadow: scopeAllEmail === all ? 'var(--kp-shadow-1)' : 'none',
-                        transition: 'all 0.1s',
-                      }}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                  { }
-                </div>
+                />
               )}
             </div>
           }
@@ -1516,14 +1333,13 @@ export function ReimaginedEmailWorkspace({
             display: 'flex',
             alignItems: 'center',
             gap: 0,
-            border: searchFocused ? '1px solid var(--kp-navy)' : '1px solid var(--color-border)',
+            border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-lg)',
             background: '#fff',
             overflow: 'hidden',
-            boxShadow: searchFocused ? '0 0 0 2px rgba(10,37,64,0.12)' : 'var(--kp-shadow-1)',
+            boxShadow: 'var(--kp-shadow-1)',
             marginTop: 'var(--kp-surface-gap)',
             marginBottom: 'var(--kp-space-xs)',
-            transition: 'border-color 0.1s, box-shadow 0.1s',
           }}
         >
           {/* Mode toggle tabs */}
@@ -1566,209 +1382,116 @@ export function ReimaginedEmailWorkspace({
             { }
           </div>
 
-          {/* Search icon */}
-          <Search
-            style={{
-              width: 'var(--kp-icon-sm)',
-              height: 'var(--kp-icon-sm)',
-              color: 'var(--color-muted-foreground)',
-              strokeWidth: 1.75,
-              flex: 'none',
-              margin: '0 10px',
-            }}
-          />
-
-          {/* Input */}
-          <input
-            type="text"
-            data-testid="email-search-input"
+          {/* Search input */}
+          <SearchField
+            size="md"
+            icon={Search}
             value={query}
-            onChange={handleQueryChange}
-            onFocus={() => { setSearchFocused(true); }}
-            onBlur={() => { setSearchFocused(false); }}
+            onChange={(v) => {
+              setQuery(v);
+              setOffset(0);
+              setSelectedIds(new Set());
+            }}
+            onClear={handleClearQuery}
             placeholder={
               mode === 'keyword'
                 ? 'Search email by keyword...'
                 : 'Search your email with AI...'
             }
-            style={{
-              flex: 1,
-              border: 'none',
-              outline: 'none',
-              fontSize: 'var(--kp-font-md)',
-              color: 'var(--color-foreground)',
-              background: 'transparent',
-              padding: '9px 0',
-              fontFamily: 'var(--font-sans)',
-              minWidth: 0,
-            }}
+            aria-label="Search email"
+            data-testid="email-search-input"
+            style={{ flex: 1, border: 'none', boxShadow: 'none', borderRadius: 0 }}
           />
-
-          {/* Clear */}
-          {query && (
-            <button
-              type="button"
-              aria-label="Clear search"
-              onClick={handleClearQuery}
-              style={{
-                flex: 'none',
-                padding: '6px 10px',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--color-muted-foreground)',
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              <X style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2 }} />
-            </button>
-          )}
         </div>
 
         {/* Filters toggle — only when accounts are loaded and in keyword mode */}
         {accountsLoaded && accounts.length > 0 && mode === 'keyword' && (
           <div style={{ marginBottom: 'var(--kp-space-sm)' }}>
-            <button
-              type="button"
+            <FilterToggle
+              open={filtersVisible}
+              onToggle={() => { setFiltersVisible((v) => !v); }}
+              count={activeFilterCount}
+              label="Filters"
               data-testid="filters-toggle"
-              onClick={() => { setFiltersVisible((v) => !v); }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '3px 8px',
-                borderRadius: 5,
-                fontSize: 'var(--kp-font-2xs)',
-                fontWeight: 'var(--kp-weight-medium)',
-                color: activeFilterCount > 0 ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-                background: activeFilterCount > 0 ? 'rgba(10,37,64,0.06)' : 'transparent',
-                border: '1px solid var(--color-border)',
-                cursor: 'pointer',
-              }}
-            >
-              <Filter style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 1.75 }} />
-              { }
-              Filters
-              {activeFilterCount > 0 && (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 15,
-                    height: 15,
-                    borderRadius: '50%',
-                    background: 'var(--kp-navy)',
-                    color: '#fff',
-                    fontSize: 'var(--kp-font-2xs)',
-                    fontWeight: 'var(--kp-weight-bold)',
-                  }}
-                >
-                  {activeFilterCount}
-                </span>
-              )}
-              <ChevronDown
-                style={{
-                  width: 'var(--kp-icon-xs)',
-                  height: 'var(--kp-icon-xs)',
-                  strokeWidth: 2,
-                  transform: filtersVisible ? 'rotate(180deg)' : 'none',
-                  transition: 'transform 0.15s',
-                }}
-              />
-              { }
-            </button>
+            />
 
             {/* Expanded filter row */}
             {filtersVisible && (
-              <div
-                data-testid="filter-row"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  marginTop: 8,
-                  flexWrap: 'wrap',
-                }}
-              >
-                {/* Provider filter */}
-                {uniqueProviders.length > 1 && (
-                  <select
-                    data-testid="provider-filter"
-                    value={providerFilter}
-                    onChange={handleProviderChange}
-                    aria-label="Filter by provider"
-                    style={filterInputStyle}
-                  >
-                    { }
-                    { }
-                    <option value="">All accounts</option>
-                    { }
-                    {uniqueProviders.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                    { }
-                  </select>
-                )}
-
-                {/* Date from */}
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-                  { }
-                  From
-                  { }
-                  <input
-                    type="date"
-                    data-testid="date-from"
-                    value={dateFrom}
-                    onChange={handleDateFromChange}
-                    aria-label="From date"
-                    style={filterInputStyle}
-                  />
-                </label>
-
-                {/* Date to */}
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-                  { }
-                  To
-                  { }
-                  <input
-                    type="date"
-                    data-testid="date-to"
-                    value={dateTo}
-                    onChange={handleDateToChange}
-                    aria-label="To date"
-                    style={filterInputStyle}
-                  />
-                </label>
-
-                {/* Has attachment toggle */}
-                <label
+              <FilterPanel data-testid="filter-row">
+                <div
                   style={{
-                    display: 'inline-flex',
+                    display: 'flex',
                     alignItems: 'center',
-                    gap: 5,
-                    fontSize: 'var(--kp-font-xs)',
-                    color: 'var(--color-muted-foreground)',
-                    cursor: 'pointer',
+                    gap: 10,
+                    flexWrap: 'wrap',
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    data-testid="attachment-filter"
-                    checked={hasAttachments}
-                    onChange={handleAttachmentToggle}
-                    style={{ accentColor: 'var(--kp-navy)', cursor: 'pointer' }}
-                  />
-                  { }
-                  { }
-                  Has attachment
-                  { }
-                  { }
-                </label>
-              </div>
+                  {/* Provider filter */}
+                  {uniqueProviders.length > 1 && (
+                    <select
+                      data-testid="provider-filter"
+                      value={providerFilter}
+                      onChange={handleProviderChange}
+                      aria-label="Filter by provider"
+                      style={filterInputStyle}
+                    >
+                      <option value="">All accounts</option>
+                      {uniqueProviders.map((p) => (
+                        <option key={p} value={p}>
+                          {p}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  {/* Date from */}
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+                    From
+                    <input
+                      type="date"
+                      data-testid="date-from"
+                      value={dateFrom}
+                      onChange={handleDateFromChange}
+                      aria-label="From date"
+                      style={filterInputStyle}
+                    />
+                  </label>
+
+                  {/* Date to */}
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+                    To
+                    <input
+                      type="date"
+                      data-testid="date-to"
+                      value={dateTo}
+                      onChange={handleDateToChange}
+                      aria-label="To date"
+                      style={filterInputStyle}
+                    />
+                  </label>
+
+                  {/* Has attachment toggle */}
+                  <label
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      fontSize: 'var(--kp-font-xs)',
+                      color: 'var(--color-muted-foreground)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      data-testid="attachment-filter"
+                      checked={hasAttachments}
+                      onChange={handleAttachmentToggle}
+                      style={{ accentColor: 'var(--kp-navy)', cursor: 'pointer' }}
+                    />
+                    Has attachment
+                  </label>
+                </div>
+              </FilterPanel>
             )}
           </div>
         )}
@@ -1807,16 +1530,16 @@ export function ReimaginedEmailWorkspace({
                   {selectedIds.size} selected
                 </span>
                 <div style={{ position: 'relative' }}>
-                  <button
-                    type="button"
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    iconLeft={FolderInput}
+                    iconRight={ChevronDown}
                     data-testid="bulk-file-to-matter"
                     onClick={() => { setBulkMatterOpen((o) => !o); }}
-                    style={actionBtnStyle}
                   >
-                    <FolderInput style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 1.75 }} />
                     File to matter
-                    <ChevronDown style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
-                  </button>
+                  </Button>
                   <BulkMatterPicker
                     selectedIds={selectedIds}
                     open={bulkMatterOpen}
@@ -1824,26 +1547,14 @@ export function ReimaginedEmailWorkspace({
                     onDone={handleClearSelection}
                   />
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconLeft={X}
                   onClick={handleClearSelection}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '4px 8px',
-                    borderRadius: 4,
-                    fontSize: 'var(--kp-font-2xs)',
-                    fontWeight: 'var(--kp-weight-medium)',
-                    color: 'var(--color-muted-foreground)',
-                    background: 'transparent',
-                    border: '1px solid var(--color-border)',
-                    cursor: 'pointer',
-                  }}
                 >
-                  <X style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
                   Clear selection
-                </button>
+                </Button>
                 {/* eslint-enable keepance-i18n/no-hardcoded-string */}
               </div>
             )}
@@ -1908,26 +1619,15 @@ export function ReimaginedEmailWorkspace({
                 <p style={{ margin: 0, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', maxWidth: 340 }}>
                   {error}
                 </p>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   data-testid="error-retry"
                   onClick={handleRetry}
-                  style={{
-                    marginTop: 4,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    padding: '5px 14px',
-                    borderRadius: 5,
-                    fontSize: 'var(--kp-font-xs)',
-                    fontWeight: 'var(--kp-weight-medium)',
-                    color: 'var(--color-foreground)',
-                    background: '#fff',
-                    border: '1px solid var(--color-border)',
-                    cursor: 'pointer',
-                  }}
+                  style={{ marginTop: 4 }}
                 >
                   Try again
-                </button>
+                </Button>
               </div>
             )}
 
@@ -2665,8 +2365,9 @@ export function ReimaginedEmailWorkspace({
 }
 
 const filterInputStyle: React.CSSProperties = {
-  padding: '4px 8px',
-  borderRadius: 5,
+  height: 'var(--kp-control-sm)',
+  padding: '0 8px',
+  borderRadius: 'var(--radius-md)',
   border: '1px solid var(--color-border)',
   fontSize: 'var(--kp-font-xs)',
   color: 'var(--color-foreground)',
