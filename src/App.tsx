@@ -40,6 +40,7 @@ import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/components/WhatsNew
 import { UpdateManager, manualUpdateCheck } from '@/components/updater/UpdateManager';
 import { openExternal } from '@/utils/openExternal';
 import { SettingsModal } from '@/components/settings/SettingsModal';
+import { AccountWindow } from '@/components/account/AccountWindow';
 import { SettingsContent } from '@/components/settings/SettingsContent';
 import { TrialBanner } from '@/components/trial';
 import { hasCompletedOnboarding } from '@/components/onboarding';
@@ -175,6 +176,7 @@ function App() {
   const [showQuickOpen, setShowQuickOpen] = useState(false);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [accountWindowOpen, setAccountWindowOpen] = useState(false);
   // Which Settings category to show on next open. Reset to undefined so a
   // later open without a category falls back to the modal's own default.
   const [settingsInitialCategory, setSettingsInitialCategory] =
@@ -1655,15 +1657,28 @@ function App() {
 
   // F5: listen for 'keepance:open-settings' dispatched by GetStartedCard in
   // ReimaginedMattersHome. Opens Settings deep-linked to the given category.
+  // Account-related categories now live in the Account window, so redirect there.
   useEffect(() => {
+    const ACCOUNT_CATEGORIES = new Set(['account', 'license', 'firm', 'costs', 'integrations']);
     const handler = (e: Event) => {
       const category = (e as CustomEvent<{ category?: import('@/settings/schema').SettingCategory }>)
         .detail?.category;
+      if (category && ACCOUNT_CATEGORIES.has(category)) {
+        setAccountWindowOpen(true);
+        return;
+      }
       openSettings(category);
     };
     window.addEventListener('keepance:open-settings', handler);
     return () => { window.removeEventListener('keepance:open-settings', handler); };
   }, [openSettings]);
+
+  // Open the Account window when the rail's account identity is clicked.
+  useEffect(() => {
+    const handler = () => { setAccountWindowOpen(true); };
+    window.addEventListener('keepance:open-account', handler);
+    return () => { window.removeEventListener('keepance:open-account', handler); };
+  }, []);
 
   // Per-matter UI memory: as the user works inside a matter, keep its snapshot
   // (last working surface + focused document) up to date, so returning to the
@@ -4262,6 +4277,13 @@ This file contains rules and guidelines for AI assistants in this workspace.
         {...(settingsInitialCategory ? { initialCategory: settingsInitialCategory } : {})}
         onAction={handleSettingsAction}
         onRestartOnboarding={handleSettingsRestartOnboarding}
+      />
+
+      {/* Account / firm window — opened from the rail's account identity. */}
+      <AccountWindow
+        open={accountWindowOpen}
+        onOpenChange={setAccountWindowOpen}
+        auditEntries={auditEntries}
       />
 
       {/* Keepance 3.0: rebuilt first-run wizard — the live first-run surface.

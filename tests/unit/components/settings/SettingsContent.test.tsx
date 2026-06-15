@@ -4,10 +4,9 @@
  * SettingsContent is the inner surface shared by the quick <SettingsModal>
  * (Dialog) and the full-page "Settings" nav tab. These tests exercise it
  * directly (no Dialog), covering:
- *   - The full-page variant renders the SurfaceHeader + 6-section nav + content + footer.
+ *   - The full-page variant renders the SurfaceHeader + 5-section nav + content + footer.
  *   - Deep-link aliases still resolve to the right section through the
- *     modal→content extraction (e.g. "ai" → AI & Privacy, "integrations" →
- *     Account).
+ *     modal→content extraction (e.g. "ai" → AI & Privacy, "general" → Workspace).
  *   - Accordion: ALL sub-sections collapsed by default.
  *   - Accordion: clicking a closed header opens it (one at a time).
  *   - Accordion: clicking the open header collapses it (zero-open is valid).
@@ -30,7 +29,7 @@ afterEach(() => {
 });
 
 describe('SettingsContent — full-page variant', () => {
-  it('renders the SurfaceHeader, 6-section nav, content area, and footer (page variant)', () => {
+  it('renders the SurfaceHeader, 5-section nav, content area, and footer (page variant)', () => {
     render(<SettingsContent variant="page" />);
     // The shared content marker is present and tagged as the page variant.
     const content = screen.getByTestId('settings-content');
@@ -40,11 +39,11 @@ describe('SettingsContent — full-page variant', () => {
     // SurfaceHeader is rendered for the page variant.
     expect(screen.getByTestId('settings-surface-header')).toBeInTheDocument();
 
-    // All 6 nav buttons render.
+    // All 5 nav buttons render.
     const navBtns = screen
       .getAllByRole('button')
       .filter((b) => (b.getAttribute('data-testid') ?? '').startsWith('settings-category-'));
-    expect(navBtns).toHaveLength(6);
+    expect(navBtns).toHaveLength(5);
 
     // Footer Export / Import / Reset are present.
     expect(screen.getByTestId('settings-export')).toBeInTheDocument();
@@ -61,10 +60,12 @@ describe('SettingsContent — deep-link resolution survives the extraction', () 
     ['ai', 'section-ai-privacy'],
     ['memory', 'section-ai-privacy'],
     ['privacy', 'section-ai-privacy'],
-    ['integrations', 'section-account'],
-    ['license', 'section-account'],
-    ['firm', 'section-account'],
-    ['costs', 'section-account'],
+    // account-related legacy ids fall back to workspace (App.tsx intercepts them
+    // before Settings sees them, opening AccountWindow instead)
+    ['integrations', 'section-workspace'],
+    ['license', 'section-workspace'],
+    ['firm', 'section-workspace'],
+    ['costs', 'section-workspace'],
     ['general', 'section-workspace'],
     ['editor', 'section-workspace'],
     ['files', 'section-workspace'],
@@ -90,9 +91,9 @@ describe('SettingsContent — deep-link resolution survives the extraction', () 
     );
     expect(screen.getByTestId('section-workspace')).toBeInTheDocument();
     rerender(
-      <SettingsContent variant="page" initialCategory={'license' as never} />,
+      <SettingsContent variant="page" initialCategory={'ai' as never} />,
     );
-    expect(screen.getByTestId('section-account')).toBeInTheDocument();
+    expect(screen.getByTestId('section-ai-privacy')).toBeInTheDocument();
   });
 });
 
@@ -113,13 +114,13 @@ describe('SettingsContent — aria-current on section nav buttons', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
     // workspace is initially active
     expect(screen.getByTestId('settings-category-workspace').getAttribute('aria-current')).toBe('page');
-    expect(screen.getByTestId('settings-category-account').hasAttribute('aria-current')).toBe(false);
+    expect(screen.getByTestId('settings-category-ai-privacy').hasAttribute('aria-current')).toBe(false);
 
-    // click Account
-    fireEvent.click(screen.getByTestId('settings-category-account'));
+    // click AI & Privacy
+    fireEvent.click(screen.getByTestId('settings-category-ai-privacy'));
 
-    // now Account is active, workspace is not
-    expect(screen.getByTestId('settings-category-account').getAttribute('aria-current')).toBe('page');
+    // now AI & Privacy is active, workspace is not
+    expect(screen.getByTestId('settings-category-ai-privacy').getAttribute('aria-current')).toBe('page');
     expect(screen.getByTestId('settings-category-workspace').hasAttribute('aria-current')).toBe(false);
   });
 });
@@ -284,7 +285,7 @@ describe('SettingsContent — scroll resets on section change', () => {
     expect(scroller.scrollTop).toBe(250);
 
     // Switch to a different top-level section.
-    fireEvent.click(screen.getByTestId('settings-category-account'));
+    fireEvent.click(screen.getByTestId('settings-category-ai-privacy'));
 
     // The scroll-reset effect must have returned the container to the top.
     expect(scroller.scrollTop).toBe(0);

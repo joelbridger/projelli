@@ -6,7 +6,7 @@
  *   - Full-page in the main window as the "Settings" nav tab (under Activity Log).
  *
  * Layout:
- *   Left sidebar  — 6-section nav (Workspace / AI & Privacy / Account / Voice / Advanced / Help)
+ *   Left sidebar  — 5-section nav (Workspace / AI & Privacy / Voice / Advanced / Help)
  *   Right content — settings for the active section, grouped into COLLAPSIBLE
  *                   accordion sub-sections (one open at a time; first open by
  *                   default; a search match auto-expands the groups that match).
@@ -52,13 +52,9 @@ import {
   getMaxContextTokens,
   formatContextSize,
 } from '@/modules/models/context-limits';
-import { CostMetrics } from '@/components/analysis/CostMetrics';
 import { TemplateModelSettings } from '@/components/settings/TemplateModelSettings';
-import { LicenseSettings } from '@/components/settings/LicenseSettings';
 import { PrivacySettings } from '@/components/settings/PrivacySettings';
 import { ConfidentialityModeSettings } from '@/components/settings/ConfidentialityModeSettings';
-import { FirmSignIn } from '@/components/firm/FirmSignIn';
-import { FirmAdminConsole } from '@/components/firm/FirmAdminConsole';
 import { MemoryFactsSettings } from '@/components/settings/MemoryFactsSettings';
 import { MarketplaceTab } from '@/components/marketplace/MarketplaceTab';
 import { useTemplateUpdateCount } from '@/hooks/useTemplatesMarketplace';
@@ -66,12 +62,7 @@ import { usePluginUpdateCount } from '@/hooks/usePluginsMarketplace';
 import { MobileSettings } from '@/components/settings/MobileSettings';
 import { PluginsSettings } from '@/components/settings/PluginsSettings';
 import { AdvancedSettings } from '@/components/settings/AdvancedSettings';
-import { McpSettingsSection } from '@/components/settings/McpSettingsSection';
-import { OllamaSettingsSection } from '@/components/settings/OllamaSettingsSection';
 import { VoiceSettingsSection } from '@/components/settings/VoiceSettingsSection';
-import { MailConnect } from '@/components/settings/MailConnect';
-import { MailImapConnect } from '@/components/settings/MailImapConnect';
-import { MailGmailConnect } from '@/components/settings/MailGmailConnect';
 import { LanguagePicker } from '@/components/settings/LanguagePicker';
 import { SetupChecklist } from '@/components/settings/SetupChecklist';
 import { ApiKeyWizard } from '@/components/onboarding/ApiKeyWizard';
@@ -108,7 +99,7 @@ export interface SettingsContentProps {
    * no-op since there is no dialog to close.
    */
   onRequestClose?: () => void;
-  /** Audit entries for the Account section (Usage sub-section). */
+  /** Audit entries (reserved for future use; Account moved to AccountWindow). */
   auditEntries?: AuditEntry[] | undefined;
   /** Workflow templates for the per-template model table (Extensions). */
   templates?: WorkflowTemplate[] | undefined;
@@ -766,32 +757,6 @@ function AiPrivacySection(props: SectionProps) {
   );
 }
 
-function AccountSection(props: SectionProps) {
-  return (
-    <div data-testid="section-account">
-      <AccordionSection ids={['acct-account', 'acct-firm', 'acct-usage', 'acct-connections']} searchActive={props.searchActive}>
-        <SubSection id="acct-account" label="Account" testid="subheader-account">
-          <LicenseSettings />
-        </SubSection>
-        <SubSection id="acct-firm" label="Firm" testid="subheader-firm">
-          <FirmSignIn />
-          <FirmAdminConsole />
-        </SubSection>
-        <SubSection id="acct-usage" label="Usage" testid="subheader-usage">
-          <CostMetrics entries={props.auditEntries ?? []} />
-        </SubSection>
-        <SubSection id="acct-connections" label="Connections" testid="subheader-connections">
-          <MailConnect />
-          <MailImapConnect />
-          <MailGmailConnect />
-          <McpSettingsSection />
-          <OllamaSettingsSection />
-        </SubSection>
-      </AccordionSection>
-    </div>
-  );
-}
-
 function VoiceSection(props: SectionProps) {
   const voiceInputKeys = [
     'voiceEnabled',
@@ -1012,7 +977,7 @@ export function SettingsContent({
   const visibleSections = useMemo<Set<SectionCategory>>(() => {
     // When no search: all sections visible
     if (!searchQuery.trim()) {
-      return new Set<SectionCategory>(['workspace', 'ai-privacy', 'account', 'voice', 'advanced', 'help']);
+      return new Set<SectionCategory>(['workspace', 'ai-privacy', 'voice', 'advanced', 'help']);
     }
     const sections = new Set<SectionCategory>();
     for (const def of SETTINGS_SCHEMA) {
@@ -1031,13 +996,6 @@ export function SettingsContent({
         s.keys.some((k) => k.toLowerCase().includes(lowerQ))
     );
     if (anyShortcutMatch) sections.add('help');
-    // Always show account for cost/license/firm/integration keywords
-    const accountKeywords = ['cost', 'usage', 'spend', 'budget', 'month', 'license', 'activate',
-      'personal', 'professional', 'practice', 'paid', 'firm', 'seat',
-      'collaborat', 'matter', 'admin', 'team', 'mcp', 'integration',
-      'sidecar', 'bundle', 'email', 'mail', 'microsoft', '365', 'outlook',
-      'ollama', 'local model'];
-    if (accountKeywords.some((k) => lowerQ.includes(k))) sections.add('account');
     // Privacy keywords always show ai-privacy
     const aiPrivacyKeywords = ['privacy', 'telemetry', 'tracking', 'data', 'anonymous', 'opt',
       'memory', 'fact', 'pdf', 'ocr', 'confidential', 'privileged'];
@@ -1181,7 +1139,7 @@ export function SettingsContent({
 
         {/* Body: sidebar + content */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* Section sidebar — 5 entries */}
+          {/* Section sidebar — 5 sections */}
           <nav aria-label="Settings sections" className="w-48 shrink-0 border-r py-3 overflow-y-auto bg-muted/20">
             {SETTING_CATEGORIES.map((sec) => {
               const visible = visibleSections.has(sec.id);
@@ -1229,16 +1187,12 @@ export function SettingsContent({
               <WorkspaceSection {...sectionProps} />
             ) : activeSection === 'ai-privacy' ? (
               <AiPrivacySection {...sectionProps} />
-            ) : activeSection === 'account' ? (
-              <AccountSection {...sectionProps} />
             ) : activeSection === 'voice' ? (
               <VoiceSection {...sectionProps} />
             ) : activeSection === 'advanced' ? (
               <AdvancedSection {...sectionProps} />
-            ) : activeSection === 'help' ? (
-              <HelpSection {...sectionProps} />
             ) : (
-              <AdvancedSection {...sectionProps} />
+              <HelpSection {...sectionProps} />
             )}
           </div>
         </div>

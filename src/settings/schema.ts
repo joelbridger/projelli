@@ -4,8 +4,11 @@
  * The Settings modal renders FROM this schema. Adding a new setting later
  * means adding one entry to `SETTINGS_SCHEMA` — no component changes needed.
  *
- * v3.1 — 20 flat categories collapsed into 6 elegant sections:
- *   workspace   | AI & Privacy   | Account   | Voice   | Advanced   | Help
+ * v3.2 — 20 flat categories collapsed into 5 elegant sections:
+ *   workspace   | AI & Privacy   | Voice   | Advanced   | Help
+ *
+ * Account content (License, Firm, Usage, Connections) moved to a dedicated
+ * AccountWindow and is no longer a Settings section.
  *
  * Legacy category ids (general, editor, files, ai, memory, privacy, license,
  * firm, costs, integrations, voice, shortcuts, marketplace, plugins, templates,
@@ -16,22 +19,24 @@
 
 export type SettingType = 'toggle' | 'select' | 'number' | 'text' | 'shortcut-display';
 
-/** The 6 canonical section ids used in the sidebar nav. */
-export type SectionCategory = 'workspace' | 'ai-privacy' | 'account' | 'voice' | 'advanced' | 'help';
+/** The 5 canonical section ids used in the sidebar nav. */
+export type SectionCategory = 'workspace' | 'ai-privacy' | 'voice' | 'advanced' | 'help';
 
 /**
- * SettingCategory includes both the 6 new section ids AND every legacy id so
+ * SettingCategory includes both the 5 new section ids AND every legacy id so
  * that callers that pass e.g. `initialCategory="ai"` still type-check.
+ * 'account' is kept as a legacy alias (deep-links are intercepted in App.tsx
+ * and redirected to the AccountWindow before Settings ever sees them).
  */
 export type SettingCategory =
-  // ── 6 canonical sections ──────────────────────────────────────────────
+  // ── 5 canonical sections ──────────────────────────────────────────────
   | 'workspace'
   | 'ai-privacy'
-  | 'account'
   | 'voice'
   | 'advanced'
   | 'help'
   // ── legacy aliases (kept for deep-link compatibility) ─────────────────
+  | 'account'
   | 'general'
   | 'license'
   | 'firm'
@@ -76,11 +81,10 @@ export interface SettingDefinition {
   action?: SettingAction;
 }
 
-/** The 6 nav sections shown in the sidebar. */
+/** The 5 nav sections shown in the sidebar. */
 export const SETTING_CATEGORIES: { id: SectionCategory; label: string }[] = [
   { id: 'workspace',   label: 'Workspace' },
   { id: 'ai-privacy', label: 'AI & Privacy' },
-  { id: 'account',    label: 'Account' },
   { id: 'voice',      label: 'Voice' },
   { id: 'advanced',   label: 'Advanced' },
   { id: 'help',       label: 'Help' },
@@ -90,6 +94,10 @@ export const SETTING_CATEGORIES: { id: SectionCategory; label: string }[] = [
  * Maps every legacy category id to the canonical section it now lives in.
  * Deep-link callers that pass an old id get silently forwarded to the right
  * section at runtime.
+ *
+ * Note: account-related ids (account, license, firm, costs, integrations) all
+ * fall back to 'workspace' here, but in practice App.tsx intercepts those
+ * deep-links and opens the AccountWindow instead of Settings.
  */
 export const CATEGORY_ALIAS_MAP: Readonly<Record<string, SectionCategory>> = {
   // Workspace
@@ -100,11 +108,12 @@ export const CATEGORY_ALIAS_MAP: Readonly<Record<string, SectionCategory>> = {
   ai:           'ai-privacy',
   memory:       'ai-privacy',
   privacy:      'ai-privacy',
-  // Account
-  license:      'account',
-  firm:         'account',
-  costs:        'account',
-  integrations: 'account',
+  // Account (intercepted by App.tsx; falls back to workspace if Settings ever sees them)
+  account:      'workspace',
+  license:      'workspace',
+  firm:         'workspace',
+  costs:        'workspace',
+  integrations: 'workspace',
   // Voice (unchanged)
   voice:        'voice',
   // Advanced (Extensions, Updates, Advanced subsections)
@@ -120,7 +129,6 @@ export const CATEGORY_ALIAS_MAP: Readonly<Record<string, SectionCategory>> = {
   // Canonical ids map to themselves
   workspace:    'workspace',
   'ai-privacy': 'ai-privacy',
-  account:      'account',
   advanced:     'advanced',
   help:         'help',
 };

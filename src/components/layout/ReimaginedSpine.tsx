@@ -15,6 +15,7 @@ import {
   ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
 import { useMatters, useActiveMatterId } from '@/stores/matterStore';
+import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
 import { IconButton } from '@/components/ui/kp';
@@ -110,6 +111,9 @@ export function ReimaginedSpine({
             <Icon size={18} style={{ margin: '0 auto' }} strokeWidth={1.75} />
           </button>
         ))}
+        <div style={{ flex: 1 }} />
+        <AccountIdentity collapsed onOpen={() => { window.dispatchEvent(new CustomEvent('keepance:open-account')); }} />
+        <div style={{ height: 'var(--kp-space-xs)' }} />
       </nav>
     );
   }
@@ -169,10 +173,13 @@ export function ReimaginedSpine({
         ) : (
           <div style={{ flex: 1 }} />
         )}
-        <button type="button" onClick={() => onCollapsedChange?.(true)} title="Collapse"
-          style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', padding: 'var(--kp-space-sm) var(--kp-space-md)', border: 0, borderTop: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: 'var(--kp-font-xs)' }}>
-          <ChevronLeft size={16} /> Collapse
-        </button>
+        <div style={{ display: 'flex', alignItems: 'stretch', borderTop: '1px solid rgba(255,255,255,0.08)', flex: 'none' }}>
+          <AccountIdentity onOpen={() => { window.dispatchEvent(new CustomEvent('keepance:open-account')); }} />
+          <button type="button" onClick={() => onCollapsedChange?.(true)} title="Collapse sidebar" aria-label="Collapse sidebar"
+            style={{ border: 0, borderLeft: '1px solid rgba(255,255,255,0.08)', background: 'transparent', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: '0 var(--kp-space-sm)', display: 'flex', alignItems: 'center', flex: 'none' }}>
+            <ChevronLeft size={16} />
+          </button>
+        </div>
       </nav>
     </div>
   );

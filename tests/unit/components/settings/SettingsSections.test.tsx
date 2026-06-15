@@ -1,15 +1,14 @@
 /**
- * SettingsSections — unit tests for the 6-section Settings nav (v3.1).
+ * SettingsSections — unit tests for the 5-section Settings nav (v3.2).
  *
  * Covers:
- *   - Exactly 6 nav section buttons render (workspace / ai-privacy / account /
- *     voice / advanced / help).
+ *   - Exactly 5 nav section buttons render (workspace / ai-privacy /
+ *     voice / advanced / help). Account is now a separate AccountWindow.
  *   - Each section button carries the expected data-testid.
  *   - Every old category id (deep-link alias) routes to the correct section.
  *   - A representative control from each merged area is present in the correct
  *     section.
  *   - The "Connect AI" deep-link (category: 'ai') lands on AI & Privacy.
- *   - The "Connect email / integrations" deep-link lands on Account.
  *   - resolveSection returns the right SectionCategory for all known aliases.
  */
 
@@ -53,10 +52,9 @@ function expandSubsection(subheaderTestid: string) {
 
 describe('resolveSection / CATEGORY_ALIAS_MAP', () => {
   const cases: Array<[string, string]> = [
-    // Canonical ids
+    // Canonical ids (5 sections — Account is now AccountWindow, not a Settings section)
     ['workspace',  'workspace'],
     ['ai-privacy', 'ai-privacy'],
-    ['account',    'account'],
     ['voice',      'voice'],
     ['advanced',   'advanced'],
     ['help',       'help'],
@@ -68,11 +66,13 @@ describe('resolveSection / CATEGORY_ALIAS_MAP', () => {
     ['ai',      'ai-privacy'],
     ['memory',  'ai-privacy'],
     ['privacy', 'ai-privacy'],
-    // Legacy Account aliases
-    ['license',      'account'],
-    ['firm',         'account'],
-    ['costs',        'account'],
-    ['integrations', 'account'],
+    // Legacy account aliases — App.tsx intercepts these before Settings sees them;
+    // if they ever reach resolveSection the safe fallback is 'workspace'
+    ['account',      'workspace'],
+    ['license',      'workspace'],
+    ['firm',         'workspace'],
+    ['costs',        'workspace'],
+    ['integrations', 'workspace'],
     // Legacy Voice alias
     ['voice', 'voice'],
     // Legacy Advanced aliases
@@ -93,14 +93,17 @@ describe('resolveSection / CATEGORY_ALIAS_MAP', () => {
     });
   }
 
-  it('CATEGORY_ALIAS_MAP covers all 19 legacy ids + 6 canonical ids', () => {
+  it('CATEGORY_ALIAS_MAP covers all 19 legacy ids + 5 canonical ids', () => {
     const legacy = [
       'general','editor','files','ai','memory','privacy',
       'license','firm','costs','integrations','voice',
       'shortcuts','marketplace','plugins','templates','updates',
       'about','mobile','onboarding',
     ];
-    const canonical = ['workspace','ai-privacy','account','voice','advanced','help'];
+    // 'account' is a legacy alias in the map (not a canonical section), so
+    // check it separately
+    expect(CATEGORY_ALIAS_MAP['account'], 'account missing from alias map').toBeDefined();
+    const canonical = ['workspace','ai-privacy','voice','advanced','help'];
     for (const id of [...legacy, ...canonical]) {
       expect(CATEGORY_ALIAS_MAP[id], `${id} missing from alias map`).toBeDefined();
     }
@@ -111,19 +114,18 @@ describe('resolveSection / CATEGORY_ALIAS_MAP', () => {
 // Nav renders exactly 5 section buttons
 // ---------------------------------------------------------------------------
 
-describe('SettingsModal nav — 6 sections', () => {
-  it('renders exactly 6 nav buttons', () => {
+describe('SettingsModal nav — 5 sections', () => {
+  it('renders exactly 5 nav buttons', () => {
     renderModal();
     const navBtns = screen
       .getAllByRole('button')
       .filter((b) => (b.getAttribute('data-testid') ?? '').startsWith('settings-category-'));
-    expect(navBtns).toHaveLength(6);
+    expect(navBtns).toHaveLength(5);
   });
 
   const sections: Array<{ id: string; label: string }> = [
     { id: 'workspace',  label: 'Workspace' },
     { id: 'ai-privacy', label: 'AI & Privacy' },
-    { id: 'account',    label: 'Account' },
     { id: 'voice',      label: 'Voice' },
     { id: 'advanced',   label: 'Advanced' },
     { id: 'help',       label: 'Help' },
@@ -162,24 +164,24 @@ describe('SettingsModal deep-link aliases', () => {
     expect(screen.getByTestId('section-ai-privacy')).toBeInTheDocument();
   });
 
-  it('initialCategory="integrations" opens Account (Connections)', () => {
+  it('initialCategory="integrations" falls back to Workspace (App.tsx intercepts this for AccountWindow)', () => {
     renderModal('integrations');
-    expect(screen.getByTestId('section-account')).toBeInTheDocument();
+    expect(screen.getByTestId('section-workspace')).toBeInTheDocument();
   });
 
-  it('initialCategory="license" opens Account', () => {
+  it('initialCategory="license" falls back to Workspace (App.tsx intercepts this for AccountWindow)', () => {
     renderModal('license');
-    expect(screen.getByTestId('section-account')).toBeInTheDocument();
+    expect(screen.getByTestId('section-workspace')).toBeInTheDocument();
   });
 
-  it('initialCategory="firm" opens Account', () => {
+  it('initialCategory="firm" falls back to Workspace (App.tsx intercepts this for AccountWindow)', () => {
     renderModal('firm');
-    expect(screen.getByTestId('section-account')).toBeInTheDocument();
+    expect(screen.getByTestId('section-workspace')).toBeInTheDocument();
   });
 
-  it('initialCategory="costs" opens Account', () => {
+  it('initialCategory="costs" falls back to Workspace (App.tsx intercepts this for AccountWindow)', () => {
     renderModal('costs');
-    expect(screen.getByTestId('section-account')).toBeInTheDocument();
+    expect(screen.getByTestId('section-workspace')).toBeInTheDocument();
   });
 
   it('initialCategory="general" opens Workspace', () => {
@@ -249,14 +251,6 @@ describe('SettingsModal section sub-headers', () => {
     expect(screen.getByTestId('subheader-ai')).toBeInTheDocument();
     expect(screen.getByTestId('subheader-memory')).toBeInTheDocument();
     expect(screen.getByTestId('subheader-privacy')).toBeInTheDocument();
-  });
-
-  it('Account section has Account / Firm / Usage / Connections sub-headers', () => {
-    renderModal('account');
-    expect(screen.getByTestId('subheader-account')).toBeInTheDocument();
-    expect(screen.getByTestId('subheader-firm')).toBeInTheDocument();
-    expect(screen.getByTestId('subheader-usage')).toBeInTheDocument();
-    expect(screen.getByTestId('subheader-connections')).toBeInTheDocument();
   });
 
   it('Advanced section has Extensions / Updates / Advanced sub-headers', () => {
@@ -458,11 +452,13 @@ describe('SettingsModal search expands matching sub-sections', () => {
 });
 
 // ---------------------------------------------------------------------------
-// No legacy category buttons in sidebar (only 6 canonical)
+// No legacy category buttons in sidebar (only 5 canonical)
 // ---------------------------------------------------------------------------
 
 describe('SettingsModal sidebar does not expose old category ids', () => {
   const legacyIds = [
+    // account is now a legacy alias (Account moved to AccountWindow)
+    'account',
     'general','editor','files','ai','memory','privacy',
     'license','firm','costs','integrations',
     'shortcuts','marketplace','plugins','templates','updates',
