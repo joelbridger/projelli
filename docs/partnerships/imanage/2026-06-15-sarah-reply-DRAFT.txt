@@ -1,0 +1,23 @@
+Hi Sarah,
+
+Thanks, this is really helpful, and the process makes sense to me.
+
+I'm glad the read-first connector lines up with how iManage thinks about partnerships: iManage stays the secure, governed repository, and Keepance adds matter-scoped, cited answers on top without ever writing back. That's exactly the integration we want to build.
+
+Before we book the demo, I want to be sure I'm showing the product at its best. We're in the middle of a focused polish pass on the workspace experience, so rather than demo something half-finished on a call that feeds your review, I'd like to grab a Calendly slot a few weeks out. I'll book a time shortly.
+
+In the meantime I'm glad to get the Mutual NDA out of the way now so we're ready to move and can start looking at the technical materials. I'll complete the one you linked.
+
+Two quick questions so I can come prepared:
+
+- At the access level a read-only connector would need (technical docs and a sandbox), roughly what does the fee-based Technical Partnership Program look like?
+- Is there anything specific the Product team likes to see in the demo for an integration like this? I want to walk through the use cases the way that's most useful to your review.
+
+Thanks again, Sarah. I'm genuinely excited about this one.
+
+Best,
+Jameson
+
+Jameson Daines
+Founder, Keepance
+keepance.com
