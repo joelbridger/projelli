@@ -1155,7 +1155,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
       {/* Page header */}
       <div
         style={{
-          padding: '22px 24px 16px',
+          padding: '24px 24px 16px',
           borderBottom: '1px solid var(--color-border)',
           flexShrink: 0,
         }}
@@ -1164,16 +1164,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
         <SurfaceHeader
           Icon={ShieldCheck}
           title="Activity Log"
-          description={
-            <>
-              Every AI request, file change, and workflow run in your workspace, logged and exportable.
-              {!encrypted && (
-                <span style={{ display: 'block', marginTop: 2, fontSize: 11, opacity: 0.75 }}>
-                  Stored in your browser, not encrypted. Use the desktop app for confidential work.
-                </span>
-              )}
-            </>
-          }
+          description="Every AI request, file change, and workflow run in your workspace, logged and exportable."
           actions={
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
               <button
@@ -1185,7 +1176,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                   ...btnBase,
                   opacity: filteredEntries.length === 0 ? 0.45 : 1,
                 }}
-                title="Export as CSV"
+                title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as CSV'}
                 aria-label="Export audit log as CSV"
               >
                 <Download style={{ width: 13, height: 13 }} />
@@ -1200,7 +1191,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                   ...btnBase,
                   opacity: filteredEntries.length === 0 ? 0.45 : 1,
                 }}
-                title="Export as JSON"
+                title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as JSON'}
                 aria-label="Export audit log as JSON"
               >
                 <Download style={{ width: 13, height: 13 }} />
@@ -1212,13 +1203,31 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
         {/* eslint-enable keepance-i18n/no-hardcoded-string */}
       </div>
 
+      {/* Browser-mode note — shown only when not running in the desktop app */}
+      {!encrypted && (
+        <div
+          style={{
+            padding: '6px 24px',
+            fontSize: 11,
+            color: 'var(--color-muted-foreground)',
+            background: 'rgba(100,116,139,0.05)',
+            borderBottom: '1px solid var(--color-border)',
+            flexShrink: 0,
+          }}
+        >
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          Stored in your browser, not encrypted. Use the desktop app for confidential work.
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </div>
+      )}
+
       {/* Controls row: search + filter toggle */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          padding: '10px 20px',
+          padding: '10px 24px',
           borderBottom: showFilters ? 'none' : '1px solid var(--color-border)',
           flexShrink: 0,
         }}

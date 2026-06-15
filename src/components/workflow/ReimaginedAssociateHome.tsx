@@ -564,7 +564,7 @@ export function ReimaginedAssociateHome({
       {/* ── Page header ─────────────────────────────────────────────── */}
       <div
         style={{
-          padding: '24px 28px 16px',
+          padding: '24px 24px 16px',
           borderBottom: '1px solid var(--color-border)',
           flexShrink: 0,
         }}
@@ -695,7 +695,7 @@ export function ReimaginedAssociateHome({
         <div
           data-testid="associate-trial-banner"
           style={{
-            margin: '12px 28px 0',
+            margin: '12px 24px 0',
             padding: '10px 14px',
             borderRadius: 6,
             border: '1px solid #fbbf24',
@@ -716,7 +716,7 @@ export function ReimaginedAssociateHome({
           data-testid="associate-provider-error"
           role="alert"
           style={{
-            margin: '12px 28px 0',
+            margin: '12px 24px 0',
             padding: '10px 14px',
             borderRadius: 6,
             border: '1px solid #fca5a5',
@@ -776,7 +776,7 @@ export function ReimaginedAssociateHome({
       <div
         style={{
           flex: 1,
-          padding: '24px 28px',
+          padding: '24px 24px',
           display: 'flex',
           flexDirection: 'column',
           gap: 0,

@@ -735,3 +735,95 @@ describe('ReimaginedDocumentsHome — create in current folder (R6-1)', () => {
     expect(onCreateFolder).toHaveBeenCalledWith('/workspace/Contracts');
   });
 });
+
+// ── Fix 1: documentsView lands Documents on the right view ────────────────────
+// Regression guard for the bug where clicking the Documents nav landed on the
+// last-open file editor instead of the Files browser. Because the surface
+// UNMOUNTS/REMOUNTS on every nav, the fix reads documentsView in the useState
+// initializer on mount — these tests unmount/remount to mirror that exactly.
+
+describe('ReimaginedDocumentsHome — documentsView landing (Fix 1)', () => {
+  beforeEach(() => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    mockSetActiveTab.mockClear();
+    mockCloseTab.mockClear();
+    localStorage.removeItem('keepance:docs-view');
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('keepance:docs-view');
+  });
+
+  it("documentsView='browser' shows the Files browser even with an active file tab", () => {
+    // The exact bug: a file editor tab is active, but the user clicked the
+    // Documents nav, so App passes documentsView='browser'. We must show the
+    // file list, NOT the editor.
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
+    render(
+      <ReimaginedDocumentsHome {...buildDefaultProps()} documentsView="browser" />,
+    );
+    expect(screen.getByTestId('document-grid-view')).toBeTruthy();
+    expect(screen.queryByTestId('documents-editor-pane')).toBeNull();
+  });
+
+  it("documentsView='editor' with an active file tab shows the editor", async () => {
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
+    render(
+      <ReimaginedDocumentsHome {...buildDefaultProps()} documentsView="editor" />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+    });
+  });
+
+  it('remounting with documentsView=browser (a nav click) returns to the Files browser', async () => {
+    // Mirror the real flow: editor is open (documentsView='editor'), the surface
+    // unmounts on nav away, then REMOUNTS with documentsView='browser' because the
+    // user clicked the Documents nav. The remount must land on the browser.
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
+    const { unmount } = render(
+      <ReimaginedDocumentsHome {...buildDefaultProps()} documentsView="editor" />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+    });
+    unmount();
+
+    render(
+      <ReimaginedDocumentsHome {...buildDefaultProps()} documentsView="browser" />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('document-grid-view')).toBeTruthy();
+      expect(screen.queryByTestId('documents-editor-pane')).toBeNull();
+    });
+  });
+
+  it('an email opening while mounted on the browser flips to the editor (while-mounted change)', async () => {
+    // documentsView changes from 'browser' to 'editor' without a remount.
+    mockActiveTabPath = '/workspace/Inbox.eml';
+    mockOpenTabs = [{ path: '/workspace/Inbox.eml', name: 'Inbox.eml', type: 'email' }];
+    const { rerender } = render(
+      <ReimaginedDocumentsHome {...buildDefaultProps()} documentsView="browser" />,
+    );
+    expect(screen.getByTestId('document-grid-view')).toBeTruthy();
+
+    rerender(
+      <ReimaginedDocumentsHome {...buildDefaultProps()} documentsView="editor" />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+    });
+  });
+
+  it('with documentsView undefined and no tabs, shows the Files browser (legacy default)', () => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    expect(screen.getByTestId('document-grid-view')).toBeTruthy();
+    expect(screen.queryByTestId('documents-editor-pane')).toBeNull();
+  });
+});

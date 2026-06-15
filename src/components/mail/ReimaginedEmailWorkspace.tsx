@@ -1270,13 +1270,15 @@ export function ReimaginedEmailWorkspace({
       {/* Page header */}
       <div
         style={{
-          padding: '24px 24px 0',
+          padding: '24px 24px 16px',
+          borderBottom: '1px solid var(--color-border)',
+          flexShrink: 0,
         }}
       >
         <SurfaceHeader
           Icon={Mail}
           title="Email"
-          description="Search, read, and file your email."
+          description="Search, read, and file your imported email."
           actions={
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 'none' }}>
               <button
@@ -1308,66 +1310,47 @@ export function ReimaginedEmailWorkspace({
               </button>
 
               {/* Scope toggle — only when a matter is active AND in Ask AI mode */}
-              {activeMatter && (
+              {activeMatter && mode !== 'keyword' && (
                 <div
                   style={{
                     display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'flex-end',
-                    gap: 4,
+                    alignItems: 'center',
+                    background: 'rgba(10,37,64,0.05)',
+                    borderRadius: 6,
+                    padding: 2,
+                    gap: 2,
                   }}
                 >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      background: mode === 'keyword' ? 'rgba(10,37,64,0.03)' : 'rgba(10,37,64,0.05)',
-                      borderRadius: 6,
-                      padding: 2,
-                      gap: 2,
-                      opacity: mode === 'keyword' ? 0.5 : 1,
-                      pointerEvents: mode === 'keyword' ? 'none' : 'auto',
-                    }}
-                  >
-                    { }
-                    {[
-                      { label: 'This matter', all: false },
-                      { label: 'All email', all: true },
-                    ].map(({ label, all }) => (
-                      <button
-                        key={label}
-                        type="button"
-                        data-testid={`scope-${all ? 'all' : 'matter'}`}
-                        disabled={mode === 'keyword'}
-                        onClick={() => {
-                          setScopeAllEmail(all);
-                          setOffset(0);
-                        }}
-                        style={{
-                          padding: '4px 10px',
-                          borderRadius: 4,
-                          fontSize: 12,
-                          fontWeight: scopeAllEmail === all ? 600 : 400,
-                          background: scopeAllEmail === all ? '#fff' : 'transparent',
-                          color: scopeAllEmail === all ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-                          border: scopeAllEmail === all ? '1px solid var(--color-border)' : '1px solid transparent',
-                          cursor: mode === 'keyword' ? 'default' : 'pointer',
-                          boxShadow: scopeAllEmail === all ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                          transition: 'all 0.1s',
-                        }}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                    { }
-                  </div>
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  {mode === 'keyword' && (
-                    <span style={{ fontSize: 10, color: 'var(--color-muted-foreground)', whiteSpace: 'nowrap', textAlign: 'right' }}>
-                      Keyword search covers all email. Use Ask AI for matter scope.
-                    </span>
-                  )}
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                  { }
+                  {[
+                    { label: 'This matter', all: false },
+                    { label: 'All email', all: true },
+                  ].map(({ label, all }) => (
+                    <button
+                      key={label}
+                      type="button"
+                      data-testid={`scope-${all ? 'all' : 'matter'}`}
+                      onClick={() => {
+                        setScopeAllEmail(all);
+                        setOffset(0);
+                      }}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 4,
+                        fontSize: 12,
+                        fontWeight: scopeAllEmail === all ? 600 : 400,
+                        background: scopeAllEmail === all ? '#fff' : 'transparent',
+                        color: scopeAllEmail === all ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+                        border: scopeAllEmail === all ? '1px solid var(--color-border)' : '1px solid transparent',
+                        cursor: 'pointer',
+                        boxShadow: scopeAllEmail === all ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                        transition: 'all 0.1s',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  { }
                 </div>
               )}
             </div>

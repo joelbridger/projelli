@@ -342,20 +342,21 @@ describe('SettingsModal controls per section', () => {
 describe('SettingsModal accordion sub-sections', () => {
   it('ALL sub-sections are collapsed by default (Workspace: General/Editor/Files all closed)', () => {
     renderModal('workspace');
-    // No sub-section body is open — controls are absent.
-    expect(screen.queryByTestId('setting-theme')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('setting-autoSave')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('setting-defaultNewFileType')).not.toBeInTheDocument();
-    // But every sub-section HEADER still renders.
+    // Bodies are always in the DOM but hidden when collapsed.
+    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
+    expect(document.getElementById('ws-editor-body')).toHaveAttribute('hidden');
+    expect(document.getElementById('ws-files-body')).toHaveAttribute('hidden');
+    // Every sub-section HEADER still renders.
     expect(screen.getByTestId('subheader-general')).toBeInTheDocument();
     expect(screen.getByTestId('subheader-editor')).toBeInTheDocument();
     expect(screen.getByTestId('subheader-files')).toBeInTheDocument();
   });
 
-  it('expanding a sub-section reveals its body', () => {
+  it('expanding a sub-section reveals its body (hidden removed)', () => {
     renderModal('workspace');
-    expect(screen.queryByTestId('setting-autoSave')).not.toBeInTheDocument();
+    expect(document.getElementById('ws-editor-body')).toHaveAttribute('hidden');
     expandSubsection('subheader-editor');
+    expect(document.getElementById('ws-editor-body')).not.toHaveAttribute('hidden');
     expect(screen.getByTestId('setting-autoSave')).toBeInTheDocument();
   });
 
@@ -363,13 +364,15 @@ describe('SettingsModal accordion sub-sections', () => {
     renderModal('workspace');
     // Open General first.
     expandSubsection('subheader-general');
-    expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
-    // Open Files → General must close.
+    expect(document.getElementById('ws-general-body')).not.toHaveAttribute('hidden');
+    // Open Files → General must close (hidden restored).
     expandSubsection('subheader-files');
-    expect(screen.getByTestId('setting-defaultNewFileType')).toBeInTheDocument();
-    expect(screen.queryByTestId('setting-theme')).not.toBeInTheDocument();
+    expect(document.getElementById('ws-files-body')).not.toHaveAttribute('hidden');
+    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
     // Editor stays closed throughout.
-    expect(screen.queryByTestId('setting-autoSave')).not.toBeInTheDocument();
+    expect(document.getElementById('ws-editor-body')).toHaveAttribute('hidden');
+    // Content in open section is accessible; content in others is in DOM but hidden.
+    expect(screen.getByTestId('setting-defaultNewFileType')).toBeInTheDocument();
   });
 
   it('all sub-section headers report aria-expanded=false by default', () => {
@@ -386,30 +389,32 @@ describe('SettingsModal accordion sub-sections', () => {
     renderModal('workspace');
     // Open General.
     expandSubsection('subheader-general');
-    expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
-    // Click the open one again — it should collapse.
+    expect(document.getElementById('ws-general-body')).not.toHaveAttribute('hidden');
+    // Click the open one again — it should collapse (hidden restored).
     expandSubsection('subheader-general');
-    expect(screen.queryByTestId('setting-theme')).not.toBeInTheDocument();
+    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
     expect(
       screen.getByTestId('subheader-general-heading').getAttribute('aria-expanded'),
     ).toBe('false');
+    // Body element is still in the DOM (always-rendered pattern).
+    expect(document.getElementById('ws-general-body')).toBeInTheDocument();
   });
 
   it('switching top-level sections resets to all-collapsed for the new section', () => {
     renderModal('workspace');
     // Open a sub-section in Workspace.
     expandSubsection('subheader-files');
-    expect(screen.getByTestId('setting-defaultNewFileType')).toBeInTheDocument();
+    expect(document.getElementById('ws-files-body')).not.toHaveAttribute('hidden');
     // Switch to AI & Privacy → ALL sub-sections should be collapsed.
     fireEvent.click(screen.getByTestId('settings-category-ai-privacy'));
-    expect(screen.queryByTestId('setting-manageApiKeys')).not.toBeInTheDocument(); // AI collapsed
-    expect(screen.queryByTestId('settings-memory-enabled')).not.toBeInTheDocument(); // Memory collapsed
+    expect(document.getElementById('aip-ai-body')).toHaveAttribute('hidden'); // AI collapsed
+    expect(document.getElementById('aip-memory-body')).toHaveAttribute('hidden'); // Memory collapsed
     // Headers should still render.
     expect(screen.getByTestId('subheader-ai')).toBeInTheDocument();
-    // Switch back to Workspace → General reset to collapsed.
+    // Switch back to Workspace → sections reset to collapsed.
     fireEvent.click(screen.getByTestId('settings-category-workspace'));
-    expect(screen.queryByTestId('setting-theme')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('setting-defaultNewFileType')).not.toBeInTheDocument();
+    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
+    expect(document.getElementById('ws-files-body')).toHaveAttribute('hidden');
   });
 });
 
@@ -421,11 +426,12 @@ describe('SettingsModal search expands matching sub-sections', () => {
   it('a search match in a non-first sub-section is revealed even though it is collapsed by default', () => {
     renderModal('workspace');
     // "Auto Save" lives in the Editor group (non-first, collapsed by default).
-    expect(screen.queryByTestId('setting-autoSave')).not.toBeInTheDocument();
+    expect(document.getElementById('ws-editor-body')).toHaveAttribute('hidden');
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: 'auto save' },
     });
-    // Now revealed by the search expansion.
+    // Now revealed by the search expansion (hidden removed from Editor body).
+    expect(document.getElementById('ws-editor-body')).not.toHaveAttribute('hidden');
     expect(screen.getByTestId('setting-autoSave')).toBeInTheDocument();
   });
 
@@ -438,9 +444,9 @@ describe('SettingsModal search expands matching sub-sections', () => {
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: '' },
     });
-    // Back to default: all sub-sections collapsed.
-    expect(screen.queryByTestId('setting-theme')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('setting-autoSave')).not.toBeInTheDocument();
+    // Back to default: all sub-sections collapsed (hidden restored).
+    expect(document.getElementById('ws-general-body')).toHaveAttribute('hidden');
+    expect(document.getElementById('ws-editor-body')).toHaveAttribute('hidden');
   });
 });
 
