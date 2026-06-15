@@ -40,6 +40,7 @@ import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/components/WhatsNew
 import { UpdateManager, manualUpdateCheck } from '@/components/updater/UpdateManager';
 import { openExternal } from '@/utils/openExternal';
 import { SettingsModal } from '@/components/settings/SettingsModal';
+import { SettingsContent } from '@/components/settings/SettingsContent';
 import { TrialBanner } from '@/components/trial';
 import { hasCompletedOnboarding } from '@/components/onboarding';
 import { GuidedOnboarding } from '@/components/onboarding/GuidedOnboarding';
@@ -298,7 +299,7 @@ function App() {
   const [workflowProviderError, setWorkflowProviderError] = useState<'needs-provider' | 'ollama-unreachable' | null>(null);
 
   // Sidebar state
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'email' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins'>('files');
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'email' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'settings' | 'trash' | 'plugins'>('files');
   // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -789,6 +790,46 @@ function App() {
               new Uint8Array(copy).set(new Uint8Array(buf));
               mockFs.set(newPath, copy);
               mockFs.delete(oldPath);
+            }
+          },
+          async move(from: string, to: string) {
+            // Real WorkspaceService.move takes (from, to) as FULL paths (App's
+            // handleMove computes `to = targetFolder + '/' + basename`). Relocate
+            // the file — or every descendant when `from` is a folder — so the
+            // Documents grid + tree drag-and-drop work in dev/test mode just like
+            // production (where TauriFSBackend.move does the real rename).
+            const fromBuf = mockFs.get(from);
+            if (fromBuf) {
+              const copy = new ArrayBuffer(fromBuf.byteLength);
+              new Uint8Array(copy).set(new Uint8Array(fromBuf));
+              mockFs.set(to, copy);
+              mockFs.delete(from);
+            } else {
+              // Folder move: re-key every file under `from/` to `to/`.
+              const fromPrefix = `${from}/`;
+              const movedKeys: Array<[string, ArrayBuffer]> = [];
+              for (const [key, buf] of mockFs.entries()) {
+                if (key.startsWith(fromPrefix)) {
+                  const rest = key.slice(fromPrefix.length);
+                  const copy = new ArrayBuffer(buf.byteLength);
+                  new Uint8Array(copy).set(new Uint8Array(buf));
+                  movedKeys.push([`${to}/${rest}`, copy]);
+                  mockFs.delete(key);
+                }
+              }
+              for (const [key, buf] of movedKeys) mockFs.set(key, buf);
+            }
+            // Keep the explicit-dir set in sync for empty folders.
+            if (mockDirs.has(from)) {
+              mockDirs.delete(from);
+              mockDirs.add(to);
+            }
+            const fromDirPrefix = `${from}/`;
+            for (const dir of [...mockDirs]) {
+              if (dir.startsWith(fromDirPrefix)) {
+                mockDirs.delete(dir);
+                mockDirs.add(`${to}/${dir.slice(fromDirPrefix.length)}`);
+              }
             }
           },
         };
@@ -1922,19 +1963,22 @@ function App() {
     }
   }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
-  // Handle create markdown file at root (goes to docs folder)
-  const handleCreateMarkdownAtRoot = useCallback(async () => {
+  // Handle create markdown file in a target folder (defaults to docs folder).
+  // R6-1: `parentPath` lets the Documents grid create the file in the folder
+  // the user currently has open; when omitted it falls back to `<root>/docs`.
+  const handleCreateMarkdownAtRoot = useCallback(async (parentPath?: string) => {
     if (!workspaceServiceRef.current || !rootPath) return;
+    const destDir = parentPath ?? `${rootPath}/docs`;
     const name = await prompt('Enter file name (without extension):', '', {
       title: 'Create Markdown File',
       placeholder: 'my-document',
-      destinationPath: `${rootPath}/docs/`,
+      destinationPath: `${destDir}/`,
       previewExtension: '.md',
     });
     if (!name) return;
 
     const fileName = name.endsWith('.md') ? name : `${name}.md`;
-    const filePath = `${rootPath}/docs/${fileName}`;
+    const filePath = `${destDir}/${fileName}`;
     try {
       await workspaceServiceRef.current.writeFile(filePath, '# ' + name.replace(/\.md$/, '') + '\n\n');
       const fileTree = await workspaceServiceRef.current.getFileTree();
@@ -1945,19 +1989,20 @@ function App() {
     }
   }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
-  // Handle create plain text file at root (goes to docs folder)
-  const handleCreateTextFileAtRoot = useCallback(async () => {
+  // Handle create plain text file in a target folder (defaults to docs folder).
+  const handleCreateTextFileAtRoot = useCallback(async (parentPath?: string) => {
     if (!workspaceServiceRef.current || !rootPath) return;
+    const destDir = parentPath ?? `${rootPath}/docs`;
     const name = await prompt('Enter file name (without extension):', '', {
       title: 'Create Text File',
       placeholder: 'my-notes',
-      destinationPath: `${rootPath}/docs/`,
+      destinationPath: `${destDir}/`,
       previewExtension: '.txt',
     });
     if (!name) return;
 
     const fileName = name.endsWith('.txt') ? name : `${name}.txt`;
-    const filePath = `${rootPath}/docs/${fileName}`;
+    const filePath = `${destDir}/${fileName}`;
     try {
       await workspaceServiceRef.current.writeFile(filePath, '');
       const fileTree = await workspaceServiceRef.current.getFileTree();
@@ -1968,19 +2013,20 @@ function App() {
     }
   }, [rootPath, setFileTree, handleFileOpen, prompt]);
 
-  // Handle create rich text file at root (goes to docs folder)
-  const handleCreateRichTextFileAtRoot = useCallback(async () => {
+  // Handle create rich text file in a target folder (defaults to docs folder).
+  const handleCreateRichTextFileAtRoot = useCallback(async (parentPath?: string) => {
     if (!workspaceServiceRef.current || !rootPath) return;
+    const destDir = parentPath ?? `${rootPath}/docs`;
     const name = await prompt('Enter file name (without extension):', '', {
       title: 'Create Rich Text File',
       placeholder: 'my-document',
-      destinationPath: `${rootPath}/docs/`,
+      destinationPath: `${destDir}/`,
       previewExtension: '.rt',
     });
     if (!name) return;
 
     const fileName = name.endsWith('.rt') || name.endsWith('.rtf') ? name : `${name}.rt`;
-    const filePath = `${rootPath}/docs/${fileName}`;
+    const filePath = `${destDir}/${fileName}`;
     try {
       // Default to an empty paragraph so Tiptap has a valid starting state
       await workspaceServiceRef.current.writeFile(filePath, '<p></p>');
@@ -2071,18 +2117,21 @@ function App() {
   );
 
   // Handle create blank .docx file at root (goes to docs folder)
-  const handleCreateDocxAtRoot = useCallback(async () => {
+  const handleCreateDocxAtRoot = useCallback(async (parentPath?: string) => {
     if (!workspaceServiceRef.current || !rootPath) return;
+    // R6-1: create in the folder the user has open when provided; otherwise
+    // fall back to the canonical `<root>/docs` folder.
+    const destDir = parentPath ?? `${rootPath}/docs`;
     const name = await prompt('Enter file name (without extension):', '', {
       title: 'Create Word Document',
       placeholder: 'my-document',
-      destinationPath: `${rootPath}/docs/`,
+      destinationPath: `${destDir}/`,
       previewExtension: '.docx',
     });
     if (!name) return;
 
     const fileName = name.endsWith('.docx') ? name : `${name}.docx`;
-    const filePath = `${rootPath}/docs/${fileName}`;
+    const filePath = `${destDir}/${fileName}`;
     try {
       // VG-4c — a new document is a straight byte copy of the letterhead
       // template when one is configured and readable (headers/footers/styles/
@@ -2124,24 +2173,24 @@ function App() {
   // "Default New Document Type" setting, a new document is a real `.docx`
   // opened in the Word editor. Markdown / plain text / rich text remain
   // available for quick notes via the same setting and the File menu.
-  const handleCreateDefaultDocument = useCallback(async () => {
+  const handleCreateDefaultDocument = useCallback(async (parentPath?: string) => {
     const kind = useSettingsStore
       .getState()
       .getSetting<string>('defaultNewFileType');
     switch (kind) {
       case 'markdown':
-        await handleCreateMarkdownAtRoot();
+        await handleCreateMarkdownAtRoot(parentPath);
         break;
       case 'plaintext':
-        await handleCreateTextFileAtRoot();
+        await handleCreateTextFileAtRoot(parentPath);
         break;
       case 'richtext':
-        await handleCreateRichTextFileAtRoot();
+        await handleCreateRichTextFileAtRoot(parentPath);
         break;
       case 'docx':
       default:
         // Canonical default.
-        await handleCreateDocxAtRoot();
+        await handleCreateDocxAtRoot(parentPath);
         break;
     }
   }, [
@@ -3553,6 +3602,38 @@ This file contains rules and guidelines for AI assistants in this workspace.
     );
   }
 
+  // Shared Settings action handler — used by BOTH the quick Settings modal and
+  // the full-page Settings nav tab so every action link (Manage AI keys, Check
+  // for updates, Open website, …) behaves identically in either surface.
+  const handleSettingsAction = (actionId: string) => {
+    if (actionId === 'open-ai-keys') {
+      if (isReimaginedShell()) {
+        setApiKeyWizardOpen(true);
+      } else {
+        setSidebarActiveTab('ai-assistant');
+        setAiAssistantRequestedTab('keys');
+      }
+    } else if (actionId === 'open-api-key-tutorial') {
+      setApiKeyWizardOpen(true);
+    } else if (actionId === 'open-ai-rules') {
+      void handleOpenAIRules();
+    } else if (actionId === 'updater-check-now') {
+      void manualUpdateCheck();
+    } else if (actionId === 'open-whats-new') {
+      setShowWhatsNewModalDirect(true);
+    } else if (actionId === 'open-website') {
+      void openExternal('https://keepance.com');
+    } else if (actionId === 'open-github') {
+      void openExternal('https://github.com/keepance/keepance');
+    } else if (actionId === 'reset-feature-tour') {
+      featureTour.restart();
+      setTimeout(() => setTourOpen(true), 300);
+    }
+  };
+  const handleSettingsRestartOnboarding = () => {
+    setShowFirstRun(true);
+  };
+
   // Get current project name from root path
   const currentProjectName = rootPath?.split('/').pop() ?? 'Unnamed Project';
 
@@ -3819,6 +3900,12 @@ This file contains rules and guidelines for AI assistants in this workspace.
             onDownload={handleDownload}
             onCreateDefaultDocument={handleCreateDefaultDocument}
             onCreateDocxAtRoot={handleCreateDocxAtRoot}
+            onCreateMarkdownAtRoot={handleCreateMarkdownAtRoot}
+            onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
+            onCreateRichTextFileAtRoot={handleCreateRichTextFileAtRoot}
+            onCreateFolderAtRoot={handleCreateFolderAtRoot}
+            onCreateWhiteboard={handleCreateWhiteboard}
+            onSetLetterheadTemplate={handleSetLetterheadTemplate}
             trashItems={trashItems}
             trashStats={trashStats}
             onRestore={handleRestoreFromTrash}
@@ -3898,6 +3985,20 @@ This file contains rules and guidelines for AI assistants in this workspace.
           />
         ) : isReimaginedShell() && sidebarActiveTab === 'audit' ? (
           <ReimaginedAuditHome entries={auditEntries} />
+        ) : isReimaginedShell() && sidebarActiveTab === 'settings' ? (
+          // Full-page Settings surface — the SAME content as the quick modal
+          // (5-section nav, search, accordion sub-sections, Export/Import/Reset),
+          // rendered in the main window instead of a dialog. The gear / Ctrl+,
+          // modal still works for quick, deep-linked access.
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col" data-testid="settings-page">
+            <SettingsContent
+              variant="page"
+              auditEntries={auditEntries}
+              templates={loadAllTemplates()}
+              onAction={handleSettingsAction}
+              onRestartOnboarding={handleSettingsRestartOnboarding}
+            />
+          </div>
         ) : (
         <MainPanel
           onFileOpen={handleFileOpen}
@@ -4008,41 +4109,17 @@ This file contains rules and guidelines for AI assistants in this workspace.
         commands={commands}
       />
 
-      {/* Settings Modal */}
+      {/* Settings Modal — the quick, deep-linkable surface (gear / Ctrl+, /
+          command palette). The same content also lives full-page as the
+          Settings nav tab; both share handleSettingsAction. */}
       <SettingsModal
         open={showSettingsModal}
         onOpenChange={setShowSettingsModal}
         auditEntries={auditEntries}
         templates={loadAllTemplates()}
         {...(settingsInitialCategory ? { initialCategory: settingsInitialCategory } : {})}
-        onAction={(actionId) => {
-          if (actionId === 'open-ai-keys') {
-            if (isReimaginedShell()) {
-              setApiKeyWizardOpen(true);
-            } else {
-              setSidebarActiveTab('ai-assistant');
-              setAiAssistantRequestedTab('keys');
-            }
-          } else if (actionId === 'open-api-key-tutorial') {
-            setApiKeyWizardOpen(true);
-          } else if (actionId === 'open-ai-rules') {
-            handleOpenAIRules();
-          } else if (actionId === 'updater-check-now') {
-            void manualUpdateCheck();
-          } else if (actionId === 'open-whats-new') {
-            setShowWhatsNewModalDirect(true);
-          } else if (actionId === 'open-website') {
-            void openExternal('https://keepance.com');
-          } else if (actionId === 'open-github') {
-            void openExternal('https://github.com/keepance/keepance');
-          } else if (actionId === 'reset-feature-tour') {
-            featureTour.restart();
-            setTimeout(() => setTourOpen(true), 300);
-          }
-        }}
-        onRestartOnboarding={() => {
-          setShowFirstRun(true);
-        }}
+        onAction={handleSettingsAction}
+        onRestartOnboarding={handleSettingsRestartOnboarding}
       />
 
       {/* Keepance 3.0: rebuilt first-run wizard — the live first-run surface.

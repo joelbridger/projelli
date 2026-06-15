@@ -107,6 +107,28 @@ vi.mock('@/components/common/TrashPanel', () => ({
   ),
 }));
 
+// FileTree mock — the real FileTree's expanding-tree drag-and-drop is covered
+// by its own suite + the campaign filetree sweep; here we only need to confirm
+// the Tree | Grid toggle mounts it and hands it the move handler. The stub
+// exposes a button that invokes onMove so we can assert wiring if needed.
+vi.mock('@/components/workspace/FileTree', () => ({
+  FileTree: ({
+    onMove,
+  }: {
+    onMove?: (s: string, t: string) => Promise<void>;
+  }) => (
+    <div data-testid="file-tree">
+      <button
+        type="button"
+        data-testid="file-tree-fake-move"
+        onClick={() => { void onMove?.('/workspace/Brief.md', '/workspace/Contracts'); }}
+      >
+        tree-move
+      </button>
+    </div>
+  ),
+}));
+
 // react-i18next mock
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -534,5 +556,182 @@ describe('ReimaginedDocumentsHome — fileTree + grid population', () => {
     expect(screen.queryByTestId('grid-empty-state')).toBeNull();
     // The grid-cards container must exist with actual cards
     expect(screen.getByTestId('document-grid-cards')).toBeTruthy();
+  });
+});
+
+// ── R6-1: Tree | Grid toggle ─────────────────────────────────────────────────
+
+describe('ReimaginedDocumentsHome — Tree | Grid toggle (R6-1)', () => {
+  beforeEach(() => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    localStorage.removeItem('keepance:docs-view');
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('keepance:docs-view');
+  });
+
+  it('renders the Tree | Grid toggle with both options', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    expect(screen.getByTestId('docs-view-toggle')).toBeTruthy();
+    expect(screen.getByTestId('docs-view-tree')).toBeTruthy();
+    expect(screen.getByTestId('docs-view-grid')).toBeTruthy();
+  });
+
+  it('defaults to the grid view (DocumentGridView visible, tree hidden)', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    expect(screen.getByTestId('document-grid-view')).toBeTruthy();
+    expect(screen.queryByTestId('documents-tree-view')).toBeNull();
+  });
+
+  it('switching to Tree renders the FileTree and hides the grid', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    fireEvent.click(screen.getByTestId('docs-view-tree'));
+    expect(screen.getByTestId('documents-tree-view')).toBeTruthy();
+    expect(screen.getByTestId('file-tree')).toBeTruthy();
+    expect(screen.queryByTestId('document-grid-view')).toBeNull();
+  });
+
+  it('switching back to Grid restores the grid view', () => {
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    fireEvent.click(screen.getByTestId('docs-view-tree'));
+    expect(screen.getByTestId('documents-tree-view')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('docs-view-grid'));
+    expect(screen.getByTestId('document-grid-view')).toBeTruthy();
+    expect(screen.queryByTestId('documents-tree-view')).toBeNull();
+  });
+
+  it('persists the chosen view to localStorage and restores it on remount', () => {
+    const { unmount } = render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    fireEvent.click(screen.getByTestId('docs-view-tree'));
+    expect(localStorage.getItem('keepance:docs-view')).toBe('tree');
+    unmount();
+    // Fresh mount reads the persisted choice → tree view is active.
+    render(<ReimaginedDocumentsHome {...buildDefaultProps()} />);
+    expect(screen.getByTestId('documents-tree-view')).toBeTruthy();
+  });
+
+  it('passes the move handler through to the FileTree', async () => {
+    const onMove = vi.fn().mockResolvedValue(undefined);
+    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onMove })} />);
+    fireEvent.click(screen.getByTestId('docs-view-tree'));
+    // The FileTree stub invokes onMove when its fake-move button is clicked.
+    fireEvent.click(screen.getByTestId('file-tree-fake-move'));
+    await waitFor(() => {
+      expect(onMove).toHaveBeenCalledWith('/workspace/Brief.md', '/workspace/Contracts');
+    });
+  });
+});
+
+// ── R6-1: grid drag-and-drop (onMove) ────────────────────────────────────────
+
+/**
+ * Minimal DataTransfer stub good enough for the grid's dragStart/dragOver/drop
+ * handlers: a backing map for get/setData plus the two effect fields the
+ * handlers assign. jsdom does not implement DataTransfer.
+ */
+function makeDataTransfer(initial?: Record<string, string>) {
+  const store: Record<string, string> = { ...initial };
+  return {
+    effectAllowed: 'all',
+    dropEffect: 'none',
+    setData: (type: string, value: string) => { store[type] = value; },
+    getData: (type: string) => store[type] ?? '',
+    types: Object.keys(store),
+  };
+}
+
+describe('ReimaginedDocumentsHome — grid drag-and-drop (R6-1)', () => {
+  beforeEach(() => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    localStorage.removeItem('keepance:docs-view');
+  });
+
+  it('dropping a file card onto a FOLDER card calls onMove(source, folderPath)', async () => {
+    const onMove = vi.fn().mockResolvedValue(undefined);
+    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onMove })} />);
+
+    const folderCard = screen.getByTestId('grid-card-/workspace/Contracts');
+    // Simulate dragging Brief.md and dropping it on the Contracts folder.
+    const dt = makeDataTransfer({ 'text/plain': '/workspace/Brief.md' });
+    fireEvent.dragOver(folderCard, { dataTransfer: dt });
+    fireEvent.drop(folderCard, { dataTransfer: dt });
+
+    await waitFor(() => {
+      expect(onMove).toHaveBeenCalledWith('/workspace/Brief.md', '/workspace/Contracts');
+    });
+  });
+
+  it('dropping a node onto ITSELF is a no-op (no move)', async () => {
+    const onMove = vi.fn().mockResolvedValue(undefined);
+    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onMove })} />);
+
+    const folderCard = screen.getByTestId('grid-card-/workspace/Contracts');
+    const dt = makeDataTransfer({ 'text/plain': '/workspace/Contracts' });
+    fireEvent.dragOver(folderCard, { dataTransfer: dt });
+    fireEvent.drop(folderCard, { dataTransfer: dt });
+
+    // Give any pending microtasks a chance to run, then assert no call.
+    await Promise.resolve();
+    expect(onMove).not.toHaveBeenCalled();
+  });
+
+  it('dropping a FILE card onto another FILE card does not move (files are not drop targets)', async () => {
+    const onMove = vi.fn().mockResolvedValue(undefined);
+    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onMove })} />);
+
+    const fileCard = screen.getByTestId('grid-card-/workspace/Evidence.pdf');
+    const dt = makeDataTransfer({ 'text/plain': '/workspace/Brief.md' });
+    fireEvent.dragOver(fileCard, { dataTransfer: dt });
+    fireEvent.drop(fileCard, { dataTransfer: dt });
+
+    await Promise.resolve();
+    expect(onMove).not.toHaveBeenCalled();
+  });
+});
+
+// ── R6-1: create document in the open folder ─────────────────────────────────
+
+describe('ReimaginedDocumentsHome — create in current folder (R6-1)', () => {
+  beforeEach(() => {
+    mockActiveTabPath = null;
+    mockOpenTabs = [];
+    localStorage.removeItem('keepance:docs-view');
+  });
+
+  it('at root, "New document" calls onCreateDefaultDocument with no parentPath (App falls back to docs/)', () => {
+    const onCreateDefaultDocument = vi.fn();
+    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onCreateDefaultDocument })} />);
+    // The toolbar "New document" button lives in DocumentGridView.
+    const newDocBtn = screen.getByRole('button', { name: /new document/i });
+    fireEvent.click(newDocBtn);
+    expect(onCreateDefaultDocument).toHaveBeenCalledTimes(1);
+    // At root, currentFolderPath is null → undefined parentPath.
+    expect(onCreateDefaultDocument).toHaveBeenCalledWith(undefined);
+  });
+
+  it('after drilling into a folder, "New document" passes that folder as parentPath', () => {
+    const onCreateDefaultDocument = vi.fn();
+    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onCreateDefaultDocument })} />);
+
+    // Drill into the Contracts folder by clicking its card.
+    fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts'));
+
+    const newDocBtn = screen.getByRole('button', { name: /new document/i });
+    fireEvent.click(newDocBtn);
+    expect(onCreateDefaultDocument).toHaveBeenCalledWith('/workspace/Contracts');
+  });
+
+  it('after drilling into a folder, "New folder" creates inside that folder', () => {
+    const onCreateFolder = vi.fn();
+    render(<ReimaginedDocumentsHome {...buildDefaultProps({ onCreateFolder })} />);
+
+    fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts'));
+
+    const newFolderBtn = screen.getByRole('button', { name: /new folder/i });
+    fireEvent.click(newFolderBtn);
+    expect(onCreateFolder).toHaveBeenCalledWith('/workspace/Contracts');
   });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ReimaginedSpine } from '@/components/layout/ReimaginedSpine';
 
 vi.mock('react-i18next', () => ({
@@ -66,5 +66,30 @@ describe('ReimaginedSpine', () => {
     const navEl = screen.getByTestId('spine-nav');
     // The matters label comes from t('layout.sidebar.tabs.matters') which is mocked as the key
     expect(navEl.textContent).toMatch(/matters/i);
+  });
+
+  it('renders a Settings nav item directly after Activity Log', () => {
+    render(<ReimaginedSpine />);
+    const settingsBtn = screen.getByTestId('spine-nav-settings');
+    expect(settingsBtn).toBeTruthy();
+    expect(settingsBtn.textContent).toMatch(/settings/i);
+
+    // Order: the Settings button must come after the Activity Log (audit) button.
+    const auditBtn = screen.getByTestId('spine-nav-audit');
+    const order = settingsBtn.compareDocumentPosition(auditBtn);
+    // DOCUMENT_POSITION_PRECEDING (2) on `order` means auditBtn precedes settingsBtn.
+    expect(order & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  });
+
+  it('Settings nav item fires onTabChange("settings") when clicked', () => {
+    const onTabChange = vi.fn();
+    render(<ReimaginedSpine onTabChange={onTabChange} />);
+    fireEvent.click(screen.getByTestId('spine-nav-settings'));
+    expect(onTabChange).toHaveBeenCalledWith('settings');
+  });
+
+  it('also exposes a collapsed Settings nav item', () => {
+    render(<ReimaginedSpine collapsed />);
+    expect(screen.getByTestId('spine-nav-collapsed-settings')).toBeTruthy();
   });
 });

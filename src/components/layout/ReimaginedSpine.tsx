@@ -11,14 +11,14 @@
  */
 import { useRef } from 'react';
 import {
-  Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Mail,
+  Briefcase, FolderTree, Sparkles, ListChecks, ShieldCheck, Mail, Settings,
   ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
 import { useMatters, useActiveMatterId, useMatterStore } from '@/stores/matterStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
 
-type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'email';
+type SpineTab = 'matters' | 'files' | 'search' | 'workflows' | 'audit' | 'email' | 'settings';
 
 interface ReimaginedSpineProps {
   fileTreeContent?: React.ReactNode;
@@ -29,6 +29,7 @@ interface ReimaginedSpineProps {
   trashContent?: React.ReactNode;
   mattersContent?: React.ReactNode;
   emailContent?: React.ReactNode | undefined;
+  settingsContent?: React.ReactNode | undefined;
   activeTab?: string | undefined;
   onTabChange?: ((tab: string) => void) | undefined;
   collapsed?: boolean | undefined;
@@ -54,7 +55,7 @@ function KeepanceMark() {
 
 export function ReimaginedSpine({
   fileTreeContent, searchContent, workflowContent,
-  auditContent, mattersContent, emailContent,
+  auditContent, mattersContent, emailContent, settingsContent,
   activeTab = 'matters', onTabChange, collapsed = false, onCollapsedChange,
 }: ReimaginedSpineProps) {
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -71,6 +72,7 @@ export function ReimaginedSpine({
     { id: 'email', label: 'Email', Icon: Mail },
     { id: 'workflows', label: 'Workflows', Icon: ListChecks },
     { id: 'audit', label: 'Activity Log', Icon: ShieldCheck },
+    { id: 'settings', label: 'Settings', Icon: Settings },
   ];
 
   const content: Record<SpineTab, React.ReactNode> = {
@@ -80,6 +82,7 @@ export function ReimaginedSpine({
     email: emailContent,
     workflows: workflowContent,
     audit: auditContent,
+    settings: settingsContent,
   };
 
   const active = (activeTab as SpineTab) in content ? (activeTab as SpineTab) : 'matters';
