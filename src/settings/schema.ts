@@ -4,19 +4,39 @@
  * The Settings modal renders FROM this schema. Adding a new setting later
  * means adding one entry to `SETTINGS_SCHEMA` — no component changes needed.
  *
- * Categories map 1:1 to the sidebar nav in the Settings modal.
+ * v3.1 — 20 flat categories collapsed into 5 elegant sections:
+ *   workspace   | AI & Privacy   | Account   | Voice   | Advanced & Help
+ *
+ * Legacy category ids (general, editor, files, ai, memory, privacy, license,
+ * firm, costs, integrations, voice, shortcuts, marketplace, plugins, templates,
+ * updates, mobile, onboarding, advanced, about) are kept as aliases in the
+ * SettingCategory union so that existing deep-link call sites continue to
+ * compile.  The CATEGORY_ALIAS_MAP in SettingsModal resolves them at runtime.
  */
 
 export type SettingType = 'toggle' | 'select' | 'number' | 'text' | 'shortcut-display';
 
+/** The 5 canonical section ids used in the sidebar nav. */
+export type SectionCategory = 'workspace' | 'ai-privacy' | 'account' | 'voice' | 'advanced-help';
+
+/**
+ * SettingCategory includes both the 5 new section ids AND every legacy id so
+ * that callers that pass e.g. `initialCategory="ai"` still type-check.
+ */
 export type SettingCategory =
+  // ── 5 canonical sections ──────────────────────────────────────────────
+  | 'workspace'
+  | 'ai-privacy'
+  | 'account'
+  | 'voice'
+  | 'advanced-help'
+  // ── legacy aliases (kept for deep-link compatibility) ─────────────────
   | 'general'
   | 'license'
   | 'firm'
   | 'editor'
   | 'ai'
   | 'memory'
-  | 'voice'
   | 'files'
   | 'shortcuts'
   | 'costs'
@@ -56,34 +76,66 @@ export interface SettingDefinition {
   action?: SettingAction;
 }
 
-export const SETTING_CATEGORIES: { id: SettingCategory; label: string }[] = [
-  { id: 'general', label: 'General' },
-  { id: 'license', label: 'License' },
-  { id: 'firm', label: 'Firm' },
-  { id: 'editor', label: 'Editor' },
-  { id: 'ai', label: 'AI' },
-  { id: 'memory', label: 'Memory' },
-  { id: 'voice', label: 'Voice' },
-  { id: 'files', label: 'Files & Workspace' },
-  { id: 'shortcuts', label: 'Keyboard Shortcuts' },
-  { id: 'costs', label: 'Cost & Usage' },
-  { id: 'templates', label: 'Templates' },
-  { id: 'integrations', label: 'Integrations' },
-  { id: 'marketplace', label: 'Marketplace' },
-  { id: 'plugins', label: 'Plugins' },
-  { id: 'mobile', label: 'Mobile' },
-  { id: 'advanced', label: 'Advanced' },
-  { id: 'updates', label: 'Updates' },
-  { id: 'onboarding', label: 'Onboarding' },
-  { id: 'privacy', label: 'Privacy' },
-  { id: 'about', label: 'About' },
+/** The 5 nav sections shown in the sidebar. */
+export const SETTING_CATEGORIES: { id: SectionCategory; label: string }[] = [
+  { id: 'workspace',     label: 'Workspace' },
+  { id: 'ai-privacy',   label: 'AI & Privacy' },
+  { id: 'account',      label: 'Account' },
+  { id: 'voice',        label: 'Voice' },
+  { id: 'advanced-help', label: 'Advanced & Help' },
 ];
 
+/**
+ * Maps every legacy category id to the canonical section it now lives in.
+ * Deep-link callers that pass an old id get silently forwarded to the right
+ * section at runtime.
+ */
+export const CATEGORY_ALIAS_MAP: Readonly<Record<string, SectionCategory>> = {
+  // Workspace
+  general:      'workspace',
+  editor:       'workspace',
+  files:        'workspace',
+  // AI & Privacy
+  ai:           'ai-privacy',
+  memory:       'ai-privacy',
+  privacy:      'ai-privacy',
+  // Account
+  license:      'account',
+  firm:         'account',
+  costs:        'account',
+  integrations: 'account',
+  // Voice (unchanged)
+  voice:        'voice',
+  // Advanced & Help
+  shortcuts:    'advanced-help',
+  marketplace:  'advanced-help',
+  plugins:      'advanced-help',
+  templates:    'advanced-help',
+  updates:      'advanced-help',
+  about:        'advanced-help',
+  mobile:       'advanced-help',
+  onboarding:   'advanced-help',
+  advanced:     'advanced-help',
+  // Canonical ids map to themselves
+  workspace:     'workspace',
+  'ai-privacy':  'ai-privacy',
+  account:       'account',
+  'advanced-help': 'advanced-help',
+};
+
+/**
+ * Resolve any SettingCategory (legacy alias or canonical) to its
+ * SectionCategory.  Falls back to 'workspace' for unknown ids.
+ */
+export function resolveSection(cat: string): SectionCategory {
+  return CATEGORY_ALIAS_MAP[cat] ?? 'workspace';
+}
+
 export const SETTINGS_SCHEMA: SettingDefinition[] = [
-  // ── General ───────────────────────────────────────────────────────────
+  // ── Workspace: General ────────────────────────────────────────────────
   {
     key: 'theme',
-    category: 'general',
+    category: 'workspace',
     label: 'Theme',
     description: 'Choose light, dark, or follow your system preference.',
     type: 'select',
@@ -96,7 +148,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'startupBehavior',
-    category: 'general',
+    category: 'workspace',
     label: 'On Startup',
     description: 'What happens when you launch Keepance.',
     type: 'select',
@@ -108,17 +160,17 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'showWhatsNew',
-    category: 'general',
+    category: 'workspace',
     label: 'Show Update Notifications',
     description: 'Display a toast when a new version of Keepance is available.',
     type: 'toggle',
     defaultValue: true,
   },
 
-  // ── Editor ────────────────────────────────────────────────────────────
+  // ── Workspace: Editor ─────────────────────────────────────────────────
   {
     key: 'tabOverflow',
-    category: 'editor',
+    category: 'workspace',
     label: 'Tab Overflow',
     description: 'How tabs behave when they exceed the available width.',
     type: 'select',
@@ -130,7 +182,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'fontSize',
-    category: 'editor',
+    category: 'workspace',
     label: 'Font Size',
     description: 'Base font size for text editors (px).',
     type: 'number',
@@ -141,7 +193,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'autoSave',
-    category: 'editor',
+    category: 'workspace',
     label: 'Auto Save',
     description: 'Automatically save files after changes.',
     type: 'toggle',
@@ -149,7 +201,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'autoSaveInterval',
-    category: 'editor',
+    category: 'workspace',
     label: 'Auto Save Interval',
     description: 'Seconds between auto-saves (when enabled).',
     type: 'number',
@@ -160,7 +212,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'wordWrap',
-    category: 'editor',
+    category: 'workspace',
     label: 'Word Wrap',
     description: 'Wrap long lines instead of scrolling horizontally.',
     type: 'toggle',
@@ -168,17 +220,66 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'lineNumbers',
-    category: 'editor',
+    category: 'workspace',
     label: 'Line Numbers',
     description: 'Show line numbers in text editors.',
     type: 'toggle',
     defaultValue: true,
   },
 
-  // ── AI ────────────────────────────────────────────────────────────────
+  // ── Workspace: Files & Workspace ──────────────────────────────────────
+  {
+    key: 'defaultNewFileType',
+    category: 'workspace',
+    label: 'Default New Document Type',
+    description:
+      'Format used when you create a new document. Word (.docx) is the canonical document format; choose Markdown or Plain Text for quick notes.',
+    type: 'select',
+    defaultValue: 'docx',
+    options: [
+      { value: 'docx', label: 'Word Document (.docx)' },
+      { value: 'markdown', label: 'Markdown' },
+      { value: 'plaintext', label: 'Plain Text' },
+      { value: 'richtext', label: 'Rich Text' },
+    ],
+  },
+  {
+    key: 'letterheadTemplatePath',
+    category: 'workspace',
+    label: 'Letterhead Template',
+    description:
+      'Path to a Word document whose letterhead (headers, footers, styles) new documents and workflow deliverables start from. Pick one with the file tree right-click menu.',
+    type: 'text',
+    defaultValue: '',
+  },
+  {
+    key: 'trashRetention',
+    category: 'workspace',
+    label: 'Trash Retention',
+    description: 'How long deleted files are kept before permanent removal.',
+    type: 'select',
+    defaultValue: '30',
+    options: [
+      { value: '7', label: '7 days' },
+      { value: '14', label: '14 days' },
+      { value: '30', label: '30 days' },
+      { value: '90', label: '90 days' },
+      { value: 'never', label: 'Never (keep forever)' },
+    ],
+  },
+  {
+    key: 'showHiddenFiles',
+    category: 'workspace',
+    label: 'Show Hidden Files',
+    description: 'Display files and folders that start with a dot (e.g., .gitignore).',
+    type: 'toggle',
+    defaultValue: false,
+  },
+
+  // ── AI & Privacy: AI ──────────────────────────────────────────────────
   {
     key: 'confidentialityMode',
-    category: 'ai',
+    category: 'ai-privacy',
     label: 'Confidentiality mode',
     description:
       "Controls where AI requests are allowed to go. Local-only keeps everything on your machine (local models only). Direct (the default) sends prompts straight from your machine to your chosen provider with your own key. Assured routes through your firm's zero-retention proxy once your firm admin sets a managed key.",
@@ -192,7 +293,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'privilegedMatterMode',
-    category: 'ai',
+    category: 'ai-privacy',
     label: 'Privileged Matter Mode',
     description:
       'When on, network-capable extensions are disabled: plugins cannot make network requests and MCP servers are turned off, so confidential work cannot be sent out through an extension. Turns on automatically while a privileged matter is active or while Local-only is selected. A custom control for this lives in the confidentiality section.',
@@ -201,7 +302,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'ambientFileContext',
-    category: 'ai',
+    category: 'ai-privacy',
     label: 'Ambient File Context',
     description: 'Automatically share open files with AI chat.',
     type: 'toggle',
@@ -209,7 +310,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'ambientContextTokenLimit',
-    category: 'ai',
+    category: 'ai-privacy',
     label: 'Context Token Limit',
     description: 'Max tokens included from open files in AI prompts.',
     type: 'number',
@@ -220,7 +321,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'chatContextTokenLimit',
-    category: 'ai',
+    category: 'ai-privacy',
     label: 'Chat Context Token Limit',
     description:
       'Maximum tokens sent to the AI per chat turn (includes history, files, and your message). Default is 200K. Raise only if your provider and model support a larger window.',
@@ -232,7 +333,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'keepRecentTurns',
-    category: 'ai',
+    category: 'ai-privacy',
     label: 'Keep Recent Turns (Compression)',
     description:
       'When compressing context, how many of the most recent conversation turns to keep verbatim.',
@@ -244,7 +345,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'manageApiKeys',
-    category: 'ai',
+    category: 'ai-privacy',
     label: 'AI Account Keys',
     description: 'Add or remove account keys for AI providers.',
     type: 'text', // rendered as action link
@@ -253,7 +354,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'manageAIRules',
-    category: 'ai',
+    category: 'ai-privacy',
     label: 'AI Rules',
     description: 'Customize how AI behaves in this workspace.',
     type: 'text', // rendered as action link
@@ -261,10 +362,10 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     action: { label: 'Manage AI Rules', actionId: 'open-ai-rules' },
   },
 
-  // ── Memory ────────────────────────────────────────────────────────────
+  // ── AI & Privacy: Memory ──────────────────────────────────────────────
   {
     key: 'memoryEnabled',
-    category: 'memory',
+    category: 'ai-privacy',
     label: 'Workspace memory',
     description:
       'Index your workspace files locally so AI can recall relevant context. Embeddings live on your machine, nothing is sent anywhere.',
@@ -273,7 +374,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'factsInjection',
-    category: 'memory',
+    category: 'ai-privacy',
     label: 'Inject memory facts into chat',
     description:
       'Prepend your saved memory facts to every chat system prompt so the AI always knows prior durable context. Turn off if you want workspace memory without the facts block.',
@@ -282,7 +383,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'factsAutoAccept',
-    category: 'memory',
+    category: 'ai-privacy',
     label: 'Auto-accept proposed facts',
     description:
       'When enabled, facts that the AI extracts from your conversations are saved without asking. Default is off, so every proposed fact needs your approval.',
@@ -291,7 +392,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'includePdfsInWorkspaceIndex',
-    category: 'memory',
+    category: 'ai-privacy',
     label: 'Include PDFs in workspace index',
     description:
       'When on, PDFs in your workspace are searchable via @workspace and considered for AI context. Indexing runs in the background after you toggle this on. Adds CPU work during indexing. Defaults to off.',
@@ -300,7 +401,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'ocrScannedPdfs',
-    category: 'memory',
+    category: 'ai-privacy',
     label: 'Read scanned PDFs with OCR',
     description:
       'Read scanned PDFs with local OCR so they show up in search and AI answers. Runs entirely on your machine.',
@@ -351,7 +452,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     defaultValue: 'Ctrl+Shift+N',
   },
 
-  // ── Voice Output (TTS) — v2.0 Stream B ───────────────────────────────
+  // ── Voice Output (TTS) ────────────────────────────────────────────────
   {
     key: 'ttsEnabled',
     category: 'voice',
@@ -404,59 +505,10 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     defaultValue: 'Ctrl+Shift+R',
   },
 
-  // ── Files & Workspace ─────────────────────────────────────────────────
-  {
-    key: 'defaultNewFileType',
-    category: 'files',
-    label: 'Default New Document Type',
-    description:
-      'Format used when you create a new document. Word (.docx) is the canonical document format; choose Markdown or Plain Text for quick notes.',
-    type: 'select',
-    defaultValue: 'docx',
-    options: [
-      { value: 'docx', label: 'Word Document (.docx)' },
-      { value: 'markdown', label: 'Markdown' },
-      { value: 'plaintext', label: 'Plain Text' },
-      { value: 'richtext', label: 'Rich Text' },
-    ],
-  },
-  {
-    key: 'letterheadTemplatePath',
-    category: 'files',
-    label: 'Letterhead Template',
-    description:
-      'Path to a Word document whose letterhead (headers, footers, styles) new documents and workflow deliverables start from. Pick one with the file tree right-click menu.',
-    type: 'text',
-    defaultValue: '',
-  },
-  {
-    key: 'trashRetention',
-    category: 'files',
-    label: 'Trash Retention',
-    description: 'How long deleted files are kept before permanent removal.',
-    type: 'select',
-    defaultValue: '30',
-    options: [
-      { value: '7', label: '7 days' },
-      { value: '14', label: '14 days' },
-      { value: '30', label: '30 days' },
-      { value: '90', label: '90 days' },
-      { value: 'never', label: 'Never (keep forever)' },
-    ],
-  },
-  {
-    key: 'showHiddenFiles',
-    category: 'files',
-    label: 'Show Hidden Files',
-    description: 'Display files and folders that start with a dot (e.g., .gitignore).',
-    type: 'toggle',
-    defaultValue: false,
-  },
-
-  // ── Updates ───────────────────────────────────────────────────────────
+  // ── Advanced & Help: Updates ──────────────────────────────────────────
   {
     key: 'autoUpdateCheck',
-    category: 'updates',
+    category: 'advanced-help',
     label: 'Check for updates automatically',
     description: 'When enabled, Keepance checks GitHub Releases for new versions in the background and prompts you when one is available.',
     type: 'toggle',
@@ -464,7 +516,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'updateChannel',
-    category: 'updates',
+    category: 'advanced-help',
     label: 'Update channel',
     description: 'Which release channel to follow. Beta is reserved for future use.',
     type: 'select',
@@ -475,7 +527,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'manualCheckNow',
-    category: 'updates',
+    category: 'advanced-help',
     label: 'Check for updates now',
     description: 'Run the updater check immediately without waiting for the scheduled interval.',
     type: 'text', // rendered as action link
@@ -483,10 +535,10 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     action: { label: 'Check now', actionId: 'updater-check-now' },
   },
 
-  // ── Onboarding ────────────────────────────────────────────────────────
+  // ── Advanced & Help: Onboarding ───────────────────────────────────────
   {
     key: 'viewApiKeyTutorial',
-    category: 'onboarding',
+    category: 'advanced-help',
     label: 'Account Key Setup Guide',
     description: 'Step-by-step guide to get an account key from Anthropic, OpenAI, or Google.',
     type: 'text',
@@ -495,7 +547,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'resetFeatureTour',
-    category: 'onboarding',
+    category: 'advanced-help',
     label: 'Feature Tour',
     description: 'Replay the guided tour that introduces the Keepance workspace.',
     type: 'text',
@@ -503,10 +555,10 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     action: { label: 'Start tour', actionId: 'reset-feature-tour' },
   },
 
-  // ── About ─────────────────────────────────────────────────────────────
+  // ── Advanced & Help: About ────────────────────────────────────────────
   {
     key: 'aboutWhatsNew',
-    category: 'about',
+    category: 'advanced-help',
     label: "What's new",
     description: 'See highlights from the most recent Keepance releases.',
     type: 'text',
@@ -515,7 +567,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'aboutWebsite',
-    category: 'about',
+    category: 'advanced-help',
     label: 'Website',
     description: 'Open keepance.com in your browser.',
     type: 'text',
@@ -524,7 +576,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   },
   {
     key: 'aboutGithub',
-    category: 'about',
+    category: 'advanced-help',
     label: 'GitHub',
     description: 'Browse the source, file an issue, or contribute on GitHub.',
     type: 'text',

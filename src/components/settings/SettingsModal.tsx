@@ -2,10 +2,13 @@
  * SettingsModal — Full-screen settings dialog rendered from the schema.
  *
  * Layout:
- *   Left sidebar  — category nav
- *   Right content — settings for the active category, auto-rendered
- *   Top           — cross-category search bar
+ *   Left sidebar  — 5-section nav (Workspace / AI & Privacy / Account / Voice / Advanced & Help)
+ *   Right content — settings for the active section, rendered with sub-headers
+ *   Top           — cross-section search bar
  *   Bottom-right  — Export / Import / Reset buttons
+ *
+ * Deep-link aliases: any legacy category id (general, ai, integrations, etc.)
+ * resolves to the correct section via CATEGORY_ALIAS_MAP in schema.ts.
  *
  * Opened via: gear icon in the header, Ctrl+, shortcut, or command palette.
  */
@@ -25,7 +28,9 @@ import { cn } from '@/lib/utils';
 import {
   SETTINGS_SCHEMA,
   SETTING_CATEGORIES,
+  resolveSection,
   type SettingCategory,
+  type SectionCategory,
   type SettingDefinition,
 } from '@/settings/schema';
 import { useSettingsStore } from '@/stores/settingsStore';
@@ -86,30 +91,32 @@ interface SettingsModalProps {
   /** Callback when an action link is clicked (e.g., "Manage API Keys"). */
   onAction?: (actionId: string) => void;
   /**
-   * Q4 (Wave 1.2) — audit entries for the Cost & Usage category. When
-   * omitted, the Cost & Usage dashboard renders with an empty array
-   * (shows the zero-state copy and an all-zero 30-day chart).
+   * Q4 (Wave 1.2) — audit entries for the Account section (Usage sub-header).
+   * When omitted, the Cost & Usage dashboard renders with an empty array.
    */
   auditEntries?: AuditEntry[];
   /**
    * Q8 (Wave 1.6) — workflow templates (built-ins + user-authored) used to
-   * render the per-template model assignment table in the Templates
-   * category. When omitted, the table shows an empty state.
+   * render the per-template model assignment table in the Advanced & Help
+   * section (Extensions sub-header). When omitted, the table shows an empty
+   * state.
    */
   templates?: WorkflowTemplate[];
   /**
-   * Which category to open the modal on. Re-applied every time the modal
-   * transitions from closed → open, so callers can deep-link to any
-   * section (trial banner → 'license', "Manage API keys" → 'ai-keys', etc.)
-   * without persisting state across opens.
+   * Which category (canonical section id OR legacy alias) to open the modal
+   * on. Re-applied every time the modal transitions from closed to open, so
+   * callers can deep-link to any section without persisting state across opens.
+   *
+   * Legacy ids (general, ai, integrations, memory, etc.) are silently resolved
+   * to the correct section via CATEGORY_ALIAS_MAP.
    */
   initialCategory?: SettingCategory;
-  /** Called when the user clicks "Restart guided setup" in the Onboarding checklist. */
+  /** Called when the user clicks "Restart guided setup" in the setup checklist. */
   onRestartOnboarding?: () => void;
 }
 
 // ---------------------------------------------------------------------------
-// Toggle switch (minimal inline implementation since shadcn switch isn't present)
+// Toggle switch
 // ---------------------------------------------------------------------------
 
 function Toggle({
@@ -230,7 +237,7 @@ function NumberStepper({
 }
 
 // ---------------------------------------------------------------------------
-// Stream A4 — inline capability warning for chatContextTokenLimit
+// Inline capability warning for chatContextTokenLimit
 // ---------------------------------------------------------------------------
 
 function AIContextCapabilityWarning({
@@ -240,10 +247,6 @@ function AIContextCapabilityWarning({
 }) {
   const { t } = useTranslation();
   const chatLimitValue = (getSetting('chatContextTokenLimit') as number | undefined) ?? 200000;
-  // We use a generic provider/model fallback — users who care about exact
-  // capability will be on the AI Assistant Models tab where the model is known.
-  // The settings panel shows a conservative warning based on what the user
-  // configured as their default provider/model (if any).
   const activeProvider = (getSetting('defaultProvider') as string | undefined) ?? '';
   const activeModel = (getSetting('defaultModel') as string | undefined) ?? '';
 
@@ -382,16 +385,30 @@ function SettingRow({
 }
 
 // ---------------------------------------------------------------------------
-// Keyboard shortcuts category (rendered from the SSOT)
+// Sub-section header (used inside long sections to group controls)
 // ---------------------------------------------------------------------------
 
-function ShortcutsCategory({ searchQuery }: { searchQuery: string }) {
+function SubHeader({ label, testid }: { label: string; testid?: string }) {
+  return (
+    <h3
+      data-testid={testid}
+      className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mt-6 mb-2 pb-1 border-b border-border/40"
+    >
+      {label}
+    </h3>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Keyboard shortcuts section (SSOT)
+// ---------------------------------------------------------------------------
+
+function ShortcutsSection({ searchQuery }: { searchQuery: string }) {
   const { t } = useTranslation();
   const grouped = useMemo(() => groupShortcutsByCategory(), []);
   const mac = isMac();
   const lowerQ = searchQuery.toLowerCase();
 
-  // Filter shortcuts by search query
   const filtered = useMemo(() => {
     if (!lowerQ) return grouped;
     const result = new Map<string, typeof SHORTCUTS>();
@@ -417,7 +434,6 @@ function ShortcutsCategory({ searchQuery }: { searchQuery: string }) {
 
   return (
     <div className="space-y-5">
-      {/* Prominent Ctrl+P tip */}
       <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
         <span className="font-medium">{t('settings.modal.shortcuts.quick-tip-label')}</span>{' '}
         {t('settings.modal.shortcuts.quick-tip-press')}{' '}
@@ -462,14 +478,11 @@ function ShortcutsCategory({ searchQuery }: { searchQuery: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// About header — version + branding shown above the About settings list.
+// About header
 // ---------------------------------------------------------------------------
 
 function AboutHeader() {
   const { t } = useTranslation();
-  // VITE_APP_VERSION is injected by vite.config.ts (define plugin) so this
-  // value matches whatever package.json was bundled. Falls back to '?' so
-  // a missing define still renders something readable.
   const version =
     (import.meta.env['VITE_APP_VERSION'] as string | undefined) ?? '?';
   return (
@@ -491,16 +504,229 @@ function AboutHeader() {
 }
 
 // ---------------------------------------------------------------------------
+// Section content renderers
+// ---------------------------------------------------------------------------
+
+interface SectionProps {
+  getSetting: (key: string) => unknown;
+  setSetting: (key: string, value: unknown) => void;
+  onAction: (actionId: string) => void;
+  filteredKeys: Set<string>;
+  searchQuery: string;
+  auditEntries?: AuditEntry[] | undefined;
+  templates?: WorkflowTemplate[] | undefined;
+  onRestartOnboarding?: (() => void) | undefined;
+  onNavigate: (section: SectionCategory) => void;
+}
+
+function renderRows(
+  keys: string[],
+  props: SectionProps,
+) {
+  return keys
+    .filter((k) => props.filteredKeys.has(k))
+    .map((k) => {
+      const def = SETTINGS_SCHEMA.find((d) => d.key === k);
+      if (!def) return null;
+      return (
+        <SettingRow
+          key={def.key}
+          def={def}
+          value={props.getSetting(def.key)}
+          onChange={(v) => props.setSetting(def.key, v)}
+          onAction={props.onAction}
+        />
+      );
+    });
+}
+
+function WorkspaceSection(props: SectionProps) {
+  const generalKeys = ['theme', 'startupBehavior', 'showWhatsNew'];
+  const editorKeys  = ['tabOverflow', 'fontSize', 'autoSave', 'autoSaveInterval', 'wordWrap', 'lineNumbers'];
+  const filesKeys   = ['defaultNewFileType', 'letterheadTemplatePath', 'trashRetention', 'showHiddenFiles'];
+
+  const hasGeneral = generalKeys.some((k) => props.filteredKeys.has(k));
+  const hasEditor  = editorKeys.some((k) => props.filteredKeys.has(k));
+  const hasFiles   = filesKeys.some((k) => props.filteredKeys.has(k));
+
+  return (
+    <div data-testid="section-workspace">
+      {hasGeneral && (
+        <>
+          <LanguagePicker />
+          {renderRows(generalKeys, props)}
+        </>
+      )}
+      {hasEditor && (
+        <>
+          <SubHeader label="Editor" testid="subheader-editor" />
+          {renderRows(editorKeys, props)}
+        </>
+      )}
+      {hasFiles && (
+        <>
+          <SubHeader label="Files and Workspace" testid="subheader-files" />
+          {renderRows(filesKeys, props)}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AiPrivacySection(props: SectionProps) {
+  const aiKeys     = ['ambientFileContext', 'ambientContextTokenLimit', 'chatContextTokenLimit', 'keepRecentTurns', 'manageApiKeys', 'manageAIRules'];
+  const memoryKeys = ['memoryEnabled', 'factsInjection', 'factsAutoAccept', 'includePdfsInWorkspaceIndex', 'ocrScannedPdfs'];
+  // confidentialityMode and privilegedMatterMode are rendered by ConfidentialityModeSettings
+
+  const hasAi     = ['confidentialityMode', 'privilegedMatterMode', ...aiKeys].some((k) => props.filteredKeys.has(k));
+  const hasMemory = memoryKeys.some((k) => props.filteredKeys.has(k));
+
+  return (
+    <div data-testid="section-ai-privacy">
+      {hasAi && (
+        <>
+          <SubHeader label="AI" testid="subheader-ai" />
+          <ConfidentialityModeSettings />
+          {renderRows(aiKeys, props)}
+          <AIContextCapabilityWarning getSetting={props.getSetting} />
+        </>
+      )}
+      {hasMemory && (
+        <>
+          <SubHeader label="Memory" testid="subheader-memory" />
+          {renderRows(memoryKeys, props)}
+          <MemoryFactsSettings />
+        </>
+      )}
+      {/* Privacy always shown in this section */}
+      <SubHeader label="Privacy" testid="subheader-privacy" />
+      <PrivacySettings />
+    </div>
+  );
+}
+
+function AccountSection(props: SectionProps) {
+  return (
+    <div data-testid="section-account">
+      <SubHeader label="Account" testid="subheader-account" />
+      <LicenseSettings />
+
+      <SubHeader label="Firm" testid="subheader-firm" />
+      <FirmSignIn />
+      <FirmAdminConsole />
+
+      <SubHeader label="Usage" testid="subheader-usage" />
+      <CostMetrics entries={props.auditEntries ?? []} />
+
+      <SubHeader label="Connections" testid="subheader-connections" />
+      <MailConnect />
+      <MailImapConnect />
+      <MailGmailConnect />
+      <McpSettingsSection />
+      <OllamaSettingsSection />
+    </div>
+  );
+}
+
+function VoiceSection(props: SectionProps) {
+  const voiceInputKeys = [
+    'voiceEnabled',
+    'voiceModel',
+    'voicePressToTalkShortcut',
+    'voiceNoteShortcut',
+  ];
+  const ttsKeys = [
+    'ttsEnabled',
+    'ttsVoice',
+    'ttsSpeed',
+    'ttsAutoRead',
+    'ttsShortcut',
+  ];
+
+  const ttsEnabled = Boolean(props.getSetting('ttsEnabled'));
+
+  const hasVoiceInput = voiceInputKeys.some((k) => props.filteredKeys.has(k));
+  const hasTts        = ttsKeys.some((k) => props.filteredKeys.has(k));
+
+  return (
+    <div data-testid="section-voice">
+      <VoiceSettingsSection ttsEnabled={ttsEnabled} />
+      {hasVoiceInput && renderRows(voiceInputKeys, props)}
+      {hasTts && (
+        <>
+          <SubHeader label="Text to Speech" testid="subheader-tts" />
+          {renderRows(ttsKeys, props)}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AdvancedHelpSection(props: SectionProps) {
+  const updatesKeys  = ['autoUpdateCheck', 'updateChannel', 'manualCheckNow'];
+  const onboardKeys  = ['viewApiKeyTutorial', 'resetFeatureTour'];
+  const aboutKeys    = ['aboutWhatsNew', 'aboutWebsite', 'aboutGithub'];
+
+  const hasUpdates  = updatesKeys.some((k) => props.filteredKeys.has(k));
+  const hasOnboard  = onboardKeys.some((k) => props.filteredKeys.has(k));
+  const hasAbout    = aboutKeys.some((k) => props.filteredKeys.has(k));
+
+  return (
+    <div data-testid="section-advanced-help">
+      <SubHeader label="Keyboard Shortcuts" testid="subheader-shortcuts" />
+      <ShortcutsSection searchQuery={props.searchQuery} />
+
+      <SubHeader label="Extensions" testid="subheader-extensions" />
+      <MarketplaceTab />
+      <PluginsSettings />
+      <TemplateModelSettings templates={props.templates ?? []} />
+
+      {hasUpdates && (
+        <>
+          <SubHeader label="Updates" testid="subheader-updates" />
+          {renderRows(updatesKeys, props)}
+        </>
+      )}
+
+      <SubHeader label="Setup" testid="subheader-setup" />
+      <SetupChecklist
+        onRestartOnboarding={() => {
+          props.onRestartOnboarding?.();
+        }}
+        onNavigate={(cat) => {
+          props.onNavigate(cat as SectionCategory);
+        }}
+      />
+      {hasOnboard && renderRows(onboardKeys, props)}
+
+      <SubHeader label="Advanced" testid="subheader-advanced" />
+      <AdvancedSettings />
+      <MobileSettings />
+
+      {hasAbout && (
+        <>
+          <SubHeader label="About" testid="subheader-about" />
+          <AboutHeader />
+          {renderRows(aboutKeys, props)}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main modal
 // ---------------------------------------------------------------------------
 
 export function SettingsModal({ open, onOpenChange, onAction, auditEntries, templates, initialCategory, onRestartOnboarding }: SettingsModalProps) {
   const { t } = useTranslation();
-  const [activeCategory, setActiveCategory] = useState<SettingCategory>(initialCategory ?? 'general');
-  // Group VIII (Stream C1) + Group VI (Stream C4): the Marketplace nav badge
-  // sums templates + plugins update counts into a single pill. v2.0 ships with
-  // a single sum for simplicity; if user feedback shows the combined number is
-  // confusing we can split into two badges in v2.x.
+
+  // Resolve any legacy alias to the canonical section on mount
+  const resolveInitial = (cat?: SettingCategory): SectionCategory =>
+    cat ? resolveSection(cat) : 'workspace';
+
+  const [activeSection, setActiveSection] = useState<SectionCategory>(resolveInitial(initialCategory));
+
   const templateUpdateCount = useTemplateUpdateCount();
   const pluginUpdateCount = usePluginUpdateCount();
   const marketplaceUpdateCount = templateUpdateCount + pluginUpdateCount;
@@ -508,13 +734,11 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
   const searchRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Re-apply initialCategory each time the modal opens so callers can
-  // deep-link to a specific section. Using a ref to track the previous
-  // open state avoids fighting the user's clicks within the same session.
+  // Re-apply initialCategory each time the modal opens (deep-link support)
   const prevOpen = useRef(open);
   useEffect(() => {
     if (open && !prevOpen.current && initialCategory) {
-      setActiveCategory(initialCategory);
+      setActiveSection(resolveSection(initialCategory));
     }
     prevOpen.current = open;
   }, [open, initialCategory]);
@@ -522,88 +746,68 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
   const { getSetting, setSetting, resetAll, exportSettings, importSettings } =
     useSettingsStore();
 
-  // Filter schema entries by search query (spans all categories)
-  const filteredSchema = useMemo(() => {
+  // Keys that match the current search query
+  const filteredKeys = useMemo<Set<string>>(() => {
     const lowerQ = searchQuery.toLowerCase().trim();
-    if (!lowerQ) return SETTINGS_SCHEMA;
-    return SETTINGS_SCHEMA.filter(
-      (def) =>
-        def.label.toLowerCase().includes(lowerQ) ||
-        def.description.toLowerCase().includes(lowerQ) ||
-        def.key.toLowerCase().includes(lowerQ)
+    if (!lowerQ) {
+      return new Set(SETTINGS_SCHEMA.map((d) => d.key));
+    }
+    return new Set(
+      SETTINGS_SCHEMA
+        .filter(
+          (def) =>
+            def.label.toLowerCase().includes(lowerQ) ||
+            def.description.toLowerCase().includes(lowerQ) ||
+            def.key.toLowerCase().includes(lowerQ)
+        )
+        .map((d) => d.key)
     );
   }, [searchQuery]);
 
-  // Which categories have visible settings after filtering
-  const visibleCategories = useMemo(() => {
-    const cats = new Set(filteredSchema.map((d) => d.category));
-    // Always include 'shortcuts' if the query matches any shortcut text
-    if (searchQuery.trim()) {
-      const lowerQ = searchQuery.toLowerCase();
-      const anyShortcutMatch = SHORTCUTS.some(
-        (s) =>
-          s.label.toLowerCase().includes(lowerQ) ||
-          (s.description ?? '').toLowerCase().includes(lowerQ) ||
-          s.keys.some((k) => k.toLowerCase().includes(lowerQ))
-      );
-      if (anyShortcutMatch) cats.add('shortcuts');
-      // Cost & Usage has no settings rows (dashboard only); include it
-      // when the search query matches its label/description keywords.
-      const costsMatch = ['cost', 'usage', 'spend', 'budget', 'month'].some(
-        (k) => lowerQ.includes(k)
-      );
-      if (costsMatch) cats.add('costs');
-      const templatesMatch = ['template', 'workflow', 'model', 'provider'].some(
-        (k) => lowerQ.includes(k)
-      );
-      if (templatesMatch) cats.add('templates');
-      const integrationsMatch = ['mcp', 'claude desktop', 'integration', 'sidecar', 'bundle', 'email', 'mail', 'microsoft', '365', 'outlook'].some(
-        (k) => lowerQ.includes(k)
-      );
-      if (integrationsMatch) cats.add('integrations');
-      const licenseMatch = ['license', 'activate', 'personal', 'professional', 'practice', 'paid'].some(
-        (k) => lowerQ.includes(k)
-      );
-      if (licenseMatch) cats.add('license');
-      const firmMatch = ['firm', 'seat', 'collaborat', 'matter', 'admin', 'ethical wall', 'assured', 'team'].some(
-        (k) => lowerQ.includes(k)
-      );
-      if (firmMatch) cats.add('firm');
-      const privacyMatch = ['privacy', 'telemetry', 'tracking', 'data', 'anonymous', 'opt'].some(
-        (k) => lowerQ.includes(k)
-      );
-      if (privacyMatch) cats.add('privacy');
-    } else {
-      cats.add('shortcuts');
-      cats.add('costs');
-      cats.add('templates');
-      cats.add('integrations');
-      cats.add('marketplace');
-      cats.add('plugins');
-      cats.add('mobile');
-      cats.add('advanced');
-      cats.add('license');
-      cats.add('firm');
-      cats.add('privacy');
+  // Which sections have at least one visible setting after filtering
+  const visibleSections = useMemo<Set<SectionCategory>>(() => {
+    // When no search: all sections visible
+    if (!searchQuery.trim()) {
+      return new Set<SectionCategory>(['workspace', 'ai-privacy', 'account', 'voice', 'advanced-help']);
     }
-    return cats;
-  }, [filteredSchema, searchQuery]);
+    const sections = new Set<SectionCategory>();
+    for (const def of SETTINGS_SCHEMA) {
+      if (filteredKeys.has(def.key)) {
+        // resolveSection handles both canonical and legacy ids
+        const sec = resolveSection(def.category);
+        sections.add(sec);
+      }
+    }
+    const lowerQ = searchQuery.toLowerCase();
+    // Shortcut text is not in SETTINGS_SCHEMA — include advanced-help if any shortcut matches
+    const anyShortcutMatch = SHORTCUTS.some(
+      (s) =>
+        s.label.toLowerCase().includes(lowerQ) ||
+        (s.description ?? '').toLowerCase().includes(lowerQ) ||
+        s.keys.some((k) => k.toLowerCase().includes(lowerQ))
+    );
+    if (anyShortcutMatch) sections.add('advanced-help');
+    // Always show account for cost/license/firm/integration keywords
+    const accountKeywords = ['cost', 'usage', 'spend', 'budget', 'month', 'license', 'activate',
+      'personal', 'professional', 'practice', 'paid', 'firm', 'seat',
+      'collaborat', 'matter', 'admin', 'team', 'mcp', 'integration',
+      'sidecar', 'bundle', 'email', 'mail', 'microsoft', '365', 'outlook',
+      'ollama', 'local model'];
+    if (accountKeywords.some((k) => lowerQ.includes(k))) sections.add('account');
+    // Privacy keywords always show ai-privacy
+    const aiPrivacyKeywords = ['privacy', 'telemetry', 'tracking', 'data', 'anonymous', 'opt',
+      'memory', 'fact', 'pdf', 'ocr', 'confidential', 'privileged'];
+    if (aiPrivacyKeywords.some((k) => lowerQ.includes(k))) sections.add('ai-privacy');
+    return sections;
+  }, [filteredKeys, searchQuery]);
 
-  // Settings for the active category
-  const categorySettings = useMemo(
-    () => filteredSchema.filter((d) => d.category === activeCategory),
-    [filteredSchema, activeCategory]
-  );
+  // Auto-switch to first visible section when search hides the current one
+  const effectiveSection = visibleSections.has(activeSection)
+    ? activeSection
+    : (SETTING_CATEGORIES.find((c) => visibleSections.has(c.id))?.id ?? 'workspace');
 
-  // Auto-switch to first visible category when search hides the current one
-  const effectiveCategory = visibleCategories.has(activeCategory)
-    ? activeCategory
-    : (SETTING_CATEGORIES.find((c) => visibleCategories.has(c.id))?.id ?? 'general');
-
-  if (effectiveCategory !== activeCategory) {
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    // Schedule for next tick to avoid setState-during-render
-    queueMicrotask(() => setActiveCategory(effectiveCategory));
+  if (effectiveSection !== activeSection) {
+    queueMicrotask(() => setActiveSection(effectiveSection));
   }
 
   const handleExport = useCallback(() => {
@@ -634,7 +838,6 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
         }
       };
       reader.readAsText(file);
-      // Reset so the same file can be re-imported
       e.target.value = '';
     },
     [importSettings]
@@ -659,6 +862,18 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
     },
     [onAction, onOpenChange]
   );
+
+  const sectionProps: SectionProps = {
+    getSetting,
+    setSetting,
+    onAction: handleAction,
+    filteredKeys,
+    searchQuery,
+    auditEntries,
+    templates,
+    onRestartOnboarding,
+    onNavigate: setActiveSection,
+  };
 
   return (
     <>
@@ -709,26 +924,26 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
 
         {/* Body: sidebar + content */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
-          {/* Category sidebar */}
+          {/* Section sidebar — 5 entries */}
           <nav className="w-48 shrink-0 border-r py-2 overflow-y-auto bg-muted/20">
-            {SETTING_CATEGORIES.map((cat) => {
-              const visible = visibleCategories.has(cat.id);
+            {SETTING_CATEGORIES.map((sec) => {
+              const visible = visibleSections.has(sec.id);
               if (!visible) return null;
-              const isActive = activeCategory === cat.id;
-              const showUpdateBadge = cat.id === 'marketplace' && marketplaceUpdateCount > 0;
+              const isActive = activeSection === sec.id;
+              const showUpdateBadge = sec.id === 'advanced-help' && marketplaceUpdateCount > 0;
               return (
                 <button
-                  key={cat.id}
-                  data-testid={`settings-category-${cat.id}`}
+                  key={sec.id}
+                  data-testid={`settings-category-${sec.id}`}
                   className={cn(
                     'w-full flex items-center gap-2 text-left px-4 py-2 text-sm transition-colors',
                     isActive
                       ? 'bg-background font-medium text-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
-                  onClick={() => setActiveCategory(cat.id)}
+                  onClick={() => setActiveSection(sec.id)}
                 >
-                  <span className="flex-1 truncate">{cat.label}</span>
+                  <span className="flex-1 truncate">{sec.label}</span>
                   {showUpdateBadge && (
                     <span
                       data-testid="settings-marketplace-update-badge"
@@ -746,99 +961,21 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
 
           {/* Content area */}
           <div className="flex-1 overflow-y-auto px-6 py-4">
-            {activeCategory === 'shortcuts' ? (
-              <ShortcutsCategory searchQuery={searchQuery} />
-            ) : activeCategory === 'costs' ? (
-              <CostMetrics entries={auditEntries ?? []} />
-            ) : activeCategory === 'templates' ? (
-              <TemplateModelSettings templates={templates ?? []} />
-            ) : activeCategory === 'license' ? (
-              <LicenseSettings />
-            ) : activeCategory === 'firm' ? (
-              <>
-                <FirmSignIn />
-                <FirmAdminConsole />
-              </>
-            ) : activeCategory === 'privacy' ? (
-              <PrivacySettings />
-            ) : activeCategory === 'integrations' ? (
-              <>
-                <MailConnect />
-                <MailImapConnect />
-                <MailGmailConnect />
-                <McpSettingsSection />
-                <OllamaSettingsSection />
-              </>
-            ) : activeCategory === 'onboarding' ? (
-              <div>
-                <SetupChecklist
-                  onRestartOnboarding={() => {
-                    onRestartOnboarding?.();
-                    onOpenChange(false);
-                  }}
-                  onNavigate={(cat) => { setActiveCategory(cat as SettingCategory); }}
-                />
-                {categorySettings.map((def) => (
-                  <SettingRow
-                    key={def.key}
-                    def={def}
-                    value={getSetting(def.key)}
-                    onChange={(v) => { setSetting(def.key, v); }}
-                    onAction={handleAction}
-                  />
-                ))}
-              </div>
-            ) : activeCategory === 'marketplace' ? (
-              <MarketplaceTab />
-            ) : activeCategory === 'plugins' ? (
-              <PluginsSettings />
-            ) : activeCategory === 'mobile' ? (
-              <MobileSettings />
-            ) : activeCategory === 'advanced' ? (
-              <AdvancedSettings />
-            ) : categorySettings.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4 text-center">
-                {t('settings.modal.no-matches')}
-              </p>
+            {activeSection === 'workspace' ? (
+              <WorkspaceSection {...sectionProps} />
+            ) : activeSection === 'ai-privacy' ? (
+              <AiPrivacySection {...sectionProps} />
+            ) : activeSection === 'account' ? (
+              <AccountSection {...sectionProps} />
+            ) : activeSection === 'voice' ? (
+              <VoiceSection {...sectionProps} />
             ) : (
-              <div>
-                {activeCategory === 'about' && <AboutHeader />}
-                {activeCategory === 'general' && <LanguagePicker />}
-                {activeCategory === 'voice' && (
-                  <VoiceSettingsSection ttsEnabled={Boolean(getSetting('ttsEnabled'))} />
-                )}
-                {/* WS-C — the confidentiality spectrum gets a richer custom
-                    picker (cards + the data-map entry point) instead of the
-                    generic select row, so its row is rendered here and filtered
-                    out of the auto-rendered list below. */}
-                {activeCategory === 'ai' && <ConfidentialityModeSettings />}
-                {categorySettings
-                  .filter(
-                    (def) =>
-                      def.key !== 'confidentialityMode' &&
-                      // Privileged Matter Mode gets a custom toggle inside the
-                      // confidentiality section (above), not the generic row.
-                      def.key !== 'privilegedMatterMode',
-                  )
-                  .map((def) => (
-                    <SettingRow
-                      key={def.key}
-                      def={def}
-                      value={getSetting(def.key)}
-                      onChange={(v) => setSetting(def.key, v)}
-                      onAction={handleAction}
-                    />
-                  ))}
-                {activeCategory === 'ai' && (
-                  <AIContextCapabilityWarning getSetting={getSetting} />
-                )}
-                {activeCategory === 'memory' && <MemoryFactsSettings />}
-              </div>
+              <AdvancedHelpSection {...sectionProps} />
             )}
           </div>
         </div>
 
-        {/* Footer: action buttons */}
+        {/* Footer */}
         <div className="shrink-0 border-t px-4 py-3 flex items-center justify-end gap-2">
           <Button
             data-testid="settings-export"
@@ -870,7 +1007,6 @@ export function SettingsModal({ open, onOpenChange, onAction, auditEntries, temp
             <RotateCcw className="h-3 w-3" />
             {t('settings.modal.reset')}
           </Button>
-          {/* Hidden file input for import */}
           <input
             ref={fileInputRef}
             type="file"
