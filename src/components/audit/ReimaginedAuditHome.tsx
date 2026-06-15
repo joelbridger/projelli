@@ -69,6 +69,8 @@ import {
   Card,
   EmptyState,
   SlidePanel,
+  SurfaceToolbar,
+  ToolbarSpacer,
 } from '@/components/ui/kp';
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -981,66 +983,67 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
         overflow: 'hidden',
       }}
     >
-      {/* Page header */}
-      <div
-        style={{
-          padding: 'var(--kp-surface-header-pad)',
-          borderBottom: '1px solid var(--color-border)',
-          flexShrink: 0,
-        }}
-      >
-        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+      {/* Header */}
+      {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
         <SurfaceHeader
           Icon={ShieldCheck}
           title="Activity Log"
           description="Every AI request, file change, and workflow run in your workspace, logged and exportable."
-          actions={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <SearchField
-                size="md"
-                style={{ width: 240 }}
-                value={searchQuery}
-                onChange={handleSearchChange}
-                onClear={() => { handleSearchChange(''); }}
-                placeholder="Search by action, resource, or actor..."
-                data-testid="audit-home-search"
-                aria-label="Search audit entries"
-              />
-              <FilterToggle
-                open={showFilters}
-                onToggle={() => { setShowFilters((v) => !v); }}
-                count={activeFilterCount}
-                data-testid="audit-home-filter-toggle"
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                iconLeft={Download}
-                data-testid="audit-home-export-csv"
-                onClick={handleExportCSV}
-                disabled={filteredEntries.length === 0}
-                title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as CSV'}
-                aria-label="Export audit log as CSV"
-              >
-                CSV
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                iconLeft={Download}
-                data-testid="audit-home-export-json"
-                onClick={handleExportJSON}
-                disabled={filteredEntries.length === 0}
-                title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as JSON'}
-                aria-label="Export audit log as JSON"
-              >
-                JSON
-              </Button>
-            </div>
-          }
         />
-        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
       </div>
+      {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+
+      {/* Toolbar */}
+      <SurfaceToolbar>
+        <SearchField
+          size="md"
+          style={{ flex: 1, minWidth: 200, maxWidth: 420 }}
+          value={searchQuery}
+          onChange={handleSearchChange}
+          onClear={() => { handleSearchChange(''); }}
+          placeholder="Search by action, resource, or actor..."
+          data-testid="audit-home-search"
+          aria-label="Search audit entries"
+        />
+        <ToolbarSpacer />
+        <FilterToggle
+          open={showFilters}
+          onToggle={() => { setShowFilters((v) => !v); }}
+          count={activeFilterCount}
+          data-testid="audit-home-filter-toggle"
+        />
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft={Download}
+          data-testid="audit-home-export-csv"
+          onClick={handleExportCSV}
+          disabled={filteredEntries.length === 0}
+          title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as CSV'}
+          aria-label="Export audit log as CSV"
+        >
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          CSV
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          iconLeft={Download}
+          data-testid="audit-home-export-json"
+          onClick={handleExportJSON}
+          disabled={filteredEntries.length === 0}
+          title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as JSON'}
+          aria-label="Export audit log as JSON"
+        >
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          JSON
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </Button>
+      </SurfaceToolbar>
+
+      {/* Content — filter panel, result-count note, table */}
 
       {/* Browser-mode note — shown only when not running in the desktop app */}
       {!encrypted && (
@@ -1060,7 +1063,26 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
         </div>
       )}
 
-      {/* Result count + export filter note — shown below header when filters/search are active */}
+      {/* Filter panel (expanded) — full-width below toolbar */}
+      {showFilters && (
+        <AuditFilterPanel
+          categoryFilter={categoryFilter}
+          onCategoryChange={handleCategoryChange}
+          selectedTypes={selectedTypes}
+          onToggleType={handleToggleType}
+          dateFrom={dateFrom}
+          onDateFromChange={handleDateFromChange}
+          dateTo={dateTo}
+          onDateToChange={handleDateToChange}
+          availableModels={availableModels}
+          modelFilter={modelFilter}
+          onModelChange={handleModelChange}
+          activeFilterCount={activeFilterCount}
+          onReset={handleReset}
+        />
+      )}
+
+      {/* Result count + export filter note */}
       {(searchQuery || activeFilterCount > 0 || (filteredEntries.length > 0 && filteredEntries.length < entries.length)) && (
         <div
           style={{
@@ -1068,7 +1090,7 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
             alignItems: 'center',
             gap: 12,
             padding: '4px var(--kp-gutter)',
-            borderBottom: showFilters ? 'none' : '1px solid var(--color-border)',
+            borderBottom: '1px solid var(--color-border)',
             flexShrink: 0,
           }}
         >
@@ -1110,25 +1132,6 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
           )}
           {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         </div>
-      )}
-
-      {/* Filter panel (expanded) */}
-      {showFilters && (
-        <AuditFilterPanel
-          categoryFilter={categoryFilter}
-          onCategoryChange={handleCategoryChange}
-          selectedTypes={selectedTypes}
-          onToggleType={handleToggleType}
-          dateFrom={dateFrom}
-          onDateFromChange={handleDateFromChange}
-          dateTo={dateTo}
-          onDateToChange={handleDateToChange}
-          availableModels={availableModels}
-          modelFilter={modelFilter}
-          onModelChange={handleModelChange}
-          activeFilterCount={activeFilterCount}
-          onReset={handleReset}
-        />
       )}
 
       {/* Table */}
@@ -1181,10 +1184,14 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
                     data-testid="audit-load-more"
                     onClick={() => { setVisibleCount((v) => v + PAGE_SIZE); }}
                   >
+                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                     Load {String(Math.min(PAGE_SIZE, filteredEntries.length - visibleCount))} more
+                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                   </Button>
                   <span style={{ marginLeft: 12, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+                    {/* eslint-disable keepance-i18n/no-hardcoded-string */}
                     showing {String(visibleEntries.length)} of {String(filteredEntries.length)}
+                    {/* eslint-enable keepance-i18n/no-hardcoded-string */}
                   </span>
                 </div>
               )}

@@ -43,7 +43,7 @@ import {
   CheckSquare,
   PenLine,
 } from 'lucide-react';
-import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, Badge, Card, EmptyState, Dropdown } from '@/components/ui/kp';
+import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, Badge, Card, EmptyState, Dropdown, SurfaceToolbar } from '@/components/ui/kp';
 import { useActiveMatter, useMatters } from '@/stores/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/stores/privilegeStore';
 import {
@@ -1259,207 +1259,187 @@ export function ReimaginedEmailWorkspace({
       }}
     >
       {/* Page header */}
-      <div
-        style={{
-          padding: 'var(--kp-surface-header-pad)',
-          borderBottom: '1px solid var(--color-border)',
-          flexShrink: 0,
-        }}
-      >
+      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
         <SurfaceHeader
           Icon={Mail}
           title="Email"
           description="Search, read, and file your imported email."
-          actions={
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 'none' }}>
-              <Button
-                variant="primary"
-                size="md"
-                iconLeft={PenLine}
-                data-testid="compose-btn"
-                onClick={() => {
-                  setComposeOpen(true);
-                  setComposeSendResult('none');
-                  setComposeSendError(null);
-                  setComposeAttachments([]);
-                }}
-              >
-                New email
-              </Button>
-
-              {/* Scope toggle — only when a matter is active AND in Ask AI mode */}
-              {activeMatter && mode !== 'keyword' && (
-                <SegmentedToggle
-                  ariaLabel="Email scope"
-                  variant="pill"
-                  size="md"
-                  options={[
-                    { value: 'matter' as const, label: 'This matter' },
-                    { value: 'all' as const, label: 'All email' },
-                  ]}
-                  value={scopeAllEmail ? 'all' : 'matter'}
-                  onChange={(v) => {
-                    setScopeAllEmail(v === 'all');
-                    setOffset(0);
-                  }}
-                />
-              )}
-            </div>
-          }
         />
+      </div>
 
-        {/* Hero search bar — a mode pill and a clean search field, side by side
-            (no nested-border container). */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--kp-space-sm)',
-            marginTop: 'var(--kp-surface-gap)',
-            marginBottom: 'var(--kp-space-xs)',
-            flexWrap: 'wrap',
+      {/* Toolbar — compose, mode toggle, scope toggle (conditional), search, filters toggle */}
+      <SurfaceToolbar>
+        {/* 1. Compose button */}
+        <Button
+          variant="primary"
+          size="md"
+          iconLeft={PenLine}
+          data-testid="compose-btn"
+          onClick={() => {
+            setComposeOpen(true);
+            setComposeSendResult('none');
+            setComposeSendError(null);
+            setComposeAttachments([]);
           }}
         >
-          {/* Mode toggle — Keyword | AI search (segmented pill; testids kept for tests) */}
-          <div
-            className="kp-segmented kp-segmented--md kp-segmented--pill"
-            role="group"
-            aria-label="Search mode"
-            style={{ flex: 'none' }}
-          >
-            {(['keyword', 'ask'] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                data-testid={`mode-${m}`}
-                className={`kp-segmented__item${mode === m ? ' is-active' : ''}`}
-                aria-pressed={mode === m}
-                onClick={() => {
-                  setMode(m);
-                  setQuery('');
-                  setOffset(0);
-                  setSelectedIds(new Set());
-                }}
-              >
-                {m === 'keyword' ? 'Keyword' : 'AI search'}
-              </button>
-            ))}
-          </div>
+          New email
+        </Button>
 
-          {/* Search input — a normal bordered field */}
-          <SearchField
-            size="md"
-            icon={Search}
-            value={query}
-            onChange={(v) => {
-              setQuery(v);
-              setOffset(0);
-              setSelectedIds(new Set());
-            }}
-            onClear={handleClearQuery}
-            placeholder={
-              mode === 'keyword'
-                ? 'Search email by keyword...'
-                : 'Search your email with AI...'
-            }
-            aria-label="Search email"
-            data-testid="email-search-input"
-            style={{ flex: 1, minWidth: 280 }}
-          />
+        {/* 2. Mode toggle — standard bordered/navy-filled segmented control */}
+        <div
+          className="kp-segmented kp-segmented--md"
+          role="group"
+          aria-label="Search mode"
+          style={{ flex: 'none' }}
+        >
+          {(['keyword', 'ask'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              data-testid={`mode-${m}`}
+              className={`kp-segmented__item${mode === m ? ' is-active' : ''}`}
+              aria-pressed={mode === m}
+              onClick={() => {
+                setMode(m);
+                setQuery('');
+                setOffset(0);
+                setSelectedIds(new Set());
+              }}
+            >
+              {m === 'keyword' ? 'Keyword' : 'AI search'}
+            </button>
+          ))}
         </div>
 
-        {/* Filters toggle — only when accounts are loaded and in keyword mode */}
-        {accountsLoaded && accounts.length > 0 && mode === 'keyword' && (
-          <div style={{ marginBottom: 'var(--kp-space-sm)' }}>
-            <FilterToggle
-              open={filtersVisible}
-              onToggle={() => { setFiltersVisible((v) => !v); }}
-              count={activeFilterCount}
-              label="Filters"
-              data-testid="filters-toggle"
-            />
-
-            {/* Expanded filter row */}
-            {filtersVisible && (
-              <FilterPanel data-testid="filter-row">
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  {/* Provider filter */}
-                  {uniqueProviders.length > 1 && (
-                    <select
-                      data-testid="provider-filter"
-                      value={providerFilter}
-                      onChange={handleProviderChange}
-                      aria-label="Filter by provider"
-                      style={filterInputStyle}
-                    >
-                      <option value="">All accounts</option>
-                      {uniqueProviders.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-
-                  {/* Date from */}
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-                    From
-                    <input
-                      type="date"
-                      data-testid="date-from"
-                      value={dateFrom}
-                      onChange={handleDateFromChange}
-                      aria-label="From date"
-                      style={filterInputStyle}
-                    />
-                  </label>
-
-                  {/* Date to */}
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-                    To
-                    <input
-                      type="date"
-                      data-testid="date-to"
-                      value={dateTo}
-                      onChange={handleDateToChange}
-                      aria-label="To date"
-                      style={filterInputStyle}
-                    />
-                  </label>
-
-                  {/* Has attachment toggle */}
-                  <label
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 5,
-                      fontSize: 'var(--kp-font-xs)',
-                      color: 'var(--color-muted-foreground)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      data-testid="attachment-filter"
-                      checked={hasAttachments}
-                      onChange={handleAttachmentToggle}
-                      style={{ accentColor: 'var(--kp-navy)', cursor: 'pointer' }}
-                    />
-                    Has attachment
-                  </label>
-                </div>
-              </FilterPanel>
-            )}
-          </div>
+        {/* 3. Scope toggle — only when a matter is active AND in Ask AI mode */}
+        {activeMatter && mode !== 'keyword' && (
+          <SegmentedToggle
+            ariaLabel="Email scope"
+            size="md"
+            variant="filled"
+            options={[
+              { value: 'matter' as const, label: 'This matter' },
+              { value: 'all' as const, label: 'All email' },
+            ]}
+            value={scopeAllEmail ? 'all' : 'matter'}
+            onChange={(v) => {
+              setScopeAllEmail(v === 'all');
+              setOffset(0);
+            }}
+          />
         )}
-      </div>
+
+        {/* 4. Search field — grows to fill remaining space */}
+        <SearchField
+          size="md"
+          icon={Search}
+          value={query}
+          onChange={(v) => {
+            setQuery(v);
+            setOffset(0);
+            setSelectedIds(new Set());
+          }}
+          onClear={handleClearQuery}
+          placeholder={
+            mode === 'keyword'
+              ? 'Search email by keyword...'
+              : 'Search your email with AI...'
+          }
+          aria-label="Search email"
+          data-testid="email-search-input"
+          style={{ flex: 1, minWidth: 240 }}
+        />
+
+        {/* 5. Filters toggle — keyword mode only, when accounts are loaded */}
+        {accountsLoaded && accounts.length > 0 && mode === 'keyword' && (
+          <FilterToggle
+            open={filtersVisible}
+            onToggle={() => { setFiltersVisible((v) => !v); }}
+            count={activeFilterCount}
+            label="Filters"
+            data-testid="filters-toggle"
+          />
+        )}
+      </SurfaceToolbar>
+
+      {/* Filter panel — full-width below toolbar, keyword mode only */}
+      {accountsLoaded && accounts.length > 0 && mode === 'keyword' && filtersVisible && (
+        <FilterPanel data-testid="filter-row">
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              flexWrap: 'wrap',
+            }}
+          >
+            {/* Provider filter */}
+            {uniqueProviders.length > 1 && (
+              <select
+                data-testid="provider-filter"
+                value={providerFilter}
+                onChange={handleProviderChange}
+                aria-label="Filter by provider"
+                style={filterInputStyle}
+              >
+                <option value="">All accounts</option>
+                {uniqueProviders.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* Date from */}
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+              From
+              <input
+                type="date"
+                data-testid="date-from"
+                value={dateFrom}
+                onChange={handleDateFromChange}
+                aria-label="From date"
+                style={filterInputStyle}
+              />
+            </label>
+
+            {/* Date to */}
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+              To
+              <input
+                type="date"
+                data-testid="date-to"
+                value={dateTo}
+                onChange={handleDateToChange}
+                aria-label="To date"
+                style={filterInputStyle}
+              />
+            </label>
+
+            {/* Has attachment toggle */}
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: 'var(--kp-font-xs)',
+                color: 'var(--color-muted-foreground)',
+                cursor: 'pointer',
+              }}
+            >
+              <input
+                type="checkbox"
+                data-testid="attachment-filter"
+                checked={hasAttachments}
+                onChange={handleAttachmentToggle}
+                style={{ accentColor: 'var(--kp-navy)', cursor: 'pointer' }}
+              />
+              Has attachment
+            </label>
+          </div>
+        </FilterPanel>
+      )}
 
       {/* Body */}
       <div style={{ flex: 1, minHeight: 0 }}>

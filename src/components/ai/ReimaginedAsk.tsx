@@ -26,7 +26,7 @@ import {
   ExternalLink, Quote, ShieldCheck, AlertTriangle, Loader2,
   MessageSquare, Plus, Save, X, Mail, FolderOpen,
 } from 'lucide-react';
-import { Button, Chip, Badge, Eyebrow, Card, EmptyState } from '@/components/ui/kp';
+import { Button, Chip, Badge, Eyebrow, Card, EmptyState, SurfaceToolbar, ToolbarSpacer } from '@/components/ui/kp';
 import type { IconType } from '@/components/ui/kp';
 import { useActiveMatter, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
@@ -1113,30 +1113,31 @@ export function ReimaginedAsk({
           Icon={Sparkles}
           title="Search"
           description="Find anything across your work. Every answer cites its source."
-          actions={
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-              <ScopeToggle
-                scope={askScope}
-                onChange={setAskScope}
-                hasMatter={!!activeMatter}
-                isSample={isSampleMatterActive}
-              />
-              {turns.length > 0 && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  iconLeft={Plus}
-                  onClick={handleNewAsk}
-                >
-                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-                  New search
-                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-                </Button>
-              )}
-            </div>
-          }
         />
       </div>
+
+      {/* Toolbar */}
+      <SurfaceToolbar>
+        <ScopeToggle
+          scope={askScope}
+          onChange={setAskScope}
+          hasMatter={!!activeMatter}
+          isSample={isSampleMatterActive}
+        />
+        <ToolbarSpacer />
+        {turns.length > 0 && (
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={Plus}
+            onClick={handleNewAsk}
+          >
+            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+            New search
+            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+          </Button>
+        )}
+      </SurfaceToolbar>
 
       {/* Recent sessions chips */}
       {/* Fix #4: show whenever there is at least one session other than the current

@@ -30,4 +30,6 @@ export { Dropdown } from './Dropdown';
 export type { DropdownProps } from './Dropdown';
 export { SlidePanel } from './SlidePanel';
 export type { SlidePanelProps } from './SlidePanel';
+export { SurfaceToolbar, ToolbarSpacer } from './SurfaceToolbar';
+export type { SurfaceToolbarProps } from './SurfaceToolbar';
 export type { IconType } from './types';

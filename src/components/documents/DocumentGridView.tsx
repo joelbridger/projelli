@@ -19,13 +19,10 @@ import {
   Film,
   Music,
   Plus,
-  Upload,
   Search,
   ChevronRight,
-  ListTree,
-  LayoutGrid,
 } from 'lucide-react';
-import { Button, SearchField, EmptyState } from '@/components/ui/kp';
+import { Button, EmptyState } from '@/components/ui/kp';
 import { useWorkspaceStore } from '@/stores/workspaceStore';
 import { useEditorStore } from '@/stores/editorStore';
 import { TrashPanel } from '@/components/common/TrashPanel';
@@ -351,10 +348,23 @@ export interface DocumentGridViewProps {
   onDelete: (path: string) => void;
   onMove: (sourcePath: string, targetPath: string) => Promise<void>;
   onDownload: (path: string, name: string) => void;
-  /** Current Files view mode: 'tree' or 'grid'. When 'tree', the toolbar still renders but `treeView` is shown as the body. */
+  /**
+   * Controlled: which sub-view is active — 'files' or 'trash'. Lifted to
+   * ReimaginedDocumentsHome so the toolbar can live above the tab strip.
+   */
+  activeView: 'files' | 'trash';
+  /**
+   * Controlled: current search query. Lifted to ReimaginedDocumentsHome so
+   * the SearchField in the toolbar can live above the tab strip.
+   */
+  searchQuery: string;
+  onSearchQueryChange: (q: string) => void;
+  /** Current Files view mode: 'tree' or 'grid'. */
   docsView: 'tree' | 'grid';
-  /** Callback to switch the Files view mode. */
-  onSetDocsView: (v: 'tree' | 'grid') => void;
+  /** The drilled-into folder (null = root), controlled by the parent so the
+   *  toolbar's create buttons land new items in the folder you're viewing. */
+  currentFolderPath: string | null;
+  onSetCurrentFolderPath: (p: string | null) => void;
   /** The FileTree element to render when docsView === 'tree'. Passed in from the parent to avoid threading ~12 FileTree callbacks through here. */
   treeView: React.ReactNode;
   /**
@@ -365,7 +375,6 @@ export interface DocumentGridViewProps {
    */
   onCreateDefaultDocument?: (parentPath?: string) => void;
   onCreateDocxAtRoot?: (parentPath?: string) => void;
-  onAddFiles: () => void;
   trashItems: TrashedItem[];
   trashStats: TrashStats;
   onRestore: (id: string) => Promise<void>;
@@ -385,7 +394,6 @@ export function DocumentGridView({
   onMove,
   onCreateDefaultDocument,
   onCreateDocxAtRoot,
-  onAddFiles,
   trashItems,
   trashStats,
   onRestore,
@@ -394,8 +402,12 @@ export function DocumentGridView({
   retentionPeriod,
   customRetentionDays,
   onRetentionChange,
+  activeView,
+  searchQuery,
+  onSearchQueryChange,
   docsView,
-  onSetDocsView,
+  currentFolderPath,
+  onSetCurrentFolderPath,
   treeView,
 }: DocumentGridViewProps) {
   const fileTree = useWorkspaceStore((s) => s.fileTree);
@@ -403,9 +415,8 @@ export function DocumentGridView({
   const activeTabPath = useEditorStore((s) => s.activeTabPath);
   const openTabs = useEditorStore((s) => s.openTabs);
 
-  const [activeView, setActiveView] = useState<'files' | 'trash'>('files');
-  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  // currentFolderPath is controlled by the parent (lifted so the parent toolbar's
+  // create buttons can target the folder you're viewing). Breadcrumbs derive from it.
 
   // ── Tree helpers ─────────────────────────────────────────────────────────
 
@@ -502,18 +513,16 @@ export function DocumentGridView({
     return currentDirCount === 1 ? '1 item' : `${String(currentDirCount)} items`;
   }
 
-  const trashBadgeCount = trashStats.itemCount;
-
   // ── Handlers ────────────────────────────────────────────────────────────
 
   const handleNodeOpen = useCallback((node: FileNode) => {
     if (node.type === 'folder') {
-      setCurrentFolderPath(node.path);
-      setSearchQuery('');
+      onSetCurrentFolderPath(node.path);
+      onSearchQueryChange('');
     } else {
       void onFileOpen(node.path, node.name);
     }
-  }, [onFileOpen]);
+  }, [onFileOpen, onSearchQueryChange]);
 
   function handleCreateDocument() {
     // R6-1: thread the open folder so a new document lands where the user is.
@@ -581,32 +590,6 @@ export function DocumentGridView({
     );
   }
 
-  // ── Segment button shared styles ─────────────────────────────────────────
-
-  const segmentBtnBase: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    padding: '5px 14px',
-    fontSize: 'var(--kp-font-sm)',
-    fontWeight: 'var(--kp-weight-semibold)',
-    cursor: 'pointer',
-    border: 'none',
-    borderRadius: 0,
-    transition: 'background 0.1s, color 0.1s',
-    fontFamily: 'Satoshi, sans-serif',
-    whiteSpace: 'nowrap',
-  };
-
-  const segmentActive: React.CSSProperties = {
-    background: 'var(--kp-navy)',
-    color: '#fff',
-  };
-
-  const segmentInactive: React.CSSProperties = {
-    background: '#fff',
-    color: 'var(--color-muted-foreground)',
-  };
-
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -621,127 +604,6 @@ export function DocumentGridView({
         overflow: 'hidden',
       }}
     >
-      {/* ── Top toolbar ────────────────────────────────────────────────── */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--kp-space-xs)',
-          padding: 'var(--kp-space-sm) var(--kp-gutter)',
-          borderBottom: '1px solid var(--color-border)',
-          flexShrink: 0,
-          flexWrap: 'wrap',
-        }}
-      >
-        {/* Files / Trash toggle */}
-        <div
-          style={{
-            display: 'inline-flex',
-            borderRadius: 'var(--radius-md)',
-            overflow: 'hidden',
-            border: '1px solid var(--color-border)',
-            flex: 'none',
-          }}
-        >
-          <button
-            type="button"
-            style={{
-              ...segmentBtnBase,
-              ...(activeView === 'files' ? segmentActive : segmentInactive),
-              borderRight: '1px solid var(--color-border)',
-            }}
-            onClick={() => { setActiveView('files'); }}
-          >
-            Files
-          </button>
-          <button
-            type="button"
-            style={{
-              ...segmentBtnBase,
-              ...(activeView === 'trash' ? segmentActive : segmentInactive),
-              gap: 6,
-            }}
-            onClick={() => { setActiveView('trash'); }}
-          >
-            Trash
-            {trashBadgeCount > 0 && (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minWidth: 18,
-                  height: 18,
-                  borderRadius: 9,
-                  fontSize: 'var(--kp-font-2xs)',
-                  fontWeight: 'var(--kp-weight-bold)',
-                  background:
-                    activeView === 'trash'
-                      ? 'rgba(255,255,255,0.25)'
-                      : 'rgba(10,37,64,0.12)',
-                  color: activeView === 'trash' ? '#fff' : 'var(--kp-navy)',
-                  padding: '0 4px',
-                }}
-              >
-                {String(trashBadgeCount)}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Action buttons — shown only in files view */}
-        {activeView === 'files' && (
-          <>
-            {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            <Button variant="primary" size="md" iconLeft={Plus} onClick={handleCreateDocument}>
-              New document
-            </Button>
-            <Button variant="secondary" size="md" iconLeft={Plus} onClick={handleCreateFolder}>
-              New folder
-            </Button>
-            <Button variant="secondary" size="md" iconLeft={Upload} data-testid="add-files-btn" onClick={onAddFiles}>
-              Add files
-            </Button>
-            {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-
-            {/* Spacer + search — flex:1 + minWidth:0 so it shrinks and wraps cleanly when the toolbar is narrow. */}
-            <div style={{ marginLeft: 'auto', flex: '1 1 auto', minWidth: 0 }}>
-              <SearchField
-                value={searchQuery}
-                onChange={setSearchQuery}
-                onClear={() => { setSearchQuery(''); }}
-                placeholder="Search files..."
-                size="md"
-              />
-            </div>
-
-            {/* Tree | Grid view toggle */}
-            <div className="kp-segmented kp-segmented--md kp-segmented--filled" role="group" aria-label="View" data-testid="docs-view-toggle" style={{ flex: 'none' }}>
-              <button
-                type="button"
-                data-testid="docs-view-tree"
-                className={`kp-segmented__item${docsView === 'tree' ? ' is-active' : ''}`}
-                aria-pressed={docsView === 'tree'}
-                onClick={() => { onSetDocsView('tree'); }}
-              >
-                <ListTree size={12} strokeWidth={1.75} />
-                Tree
-              </button>
-              <button
-                type="button"
-                data-testid="docs-view-grid"
-                className={`kp-segmented__item${docsView === 'grid' ? ' is-active' : ''}`}
-                aria-pressed={docsView === 'grid'}
-                onClick={() => { onSetDocsView('grid'); }}
-              >
-                <LayoutGrid size={12} strokeWidth={1.75} />
-                Grid
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
       {/* ── Content area ───────────────────────────────────────────────── */}
       {activeView === 'files' && docsView === 'tree' ? (
         /* Tree view — full height, no padding wrapper */
@@ -761,8 +623,8 @@ export function DocumentGridView({
                 <Breadcrumb
                   segments={breadcrumbs}
                   onNavigate={(path) => {
-                    setCurrentFolderPath(path);
-                    setSearchQuery('');
+                    onSetCurrentFolderPath(path);
+                    onSearchQueryChange('');
                   }}
                   onDropOnCrumb={handleDropOnCrumb}
                 />

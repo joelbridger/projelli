@@ -36,7 +36,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button, IconButton, SearchField, Badge, Eyebrow } from '@/components/ui/kp';
+import { Button, IconButton, SearchField, Badge, Eyebrow, SurfaceToolbar } from '@/components/ui/kp';
 import { cn } from '@/lib/utils';
 import {
   SETTINGS_SCHEMA,
@@ -1124,26 +1124,28 @@ export function SettingsContent({
             so the Settings title sits at the same height as every other tab and
             the horizontal rhythm matches --kp-gutter (32px). */}
         {variant === 'page' && (
-          <div className="shrink-0 border-b px-8 pt-6 pb-4">
-            <SurfaceHeader
-              Icon={Settings}
-              title="Settings"
-              description="Everything about how Keepance works for you."
-              testId="settings-surface-header"
-              actions={
-                <SearchField
-                  ref={searchRef}
-                  data-testid="settings-search"
-                  placeholder={t('settings.modal.search-placeholder')}
-                  value={searchQuery}
-                  onChange={(v) => { setSearchQuery(v); }}
-                  onClear={() => { setSearchQuery(''); }}
-                  size="md"
-                  style={{ width: 260 }}
-                />
-              }
-            />
-          </div>
+          <>
+            <div className="shrink-0 border-b px-8 pt-6 pb-4">
+              <SurfaceHeader
+                Icon={Settings}
+                title="Settings"
+                description="Everything about how Keepance works for you."
+                testId="settings-surface-header"
+              />
+            </div>
+            <SurfaceToolbar>
+              <SearchField
+                ref={searchRef}
+                data-testid="settings-search"
+                placeholder={t('settings.modal.search-placeholder')}
+                value={searchQuery}
+                onChange={(v) => { setSearchQuery(v); }}
+                onClear={() => { setSearchQuery(''); }}
+                size="md"
+                style={{ flex: 1, minWidth: 200, maxWidth: 420 }}
+              />
+            </SurfaceToolbar>
+          </>
         )}
         {variant === 'modal' && (
           <div className="shrink-0 border-b px-8 py-4 flex items-center gap-3">

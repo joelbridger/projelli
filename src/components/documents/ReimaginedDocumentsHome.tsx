@@ -29,8 +29,8 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FolderOpen, FolderTree, FileText, X } from 'lucide-react';
-import { IconButton, Callout } from '@/components/ui/kp';
+import { FolderOpen, FolderTree, FileText, X, Plus, Upload, ListTree, LayoutGrid } from 'lucide-react';
+import { IconButton, Callout, Button, SearchField, SurfaceToolbar, ToolbarSpacer } from '@/components/ui/kp';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 import { useEditorStore } from '@/stores/editorStore';
 import { getFileIcon } from '@/utils/fileIcons';
@@ -333,6 +333,11 @@ export function ReimaginedDocumentsHome({
     writeDocsView(view);
   }, []);
 
+  // Lifted from DocumentGridView: Files/Trash toggle and search query.
+  // These live here so the toolbar can be rendered above the tab strip.
+  const [activeView, setActiveView] = useState<'files' | 'trash'>('files');
+  const [searchQuery, setSearchQuery] = useState('');
+
   // "userOnFiles" tracks whether the user explicitly clicked the "Files" tab.
   // When false, the active document tab in editorStore drives what is shown.
   // When a new real-file tab becomes active externally (email-open flow, grid
@@ -446,6 +451,29 @@ export function ReimaginedDocumentsHome({
     setShowTrustBanner(false);
   }, []);
 
+  // ── Toolbar action handlers (lifted from DocumentGridView) ────────────────
+
+  // The drilled-into folder (null = root), lifted from DocumentGridView so the
+  // toolbar's create buttons land new items in the folder you're viewing.
+  const [currentFolderPath, setCurrentFolderPath] = useState<string | null>(null);
+
+  const handleCreateDocument = useCallback(() => {
+    const parentPath = currentFolderPath ?? undefined;
+    if (onCreateDefaultDocument) {
+      onCreateDefaultDocument(parentPath);
+    } else if (onCreateDocxAtRoot) {
+      onCreateDocxAtRoot(parentPath);
+    } else {
+      onCreateFile(currentFolderPath ?? '');
+    }
+  }, [currentFolderPath, onCreateDefaultDocument, onCreateDocxAtRoot, onCreateFile]);
+
+  const handleCreateFolder = useCallback(() => {
+    onCreateFolder(currentFolderPath ?? '');
+  }, [currentFolderPath, onCreateFolder]);
+
+  const trashBadgeCount = trashStats.itemCount;
+
   // ── Derived content state ────────────────────────────────────────────────
 
   // Only real-file tabs appear in the strip.
@@ -505,6 +533,123 @@ export function ReimaginedDocumentsHome({
           description="Your files and folders, on your computer."
         />
       </div>
+
+      {/* ── Files toolbar — shown above the tab strip when Files tab is active */}
+      {showFilesGrid && (
+        <SurfaceToolbar data-testid="documents-toolbar">
+          {/* Files / Trash toggle */}
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          <div
+            className="kp-segmented kp-segmented--md"
+            role="group"
+            aria-label="View files or trash"
+          >
+            <button
+              type="button"
+              className={`kp-segmented__item${activeView === 'files' ? ' is-active' : ''}`}
+              aria-pressed={activeView === 'files'}
+              onClick={() => { setActiveView('files'); }}
+            >
+              Files
+            </button>
+            <button
+              type="button"
+              className={`kp-segmented__item${activeView === 'trash' ? ' is-active' : ''}`}
+              aria-pressed={activeView === 'trash'}
+              onClick={() => { setActiveView('trash'); }}
+            >
+              Trash
+              {trashBadgeCount > 0 && (
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    fontSize: 'var(--kp-font-2xs)',
+                    fontWeight: 'var(--kp-weight-bold)',
+                    background:
+                      activeView === 'trash'
+                        ? 'rgba(255,255,255,0.25)'
+                        : 'rgba(10,37,64,0.12)',
+                    color: activeView === 'trash' ? '#fff' : 'var(--kp-navy)',
+                    padding: '0 4px',
+                    marginLeft: 4,
+                  }}
+                >
+                  {String(trashBadgeCount)}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Action buttons + search + view toggle — files view only */}
+          {activeView === 'files' && (
+            <>
+              <Button variant="primary" size="md" iconLeft={Plus} onClick={handleCreateDocument}>
+                New document
+              </Button>
+              <Button variant="secondary" size="md" iconLeft={Plus} onClick={handleCreateFolder}>
+                New folder
+              </Button>
+              <Button
+                variant="secondary"
+                size="md"
+                iconLeft={Upload}
+                data-testid="add-files-btn"
+                onClick={handleAddFiles}
+              >
+                Add files
+              </Button>
+
+              <SearchField
+                data-testid="documents-search-field"
+                value={searchQuery}
+                onChange={setSearchQuery}
+                onClear={() => { setSearchQuery(''); }}
+                placeholder="Search files..."
+                size="md"
+                style={{ flex: 1, minWidth: 200, maxWidth: 420 }}
+              />
+
+              <ToolbarSpacer />
+
+              {/* Tree | Grid view toggle */}
+              <div
+                className="kp-segmented kp-segmented--md"
+                role="group"
+                aria-label="View"
+                data-testid="docs-view-toggle"
+                style={{ flex: 'none' }}
+              >
+                <button
+                  type="button"
+                  data-testid="docs-view-tree"
+                  className={`kp-segmented__item${docsView === 'tree' ? ' is-active' : ''}`}
+                  aria-pressed={docsView === 'tree'}
+                  onClick={() => { handleSetDocsView('tree'); }}
+                >
+                  <ListTree size={12} strokeWidth={1.75} />
+                  Tree
+                </button>
+                <button
+                  type="button"
+                  data-testid="docs-view-grid"
+                  className={`kp-segmented__item${docsView === 'grid' ? ' is-active' : ''}`}
+                  aria-pressed={docsView === 'grid'}
+                  onClick={() => { handleSetDocsView('grid'); }}
+                >
+                  <LayoutGrid size={12} strokeWidth={1.75} />
+                  Grid
+                </button>
+              </div>
+            </>
+          )}
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+        </SurfaceToolbar>
+      )}
 
       {/* ── Unified tab strip ──────────────────────────────────────────── */}
       <div
@@ -596,14 +741,17 @@ export function ReimaginedDocumentsHome({
             onDelete={onDelete}
             onMove={onMove}
             onDownload={onDownload}
-            onAddFiles={handleAddFiles}
+            activeView={activeView}
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
             trashItems={trashItems}
             trashStats={trashStats}
             onRestore={onRestore}
             onPermanentDelete={onPermanentDelete}
             onEmptyTrash={onEmptyTrash}
             docsView={docsView}
-            onSetDocsView={handleSetDocsView}
+            currentFolderPath={currentFolderPath}
+            onSetCurrentFolderPath={setCurrentFolderPath}
             treeView={
               <FileTree
                 hideToolbar

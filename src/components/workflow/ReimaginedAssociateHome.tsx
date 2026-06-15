@@ -47,7 +47,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
-import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField } from '@/components/ui/kp';
+import { Button, Chip, Badge, Eyebrow, Card, EmptyState, Callout, SearchField, SurfaceToolbar, ToolbarSpacer } from '@/components/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/types/workflow';
 import { loadAllTemplates } from '@/modules/workflow/userTemplates';
 import { prioritizeByProfession } from '@/modules/workflow/prioritizeByProfession';
@@ -642,41 +642,28 @@ export function ReimaginedAssociateHome({
       }}
     >
       {/* ── Page header ─────────────────────────────────────────────── */}
-      <div
-        style={{
-          padding: 'var(--kp-surface-header-pad)',
-          borderBottom: '1px solid var(--color-border)',
-          flexShrink: 0,
-        }}
-      >
+      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
         <SurfaceHeader
           Icon={ListChecks}
           title="Workflows"
           description={`Your tireless associate. ${String(templates.length)} workflow${templates.length === 1 ? '' : 's'} ready — pick one to run.`}
-          actions={
-            <SearchField
-              size="md"
-              value={query}
-              onChange={(v) => { setQuery(v); }}
-              onClear={() => { setQuery(''); }}
-              placeholder="Search workflows..."
-              aria-label="Search workflows"
-              data-testid="associate-search"
-              style={{ width: 260 }}
-            />
-          }
         />
+      </div>
 
-        {/* Active-matter context badge — shown below the header */}
-        {activeMatter !== null && (
-          <div data-testid="associate-active-matter-chip" style={{ marginTop: 8 }}>
-            <Badge variant="neutral" size="sm" icon={Briefcase}>
-              Running in: {matterLabel(activeMatter)}
-            </Badge>
-          </div>
-        )}
+      {/* Active-matter context badge — directly below the header, above the toolbar */}
+      {activeMatter !== null && (
+        <div
+          data-testid="associate-active-matter-chip"
+          style={{ padding: '4px var(--kp-gutter) 0' }}
+        >
+          <Badge variant="neutral" size="sm" icon={Briefcase}>
+            Running in: {matterLabel(activeMatter)}
+          </Badge>
+        </div>
+      )}
 
-        {/* Practice-area filter chips */}
+      {/* ── Toolbar: practice chips (left) + search (right) ──────── */}
+      <SurfaceToolbar data-testid="associate-toolbar">
         {presentCategories.length > 1 && (
           <div
             data-testid="associate-practice-filter"
@@ -684,7 +671,6 @@ export function ReimaginedAssociateHome({
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              marginTop: 'var(--kp-stack-gap)',
               flexWrap: 'wrap',
             }}
           >
@@ -705,7 +691,17 @@ export function ReimaginedAssociateHome({
             ))}
           </div>
         )}
-      </div>
+        <ToolbarSpacer />
+        <SearchField
+          data-testid="associate-search"
+          value={query}
+          onChange={(v) => { setQuery(v); }}
+          onClear={() => { setQuery(''); }}
+          placeholder="Search workflows..."
+          size="md"
+          style={{ flex: '0 1 280px', minWidth: 200 }}
+        />
+      </SurfaceToolbar>
 
       {/* ── Banners ──────────────────────────────────────────────────── */}
 

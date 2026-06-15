@@ -21,7 +21,7 @@ import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/
 import type { Matter } from '@/types/matter';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
-import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout } from '@/components/ui/kp';
+import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar } from '@/components/ui/kp';
 
 /** localStorage key for dismissing the setup card. */
 const SETUP_CARD_DISMISSED_KEY = 'keepance:setup-card-dismissed';
@@ -651,34 +651,34 @@ export function ReimaginedMattersHome() {
               ? `1 ${entityLabel.one}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
               : `${String(openCount)} ${entityLabel.other}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
           }
-          actions={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', flexWrap: 'wrap' }}>
-              {showSearch && (
-                <SearchField
-                  size="md"
-                  value={searchQuery}
-                  onChange={(v) => { setSearchQuery(v); }}
-                  onClear={() => { setSearchQuery(''); }}
-                  placeholder={`Search ${entityLabel.other}...`}
-                  data-testid="matters-search-input"
-                  aria-label={`Search ${entityLabel.other}`}
-                  style={{ width: 240 }}
-                />
-              )}
-              <Button
-                variant="primary"
-                size="md"
-                iconLeft={Plus}
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
-                }}
-              >
-                New {entityLabel.one}
-              </Button>
-            </div>
-          }
         />
       </div>
+
+      {/* Toolbar */}
+      <SurfaceToolbar>
+        <Button
+          variant="primary"
+          size="md"
+          iconLeft={Plus}
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
+          }}
+        >
+          New {entityLabel.one}
+        </Button>
+        {showSearch && (
+          <SearchField
+            data-testid="matters-search-input"
+            value={searchQuery}
+            onChange={(v) => { setSearchQuery(v); }}
+            onClear={() => { setSearchQuery(''); }}
+            placeholder={`Search ${entityLabel.other}...`}
+            aria-label={`Search ${entityLabel.other}`}
+            size="md"
+            style={{ flex: 1, minWidth: 200, maxWidth: 420 }}
+          />
+        )}
+      </SurfaceToolbar>
 
       {/* Table card — top gap below the header; surface gap keeps it off the divider line. */}
       <Card
