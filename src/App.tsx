@@ -40,6 +40,7 @@ import { WhatsNewToast, WhatsNewModal, useWhatsNew } from '@/components/WhatsNew
 import { UpdateManager, manualUpdateCheck } from '@/components/updater/UpdateManager';
 import { openExternal } from '@/utils/openExternal';
 import { SettingsModal } from '@/components/settings/SettingsModal';
+import { SettingsContent } from '@/components/settings/SettingsContent';
 import { TrialBanner } from '@/components/trial';
 import { hasCompletedOnboarding } from '@/components/onboarding';
 import { GuidedOnboarding } from '@/components/onboarding/GuidedOnboarding';
@@ -298,7 +299,7 @@ function App() {
   const [workflowProviderError, setWorkflowProviderError] = useState<'needs-provider' | 'ollama-unreachable' | null>(null);
 
   // Sidebar state
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'email' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'trash' | 'plugins'>('files');
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | 'matters' | 'search' | 'email' | 'workflows' | 'ai-assistant' | 'research' | 'whiteboard' | 'audit' | 'settings' | 'trash' | 'plugins'>('files');
   // F-509 — controlled sidebar collapse so the global Ctrl+B shortcut and the
   // command palette can drive the same collapse the chevron button does.
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -3601,6 +3602,38 @@ This file contains rules and guidelines for AI assistants in this workspace.
     );
   }
 
+  // Shared Settings action handler — used by BOTH the quick Settings modal and
+  // the full-page Settings nav tab so every action link (Manage AI keys, Check
+  // for updates, Open website, …) behaves identically in either surface.
+  const handleSettingsAction = (actionId: string) => {
+    if (actionId === 'open-ai-keys') {
+      if (isReimaginedShell()) {
+        setApiKeyWizardOpen(true);
+      } else {
+        setSidebarActiveTab('ai-assistant');
+        setAiAssistantRequestedTab('keys');
+      }
+    } else if (actionId === 'open-api-key-tutorial') {
+      setApiKeyWizardOpen(true);
+    } else if (actionId === 'open-ai-rules') {
+      void handleOpenAIRules();
+    } else if (actionId === 'updater-check-now') {
+      void manualUpdateCheck();
+    } else if (actionId === 'open-whats-new') {
+      setShowWhatsNewModalDirect(true);
+    } else if (actionId === 'open-website') {
+      void openExternal('https://keepance.com');
+    } else if (actionId === 'open-github') {
+      void openExternal('https://github.com/keepance/keepance');
+    } else if (actionId === 'reset-feature-tour') {
+      featureTour.restart();
+      setTimeout(() => setTourOpen(true), 300);
+    }
+  };
+  const handleSettingsRestartOnboarding = () => {
+    setShowFirstRun(true);
+  };
+
   // Get current project name from root path
   const currentProjectName = rootPath?.split('/').pop() ?? 'Unnamed Project';
 
@@ -3952,6 +3985,20 @@ This file contains rules and guidelines for AI assistants in this workspace.
           />
         ) : isReimaginedShell() && sidebarActiveTab === 'audit' ? (
           <ReimaginedAuditHome entries={auditEntries} />
+        ) : isReimaginedShell() && sidebarActiveTab === 'settings' ? (
+          // Full-page Settings surface — the SAME content as the quick modal
+          // (5-section nav, search, accordion sub-sections, Export/Import/Reset),
+          // rendered in the main window instead of a dialog. The gear / Ctrl+,
+          // modal still works for quick, deep-linked access.
+          <div className="flex-1 min-w-0 min-h-0 flex flex-col" data-testid="settings-page">
+            <SettingsContent
+              variant="page"
+              auditEntries={auditEntries}
+              templates={loadAllTemplates()}
+              onAction={handleSettingsAction}
+              onRestartOnboarding={handleSettingsRestartOnboarding}
+            />
+          </div>
         ) : (
         <MainPanel
           onFileOpen={handleFileOpen}
@@ -4062,41 +4109,17 @@ This file contains rules and guidelines for AI assistants in this workspace.
         commands={commands}
       />
 
-      {/* Settings Modal */}
+      {/* Settings Modal — the quick, deep-linkable surface (gear / Ctrl+, /
+          command palette). The same content also lives full-page as the
+          Settings nav tab; both share handleSettingsAction. */}
       <SettingsModal
         open={showSettingsModal}
         onOpenChange={setShowSettingsModal}
         auditEntries={auditEntries}
         templates={loadAllTemplates()}
         {...(settingsInitialCategory ? { initialCategory: settingsInitialCategory } : {})}
-        onAction={(actionId) => {
-          if (actionId === 'open-ai-keys') {
-            if (isReimaginedShell()) {
-              setApiKeyWizardOpen(true);
-            } else {
-              setSidebarActiveTab('ai-assistant');
-              setAiAssistantRequestedTab('keys');
-            }
-          } else if (actionId === 'open-api-key-tutorial') {
-            setApiKeyWizardOpen(true);
-          } else if (actionId === 'open-ai-rules') {
-            handleOpenAIRules();
-          } else if (actionId === 'updater-check-now') {
-            void manualUpdateCheck();
-          } else if (actionId === 'open-whats-new') {
-            setShowWhatsNewModalDirect(true);
-          } else if (actionId === 'open-website') {
-            void openExternal('https://keepance.com');
-          } else if (actionId === 'open-github') {
-            void openExternal('https://github.com/keepance/keepance');
-          } else if (actionId === 'reset-feature-tour') {
-            featureTour.restart();
-            setTimeout(() => setTourOpen(true), 300);
-          }
-        }}
-        onRestartOnboarding={() => {
-          setShowFirstRun(true);
-        }}
+        onAction={handleSettingsAction}
+        onRestartOnboarding={handleSettingsRestartOnboarding}
       />
 
       {/* Keepance 3.0: rebuilt first-run wizard — the live first-run surface.

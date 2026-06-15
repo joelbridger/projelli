@@ -10,6 +10,7 @@ import { isReimaginedShell } from '@/lib/reimaginedShell';
 
 export interface AppShellNavProps extends Omit<SidebarProps, 'activeTab' | 'onTabChange'> {
   emailContent?: React.ReactNode | undefined;
+  settingsContent?: React.ReactNode | undefined;
   activeTab?: string | undefined;
   onTabChange?: ((tab: string) => void) | undefined;
 }
@@ -30,6 +31,7 @@ export function AppShellNav(props: AppShellNavProps) {
         trashContent={props.trashContent}
         mattersContent={props.mattersContent}
         emailContent={props.emailContent}
+        settingsContent={props.settingsContent}
       />
     );
   }
