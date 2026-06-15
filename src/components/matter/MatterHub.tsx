@@ -8,12 +8,19 @@
  * Light theme only. Inline styles + CSS vars.
  */
 
-import { useState } from 'react';
-import { Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLeft } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Lock, ChevronRight, Sparkles, FileText, Mail, GitBranch, Clock, ArrowLeft, RefreshCw, Loader2 } from 'lucide-react';
 import { useMatters, useActiveMatterPrivileged, SAMPLE_MATTER_ID } from '@/stores/matterStore';
 import { useAIChatStore } from '@/stores/aiChatStore';
 import { matterLabel } from '@/modules/memory/matterResolver';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
+import { useMatterAtAGlanceStore } from '@/stores/matterAtAGlanceStore';
+import {
+  generateMatterAtAGlance,
+  hasCloudKeyForGlance,
+} from '@/modules/matter/matterAtAGlance';
+import { isMemoryEnabled } from '@/modules/memory/MemoryService';
+import type { MatterAtAGlanceResult } from '@/modules/matter/matterAtAGlance';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -53,6 +60,13 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
 
   const [askQ, setAskQ] = useState('');
 
+  // ── AI at-a-glance state ───────────────────────────────────────────────
+  const glanceStore = useMatterAtAGlanceStore();
+  type GlanceStatus = 'idle' | 'generating' | 'done' | 'empty' | 'no-key' | 'error';
+  const [glanceStatus, setGlanceStatus] = useState<GlanceStatus>('idle');
+  const [glanceResult, setGlanceResult] = useState<MatterAtAGlanceResult | null>(null);
+  const glanceAbortRef = useRef<AbortController | null>(null);
+
   // Count sessions belonging to this matter (key starts with `ask-${matterId}`)
   const matterSessionPrefix = `ask-${matterId}`;
   const recentQuestions: string[] = Object.entries(sessions)
@@ -64,6 +78,78 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
     })
     .filter(Boolean)
     .slice(0, 3);
+
+  // ── AI at-a-glance: generation + cache wiring ──────────────────────────
+  const runGlanceGeneration = useCallback(async (mid: string, signal: AbortSignal) => {
+    setGlanceStatus('generating');
+    try {
+      const result = await generateMatterAtAGlance(mid, { signal });
+      if (signal.aborted) return;
+      glanceStore.setEntry(mid, result);
+      const isEmpty =
+        result.openIssues.length === 0 &&
+        result.deadlines.length === 0 &&
+        result.nextActions.length === 0;
+      setGlanceResult(result);
+      setGlanceStatus(isEmpty ? 'empty' : 'done');
+    } catch {
+      if (signal.aborted) return;
+      setGlanceStatus('error');
+    }
+  }, [glanceStore]);
+
+  // On mount / matterId change: load from cache or trigger generation.
+  // Guards: sample matter is always skipped; no cloud key = 'no-key'; memory
+  // disabled or no indexed content returns empty (handled inside generator).
+  useEffect(() => {
+    const isSampleMatter = matterId === SAMPLE_MATTER_ID;
+    if (isSampleMatter) return;
+
+    const abort = new AbortController();
+    glanceAbortRef.current = abort;
+
+    (async () => {
+      const hasKey = await hasCloudKeyForGlance();
+      if (abort.signal.aborted) return;
+      if (!hasKey || !isMemoryEnabled()) {
+        setGlanceStatus('no-key');
+        return;
+      }
+
+      // Try cache first.
+      const cached = glanceStore.getEntry(matterId);
+      if (cached) {
+        setGlanceResult(cached.result);
+        const isEmpty =
+          cached.result.openIssues.length === 0 &&
+          cached.result.deadlines.length === 0 &&
+          cached.result.nextActions.length === 0;
+        setGlanceStatus(isEmpty ? 'empty' : 'done');
+        return;
+      }
+
+      await runGlanceGeneration(matterId, abort.signal);
+    })().catch(() => {
+      setGlanceStatus('error');
+    });
+
+    return () => {
+      abort.abort();
+    };
+  }, [matterId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleGlanceRefresh = useCallback(() => {
+    glanceAbortRef.current?.abort();
+    glanceStore.invalidate(matterId);
+    setGlanceResult(null);
+    setGlanceStatus('idle');
+
+    const abort = new AbortController();
+    glanceAbortRef.current = abort;
+    runGlanceGeneration(matterId, abort.signal).catch(() => {
+      setGlanceStatus('error');
+    });
+  }, [matterId, glanceStore, runGlanceGeneration]);
 
   const dispatchLaunch = (surface: string) => {
     window.dispatchEvent(
@@ -475,8 +561,8 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                 {/* eslint-enable keepance-i18n/no-hardcoded-string */}
               </div>
             </div>
-          ) : (
-            /* Future: real AI at-a-glance summary */
+          ) : glanceStatus === 'no-key' ? (
+            /* No cloud key: honest counts / recent-activity fallback */
             <div data-testid="hub-real-glance" style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--color-foreground)' }}>
               {(() => {
                 const folderCount = matter.folderPaths.length;
@@ -517,6 +603,187 @@ export function MatterHub({ matterId, onBack }: MatterHubProps) {
                   </div>
                 );
               })()}
+            </div>
+          ) : (
+            /* Real matter + cloud key: AI at-a-glance (loading / done / empty / error) */
+            <div data-testid="hub-ai-glance" style={{ fontSize: 13, lineHeight: 1.6 }}>
+              {/* Header row: "Generated by AI" tag + Refresh button */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 6,
+                }}
+              >
+                <span
+                  data-testid="hub-ai-glance-tag"
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    color: 'var(--kp-navy, #0a2540)',
+                    background: 'rgba(10,37,64,0.07)',
+                    border: '1px solid rgba(10,37,64,0.15)',
+                    borderRadius: 4,
+                    padding: '1px 6px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 3,
+                  }}
+                >
+                  <Sparkles style={{ width: 9, height: 9, strokeWidth: 2 }} />
+                  { }
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  Generated by AI
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </span>
+                {(glanceStatus === 'done' || glanceStatus === 'empty' || glanceStatus === 'error') && (
+                  <button
+                    type="button"
+                    data-testid="hub-ai-glance-refresh"
+                    onClick={handleGlanceRefresh}
+                    title="Refresh summary"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--color-muted-foreground)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 3,
+                      fontSize: 11,
+                      padding: '2px 4px',
+                      borderRadius: 4,
+                      fontFamily: 'Satoshi, sans-serif',
+                    }}
+                  >
+                    <RefreshCw style={{ width: 11, height: 11, strokeWidth: 2 }} />
+                    { }
+                    Refresh
+                  </button>
+                )}
+              </div>
+
+              {/* Content by status */}
+              {(glanceStatus === 'idle' || glanceStatus === 'generating') && (
+                <div
+                  data-testid="hub-ai-glance-loading"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    color: 'var(--color-muted-foreground)',
+                    fontSize: 12,
+                  }}
+                >
+                  <Loader2
+                    style={{
+                      width: 13,
+                      height: 13,
+                      strokeWidth: 2,
+                      animation: 'spin 1s linear infinite',
+                    }}
+                  />
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  Analyzing your documents...
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </div>
+              )}
+
+              {glanceStatus === 'done' && glanceResult !== null && (
+                <div
+                  data-testid="hub-ai-glance-result"
+                  style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+                >
+                  {glanceResult.openIssues.length > 0 && (
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: '0.05em',
+                          textTransform: 'uppercase',
+                          color: 'var(--color-muted-foreground)',
+                          marginBottom: 2,
+                        }}
+                      >
+                        Open Issues
+                      </div>
+                      {glanceResult.openIssues.map((issue, i) => (
+                        <div key={i} style={{ fontSize: 12, color: 'var(--color-foreground)', lineHeight: 1.5 }}>
+                          {issue}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {glanceResult.deadlines.length > 0 && (
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: '0.05em',
+                          textTransform: 'uppercase',
+                          color: 'var(--color-muted-foreground)',
+                          marginBottom: 2,
+                        }}
+                      >
+                        Key Dates
+                      </div>
+                      {glanceResult.deadlines.map((d, i) => (
+                        <div key={i} style={{ fontSize: 12, color: 'var(--color-foreground)', lineHeight: 1.5 }}>
+                          {d}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {glanceResult.nextActions.length > 0 && (
+                    <div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          letterSpacing: '0.05em',
+                          textTransform: 'uppercase',
+                          color: 'var(--color-muted-foreground)',
+                          marginBottom: 2,
+                        }}
+                      >
+                        Next Actions
+                      </div>
+                      {glanceResult.nextActions.map((a, i) => (
+                        <div key={i} style={{ fontSize: 12, color: 'var(--color-foreground)', lineHeight: 1.5 }}>
+                          {a}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {glanceStatus === 'empty' && (
+                <div
+                  data-testid="hub-ai-glance-empty"
+                  style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}
+                >
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  Nothing notable yet. Add documents or ask a question.
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </div>
+              )}
+
+              {glanceStatus === 'error' && (
+                <div
+                  data-testid="hub-ai-glance-error"
+                  style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}
+                >
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  Could not generate a summary. Try refreshing.
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </div>
+              )}
             </div>
           )}
         </div>
