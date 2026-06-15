@@ -166,6 +166,10 @@ function App() {
   const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE && !IS_DEMO_MODE);
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
+  // Shared contract — "Ask from the matter hub prefills Search".
+  // MatterHub dispatches a keepance:matter-launch event with surface='search'
+  // and a question string; App sets this state; ReimaginedAsk consumes it.
+  const [askPrefill, setAskPrefill] = useState<{ question: string; autoSubmit?: boolean } | null>(null);
   const [showShortcutsOverlay, setShowShortcutsOverlay] = useState(false);
   const [showQuickOpen, setShowQuickOpen] = useState(false);
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
@@ -1121,6 +1125,7 @@ function App() {
         }
       } catch (error) {
         console.error('Failed to open file:', error);
+        window.alert("I couldn't open that file. It may have been moved, or it's too large to preview.");
       }
     },
     [openFile, openTab]
@@ -1234,6 +1239,7 @@ function App() {
         undoStackRef.current.push('delete');
       } catch (error) {
         console.error('Failed to delete:', error);
+        window.alert("I couldn't move that to Trash. Check that your workspace has space, then try again.");
       }
     },
     [setFileTree, rootPath, closeTabsByPath, trashItems, saveTrashMetadata, setTrashStats, setTrashItems, confirm, undoToast, handleRestoreFromTrash, contentIndex]
@@ -1662,7 +1668,7 @@ function App() {
     const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'workflows', 'audit'] as const);
     type AllowedSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit';
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ matterId?: string; surface?: string } | null>).detail;
+      const detail = (e as CustomEvent<{ matterId?: string; surface?: string; question?: string } | null>).detail;
       if (!detail?.matterId) return;
       const surface = ALLOWED_SURFACES.has(detail.surface as AllowedSurface)
         ? (detail.surface as AllowedSurface)
@@ -1671,6 +1677,11 @@ function App() {
       // Launching a matter into Documents lands on its file browser, not an editor.
       if (surface === 'files') setDocumentsView('browser');
       setSidebarActiveTab(surface);
+      // Prefill ReimaginedAsk when the caller includes a question and the
+      // destination surface is Search (Ask).
+      if (surface === 'search' && detail.question) {
+        setAskPrefill({ question: detail.question, autoSubmit: true });
+      }
     };
     window.addEventListener('keepance:matter-launch', handler);
     return () => { window.removeEventListener('keepance:matter-launch', handler); };
@@ -1752,6 +1763,7 @@ function App() {
         await handleFileOpen(filePath, name);
       } catch (error) {
         console.error('Failed to create file:', error);
+        window.alert("I couldn't create that. Try a different name.");
       }
     },
     [setFileTree, handleFileOpen, prompt]
@@ -1781,6 +1793,7 @@ function App() {
         setExpandedPaths(newExpanded);
       } catch (error) {
         console.error('Failed to create folder:', error);
+        window.alert("I couldn't create that. Try a different name.");
       }
     },
     [setFileTree, prompt]
@@ -1812,6 +1825,7 @@ function App() {
         undoStackRef.current.push('rename');
       } catch (error) {
         console.error('Failed to rename:', error);
+        window.alert("I couldn't rename that file. Make sure it isn't open in another app, then try again.");
       }
     },
     [setFileTree, prompt]
@@ -1854,6 +1868,7 @@ function App() {
         undoStackRef.current.push('rename');
       } catch (error) {
         console.error('Failed to rename:', error);
+        window.alert("I couldn't rename that file. Make sure it isn't open in another app, then try again.");
       }
     },
     [setFileTree, openTabs, closeTab, handleFileOpen]
@@ -1922,6 +1937,7 @@ function App() {
         setFileTree(fileTree);
       } catch (error) {
         console.error('Failed to move:', error);
+        window.alert("I couldn't move that. Try again.");
       }
     },
     [setFileTree]
@@ -3549,11 +3565,53 @@ This file contains rules and guidelines for AI assistants in this workspace.
         }
         return;
       }
+
+      // New Document: Ctrl+N (advertised in the command palette — wired here)
+      // Skip when focus is inside a text input so browser autocomplete works.
+      if (isMod && !e.shiftKey && e.key === 'n') {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName?.toLowerCase();
+        const editable = target?.isContentEditable;
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || editable) {
+          return;
+        }
+        e.preventDefault();
+        void handleCreateDefaultDocument();
+        return;
+      }
+
+      // Spine tab jump: Ctrl+1..7
+      // 1=matters, 2=search, 3=files, 4=email, 5=workflows, 6=audit, 7=settings
+      if (isMod && !e.shiftKey && e.key >= '1' && e.key <= '7') {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName?.toLowerCase();
+        const editable = target?.isContentEditable;
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || editable) {
+          return;
+        }
+        e.preventDefault();
+        const spineTabMap: Record<string, typeof sidebarActiveTab> = {
+          '1': 'matters',
+          '2': 'search',
+          '3': 'files',
+          '4': 'email',
+          '5': 'workflows',
+          '6': 'audit',
+          '7': 'settings',
+        };
+        const nextTab = spineTabMap[e.key];
+        if (nextTab) {
+          // Mirror the files special-case: landing on files tab shows the browser
+          if (nextTab === 'files') setDocumentsView('browser');
+          setSidebarActiveTab(nextTab);
+        }
+        return;
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, setFileTree, handleFileOpen, handleRestoreFromTrash, openAIAssistantTab, sidebarActiveTab]);
+  }, [openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, toggleBacklinks, isSplit, splitPane, closeSplit, setFileTree, handleFileOpen, handleRestoreFromTrash, openAIAssistantTab, sidebarActiveTab, handleCreateDefaultDocument, setDocumentsView]);
 
   // Show workspace selector if no workspace is open (unless in test mode).
   // Keepance 3.0: the rebuilt first-run wizard is the live first-run surface.
@@ -3657,6 +3715,13 @@ This file contains rules and guidelines for AI assistants in this workspace.
 
   return (
     <div className="h-screen flex flex-col bg-background text-foreground" data-testid="app-container">
+      {/* Accessibility: skip link so keyboard users can bypass the nav */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-3 focus:py-2 focus:rounded focus:bg-background focus:text-foreground focus:shadow-md focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        Skip to main content
+      </a>
       {/* Header bar with project switcher */}
       <header className="flex items-center justify-between h-10 px-2 border-b bg-muted/30 shrink-0" data-testid="app-header">
         <div className="flex items-center gap-2">
@@ -3758,7 +3823,7 @@ This file contains rules and guidelines for AI assistants in this workspace.
       {isReimaginedShell() && <ReimaginedTrustBar />}
 
       {/* Main content area */}
-      <div className="flex-1 flex overflow-hidden">
+      <div id="main-content" className="flex-1 flex overflow-hidden">
         {/* Sidebar with file tree, workflows, research, and settings */}
         <AppShellNav
           activeTab={sidebarActiveTab}
@@ -3906,6 +3971,8 @@ This file contains rules and guidelines for AI assistants in this workspace.
               setFileTree(tree);
               await handleFileOpen(path, finalName);
             }}
+            prefillRequest={askPrefill}
+            onPrefillConsumed={() => setAskPrefill(null)}
           />
         ) : isReimaginedShell() && sidebarActiveTab === 'email' ? (
           <ReimaginedEmailWorkspace

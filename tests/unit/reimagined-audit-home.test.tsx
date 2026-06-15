@@ -141,12 +141,37 @@ describe('ReimaginedAuditHome', () => {
     expect(screen.queryByTestId('audit-table-row')).not.toBeInTheDocument();
   });
 
-  it('shows empty state when search matches nothing', () => {
+  it('shows no-match state (not the empty state) when search matches nothing', () => {
     render(<ReimaginedAuditHome entries={SAMPLE} />);
     fireEvent.change(screen.getByTestId('audit-home-search'), {
       target: { value: 'zzznomatch' },
     });
+    // Filtered-empty: show no-match state, NOT the truly-empty state
+    expect(screen.getByTestId('audit-no-match-state')).toBeInTheDocument();
+    expect(screen.getByText('No activity matches your filters.')).toBeInTheDocument();
+    expect(screen.queryByTestId('audit-empty-state')).not.toBeInTheDocument();
+    // The "Clear filters" button should be present and clicking it restores all rows
+    const clearBtn = screen.getByTestId('audit-no-match-clear');
+    expect(clearBtn).toBeInTheDocument();
+    fireEvent.click(clearBtn);
+    expect(screen.getAllByTestId('audit-table-row')).toHaveLength(3);
+  });
+
+  it('truly-empty state (no entries at all) differs from filtered-empty state', () => {
+    // Truly empty: no entries in the log
+    const { unmount } = render(<ReimaginedAuditHome entries={[]} />);
     expect(screen.getByTestId('audit-empty-state')).toBeInTheDocument();
+    expect(screen.getByText('No activity logged yet')).toBeInTheDocument();
+    expect(screen.queryByTestId('audit-no-match-state')).not.toBeInTheDocument();
+    unmount();
+
+    // Filtered empty: entries exist but filter excludes all
+    render(<ReimaginedAuditHome entries={SAMPLE} />);
+    fireEvent.change(screen.getByTestId('audit-home-search'), {
+      target: { value: 'zzznomatch' },
+    });
+    expect(screen.getByTestId('audit-no-match-state')).toBeInTheDocument();
+    expect(screen.queryByTestId('audit-empty-state')).not.toBeInTheDocument();
   });
 
   it('detail panel opens on row click and shows entry info', () => {

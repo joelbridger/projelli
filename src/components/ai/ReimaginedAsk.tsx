@@ -51,6 +51,8 @@ import { cn } from '@/lib/utils';
 import { useAIChatStore } from '@/stores/aiChatStore';
 import type { ChatMessage } from '@/types/ai';
 import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
+import { EgressIndicator } from '@/components/privacy/EgressIndicator';
+import { getConfidentialityMode } from '@/hooks/useConfidentialityMode';
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
@@ -138,6 +140,40 @@ async function buildProviderAsync(): Promise<Provider> {
   }
   return new OllamaProvider({});
 }
+
+/**
+ * Maps raw provider error messages to plain-language user-facing text.
+ * Fix #4: prevents leaking "401 Unauthorized" / quota strings into the UI.
+ */
+/* eslint-disable keepance-i18n/no-hardcoded-string */
+function friendlyErrorMessage(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes('401') ||
+    lower.includes('unauthorized') ||
+    lower.includes('invalid_api_key') ||
+    lower.includes('authentication')
+  ) {
+    return 'Your AI key was rejected. Check it in Settings.';
+  }
+  if (
+    lower.includes('429') ||
+    lower.includes('quota') ||
+    lower.includes('rate') ||
+    lower.includes('overloaded')
+  ) {
+    return 'Your AI provider is over its usage limit right now. Wait a moment and try again.';
+  }
+  if (
+    lower.includes('context_length') ||
+    lower.includes('too large') ||
+    lower.includes('maximum context')
+  ) {
+    return 'That question is too long for this model. Try a shorter one.';
+  }
+  return "I couldn't reach your AI provider. Try again, or check your key in Settings.";
+}
+/* eslint-enable keepance-i18n/no-hardcoded-string */
 
 /** Build conversation history block for system prompt (last N turns). */
 function buildHistoryBlock(turns: AskTurn[], maxTurns = 6): string {
@@ -636,7 +672,17 @@ function SampleBridgeCallout() {
 /* Main component                                                               */
 /* -------------------------------------------------------------------------- */
 
-export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (content: string) => Promise<void> }) {
+export function ReimaginedAsk({
+  onSaveToDocument,
+  prefillRequest,
+  onPrefillConsumed,
+}: {
+  onSaveToDocument?: (content: string) => Promise<void>;
+  /** When non-null, prefills the composer with the given question and optionally auto-submits. */
+  prefillRequest?: { question: string; autoSubmit?: boolean } | null;
+  /** Called after a prefill has been consumed so the parent can clear it. */
+  onPrefillConsumed?: () => void;
+}) {
   const activeMatter = useActiveMatter();
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const profession = useProfessionStore((s) => s.profession);
@@ -677,13 +723,30 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
 
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const composerInputRef = useRef<HTMLInputElement>(null);
+  // Fix #7: track composer focus state for visible focus ring
+  const [composerFocused, setComposerFocused] = useState(false);
+  // Fix #8: track the active provider name for EgressIndicator
+  const [activeProvider, setActiveProvider] = useState<string>('anthropic');
 
   // Recent sessions: sessions keyed "ask-*"
   const recentSessions = Object.entries(sessions)
     .filter(([key, session]) => key.startsWith('ask-') && session.messages.some((m) => m.role === 'user'))
     .map(([key, session]) => {
       const firstUserMsg = session.messages.find((m) => m.role === 'user');
-      return { chatId: key, label: firstUserMsg?.content ?? key };
+      // Fix #6: include a readable timestamp for the sub-label so chips are distinguishable.
+      const ts = firstUserMsg?.timestamp;
+      const dateLabel = ts
+        ? (() => {
+            try {
+              const d = new Date(ts);
+              return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+            } catch {
+              return '';
+            }
+          })()
+        : '';
+      return { chatId: key, label: firstUserMsg?.content ?? key, dateLabel };
     })
     .slice(0, 5);
 
@@ -700,7 +763,19 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
         )
         .map(([key, session]) => {
           const firstUserMsg = session.messages.find((m) => m.role === 'user');
-          return { chatId: key, label: firstUserMsg?.content ?? key };
+          // Fix #6: include timestamp so chips with similar starts are distinguishable.
+          const ts = firstUserMsg?.timestamp;
+          const dateLabel = ts
+            ? (() => {
+                try {
+                  const d = new Date(ts);
+                  return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+                } catch {
+                  return '';
+                }
+              })()
+            : '';
+          return { chatId: key, label: firstUserMsg?.content ?? key, dateLabel };
         })
         .slice(0, 5)
     : [];
@@ -744,6 +819,45 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
       setSelected(1);
     }
   }, [turns.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fix #1: prefill + optional auto-submit from the matter hub or other callers.
+  useEffect(() => {
+    if (!prefillRequest) return;
+    setQuestion(prefillRequest.question);
+    composerInputRef.current?.focus();
+    if (prefillRequest.autoSubmit) {
+      void handleAsk(prefillRequest.question);
+    }
+    onPrefillConsumed?.();
+  }, [prefillRequest]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fix #2: pressing '/' while not typing in an input focuses the composer.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== '/') return;
+      const target = e.target as HTMLElement;
+      const tag = target.tagName.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || target.isContentEditable) return;
+      e.preventDefault();
+      composerInputRef.current?.focus();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => { window.removeEventListener('keydown', onKeyDown); };
+  }, []);
+
+  // Fix #8: resolve the active provider name for the EgressIndicator.
+  useEffect(() => {
+    void (async () => {
+      const kc = new KeychainService('localStorage');
+      const ak = await kc.getKey('anthropic');
+      if (ak?.trim()) { setActiveProvider('anthropic'); return; }
+      const ok = await kc.getKey('openai');
+      if (ok?.trim()) { setActiveProvider('openai'); return; }
+      const gk = await kc.getKey('google');
+      if (gk?.trim()) { setActiveProvider('google'); return; }
+      setActiveProvider('ollama');
+    })();
+  }, []);
 
   // Derived: currently selected citation
   const selectedCite = (() => {
@@ -1011,8 +1125,9 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
       setStatus('done');
     } catch (err) {
       if (abort.signal.aborted) return;
-      const msg = err instanceof Error ? err.message : 'Something went wrong. Try again.';
-      setErrorMsg(msg);
+      const raw = err instanceof Error ? err.message : '';
+      // Fix #4: map raw provider error strings to plain-language user copy.
+      setErrorMsg(friendlyErrorMessage(raw));
       setStreamingTurn(null);
       setStatus('error');
     }
@@ -1113,7 +1228,8 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
             borderBottom: '1px solid var(--color-border)',
           }}
         >
-          {recentSessions.map(({ chatId: sid, label }) => (
+          {/* Fix #6: chips now show a date/time sub-label so similar-start sessions are distinguishable. */}
+          {recentSessions.map(({ chatId: sid, label, dateLabel }) => (
             <button
               key={sid}
               type="button"
@@ -1130,16 +1246,20 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
                 fontSize: 11.5,
                 fontWeight: 500,
                 cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                maxWidth: 180,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
                 flexShrink: 0,
+                maxWidth: 260,
               }}
             >
               <MessageSquare size={11} strokeWidth={1.75} style={{ flex: 'none' }} />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {label.length > 40 ? `${label.slice(0, 40)}…` : label}
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', minWidth: 0 }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
+                  {label.length > 48 ? `${label.slice(0, 48)}…` : label}
+                </span>
+                {dateLabel && (
+                  <span style={{ fontSize: 10, opacity: 0.65, whiteSpace: 'nowrap' }}>
+                    {dateLabel}
+                  </span>
+                )}
               </span>
             </button>
           ))}
@@ -1258,7 +1378,8 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
                     Recent in this matter
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    {matterRecentSessions.map(({ chatId: sid, label }) => (
+                    {/* Fix #6: each item shows the date/time sub-label so similar-start sessions are distinguishable. */}
+                    {matterRecentSessions.map(({ chatId: sid, label, dateLabel }) => (
                       <button
                         key={sid}
                         type="button"
@@ -1284,8 +1405,15 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
                         onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--color-background)'; }}
                       >
                         <MessageSquare size={13} strokeWidth={1.75} style={{ color: 'var(--kp-navy)', flex: 'none', opacity: 0.55 }} />
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                          {label.length > 60 ? `${label.slice(0, 60)}…` : label}
+                        <span style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {label.length > 60 ? `${label.slice(0, 60)}…` : label}
+                          </span>
+                          {dateLabel && (
+                            <span style={{ fontSize: 11, color: 'var(--color-muted-foreground)', marginTop: 1 }}>
+                              {dateLabel}
+                            </span>
+                          )}
                         </span>
                       </button>
                     ))}
@@ -1300,6 +1428,8 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
             </div>
           )}
 
+          {/* Fix #7: wrap conversation in aria-live region so screen readers announce completed answers. */}
+          <div aria-live="polite" aria-atomic="false">
           {/* Completed turns */}
           {turns.map((turn, idx) => (
             <TurnBlock
@@ -1330,6 +1460,7 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
               isStreaming
             />
           )}
+          </div>
 
           {/* B2: bridge callout below demo answers (sample matter with turns) */}
           {activeMatter?.id === SAMPLE_MATTER_ID && turns.length > 0 && !streamingTurn && (
@@ -1374,27 +1505,52 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
         )}
       </div>
 
-      {/* Memory-off warning */}
+      {/* Memory-off warning — Fix #5: now actionable with "Enable indexing" button. */}
       {!isMemoryEnabled() && turns.length === 0 && !streamingTurn && (
         <div
           style={{
             display: 'flex',
             gap: 8,
-            alignItems: 'flex-start',
+            alignItems: 'center',
             padding: '9px 18px',
             fontSize: 12.5,
             color: 'var(--kp-direct)',
             background: 'var(--kp-direct-bg)',
             borderTop: '1px solid var(--kp-direct-line)',
             flexShrink: 0,
+            flexWrap: 'wrap',
           }}
         >
-          <AlertTriangle size={15} strokeWidth={2} style={{ marginTop: 1, flex: 'none' }} />
-          <span>
+          <AlertTriangle size={15} strokeWidth={2} style={{ flex: 'none' }} />
+          <span style={{ flex: 1, minWidth: 0 }}>
             {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-            Document indexing is off. Enable it in Settings to get cited answers from your files.
+            Cited answers need your documents indexed on your machine. Enable it in Settings.
             {/* eslint-enable keepance-i18n/no-hardcoded-string */}
           </span>
+          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+          <button
+            type="button"
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('keepance:open-settings', { detail: { category: 'ai' } }));
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '4px 11px',
+              borderRadius: 6,
+              border: '1px solid var(--kp-direct-line)',
+              background: 'var(--color-background)',
+              color: 'var(--kp-direct)',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            Enable indexing
+          </button>
+          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
         </div>
       )}
 
@@ -1406,13 +1562,21 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
           flexShrink: 0,
         }}
       >
+        {/* Fix #8: EgressIndicator above composer — shows where the AI request goes. */}
+        <EgressIndicator
+          provider={activeProvider}
+          mode={getConfidentialityMode()}
+          variant="full"
+          className="mb-2"
+        />
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: 10,
             padding: '4px 6px 4px 13px',
-            border: '1.5px solid var(--color-border)',
+            /* Fix #7: visible focus ring on the wrapper when the input is focused. */
+            border: composerFocused ? '1.5px solid var(--kp-navy)' : '1.5px solid var(--color-border)',
             borderRadius: 9,
             background: 'var(--color-background)',
             boxShadow: '0 1px 4px 0 rgba(10,37,64,0.06)',
@@ -1424,10 +1588,14 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
             strokeWidth={1.75}
             style={{ color: 'var(--kp-navy)', flex: 'none' }}
           />
+          {/* Fix #7: outline:none is safe because the wrapper border provides the focus indicator. */}
           <input
+            ref={composerInputRef}
             value={question}
             onChange={(e) => { setQuestion(e.target.value); }}
             onKeyDown={handleKeyDown}
+            onFocus={() => { setComposerFocused(true); }}
+            onBlur={() => { setComposerFocused(false); }}
             placeholder={
               askScope === 'email'
                 ? 'Ask anything about your imported email…'
@@ -1451,6 +1619,33 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
               minWidth: 0,
             }}
           />
+          {/* Fix #3: "New search" always reachable inline in composer when turns exist. */}
+          {turns.length > 0 && (
+            <button
+              type="button"
+              onClick={handleNewAsk}
+              title="Start a new search"
+              style={{
+                flex: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '5px 9px',
+                borderRadius: 6,
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-background)',
+                color: 'var(--kp-navy)',
+                fontSize: 11.5,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+              <Plus size={12} strokeWidth={2} />
+              New search
+              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => void handleAsk()}
@@ -1472,12 +1667,20 @@ export function ReimaginedAsk({ onSaveToDocument }: { onSaveToDocument?: (conten
               transition: 'opacity 0.15s',
             }}
           >
+            {/* Fix #7: aria-hidden on decorative spinner; role/aria-label on status text for screen readers. */}
             {isBusy ? (
-              <Loader2 size={14} strokeWidth={2} className="animate-spin" />
+              <Loader2 size={14} strokeWidth={2} className="animate-spin" aria-hidden="true" />
             ) : (
-              <ArrowRight size={14} strokeWidth={2} />
+              <ArrowRight size={14} strokeWidth={2} aria-hidden="true" />
             )}
-            {status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : 'Search'}
+            <span
+              role={isBusy ? 'status' : undefined}
+              aria-label={status === 'retrieving' ? 'Searching your documents' : status === 'answering' ? 'Answering' : undefined}
+            >
+              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+              {status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : 'Search'}
+              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+            </span>
           </button>
         </div>
       </div>
