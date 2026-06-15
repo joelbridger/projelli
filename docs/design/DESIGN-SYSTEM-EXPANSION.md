@@ -2,6 +2,14 @@
 
 > Where the design system stands today, what a complete one needs, and a prioritized plan to get there. Written after rolling out the spacing system, in response to "how do we expand and improve this further (shadows, font sizes, etc.)."
 
+## ✅ Implementation status (2026-06-15)
+**The full token system is now defined in `globals.css` and the visible foundations are applied across every surface:**
+- **Typography scale** (`--kp-font-*`, `--kp-weight-*`, `--kp-leading-*`) — defined + applied (all ad-hoc font sizes migrated).
+- **Elevation** (`--kp-shadow-1/2/3`) — defined + applied (floating cards/popovers/modals; dense tables stay flat).
+- **Sizing** (`--kp-icon-*`, `--kp-control-*`) + **radius** usage — defined + applied.
+- **Motion** (`--kp-duration-*`, `--kp-ease-*`), **z-index** (`--kp-z-*`), **focus ring** (`--kp-focus-ring`), **border width**, **opacity** — defined and available; broad application is the ongoing polish tail (adopt as components are touched).
+- **Responsive width:** every full-page surface now fills the available width (`flex: 1` on each root) instead of stopping short.
+
 ## The mental model (from the research)
 
 A mature design system is a set of **design tokens** organized in layers:
