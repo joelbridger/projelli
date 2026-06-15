@@ -85,6 +85,7 @@ function advanceToAiSetup() {
   fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
   fireEvent.click(screen.getByTestId('profession-card-legal'));
   fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+  fireEvent.click(screen.getByTestId('onboarding-identity-next'));
   fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
   fireEvent.click(screen.getByTestId('onboarding-data-continue'));
 }

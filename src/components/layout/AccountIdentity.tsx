@@ -22,14 +22,16 @@ interface AccountIdentityProps {
  * window. Replaces the old "Collapse" affordance at the bottom of the rail.
  */
 export function AccountIdentity({ collapsed = false, onOpen }: AccountIdentityProps) {
-  const { isSignedIn } = useFirm();
+  const { isSignedIn, org } = useFirm();
   const isFirm = isSignedIn;
   const soloName = useProfileStore((s) => s.soloName);
   const soloAvatar = useProfileStore((s) => s.soloAvatar);
   const firmName = useProfileStore((s) => s.firmName);
   const firmLogo = useProfileStore((s) => s.firmLogo);
 
-  const name = isFirm ? firmName || 'Your firm' : soloName || 'Your account';
+  // A firm's name comes from its subscription (org.name); the stored firmName is
+  // an optional display override.
+  const name = isFirm ? firmName || org?.name || 'Your firm' : soloName || 'Your account';
   const image = isFirm ? firmLogo : soloAvatar;
   const sublabel = isFirm ? 'Firm account' : 'Solo account';
   const PlaceholderIcon = isFirm ? Building2 : User;

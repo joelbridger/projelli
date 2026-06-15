@@ -1,6 +1,6 @@
 /* eslint-disable keepance-i18n/no-hardcoded-string */
-import { useRef } from 'react';
-import { Upload, User, Building2, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Upload, User, Building2, X, ChevronDown } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -28,11 +28,72 @@ interface AccountWindowProps {
   auditEntries?: AuditEntry[];
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * A collapsible account section. The window holds a lot (license, firm, usage,
+ * every connection), so sections collapse to one-open-at-a-time and the body
+ * is hidden (not unmounted) so each section keeps its state while closed.
+ */
+function CollapsibleSection({
+  id,
+  label,
+  open,
+  onToggle,
+  children,
+}: {
+  id: string;
+  label: string;
+  open: boolean;
+  onToggle: (id: string) => void;
+  children: React.ReactNode;
+}) {
   return (
-    <section style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
-      <Eyebrow>{label}</Eyebrow>
-      {children}
+    <section
+      data-testid={`account-section-${id}`}
+      style={{ borderBottom: '1px solid var(--color-border)' }}
+    >
+      <button
+        type="button"
+        onClick={() => { onToggle(id); }}
+        aria-expanded={open}
+        aria-controls={`account-section-body-${id}`}
+        data-testid={`account-section-toggle-${id}`}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 'var(--kp-space-sm)',
+          padding: 'var(--kp-space-md) 0',
+          border: 0,
+          background: 'transparent',
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <Eyebrow>{label}</Eyebrow>
+        <ChevronDown
+          size={16}
+          strokeWidth={2}
+          style={{
+            flex: 'none',
+            color: 'var(--color-muted-foreground)',
+            transition: 'transform var(--kp-duration-fast) var(--kp-ease-standard)',
+            transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+          }}
+        />
+      </button>
+      <div
+        id={`account-section-body-${id}`}
+        hidden={!open}
+        style={{
+          display: open ? 'flex' : 'none',
+          flexDirection: 'column',
+          gap: 'var(--kp-space-md)',
+          paddingBottom: 'var(--kp-space-lg)',
+        }}
+      >
+        {children}
+      </div>
     </section>
   );
 }
@@ -44,15 +105,21 @@ function Section({ label, children }: { label: string; children: React.ReactNode
  * Connections). The Account tab was removed from Settings in favor of this.
  */
 export function AccountWindow({ open, onOpenChange, auditEntries }: AccountWindowProps) {
-  const { isSignedIn } = useFirm();
+  const { isSignedIn, org } = useFirm();
   const isFirm = isSignedIn;
   const profile = useProfileStore();
   const fileRef = useRef<HTMLInputElement>(null);
+  // One section open at a time; License is the most useful, so open it first.
+  const [openId, setOpenId] = useState<string>('account');
+  const toggle = (id: string) => { setOpenId((prev) => (prev === id ? '' : id)); };
 
   const name = isFirm ? profile.firmName : profile.soloName;
   const image = isFirm ? profile.firmLogo : profile.soloAvatar;
   const setName = isFirm ? profile.setFirmName : profile.setSoloName;
   const setImage = isFirm ? profile.setFirmLogo : profile.setSoloAvatar;
+  // A firm's name flows from its subscription (org.name); the typed value is an
+  // optional display override. Solo users just type their name.
+  const namePlaceholder = isFirm ? (org?.name || 'Firm name') : 'Your name';
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -111,7 +178,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries }: AccountWindo
             <input
               value={name}
               onChange={(e) => { setName(e.target.value); }}
-              placeholder={isFirm ? 'Firm name' : 'Your name'}
+              placeholder={namePlaceholder}
               aria-label={isFirm ? 'Firm name' : 'Your name'}
               data-testid="account-name-input"
               style={{
@@ -149,35 +216,33 @@ export function AccountWindow({ open, onOpenChange, auditEntries }: AccountWindo
           <IconButton icon={X} label="Close" variant="ghost" size="sm" onClick={() => { onOpenChange(false); }} />
         </div>
 
-        {/* Account content (moved out of Settings) */}
+        {/* Account content (moved out of Settings). Collapsible, one open at a
+            time, so the window opens compact instead of one long scroll. */}
         <div
           style={{
             flex: 1,
             minHeight: 0,
             overflowY: 'auto',
-            padding: 'var(--kp-surface-gap) var(--kp-gutter)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--kp-section-gap)',
+            padding: '0 var(--kp-gutter)',
           }}
         >
-          <Section label="Account">
+          <CollapsibleSection id="account" label="Account" open={openId === 'account'} onToggle={toggle}>
             <LicenseSettings />
-          </Section>
-          <Section label="Firm">
+          </CollapsibleSection>
+          <CollapsibleSection id="firm" label="Firm" open={openId === 'firm'} onToggle={toggle}>
             <FirmSignIn />
             <FirmAdminConsole />
-          </Section>
-          <Section label="Usage">
+          </CollapsibleSection>
+          <CollapsibleSection id="usage" label="Usage" open={openId === 'usage'} onToggle={toggle}>
             <CostMetrics entries={auditEntries ?? []} />
-          </Section>
-          <Section label="Connections">
+          </CollapsibleSection>
+          <CollapsibleSection id="connections" label="Connections" open={openId === 'connections'} onToggle={toggle}>
             <MailConnect />
             <MailImapConnect />
             <MailGmailConnect />
             <McpSettingsSection />
             <OllamaSettingsSection />
-          </Section>
+          </CollapsibleSection>
         </div>
       </DialogContent>
     </Dialog>

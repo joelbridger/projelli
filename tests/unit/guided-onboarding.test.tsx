@@ -155,6 +155,26 @@ describe('GuidedOnboarding', () => {
     expect(nextBtn).toHaveTextContent(/continue/i);
   });
 
+  // 2b. Make-it-yours step: name input + photo upload, then advances to workspace
+  it('identity step collects a name and advances to the workspace step', () => {
+    render(<GuidedOnboarding {...defaultProps} />);
+    fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
+    fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+
+    // On the identity step: name field + upload control are present.
+    expect(screen.getByTestId('onboarding-step-identity')).toBeInTheDocument();
+    const nameInput = screen.getByTestId('onboarding-identity-name');
+    expect(screen.getByTestId('onboarding-identity-upload')).toBeInTheDocument();
+
+    // Typing a name persists to the profile store (the rail/account read it).
+    fireEvent.change(nameInput, { target: { value: 'Jane Attorney' } });
+    expect(nameInput).toHaveValue('Jane Attorney');
+
+    // Continue lands on the workspace step.
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
+    expect(screen.getByTestId('onboarding-step-workspace')).toBeInTheDocument();
+  });
+
   // 3. Profession selection — advance through each real step embedding check
   it('AI key step embeds the AiSetupStep stub', async () => {
     render(<GuidedOnboarding {...defaultProps} />);
@@ -162,6 +182,7 @@ describe('GuidedOnboarding', () => {
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     // 1 -> 2 (profession -> workspace)
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     // 2 -> 3 (workspace -> trust)
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     // 3 -> 4 (trust -> AI key)
@@ -175,6 +196,7 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
 
     expect(screen.getByTestId('onboarding-step-trust')).toBeInTheDocument();
@@ -187,6 +209,7 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
     fireEvent.click(screen.getByTestId('stub-skip-ai'));
@@ -201,6 +224,7 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} onSaveKey={onSaveKey} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
 
@@ -220,6 +244,7 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
     fireEvent.click(screen.getByTestId('stub-skip-ai'));
@@ -231,6 +256,7 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
     fireEvent.click(screen.getByTestId('stub-skip-ai'));
@@ -262,6 +288,7 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
     fireEvent.click(screen.getByTestId('stub-skip-ai'));
@@ -269,6 +296,9 @@ describe('GuidedOnboarding', () => {
 
     expect(screen.getByTestId('firm-admin-content')).toBeInTheDocument();
     expect(screen.getByTestId('firm-admin-console-stub')).toBeInTheDocument();
+    // Admins can brand the firm (name + uploadable logo) right here.
+    expect(screen.getByTestId('firm-branding')).toBeInTheDocument();
+    expect(screen.getByTestId('firm-branding-upload')).toBeInTheDocument();
   });
 
   // 7. Firm step — member
@@ -295,6 +325,7 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
     fireEvent.click(screen.getByTestId('stub-skip-ai'));
@@ -328,6 +359,7 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
     fireEvent.click(screen.getByTestId('stub-skip-ai'));
@@ -365,6 +397,7 @@ describe('GuidedOnboarding', () => {
     // trust -> ai-skip -> email-skip -> firm-skip -> done
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
     fireEvent.click(screen.getByTestId('stub-skip-ai'));
@@ -386,6 +419,7 @@ describe('GuidedOnboarding', () => {
   function navigateToDoneStep() {
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
     fireEvent.click(screen.getByTestId('stub-skip-ai'));
@@ -418,6 +452,7 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
     fireEvent.click(screen.getByTestId('stub-skip-ai'));
@@ -431,6 +466,7 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
     fireEvent.click(screen.getByTestId('onboarding-data-continue'));
     fireEvent.click(screen.getByTestId('stub-use-local'));
@@ -445,6 +481,7 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
 
     expect(screen.getByTestId('onboarding-step-trust')).toBeInTheDocument();
@@ -458,6 +495,7 @@ describe('GuidedOnboarding', () => {
     render(<GuidedOnboarding {...defaultProps} />);
     fireEvent.click(screen.getByTestId('onboarding-next-welcome'));
     fireEvent.click(screen.getByTestId('onboarding-next-profession'));
+    fireEvent.click(screen.getByTestId('onboarding-identity-next'));
     fireEvent.click(screen.getByTestId('onboarding-workspace-next'));
 
     expect(screen.queryByTestId('data-map-dialog-stub')).not.toBeInTheDocument();

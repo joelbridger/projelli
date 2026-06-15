@@ -5,22 +5,25 @@
  * same trigger condition and completion semantics; adds the branded
  * OnboardingStepFrame rail, a Firm step, and per-step progress tracking.
  *
- * Steps (index 0-7):
+ * Steps (index 0-8):
  *   0  Welcome         — value prop, no gate
  *   1  Profession      — picker; Next gated on selection
- *   2  Workspace       — explainer; no gate
- *   3  Trust           — DataMapContent accordion; no gate
- *   4  AI key          — AiSetupStep; skip/save/local all advance
- *   5  Connect email   — M365 / Gmail / IMAP tabs; "Connect later" advances
- *   6  Invite firm     — gated by useFirm role; never blocks completion
- *   7  Done            — sample-files toggle; Confirm marks complete
+ *   2  Make it yours   — name + photo (your sidebar identity); no gate
+ *   3  Workspace       — explainer; no gate
+ *   4  Trust           — DataMapContent accordion; no gate
+ *   5  AI key          — AiSetupStep; skip/save/local all advance
+ *   6  Connect email   — M365 / Gmail / IMAP tabs; "Connect later" advances
+ *   7  Invite firm     — gated by useFirm role; firm admins also set name+logo
+ *   8  Done            — sample-files toggle; Confirm marks complete
  */
 
 /* eslint-disable keepance-i18n/no-hardcoded-string */
 
 import { useState, useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { Check } from 'lucide-react';
+import { Check, Upload, User, Building2 } from 'lucide-react';
+import { useProfileStore } from '@/stores/profileStore';
+import { readImageAsDataUrl } from '@/utils/imageUpload';
 
 import { OnboardingStepFrame, type StepInfo } from './OnboardingStepFrame';
 import { markOnboardingComplete, setOnboardingProgressStep } from './onboardingState';
@@ -118,6 +121,7 @@ export interface GuidedOnboardingProps {
 const STEP_LABELS = [
   'Welcome',
   'Your practice',
+  'Make it yours',
   'Your workspace',
   'Where your data goes',
   'Connect AI',
@@ -126,7 +130,7 @@ const STEP_LABELS = [
   'Done',
 ] as const;
 
-type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+type StepIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -168,7 +172,7 @@ export function GuidedOnboarding({
 
   const advance = (from: StepIndex) => {
     markStepDone(from);
-    setActiveIndex((Math.min(from + 1, 7)) as StepIndex);
+    setActiveIndex((Math.min(from + 1, 8)) as StepIndex);
   };
 
   const goBack = (to: StepIndex) => {
@@ -192,13 +196,13 @@ export function GuidedOnboarding({
       if (populateSamples && workspace) {
         await writeSampleFiles(workspace, profession ?? 'other');
       }
-      markStepDone(7);
+      markStepDone(8);
       markOnboardingComplete(profession ?? 'other');
       onComplete({ writeSamples: populateSamples && Boolean(workspace) });
     } catch (err) {
       // Don't block on a failed sample copy — still complete onboarding.
       console.warn('[GuidedOnboarding] sample copy failed:', err instanceof Error ? err.message : String(err));
-      markStepDone(7);
+      markStepDone(8);
       markOnboardingComplete(profession ?? 'other');
       onComplete({ writeSamples: false });
     } finally {
@@ -226,57 +230,63 @@ export function GuidedOnboarding({
         />
       )}
       {activeIndex === 2 && (
-        <WorkspaceStep
+        <IdentityStep
           onBack={() => { goBack(1); }}
           onNext={() => { advance(2); }}
         />
       )}
       {activeIndex === 3 && (
-        <TrustStep
+        <WorkspaceStep
           onBack={() => { goBack(2); }}
           onNext={() => { advance(3); }}
         />
       )}
       {activeIndex === 4 && (
-        <AiKeyStep
-          defaultProvider={defaultProvider}
-          onSaveKey={onSaveKey}
+        <TrustStep
           onBack={() => { goBack(3); }}
-          onAdvance={(connected?: boolean) => {
-            if (connected) setAiConnected(true);
-            setOnboardingProgressStep('ai-key', true);
-            advance(4);
-          }}
+          onNext={() => { advance(4); }}
         />
       )}
       {activeIndex === 5 && (
-        <EmailStep
-          tab={emailTab}
-          onTabChange={setEmailTab}
+        <AiKeyStep
+          defaultProvider={defaultProvider}
+          onSaveKey={onSaveKey}
           onBack={() => { goBack(4); }}
-          onAdvance={(connected) => {
-            if (connected) setOnboardingProgressStep('email', true);
+          onAdvance={(connected?: boolean) => {
+            if (connected) setAiConnected(true);
+            setOnboardingProgressStep('ai-key', true);
             advance(5);
           }}
         />
       )}
       {activeIndex === 6 && (
-        <FirmStep
+        <EmailStep
+          tab={emailTab}
+          onTabChange={setEmailTab}
           onBack={() => { goBack(5); }}
-          onAdvance={() => {
-            setOnboardingProgressStep('firm', true);
+          onAdvance={(connected) => {
+            if (connected) setOnboardingProgressStep('email', true);
             advance(6);
           }}
         />
       )}
       {activeIndex === 7 && (
+        <FirmStep
+          onBack={() => { goBack(6); }}
+          onAdvance={() => {
+            setOnboardingProgressStep('firm', true);
+            advance(7);
+          }}
+        />
+      )}
+      {activeIndex === 8 && (
         <DoneStep
           profession={profession}
           populateSamples={populateSamples}
           onToggleSamples={setPopulateSamples}
           isFinishing={isFinishing}
           aiConnected={aiConnected}
-          onBack={() => { goBack(6); }}
+          onBack={() => { goBack(7); }}
           onConfirm={() => { void handleDone(); }}
         />
       )}
@@ -382,7 +392,83 @@ function ProfessionStep({ profession, onSelect, onBack, onNext }: ProfessionStep
 }
 
 // ---------------------------------------------------------------------------
-// Step 2 — Workspace explainer
+// Step 2 — Make it yours (name + photo)
+// ---------------------------------------------------------------------------
+
+function IdentityStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+  const soloName = useProfileStore((s) => s.soloName);
+  const soloAvatar = useProfileStore((s) => s.soloAvatar);
+  const setSoloName = useProfileStore((s) => s.setSoloName);
+  const setSoloAvatar = useProfileStore((s) => s.setSoloAvatar);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      setSoloAvatar(await readImageAsDataUrl(file));
+    } catch {
+      // ignore unreadable images
+    }
+  };
+
+  return (
+    <div data-testid="onboarding-step-identity">
+      <Heading
+        title="Make it yours"
+        subtitle="Add your name and a photo. They show in your sidebar, and you can change them any time."
+      />
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 28 }}>
+        <span style={{
+          width: 64, height: 64, borderRadius: '50%', overflow: 'hidden', flex: 'none',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          background: 'hsl(210 40% 96.1%)', border: '1.5px solid hsl(214.3 31.8% 80%)',
+        }}>
+          {soloAvatar
+            ? <img src={soloAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <User size={28} strokeWidth={1.75} color="hsl(215.4 16.3% 50%)" />}
+        </span>
+        <div style={{ flex: 1 }}>
+          <input
+            value={soloName}
+            onChange={(e) => { setSoloName(e.target.value); }}
+            placeholder="Your name"
+            aria-label="Your name"
+            data-testid="onboarding-identity-name"
+            style={{
+              width: '100%', maxWidth: 340, border: '1.5px solid hsl(214.3 31.8% 70%)',
+              borderRadius: 8, padding: '9px 12px', fontSize: 15, fontWeight: 600,
+              color: 'var(--kp-navy)', fontFamily: 'var(--font-sans)', outline: 'none', marginBottom: 10,
+            }}
+          />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} data-testid="onboarding-identity-upload">
+              <Upload size={14} style={{ marginRight: 6 }} /> Upload photo
+            </Button>
+            {soloAvatar && (
+              <Button variant="ghost" size="sm" onClick={() => { setSoloAvatar(null); }}>Remove</Button>
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              onChange={(e) => { void handleFile(e); }}
+              style={{ display: 'none' }}
+              data-testid="onboarding-identity-file"
+            />
+          </div>
+        </div>
+      </div>
+
+      <StepFooter onBack={onBack} onNext={onNext} nextTestId="onboarding-identity-next" />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 3 — Workspace explainer
 // ---------------------------------------------------------------------------
 
 const CLOUD_SYNC_NOTE = "These folders sync to that company's cloud automatically, so your files leave your device through their app. For the strictest confidentiality, choose your local Documents folder.";
@@ -497,7 +583,7 @@ function WorkspaceStep({ onBack, onNext }: { onBack: () => void; onNext: () => v
 }
 
 // ---------------------------------------------------------------------------
-// Step 3 — Trust / Data map
+// Step 4 — Trust / Data map
 // ---------------------------------------------------------------------------
 
 function TrustStep({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
@@ -550,7 +636,7 @@ function TrustStep({ onBack, onNext }: { onBack: () => void; onNext: () => void 
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 — AI key
+// Step 5 — AI key
 // ---------------------------------------------------------------------------
 
 interface AiKeyStepProps {
@@ -587,7 +673,7 @@ function AiKeyStep({ defaultProvider, onSaveKey, onBack, onAdvance }: AiKeyStepP
 }
 
 // ---------------------------------------------------------------------------
-// Step 5 — Connect email
+// Step 6 — Connect email
 // ---------------------------------------------------------------------------
 
 type EmailTabId = 'm365' | 'gmail' | 'imap';
@@ -667,8 +753,82 @@ function EmailStep({ tab, onTabChange, onBack, onAdvance }: EmailStepProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 6 — Firm members
+// Step 7 — Firm members
 // ---------------------------------------------------------------------------
+
+/**
+ * Firm branding for a signed-in admin: the firm name (prefilled from the
+ * subscription's org name) plus an uploadable logo. Both show in the sidebar
+ * for firm seats. Writes the cosmetic override in profileStore.
+ */
+function FirmBranding({ orgName }: { orgName: string | null }) {
+  const firmName = useProfileStore((s) => s.firmName);
+  const firmLogo = useProfileStore((s) => s.firmLogo);
+  const setFirmName = useProfileStore((s) => s.setFirmName);
+  const setFirmLogo = useProfileStore((s) => s.setFirmLogo);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      setFirmLogo(await readImageAsDataUrl(file));
+    } catch {
+      // ignore unreadable images
+    }
+  };
+
+  return (
+    <div
+      data-testid="firm-branding"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, padding: 16,
+        border: '1.5px solid hsl(214.3 31.8% 85%)', borderRadius: 10, background: '#fff',
+      }}
+    >
+      <span style={{
+        width: 56, height: 56, borderRadius: '50%', overflow: 'hidden', flex: 'none',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        background: 'hsl(210 40% 96.1%)', border: '1.5px solid hsl(214.3 31.8% 80%)',
+      }}>
+        {firmLogo
+          ? <img src={firmLogo} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <Building2 size={24} strokeWidth={1.75} color="hsl(215.4 16.3% 50%)" />}
+      </span>
+      <div style={{ flex: 1 }}>
+        <input
+          value={firmName}
+          onChange={(e) => { setFirmName(e.target.value); }}
+          placeholder={orgName || 'Firm name'}
+          aria-label="Firm name"
+          data-testid="firm-branding-name"
+          style={{
+            width: '100%', maxWidth: 320, border: '1.5px solid hsl(214.3 31.8% 70%)',
+            borderRadius: 8, padding: '8px 11px', fontSize: 14, fontWeight: 600,
+            color: 'var(--kp-navy)', fontFamily: 'var(--font-sans)', outline: 'none', marginBottom: 9,
+          }}
+        />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} data-testid="firm-branding-upload">
+            <Upload size={14} style={{ marginRight: 6 }} /> Upload logo
+          </Button>
+          {firmLogo && (
+            <Button variant="ghost" size="sm" onClick={() => { setFirmLogo(null); }}>Remove</Button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => { void handleFile(e); }}
+            style={{ display: 'none' }}
+            data-testid="firm-branding-file"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface FirmStepProps {
   onBack: () => void;
@@ -686,8 +846,9 @@ function FirmStep({ onBack, onAdvance }: FirmStepProps) {
     content = (
       <div data-testid="firm-admin-content">
         <p style={{ fontSize: 13, color: 'hsl(215.4 16.3% 44%)', marginBottom: 16, lineHeight: 1.5 }}>
-          You are signed in as a firm admin. Invite members and manage matters below.
+          You are signed in as a firm admin. Set your firm name and logo, then invite members and manage matters below.
         </p>
+        <FirmBranding orgName={firm.org?.name ?? null} />
         <FirmAdminConsole />
       </div>
     );
@@ -748,7 +909,7 @@ function FirmStep({ onBack, onAdvance }: FirmStepProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Step 7 — Done
+// Step 8 — Done
 // ---------------------------------------------------------------------------
 
 interface DoneStepProps {
