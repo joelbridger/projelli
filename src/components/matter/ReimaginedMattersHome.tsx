@@ -20,6 +20,7 @@ import { useApiKeys } from '@/hooks/useApiKeys';
 import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/utils/mail-commands';
 import type { Matter } from '@/types/matter';
 import { useEntityLabel } from '@/hooks/useEntityLabel';
+import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 
 /** localStorage key for dismissing the setup card. */
 const SETUP_CARD_DISMISSED_KEY = 'keepance:setup-card-dismissed';
@@ -611,87 +612,44 @@ export function ReimaginedMattersHome() {
       }}
     >
       {/* Page header */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 16,
-          padding: '28px 24px 20px',
-        }}
-      >
-        <div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              marginBottom: 4,
-            }}
-          >
-            <Briefcase
-              style={{
-                width: 18,
-                height: 18,
-                color: 'var(--kp-navy)',
-                strokeWidth: 1.75,
-                flex: 'none',
-              }}
-            />
-            <h1
-              style={{
-                margin: 0,
-                fontSize: 22,
-                fontWeight: 700,
-                color: 'var(--kp-navy)',
-                letterSpacing: '-0.01em',
-                lineHeight: 1.2,
-              }}
-            >
-              {entityLabel.Other}
-            </h1>
-          </div>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 13,
-              color: 'var(--color-muted-foreground)',
-              lineHeight: 1.4,
-            }}
-          >
-            {openCount === 0
+      <div style={{ padding: '28px 24px 20px' }}>
+        <SurfaceHeader
+          Icon={Briefcase}
+          title={entityLabel.Other}
+          description={
+            openCount === 0
               ? `No ${entityLabel.other} open.`
               : openCount === 1
               ? `1 ${entityLabel.one}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
-              : `${String(openCount)} ${entityLabel.other}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`}
-          </p>
-        </div>
-
-        {/* New entity button — stub; real creation via MatterManagerDialog */}
-        <button
-          type="button"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            background: 'var(--kp-navy)',
-            color: '#fff',
-            border: 'none',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            flex: 'none',
-          }}
-          onClick={() => {
-            window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
-          }}
-        >
-          <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
-          New {entityLabel.one}
-        </button>
+              : `${String(openCount)} ${entityLabel.other}${totalFolders > 0 ? `, ${String(totalFolders)} ${totalFolders === 1 ? 'folder' : 'folders'} indexed` : ''}. Click a row to focus AI on that client.`
+          }
+          actions={
+            <button
+              type="button"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 600,
+                background: 'var(--kp-navy)',
+                color: '#fff',
+                border: 'none',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flex: 'none',
+              }}
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('keepance:open-matter-manager'));
+              }}
+            >
+              <Plus style={{ width: 14, height: 14, strokeWidth: 2 }} />
+              New {entityLabel.one}
+            </button>
+          }
+        />
       </div>
 
       {/* Table card */}

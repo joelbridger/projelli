@@ -92,7 +92,9 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  Settings,
 } from 'lucide-react';
+import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -403,15 +405,15 @@ function SettingRow({
 
 /**
  * Per-section accordion context. Each top-level section owns one of these so
- * that exactly one sub-section is open at a time. The first sub-section is the
- * default-open one; a search match forces matching groups open. Clicking the
- * already-open header is a no-op so the section is never left empty.
+ * that at most one sub-section is open at a time. All sub-sections are
+ * collapsed by default; a search match forces matching groups open. Clicking
+ * the already-open header collapses it (zero-open is valid).
  */
 interface AccordionCtx {
-  /** Currently open sub-section id. */
+  /** Currently open sub-section id, or '' when all are collapsed. */
   openId: string;
-  /** Open a sub-section by id (clicking its header). Opening the already-open
-   *  one is a no-op, so one group is always visible. */
+  /** Toggle a sub-section. Opening a closed one (also closes any currently
+   *  open one). Clicking the already-open one collapses it to none. */
   open: (id: string) => void;
   /** When true, search is active — matching groups stay expanded regardless. */
   searchActive: boolean;
@@ -449,7 +451,7 @@ function SubSection({
   const isOpen = ctx
     ? ctx.searchActive
       ? containsMatch
-      : ctx.openId === id
+      : ctx.openId === id && ctx.openId !== ''
     : true;
 
   // While searching, hide groups that have no match so results stay scannable.
@@ -502,14 +504,16 @@ function SubSection({
 
 /**
  * AccordionSection — wraps a top-level section's sub-sections, owning the
- * "one open at a time / first default-open" state. Because a different section
- * component mounts when the user switches top-level sections, the open
- * sub-section naturally resets to the first (`ids[0]`) on every section change.
+ * "at most one open at a time / all collapsed by default" state. Because a
+ * different section component mounts when the user switches top-level
+ * sections, the open sub-section naturally resets to none on every section
+ * change.
  *
- * `ids` lists the sub-section ids in render order; `ids[0]` is the default-open.
+ * `ids` lists the sub-section ids in render order (unused beyond
+ * documentation now that none is default-open, kept for clarity).
  */
 function AccordionSection({
-  ids,
+  ids: _ids,
   searchActive,
   children,
 }: {
@@ -517,12 +521,13 @@ function AccordionSection({
   searchActive: boolean;
   children: React.ReactNode;
 }) {
-  const firstId = ids[0] ?? '';
-  const [openId, setOpenId] = useState<string>(firstId);
+  // '' means all sub-sections are collapsed.
+  const [openId, setOpenId] = useState<string>('');
 
   const open = useCallback((id: string) => {
-    // Opening the already-open group is a no-op so one is always visible.
-    setOpenId(id);
+    // Toggle: clicking the open sub-section collapses it; clicking a closed
+    // one opens it (and implicitly closes any currently open one via state).
+    setOpenId((prev) => (prev === id ? '' : id));
   }, []);
 
   const ctx = useMemo<AccordionCtx>(
@@ -1125,17 +1130,18 @@ export function SettingsContent({
         )}
       >
         {/* Header / Search */}
+        {variant === 'page' && (
+          <div className="shrink-0 border-b px-6 py-4">
+            <SurfaceHeader
+              Icon={Settings}
+              title="Settings"
+              description="Everything about how Keepance works for you."
+              testId="settings-surface-header"
+            />
+          </div>
+        )}
         <div className="shrink-0 border-b px-4 py-3 flex items-center gap-3">
-          {variant === 'page' ? (
-            <div className="shrink-0">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Keepance
-              </div>
-              <h2 className="text-base font-semibold leading-tight">
-                {t('settings.modal.title')}
-              </h2>
-            </div>
-          ) : (
+          {variant === 'modal' && (
             <h2 className="text-base font-semibold shrink-0">{t('settings.modal.title')}</h2>
           )}
           <div className="relative flex-1">

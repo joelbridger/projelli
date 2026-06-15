@@ -61,6 +61,7 @@ import { MemoryService, isMemoryEnabled } from '@/modules/memory/MemoryService';
 import { ALL_PRIVILEGE_STATUSES, isPrivileged, type Privilege } from '@/types/privilege';
 import type { RagHit, RetrievalScope } from '@/utils/tauri-commands';
 import { matterLabel } from '@/modules/memory/matterResolver';
+import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -1272,149 +1273,106 @@ export function ReimaginedEmailWorkspace({
           padding: '24px 24px 0',
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
-            gap: 16,
-            marginBottom: 16,
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <Mail
-              style={{
-                width: 18,
-                height: 18,
-                color: 'var(--kp-navy)',
-                strokeWidth: 1.75,
-                flex: 'none',
-              }}
-            />
-            <h1
-              style={{
-                margin: 0,
-                fontSize: 22,
-                fontWeight: 700,
-                color: 'var(--kp-navy)',
-                letterSpacing: '-0.01em',
-                lineHeight: 1.2,
-              }}
-            >
-              { }
-              Email
-              { }
-            </h1>
-          </div>
-
-          {/* Right side: compose button + scope toggle */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 10,
-              flex: 'none',
-            }}
-          >
-            <button
-              type="button"
-              data-testid="compose-btn"
-              onClick={() => {
-                setComposeOpen(true);
-                setComposeSendResult('none');
-                setComposeSendError(null);
-                setComposeAttachments([]);
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                padding: '5px 12px',
-                borderRadius: 6,
-                fontSize: 12,
-                fontWeight: 600,
-                background: 'var(--kp-navy)',
-                color: '#fff',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: 'var(--font-sans)',
-              }}
-            >
-              <PenLine style={{ width: 13, height: 13, strokeWidth: 2 }} />
-              { }New email{ }
-            </button>
-
-          {/* Scope toggle — only when a matter is active AND in Ask AI mode */}
-          {activeMatter && (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-end',
-                gap: 4,
-              }}
-            >
-              <div
+        <SurfaceHeader
+          Icon={Mail}
+          title="Email"
+          description="Search, read, and file your email."
+          actions={
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flex: 'none' }}>
+              <button
+                type="button"
+                data-testid="compose-btn"
+                onClick={() => {
+                  setComposeOpen(true);
+                  setComposeSendResult('none');
+                  setComposeSendError(null);
+                  setComposeAttachments([]);
+                }}
                 style={{
-                  display: 'flex',
+                  display: 'inline-flex',
                   alignItems: 'center',
-                  background: mode === 'keyword' ? 'rgba(10,37,64,0.03)' : 'rgba(10,37,64,0.05)',
+                  gap: 5,
+                  padding: '5px 12px',
                   borderRadius: 6,
-                  padding: 2,
-                  gap: 2,
-                  opacity: mode === 'keyword' ? 0.5 : 1,
-                  pointerEvents: mode === 'keyword' ? 'none' : 'auto',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  background: 'var(--kp-navy)',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-sans)',
                 }}
               >
-                { }
-                {[
-                  { label: 'This matter', all: false },
-                  { label: 'All email', all: true },
-                ].map(({ label, all }) => (
-                  <button
-                    key={label}
-                    type="button"
-                    data-testid={`scope-${all ? 'all' : 'matter'}`}
-                    disabled={mode === 'keyword'}
-                    onClick={() => {
-                      setScopeAllEmail(all);
-                      setOffset(0);
-                    }}
+                <PenLine style={{ width: 13, height: 13, strokeWidth: 2 }} />
+                {' '}New email{' '}
+              </button>
+
+              {/* Scope toggle — only when a matter is active AND in Ask AI mode */}
+              {activeMatter && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-end',
+                    gap: 4,
+                  }}
+                >
+                  <div
                     style={{
-                      padding: '4px 10px',
-                      borderRadius: 4,
-                      fontSize: 12,
-                      fontWeight: scopeAllEmail === all ? 600 : 400,
-                      background: scopeAllEmail === all ? '#fff' : 'transparent',
-                      color: scopeAllEmail === all ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-                      border: scopeAllEmail === all ? '1px solid var(--color-border)' : '1px solid transparent',
-                      cursor: mode === 'keyword' ? 'default' : 'pointer',
-                      boxShadow: scopeAllEmail === all ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                      transition: 'all 0.1s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      background: mode === 'keyword' ? 'rgba(10,37,64,0.03)' : 'rgba(10,37,64,0.05)',
+                      borderRadius: 6,
+                      padding: 2,
+                      gap: 2,
+                      opacity: mode === 'keyword' ? 0.5 : 1,
+                      pointerEvents: mode === 'keyword' ? 'none' : 'auto',
                     }}
                   >
-                    {label}
-                  </button>
-                ))}
-                { }
-              </div>
-              {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-              {mode === 'keyword' && (
-                <span style={{ fontSize: 10, color: 'var(--color-muted-foreground)', whiteSpace: 'nowrap', textAlign: 'right' }}>
-                  Keyword search covers all email. Use Ask AI for matter scope.
-                </span>
+                    { }
+                    {[
+                      { label: 'This matter', all: false },
+                      { label: 'All email', all: true },
+                    ].map(({ label, all }) => (
+                      <button
+                        key={label}
+                        type="button"
+                        data-testid={`scope-${all ? 'all' : 'matter'}`}
+                        disabled={mode === 'keyword'}
+                        onClick={() => {
+                          setScopeAllEmail(all);
+                          setOffset(0);
+                        }}
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 4,
+                          fontSize: 12,
+                          fontWeight: scopeAllEmail === all ? 600 : 400,
+                          background: scopeAllEmail === all ? '#fff' : 'transparent',
+                          color: scopeAllEmail === all ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+                          border: scopeAllEmail === all ? '1px solid var(--color-border)' : '1px solid transparent',
+                          cursor: mode === 'keyword' ? 'default' : 'pointer',
+                          boxShadow: scopeAllEmail === all ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
+                          transition: 'all 0.1s',
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    { }
+                  </div>
+                  {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+                  {mode === 'keyword' && (
+                    <span style={{ fontSize: 10, color: 'var(--color-muted-foreground)', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                      Keyword search covers all email. Use Ask AI for matter scope.
+                    </span>
+                  )}
+                  {/* eslint-enable keepance-i18n/no-hardcoded-string */}
+                </div>
               )}
-              {/* eslint-enable keepance-i18n/no-hardcoded-string */}
             </div>
-          )}
-          </div>
-        </div>
+          }
+        />
 
         {/* Hero search bar */}
         <div

@@ -67,7 +67,7 @@ describe('ReimaginedAuditHome', () => {
 
   it('renders the page title Activity Log', () => {
     render(<ReimaginedAuditHome entries={SAMPLE} />);
-    expect(screen.getByRole('heading', { name: /Activity Log/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /Activity Log/i })).toBeInTheDocument();
   });
 
   it('search filters rows by description text', () => {

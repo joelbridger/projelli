@@ -61,6 +61,7 @@ import {
   downloadAuditJSON,
 } from '@/utils/audit-export';
 import { isAuditEncrypted } from '@/modules/audit/AuditService';
+import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -1154,93 +1155,61 @@ export function ReimaginedAuditHome({ entries }: ReimaginedAuditHomeProps) {
       {/* Page header */}
       <div
         style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 16,
           padding: '22px 24px 16px',
           borderBottom: '1px solid var(--color-border)',
           flexShrink: 0,
         }}
       >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <ShieldCheck
-              style={{ width: 18, height: 18, color: 'var(--kp-navy)', strokeWidth: 1.75, flex: 'none' }}
-            />
-            <div>
-              <div
+        {/* eslint-disable keepance-i18n/no-hardcoded-string */}
+        <SurfaceHeader
+          Icon={ShieldCheck}
+          title="Activity Log"
+          description={
+            <>
+              Every AI request, file change, and workflow run in your workspace, logged and exportable.
+              {!encrypted && (
+                <span style={{ display: 'block', marginTop: 2, fontSize: 11, opacity: 0.75 }}>
+                  Stored in your browser, not encrypted. Use the desktop app for confidential work.
+                </span>
+              )}
+            </>
+          }
+          actions={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <button
+                type="button"
+                data-testid="audit-home-export-csv"
+                onClick={handleExportCSV}
+                disabled={filteredEntries.length === 0}
                 style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: '0.13em',
-                  textTransform: 'uppercase',
-                  color: 'var(--color-muted-foreground)',
-                  marginBottom: 2,
+                  ...btnBase,
+                  opacity: filteredEntries.length === 0 ? 0.45 : 1,
                 }}
+                title="Export as CSV"
+                aria-label="Export audit log as CSV"
               >
-                ACTIVITY LOG
-              </div>
-              <h1
+                <Download style={{ width: 13, height: 13 }} />
+                CSV
+              </button>
+              <button
+                type="button"
+                data-testid="audit-home-export-json"
+                onClick={handleExportJSON}
+                disabled={filteredEntries.length === 0}
                 style={{
-                  margin: 0,
-                  fontSize: 20,
-                  fontWeight: 800,
-                  color: 'var(--kp-navy)',
-                  letterSpacing: '-0.02em',
-                  lineHeight: 1.2,
+                  ...btnBase,
+                  opacity: filteredEntries.length === 0 ? 0.45 : 1,
                 }}
+                title="Export as JSON"
+                aria-label="Export audit log as JSON"
               >
-                Activity Log
-              </h1>
+                <Download style={{ width: 13, height: 13 }} />
+                JSON
+              </button>
             </div>
-          </div>
-          {/* eslint-disable keepance-i18n/no-hardcoded-string */}
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--color-muted-foreground)', lineHeight: 1.45, maxWidth: 520 }}>
-            Every AI request, file change, and workflow run in your workspace, logged and exportable.
-            Save it any time as proof for a client, a court, or a compliance review.
-          </p>
-          {!encrypted && (
-            <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--color-muted-foreground)', lineHeight: 1.4, maxWidth: 520, opacity: 0.75 }}>
-              Stored in your browser, not encrypted. Use the desktop app for confidential work.
-            </p>
-          )}
-          {/* eslint-enable keepance-i18n/no-hardcoded-string */}
-        </div>
-
-        {/* Export buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-          <button
-            type="button"
-            data-testid="audit-home-export-csv"
-            onClick={handleExportCSV}
-            disabled={filteredEntries.length === 0}
-            style={{
-              ...btnBase,
-              opacity: filteredEntries.length === 0 ? 0.45 : 1,
-            }}
-            title="Export as CSV"
-            aria-label="Export audit log as CSV"
-          >
-            <Download style={{ width: 13, height: 13 }} />
-            CSV
-          </button>
-          <button
-            type="button"
-            data-testid="audit-home-export-json"
-            onClick={handleExportJSON}
-            disabled={filteredEntries.length === 0}
-            style={{
-              ...btnBase,
-              opacity: filteredEntries.length === 0 ? 0.45 : 1,
-            }}
-            title="Export as JSON"
-            aria-label="Export audit log as JSON"
-          >
-            <Download style={{ width: 13, height: 13 }} />
-            JSON
-          </button>
-        </div>
+          }
+        />
+        {/* eslint-enable keepance-i18n/no-hardcoded-string */}
       </div>
 
       {/* Controls row: search + filter toggle */}

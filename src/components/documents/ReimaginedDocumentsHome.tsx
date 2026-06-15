@@ -29,7 +29,8 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { FolderOpen, FileText, X, LayoutGrid, ListTree } from 'lucide-react';
+import { FolderOpen, FolderTree, FileText, X, LayoutGrid, ListTree } from 'lucide-react';
+import { SurfaceHeader } from '@/components/layout/SurfaceHeader';
 import { useEditorStore } from '@/stores/editorStore';
 import { getFileIcon } from '@/utils/fileIcons';
 import type { TrashedItem, TrashStats } from '@/modules/history/TrashService';
@@ -568,6 +569,15 @@ export function ReimaginedDocumentsHome({
         overflow: 'hidden',
       }}
     >
+      {/* Page header */}
+      <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
+        <SurfaceHeader
+          Icon={FolderTree}
+          title="Documents"
+          description="Your files and folders, on your computer."
+        />
+      </div>
+
       {/* ── Unified tab strip ──────────────────────────────────────────── */}
       <div
         data-testid="documents-tab-strip"

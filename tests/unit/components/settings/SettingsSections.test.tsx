@@ -38,10 +38,10 @@ function renderModal(initialCategory?: string) {
 }
 
 /**
- * Expand an accordion sub-section by clicking its header. Sub-section bodies
- * are collapsed by default (only the FIRST is open), so a control that lives in
- * a non-first group must be revealed first. The clickable header carries the
- * testid `${subheaderTestid}-heading`.
+ * Expand an accordion sub-section by clicking its header. All sub-section
+ * bodies are collapsed by default, so any control must be revealed before
+ * asserting on it. The clickable header carries the testid
+ * `${subheaderTestid}-heading`.
  */
 function expandSubsection(subheaderTestid: string) {
   fireEvent.click(screen.getByTestId(`${subheaderTestid}-heading`));
@@ -272,8 +272,9 @@ describe('SettingsModal section sub-headers', () => {
 // ---------------------------------------------------------------------------
 
 describe('SettingsModal controls per section', () => {
-  it('Workspace: theme select is present', () => {
+  it('Workspace: theme select is present (after expanding General)', () => {
     renderModal('workspace');
+    expandSubsection('subheader-general');
     expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
   });
 
@@ -302,14 +303,15 @@ describe('SettingsModal controls per section', () => {
     expect(screen.getByTestId('settings-facts-inject-toggle')).toBeInTheDocument();
   });
 
-  it('AI & Privacy: manageApiKeys action link is present (from ai, default-open)', () => {
+  it('AI & Privacy: manageApiKeys action link is present (from ai, after expanding)', () => {
     renderModal('ai-privacy');
-    // AI is the first sub-section, so it is open by default.
+    expandSubsection('subheader-ai');
     expect(screen.getByTestId('setting-manageApiKeys')).toBeInTheDocument();
   });
 
-  it('Voice: voiceEnabled toggle is present (Voice Input, default-open)', () => {
+  it('Voice: voiceEnabled toggle is present (Voice Input, after expanding)', () => {
     renderModal('voice');
+    expandSubsection('subheader-voice-input');
     expect(screen.getByTestId('setting-voiceEnabled')).toBeInTheDocument();
   });
 
@@ -333,19 +335,19 @@ describe('SettingsModal controls per section', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Accordion sub-sections (R62.2): one open at a time, first default-open,
-// section switch resets to the first.
+// Accordion sub-sections (R71): all collapsed by default; toggle-to-collapse;
+// one open at a time when opening; section switch resets to all-collapsed.
 // ---------------------------------------------------------------------------
 
 describe('SettingsModal accordion sub-sections', () => {
-  it('only the FIRST sub-section is open by default (Workspace: General open, Editor/Files closed)', () => {
+  it('ALL sub-sections are collapsed by default (Workspace: General/Editor/Files all closed)', () => {
     renderModal('workspace');
-    // General (first) is open → its control is visible.
-    expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
-    // Editor + Files bodies are collapsed → their controls are absent.
+    // No sub-section body is open — controls are absent.
+    expect(screen.queryByTestId('setting-theme')).not.toBeInTheDocument();
     expect(screen.queryByTestId('setting-autoSave')).not.toBeInTheDocument();
     expect(screen.queryByTestId('setting-defaultNewFileType')).not.toBeInTheDocument();
     // But every sub-section HEADER still renders.
+    expect(screen.getByTestId('subheader-general')).toBeInTheDocument();
     expect(screen.getByTestId('subheader-editor')).toBeInTheDocument();
     expect(screen.getByTestId('subheader-files')).toBeInTheDocument();
   });
@@ -359,7 +361,8 @@ describe('SettingsModal accordion sub-sections', () => {
 
   it('opening a second sub-section collapses the first (only one open at a time)', () => {
     renderModal('workspace');
-    // General open by default.
+    // Open General first.
+    expandSubsection('subheader-general');
     expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
     // Open Files → General must close.
     expandSubsection('subheader-files');
@@ -369,36 +372,43 @@ describe('SettingsModal accordion sub-sections', () => {
     expect(screen.queryByTestId('setting-autoSave')).not.toBeInTheDocument();
   });
 
-  it('the open sub-section header reports aria-expanded=true; closed ones false', () => {
+  it('all sub-section headers report aria-expanded=false by default', () => {
     renderModal('workspace');
     expect(
       screen.getByTestId('subheader-general-heading').getAttribute('aria-expanded'),
-    ).toBe('true');
+    ).toBe('false');
     expect(
       screen.getByTestId('subheader-editor-heading').getAttribute('aria-expanded'),
     ).toBe('false');
   });
 
-  it('clicking the already-open header keeps it open (section is never empty)', () => {
+  it('clicking the already-open header collapses it (zero-open is valid)', () => {
     renderModal('workspace');
+    // Open General.
+    expandSubsection('subheader-general');
     expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
-    expandSubsection('subheader-general'); // click the open one
-    // Still open — one group is always visible.
-    expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
+    // Click the open one again — it should collapse.
+    expandSubsection('subheader-general');
+    expect(screen.queryByTestId('setting-theme')).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId('subheader-general-heading').getAttribute('aria-expanded'),
+    ).toBe('false');
   });
 
-  it('switching top-level sections resets to that section first sub-section open', () => {
+  it('switching top-level sections resets to all-collapsed for the new section', () => {
     renderModal('workspace');
-    // Open a non-first sub-section in Workspace.
+    // Open a sub-section in Workspace.
     expandSubsection('subheader-files');
     expect(screen.getByTestId('setting-defaultNewFileType')).toBeInTheDocument();
-    // Switch to AI & Privacy → its FIRST sub-section (AI) is open, not a stale one.
+    // Switch to AI & Privacy → ALL sub-sections should be collapsed.
     fireEvent.click(screen.getByTestId('settings-category-ai-privacy'));
-    expect(screen.getByTestId('setting-manageApiKeys')).toBeInTheDocument(); // AI (first) open
-    expect(screen.queryByTestId('settings-memory-enabled')).not.toBeInTheDocument(); // Memory closed
-    // Switch back to Workspace → General (first) open again, Files reset to closed.
+    expect(screen.queryByTestId('setting-manageApiKeys')).not.toBeInTheDocument(); // AI collapsed
+    expect(screen.queryByTestId('settings-memory-enabled')).not.toBeInTheDocument(); // Memory collapsed
+    // Headers should still render.
+    expect(screen.getByTestId('subheader-ai')).toBeInTheDocument();
+    // Switch back to Workspace → General reset to collapsed.
     fireEvent.click(screen.getByTestId('settings-category-workspace'));
-    expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
+    expect(screen.queryByTestId('setting-theme')).not.toBeInTheDocument();
     expect(screen.queryByTestId('setting-defaultNewFileType')).not.toBeInTheDocument();
   });
 });
@@ -419,7 +429,7 @@ describe('SettingsModal search expands matching sub-sections', () => {
     expect(screen.getByTestId('setting-autoSave')).toBeInTheDocument();
   });
 
-  it('clearing the search restores the default accordion (first open, rest collapsed)', () => {
+  it('clearing the search restores the default accordion (all collapsed)', () => {
     renderModal('workspace');
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: 'auto save' },
@@ -428,8 +438,8 @@ describe('SettingsModal search expands matching sub-sections', () => {
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: '' },
     });
-    // Back to default: General open, Editor collapsed again.
-    expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
+    // Back to default: all sub-sections collapsed.
+    expect(screen.queryByTestId('setting-theme')).not.toBeInTheDocument();
     expect(screen.queryByTestId('setting-autoSave')).not.toBeInTheDocument();
   });
 });

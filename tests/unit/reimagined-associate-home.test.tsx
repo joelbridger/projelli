@@ -132,10 +132,9 @@ describe('ReimaginedAssociateHome (law persona)', () => {
     mockUseActiveMatter.mockReturnValue(null);
   });
 
-  it('renders the header eyebrow and title', () => {
+  it('renders the surface header title', () => {
     render(<ReimaginedAssociateHome {...defaultProps()} />);
-    expect(screen.getByText('WORKFLOWS')).toBeTruthy();
-    expect(screen.getByText('Workflows')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Workflows' })).toBeTruthy();
   });
 
   it('renders the search box', () => {
